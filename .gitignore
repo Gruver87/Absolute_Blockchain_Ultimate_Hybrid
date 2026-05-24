@@ -2,26 +2,32 @@
 __pycache__/
 *.pyc
 venv/
-.env
+.venv/
+env/
+
+# Database
 *.db
+*.sqlite
+
+# Logs
 *.log
-*.backup
-*.pid
+logs/
 
 # IDE
 .vscode/
 .idea/
 
+# Secrets
+.env
+*.key
+*.pem
+*.secret
+
 # OS
 .DS_Store
 Thumbs.db
 
-# Data
+# Project
 data/
-logs/
 temp/
-
-# Secrets
-*.key
-*.pem
-*.crt
+*.backup

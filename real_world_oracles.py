@@ -1,7 +1,8 @@
+ï»¿import os
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ABSOLUTE BLOCKCHAIN - REAL WORLD ORACLES (Ñ ÐÀÁÎ×ÈÌÈ API)
+ABSOLUTE BLOCKCHAIN - REAL WORLD ORACLES (Ð¡ Ð ÐÐ‘ÐžÐ§Ð˜ÐœÐ˜ API)
 """
 
 import time
@@ -107,9 +108,9 @@ class WeatherOracle:
     def __init__(self):
         self.cache = {}
         self.lock = threading.RLock()
-        # ÒÂÎÈ API ÊËÞ×È
+        # Ð¢Ð’ÐžÐ˜ API ÐšÐ›Ð®Ð§Ð˜
         self.OPENWEATHER_API_KEY = "YOUR_OPENWEATHER_API_KEY"
-        self.WEATHERAPI_KEY = "REDACTED_WEATHERAPI_USE_ENV"
+        self.WEATHERAPI_KEY = os.getenv("WEATHERAPI_KEY", "")
         print("??? Weather Oracle initialized")
     
     def _fetch_openweather(self, city: str) -> Optional[Dict]:
@@ -246,3 +247,4 @@ class OracleManager:
         print("?? Auto-update started")
 
 oracle_manager = OracleManager()
+
