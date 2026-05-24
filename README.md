@@ -156,7 +156,36 @@ text
 
 ---
 
-## 🚀 Установка и запуск
+## 
+## 📋 ПЛАН ЗАПУСКА (ДЛЯ НОВИЧКОВ)
+
+1. **Клонируй репозиторий**  
+   `git clone https://github.com/Gruver87/absolute-blockchain-ultimate.git`
+
+2. **Перейди в папку**  
+   `cd absolute-blockchain-ultimate`
+
+3. **Установи зависимости**  
+   `pip install -r requirements.txt`
+
+4. **Запусти основной блокчейн**  
+   `python ABSOLUTE_FINAL_FIXED.py`
+
+5. **Открой браузер** → `http://localhost:8080`
+
+### 🎯 ЧТО ДЕЛАТЬ ДАЛЬШЕ?
+
+| Действие | Команда |
+|----------|---------|
+| Создать кошелёк | `curl -X POST http://localhost:8080/api/wallet/create` |
+| Проверить баланс | `curl "http://localhost:8080/api/balance?address=foundation"` |
+| Отправить транзакцию | `curl -X POST http://localhost:8080/api/transaction/send -H "Content-Type: application/json" -d '{"from":"foundation","to":"test","amount":100}'` |
+| Замайнить блок | `curl -X POST http://localhost:8080/api/mine -H "Content-Type: application/json" -d '{"miner":"foundation"}'` |
+| Открыть веб-интерфейс | `http://localhost:8080` |
+| Посмотреть NFT | `http://localhost:8080/nft` |
+
+
+
 
 ### Требования
 
@@ -273,3 +302,4 @@ MIT © 2026 Uladzimir Dabranski (Gruver87)
 
 ⭐ Если вам нравится этот проект
 Поставьте звезду на GitHub — это поможет проекту расти!
+
