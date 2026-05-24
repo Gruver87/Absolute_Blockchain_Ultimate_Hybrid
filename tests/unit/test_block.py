@@ -1,4 +1,7 @@
-﻿# tests/unit/test_block.py
+﻿import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# tests/unit/test_block.py
 import pytest
 from core.block import Block
 from core.transaction import Transaction
@@ -25,3 +28,7 @@ def test_block_verify():
     block = Block(0, "0"*64, txs, int(time.time()), 0, "genesis")
     block.block_hash = block.calculate_hash()
     assert block.verify() == True
+
+
+
+

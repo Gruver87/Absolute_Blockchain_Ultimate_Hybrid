@@ -1,4 +1,7 @@
-﻿# tests/unit/test_crypto.py
+﻿import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# tests/unit/test_crypto.py
 import pytest
 from core.wallet_crypto import CryptoWallet
 
@@ -13,3 +16,6 @@ def test_sign_and_verify():
     message = "Hello Blockchain"
     signature = CryptoWallet.sign_message(wallet["private_key"], message)
     assert CryptoWallet.verify_signature(wallet["public_key"], message, signature) == True
+
+
+

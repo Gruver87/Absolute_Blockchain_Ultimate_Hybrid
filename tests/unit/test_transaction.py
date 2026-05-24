@@ -1,4 +1,7 @@
-﻿# tests/unit/test_transaction.py
+﻿import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# tests/unit/test_transaction.py
 import pytest
 from core.transaction import Transaction
 import time
@@ -29,3 +32,7 @@ def test_transaction_hash():
     )
     tx_hash = tx.calculate_hash()
     assert len(tx_hash) == 64
+
+
+
+

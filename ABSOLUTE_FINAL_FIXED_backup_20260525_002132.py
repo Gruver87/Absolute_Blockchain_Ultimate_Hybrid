@@ -39,23 +39,6 @@ from api.middleware.rate_limiter import rate_limiter, check_rate_limit
 from api.utils.response import send_json, send_error, get_json_body
 from api.validators.validators import validate_address, validate_amount
 
-# ===== НОВЫЕ МОДУЛИ: MEMPOOL И RATE LIMITER =====
-try:
-    from blockchain.mempool import Mempool, MempoolTransaction
-    MEMPOOL_READY = True
-    print("✅ Mempool module loaded")
-except Exception as e:
-    MEMPOOL_READY = False
-    print(f"⚠️ Mempool not available: {e}")
-
-try:
-    from api.middleware.rate_limiter import rate_limiter, check_rate_limit
-    RATE_LIMITER_READY = True
-    print("✅ Rate limiter module loaded")
-except Exception as e:
-    RATE_LIMITER_READY = False
-    print(f"⚠️ Rate limiter not available: {e}")
-
 # ============== ЦВЕТА ==============
 class Colors:
     RED = '\033[91m'
@@ -1957,12 +1940,6 @@ class P2PBlockchainNode:
         self.ip = ip
         self.port = port
         self.blockchain = blockchain_instance
-        # Инициализация Mempool
-        if MEMPOOL_READY:
-            self.mempool = Mempool()
-            print("✅ Mempool initialized in APIHandler")
-        else:
-            self.mempool = None
         self.peers = []
         self.running = False
         self.socket = None
@@ -2111,12 +2088,6 @@ p2p_node = None
 class APIHandler(BaseHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         self.blockchain = blockchain
-        # Инициализация Mempool
-        if MEMPOOL_READY:
-            self.mempool = Mempool()
-            print("✅ Mempool initialized in APIHandler")
-        else:
-            self.mempool = None
         self.evm = evm
         self.wasm_vm = wasm_vm
         self.nft_manager = nft_manager

@@ -1,4 +1,7 @@
-﻿# tests/unit/test_nft.py
+﻿import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# tests/unit/test_nft.py
 import pytest
 from modules.nft import NFTModule
 
@@ -11,3 +14,6 @@ def test_nft_stats():
     nft = NFTModule(None)
     stats = nft.get_stats()
     assert "total_nfts" in stats
+
+
+
