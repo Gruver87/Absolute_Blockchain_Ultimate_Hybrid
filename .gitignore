@@ -31,3 +31,7 @@ Thumbs.db
 data/
 temp/
 *.backup
+# Бэкапы
+*_backup*.py
+*.backup.py
+
