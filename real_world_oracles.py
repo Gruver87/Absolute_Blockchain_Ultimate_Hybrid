@@ -1,7 +1,7 @@
-ï»¿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ABSOLUTE BLOCKCHAIN - REAL WORLD ORACLES (Ğ¡ Ğ ĞĞ‘ĞĞ§Ğ˜ĞœĞ˜ API)
+ABSOLUTE BLOCKCHAIN - REAL WORLD ORACLES (Ñ ĞÀÁÎ×ÈÌÈ API)
 """
 
 import time
@@ -20,7 +20,7 @@ class PriceOracle:
     def __init__(self):
         self.cache = {}
         self.lock = threading.RLock()
-        print("ğŸ’° Price Oracle initialized")
+        print("?? Price Oracle initialized")
     
     def _fetch_coingecko(self, symbol):
         try:
@@ -107,10 +107,10 @@ class WeatherOracle:
     def __init__(self):
         self.cache = {}
         self.lock = threading.RLock()
-        # Ğ¢Ğ’ĞĞ˜ API ĞšĞ›Ğ®Ğ§Ğ˜
-        self.OPENWEATHER_API_KEY = "REDACTED_OPENWEATHER_USE_ENV"
+        # ÒÂÎÈ API ÊËŞ×È
+        self.OPENWEATHER_API_KEY = "YOUR_OPENWEATHER_API_KEY"
         self.WEATHERAPI_KEY = "REDACTED_WEATHERAPI_USE_ENV"
-        print("ğŸŒ¤ï¸ Weather Oracle initialized")
+        print("??? Weather Oracle initialized")
     
     def _fetch_openweather(self, city: str) -> Optional[Dict]:
         try:
@@ -196,7 +196,7 @@ class NewsOracle:
     def __init__(self):
         self.cache = {}
         self.lock = threading.RLock()
-        print("ğŸ“° News Oracle initialized")
+        print("?? News Oracle initialized")
     
     def get_news(self, currency=None, limit=10):
         return {'news': [], 'count': 0, 'timestamp': int(time.time())}
@@ -207,7 +207,7 @@ class OracleManager:
         self.weather_oracle = WeatherOracle()
         self.news_oracle = NewsOracle()
         self._running = False
-        print("ğŸŒ Oracle Manager initialized")
+        print("?? Oracle Manager initialized")
     
     def get_price(self, symbol='bitcoin'):
         return self.price_oracle.get_price(symbol)
@@ -238,11 +238,11 @@ class OracleManager:
             while self._running:
                 try:
                     self.get_price('bitcoin')
-                    print(f"ğŸŒ Oracles data updated at {datetime.now()}")
+                    print(f"?? Oracles data updated at {datetime.now()}")
                 except:
                     pass
                 time.sleep(OracleConfig.UPDATE_INTERVAL)
         threading.Thread(target=update_loop, daemon=True).start()
-        print("ğŸŒ Auto-update started")
+        print("?? Auto-update started")
 
 oracle_manager = OracleManager()
