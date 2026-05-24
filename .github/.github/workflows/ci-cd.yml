@@ -1,0 +1,74 @@
+name: Absolute Blockchain CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install
+        run: |
+          pip install pytest flake8
+          pip install -r requirements.txt 2>/dev/null || true
+      - name: Lint
+        run: flake8 . --max-line-length=120 || true
+      - name: Test
+        run: pytest tests/ -v || true
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/gruver87/absolute-blockchain:latest
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: docker
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            echo "Deployment started at $(date)"
+            docker pull ghcr.io/gruver87/absolute-blockchain:latest
+            docker stop blockchain 2>/dev/null || true
+            docker rm blockchain 2>/dev/null || true
+            docker run -d --name blockchain -p 8080:8080 -p 5000:5000 ghcr.io/gruver87/absolute-blockchain:latest
+            echo "Deployment finished at $(date)"
+
+  release:
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ github.ref_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}

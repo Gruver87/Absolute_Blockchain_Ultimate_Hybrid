@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
+    <defs>
+        <radialGradient id="bgGrad" cx="50%" cy="50%" r="70%">
+            <stop offset="0%" stop-color="#001a33" stop-opacity="1" />
+            <stop offset="100%" stop-color="#000511" stop-opacity="1" />
+        </radialGradient>
+        <radialGradient id="glowGrad" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#87CEEB" stop-opacity="0.4" />
+            <stop offset="100%" stop-color="#87CEEB" stop-opacity="0" />
+        </radialGradient>
+        <filter id="glow">
+            <feGaussianBlur stdDeviation="8" result="blur"/>
+            <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+    </defs>
+    
+    <rect width="800" height="800" fill="url(#bgGrad)"/>
+    <circle cx="400" cy="400" r="320" fill="url(#glowGrad)"/>
+    
+    <rect x="20" y="20" width="760" height="760" rx="30" ry="30" fill="none" stroke="#4682B4" stroke-width="4" opacity="0.8"/>
+    
+    <text x="400" y="70" text-anchor="middle" font-family="Arial" font-size="24" font-weight="bold" fill="#87CEEB" filter="url(#glow)">Harmony Token - Эмблема Доверия</text>
+    
+    <g transform="translate(400,380)">
+        <ellipse cx="0" cy="20" rx="80" ry="100" fill="#4682B4" opacity="0.8"/>
+        <circle cx="0" cy="-80" r="60" fill="#4682B4" filter="url(#glow)"/>
+        
+        <circle cx="-22" cy="-95" r="14" fill="white"/>
+        <circle cx="22" cy="-95" r="14" fill="white"/>
+        <circle cx="-18" cy="-93" r="7" fill="black"/>
+        <circle cx="26" cy="-93" r="7" fill="black"/>
+        
+        <text x="0" y="25" text-anchor="middle" font-family="Arial" font-size="55" fill="white" filter="url(#glow)">★</text>
+    </g>
+    
+    <text x="400" y="670" text-anchor="middle" font-family="Arial" font-size="18" fill="#aaa">Уникальный 3D персонаж</text>
+    
+    <rect x="280" y="700" width="240" height="40" rx="10" ry="10" fill="none" stroke="#4682B4" stroke-width="2"/>
+    <text x="400" y="726" text-anchor="middle" font-family="Arial" font-size="18" fill="white">Редкость: RARE</text>
+    
+    <text x="400" y="780" text-anchor="middle" font-family="Arial" font-size="14" fill="#555">Absolute Blockchain • 2025</text>
+</svg>

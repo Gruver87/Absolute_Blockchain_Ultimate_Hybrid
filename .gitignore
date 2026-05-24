@@ -1,0 +1,27 @@
+﻿# Python
+__pycache__/
+*.pyc
+venv/
+.env
+*.db
+*.log
+*.backup
+*.pid
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data
+data/
+logs/
+temp/
+
+# Secrets
+*.key
+*.pem
+*.crt

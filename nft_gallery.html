@@ -1,0 +1,165 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Absolute Blockchain - NFT Gallery</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: linear-gradient(135deg, #0f0c29, #1a1a3e, #24243e);
+            font-family: 'Segoe UI', monospace;
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2em;
+            background: linear-gradient(135deg, #ffd700, #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #aaa;
+            margin-bottom: 30px;
+        }
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 25px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .nft-card {
+            background: rgba(255,255,255,0.08);
+            backdrop-filter: blur(15px);
+            border-radius: 20px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+            border: 1px solid rgba(255,215,0,0.2);
+        }
+        .nft-card:hover {
+            transform: translateY(-10px);
+            border-color: #ffd700;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+        .nft-image {
+            width: 100%;
+            max-width: 200px;
+            border-radius: 15px;
+            margin-bottom: 15px;
+        }
+        .nft-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #ffd700;
+            margin-bottom: 5px;
+        }
+        .nft-id {
+            font-size: 10px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .nft-price {
+            font-size: 14px;
+            color: #00ff88;
+            margin-top: 10px;
+        }
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+        }
+        .stat-card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 15px 30px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #ffd700;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 50px;
+            padding: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            font-size: 12px;
+            color: #666;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #888;
+            grid-column: 1/-1;
+        }
+    </style>
+</head>
+<body>
+    <h1>🦋 ABSOLUTE BLOCKCHAIN - NFT GALLERY</h1>
+    <div class="subtitle">Живые 3D NFT герои | Пост-квантовая защита</div>
+    
+    <div class="stats" id="stats">
+        <div class="stat-card"><div class="stat-value" id="totalCount">-</div><div>Всего NFT</div></div>
+    </div>
+    
+    <div class="gallery" id="gallery">
+        <div class="loading">⏳ Загрузка NFT...</div>
+    </div>
+    
+    <div class="footer">
+        🔐 DABRANSKI ULADZIMIR PETROVICH | 14.07.1987 | GRODNO
+    </div>
+    
+    <script>
+        async function loadNFTs() {
+            try {
+                const response = await fetch('/api/nft/tokens');
+                const data = await response.json();
+                const tokens = data.tokens || [];
+                const total = data.total || tokens.length;
+                
+                document.getElementById('totalCount').innerText = total;
+                
+                const gallery = document.getElementById('gallery');
+                
+                if (tokens.length === 0) {
+                    gallery.innerHTML = '<div class="loading">🎨 Пока нет NFT. Создайте первого героя!</div>';
+                    return;
+                }
+                
+                gallery.innerHTML = tokens.map(token => {
+                    const imageUrl = token.metadata?.image || 'https://via.placeholder.com/200x200?text=NFT';
+                    const price = token.price || 0;
+                    const tokenId = token.token_id;
+                    
+                    return `
+                        <div class="nft-card" onclick="window.open('/nft/${tokenId}', '_blank')">
+                            <img class="nft-image" src="${imageUrl}" 
+                                 onerror="this.src='https://via.placeholder.com/200x200?text=NFT'">
+                            <div class="nft-name">${token.name || 'NFT Hero'}</div>
+                            <div class="nft-id">${tokenId.substring(0, 16)}...</div>
+                            <div class="nft-price">💰 ${price} ABS</div>
+                        </div>
+                    `;
+                }).join('');
+            } catch(e) {
+                console.error(e);
+                document.getElementById('gallery').innerHTML = '<div class="loading">❌ Ошибка загрузки NFT</div>';
+            }
+        }
+        
+        loadNFTs();
+        setInterval(loadNFTs, 10000);
+    </script>
+</body>
+</html>
