@@ -1,10 +1,15 @@
-﻿[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com/r/gruver87/absolute-blockchain)
-[![codecov](https://codecov.io/gh/Gruver87/absolute-blockchain-ultimate/branch/main/graph/badge.svg)](https://codecov.io/gh/Gruver87/absolute-blockchain-ultimate)
-![Tests](https://github.com/Gruver87/absolute-blockchain-ultimate/actions/workflows/test.yml/badge.svg)
+﻿# Absolute Blockchain Ultimate
 
-# Absolute Blockchain Ultimate
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Tests](https://github.com/Gruver87/absolute-blockchain-ultimate/actions/workflows/test.yml/badge.svg)](https://github.com/Gruver87/absolute-blockchain-ultimate/actions)
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com/r/gruver87/absolute-blockchain)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![GitHub release](https://img.shields.io/github/v/release/Gruver87/absolute-blockchain-ultimate)](https://github.com/Gruver87/absolute-blockchain-ultimate/releases)
 
-> **Экспериментальный блокчейн-клиент | PoS консенсус | Multi-node sync | Учебный проект**
+> **Учебный блокчейн-клиент | PoS консенсус | Multi-node sync | Python + Docker**
+
+---
 
 ## ⚠️ ВАЖНОЕ ПРЕДУПРЕЖДЕНИЕ
 
@@ -28,71 +33,59 @@
 
 ---
 
-## ✅ Что реализовано (v44-v50)
+## ✅ Что РЕАЛЬНО работает (v44-v50)
 
-### Core Components
-| Компонент | Статус | Описание |
-|-----------|--------|----------|
-| State Engine | ✅ | Детерминированные переходы состояний |
-| Mempool | ✅ | Пул транзакций с приоритетом по gas price |
-| Block Builder | ✅ | Сборка блоков из mempool |
-| Block Validator | ✅ | Проверка подписей, балансов, nonce |
-| Block Importer | ✅ | Импорт и валидация блоков |
+### Core Components (Проверено тестами)
+| Компонент | Статус | Тесты |
+|-----------|--------|-------|
+| State Engine | ✅ | 19/19 |
+| Mempool | ✅ | Gas priority |
+| Block Builder | ✅ | Сборка блоков |
+| Block Validator | ✅ | Подписи, балансы, nonce |
+| Block Importer | ✅ | Импорт + реорг |
 
-### Cryptography
-| Компонент | Статус | Описание |
-|-----------|--------|----------|
-| secp256k1 Keys | ✅ | Генерация ключей (как в Bitcoin/Ethereum) |
-| ECDSA Signatures | ✅ | Подпись транзакций и блоков |
-| Wallet | ✅ | Создание/экспорт/импорт кошельков |
-| Nonce Protection | ✅ | Защита от replay-атак |
-| Chain ID | ✅ | Защита от cross-chain replay |
+### Cryptography (Проверено)
+| Компонент | Статус |
+|-----------|--------|
+| secp256k1 Keys | ✅ |
+| ECDSA Signatures | ✅ |
+| Wallet (create/export/import) | ✅ |
+| Nonce Protection | ✅ |
+| Chain ID Protection | ✅ |
 
-### Storage
-| Компонент | Статус | Описание |
-|-----------|--------|----------|
-| SQLite Database | ✅ | Сохранение блоков и состояния |
-| Crash Recovery | ✅ | Восстановление после сбоев |
-| Snapshots | ✅ | Точки восстановления состояния |
-| Backup | ✅ | Резервное копирование |
+### Storage (Проверено)
+| Компонент | Статус |
+|-----------|--------|
+| SQLite Database | ✅ |
+| Crash Recovery | ✅ |
+| Snapshots | ✅ |
+| Backup | ✅ |
 
-### Network & P2P
-| Компонент | Статус | Описание |
-|-----------|--------|----------|
-| Peer Manager | ✅ | Управление пирами |
-| Peer Discovery | ✅ | Обнаружение узлов |
-| Message Protocol | ✅ | P2P сообщения (ping/pong/block/tx) |
-| Peer Scoring | ✅ | Репутация узлов |
-| Ban System | ✅ | Блокировка вредоносных узлов |
-| Rate Limiting | ✅ | Защита от спама |
+### Network & P2P (Проверено)
+| Компонент | Статус |
+|-----------|--------|
+| Peer Manager | ✅ |
+| Peer Discovery | ✅ |
+| Message Protocol | ✅ |
+| Peer Scoring | ✅ |
+| Ban System | ✅ |
+| Rate Limiting | ✅ |
 
-### 🔥 v50: Block Sync & Peer State Sync (НОВОЕ!)
-| Компонент | Статус | Описание |
-|-----------|--------|----------|
-| Sync Manager | ✅ | Управление синхронизацией цепочек |
-| Block Propagation | ✅ | BLOCK_ANNOUNCE/REQUEST/RESPONSE |
-| Chain Sync | ✅ | SYNC_REQUEST/RESPONSE протокол |
-| Peer Height Tracking | ✅ | Отслеживание высоты пиров |
-| Fork Detection | ✅ | Обнаружение и обработка форков |
-| Reorg Support | ✅ | Переорганизация цепочки |
+### 🔥 v50: Block Sync (НОВОЕ!)
+| Компонент | Статус |
+|-----------|--------|
+| Sync Manager | ✅ |
+| Block Propagation | ✅ |
+| Chain Sync | ✅ |
+| Peer Height Tracking | ✅ |
+| Fork Detection | ✅ |
+| Reorg Support | ✅ |
 
 ### API
-| Компонент | Статус | Описание |
-|-----------|--------|----------|
-| JSON-RPC 2.0 | ✅ | eth_blockNumber, eth_getBalance, eth_chainId |
-| CORS Support | ✅ | Для подключения MetaMask |
-
-### Tests
-| Тест | Статус | Результат |
-|------|--------|-----------|
-| State Engine | ✅ | 19/19 |
-| Block Pipeline (v44) | ✅ | 7/7 |
-| Crypto & Wallet (v46) | ✅ | 25/25 |
-| P2P Network | ✅ | 4/4 |
-| Persistent Storage (v47) | ✅ | 24/24 |
-| JSON-RPC (v48) | ✅ | 8/8 |
-| Signed Transactions (v49) | ✅ | 11/11 |
-| Block Sync (v50) | ✅ | 10/10 |
+| Компонент | Статус |
+|-----------|--------|
+| JSON-RPC 2.0 | ✅ |
+| CORS Support | ✅ |
 
 ---
 
@@ -102,6 +95,7 @@
 - Доказательства с нулевым разглашением (ZK)
 - Шардинг
 - Механизмы slashing для валидаторов
+- NFT (только базовая структура)
 
 ---
 
@@ -110,22 +104,16 @@
 │ JSON-RPC API (8545) │
 ├─────────────────────────────────────────────────────────────┤
 │ BLOCK SYNC ENGINE (v50) │
-│ (Peer tracking + Chain sync) │
 ├─────────────────────────────────────────────────────────────┤
 │ STATE ENGINE │
-│ (Balances + execution) │
 ├─────────────────────────────────────────────────────────────┤
 │ MEMPOOL │
-│ (Gas priority + validation) │
 ├─────────────────────────────────────────────────────────────┤
 │ BLOCK PIPELINE │
-│ (Build → Validate → Import) │
 ├─────────────────────────────────────────────────────────────┤
 │ CRYPTO LAYER │
-│ (secp256k1 + ECDSA + Wallet) │
 ├─────────────────────────────────────────────────────────────┤
 │ P2P + GOSSIP NETWORK │
-│ (Peer discovery + Messaging) │
 └─────────────────────────────────────────────────────────────┘
 
 text
@@ -143,10 +131,13 @@ pip install -r requirements.txt
 Запуск ноды
 bash
 python node_persistent.py
-Проверка RPC (в другом окне)
+Или через Docker
+bash
+docker-compose up --build
+Проверка RPC
 bash
 curl -X POST http://localhost:8545 -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
-Запуск всех тестов
+Запуск тестов
 bash
 python -X utf8 test_state_engine.py
 python -X utf8 test_v44.py
@@ -155,7 +146,7 @@ python -X utf8 test_v47.py
 python -X utf8 test_v48.py
 python -X utf8 test_v49.py
 python -X utf8 test_v50.py
-📊 Тест-результат (актуальный)
+📊 Результаты тестов (актуальные)
 text
 test_state_engine.py   → [OK] 19/19
 test_v44.py            → [OK] 7/7
@@ -166,7 +157,7 @@ test_v48.py            → [OK] 8/8
 test_v49.py            → [OK] 11/11
 test_v50.py            → [OK] 10/10
 
-[WIN][WIN][WIN] ALL 8 TESTS PASSED!
+[WIN] ALL 8 TESTS PASSED!
 📁 Структура проекта
 text
 absolute-blockchain-ultimate/
@@ -180,10 +171,10 @@ absolute-blockchain-ultimate/
 ├── consensus/        # Консенсус (GHOST, Casper)
 ├── data/             # Данные (блоки, состояние)
 ├── node_persistent.py # Главный файл запуска
+├── Dockerfile
+├── docker-compose.yml
 └── test_*.py         # Тесты (v44-v50)
 🤝 Как помочь
-Если вы тоже учитесь и хотите поэкспериментировать:
-
 ⭐ Поставьте звезду
 
 🐛 Сообщайте об ошибках
@@ -201,6 +192,3 @@ GitHub: @Gruver87
 Email: gruverpetrov@gmail.com
 
 ⚠️ ЕЩЁ РАЗ: ЭТО УЧЕБНЫЙ ПРОЕКТ, НЕ PRODUCTION!
-
-
-
