@@ -1,0 +1,121 @@
+﻿# .github/workflows/test.yml
+name: Blockchain Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+
+    - name: Run State Engine tests
+      run: python -X utf8 test_state_engine.py
+
+    - name: Run v44 Block Pipeline tests
+      run: python -X utf8 test_v44.py
+
+    - name: Run v46 Crypto & Wallet tests
+      run: python -X utf8 test_v46.py
+
+    - name: Run P2P Network tests
+      run: python -X utf8 test_p2p.py
+
+    - name: Run v47 Storage tests
+      run: python -X utf8 test_v47.py
+
+    - name: Run v48 JSON-RPC tests
+      run: python -X utf8 test_v48.py
+
+    - name: Run v49 Signed Transactions tests
+      run: python -X utf8 test_v49.py
+
+    - name: Run v50 Block Sync tests
+      run: python -X utf8 test_v50.py
+
+    - name: Run all tests together
+      run: |
+        python -X utf8 test_state_engine.py && \
+        python -X utf8 test_v44.py && \
+        python -X utf8 test_v46.py && \
+        python -X utf8 test_p2p.py && \
+        python -X utf8 test_v47.py && \
+        python -X utf8 test_v48.py && \
+        python -X utf8 test_v49.py && \
+        python -X utf8 test_v50.py
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-${{ matrix.python-version }}
+        path: |
+          *.log
+          test_output.txt
+        retention-days: 7
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Bandit security linter
+      run: |
+        pip install bandit
+        bandit -r . -f json -o bandit-report.json || true
+
+    - name: Upload Bandit report
+      uses: actions/upload-artifact@v4
+      with:
+        name: bandit-report
+        path: bandit-report.json
+        retention-days: 7
+
+  lint:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run flake8 linter
+      run: |
+        pip install flake8
+        flake8 . --count --max-complexity=10 --max-line-length=127 --statistics || true
+
+    - name: Run black formatter check
+      run: |
+        pip install black
+        black --check . || true

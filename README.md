@@ -1,4 +1,6 @@
-﻿# Absolute Blockchain Ultimate
+﻿![Tests](https://github.com/Gruver87/absolute-blockchain-ultimate/actions/workflows/test.yml/badge.svg)
+
+# Absolute Blockchain Ultimate
 
 > **Экспериментальный блокчейн-клиент | PoS консенсус | Multi-node sync | Учебный проект**
 
@@ -197,3 +199,4 @@ GitHub: @Gruver87
 Email: gruverpetrov@gmail.com
 
 ⚠️ ЕЩЁ РАЗ: ЭТО УЧЕБНЫЙ ПРОЕКТ, НЕ PRODUCTION!
+
