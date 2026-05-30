@@ -1,4 +1,5 @@
-﻿[![codecov](https://codecov.io/gh/Gruver87/absolute-blockchain-ultimate/branch/main/graph/badge.svg)](https://codecov.io/gh/Gruver87/absolute-blockchain-ultimate)
+﻿[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com/r/gruver87/absolute-blockchain)
+[![codecov](https://codecov.io/gh/Gruver87/absolute-blockchain-ultimate/branch/main/graph/badge.svg)](https://codecov.io/gh/Gruver87/absolute-blockchain-ultimate)
 ![Tests](https://github.com/Gruver87/absolute-blockchain-ultimate/actions/workflows/test.yml/badge.svg)
 
 # Absolute Blockchain Ultimate
@@ -200,5 +201,6 @@ GitHub: @Gruver87
 Email: gruverpetrov@gmail.com
 
 ⚠️ ЕЩЁ РАЗ: ЭТО УЧЕБНЫЙ ПРОЕКТ, НЕ PRODUCTION!
+
 
 
