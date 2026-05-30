@@ -34,7 +34,7 @@
 
 ---
 
-## ✅ Что РЕАЛЬНО работает (v44-v50)
+## ✅ Что РЕАЛЬНО работает (v44-v51)
 
 ### Core Components (Проверено тестами)
 | Компонент | Статус | Тесты |
@@ -62,7 +62,16 @@
 | Snapshots | ✅ |
 | Backup | ✅ |
 
-### Network & P2P (Проверено)
+
+
+### 🔥 v51: Fast Sync (State Root Sync) (НОВОЕ!)
+| Компонент | Статус | Описание |
+|-----------|--------|----------|
+| Fast Sync Manager | ✅ | Управление быстрой синхронизацией |
+| Snapshot Protocol | ✅ | SNAPSHOT_REQUEST/RESPONSE |
+| State Root Verification | ✅ | STATE_ROOT_REQUEST/RESPONSE |
+| Auto Trigger | ✅ | Запуск при отставании >20 блоков |
+| Near-instant Bootstrap | ✅ | Состояние восстанавливается мгновенно |
 | Компонент | Статус |
 |-----------|--------|
 | Peer Manager | ✅ |
@@ -174,7 +183,7 @@ absolute-blockchain-ultimate/
 ├── node_persistent.py # Главный файл запуска
 ├── Dockerfile
 ├── docker-compose.yml
-└── test_*.py         # Тесты (v44-v50)
+└── test_*.py         # Тесты (v44-v51)
 🤝 Как помочь
 ⭐ Поставьте звезду
 
@@ -193,4 +202,5 @@ GitHub: @Gruver87
 Email: gruverpetrov@gmail.com
 
 ⚠️ ЕЩЁ РАЗ: ЭТО УЧЕБНЫЙ ПРОЕКТ, НЕ PRODUCTION!
+
 
