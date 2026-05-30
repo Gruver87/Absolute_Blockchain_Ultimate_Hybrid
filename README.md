@@ -1,59 +1,79 @@
-﻿# Absolute Blockchain Ultimate
+﻿# ⚡ Absolute Blockchain Ultimate v40.0
 
-## 🔐 Критические улучшения безопасности (v15.2)
+> **Production-grade Ethereum-compatible client | LMD-GHOST Consensus | P2P Gossip | JSON-RPC**
 
-- **Integer-only economics** - все балансы в сатоши (1 ABS = 1,000,000 сатоши)
-- **Wallet signature auth** - challenge-response аутентификация через подпись кошелька
-- **Deterministic serialization** - канонический JSON для консенсуса
-- **Immutable state** - состояние реконструируется из цепочки блоков
-- **Полная валидация транзакций** - nonce, баланс, размер, комиссия
-
-### Новые эндпоинты авторизации
-
-| Метод | Эндпоинт | Описание |
-|-------|----------|----------|
-| POST | `/api/auth/challenge` | Получить challenge для подписи |
-| POST | `/api/auth/login` | Аутентификация через подпись |
-
-## 🚀 Децентрализованная платформа нового поколения
-
-**Absolute Blockchain** — это полноценный блокчейн с квантовой защитой, AI консенсусом, встроенным DEX, NFT маркетплейсом, Lightning Network и кросс-чейн мостами.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
+[![Version](https://img.shields.io/badge/version-v40.0-blue.svg)](https://github.com/Gruver87/absolute-blockchain-ultimate/releases)
 
 ---
 
-## ✨ Новые возможности (v15.1)
+## 👤 Author
 
-- **Mempool** - пул неподтверждённых транзакций с приоритетом по комиссии
-- **Rate Limiter** - защита от DDoS (60 запросов в минуту)
-- **`/api/mempool/stats`** - эндпоинт для статистики мемпула
-- **Валидация входных данных** - защита от некорректных запросов
+**Uladzimir Dabranski (Gruver87)**
 
----
-
-## 📊 Ключевые характеристики
-
-| Параметр | Значение |
-|----------|----------|
-| **Консенсус** | DPoS + PoUW |
-| **TPS** | 10,000+ (с шардингом) |
-| **Время блока** | 10 секунд |
-| **Макс. эмиссия** | 210,000,000 ABS |
+- GitHub: [@Gruver87](https://github.com/Gruver87)
+- Email: gruverpetrov@gmail.com
 
 ---
 
-## 🌐 API Эндпоинты
+## 🚀 What's New in v40.0
 
-| Метод | Эндпоинт | Описание |
-|-------|----------|----------|
-| GET | `/api/stats` | Статистика блокчейна |
-| GET | `/api/mempool/stats` | Статистика мемпула |
-| GET | `/api/blocks` | Список блоков |
-| POST | `/api/wallet/create` | Создание кошелька |
-| POST | `/api/transaction/send` | Отправка транзакции |
+- **LMD-GHOST Consensus** with validator attestations
+- **P2P Gossip Network** (hash-first block propagation)
+- **JSON-RPC API** (MetaMask / ethers.js compatible)
+- **Multi-Node Devnet** (run 3 nodes simultaneously)
+- **Strict LMD rule** (only latest attestation per validator)
 
 ---
 
-## 📄 Лицензия
+## 🏗️ Architecture
+┌─────────────────────────────────────────────────────────────┐
+│ JSON-RPC API (Port 8545) │
+├─────────────────────────────────────────────────────────────┤
+│ CONSENSUS ENGINE (LMD-GHOST) │
+│ • Strict LMD (latest attestation per validator) │
+│ • GHOST cumulative subtree weights │
+├─────────────────────────────────────────────────────────────┤
+│ EXECUTION LAYER │
+│ • Block builder + importer │
+│ • Canonical chain (HEAD/SAFE/FINALIZED) │
+├─────────────────────────────────────────────────────────────┤
+│ P2P NETWORK │
+│ • Real gossip protocol (hash-first propagation) │
+│ • Seen cache + deduplication │
+└─────────────────────────────────────────────────────────────┘
 
-MIT License
+text
 
+---
+
+## 🚀 Quick Start
+
+```bash
+# Clone
+git clone https://github.com/Gruver87/absolute-blockchain-ultimate.git
+cd absolute-blockchain-ultimate
+
+# Install
+pip install -r requirements.txt
+
+# Run single node
+python run_node.py --node-id node1 --rpc-port 8545 --p2p-port 30303
+
+# Run devnet (3 nodes)
+python run_devnet.py
+🌐 Connect MetaMask
+SettingValue
+RPC URLhttp://localhost:8545
+Chain ID1337
+CurrencyABS
+🧪 Run Tests
+bash
+python test_consensus_complete.py
+python test_gossip_protocol.py
+python test_node_runtime.py
+📄 License
+MIT License © 2025 Absolute Blockchain
+
+⚠️ REMINDER: Experimental project — NOT for production use!
