@@ -1,4 +1,5 @@
-﻿# Absolute Blockchain Ultimate
+﻿[![Docs](https://img.shields.io/badge/docs-github%20pages-blue.svg)](https://gruver87.github.io/absolute-blockchain-ultimate/)
+# Absolute Blockchain Ultimate
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -192,3 +193,4 @@ GitHub: @Gruver87
 Email: gruverpetrov@gmail.com
 
 ⚠️ ЕЩЁ РАЗ: ЭТО УЧЕБНЫЙ ПРОЕКТ, НЕ PRODUCTION!
+
