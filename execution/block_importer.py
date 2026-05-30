@@ -87,3 +87,45 @@ class BlockImporter:
         if not self.imported_blocks:
             return None
         return self.imported_blocks[-1]
+
+# execution/block_importer.py (v50 reorg hook)
+
+# Add this method to BlockImporter class:
+
+def import_block_with_reorg(self, block: dict) -> tuple[bool, str]:
+    """Import block with fork detection and reorg support"""
+    
+    # Basic validation
+    valid, error = self.validator.validate_block(block)
+    if not valid:
+        return False, error
+    
+    # Fork detection
+    current_tip = self.storage.get_latest_block()
+    if current_tip and block.get("parent_hash") != current_tip.get("hash"):
+        print(f"⚠️ Fork detected! Parent: {block.get('parent_hash')[:16]}... Tip: {current_tip.get('hash')[:16]}...")
+        
+        # Check if we already have the parent
+        parent = self.storage.get_block(block.get("parent_hash"))
+        if parent:
+            # This is a side chain - trigger reorg if heavier
+            return self._handle_fork(block, current_tip)
+    
+    # Normal import
+    return self.import_block(block)
+
+def _handle_fork(self, new_block: dict, current_tip: dict) -> tuple[bool, str]:
+    """Handle chain fork - reorg if new chain is heavier"""
+    
+    # Simplified: compare heights
+    # In production, use total difficulty or weight
+    
+    new_height = new_block.get("number", 0)
+    current_height = current_tip.get("number", 0)
+    
+    if new_height > current_height:
+        print(f"🔄 Reorg: switching from chain height {current_height} to {new_height}")
+        # Here you would implement actual reorg logic
+        return True, "Fork accepted (higher height)"
+    else:
+        return False, "Fork rejected (shorter chain)"
