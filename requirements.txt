@@ -1,49 +1,13 @@
-﻿# ============================================================================
-# REQUIREMENTS.TXT
-# ============================================================================
+﻿# Core dependencies
+ecdsa>=0.18.0
+base58>=2.1.0
 
-# Core
-requests>=2.31.0
-websocket-client>=1.6.0
-websockets>=12.0
+# Optional (for better performance)
+# plyvel>=1.5.0
+# leveldb>=0.201
 
-# API
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
-pydantic>=2.5.0
-python-multipart>=0.0.6
+# Testing
+pytest>=7.0.0
 
-# Database
-asyncpg>=0.29.0
-redis>=5.0.1
-sqlalchemy>=2.0.23
-alembic>=1.12.1
-
-# Security
-python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
-python-dotenv>=1.0.0
-
-# Cryptography
-cryptography>=41.0.7
-pysodium>=0.7.0
-coincurve>=18.0.0
-
-# WebSocket
-websockets>=12.0
-
-# Monitoring
-prometheus-client>=0.19.0
-
-# Utils
-colorama>=0.4.6
-ujson>=5.8.0
-orjson>=3.9.10
-
-# AI/ML
-numpy>=1.24.3
-scikit-learn>=1.3.2
-torch>=2.1.0
-
-# NFT
-Pillow>=10.1.0
+# Web3 compatibility (for RPC)
+# web3>=6.0.0

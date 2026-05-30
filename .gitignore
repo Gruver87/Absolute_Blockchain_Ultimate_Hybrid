@@ -1,37 +1,46 @@
 ﻿# Python
 __pycache__/
-*.pyc
-venv/
-.venv/
+*.py[cod]
+*$py.class
+*.so
+.Python
 env/
+venv/
+ENV/
+.venv/
 
 # Database
 *.db
 *.sqlite
+*.sqlite3
 
-# Logs
-*.log
-logs/
+# Data directories
+data/
+data2/
+data3/
+*.json
+!requirements.json
 
 # IDE
 .vscode/
 .idea/
-
-# Secrets
-.env
-*.key
-*.pem
-*.secret
+*.swp
+*.swo
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Project
-data/
-temp/
-*.backup
-# Бэкапы
-*_backup*.py
-*.backup.py
+# Logs
+*.log
+logs/
 
+# Temporary files
+temp_*.json
+temp_*.py
+*.tmp
+
+# Wallets (keep secure!)
+wallets/
+*.key
+*.pem

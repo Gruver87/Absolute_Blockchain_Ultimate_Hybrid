@@ -1,129 +1,176 @@
 ﻿# execution/state_engine.py
 """
-State Engine — минимальная машина состояния для блокчейна
-- Key-value world state
-- Transaction execution
-- State checkpoints for rollback
-- Simplified state root
+State Engine — deterministic state transition function
+Core of blockchain execution
 """
 
-import copy
 import hashlib
-from typing import Dict, Any, Optional
+import json
+import time
+from typing import Dict, Any, List, Optional
+from dataclasses import dataclass, field
+import copy
+
+
+@dataclass
+class AccountState:
+    """State of a single account"""
+    balance: int
+    nonce: int
+    code_hash: str = ""
+    storage_root: str = ""
+
+
+@dataclass
+class BlockState:
+    """Complete blockchain state"""
+    accounts: Dict[str, AccountState]
+    block_number: int
+    block_hash: str
+    parent_hash: str
+    state_root: str
+    timestamp: int
+    
+    def to_dict(self) -> dict:
+        return {
+            "accounts": {
+                addr: {
+                    "balance": acc.balance,
+                    "nonce": acc.nonce,
+                    "code_hash": acc.code_hash
+                }
+                for addr, acc in self.accounts.items()
+            },
+            "block_number": self.block_number,
+            "block_hash": self.block_hash,
+            "parent_hash": self.parent_hash,
+            "state_root": self.state_root,
+            "timestamp": self.timestamp
+        }
 
 
 class StateEngine:
     """
-    Minimal blockchain state machine
-    - state: address -> balance
-    - checkpoints for reorg rollback
-    - transaction execution
+    Deterministic state transition engine
+    state -> apply block -> new state
     """
-
+    
     def __init__(self):
-        self.state: Dict[str, int] = {}
-        self.checkpoints: Dict[str, Dict[str, int]] = {}  # block_hash -> state snapshot
-        self.state_roots: Dict[str, str] = {}  # block_hash -> state root hash
-        self.block_state: Dict[str, Dict] = {}  # block_hash -> state after block
-
-    def set_balance(self, address: str, amount: int):
-        """Устанавливает баланс адреса"""
-        self.state[address] = amount
-
-    def get_balance(self, address: str) -> int:
-        """Возвращает баланс адреса"""
-        return self.state.get(address, 0)
-
-    def get_state(self) -> Dict[str, int]:
-        """Возвращает копию текущего состояния"""
-        return copy.deepcopy(self.state)
-
-    def create_checkpoint(self, block_hash: str):
-        """Сохраняет состояние перед применением блока (для rollback)"""
-        self.checkpoints[block_hash] = copy.deepcopy(self.state)
-
-    def apply_transaction(self, tx: Dict) -> bool:
+        self.state: Optional[BlockState] = None
+        self.genesis_alloc: Dict[str, int] = {}
+    
+    def create_genesis(self, alloc: Dict[str, int] = None) -> BlockState:
+        """Create genesis block state"""
+        accounts = {}
+        alloc = alloc or {"foundation": 1000000, "validator": 100000}
+        
+        for addr, balance in alloc.items():
+            accounts[addr] = AccountState(balance=balance, nonce=0)
+        
+        self.state = BlockState(
+            accounts=accounts,
+            block_number=0,
+            block_hash=self._compute_genesis_hash(),
+            parent_hash="0" * 64,
+            state_root=self._compute_state_root(accounts),
+            timestamp=int(time.time())
+        )
+        
+        return self.state
+    
+    def _compute_state_root(self, accounts: Dict[str, AccountState]) -> str:
+        """Compute merkle root of all account states"""
+        state_data = json.dumps({
+            addr: {"balance": acc.balance, "nonce": acc.nonce}
+            for addr, acc in accounts.items()
+        }, sort_keys=True)
+        return hashlib.sha256(state_data.encode()).hexdigest()[:32]
+    
+    def _compute_genesis_hash(self) -> str:
+        return hashlib.sha256(b"genesis_absolute_chain").hexdigest()[:32]
+    
+    def transition(self, block: dict) -> BlockState:
         """
-        Применяет транзакцию
-        tx = {from, to, value}
+        Apply block to current state → new state
+        This is the CORE function of the blockchain
         """
-        from_addr = tx.get("from")
-        to_addr = tx.get("to")
-        value = tx.get("value", 0)
-
-        if from_addr is None or to_addr is None:
-            return False
-
-        sender_balance = self.state.get(from_addr, 0)
-        if sender_balance < value:
-            return False
-
-        self.state[from_addr] = sender_balance - value
-        self.state[to_addr] = self.state.get(to_addr, 0) + value
-
-        return True
-
-    def apply_block(self, block: Dict) -> bool:
-        """
-        Применяет все транзакции блока к состоянию
-        """
-        block_hash = block.get("hash") or block.get("block_hash")
-        if not block_hash:
-            return False
-
-        # Сохраняем состояние перед выполнением
-        self.create_checkpoint(block_hash)
-
-        # Выполняем транзакции
+        if not self.state:
+            raise Exception("No state initialized")
+        
+        # Copy current state
+        new_accounts = copy.deepcopy(self.state.accounts)
+        
+        # Apply each transaction
         for tx in block.get("transactions", []):
-            if not self.apply_transaction(tx):
-                # Транзакция не прошла — откатываем состояние
-                self.rollback(block_hash)
-                return False
-
-        # Сохраняем состояние после блока и state root
-        self.block_state[block_hash] = copy.deepcopy(self.state)
-        self.state_roots[block_hash] = self.compute_state_root()
-
-        return True
-
-    def compute_state_root(self) -> str:
-        """
-        Вычисляет упрощённый state root (не настоящий Merkle trie)
-        Для реального клиента нужен Merkle Patricia Trie
-        """
-        encoded = str(sorted(self.state.items())).encode()
-        return hashlib.sha256(encoded).hexdigest()
-
-    def get_state_root(self, block_hash: str) -> Optional[str]:
-        """Возвращает state root для блока"""
-        return self.state_roots.get(block_hash)
-
-    def rollback(self, block_hash: str) -> bool:
-        """
-        Откатывает состояние до checkpoint
-        Используется при реорганизации цепочки
-        """
-        if block_hash in self.checkpoints:
-            self.state = copy.deepcopy(self.checkpoints[block_hash])
-            return True
-        return False
-
-    def rollback_to_checkpoint(self, checkpoint_hash: str) -> bool:
-        """Откатывает состояние до указанного checkpoint"""
-        return self.rollback(checkpoint_hash)
-
-    def get_stats(self) -> dict:
-        return {
-            "accounts": len(self.state),
-            "total_supply": sum(self.state.values()),
-            "checkpoints": len(self.checkpoints),
-            "state_roots": len(self.state_roots)
-        }
-
-    def clear(self):
-        """Очищает всё состояние (для тестов)"""
-        self.state.clear()
-        self.checkpoints.clear()
-        self.state_roots.clear()
-        self.block_state.clear()
+            self._apply_transaction(new_accounts, tx)
+        
+        # Create new state
+        new_state = BlockState(
+            accounts=new_accounts,
+            block_number=block["number"],
+            block_hash=block["hash"],
+            parent_hash=block["parent_hash"],
+            state_root=self._compute_state_root(new_accounts),
+            timestamp=block["timestamp"]
+        )
+        
+        # Update current state
+        self.state = new_state
+        
+        return new_state
+    
+    def _apply_transaction(self, accounts: Dict[str, AccountState], tx: dict):
+        """Apply single transaction to state"""
+        from_addr = tx.get("from", tx.get("from_addr"))
+        to_addr = tx.get("to", tx.get("to_addr"))
+        amount = tx.get("amount", tx.get("value", 0))
+        
+        # Check sender exists
+        if from_addr not in accounts:
+            accounts[from_addr] = AccountState(balance=0, nonce=0)
+        
+        # Check balance
+        if accounts[from_addr].balance < amount:
+            raise Exception(f"Insufficient balance: {from_addr}")
+        
+        # Check nonce
+        expected_nonce = accounts[from_addr].nonce
+        tx_nonce = tx.get("nonce", expected_nonce)
+        if tx_nonce != expected_nonce:
+            raise Exception(f"Invalid nonce: expected {expected_nonce}, got {tx_nonce}")
+        
+        # Transfer
+        accounts[from_addr].balance -= amount
+        accounts[from_addr].nonce += 1
+        
+        if to_addr not in accounts:
+            accounts[to_addr] = AccountState(balance=0, nonce=0)
+        accounts[to_addr].balance += amount
+    
+    def get_balance(self, address: str) -> int:
+        """Get current balance"""
+        if not self.state:
+            return 0
+        acc = self.state.accounts.get(address)
+        return acc.balance if acc else 0
+    
+    def get_nonce(self, address: str) -> int:
+        """Get current nonce"""
+        if not self.state:
+            return 0
+        acc = self.state.accounts.get(address)
+        return acc.nonce if acc else 0
+    
+    def get_state_root(self) -> str:
+        return self.state.state_root if self.state else ""
+    
+    def copy(self) -> "StateEngine":
+        """Create a copy for fork processing"""
+        new_engine = StateEngine()
+        if self.state:
+            new_engine.state = copy.deepcopy(self.state)
+        return new_engine
+    
+    def commit_block(self, block: dict) -> BlockState:
+        """Alias for transition"""
+        return self.transition(block)

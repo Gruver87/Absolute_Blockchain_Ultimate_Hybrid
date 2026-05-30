@@ -1,179 +1,126 @@
-﻿# Absolute Blockchain Ultimate
+﻿# Absolute Blockchain
 
-> **Экспериментальный блокчейн-клиент | PoS консенсус | Учебный проект**
+## 🚀 Что это?
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
-[![Status](https://img.shields.io/badge/status-experimental-red.svg)](https://github.com/Gruver87/absolute-blockchain-ultimate)
+**Учебный Ethereum-подобный блокчейн-клиент** на Python. Реализует минимальный набор функций для работы распределённой сети.
 
----
+⚠️ **Это учебный проект, не для production использования.**
 
-## ⚠️ ВАЖНОЕ ПРЕДУПРЕЖДЕНИЕ
+## ✅ Что реализовано (v44-v49)
 
-**Это экспериментальный учебный проект. НЕ ИСПОЛЬЗУЙТЕ В PRODUCTION!**
-
-- 🧪 Проект в стадии активной разработки (Alpha)
-- 🔄 Данные могут быть сброшены в любой момент
-- 🐛 Баги и нестабильная работа — норма
-- 🔒 Безопасность не гарантируется
-
----
-
-## 📌 Что это такое?
-
-Это мой учебный проект по созданию блокчейн-клиента с нуля. Я изучаю:
-
-- Как работают Ethereum-клиенты изнутри
-- LMD-GHOST консенсус
-- PoS (Proof of Stake) механизмы
-- Casper FFG финализацию
-- P2P сети и gossip протоколы
-- Слэшинг и экономическую защиту
-
-**Проект не претендует на production-качество. Это песочница для экспериментов.**
-
----
-
-## ✅ Что уже реализовано
-
-### Консенсус (v43-v49)
+### Core Components
 | Компонент | Статус | Описание |
 |-----------|--------|----------|
-| LMD-GHOST | 🟡 90% | Выбор головы цепочки |
-| Casper FFG | 🟡 85% | Финализация эпох |
-| Slashing | ✅ 85% | Наказание валидаторов |
-| RANDAO | ✅ 90% | Случайный выбор proposer'а |
-| Reorg Engine | ✅ 90% | Безопасные реорганизации |
-| Sync Engine | ✅ 85% | Синхронизация с сетью |
-| State Engine | ✅ 85% | Управление состоянием |
+| State Engine | ✅ | Детерминированные переходы состояний |
+| Mempool | ✅ | Пул транзакций с приоритетом по gas price |
+| Block Builder | ✅ | Сборка блоков из mempool |
+| Block Validator | ✅ | Проверка подписей, балансов, nonce |
+| Block Importer | ✅ | Импорт и валидация блоков |
 
-### Сеть
+### Cryptography
 | Компонент | Статус | Описание |
 |-----------|--------|----------|
-| P2P | ✅ 80% | Peer-to-peer коммуникация |
-| Gossip | ✅ 80% | Распространение сообщений |
-| Adversarial | ✅ 85% | Симуляция атак и задержек |
+| secp256k1 Keys | ✅ | Генерация ключей (как в Bitcoin/Ethereum) |
+| ECDSA Signatures | ✅ | Подпись транзакций и блоков |
+| Wallet | ✅ | Создание/экспорт/импорт кошельков |
+| Nonce Protection | ✅ | Защита от replay-атак |
+| Chain ID | ✅ | Защита от cross-chain replay |
+
+### Storage
+| Компонент | Статус | Описание |
+|-----------|--------|----------|
+| SQLite Database | ✅ | Сохранение блоков и состояния |
+| Crash Recovery | ✅ | Восстановление после сбоев |
+| Snapshots | ✅ | Точки восстановления состояния |
+| Backup | ✅ | Резервное копирование |
+
+### Network
+| Компонент | Статус | Описание |
+|-----------|--------|----------|
+| Peer Manager | ✅ | Управление пирами |
+| Peer Discovery | ✅ | Обнаружение узлов |
+| Message Protocol | ✅ | P2P сообщения (ping/pong/block/tx) |
+| Peer Scoring | ✅ | Репутация узлов |
+| Ban System | ✅ | Блокировка вредоносных узлов |
+| Rate Limiting | ✅ | Защита от спама |
 
 ### API
 | Компонент | Статус | Описание |
 |-----------|--------|----------|
-| JSON-RPC | 🟡 70% | MetaMask совместимый API |
-| REST API | ✅ 80% | Оригинальный API |
+| JSON-RPC 2.0 | ✅ | eth_blockNumber, eth_getBalance, eth_chainId |
+| CORS Support | ✅ | Для подключения MetaMask |
 
----
+### Tests
+| Тест | Статус | Результат |
+|------|--------|-----------|
+| State Engine | ✅ | 19/19 |
+| Block Pipeline (v44) | ✅ | 7/7 |
+| Crypto & Wallet (v46) | ✅ | 25/25 |
+| P2P Network | ✅ | 4/4 |
+| Persistent Storage (v47) | ✅ | 24/24 |
+| JSON-RPC (v48) | ✅ | 8/8 |
+| Signed Transactions (v49) | ✅ | 11/11 |
+
+## ❌ Что НЕ реализовано (честно)
+
+- Полноценный P2P discovery (упрощён)
+- EVM/Smart Contracts (в планах)
+- Доказательства с нулевым разглашением (ZK)
+- Шардинг
+- Механизмы slashing для валидаторов
 
 ## 🏗️ Архитектура
-┌─────────────────────────────────────────────────────────────┐
-│ JSON-RPC API (8545) │
-├─────────────────────────────────────────────────────────────┤
-│ SYNC ENGINE │
-│ (Fast catch-up) │
-├─────────────────────────────────────────────────────────────┤
-│ STATE ENGINE │
-│ (Balances + execution) │
-├─────────────────────────────────────────────────────────────┤
-│ REORG ENGINE │
-│ (Finality-safe reorgs) │
-├─────────────────────────────────────────────────────────────┤
-│ RANDAO │
-│ (Random proposer selection) │
-├─────────────────────────────────────────────────────────────┤
-│ SLASHING │
-│ (Economic punishment for cheating) │
-├─────────────────────────────────────────────────────────────┤
-│ CASPER FFG │
-│ (Epoch-based finality) │
-├─────────────────────────────────────────────────────────────┤
-│ LMD-GHOST │
-│ (Fork choice) │
-├─────────────────────────────────────────────────────────────┤
-│ P2P + GOSSIP │
-│ (Network layer) │
-└─────────────────────────────────────────────────────────────┘
+Transaction → Mempool → Block Builder → State Engine → Validator → Storage → P2P Gossip → JSON-RPC
 
 text
-
----
 
 ## 🚀 Быстрый старт
 
+### Установка
+
 ```bash
-# Клонирование
-git clone https://github.com/Gruver87/absolute-blockchain-ultimate.git
-cd absolute-blockchain-ultimate
-
-# Установка
+git clone https://github.com/yourusername/AbsoluteBlockchain.git
+cd AbsoluteBlockchain
 pip install -r requirements.txt
-
-# Запуск ноды
-python run_node.py --node-id node1 --rpc-port 8545 --p2p-port 30303
-
-# Запуск devnet из 3 нод
-python run_devnet.py
-🧪 Запуск тестов
+Запуск ноды
 bash
-# Тест консенсуса
-python test_finality.py
+python node_persistent.py
+Проверка RPC
+bash
+curl -X POST http://localhost:8545 -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
+Запуск тестов
+bash
+python -X utf8 test_state_engine.py
+python -X utf8 test_v44.py
+python -X utf8 test_v46.py
+python -X utf8 test_v47.py
+python -X utf8 test_v48.py
+python -X utf8 test_v49.py
+📊 Тест-результат (актуальный)
+text
+test_state_engine.py   → [OK] 19/19
+test_v44.py            → [OK] 7/7
+test_v46.py            → [OK] 25/25
+test_p2p.py            → [OK] 4/4
+test_v47.py            → [OK] 24/24
+test_v48.py            → [OK] 8/8
+test_v49.py            → [OK] 11/11
 
-# Тест слэшинга
-python test_slashing_integration.py
-
-# Тест sync engine
-python test_sync_engine_v2.py
-
-# Тест state engine
-python test_state_engine.py
-
-# Тест reorg engine
-python test_reorg_engine.py
-
-# Тест RANDAO
-python test_validator_selection.py
-
-# Тест adversarial network
-python test_adversarial_network.py
-📊 Статус компонентов (честно)
-КомпонентСтатусПримечание
-LMD-GHOST🟡 90%Работает, но edge cases не все
-Casper FFG🟡 85%Упрощённая модель
-Slashing✅ 85%Double vote detection работает
-RANDAO✅ 90%Случайность из блоков
-Reorg Engine✅ 90%Финализация защищает
-State Engine✅ 85%Без Merkle trie
-Sync Engine✅ 85%Fast sync работает
-Adversarial Net✅ 85%Задержки, потери, partition
-JSON-RPC🟡 70%Базовые методы
-Production-ready🔴 0%Не для продакшена
+[WIN][WIN][WIN] ALL 7 TESTS PASSED!
 📁 Структура проекта
 text
-absolute-blockchain-ultimate/
-├── consensus/          # LMD-GHOST + Casper + Slashing + RANDAO + Reorg
-├── execution/          # State engine + transaction execution
-├── sync/               # Sync engine (fast catch-up)
-├── network/            # P2P + gossip + adversarial simulation
-├── core/               # Блоки, мемпул, импорт
-├── rpc/                # JSON-RPC API
-├── state/              # Управление состоянием
-├── run_node.py         # Запуск одной ноды
-├── run_devnet.py       # Запуск 3 нод
-└── tests/              # Все тесты
-🤝 Как помочь
-Если вы тоже учитесь и хотите поэкспериментировать:
+AbsoluteBlockchain/
+├── crypto/           # Криптография (ключи, подписи, кошельки)
+├── execution/        # Исполнение (state engine, mempool, блоки)
+├── storage/          # Хранение (SQLite, snapshots)
+├── network/          # P2P сеть (peer manager, discovery)
+├── rpc/              # JSON-RPC API
+├── consensus/        # Консенсус (GHOST, Casper)
+├── data/             # Данные (блоки, состояние)
+├── node_persistent.py # Главный файл запуска
+└── test_*.py         # Тесты
+📝 Лицензия
+MIT
 
-⭐ Поставьте звезду
-
-🐛 Сообщайте об ошибках
-
-💡 Предлагайте улучшения
-
-📄 Лицензия
-MIT License — свободно для изучения и экспериментов
-
-👤 Автор
-Uladzimir Dabranski (Gruver87)
-
-GitHub: @Gruver87
-
-Email: gruverpetrov@gmail.com
-
-⚠️ ЕЩЁ РАЗ: ЭТО УЧЕБНЫЙ ПРОЕКТ, НЕ PRODUCTION!
+⚠️ Disclaimer
+Это учебный проект. Не используйте в production для хранения реальных ценностей. Приватные ключи генерируются локально, но безопасность не гарантируется.
