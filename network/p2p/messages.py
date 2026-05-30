@@ -110,3 +110,97 @@ class CompactBlock:
             "number": self.block_number,
             "transactions": transactions
         }
+
+# network/p2p/messages.py (v50 extension)
+
+from enum import Enum
+
+class MessageType(Enum):
+    # Existing
+    HELLO = "hello"
+    PING = "ping"
+    PONG = "pong"
+    INV_BLOCK = "inv_block"
+    GET_BLOCK = "get_block"
+    BLOCK = "block"
+    INV_TX = "inv_tx"
+    GET_TX = "get_tx"
+    TX = "tx"
+    GET_HEADERS = "get_headers"
+    HEADERS = "headers"
+    STATUS = "status"
+    
+    # v50 NEW BLOCK SYNC MESSAGES
+    BLOCK_ANNOUNCE = "block_announce"
+    BLOCK_REQUEST = "block_request"
+    BLOCK_RESPONSE = "block_response"
+    SYNC_REQUEST = "sync_request"
+    SYNC_RESPONSE = "sync_response"
+    GET_HEIGHT = "get_height"
+    HEIGHT = "height"
+
+# Helper to create sync messages
+def create_block_announce(block_hash: str, height: int) -> dict:
+    return {
+        "type": MessageType.BLOCK_ANNOUNCE.value,
+        "hash": block_hash,
+        "height": height
+    }
+
+def create_block_request(block_hash: str) -> dict:
+    return {
+        "type": MessageType.BLOCK_REQUEST.value,
+        "hash": block_hash
+    }
+
+def create_block_response(block: dict) -> dict:
+    return {
+        "type": MessageType.BLOCK_RESPONSE.value,
+        "block": block
+    }
+
+def create_sync_request(from_height: int) -> dict:
+    return {
+        "type": MessageType.SYNC_REQUEST.value,
+        "from_height": from_height
+    }
+
+def create_sync_response(blocks: list) -> dict:
+    return {
+        "type": MessageType.SYNC_RESPONSE.value,
+        "blocks": blocks
+    }
+
+
+# v51 FAST SYNC MESSAGES
+SNAPSHOT_REQUEST = "snapshot_request"
+SNAPSHOT_RESPONSE = "snapshot_response"
+STATE_ROOT_REQUEST = "state_root_request"
+STATE_ROOT_RESPONSE = "state_root_response"
+
+def create_snapshot_request(height: int) -> dict:
+    return {
+        "type": SNAPSHOT_REQUEST,
+        "height": height
+    }
+
+def create_snapshot_response(height: int, state_root: str, state_dump: dict) -> dict:
+    return {
+        "type": SNAPSHOT_RESPONSE,
+        "height": height,
+        "state_root": state_root,
+        "state_dump": state_dump
+    }
+
+def create_state_root_request(block_hash: str) -> dict:
+    return {
+        "type": STATE_ROOT_REQUEST,
+        "block_hash": block_hash
+    }
+
+def create_state_root_response(state_root: str, block_hash: str) -> dict:
+    return {
+        "type": STATE_ROOT_RESPONSE,
+        "state_root": state_root,
+        "block_hash": block_hash
+    }
