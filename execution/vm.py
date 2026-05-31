@@ -1,35 +1,18 @@
-﻿# execution/vm.py - v54 with JUMPS and FUNCTIONS
+﻿# execution/vm.py - FIXED VERSION
 """
-EVM-style VM with jumps, function calls, loops
+Mini-EVM — bytecode VM with stack, storage, gas metering
 """
 
 from typing import List, Tuple, Dict, Any, Optional
 
 
 class MiniVM:
-    """VM with program counter, jumps, and function calls"""
-
+    """Simplified Ethereum Virtual Machine"""
+    
     GAS_COSTS = {
-        "PUSH": 2,
-        "POP": 2,
-        "ADD": 3,
-        "SUB": 3,
-        "MUL": 5,
-        "DIV": 5,
-        "STORE": 100,
-        "LOAD": 50,
-        "STOP": 0,
-        "INC": 2,
-        "DEC": 2,
-        "EQ": 3,
-        "LT": 3,
-        "GT": 3,
-        "NEQ": 3,
-        "JUMP": 8,
-        "JUMPI": 10,
-        "CALL": 25,
-        "RETURN": 2,
-        "LABEL": 0,  # Labels consume no gas
+        "PUSH": 2, "POP": 2, "ADD": 3, "SUB": 3, "MUL": 5, "DIV": 5,
+        "STORE": 100, "LOAD": 50, "STOP": 0, "INC": 2, "DEC": 2,
+        "EQ": 3, "LT": 3, "GT": 3, "JUMP": 8, "JUMPI": 10, "CALL": 25, "RETURN": 2
     }
 
     def __init__(self, gas_limit: int = 10000):
@@ -38,8 +21,8 @@ class MiniVM:
         self.gas_used = 0
         self.gas_limit = gas_limit
         self.pc = 0
-        self.call_stack: List[int] = []
         self.running = True
+        self.call_stack: List[int] = []
 
     def _consume_gas(self, op: str):
         cost = self.GAS_COSTS.get(op, 1)
@@ -47,48 +30,16 @@ class MiniVM:
         if self.gas_used > self.gas_limit:
             raise Exception(f"Out of gas! Used {self.gas_used}, limit {self.gas_limit}")
 
-    def resolve_labels(self, code: List[Tuple[str, Optional[int]]]) -> List[Tuple[str, Optional[int]]]:
-        """Resolve labels to actual PC addresses"""
-        labels = {}
-        pc = 0
-        
-        # First pass: collect label positions
-        for op, arg in code:
-            if op == "LABEL":
-                labels[arg] = pc
-            else:
-                pc += 1
-        
-        # Second pass: replace labels in JUMP/JUMPI/CALL
-        result = []
-        for op, arg in code:
-            if op == "LABEL":
-                continue
-            if op in ("JUMP", "JUMPI", "CALL") and isinstance(arg, str):
-                if arg not in labels:
-                    raise Exception(f"Undefined label: {arg}")
-                result.append((op, labels[arg]))
-            else:
-                result.append((op, arg))
-        
-        return result
-
     def execute(self, bytecode: List[Tuple[str, Optional[int]]]) -> Dict[str, Any]:
-        """Execute bytecode with jumps and function calls"""
-        # Resolve labels first
-        code = self.resolve_labels(bytecode)
-        
         self.pc = 0
         self.gas_used = 0
         self.stack = []
-        self.call_stack = []
         self.running = True
 
-        while self.pc < len(code) and self.running:
-            op, arg = code[self.pc]
+        while self.pc < len(bytecode) and self.running:
+            op, arg = bytecode[self.pc]
             self._consume_gas(op)
 
-            # Stack operations
             if op == "PUSH":
                 if arg is None:
                     raise Exception("PUSH requires argument")
@@ -99,7 +50,6 @@ class MiniVM:
                     raise Exception("POP on empty stack")
                 self.stack.pop()
 
-            # Arithmetic
             elif op == "ADD":
                 if len(self.stack) < 2:
                     raise Exception("ADD requires 2 values")
@@ -128,7 +78,6 @@ class MiniVM:
                 a = self.stack.pop()
                 self.stack.append(a // b if b != 0 else 0)
 
-            # Storage
             elif op == "STORE":
                 if len(self.stack) < 2:
                     raise Exception("STORE requires key and value")
@@ -142,7 +91,6 @@ class MiniVM:
                 key = str(self.stack.pop())
                 self.stack.append(self.storage.get(key, 0))
 
-            # Increment/Decrement
             elif op == "INC":
                 if not self.stack:
                     self.stack.append(0)
@@ -153,20 +101,12 @@ class MiniVM:
                     self.stack.append(0)
                 self.stack[-1] -= 1
 
-            # Comparisons
             elif op == "EQ":
                 if len(self.stack) < 2:
                     raise Exception("EQ requires 2 values")
                 b = self.stack.pop()
                 a = self.stack.pop()
                 self.stack.append(1 if a == b else 0)
-
-            elif op == "NEQ":
-                if len(self.stack) < 2:
-                    raise Exception("NEQ requires 2 values")
-                b = self.stack.pop()
-                a = self.stack.pop()
-                self.stack.append(1 if a != b else 0)
 
             elif op == "LT":
                 if len(self.stack) < 2:
@@ -182,67 +122,44 @@ class MiniVM:
                 a = self.stack.pop()
                 self.stack.append(1 if a > b else 0)
 
-            # Jumps
             elif op == "JUMP":
-                if isinstance(arg, int):
-                    self.pc = arg
-                    continue
-                elif len(self.stack) > 0:
-                    self.pc = self.stack.pop()
-                    continue
-                else:
+                if not self.stack:
                     raise Exception("JUMP requires destination")
+                dest = self.stack.pop()
+                if 0 <= dest < len(bytecode):
+                    self.pc = dest
+                    continue
+                raise Exception(f"Invalid jump destination: {dest}")
 
             elif op == "JUMPI":
-                if len(self.stack) < 1:
-                    raise Exception("JUMPI requires condition")
-                condition = self.stack.pop()
-                if condition:
-                    if isinstance(arg, int):
-                        self.pc = arg
+                if len(self.stack) < 2:
+                    raise Exception("JUMPI requires destination and condition")
+                dest = self.stack.pop()
+                cond = self.stack.pop()
+                if cond != 0:
+                    if 0 <= dest < len(bytecode):
+                        self.pc = dest
                         continue
-                    elif len(self.stack) > 0:
-                        self.pc = self.stack.pop()
-                        continue
-                # else: continue to next instruction
+                    raise Exception(f"Invalid jump destination: {dest}")
 
-            # Function calls
             elif op == "CALL":
-                # Save return address
-                self.call_stack.append(self.pc + 1)
-                if isinstance(arg, int):
-                    self.pc = arg
-                    continue
-                elif len(self.stack) > 0:
-                    self.pc = self.stack.pop()
-                    continue
-                else:
+                if not self.stack:
                     raise Exception("CALL requires destination")
+                dest = self.stack.pop()
+                self.call_stack.append(self.pc + 1)
+                if 0 <= dest < len(bytecode):
+                    self.pc = dest
+                    continue
+                raise Exception(f"Invalid call destination: {dest}")
 
             elif op == "RETURN":
-                if len(self.call_stack) > 0:
+                if self.call_stack:
                     self.pc = self.call_stack.pop()
                     continue
-                else:
-                    # No return address, stop execution
-                    self.running = False
-                    break
+                self.running = False
+                break
 
-            
-            # Event logging
-            elif op == "LOG":
-                if len(self.stack) < 1:
-                    raise Exception("LOG requires value")
-                value = self.stack.pop()
-                if not hasattr(self, 'logs'):
-                    self.logs = []
-                self.logs.append({
-                    "event": str(value),
-                    "data": value,
-                    "pc": self.pc
-                })
-
-            
+            elif op == "STOP":
                 self.running = False
                 break
 
@@ -255,8 +172,7 @@ class MiniVM:
             "stack": self.stack.copy(),
             "storage": self.storage.copy(),
             "gas_used": self.gas_used,
-            "success": self.gas_used <= self.gas_limit,
-            "pc": self.pc
+            "success": self.gas_used <= self.gas_limit
         }
 
     def reset(self):
@@ -268,7 +184,3 @@ class MiniVM:
 
     def get_storage(self, key: str) -> int:
         return self.storage.get(key, 0)
-
-    def set_storage(self, key: str, value: int):
-        self.storage[key] = value
-
