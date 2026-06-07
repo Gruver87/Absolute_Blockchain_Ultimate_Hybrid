@@ -112,3 +112,4 @@ class BlockValidator:
             "state_root": block.get("state_root", "")
         }, sort_keys=True)
         return hashlib.sha256(block_data.encode()).hexdigest()[:32]
+

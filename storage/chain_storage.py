@@ -6,8 +6,7 @@ Persistent storage for blocks and state
 import json
 import os
 import time
-from typing import Optional, Dict, Any
-
+from typing import Optional, Dict, Any, List  # <-- ДОБАВЛЕН импорт List
 
 class ChainStorage:
     """Persistent blockchain storage"""
@@ -23,7 +22,6 @@ class ChainStorage:
         os.makedirs(self.checkpoints_dir, exist_ok=True)
     
     def save_block(self, number: int, block: dict) -> bool:
-        """Save block to disk"""
         path = os.path.join(self.blocks_dir, f"{number}.json")
         try:
             with open(path, "w") as f:
@@ -34,7 +32,6 @@ class ChainStorage:
             return False
     
     def get_block(self, number: int) -> Optional[dict]:
-        """Get block by number"""
         path = os.path.join(self.blocks_dir, f"{number}.json")
         if os.path.exists(path):
             with open(path, "r") as f:
@@ -42,7 +39,6 @@ class ChainStorage:
         return None
     
     def get_block_by_hash(self, block_hash: str) -> Optional[dict]:
-        """Find block by hash (linear scan - optimize with index)"""
         for filename in os.listdir(self.blocks_dir):
             if filename.endswith(".json"):
                 with open(os.path.join(self.blocks_dir, filename), "r") as f:
@@ -52,10 +48,8 @@ class ChainStorage:
         return None
     
     def get_latest_block(self) -> Optional[dict]:
-        """Get the highest numbered block"""
         max_num = -1
         latest = None
-        
         for filename in os.listdir(self.blocks_dir):
             if filename.endswith(".json"):
                 try:
@@ -66,14 +60,12 @@ class ChainStorage:
                             latest = json.load(f)
                 except:
                     pass
-        
         return latest
     
     def get_block_count(self) -> int:
         return len([f for f in os.listdir(self.blocks_dir) if f.endswith(".json")])
     
     def save_state(self, block_hash: str, state: dict) -> bool:
-        """Save state snapshot"""
         path = os.path.join(self.state_dir, f"{block_hash}.json")
         try:
             with open(path, "w") as f:
@@ -90,7 +82,6 @@ class ChainStorage:
         return None
     
     def save_checkpoint(self, block_hash: str, checkpoint: dict) -> bool:
-        """Save checkpoint for reorg recovery"""
         path = os.path.join(self.checkpoints_dir, f"{block_hash}.json")
         try:
             with open(path, "w") as f:
@@ -113,3 +104,21 @@ class ChainStorage:
             "checkpoints": len(os.listdir(self.checkpoints_dir)) if os.path.exists(self.checkpoints_dir) else 0,
             "data_dir": self.data_dir
         }
+    
+    def replace_chain(self, new_blocks: List[dict]) -> bool:
+        """Replace entire chain (for reorg)"""
+        try:
+            # Clear existing blocks
+            for filename in os.listdir(self.blocks_dir):
+                if filename.endswith(".json"):
+                    os.remove(os.path.join(self.blocks_dir, filename))
+            
+            # Save new blocks
+            for block in new_blocks:
+                self.save_block(block.get("number", 0), block)
+            
+            print(f"[CHAIN] Chain replaced with {len(new_blocks)} blocks")
+            return True
+        except Exception as e:
+            print(f"Error replacing chain: {e}")
+            return False

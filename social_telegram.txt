@@ -1,0 +1,14 @@
+﻿🚀 **Absolute Blockchain Ultimate** — учебный блокчейн-клиент на Python
+
+✅ Консенсус (LMD-GHOST + Casper FFG)
+✅ Криптография secp256k1/ECDSA
+✅ P2P сеть + discovery
+✅ SQLite хранилище
+✅ JSON-RPC API
+✅ Многоузловая синхронизация (v50)
+
+🔗 GitHub: https://github.com/Gruver87/absolute-blockchain-ultimate
+
+Docker: docker-compose up --build
+
+Проект полностью открыт для изучения! ⭐

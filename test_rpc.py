@@ -1,44 +1,26 @@
-﻿# test_rpc.py - FIXED
-import sys
-import os
+﻿import requests
+import json
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+url = "http://localhost:8545"
 
-def log(msg):
-    sys.stdout.write(msg + "\n")
+# Запросы к ноде
+calls = [
+    ("eth_blockNumber", []),
+    ("eth_chainId", []),
+    ("eth_getBalance", ["0x40e908721295de4a5cbc775abac8909781aeeea8", "latest"])
+]
 
-log("=" * 70)
-log("JSON-RPC API TESTS")
-log("=" * 70)
+for method, params in calls:
+    payload = {
+        "jsonrpc": "2.0",
+        "method": method,
+        "params": params,
+        "id": 1
+    }
+    try:
+        response = requests.post(url, json=payload)
+        result = response.json()
+        print(f"{method}: {result.get('result', result.get('error'))}")
+    except Exception as e:
+        print(f"Error: {e}")
 
-passed = 0
-total = 0
-
-def test(name, condition):
-    global passed, total
-    total += 1
-    if condition:
-        log(f"   ✅ {name}")
-        passed += 1
-    else:
-        log(f"   ❌ {name}")
-
-# Test 1: JSON-RPC server import
-log("\n[TEST 1] JSON-RPC server")
-try:
-    from rpc.server import JSONRPCServer
-    test("JSONRPCServer imports", True)
-except ImportError:
-    test("JSONRPCServer imports", False)
-
-# Test 2: eth_blockNumber method
-log("\n[TEST 2] eth_blockNumber")
-try:
-    from rpc.server import JSONRPCServer
-    test("eth_blockNumber exists", hasattr(JSONRPCServer, "eth_blockNumber"))
-except:
-    test("eth_blockNumber exists", True)
-
-log("\n" + "=" * 70)
-log(f"RESULTS: {passed}/{total} tests passed")
-log("=" * 70)

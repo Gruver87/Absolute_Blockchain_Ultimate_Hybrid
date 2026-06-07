@@ -142,3 +142,15 @@ class MessageHandler:
 
 
 import time
+
+# network/p2p/message_handler.py (v50 update)
+
+# Add sync routing to existing message handler
+# Add this method to your existing MessageHandler class:
+
+def handle_message_v50(self, peer_id: str, msg: dict):
+    """Route v50 sync messages to sync manager"""
+    if self.node and hasattr(self.node, 'sync_manager'):
+        self.node.sync_manager.handle_message(peer_id, msg)
+        return True
+    return False

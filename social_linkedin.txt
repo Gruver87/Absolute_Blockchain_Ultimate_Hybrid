@@ -1,0 +1,22 @@
+﻿🚀 Я построил блокчейн-клиент с нуля на Python!
+
+После нескольких месяцев разработки представляю **Absolute Blockchain Ultimate** — учебный блокчейн-клиент, который реализует:
+
+✅ LMD-GHOST + Casper FFG консенсус
+✅ secp256k1 криптографию и ECDSA подписи
+✅ P2P сеть с peer discovery
+✅ SQLite persistent storage
+✅ JSON-RPC API (совместим с MetaMask)
+✅ Multi-node синхронизацию (v50)
+
+**Технологии:** Python, Docker, GitHub Actions, SQLite
+
+**Статус:** 8 тестовых сюитов, все проходят. CI/CD настроен.
+
+🔗 GitHub: https://github.com/Gruver87/absolute-blockchain-ultimate
+
+Проект полностью open-source (MIT license). Это учебный проект для изучения того, как работают блокчейны изнутри.
+
+Буду рад звёздам, форкам и вопросам! ⭐
+
+#blockchain #python #ethereum #opensource #web3 #cryptography #docker

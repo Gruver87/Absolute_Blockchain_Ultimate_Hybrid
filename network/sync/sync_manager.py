@@ -242,3 +242,29 @@ class SyncManager:
             "needs_sync": self.needs_sync(),
             "local_height": self._get_local_height()
         }
+
+
+# Add to __init__ method:
+# self.fast_sync = None  # Will be set after creation
+
+def init_fast_sync(self, fast_sync):
+    """Initialize fast sync manager"""
+    self.fast_sync = fast_sync
+
+def maybe_fast_sync(self):
+    """Check and trigger fast sync if needed"""
+    if self.fast_sync and self.fast_sync.should_fast_sync():
+        best_peer = self.get_best_peer()
+        if best_peer:
+            peer_height = self.peers_state[best_peer]["height"]
+            print(f"[SYNC] Lag detected: local={self._get_local_height()}, peer={peer_height}")
+            print("[SYNC] Switching to FAST SYNC mode")
+            self.fast_sync.start_sync(best_peer, peer_height)
+            return True
+    return False
+
+def request_sync_range(self, peer_id: str, from_height: int, to_height: int):
+    """Request a range of blocks from peer"""
+    for height in range(from_height, to_height + 1):
+        # Request block by height
+        pass  # Implement block range request

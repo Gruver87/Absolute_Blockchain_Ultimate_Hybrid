@@ -1,8 +1,4 @@
-﻿# storage/database.py (fixed)
-"""
-SQLite Database Manager for Blockchain
-"""
-
+﻿# storage/database.py (FIXED)
 import sqlite3
 import json
 import os
@@ -13,8 +9,6 @@ from contextlib import contextmanager
 
 
 class BlockchainDB:
-    """SQLite database for blockchain persistence"""
-    
     def __init__(self, db_path: str = "data/blockchain.db"):
         self.db_path = db_path
         self.lock = threading.RLock()
@@ -22,14 +16,16 @@ class BlockchainDB:
     
     def _init_db(self):
         """Initialize database schema"""
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        
         with self.get_connection() as conn:
             cursor = conn.cursor()
             
-            # Blocks table
+            # Blocks table - FIXED: number as INTEGER PRIMARY KEY
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS blocks (
                     hash TEXT PRIMARY KEY,
-                    number INTEGER UNIQUE NOT NULL,
+                    number INTEGER UNIQUE,
                     parent_hash TEXT,
                     timestamp INTEGER,
                     proposer TEXT,
@@ -43,8 +39,11 @@ class BlockchainDB:
                 )
             ''')
             
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_blocks_number ON blocks(number)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_blocks_parent ON blocks(parent_hash)')
+            # Create index only if column exists
+            cursor.execute("PRAGMA table_info(blocks)")
+            columns = [col[1] for col in cursor.fetchall()]
+            if 'number' in columns:
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_blocks_number ON blocks(number)')
             
             # Accounts table
             cursor.execute('''
@@ -123,13 +122,12 @@ class BlockchainDB:
             # Initialize metadata if empty
             cursor.execute("SELECT COUNT(*) FROM metadata")
             if cursor.fetchone()[0] == 0:
-                cursor.execute("INSERT INTO metadata (key, value) VALUES ('version', '47')")
-                cursor.execute("INSERT INTO metadata (key, value) VALUES ('chain_id', '1')")
+                cursor.execute("INSERT INTO metadata (key, value) VALUES ('version', '52')")
+                cursor.execute("INSERT INTO metadata (key, value) VALUES ('chain_id', '1337')")
                 conn.commit()
     
     @contextmanager
     def get_connection(self):
-        """Get database connection with context manager"""
         conn = sqlite3.connect(self.db_path, timeout=10)
         conn.row_factory = sqlite3.Row
         try:
@@ -138,7 +136,6 @@ class BlockchainDB:
             conn.close()
     
     def save_block(self, block: dict) -> bool:
-        """Save block to database"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
@@ -164,7 +161,6 @@ class BlockchainDB:
             return True
     
     def get_block(self, block_hash: str) -> Optional[dict]:
-        """Get block by hash"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT block_data FROM blocks WHERE hash = ?", (block_hash,))
@@ -174,7 +170,6 @@ class BlockchainDB:
             return None
     
     def get_block_by_number(self, number: int) -> Optional[dict]:
-        """Get block by number"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT block_data FROM blocks WHERE number = ?", (number,))
@@ -184,7 +179,6 @@ class BlockchainDB:
             return None
     
     def get_latest_block(self) -> Optional[dict]:
-        """Get latest canonical block"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
@@ -198,17 +192,13 @@ class BlockchainDB:
             return None
     
     def get_latest_block_number(self) -> int:
-        """Get latest block number"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('''
-                SELECT MAX(number) as max_num FROM blocks WHERE is_canonical = 1
-            ''')
+            cursor.execute('SELECT MAX(number) as max_num FROM blocks WHERE is_canonical = 1')
             row = cursor.fetchone()
             return row[0] if row and row[0] else 0
     
     def save_account(self, address: str, balance: int, nonce: int = 0) -> bool:
-        """Save account state"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
@@ -219,7 +209,6 @@ class BlockchainDB:
             return True
     
     def get_account(self, address: str) -> Optional[dict]:
-        """Get account state"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM accounts WHERE address = ?", (address,))
@@ -229,12 +218,10 @@ class BlockchainDB:
             return None
     
     def get_balance(self, address: str) -> int:
-        """Get account balance"""
         account = self.get_account(address)
         return account["balance"] if account else 0
     
     def save_validator(self, address: str, stake: int) -> bool:
-        """Save validator info"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
@@ -245,40 +232,12 @@ class BlockchainDB:
             return True
     
     def get_validators(self) -> List[dict]:
-        """Get all validators"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM validators WHERE is_active = 1")
             return [dict(row) for row in cursor.fetchall()]
     
-    def save_transaction_receipt(self, tx_hash: str, receipt: dict) -> bool:
-        """Save transaction receipt"""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT OR REPLACE INTO transactions 
-                (hash, from_addr, to_addr, value, nonce, signature, 
-                 block_hash, block_number, status, gas_used, logs, timestamp)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                tx_hash,
-                receipt.get("from"),
-                receipt.get("to"),
-                receipt.get("value"),
-                receipt.get("nonce"),
-                receipt.get("signature"),
-                receipt.get("block_hash"),
-                receipt.get("block_number"),
-                receipt.get("status", 1),
-                receipt.get("gas_used", 21000),
-                json.dumps(receipt.get("logs", [])),
-                int(time.time())
-            ))
-            conn.commit()
-            return True
-    
     def save_metadata(self, key: str, value: str) -> bool:
-        """Save metadata"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
@@ -289,15 +248,27 @@ class BlockchainDB:
             return True
     
     def get_metadata(self, key: str) -> Optional[str]:
-        """Get metadata"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT value FROM metadata WHERE key = ?", (key,))
             row = cursor.fetchone()
             return row[0] if row else None
     
+    def get_stats(self) -> dict:
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM blocks")
+            blocks = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM accounts")
+            accounts = cursor.fetchone()[0]
+            return {
+                "total_blocks": blocks,
+                "total_accounts": accounts,
+                "latest_block": self.get_latest_block_number()
+            }
+
     def save_checkpoint(self, block_hash: str, height: int, snapshot: dict) -> bool:
-        """Save state checkpoint"""
+        """Save checkpoint to database"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
@@ -311,9 +282,7 @@ class BlockchainDB:
         """Get latest checkpoint"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('''
-                SELECT * FROM checkpoints ORDER BY height DESC LIMIT 1
-            ''')
+            cursor.execute('SELECT * FROM checkpoints ORDER BY height DESC LIMIT 1')
             row = cursor.fetchone()
             if row:
                 return {
@@ -322,22 +291,3 @@ class BlockchainDB:
                     "snapshot": json.loads(row[2])
                 }
             return None
-    
-    def get_stats(self) -> dict:
-        """Get database statistics"""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM blocks")
-            blocks = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM accounts")
-            accounts = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM transactions")
-            txs = cursor.fetchone()[0]
-            
-            return {
-                "total_blocks": blocks,
-                "total_accounts": accounts,
-                "total_transactions": txs,
-                "latest_block": self.get_latest_block_number(),
-                "db_path": self.db_path
-            }

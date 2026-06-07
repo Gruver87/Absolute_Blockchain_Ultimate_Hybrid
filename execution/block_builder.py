@@ -25,8 +25,8 @@ class BlockBuilder:
         # Filter valid transactions (check balances)
         valid_txs = []
         for tx in pending_txs:
-            balance = self.state.get_balance(tx.from_addr)
-            if balance >= tx.value + (tx.gas_price * tx.gas_limit):
+            balance = self.state.get_balance(tx["from"])
+            if balance >= tx["value"] + (tx["gasPrice"] * tx["gas"]):
                 valid_txs.append(tx)
         
         # Limit block size
@@ -58,20 +58,20 @@ class BlockBuilder:
         if not transactions:
             return hashlib.sha256(b"empty_tx").hexdigest()[:32]
         
-        tx_strings = [tx.hash for tx in transactions]
+        tx_strings = [tx["hash"] for tx in transactions]
         combined = "".join(sorted(tx_strings))
         return hashlib.sha256(combined.encode()).hexdigest()[:32]
     
     def _tx_to_dict(self, tx) -> dict:
         """Convert transaction to dict for inclusion in block"""
         return {
-            "hash": tx.hash,
-            "from": tx.from_addr,
-            "to": tx.to_addr,
-            "value": tx.value,
-            "gas_limit": tx.gas_limit,
-            "gas_price": tx.gas_price,
-            "nonce": tx.nonce,
+            "hash": tx["hash"],
+            "from": tx["from"],
+            "to": tx["to"],
+            "value": tx["value"],
+            "gas_limit": tx["gas"],
+            "gas_price": tx["gasPrice"],
+            "nonce": tx["nonce"],
             "data": tx.data.hex() if isinstance(tx.data, bytes) else tx.data,
             "timestamp": tx.timestamp
         }
@@ -96,3 +96,4 @@ class BlockBuilder:
 
 
 import json
+

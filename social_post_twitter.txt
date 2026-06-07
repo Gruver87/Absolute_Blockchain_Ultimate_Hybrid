@@ -1,0 +1,13 @@
+﻿🧵 I built a blockchain client from scratch in Python!
+
+Absolute Blockchain Ultimate features:
+- LMD-GHOST + Casper FFG consensus
+- secp256k1 + ECDSA signatures
+- P2P network
+- SQLite storage
+- JSON-RPC API
+- Multi-node sync (v50)
+
+GitHub: https://github.com/Gruver87/absolute-blockchain-ultimate
+
+#Blockchain #Python #OpenSource

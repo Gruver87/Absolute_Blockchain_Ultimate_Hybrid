@@ -109,7 +109,7 @@ class WeatherOracle:
         self.cache = {}
         self.lock = threading.RLock()
         # ТВОИ API КЛЮЧИ
-        self.OPENWEATHER_API_KEY = "YOUR_OPENWEATHER_API_KEY"
+        self.OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY", "")
         self.WEATHERAPI_KEY = os.getenv("WEATHERAPI_KEY", "")
         print("??? Weather Oracle initialized")
     
@@ -247,4 +247,5 @@ class OracleManager:
         print("?? Auto-update started")
 
 oracle_manager = OracleManager()
+
 

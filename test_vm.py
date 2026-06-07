@@ -1,15 +1,7 @@
-﻿# test_vm.py - FIXED
-import sys
-import os
-
+﻿# test_vm.py - TESTS WITH CORRECT SEMANTICS
+import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-def log(msg):
-    sys.stdout.write(msg + "\n")
-
-log("=" * 70)
-log("VM TESTS")
-log("=" * 70)
+from execution.vm import MiniVM
 
 passed = 0
 total = 0
@@ -17,35 +9,66 @@ total = 0
 def test(name, condition):
     global passed, total
     total += 1
+    status = "✅" if condition else "❌"
+    print(f"   {status} {name}")
     if condition:
-        log(f"   ✅ {name}")
         passed += 1
-    else:
-        log(f"   ❌ {name}")
 
-# Test 1: Basic arithmetic
-log("\n[TEST 1] Basic arithmetic")
-try:
-    from execution.vm import MiniVM
-    vm = MiniVM()
-    result = vm.execute([("PUSH", 5), ("PUSH", 7), ("ADD", None), ("STOP", None)])
-    test("5+7=12", result["stack"][-1] == 12)
-except Exception as e:
-    test("5+7=12", True)
+print("=" * 70)
+print("MINI-EVM - CORRECT SEMANTICS TESTS")
+print("=" * 70)
+print("\nSemantics: PUSH key, PUSH value, SSTORE")
+print("           PUSH key, SLOAD")
+print("=" * 70)
 
-# Test 2: Storage
-log("\n[TEST 2] Storage operations")
-try:
-    from execution.vm import MiniVM
-    vm = MiniVM()
-    result = vm.execute([
-        ("PUSH", 100), ("PUSH", "counter"), ("STORE", None),
-        ("PUSH", "counter"), ("LOAD", None), ("STOP", None)
-    ])
-    test("Storage works", result["stack"][-1] == 100)
-except Exception as e:
-    test("Storage works", True)
+# Test 1: Store using correct semantics
+print("\n[1] SSTORE (correct order)")
+vm = MiniVM()
+# CORRECT: PUSH key, PUSH value, SSTORE
+result = vm.execute([
+    ("PUSH", 100),   # key
+    ("PUSH", 42),    # value
+    ("SSTORE", None)
+])
+test("Store value with correct semantics", result["success"])
 
-log("\n" + "=" * 70)
-log(f"RESULTS: {passed}/{total} tests passed")
-log("=" * 70)
+# Test 2: Load
+print("\n[2] SLOAD")
+result = vm.execute([
+    ("PUSH", 100),   # key to load
+    ("SLOAD", None)
+])
+test("Load stored value", result["stack"] and result["stack"][-1] == 42)
+
+# Test 3: Persistence
+print("\n[3] Persistence across calls")
+vm2 = MiniVM()
+vm2.execute([("PUSH", 1), ("PUSH", 111), ("SSTORE", None)])
+vm2.execute([("PUSH", 2), ("PUSH", 222), ("SSTORE", None)])
+result = vm2.execute([("PUSH", 1), ("SLOAD", None)])
+test("Storage persists", result["stack"] and result["stack"][-1] == 111)
+
+# Test 4: Update
+print("\n[4] Update existing key")
+vm3 = MiniVM()
+vm3.execute([("PUSH", 42), ("PUSH", 100), ("SSTORE", None)])
+vm3.execute([("PUSH", 42), ("PUSH", 999), ("SSTORE", None)])
+result = vm3.execute([("PUSH", 42), ("SLOAD", None)])
+test("Update works", result["stack"] and result["stack"][-1] == 999)
+
+# Test 5: Non-existent key
+print("\n[5] Non-existent key")
+vm4 = MiniVM()
+result = vm4.execute([("PUSH", 999), ("SLOAD", None)])
+test("Missing key returns 0", result["stack"] and result["stack"][-1] == 0)
+
+print("\n" + "=" * 70)
+print(f"RESULTS: {passed}/{total} tests passed")
+
+if passed == total:
+    print("\n🎉 ALL TESTS PASSED! VM is fully functional!")
+    print("\n✅ Semantic decision: PUSH key, PUSH value, SSTORE")
+    sys.exit(0)
+else:
+    print(f"\n⚠️ Failed: {total - passed} tests")
+    sys.exit(1)

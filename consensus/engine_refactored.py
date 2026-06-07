@@ -126,3 +126,4 @@ class ConsensusEngine:
 
         for child in self._block_tree.get(block_hash, {}).get("children", []):
             self.print_tree(child, indent + 1)
+
