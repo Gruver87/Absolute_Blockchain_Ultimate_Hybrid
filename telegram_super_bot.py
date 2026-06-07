@@ -13,7 +13,7 @@ import threading
 from datetime import datetime
 
 API_URL = "http://localhost:8080"
-BOT_TOKEN = "os.getenv("TELEGRAM_BOT_TOKEN", "")"
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 
 class AbsoluteBot:
     def __init__(self):
@@ -408,4 +408,6 @@ TPS: 10,000+
 if __name__ == "__main__":
     bot = AbsoluteBot()
     bot.run()
+
+
 

@@ -199,7 +199,11 @@ class ShardingManager:
         }
 
 # Example usage
+# Global instance for import
+sharding_manager = ShardingManager()
+
 if __name__ == "__main__":
     sharding = ShardingManager(num_shards=4)
     print("\n📊 Sharding Stats:")
     print(json.dumps(sharding.get_stats(), indent=2))
+

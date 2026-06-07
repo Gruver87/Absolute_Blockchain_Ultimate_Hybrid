@@ -219,6 +219,9 @@ def register_oracle_routes(app):
     async def get_all_prices():
         return oracle.get_all_prices()
 
+# Global instance for import
+oracle_manager = OracleManager()
+
 if __name__ == "__main__":
     print("Testing oracles...")
     btc = oracle.get_crypto_price("bitcoin")
@@ -226,3 +229,4 @@ if __name__ == "__main__":
     
     weather = oracle.get_weather("London")
     print(f"London: {weather.temperature}°C, {weather.condition}")
+

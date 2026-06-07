@@ -242,7 +242,48 @@ async def root():
         ]
     }
 
-if __name__ == "__main__":
+
+@app.get("/nft")
+async def nft_gallery():
+    """NFT галерея"""
+    return {"message": "NFT Gallery", "status": "available"}
+
+@app.get("/wallet")
+async def wallet_info():
+    """Информация о кошельке"""
+    return {"message": "Wallet Info", "status": "available"}
+
+@app.get("/explorer")
+async def blockchain_explorer():
+    """Блокчейн эксплорер"""
+    return {"message": "Blockchain Explorer", "status": "available"}
+
+@app.get("/staking")
+async def staking_info():
+    """Информация о стейкинге"""
+    return {"message": "Staking Info", "status": "available"}
+
+@app.get("/evm")
+async def evm_interface():
+    """EVM интерфейс"""
+    return {"message": "EVM Interface", "status": "available"}
+
+@app.get("/sharding")
+async def sharding_info():
+    """Информация о шардинге"""
+    return {"message": "Sharding Info", "status": "available"}
+
+@app.get("/oracles")
+async def oracles_info():
+    """Информация об оракулах"""
+    return {"message": "Oracles Info", "status": "available"}
+
+@app.get("/metrics")
+async def metrics_info():
+    """Метрики системы"""
+    return {"message": "Metrics", "status": "available"}
+
+
     print("\n" + "=" * 60)
     print("🌐 ABSOLUTE BLOCKCHAIN EXTENDED API SERVER")
     print("=" * 60)
@@ -251,3 +292,4 @@ if __name__ == "__main__":
     print("=" * 60 + "\n")
     
     uvicorn.run(app, host="0.0.0.0", port=8081)
+
