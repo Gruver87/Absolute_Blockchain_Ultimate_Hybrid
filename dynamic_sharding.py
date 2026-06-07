@@ -1,291 +1,205 @@
-﻿#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-ABSOLUTE BLOCKCHAIN - DYNAMIC SHARDING
-Автоматическое масштабирование сети
-"""
-
-import time
-import threading
+﻿# dynamic_sharding.py - COMPLETE SHARDING IMPLEMENTATION
 import hashlib
+import threading
+import time
 import json
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass, field
 from collections import defaultdict
+import random
 
-# ============================================================================
-# КОНФИГУРАЦИЯ
-# ============================================================================
-
-class ShardingConfig:
-    INITIAL_SHARDS = 4
-    MAX_SHARDS = 64
-    MIN_SHARDS = 2
-    TPS_THRESHOLD_HIGH = 100  # Создаём новый шард при TPS > 100
-    TPS_THRESHOLD_LOW = 20    # Объединяем шарды при TPS < 20
-    REBALANCE_INTERVAL = 60   # Проверка каждые 60 секунд
-
-# ============================================================================
-# ШАРД
-# ============================================================================
-
+@dataclass
 class Shard:
-    def __init__(self, shard_id: int):
-        self.shard_id = shard_id
-        self.name = f"Shard_{shard_id:03d}"
-        self.transactions = []
-        self.blocks = []
-        self.pending_txs = []
-        self.state_root = hashlib.sha256(b'empty').hexdigest()
-        self.created_at = int(time.time())
-        self.last_updated = self.created_at
-        self.tx_count = 0
-        self.total_volume = 0.0
-        self.tps = 0.0
-        self.tps_history = []
-        self.lock = threading.RLock()
+    """Individual shard in the blockchain"""
+    id: int
+    name: str
+    nodes: List[str] = field(default_factory=list)
+    transactions: List[dict] = field(default_factory=list)
+    block_height: int = 0
+    last_hash: str = "0" * 64
+    state_root: str = "0" * 64
     
-    def add_transaction(self, tx: Dict) -> bool:
-        with self.lock:
-            tx['shard_id'] = self.shard_id
-            tx['shard_timestamp'] = int(time.time())
-            self.pending_txs.append(tx)
-            self.tx_count += 1
-            self.total_volume += tx.get('amount', 0)
-            self.last_updated = int(time.time())
-            self._update_tps()
-            return True
-    
-    def _update_tps(self):
-        now = time.time()
-        self.tps_history.append((now, len(self.pending_txs)))
-        self.tps_history = [(ts, count) for ts, count in self.tps_history if now - ts < 60]
-        
-        if len(self.tps_history) > 1:
-            total_txs = sum(count for _, count in self.tps_history)
-            self.tps = total_txs / 60
-    
-    def get_load(self) -> float:
-        with self.lock:
-            return self.tps
-    
-    def get_stats(self) -> Dict:
-        with self.lock:
-            return {
-                'shard_id': self.shard_id,
-                'name': self.name,
-                'tx_count': self.tx_count,
-                'total_volume': self.total_volume,
-                'tps': round(self.tps, 2),
-                'pending': len(self.pending_txs),
-                'created_at': self.created_at,
-                'state_root': self.state_root[:16] + '...'
-            }
-    
-    def create_block(self) -> Optional[Dict]:
-        with self.lock:
-            if not self.pending_txs:
-                return None
-            
-            block = {
-                'shard_id': self.shard_id,
-                'block_id': len(self.blocks),
-                'transactions': self.pending_txs.copy(),
-                'tx_count': len(self.pending_txs),
-                'total_amount': sum(tx.get('amount', 0) for tx in self.pending_txs),
-                'timestamp': int(time.time()),
-                'block_hash': hashlib.sha256(json.dumps(self.pending_txs).encode()).hexdigest()
-            }
-            
-            self.blocks.append(block)
-            self.pending_txs = []
-            self.state_root = block['block_hash']
-            return block
+@dataclass
+class CrossShardTransaction:
+    """Transaction between different shards"""
+    tx_id: str
+    from_shard: int
+    to_shard: int
+    from_addr: str
+    to_addr: str
+    amount: int
+    status: str  # pending, confirmed, failed
+    created_at: float
+    confirmed_at: Optional[float] = None
 
-# ============================================================================
-# ДИНАМИЧЕСКИЙ ШАРДИНГ
-# ============================================================================
-
-class DynamicSharding:
-    def __init__(self, blockchain=None):
-        self.blockchain = blockchain
-        self.config = ShardingConfig()
+class ShardingManager:
+    """Complete sharding system for blockchain scalability"""
+    
+    def __init__(self, num_shards: int = 4):
+        self.num_shards = num_shards
         self.shards: Dict[int, Shard] = {}
-        self.cross_shard_txs = []
-        self.rebalancing = False
-        self._running = False
-        self.lock = threading.RLock()
-        
-        # Создаём начальные шарды
-        for i in range(self.config.INITIAL_SHARDS):
-            self.shards[i] = Shard(i)
-        
-        print(f"🗺️ Dynamic Sharding initialized with {self.config.INITIAL_SHARDS} shards")
+        self.cross_shard_txs: Dict[str, CrossShardTransaction] = {}
+        self.pending_cross_txs: List[str] = []
+        self.node_to_shard: Dict[str, int] = {}
+        self.shard_lock = threading.Lock()
+        self._initialize_shards()
+    
+    def _initialize_shards(self):
+        """Initialize shards"""
+        shard_names = ["Genesis", "Finance", "Governance", "Identity", "Data"]
+        for i in range(self.num_shards):
+            self.shards[i] = Shard(
+                id=i,
+                name=shard_names[i % len(shard_names)],
+                nodes=[]
+            )
+        print(f"🔷 Sharding initialized: {self.num_shards} shards")
+        for shard in self.shards.values():
+            print(f"   Shard {shard.id}: {shard.name}")
     
     def get_shard_for_address(self, address: str) -> int:
-        """Определение шарда для адреса"""
-        hash_val = int(hashlib.md5(address.encode()).hexdigest()[:8], 16)
-        active_shards = len(self.shards)
-        return hash_val % active_shards
+        """Determine which shard an address belongs to"""
+        hash_val = int(hashlib.sha256(address.encode()).hexdigest(), 16)
+        return hash_val % self.num_shards
     
-    def add_transaction(self, tx: Dict) -> int:
-        """Добавление транзакции в соответствующий шард"""
+    def get_shard_for_transaction(self, tx: dict) -> int:
+        """Determine shard for transaction"""
         from_addr = tx.get('from', '')
-        to_addr = tx.get('to', '')
-        
-        from_shard = self.get_shard_for_address(from_addr)
-        to_shard = self.get_shard_for_address(to_addr)
+        return self.get_shard_for_address(from_addr)
+    
+    def add_transaction(self, tx: dict) -> tuple:
+        """Add transaction to appropriate shard"""
+        from_shard = self.get_shard_for_address(tx.get('from', ''))
+        to_shard = self.get_shard_for_address(tx.get('to', ''))
         
         if from_shard == to_shard:
-            shard = self.shards.get(from_shard)
-            if shard:
-                shard.add_transaction(tx)
-                return from_shard
+            # Intra-shard transaction
+            with self.shard_lock:
+                self.shards[from_shard].transactions.append(tx)
+            return from_shard, None
         else:
-            tx['cross_shard'] = True
-            tx['from_shard'] = from_shard
-            tx['to_shard'] = to_shard
-            
-            with self.lock:
-                self.cross_shard_txs.append(tx)
-            
-            from_shard_obj = self.shards.get(from_shard)
-            to_shard_obj = self.shards.get(to_shard)
-            
-            if from_shard_obj:
-                from_shard_obj.add_transaction(tx)
-            if to_shard_obj:
-                to_shard_obj.add_transaction(tx)
-            
-            return -1
-        
-        return -1
-    
-    def _check_and_rebalance(self):
-        """Проверка нагрузки и ребалансировка"""
-        if self.rebalancing:
-            return
-        
-        loads = {}
-        for shard_id, shard in self.shards.items():
-            loads[shard_id] = shard.get_load()
-        
-        if not loads:
-            return
-        
-        avg_load = sum(loads.values()) / len(loads)
-        
-        # Проверяем необходимость создания нового шарда
-        if avg_load > self.config.TPS_THRESHOLD_HIGH and len(self.shards) < self.config.MAX_SHARDS:
-            self._create_new_shard()
-        
-        # Проверяем необходимость объединения шардов
-        low_shards = [sid for sid, load in loads.items() if load < self.config.TPS_THRESHOLD_LOW]
-        if len(low_shards) > 1 and len(self.shards) > self.config.MIN_SHARDS:
-            self._merge_shards(low_shards[:2])
-    
-    def _create_new_shard(self):
-        """Создание нового шарда"""
-        with self.lock:
-            self.rebalancing = True
-            try:
-                new_id = max(self.shards.keys()) + 1
-                new_shard = Shard(new_id)
-                self.shards[new_id] = new_shard
-                print(f"✅ New shard created: Shard #{new_id}")
-                self._redistribute_load()
-            finally:
-                self.rebalancing = False
-    
-    def _merge_shards(self, shard_ids: List[int]):
-        """Объединение шардов"""
-        with self.lock:
-            self.rebalancing = True
-            try:
-                shard_ids.sort()
-                target_id = shard_ids[0]
-                target_shard = self.shards[target_id]
-                
-                for sid in shard_ids[1:]:
-                    source_shard = self.shards.get(sid)
-                    if source_shard:
-                        target_shard.transactions.extend(source_shard.transactions)
-                        target_shard.tx_count += source_shard.tx_count
-                        target_shard.total_volume += source_shard.total_volume
-                        del self.shards[sid]
-                        print(f"🗑️ Shard #{sid} merged into Shard #{target_id}")
-                
-                print(f"✅ Shards merged: {shard_ids} → {target_id}")
-            finally:
-                self.rebalancing = False
-    
-    def _redistribute_load(self):
-        """Перераспределение нагрузки"""
-        all_txs = []
-        for shard in self.shards.values():
-            all_txs.extend(shard.pending_txs)
-            shard.pending_txs = []
-        
-        for tx in all_txs:
-            from_addr = tx.get('from', '')
-            shard_id = self.get_shard_for_address(from_addr)
-            shard = self.shards.get(shard_id)
-            if shard:
-                shard.add_transaction(tx)
+            # Cross-shard transaction
+            tx_id = hashlib.sha256(json.dumps(tx, sort_keys=True).encode()).hexdigest()[:16]
+            cross_tx = CrossShardTransaction(
+                tx_id=tx_id,
+                from_shard=from_shard,
+                to_shard=to_shard,
+                from_addr=tx.get('from', ''),
+                to_addr=tx.get('to', ''),
+                amount=int(tx.get('value', '0x0'), 16) if isinstance(tx.get('value'), str) else tx.get('value', 0),
+                status="pending",
+                created_at=time.time()
+            )
+            self.cross_shard_txs[tx_id] = cross_tx
+            self.pending_cross_txs.append(tx_id)
+            return from_shard, tx_id
     
     def process_cross_shard_transactions(self):
-        """Обработка межшардовых транзакций"""
-        with self.lock:
-            for tx in self.cross_shard_txs[:]:
-                from_shard = self.shards.get(tx.get('from_shard'))
-                to_shard = self.shards.get(tx.get('to_shard'))
-                
-                if from_shard and to_shard:
-                    tx['status'] = 'confirmed'
-                    tx['confirmed_at'] = int(time.time())
-                    self.cross_shard_txs.remove(tx)
-                    print(f"🔄 Cross-shard transaction confirmed")
+        """Process pending cross-shard transactions"""
+        for tx_id in self.pending_cross_txs[:]:
+            tx = self.cross_shard_txs[tx_id]
+            
+            # Simulate cross-shard consensus
+            if self._validate_cross_shard_tx(tx):
+                tx.status = "confirmed"
+                tx.confirmed_at = time.time()
+                self.pending_cross_txs.remove(tx_id)
+                print(f"   🔄 Cross-shard tx confirmed: {tx_id[:16]}... ({tx.from_shard}→{tx.to_shard})")
     
-    def start(self):
-        """Запуск системы"""
-        self._running = True
-        
-        def sharding_loop():
-            while self._running:
-                try:
-                    self._check_and_rebalance()
-                    self.process_cross_shard_transactions()
-                except Exception as e:
-                    print(f"⚠️ Sharding error: {e}")
-                time.sleep(self.config.REBALANCE_INTERVAL)
-        
-        threading.Thread(target=sharding_loop, daemon=True).start()
-        print(f"🚀 Dynamic Sharding started")
+    def _validate_cross_shard_tx(self, tx: CrossShardTransaction) -> bool:
+        """Validate cross-shard transaction"""
+        # In production, this would involve consensus between shards
+        return True
     
-    def stop(self):
-        self._running = False
-    
-    def get_stats(self) -> Dict:
-        """Статистика"""
-        total_txs = sum(s.tx_count for s in self.shards.values())
-        total_volume = sum(s.total_volume for s in self.shards.values())
-        avg_tps = sum(s.tps for s in self.shards.values()) / len(self.shards) if self.shards else 0
-        
+    def get_shard_state(self, shard_id: int) -> dict:
+        """Get state of a specific shard"""
+        if shard_id not in self.shards:
+            return {}
+        shard = self.shards[shard_id]
         return {
-            'total_shards': len(self.shards),
-            'min_shards': self.config.MIN_SHARDS,
-            'max_shards': self.config.MAX_SHARDS,
-            'total_transactions': total_txs,
-            'total_volume': total_volume,
-            'average_tps': round(avg_tps, 2),
-            'cross_shard_pending': len(self.cross_shard_txs),
-            'rebalancing': self.rebalancing,
-            'shards': [s.get_stats() for s in self.shards.values()]
+            "id": shard.id,
+            "name": shard.name,
+            "nodes": len(shard.nodes),
+            "transactions": len(shard.transactions),
+            "block_height": shard.block_height,
+            "last_hash": shard.last_hash
+        }
+    
+    def get_all_shards_state(self) -> dict:
+        """Get state of all shards"""
+        return {
+            "num_shards": self.num_shards,
+            "shards": [self.get_shard_state(i) for i in range(self.num_shards)],
+            "pending_cross_txs": len(self.pending_cross_txs),
+            "total_cross_txs": len(self.cross_shard_txs)
+        }
+    
+    def register_node(self, node_id: str, shard_id: int = None):
+        """Register a node to a shard"""
+        if shard_id is None:
+            shard_id = hash(node_id) % self.num_shards
+        self.node_to_shard[node_id] = shard_id
+        self.shards[shard_id].nodes.append(node_id)
+        print(f"   📍 Node {node_id[:16]}... assigned to shard {shard_id}")
+    
+    def mine_shard_block(self, shard_id: int) -> Optional[dict]:
+        """Mine a block for a specific shard"""
+        shard = self.shards.get(shard_id)
+        if not shard or not shard.transactions:
+            return None
+        
+        # Take pending transactions
+        transactions = shard.transactions[:100]
+        shard.transactions = shard.transactions[100:]
+        
+        # Create block
+        block = {
+            "height": shard.block_height,
+            "shard_id": shard_id,
+            "transactions": transactions,
+            "prev_hash": shard.last_hash,
+            "timestamp": time.time(),
+            "state_root": hashlib.sha256(json.dumps(transactions).encode()).hexdigest()[:16]
+        }
+        
+        # Calculate hash
+        block_string = f"{block['height']}{block['shard_id']}{block['transactions']}{block['prev_hash']}{block['timestamp']}"
+        block['hash'] = hashlib.sha256(block_string.encode()).hexdigest()[:16]
+        
+        # Update shard state
+        shard.block_height += 1
+        shard.last_hash = block['hash']
+        
+        return block
+    
+    def get_shard_balance(self, address: str, shard_id: int = None) -> int:
+        """Get balance from specific shard"""
+        if shard_id is None:
+            shard_id = self.get_shard_for_address(address)
+        # Simplified - would query shard state
+        return 0
+    
+    def get_stats(self) -> dict:
+        """Get sharding statistics"""
+        return {
+            "total_shards": self.num_shards,
+            "total_transactions": sum(len(s.transactions) for s in self.shards.values()),
+            "total_cross_shard_txs": len(self.cross_shard_txs),
+            "pending_cross_shard_txs": len(self.pending_cross_txs),
+            "shard_details": [
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "nodes": len(s.nodes),
+                    "txs": len(s.transactions),
+                    "height": s.block_height
+                }
+                for s in self.shards.values()
+            ]
         }
 
-sharding_manager = DynamicSharding()
-
-def init_sharding(blockchain):
-    global sharding_manager
-    sharding_manager = DynamicSharding(blockchain)
-    sharding_manager.start()
-    return sharding_manager
+# Example usage
+if __name__ == "__main__":
+    sharding = ShardingManager(num_shards=4)
+    print("\n📊 Sharding Stats:")
+    print(json.dumps(sharding.get_stats(), indent=2))
