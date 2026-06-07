@@ -1,4 +1,4 @@
-﻿# rpc_proxy.py - RPC Proxy with CORS
+﻿# rpc_proxy.py - FIXED with error handling
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 import requests
 import json
@@ -24,12 +24,21 @@ class ProxyHandler(SimpleHTTPRequestHandler):
                 self.send_header('Access-Control-Allow-Headers', 'Content-Type')
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
-                self.wfile.write(response.content)
+                
+                # FIXED: Handle connection errors gracefully
+                try:
+                    self.wfile.write(response.content)
+                except (BrokenPipeError, ConnectionAbortedError):
+                    pass  # Client disconnected, ignore
+                    
             except Exception as e:
                 self.send_response(500)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
-                self.wfile.write(json.dumps({'error': str(e)}).encode())
+                try:
+                    self.wfile.write(json.dumps({'error': str(e)}).encode())
+                except (BrokenPipeError, ConnectionAbortedError):
+                    pass
     
     def do_OPTIONS(self):
         self.send_response(200)
@@ -48,29 +57,6 @@ class ProxyHandler(SimpleHTTPRequestHandler):
 
 # Create web directory if not exists
 os.makedirs('web', exist_ok=True)
-
-# Simple index.html if not exists
-index_path = 'web/index.html'
-if not os.path.exists(index_path):
-    with open(index_path, 'w') as f:
-        f.write('''<!DOCTYPE html>
-<html>
-<head><title>Blockchain Explorer</title></head>
-<body>
-<h1>Absolute Blockchain Explorer</h1>
-<p>Loading...</p>
-<script>
-fetch('/rpc', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1})
-})
-.then(r => r.json())
-.then(data => document.body.innerHTML += `<pre>Block: ${data.result}</pre>`)
-.catch(e => document.body.innerHTML += `<p style="color:red">Error: ${e}</p>`);
-</script>
-</body>
-</html>''')
 
 os.chdir('web')
 print("=" * 50)

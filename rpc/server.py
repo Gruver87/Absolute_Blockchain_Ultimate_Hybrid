@@ -98,3 +98,4 @@ class JSONRPCServer:
     def stop(self):
         if self.http_server:
             self.http_server.shutdown()
+
