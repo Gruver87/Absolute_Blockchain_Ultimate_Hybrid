@@ -1,0 +1,13 @@
+﻿🚀 Absolute Blockchain Ultimate v54 released!
+
+A complete educational blockchain from scratch in Python:
+
+✅ Working transactions + mempool
+✅ JSON-RPC API (Ethereum compatible)
+✅ Mini-EVM with storage
+✅ Auto-mining every 15 sec
+✅ Persistent SQLite storage
+
+GitHub: https://github.com/Gruver87/absolute-blockchain-ultimate
+
+#Blockchain #Python #Web3 #OpenSource

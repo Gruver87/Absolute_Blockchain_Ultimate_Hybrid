@@ -1,14 +1,19 @@
-﻿#!/usr/bin/env python3
-import http.server
-import socketserver
+﻿# web_server.py - Simple web server with CORS headers
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 import os
 
-PORT = 8094
-os.chdir(os.path.dirname(__file__))
+class CORSRequestHandler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        super().end_headers()
+    
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
 
-Handler = http.server.SimpleHTTPRequestHandler
-with socketserver.TCPServer(("", PORT), Handler) as httpd:
-    print(f"🌐 Web Server started on http://localhost:{PORT}")
-    print(f"   Landing page: http://localhost:{PORT}/landing_page.html")
-    print(f"   Whitepaper: http://localhost:{PORT}/whitepaper.html")
-    httpd.serve_forever()
+os.chdir('web')
+print("🌐 Web server running on http://localhost:8080")
+print("📊 Open in browser: http://localhost:8080")
+HTTPServer(('0.0.0.0', 8080), CORSRequestHandler).serve_forever()

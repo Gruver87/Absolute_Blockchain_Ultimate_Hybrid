@@ -1,180 +1,113 @@
-"""
-Slashing Engine — Complete validator punishment system
-"""
-
+﻿# consensus/slashing.py - Complete slashing engine
 from typing import Dict, Set, Optional, List
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from collections import defaultdict
-import json
-from pathlib import Path
-
 
 @dataclass
-class SlashingRecord:
+class SlashEvent:
     validator: str
     reason: str
-    timestamp: datetime
     epoch: int
-    amount_slashed: int
-    evidence: Dict
-
+    timestamp: datetime
+    penalty: int
 
 class SlashingEngine:
-    """Complete Slashing Engine"""
+    """Validator slashing mechanism"""
     
     PENALTIES = {
-        "DOUBLE_VOTE": 0.10,
-        "DOUBLE_PROPOSE": 0.20,
-        "OFFLINE": 0.01,
-        "INVALID_PROPOSAL": 0.05,
+        "double_vote": 100,
+        "double_proposal": 200,
+        "offline": 10,
+        "invalid_proposal": 50,
+        "surround_vote": 75
     }
     
-    MAX_MISSED_ATTESTATIONS = 50
-    
-    def __init__(self, min_validator_stake: int = 1000):
+    def __init__(self):
         self.votes: Dict[str, Dict[int, str]] = {}
         self.proposals: Dict[int, Set[str]] = defaultdict(set)
         self.slashed: Set[str] = set()
-        self.reasons: Dict[str, str] = {}
-        self.records: Dict[str, List[SlashingRecord]] = defaultdict(list)
-        self.attestations: Dict[str, Dict[int, bool]] = {}
-        self.min_stake = min_validator_stake
-        self.total_slashed_amount = 0
+        self.events: List[SlashEvent] = []
+        self.missed_attestations: Dict[str, int] = defaultdict(int)
         
-    def add_vote(self, validator: str, epoch: int, block: str) -> bool:
-        if self.is_slashed(validator):
+    def record_vote(self, validator: str, epoch: int, block_hash: str) -> bool:
+        """Record validator vote, check for double voting"""
+        if validator in self.slashed:
             return False
-            
+        
         if validator not in self.votes:
             self.votes[validator] = {}
-            
-        if epoch in self.votes[validator]:
-            old_block = self.votes[validator][epoch]
-            if old_block != block:
-                self._slash(validator, "DOUBLE_VOTE", epoch, 
-                           {"first": old_block, "second": block})
-                return False
-                
-        self.votes[validator][epoch] = block
-        return True
         
-    def add_proposal(self, validator: str, height: int, block_hash: str) -> bool:
-        if self.is_slashed(validator):
+        if epoch in self.votes[validator]:
+            if self.votes[validator][epoch] != block_hash:
+                self._slash(validator, "double_vote", epoch)
+                return False
+        
+        self.votes[validator][epoch] = block_hash
+        return True
+    
+    def record_proposal(self, validator: str, height: int, block_hash: str) -> bool:
+        """Record block proposal, check for double proposal"""
+        if validator in self.slashed:
             return False
-            
+        
         if height in self.proposals and validator in self.proposals[height]:
-            self._slash(validator, "DOUBLE_PROPOSE", 0, {"height": height})
+            self._slash(validator, "double_proposal", height // 32)
             return False
-            
+        
         self.proposals[height].add(validator)
         return True
-        
-    def add_attestation(self, validator: str, epoch: int, attested: bool = True):
-        if self.is_slashed(validator):
-            return
+    
+    def record_missed_attestation(self, validator: str):
+        """Record missed attestation"""
+        if validator not in self.slashed:
+            self.missed_attestations[validator] += 1
             
-        if validator not in self.attestations:
-            self.attestations[validator] = {}
-            
-        self.attestations[validator][epoch] = attested
-        self._check_offline_validator(validator)
-        
-    def _check_offline_validator(self, validator: str):
-        if validator not in self.attestations:
-            return
-            
-        recent = sorted(self.attestations[validator].keys(), reverse=True)
-        if len(recent) < self.MAX_MISSED_ATTESTATIONS:
-            return
-            
-        missed = 0
-        for epoch in recent[:self.MAX_MISSED_ATTESTATIONS]:
-            if not self.attestations[validator][epoch]:
-                missed += 1
-                
-        if missed > self.MAX_MISSED_ATTESTATIONS * 0.7:
-            self._slash(validator, "OFFLINE", recent[0], 
-                       {"missed": missed, "total": self.MAX_MISSED_ATTESTATIONS})
-        
-    def report_invalid_proposal(self, validator: str, height: int, reason: str):
-        if not self.is_slashed(validator):
-            self._slash(validator, "INVALID_PROPOSAL", 0, 
-                       {"height": height, "reason": reason})
-        
-    def _slash(self, validator: str, reason: str, epoch: int, evidence: Dict):
+            if self.missed_attestations[validator] > 50:
+                self._slash(validator, "offline", 0)
+    
+    def report_invalid_proposal(self, validator: str, height: int):
+        """Report invalid block proposal"""
+        self._slash(validator, "invalid_proposal", height // 32)
+    
+    def _slash(self, validator: str, reason: str, epoch: int):
+        """Slash validator"""
         if validator in self.slashed:
             return
-            
-        penalty = self.PENALTIES.get(reason, 0.05)
-        amount = int(self.min_stake * penalty)
         
-        record = SlashingRecord(
+        penalty = self.PENALTIES.get(reason, 50)
+        self.slashed.add(validator)
+        
+        event = SlashEvent(
             validator=validator,
             reason=reason,
-            timestamp=datetime.now(),
             epoch=epoch,
-            amount_slashed=amount,
-            evidence=evidence
+            timestamp=datetime.now(),
+            penalty=penalty
         )
+        self.events.append(event)
         
-        self.slashed.add(validator)
-        self.reasons[validator] = reason
-        self.records[validator].append(record)
-        self.total_slashed_amount += amount
-        
-        print(f"[SLASH] {validator[:16]}...: {reason} (amount={amount})")
-        
-        # Log to file
-        log_path = Path("logs")
-        log_path.mkdir(exist_ok=True)
-        with open(log_path / "slashing.log", "a") as f:
-            f.write(json.dumps({
-                "ts": record.timestamp.isoformat(),
-                "validator": validator,
-                "reason": reason,
-                "amount": amount
-            }) + "\n")
-        
+        print(f"   ⚡ SLASH: {validator[:16]}... | {reason} | penalty={penalty}")
+    
     def is_slashed(self, validator: str) -> bool:
         return validator in self.slashed
-        
-    def get_slash_info(self, validator: str) -> Optional[str]:
-        return self.reasons.get(validator)
-        
-    def get_slashed_validators(self) -> Set[str]:
-        return self.slashed.copy()
-        
-    def get_summary(self) -> Dict:
-        return {
-            "total_slashed": len(self.slashed),
-            "total_amount": self.total_slashed_amount,
-            "reasons": {
-                reason: len([r for recs in self.records.values() for r in recs if r.reason == reason])
-                for reason in self.PENALTIES
-            }
-        }
-        
+    
+    def get_slashed_count(self) -> int:
+        return len(self.slashed)
+    
+    def get_events(self) -> List[SlashEvent]:
+        return self.events.copy()
+    
     def clear_epoch(self, epoch: int):
-        to_remove = []
-        for val, epochs in self.votes.items():
-            if epoch in epochs:
-                del epochs[epoch]
-            if not epochs:
-                to_remove.append(val)
-        for val in to_remove:
-            del self.votes[val]
-            
-    def reset(self):
-        self.votes.clear()
-        self.proposals.clear()
-        self.slashed.clear()
-        self.reasons.clear()
-        self.records.clear()
-        self.attestations.clear()
-        self.total_slashed_amount = 0
-
-
-if __name__ == "__main__":
-    engine = SlashingEngine()
-    print("Slashing engine ready!")
+        """Clear old epoch data"""
+        for validator in list(self.votes.keys()):
+            if epoch in self.votes[validator]:
+                del self.votes[validator][epoch]
+    
+    def get_stats(self) -> dict:
+        return {
+            "slashed_count": len(self.slashed),
+            "total_events": len(self.events),
+            "by_reason": {reason: len([e for e in self.events if e.reason == reason]) 
+                         for reason in self.PENALTIES}
+        }
