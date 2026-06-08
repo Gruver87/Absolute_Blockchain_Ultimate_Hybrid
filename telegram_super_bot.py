@@ -1,14 +1,19 @@
-﻿# telegram_super_bot.py - Telegram бот для блокчейна
+﻿# telegram_super_bot.py - Telegram бот (без токена в коде!)
+import os
 import json
 import time
 import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
 
 class TelegramBot:
-    """Telegram бот для взаимодействия с блокчейном"""
+    """Telegram бот - токен берётся из .env"""
     
-    def __init__(self, bot_token: str = "MOCK_TOKEN"):
-        self.bot_token = bot_token
+    def __init__(self):
+        # Токен из переменных окружения
+        self.bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+        if not self.bot_token:
+            print("⚠️ TELEGRAM_BOT_TOKEN not set in .env")
+            print("   Get token from @BotFather and add to .env")
+        
         self.commands = {
             '/start': self.cmd_start,
             '/help': self.cmd_help,
@@ -18,7 +23,7 @@ class TelegramBot:
             '/price': self.cmd_price
         }
         self.blockchain = None
-        print("🤖 Telegram Bot ready (mock mode)")
+        print("🤖 Telegram Bot ready (token from .env)")
     
     def set_blockchain(self, blockchain):
         self.blockchain = blockchain
@@ -45,7 +50,7 @@ class TelegramBot:
     def cmd_stats(self, args) -> str:
         if not self.blockchain:
             return "Blockchain not connected"
-        info = self.blockchain.get_blockchain_info()
+        info = self.blockchain.get_info()
         return f"""📊 Network Statistics:
 Blocks: {info['blocks']}
 Mempool: {info['mempool_size']}

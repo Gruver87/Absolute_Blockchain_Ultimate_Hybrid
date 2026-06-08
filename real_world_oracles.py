@@ -1,9 +1,10 @@
-﻿# real_world_oracles.py - Полностью исправленная версия
+﻿# real_world_oracles.py - Оракулы реального мира (без API ключей в коде!)
 import json
 import time
 import threading
 import urllib.request
 import random
+import os
 from typing import Dict, Any, Optional
 
 class RealWorldOracles:
@@ -14,6 +15,9 @@ class RealWorldOracles:
         self.cache_time: Dict[str, float] = {}
         self.cache_ttl = 60
         self.lock = threading.RLock()
+        # API ключи берутся из переменных окружения
+        self.openweather_api_key = os.getenv("OPENWEATHER_API_KEY", "")
+        self.weatherapi_key = os.getenv("WEATHERAPI_KEY", "")
     
     def _get_cached(self, key: str) -> Optional[Any]:
         if key in self.cache and time.time() - self.cache_time.get(key, 0) < self.cache_ttl:
@@ -56,12 +60,14 @@ class RealWorldOracles:
         cached = self._get_cached(f'weather_{city}')
         if cached:
             return cached
+        # Тестовые данные (без API ключа)
         weather = {
             'city': city,
             'temperature': round(random.uniform(-10, 35), 1),
             'condition': random.choice(['Sunny', 'Cloudy', 'Rainy', 'Snowy']),
             'humidity': random.randint(30, 90),
-            'timestamp': time.time()
+            'timestamp': time.time(),
+            'note': 'Test data - add OPENWEATHER_API_KEY to .env for real data'
         }
         self._set_cache(f'weather_{city}', weather)
         return weather
@@ -73,6 +79,6 @@ class RealWorldOracles:
             'timestamp': time.time()
         }
 
-# Глобальные экземпляры для совместимости
+# Глобальный экземпляр
 oracles = RealWorldOracles()
-oracle_manager = oracles  # Для обратной совместимости с extended_api_server.py
+oracle_manager = oracles  # Для обратной совместимости
