@@ -1,0 +1,150 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Absolute Blockchain Explorer</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: monospace; background: #0a0a0a; color: #0f0; padding: 20px; }
+        h1 { color: #0f0; text-align: center; }
+        .status { background: #0a3a0a; border: 1px solid #0f0; padding: 10px; margin: 10px 0; border-radius: 5px; text-align: center; }
+        .block { border: 1px solid #0f0; margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .info { display: inline-block; margin: 5px; padding: 5px 10px; background: #1a1a1a; border-radius: 5px; }
+        button { background: #0a0a0a; color: #0f0; border: 1px solid #0f0; padding: 10px 20px; cursor: pointer; margin: 5px; }
+        input { background: #1a1a1a; color: #0f0; border: 1px solid #0f0; padding: 8px; width: 300px; }
+        .flex { display: flex; gap: 10px; flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+    <h1>🔗 Absolute Blockchain Explorer</h1>
+    
+    <div class="status" id="status">🔄 Connecting to node...</div>
+    
+    <div class="flex">
+        <div class="info">📦 Height: <span id="height">?</span></div>
+        <div class="info">🔗 Chain ID: <span id="chainId">1337</span></div>
+        <div class="info">👛 Balance: <span id="balance">?</span> ABS</div>
+        <div class="info">⛏️ Mining: <span id="mining">Active</span></div>
+    </div>
+    
+    <button onclick="refresh()">🔄 Refresh</button>
+    <button onclick="mineBlock()">⛏️ Mine Block</button>
+    
+    <hr>
+    
+    <h2>💰 Send Transaction</h2>
+    <input type="text" id="toAddr" placeholder="Recipient address (0x...)" value="0x1234567890123456789012345678901234567890">
+    <input type="number" id="amount" placeholder="Amount (ABS)" value="10">
+    <button onclick="sendTx()">Send</button>
+    <div id="txResult"></div>
+    
+    <h2>📦 Latest Blocks</h2>
+    <div id="blocks">Loading...</div>
+    
+    <script>
+        const RPC = 'http://localhost:8545';
+        
+        async function rpcCall(method, params=[]) {
+            try {
+                const res = await fetch(RPC, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({jsonrpc: '2.0', method, params, id: 1})
+                });
+                const data = await res.json();
+                return data.result;
+            } catch(e) {
+                console.error(e);
+                return null;
+            }
+        }
+        
+        async function refresh() {
+            try {
+                const blockNum = await rpcCall('eth_blockNumber');
+                const balance = await rpcCall('eth_getBalance', ['0x40e908721295de4a5cbc775abac8909781aeeea8', 'latest']);
+                
+                if (blockNum !== null) {
+                    document.getElementById('status').innerHTML = '✅ Connected to node';
+                    document.getElementById('height').innerText = parseInt(blockNum, 16);
+                    document.getElementById('balance').innerText = parseInt(balance, 16) / 1e18;
+                    await loadBlocks(parseInt(blockNum, 16));
+                } else {
+                    document.getElementById('status').innerHTML = '❌ Node offline';
+                }
+            } catch(e) {
+                document.getElementById('status').innerHTML = '❌ Connection error';
+            }
+        }
+        
+        async function loadBlocks(maxBlock) {
+            const blocksDiv = document.getElementById('blocks');
+            blocksDiv.innerHTML = 'Loading blocks...';
+            let html = '';
+            
+            const start = Math.max(0, maxBlock - 14);
+            for (let i = maxBlock; i >= start; i--) {
+                const block = await rpcCall('eth_getBlockByNumber', ['0x' + i.toString(16), true]);
+                if (block) {
+                    html += `<div class="block">
+                        <b>🔷 Block #${parseInt(block.number, 16)}</b>
+                        <div>Hash: ${block.hash?.substring(0, 30)}...</div>
+                        <div>Miner: ${block.miner?.substring(0, 25)}...</div>
+                        <div>📝 Transactions: ${block.transactions?.length || 0}</div>
+                        <div>⏱️ Time: ${new Date(parseInt(block.timestamp, 16) * 1000).toLocaleTimeString()}</div>
+                    </div>`;
+                }
+            }
+            blocksDiv.innerHTML = html || '<p>No blocks found</p>';
+        }
+        
+        async function sendTx() {
+            const to = document.getElementById('toAddr').value;
+            const amount = document.getElementById('amount').value;
+            
+            if (!to || !amount) {
+                document.getElementById('txResult').innerHTML = '❌ Fill all fields';
+                return;
+            }
+            
+            try {
+                const tx = {
+                    from: '0x40e908721295de4a5cbc775abac8909781aeeea8',
+                    to: to,
+                    value: '0x' + (parseFloat(amount) * 1e18).toString(16)
+                };
+                const res = await fetch(RPC, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({jsonrpc: '2.0', method: 'eth_sendTransaction', params: [tx], id: 1})
+                });
+                const data = await res.json();
+                if (data.result) {
+                    document.getElementById('txResult').innerHTML = '✅ Transaction sent: ' + data.result;
+                    refresh();
+                } else {
+                    document.getElementById('txResult').innerHTML = '❌ Transaction failed';
+                }
+            } catch(e) {
+                document.getElementById('txResult').innerHTML = '❌ Error: ' + e.message;
+            }
+        }
+        
+        async function mineBlock() {
+            try {
+                const res = await fetch(RPC, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({jsonrpc: '2.0', method: 'eth_mining', params: ['0x40e908721295de4a5cbc775abac8909781aeeea8'], id: 1})
+                });
+                document.getElementById('txResult').innerHTML = '✅ Mining requested';
+                setTimeout(refresh, 2000);
+            } catch(e) {
+                document.getElementById('txResult').innerHTML = '❌ Mining error';
+            }
+        }
+        
+        refresh();
+        setInterval(refresh, 5000);
+    </script>
+</body>
+</html>

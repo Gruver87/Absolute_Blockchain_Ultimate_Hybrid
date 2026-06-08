@@ -1,7 +1,7 @@
-﻿# Python
-__pycache__/
+﻿
+Python
+pycache/
 *.py[cod]
-*$py.class
 *.so
 .Python
 env/
@@ -9,42 +9,46 @@ venv/
 ENV/
 .venv
 
-# Data (исключаем БД и кэш)
-data/*.db
-data/*.db-journal
-data/*.json
+Data (исключаем БД, но сохраняем структуру)
+data/.db
+data/.db-journal
+data/.db-wal
+data/.db-shm
 data/chain.json
 logs/*.log
 
-# IDE
+IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
+OS
 .DS_Store
 Thumbs.db
 
-# Backup
+Backup
 backup_*/
 *.backup
 *.bak
+*.broken
 
-# Secrets (ВАЖНО!)
+Secrets
 .env
 .env.local
 *.pem
 *.key
-secrets/
 
-# Coverage
+Coverage
 .coverage
 htmlcov/
 .pytest_cache/
 
-# Old files
-Новый*.py
-*.py.bak
-absolute-blockchain-ultimate/
-ABSOLUTE_FINAL_FIXED_backup*.py
+Old files (архив)
+Новый.py
+ABSOLUTE_FINAL_FIXED_backup.py
+backup_*/
+
+Exclude large binaries
+*.exe
+*.pyc

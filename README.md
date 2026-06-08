@@ -1,71 +1,53 @@
-﻿# 🌐 Absolute Blockchain Ultimate v54
+﻿# 🌐 Absolute Blockchain Ultimate
 
-> **Полноценный учебно-экспериментальный блокчейн-клиент | PoS консенсус | Mini-EVM | NFT | Sharding | Oracles | P2P | Python**
+> **Учебно-экспериментальный блокчейн-клиент | Python | JSON-RPC | Демонстрационный проект**
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Code style](https://img.shields.io/badge/code%20style-black-black.svg)](https://github.com/psf/black)
+[![Status](https://img.shields.io/badge/Status-Experimental-yellow.svg)]()
 
-## 📌 О проекте
-
-**Absolute Blockchain Ultimate v54** — это полностью работающий блокчейн-клиент с поддержкой:
-
-- ✅ **PoS консенсус** + LMD-GHOST + Casper FFG
-- ✅ **Mini-EVM** (50+ опкодов, газ, хранилище)
-- ✅ **NFT Marketplace** (создание, продажа, покупка)
-- ✅ **Sharding** (4 динамических шарда)
-- ✅ **Oracles** (цены ETH/BTC из Binance)
-- ✅ **P2P Network** (peer-to-peer обмен данными)
-- ✅ **Telegram Bot** (команды /balance, /stats, /nft, /price)
-- ✅ **Web Interface** (блокчейн-эксплорер)
-- ✅ **JSON-RPC API** (85% методов eth_*)
-
-## ⚠️ Важное предупреждение
-
-**Это УЧЕБНЫЙ/ЭКСПЕРИМЕНТАЛЬНЫЙ проект. НЕ ИСПОЛЬЗУЙТЕ В PRODUCTION!**
-
-## 🏗️ Техническая архитектура
-┌─────────────────────────────────────────────────────────────────────┐
-│ ПРИЛОЖНОЙ УРОВЕНЬ │
-│ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ │
-│ │ Web UI 8080 │ │ RPC 8545 │ │ REST API │ │ Telegram │ │
-│ │ Explorer │ │ JSON-RPC │ │ /api/* │ │ Bot │ │
-│ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ │
-├─────────────────────────────────────────────────────────────────────┤
-│ СЕРВИСНЫЙ УРОВЕНЬ │
-│ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ │
-│ │ Mempool │ │ Block │ │ Consensus │ │ P2P │ │
-│ │ (Tx Pool) │ │ Pipeline │ │ (PoS/LMD) │ │ Network │ │
-│ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ │
-├─────────────────────────────────────────────────────────────────────┤
-│ ВИРТУАЛЬНАЯ МАШИНА │
-│ ┌─────────────────────────────────────────────────────────────┐ │
-│ │ Mini-EVM │ │
-│ │ • 50+ опкодов • Стековая машина • Газ • Хранилище │ │
-│ └─────────────────────────────────────────────────────────────┘ │
-├─────────────────────────────────────────────────────────────────────┤
-│ РАСШИРЕННЫЕ ФУНКЦИИ │
-│ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ │
-│ │ NFT │ │ Sharding │ │ Oracles │ │ ZK Proofs │ │
-│ │ Marketplace │ │ 4 shards │ │ ETH/BTC │ │ (ZK-SN) │ │
-│ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ │
-└─────────────────────────────────────────────────────────────────────┘
+## ⚠️ **ВАЖНОЕ ПРЕДУПРЕЖДЕНИЕ**
+╔═══════════════════════════════════════════════════════════════════════════╗
+║ ЭТО УЧЕБНЫЙ/ЭКСПЕРИМЕНТАЛЬНЫЙ ПРОЕКТ ║
+║ ║
+║ ❌ НЕ ИСПОЛЬЗУЙТЕ В PRODUCTION! ║
+║ ❌ НЕ ХРАНИТЕ РЕАЛЬНЫЕ ЦЕННОСТИ ║
+║ ❌ БЕЗОПАСНОСТЬ НЕ ГАРАНТИРУЕТСЯ ║
+║ ║
+║ ✅ Для изучения принципов работы блокчейна ║
+║ ✅ Для экспериментов и тестирования ║
+║ ✅ Для демонстрации инженерных навыков ║
+╚═══════════════════════════════════════════════════════════════════════════╝
 
 text
 
-## ✅ Что РАБОТАЕТ (100%)
+## 📌 О проекте
 
-| Компонент | Статус | Описание |
-|-----------|--------|----------|
-| Blockchain Core | ✅ | 24+ блоков, автомайнинг |
-| Mini-EVM | ✅ | 50+ опкодов, газ, storage |
-| NFT Marketplace | ✅ | 5 токенов, продажа |
-| Sharding | ✅ | 4 шарда |
-| Oracles | ✅ | ETH $1,679, BTC $63,127 |
-| P2P Network | ✅ | Peer Manager (порт 5000) |
-| Telegram Bot | ✅ | /balance, /stats, /nft, /price |
-| Web Interface | ✅ | Explorer + API |
-| JSON-RPC | ✅ | 85% методов eth_* |
+**Absolute Blockchain Ultimate** — это учебный блокчейн-клиент, созданный для:
+- 🎓 Изучения принципов работы блокчейна
+- 🧪 Экспериментов с консенсусами и криптографией
+- 📊 Демонстрации инженерных компетенций
+
+## ✅ Что РАБОТАЕТ (проверено)
+
+| Компонент | Статус | Примечание |
+|-----------|--------|------------|
+| Блокчейн ядро | ✅ | 150+ блоков, автомайнинг |
+| JSON-RPC API | ✅ | Порт 8545, основные методы |
+| Mini-EVM | ✅ | 50+ опкодов, тесты 12/12 |
+| NFT Marketplace | ✅ | 5 тестовых NFT |
+| Шардинг | ✅ | 4 шарда (демо) |
+| Оракулы | ✅ | Цены ETH/BTC |
+| NFT галерея | ✅ | http://localhost:8081 |
+
+## ❌ Что НЕ РАБОТАЕТ (честно)
+
+| Проблема | Статус |
+|----------|--------|
+| P2P сеть | ⚠️ Заглушка, требует доработки |
+| Веб-интерфейс | ⚠️ Ошибки подключения |
+| Безопасность | ❌ Не реализована |
+| Production-ready | ❌ Нет |
 
 ## 🚀 Быстрый старт
 
@@ -74,50 +56,21 @@ text
 git clone https://github.com/Gruver87/absolute-blockchain-ultimate.git
 cd absolute-blockchain-ultimate
 pip install -r requirements.txt
-Запуск (всё в одном файле)
+Запуск ноды
 bash
-python ABSOLUTE_UNIFIED_FULL.py
-Открыть в браузере
-text
-http://localhost:8080         # Веб-интерфейс
-http://localhost:8080/explorer # Блокчейн-эксплорер
-http://localhost:8080/api/stats # Статистика
-http://localhost:8080/api/nft   # Список NFT
-http://localhost:8080/api/prices # Цены криптовалют
-http://localhost:8080/api/sharding # Статус шардов
-Telegram бот (в разработке)
-text
-/balance 0x... - Проверить баланс
-/stats        - Статистика сети
-/nft          - Список NFT
-/price        - Цены криптовалют
-📁 Структура проекта (актуальная)
-text
-absolute-blockchain-ultimate/
-├── ABSOLUTE_UNIFIED_FULL.py   # Главный файл (всё в одном!)
-├── nft_core.py                # NFT Marketplace
-├── dynamic_sharding.py        # Система шардинга
-├── real_world_oracles.py      # Оракулы цен
-├── telegram_super_bot.py      # Telegram бот
-├── zk_proofs.py               # Zero-Knowledge proofs
-├── test_vm.py                 # Тесты Mini-EVM
-├── execution/
-│   ├── vm.py                  # Mini-EVM
-│   └── contract_manager.py    # Управление контрактами
-├── network/
-│   └── p2p/
-│       └── peer_manager.py    # P2P сеть
-├── data/                      # Данные (кошельки, блоки)
-└── logs/                      # Логи работы
-📊 Текущий статус
-ПоказательЗначение
-Блоков намайнено24+
-NFT токенов5
-Активных шардов4
-P2P порт5000
-Версияv54
-Тесты VM12/12 ✅
-🧪 Тестирование
+python node_persistent.py
+Проверка работы
+bash
+# Запрос к RPC
+curl -X POST http://localhost:8545 -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
+
+# Ожидаемый ответ: {"jsonrpc":"2.0","result":"0x...","id":1}
+NFT галерея (отдельное окно)
+bash
+cd nft_images
+python -m http.server 8081
+# Открыть http://localhost:8081
+🛠️ Тестирование
 bash
 # Тест Mini-EVM
 python test_vm.py
@@ -126,37 +79,51 @@ python test_vm.py
 python -c "from nft_core import nft_marketplace; print('NFT OK')"
 python -c "from dynamic_sharding import sharding_manager; print('Sharding OK')"
 python -c "from real_world_oracles import oracles; print('Oracles OK')"
-📈 Roadmap
-v54 (✅ Текущая)
-✅ Полноценный блокчейн с автомайнингом
+📁 Структура проекта
+text
+absolute-blockchain-ultimate/
+├── node_persistent.py       # Основная нода (RPC сервер)
+├── nft_core.py              # NFT Marketplace
+├── dynamic_sharding.py      # Шардинг (демо)
+├── real_world_oracles.py    # Оракулы цен
+├── test_vm.py               # Тесты Mini-EVM
+├── execution/vm.py          # Mini-EVM (50+ опкодов)
+├── nft_images/              # SVG изображения NFT
+├── data/                    # Данные (wallet, chain)
+└── logs/                    # Логи работы
+📊 Текущий статус (локальный тест)
+ПоказательЗначение
+Блоков намайнено150+
+Баланс кошелька~30,000,000 ABS
+NFT токенов5
+Активных шардов4
+Тесты VM12/12 ✅
+🗺️ Roadmap (планы)
+v55 (в разработке)
+Исправление ошибок ConnectionAbortedError
 
-✅ Mini-EVM с 50+ опкодами
+Полноценный веб-интерфейс
 
-✅ NFT Marketplace
+JWT авторизация
 
-✅ Шардинг (4 шарда)
+v56 (планы)
+Реальное P2P
 
-✅ Oracles (цены ETH/BTC)
-
-✅ P2P сеть
-
-✅ Telegram бот
-
-✅ Web интерфейс
-
-v55 (Планы)
-Полноценный EVM (100% совместимость)
-
-Мультичейн мосты
+Полноценный EVM
 
 Децентрализованные оракулы
 
-Поддержка смарт-контрактов на WASM
+v57 (долгосрочно)
+ZK-Rollups
+
+Поддержка смарт-контрактов WASM
+
+Графический интерфейс
 
 🤝 Как помочь проекту
-⭐ Поставьте звезду на GitHub — это помогает проекту расти
+⭐ Поставьте звезду на GitHub
 🐛 Сообщайте об ошибках через Issues
-💡 Предлагайте улучшения и новые функции
+💡 Предлагайте улучшения
 🔧 Присылайте Pull Requests
 
 📄 Лицензия
@@ -169,8 +136,12 @@ GitHub: @Gruver87
 
 Email: gruverpetrov@gmail.com
 
-Проект: absolute-blockchain-ultimate
-
-⚠️ Ещё раз: это УЧЕБНЫЙ проект, НЕ PRODUCTION!
-
-⭐ Если вам полезен проект — поставьте звезду!
+⚠️ ЕЩЁ РАЗ: ЭТО УЧЕБНЫЙ ПРОЕКТ, НЕ PRODUCTION!
+text
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                                                                           ║
+║   🎓 ДЛЯ ОБУЧЕНИЯ И ЭКСПЕРИМЕНТОВ — ОТЛИЧНО!                             ║
+║   🚀 ДЛЯ PRODUCTION И РЕАЛЬНЫХ ДЕНЕГ — НЕТ!                              ║
+║                                                                           ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+⭐ Если проект полезен для изучения — поставьте звезду!
