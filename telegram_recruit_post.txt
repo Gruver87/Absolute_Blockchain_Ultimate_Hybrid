@@ -1,0 +1,11 @@
+﻿🚀 Приглашаю к участию в Absolute Blockchain Ultimate!
+
+Открытый блокчейн-фреймворк ищет контрибьюторов:
+• Python + Rust
+• UTXO + PoS + Mini-EVM
+• NFT + Sharding + ZK proofs
+
+GitHub: https://github.com/Gruver87/absolute-blockchain-ultimate
+Wiki: https://github.com/Gruver87/absolute-blockchain-ultimate/wiki
+
+#blockchain #opensource

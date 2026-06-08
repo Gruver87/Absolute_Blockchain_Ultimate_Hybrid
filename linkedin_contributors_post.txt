@@ -1,0 +1,78 @@
+﻿
+<!DOCTYPE html><html lang="ru"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Absolute Blockchain Ultimate</title> <style> * { margin: 0; padding: 0; box-sizing: border-box; } body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; color: #e0e0e0; } .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; } h1 { color: #e94560; font-size: 48px; margin-bottom: 20px; } .subtitle { font-size: 20px; color: #8899aa; margin-bottom: 40px; } .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin: 40px 0; } .feature { background: #1a1f35; border-radius: 12px; padding: 20px; border: 1px solid #2a2f4a; } .feature h3 { color: #e94560; margin-bottom: 10px; } .btn { background: #e94560; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block; margin: 10px; } .btn:hover { background: #ff6b6b; } .footer { text-align: center; margin-top: 60px; padding: 20px; color: #556677; } </style> </head> <body> <div class="container"> <h1>🔗 Absolute Blockchain Ultimate</h1> <div class="subtitle">Полноценный учебно-экспериментальный блокчейн-фреймворк</div> <div class="features"> <div class="feature"><h3>⛓️ Blockchain Core</h3><p>UTXO, PoS, LMD-GHOST, Casper FFG</p></div> <div class="feature"><h3>⚙️ Mini-EVM</h3><p>50+ опкодов, стековая машина, газ</p></div> <div class="feature"><h3>🎨 NFT Marketplace</h3><p>Mint, transfer, list, buy</p></div> <div class="feature"><h3>🔷 Sharding</h3><p>4 динамических шарда</p></div> <div class="feature"><h3>🔐 ZK Proofs</h3><p>Доказательства с нулевым разглашением</p></div> <div class="feature"><h3>🦀 Rust</h3><p>Высокопроизводительные компоненты</p></div> </div> <div style="text-align: center;"> <a href="https://github.com/Gruver87/absolute-blockchain-ultimate" class="btn">GitHub</a> <a href="https://github.com/Gruver87/absolute-blockchain-ultimate/wiki" class="btn">Wiki</a> <a href="https://github.com/Gruver87/absolute-blockchain-ultimate/releases" class="btn">Releases</a> </div> <div class="footer"> © 2026 Absolute Blockchain Ultimate | MIT License </div> </div> </body> </html> '@ | Out-File -FilePath "docs/index.html" -Encoding UTF8
+Write-Host " ✅ GitHub Pages created in docs/" -ForegroundColor Green
+Write-Host " 🔗 https://gruver87.github.io/absolute-blockchain-ultimate/" -ForegroundColor Cyan
+
+============================================================================
+3. СОЗДАНИЕ ISSUE ДЛЯ ПРИВЛЕЧЕНИЯ КОНТРИБЬЮТОРОВ
+============================================================================
+Write-Host ""
+Write-Host "[3] Creating 'Help Wanted' issue for contributors..." -ForegroundColor Cyan
+
+$issueBody = @"
+
+🚀 Помогите проекту расти!
+Absolute Blockchain Ultimate нуждается в вашей помощи! Вот несколько способов внести вклад:
+
+🎯 Good First Issues (для новичков)
+Улучшить документацию API #1
+
+Добавить примеры использования
+
+Исправить опечатки в README
+
+🔧 Задачи для опытных разработчиков
+Реализовать полноценный EVM (100% совместимость)
+
+Добавить мультичейн мосты (Ethereum, BSC)
+
+Улучшить P2P сеть с NAT traversal
+
+Оптимизировать производительность Rust компонентов
+
+📝 Как помочь без кода
+⭐ Поставьте звезду репозиторию
+
+📢 Расскажите о проекте в соцсетях
+
+🐛 Сообщайте об ошибках
+
+💡 Предлагайте идеи
+
+🔗 Полезные ссылки
+Руководство для контрибьюторов
+
+Wiki
+
+API документация
+
+Ждём ваших Pull Requests! 🚀
+"@
+
+Сохраняем текст для ручного создания Issue
+$issueBody | Out-File -FilePath "help_wanted_issue.txt" -Encoding UTF8
+Write-Host " ✅ 'Help Wanted' issue text saved to help_wanted_issue.txt" -ForegroundColor Green
+Write-Host " 🌐 Create issue: https://github.com/Gruver87/absolute-blockchain-ultimate/issues/new" -ForegroundColor Cyan
+
+============================================================================
+4. СОЗДАНИЕ ПОСТОВ ДЛЯ СОЦСЕТЕЙ
+============================================================================
+Write-Host ""
+Write-Host "[4] Creating social media posts..." -ForegroundColor Cyan
+
+LinkedIn пост
+@'
+🚀 Absolute Blockchain Ultimate v57 — приглашаю к сотрудничеству!
+
+Открытый блокчейн-фреймворк на Python + Rust ищет контрибьюторов!
+
+✅ Что уже работает:
+• UTXO + PoS + LMD-GHOST
+• Mini-EVM (50+ опкодов)
+• NFT Marketplace
+• Шардинг, ZK proofs, пост-квантовая криптография
+
+🔗 GitHub: https://github.com/Gruver87/absolute-blockchain-ultimate
+📚 Wiki: https://github.com/Gruver87/absolute-blockchain-ultimate/wiki
+
+#blockchain #python #rust #opensource #web3

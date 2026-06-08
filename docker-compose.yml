@@ -1,0 +1,49 @@
+﻿version: '3.8'
+
+services:
+  node1:
+    build: .
+    ports:
+      - "8545:8545"
+      - "8000:8000"
+    environment:
+      - NODE_ID=node1
+      - DATA_DIR=/app/data/node1
+    volumes:
+      - ./data/node1:/app/data/node1
+    networks:
+      - blockchain
+
+  node2:
+    build: .
+    ports:
+      - "8546:8545"
+      - "8001:8000"
+    environment:
+      - NODE_ID=node2
+      - DATA_DIR=/app/data/node2
+    volumes:
+      - ./data/node2:/app/data/node2
+    networks:
+      - blockchain
+    depends_on:
+      - node1
+
+  node3:
+    build: .
+    ports:
+      - "8547:8545"
+      - "8002:8000"
+    environment:
+      - NODE_ID=node3
+      - DATA_DIR=/app/data/node3
+    volumes:
+      - ./data/node3:/app/data/node3
+    networks:
+      - blockchain
+    depends_on:
+      - node1
+
+networks:
+  blockchain:
+    driver: bridge

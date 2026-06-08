@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000">
+    <defs>
+        <radialGradient id="bgGrad" cx="50%" cy="50%" r="70%">
+            <stop offset="0%" stop-color="#1a1a2e" stop-opacity="1" />
+            <stop offset="50%" stop-color="#16213e" stop-opacity="1" />
+            <stop offset="100%" stop-color="#0f0c29" stop-opacity="1" />
+        </radialGradient>
+        <radialGradient id="glowGrad" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#87CEEB" stop-opacity="0.5" />
+            <stop offset="100%" stop-color="#87CEEB" stop-opacity="0" />
+        </radialGradient>
+        <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+            <stop offset="100%" stop-color="#4682B4" stop-opacity="0.9"/>
+        </linearGradient>
+        <filter id="glow">
+            <feGaussianBlur stdDeviation="12" result="blur"/>
+            <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+        <filter id="shadow">
+            <feDropShadow dx="0" dy="10" stdDeviation="15" flood-color="#000" flood-opacity="0.5"/>
+        </filter>
+    </defs>
+    
+    <!-- Фон -->
+    <rect width="1000" height="1000" fill="url(#bgGrad)"/>
+    <circle cx="500" cy="500" r="400" fill="url(#glowGrad)"/>
+    
+    <!-- Рамка -->
+    <rect x="30" y="30" width="940" height="940" rx="40" ry="40" fill="none" stroke="#4682B4" stroke-width="5" opacity="0.8"/>
+    <rect x="40" y="40" width="920" height="920" rx="35" ry="35" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.5"/>
+    
+    <!-- Декоративные углы -->
+    <circle cx="70" cy="70" r="15" fill="#4682B4" opacity="0.8"/>
+    <circle cx="930" cy="70" r="15" fill="#4682B4" opacity="0.8"/>
+    <circle cx="70" cy="930" r="15" fill="#4682B4" opacity="0.8"/>
+    <circle cx="930" cy="930" r="15" fill="#4682B4" opacity="0.8"/>
+    
+    <!-- Название -->
+    <text x="500" y="80" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="28" font-weight="bold" fill="#4682B4" filter="url(#glow)">Harmony Token - Знак Мира</text>
+    
+    <!-- ТИП ПЕРСОНАЖА -->
+    <text x="500" y="125" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="18" fill="#aaa">PEACEKEEPER CLASS</text>
+    
+    <!-- ТЕЛО ПЕРСОНАЖА -->
+    <g transform="translate(500,520)" filter="url(#shadow)">
+        <!-- Одежда/броня -->
+        <ellipse cx="0" cy="30" rx="120" ry="150" fill="url(#bodyGrad)" opacity="0.9"/>
+        
+        <!-- Пояс -->
+        <rect x="-100" y="60" width="200" height="25" rx="5" ry="5" fill="#4682B4" opacity="0.8"/>
+        
+        <!-- Плечи -->
+        <ellipse cx="-80" cy="-40" rx="50" ry="30" fill="#FFFFFF" opacity="0.7"/>
+        <ellipse cx="80" cy="-40" rx="50" ry="30" fill="#FFFFFF" opacity="0.7"/>
+        
+        <!-- Голова -->
+        <circle cx="0" cy="-110" r="80" fill="#F5F5DC" stroke="#FFFFFF" stroke-width="3"/>
+        
+        <!-- Головной убор -->
+        <ellipse cx="0" cy="-170" rx="60" ry="40" fill="#4682B4" opacity="0.9"/>
+        <rect x="-30" y="-180" width="60" height="80" rx="10" ry="10" fill="#FFFFFF" opacity="0.8"/>
+        
+        <!-- Глаза -->
+        <ellipse cx="-25" cy="-125" rx="15" ry="18" fill="white"/>
+        <ellipse cx="25" cy="-125" rx="15" ry="18" fill="white"/>
+        <circle cx="-22" cy="-123" r="8" fill="peaceful"/>
+        <circle cx="28" cy="-123" r="8" fill="peaceful"/>
+        <circle cx="-20" cy="-121" r="3" fill="white"/>
+        <circle cx="30" cy="-121" r="3" fill="white"/>
+        
+        <!-- Брови -->
+        <path d="M -45,-145 Q -25,-155 -10,-145" stroke="#333" stroke-width="4" fill="none"/>
+        <path d="M 10,-145 Q 25,-155 45,-145" stroke="#333" stroke-width="4" fill="none"/>
+        
+        <!-- Рот -->
+        <path d="M -20,-95 Q 0,-85 20,-95" stroke="#333" stroke-width="3" fill="none"/>
+        
+        <!-- Оружие -->
+        <rect x="-180" y="-30" width="60" height="10" rx="3" ry="3" fill="#4682B4" opacity="0.8"/>
+        <circle cx="-190" cy="-25" r="12" fill="#87CEEB" filter="url(#glow)"/>
+        
+        <!-- Правая рука с оружием -->
+        <ellipse cx="-150" cy="0" rx="25" ry="40" fill="#F5F5DC" opacity="0.9"/>
+    </g>
+    
+    <!-- Информационная панель -->
+    <rect x="150" y="820" width="700" height="110" rx="20" ry="20" fill="rgba(0,0,0,0.6)" stroke="#4682B4" stroke-width="2"/>
+    
+    <text x="250" y="855" text-anchor="middle" font-family="Arial" font-size="16" fill="#aaa">Тип</text>
+    <text x="500" y="855" text-anchor="middle" font-family="Arial" font-size="16" fill="#aaa">Класс</text>
+    <text x="750" y="855" text-anchor="middle" font-family="Arial" font-size="16" fill="#aaa">Сила</text>
+    
+    <text x="250" y="885" text-anchor="middle" font-family="Arial" font-size="20" font-weight="bold" fill="#4682B4">PEACEKEEPER</text>
+    <text x="500" y="885" text-anchor="middle" font-family="Arial" font-size="20" font-weight="bold" fill="#4682B4">RARE</text>
+    <text x="750" y="885" text-anchor="middle" font-family="Arial" font-size="20" font-weight="bold" fill="#4682B4">30</text>
+    
+    <!-- Атрибуты персонажа -->
+    <text x="500" y="920" text-anchor="middle" font-family="Arial" font-size="14" fill="#666">Absolute Blockchain • 2025 • Уникальный 3D персонаж</text>
+</svg>

@@ -1,0 +1,41 @@
+﻿
+🚀 Absolute Blockchain Ultimate v54 Released!
+
+I'm excited to announce the latest release of my educational blockchain project built from scratch in Python!
+
+✅ What works:
+
+Complete blockchain with persistent storage
+
+JSON-RPC API (Ethereum compatible)
+
+Mini-EVM for smart contracts
+
+Transaction mempool with gas priority
+
+Auto-mining every 15 seconds
+
+Crash recovery and backup
+
+🔧 Tech Stack:
+
+Python 3.11+
+
+SQLite for storage
+
+ECDSA secp256k1 cryptography
+
+Custom Mini-EVM
+
+📦 Install:
+
+bash
+git clone https://github.com/Gruver87/absolute-blockchain-ultimate.git
+cd absolute-blockchain-ultimate
+pip install -r requirements.txt
+python node_persistent.py
+🔗 GitHub: https://github.com/Gruver87/absolute-blockchain-ultimate
+
+⚠️ Educational project - not for production use
+
+#blockchain #python #cryptocurrency #web3 #opensource

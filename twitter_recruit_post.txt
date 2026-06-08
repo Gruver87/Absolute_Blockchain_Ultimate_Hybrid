@@ -1,0 +1,11 @@
+﻿🚀 Help wanted! Absolute Blockchain Ultimate needs contributors!
+
+Python + Rust blockchain framework:
+• UTXO + PoS + Mini-EVM
+• NFT + Sharding + ZK proofs
+• Post-quantum crypto
+• 400+ blocks
+
+GitHub: https://github.com/Gruver87/absolute-blockchain-ultimate
+
+#blockchain #opensource #python

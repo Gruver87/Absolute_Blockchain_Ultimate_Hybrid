@@ -1,0 +1,14 @@
+﻿
+Absolute Blockchain Ultimate v54 - Dependencies
+Core
+pyjwt>=2.8.0
+psutil>=5.9.0
+prometheus-client>=0.19.0
+ecdsa>=0.19.0
+
+Optional (for oracles)
+requests>=2.31.0
+
+Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
