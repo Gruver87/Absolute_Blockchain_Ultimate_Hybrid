@@ -195,3 +195,4 @@ class WebSocketClient:
 if __name__ == "__main__":
     print("WebSocket module ready")
     print("To use: pip install websockets")
+

@@ -125,3 +125,4 @@ class NFTMarketplace:
     def get_collection(self) -> Dict[str, NFT]:
         """Get entire NFT collection"""
         return self.tokens.copy()
+

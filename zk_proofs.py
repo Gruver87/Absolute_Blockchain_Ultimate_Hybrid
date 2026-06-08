@@ -170,3 +170,4 @@ if __name__ == "__main__":
     range_proof = zk.prove_range(value, 0, 100)
     range_verified = zk.verify_range(range_proof, 0, 100)
     print(f"Range proof verified: {range_verified}")
+

@@ -208,3 +208,4 @@ if __name__ == "__main__":
     print(f"🆔 Node ID: {p2p.node_id}")
     print(f"📡 IP: {p2p.get_public_ip()}:{p2p.port}")
     print(f"🔗 Peers: {list(p2p.peers)[:5]}")
+

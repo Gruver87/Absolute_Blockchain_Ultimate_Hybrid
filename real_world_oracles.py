@@ -230,3 +230,4 @@ if __name__ == "__main__":
     weather = oracle.get_weather("London")
     print(f"London: {weather.temperature}°C, {weather.condition}")
 
+
