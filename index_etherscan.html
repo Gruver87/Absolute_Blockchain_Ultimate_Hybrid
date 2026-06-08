@@ -1,0 +1,139 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Absolute Explorer | Etherscan Clone</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="5">
+    <style>
+        body { font-family: 'Segoe UI', monospace; background: #0a0c10; color: #e0e0e0; margin: 0; padding: 20px; }
+        .header { background: linear-gradient(135deg, #0f1420, #111827); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; border-radius: 10px; }
+        .logo { font-size: 24px; font-weight: bold; color: #60a5fa; }
+        .logo span { color: #34d399; }
+        .search { display: flex; gap: 10px; flex: 1; max-width: 500px; }
+        .search input { flex: 1; padding: 10px 15px; background: #1f2937; border: 1px solid #374151; border-radius: 8px; color: white; font-size: 14px; }
+        .search button { padding: 10px 20px; background: #60a5fa; border: none; border-radius: 8px; color: white; cursor: pointer; }
+        .stats { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+        .stat-card { background: #111827; padding: 15px 25px; border-radius: 12px; border: 1px solid #1f2937; }
+        .stat-label { font-size: 12px; color: #9ca3af; }
+        .stat-value { font-size: 28px; font-weight: bold; color: #60a5fa; }
+        .card { background: #111827; border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #1f2937; }
+        .card-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #60a5fa; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #1f2937; }
+        th { color: #9ca3af; font-weight: normal; }
+        a { color: #60a5fa; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .pending { background: #3a3a0a; color: #ff0; }
+        .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; border-top: 1px solid #1f2937; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">⛓️ Absolute <span>Explorer</span></div>
+        <div class="search">
+            <input type="text" id="searchInput" placeholder="Search by Block / Tx Hash / Address..." autocomplete="off">
+            <button onclick="search()">🔍 Search</button>
+        </div>
+    </div>
+    
+    <div class="stats">
+        <div class="stat-card"><div class="stat-label">Latest Block</div><div class="stat-value" id="latestBlock">-</div></div>
+        <div class="stat-card"><div class="stat-label">Total Blocks</div><div class="stat-value" id="totalBlocks">-</div></div>
+        <div class="stat-card"><div class="stat-label">Transactions</div><div class="stat-value" id="totalTxs">-</div></div>
+        <div class="stat-card"><div class="stat-label">Addresses</div><div class="stat-value" id="totalAddresses">-</div></div>
+        <div class="stat-card"><div class="stat-label">Pending</div><div class="stat-value" id="pending">-</div></div>
+    </div>
+    
+    <div class="card">
+        <div class="card-title">📦 Latest Blocks</div>
+        <div id="blocks">Loading...</div>
+    </div>
+    
+    <div class="footer">Absolute Blockchain Explorer | Chain ID: 1337 | Real-time</div>
+    
+    <script>
+        const API_URL = 'http://localhost:8081';
+        const RPC_URL = 'http://localhost:8545';
+        
+        async function fetchJSON(url) {
+            try {
+                const res = await fetch(url);
+                return await res.json();
+            } catch(e) {
+                return null;
+            }
+        }
+        
+        async function getPendingCount() {
+            try {
+                const res = await fetch(RPC_URL, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({jsonrpc: '2.0', method: 'txpool_status', params: [], id: 1})
+                });
+                const data = await res.json();
+                return data.result?.pending || 0;
+            } catch(e) {
+                return 0;
+            }
+        }
+        
+        async function refresh() {
+            const stats = await fetchJSON(API_URL + '/api/stats');
+            if (stats) {
+                document.getElementById('totalBlocks').innerText = stats.total_blocks || 0;
+                document.getElementById('totalTxs').innerText = stats.total_transactions || 0;
+                document.getElementById('totalAddresses').innerText = stats.total_addresses || 0;
+            }
+            
+            const blocks = await fetchJSON(API_URL + '/api/blocks/latest?limit=15');
+            if (blocks && blocks.blocks && blocks.blocks.length > 0) {
+                document.getElementById('latestBlock').innerText = blocks.blocks[0].number;
+            }
+            
+            const pending = await getPendingCount();
+            document.getElementById('pending').innerText = pending;
+            
+            if (blocks && blocks.blocks) {
+                let html = '<table><th>Block</th><th>Hash</th><th>Transactions</th><th>Gas Used</th><th>Miner</th><th>Age</th></tr>';
+                for (const block of blocks.blocks) {
+                    const age = Math.floor((Date.now() / 1000 - block.timestamp) / 60);
+                    html += `<tr>
+                        <td><a href="/block.html?number=${block.number}">#${block.number}</a></td>
+                        <td class="hash">${block.hash.substring(0, 25)}...</td>
+                        <td>${block.tx_count || 0}</td>
+                        <td>${block.gas_used || 0}</td>
+                        <td><a href="/address.html?address=${block.miner}">${block.miner ? block.miner.substring(0, 15) + '...' : '-'}</a></td>
+                        <td>${age} min ago</td>
+                    </tr>`;
+                }
+                html += '</table>';
+                document.getElementById('blocks').innerHTML = html;
+            }
+        }
+        
+        async function search() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) return;
+            
+            const result = await fetchJSON(`${API_URL}/api/search?q=${encodeURIComponent(query)}`);
+            if (result && result.type === 'block') {
+                window.location.href = `/block.html?number=${result.data.number}`;
+            } else if (result && result.type === 'transaction') {
+                window.location.href = `/tx.html?hash=${result.data.hash}`;
+            } else if (result && result.type === 'address') {
+                window.location.href = `/address.html?address=${result.data.address}`;
+            } else {
+                alert(`Not found: ${query}`);
+            }
+        }
+        
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') search();
+        });
+        
+        refresh();
+        setInterval(refresh, 5000);
+    </script>
+</body>
+</html>

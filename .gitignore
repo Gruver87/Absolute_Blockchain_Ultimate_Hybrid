@@ -1,5 +1,6 @@
-﻿# Python
-__pycache__/
+﻿
+Python
+pycache/
 *.py[cod]
 *$py.class
 *.so
@@ -8,71 +9,42 @@ env/
 venv/
 ENV/
 .venv
-*.egg-info/
-*.egg
 
-# Data (БД и кэш)
-data/*.db
-data/*.db-journal
-data/*.db-wal
-data/*.db-shm
-data/chain.json
-logs/*.log
-*.log
+Data (исключаем БД)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/
+logs/
 
-# Secrets (НЕ КОММИТИТЬ!)
-.env
-.env.local
-.env.production
-*.pem
-*.key
-*.p12
-*.pfx
-secrets/
-credentials/
-id_rsa*
-*.keyfile
-data/wallet.json
-.wallet
-
-# IDE
+IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
+
+OS
 .DS_Store
 Thumbs.db
 
-# Backup
+Backup
 backup_*/
-*.bak
 *.backup
+*.bak
 *.broken
-*.old
-*.orig
 
-# Test and coverage
-.pytest_cache/
+Secrets
+.env
+.env.local
+*.pem
+*.key
+
+Coverage
 .coverage
 htmlcov/
-.tox/
-.mypy_cache/
-.ruff_cache/
+.pytest_cache/
 
-# Build artifacts
-dist/
-build/
-*.exe
-*.dll
-*.so
-
-# Old/archived files
-Новый*.py
-ABSOLUTE_FINAL_FIXED_backup*.py
-test_*.py
-*_backup.py
-
-# Local config
-config.local.py
-.env.local
+Old files
+Новый.py
+ABSOLUTE_FINAL_FIXED_backup.py

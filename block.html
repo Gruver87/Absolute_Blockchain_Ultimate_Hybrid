@@ -1,0 +1,70 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Block Details | Absolute Explorer</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: monospace; background: #0a0a0a; color: #0f0; padding: 20px; }
+        .card { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+        .info { color: #60a5fa; }
+        a { color: #34d399; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 8px; border-bottom: 1px solid #1f2937; }
+        .hash { font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>🔗 Block Details</h1>
+    <div id="blockInfo" class="card">Loading...</div>
+    <div class="card">
+        <h2>📝 Transactions</h2>
+        <div id="transactions">Loading...</div>
+    </div>
+    
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const blockNum = urlParams.get('number');
+        const API_URL = 'http://localhost:8081';
+        
+        async function loadBlock() {
+            const res = await fetch(`${API_URL}/api/block/${blockNum}`);
+            const block = await res.json();
+            
+            if (block.error) {
+                document.getElementById('blockInfo').innerHTML = `<div style="color:#f87171">❌ Block not found</div>`;
+                return;
+            }
+            
+            document.getElementById('blockInfo').innerHTML = `
+                <div><span class="info">Number:</span> ${block.number}</div>
+                <div><span class="info">Hash:</span> <span class="hash">${block.hash}</span></div>
+                <div><span class="info">Parent Hash:</span> <a href="/block.html?number=${block.parent_hash}">${block.parent_hash}</a></div>
+                <div><span class="info">Timestamp:</span> ${new Date(block.timestamp * 1000).toLocaleString()}</div>
+                <div><span class="info">Miner:</span> <a href="/address.html?address=${block.miner}">${block.miner}</a></div>
+                <div><span class="info">Transactions:</span> ${block.tx_count || 0}</div>
+                <div><span class="info">Gas Used:</span> ${block.gas_used || 0}</div>
+                <div><span class="info">Gas Limit:</span> ${block.gas_limit || 30000000}</div>
+                <div><span class="info">Size:</span> ${block.size || 0} bytes</div>
+            `;
+            
+            // Загружаем транзакции блока
+            const txsRes = await fetch(`${API_URL}/api/blocks/latest?limit=50`);
+            const txsData = await txsRes.json();
+            if (txsData && txsData.blocks) {
+                let html = '<tr><th>Tx Hash</th><th>From</th><th>To</th><th>Value (ABS)</th><th>Gas Used</th></tr>';
+                for (const block of txsData.blocks) {
+                    if (block.number == blockNum) {
+                        // Здесь нужно получить транзакции конкретного блока
+                        html += `<tr><td colspan="5">${block.tx_count} transactions in this block</td></tr>`;
+                    }
+                }
+                html += '</table>';
+                document.getElementById('transactions').innerHTML = html || '<p>No transactions</p>';
+            }
+        }
+        
+        loadBlock();
+    </script>
+</body>
+</html>

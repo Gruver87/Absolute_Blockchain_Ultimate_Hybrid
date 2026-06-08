@@ -1,0 +1,108 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Absolute Devnet Explorer</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="5">
+    <style>
+        body { font-family: monospace; background: #0a0a0a; color: #0f0; padding: 20px; }
+        h1 { color: #0f0; text-align: center; }
+        .online { background: #0a3a0a; border: 1px solid #0f0; padding: 10px; margin: 10px 0; text-align: center; }
+        .pending { background: #3a3a0a; border: 1px solid #ff0; padding: 10px; margin: 10px 0; text-align: center; }
+        .block { border: 1px solid #0f0; margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .info { display: inline-block; margin: 5px; padding: 5px 10px; background: #1a1a1a; border-radius: 5px; }
+        button { background: #0a0a0a; color: #0f0; border: 1px solid #0f0; padding: 5px 10px; cursor: pointer; }
+        .pending-tx { border-left: 3px solid #ff0; margin: 5px 0; padding: 5px; background: #1a1a0a; }
+    </style>
+</head>
+<body>
+    <h1>🔗 Absolute Devnet Explorer v58</h1>
+    <div id="status" class="online">🔄 Loading...</div>
+    <div class="info">📦 Height: <span id="height">?</span></div>
+    <div class="info">⏳ Pending: <span id="pending">?</span></div>
+    <div class="info">⛽ Avg Gas: 21000</div>
+    <div class="info">🔗 Chain ID: 1337</div>
+    <button onclick="refresh()">🔄 Refresh</button>
+    <hr>
+    
+    <h2>⏳ Pending Transactions</h2>
+    <div id="pendingTxs">Loading...</div>
+    
+    <h2>📦 Latest Blocks</h2>
+    <div id="blocks">Loading...</div>
+    
+    <script>
+        const API_URL = 'http://localhost:8081';
+        const RPC_URL = 'http://localhost:8545';
+        
+        async function fetchJSON(url) {
+            try {
+                const res = await fetch(url);
+                return await res.json();
+            } catch(e) {
+                return null;
+            }
+        }
+        
+        async function getPendingCount() {
+            try {
+                const res = await fetch(RPC_URL, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({jsonrpc: '2.0', method: 'txpool_status', params: [], id: 1})
+                });
+                const data = await res.json();
+                return data.result?.pending || 0;
+            } catch(e) {
+                return 0;
+            }
+        }
+        
+        async function refresh() {
+            const stats = await fetchJSON(API_URL + '/api/stats');
+            if (stats) {
+                document.getElementById('height').innerText = stats.total_blocks || 0;
+                document.getElementById('status').innerHTML = '✅ Connected';
+            }
+            
+            const pending = await getPendingCount();
+            document.getElementById('pending').innerText = pending;
+            
+            if (pending > 0) {
+                document.getElementById('status').innerHTML = '🟡 SYNCING - ' + pending + ' pending';
+                document.getElementById('status').className = 'pending';
+            } else {
+                document.getElementById('status').innerHTML = '✅ SYNCED';
+                document.getElementById('status').className = 'online';
+            }
+            
+            const blocksData = await fetchJSON(API_URL + '/api/blocks/latest?limit=15');
+            if (blocksData && blocksData.blocks) {
+                let html = '';
+                for (const block of blocksData.blocks) {
+                    html += `<div class="block">
+                        <b><a href="/block.html?number=${block.number}">🔷 Block #${block.number}</a></b>
+                        <div>Hash: ${block.hash.substring(0, 30)}...</div>
+                        <div>Miner: ${block.miner ? block.miner.substring(0, 25) + '...' : 'Unknown'}</div>
+                        <div>📝 Transactions: ${block.tx_count || 0}</div>
+                        <div>⛽ Gas Used: ${block.gas_used || 0}</div>
+                        <div>⏱️ Time: ${new Date(block.timestamp * 1000).toLocaleTimeString()}</div>
+                    </div>`;
+                }
+                document.getElementById('blocks').innerHTML = html || '<p>No blocks</p>';
+            }
+            
+            // Показываем pending транзакции (заглушка)
+            if (pending > 0) {
+                document.getElementById('pendingTxs').innerHTML = `<div class="pending-tx">⏳ ${pending} transaction(s) pending in mempool</div>`;
+            } else {
+                document.getElementById('pendingTxs').innerHTML = '<div class="pending-tx">📭 No pending transactions</div>';
+            }
+        }
+        
+        refresh();
+        setInterval(refresh, 3000);
+    </script>
+</body>
+</html>
+

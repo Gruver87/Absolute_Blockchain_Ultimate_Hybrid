@@ -1,39 +1,17 @@
 ﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""ABSOLUTE BLOCKCHAIN NODE v55 - С ТРАНЗАКЦИЯМИ И MEMPOOL"""
+"""ABSOLUTE BLOCKCHAIN NODE v54 - С ПОДДЕРЖКОЙ eth_getBlockByNumber"""
 
 import json
 import hashlib
 import time
 import threading
 import os
-import random
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-VERSION = "55.0"
+VERSION = "54.0"
 RPC_PORT = 8545
 BLOCK_REWARD = 50.0
-
-# Mempool (пул неподтверждённых транзакций)
-mempool = []
-mempool_lock = threading.Lock()
-
-class Transaction:
-    def __init__(self, from_addr, to_addr, amount):
-        self.from_addr = from_addr
-        self.to_addr = to_addr
-        self.amount = amount
-        self.timestamp = int(time.time())
-        self.hash = hashlib.sha256(f"{from_addr}{to_addr}{amount}{self.timestamp}".encode()).hexdigest()[:16]
-    
-    def to_dict(self):
-        return {
-            "hash": self.hash,
-            "from": self.from_addr,
-            "to": self.to_addr,
-            "amount": self.amount,
-            "timestamp": self.timestamp
-        }
 
 class Block:
     def __init__(self, height, prev_hash, miner):
@@ -81,16 +59,14 @@ class Blockchain:
                         b.txs = block_data.get('transactions', [])
                         self.chain.append(b)
                     print(f"📦 Loaded chain: {len(self.chain)} blocks")
-            except:
+            except Exception as e:
+                print(f"⚠️ Error loading chain: {e}")
                 self._create_genesis()
         else:
             self._create_genesis()
         
         # Set initial balance
         self.balances[self.get_wallet_address()] = 1000000
-        # Добавляем тестовые балансы для транзакций
-        self.balances["0x1234567890123456789012345678901234567890"] = 500000
-        self.balances["0x0987654321098765432109876543210987654321"] = 300000
     
     def _create_genesis(self):
         g = Block(0, "0" * 64, "genesis")
@@ -116,66 +92,76 @@ class Blockchain:
     def get_balance(self, addr):
         return self.balances.get(addr, 0)
     
-    def add_transaction(self, tx):
-        with mempool_lock:
-            # Проверяем баланс
-            if self.get_balance(tx.from_addr) < tx.amount + 0.001:
-                return False, "Insufficient balance"
-            mempool.append(tx)
-            return True, tx.hash
+    def get_block_by_number(self, number):
+        """Получение блока по номеру"""
+        if isinstance(number, str):
+            if number == "latest":
+                return self.chain[-1] if self.chain else None
+            elif number.startswith("0x"):
+                try:
+                    height = int(number, 16)
+                    if 0 <= height < len(self.chain):
+                        return self.chain[height]
+                except:
+                    return None
+            else:
+                try:
+                    height = int(number)
+                    if 0 <= height < len(self.chain):
+                        return self.chain[height]
+                except:
+                    return None
+        elif isinstance(number, int):
+            if 0 <= number < len(self.chain):
+                return self.chain[number]
+        return None
     
     def mine_block(self, miner=None):
         if not miner:
             miner = self.get_wallet_address()
         
         b = Block(len(self.chain), self.chain[-1].hash, miner)
+        b.hash = b.calc_hash()
         
-        # Берём транзакции из mempool
-        with mempool_lock:
-            # Берём до 50 транзакций из mempool
-            txs_to_mine = mempool[:50]
-            mempool[:] = mempool[50:]  # Убираем обработанные
-        
-        # Обрабатываем транзакции
-        for tx in txs_to_mine:
-            if self.get_balance(tx.from_addr) >= tx.amount:
-                self.balances[tx.from_addr] = self.balances.get(tx.from_addr, 0) - tx.amount
-                self.balances[tx.to_addr] = self.balances.get(tx.to_addr, 0) + tx.amount
-                b.txs.append(tx.to_dict())
-        
-        # Добавляем награду майнеру
+        # Add reward
         self.balances[miner] = self.balances.get(miner, 0) + BLOCK_REWARD
         
-        b.hash = b.calc_hash()
         self.chain.append(b)
         self.save_chain()
         
-        tx_count = len(b.txs)
-        print(f"📦 Block #{b.height}: {b.hash} | {tx_count} txs")
+        print(f"📦 Block #{b.height}: {b.hash} | {len(b.txs)} txs")
         return b
     
     def get_info(self):
-        with mempool_lock:
-            mempool_size = len(mempool)
         return {
             "blocks": len(self.chain) - 1,
             "version": VERSION,
-            "mempool_size": mempool_size
+            "mempool_size": 0
         }
-    
-    def get_block(self, height):
-        if 0 <= height < len(self.chain):
-            return self.chain[height]
-        return None
-    
-    def get_latest_block(self):
-        return self.chain[-1] if self.chain else None
 
 class RPCWebhook(BaseHTTPRequestHandler):
     blockchain = None
     
     def log_message(self, format, *args):
         pass
+    
+    def _format_block(self, block, include_txs=True):
+        """Форматирование блока для JSON-RPC ответа"""
+        if not block:
+            return None
+        
+        return {
+            "number": hex(block.height),
+            "hash": block.hash,
+            "parentHash": block.prev_hash,
+            "timestamp": hex(block.timestamp),
+            "miner": block.miner,
+            "transactions": block.txs if include_txs else [],
+            "gasUsed": "0x0",
+            "gasLimit": "0x0",
+            "size": "0x0",
+            "nonce": "0x0"
+        }
     
     def do_POST(self):
         length = int(self.headers.get('Content-Length', 0))
@@ -207,35 +193,15 @@ class RPCWebhook(BaseHTTPRequestHandler):
         elif method == 'eth_getBlockByNumber':
             if len(params) >= 1:
                 block_param = params[0]
-                if block_param == "latest":
-                    block = self.blockchain.get_latest_block()
-                else:
-                    try:
-                        if isinstance(block_param, str) and block_param.startswith('0x'):
-                            height = int(block_param, 16)
-                        else:
-                            height = int(block_param)
-                        block = self.blockchain.get_block(height)
-                    except:
-                        block = None
+                include_txs = params[1] if len(params) > 1 else True
                 
+                block = self.blockchain.get_block_by_number(block_param)
                 if block:
-                    result = {
-                        "number": hex(block.height),
-                        "hash": block.hash,
-                        "parentHash": block.prev_hash,
-                        "timestamp": hex(block.timestamp),
-                        "miner": block.miner,
-                        "transactions": block.txs,
-                        "gasUsed": "0x0",
-                        "gasLimit": "0x0",
-                        "size": "0x0",
-                        "nonce": "0x0"
-                    }
+                    result = self._format_block(block, include_txs)
                 else:
-                    result = "0x0"
+                    result = None
             else:
-                result = "0x0"
+                result = None
         
         elif method == 'eth_getBalance':
             if len(params) >= 1:
@@ -245,18 +211,12 @@ class RPCWebhook(BaseHTTPRequestHandler):
             else:
                 result = "0x0"
         
-        elif method == 'eth_sendTransaction':
+        elif method == 'eth_getBlockTransactionCountByNumber':
             if len(params) >= 1:
-                tx_data = params[0]
-                from_addr = tx_data.get('from', '')
-                to_addr = tx_data.get('to', '')
-                value = tx_data.get('value', '0x0')
-                amount = int(value, 16) if isinstance(value, str) and value.startswith('0x') else int(value)
-                
-                tx = Transaction(from_addr, to_addr, amount)
-                success, tx_hash = self.blockchain.add_transaction(tx)
-                if success:
-                    result = tx_hash
+                block_param = params[0]
+                block = self.blockchain.get_block_by_number(block_param)
+                if block:
+                    result = hex(len(block.txs))
                 else:
                     result = "0x0"
             else:
@@ -288,7 +248,7 @@ class RPCWebhook(BaseHTTPRequestHandler):
 
 def main():
     print("=" * 60)
-    print("ABSOLUTE BLOCKCHAIN NODE v55 (WITH TRANSACTIONS)")
+    print("ABSOLUTE BLOCKCHAIN NODE v54")
     print("=" * 60)
     
     blockchain = Blockchain()
@@ -298,7 +258,6 @@ def main():
     
     print(f"🔓 Loaded wallet: {blockchain.get_wallet_address()[:20]}...")
     print(f"📦 Chain height: {blockchain.get_info()['blocks']}")
-    print(f"📋 Mempool size: {blockchain.get_info()['mempool_size']}")
     print(f"🌐 JSON-RPC Server running on http://0.0.0.0:{RPC_PORT}")
     print("⛏️ Auto-mining started (block every 15 seconds)")
     print()

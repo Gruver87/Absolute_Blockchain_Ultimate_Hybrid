@@ -1,0 +1,87 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Absolute Blockchain Explorer</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="5">
+    <style>
+        body { font-family: monospace; background: #0a0a0a; color: #0f0; padding: 20px; }
+        h1 { color: #0f0; text-align: center; }
+        .status-synced { background: #0a3a0a; border: 1px solid #0f0; padding: 10px; margin: 10px 0; text-align: center; }
+        .status-syncing { background: #3a3a0a; border: 1px solid #ff0; padding: 10px; margin: 10px 0; text-align: center; }
+        .status-lagging { background: #3a0a0a; border: 1px solid #f00; padding: 10px; margin: 10px 0; text-align: center; }
+        .block { border: 1px solid #0f0; margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .info { display: inline-block; margin: 5px; padding: 5px 10px; background: #1a1a1a; border-radius: 5px; }
+        button { background: #0a0a0a; color: #0f0; border: 1px solid #0f0; padding: 5px 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>🔗 Absolute Blockchain Explorer</h1>
+    <div id="status" class="status-syncing">🔄 Connecting...</div>
+    <div class="info">📦 Live Height: <span id="liveHeight">?</span></div>
+    <div class="info">💾 DB Blocks: <span id="dbBlocks">?</span></div>
+    <div class="info">⏳ Lag: <span id="lag">?</span> blocks</div>
+    <div class="info">🔗 Chain ID: 1337</div>
+    <button onclick="refresh()">🔄 Refresh</button>
+    <hr>
+    <div id="blocks">Loading...</div>
+    
+    <script>
+        const API_URL = 'http://localhost:8081';
+        
+        async function fetchJSON(url) {
+            try {
+                const res = await fetch(url);
+                return await res.json();
+            } catch(e) {
+                console.error('Fetch error:', e);
+                return null;
+            }
+        }
+        
+        async function refresh() {
+            // Получаем статус с лагом
+            const heightData = await fetchJSON(API_URL + '/api/height');
+            if (heightData) {
+                document.getElementById('liveHeight').innerText = heightData.height || '?';
+                document.getElementById('dbBlocks').innerText = heightData.db_height || '?';
+                document.getElementById('lag').innerText = heightData.lag || '?';
+                
+                const statusDiv = document.getElementById('status');
+                if (heightData.synced) {
+                    statusDiv.innerHTML = '🟢 FULLY SYNCED';
+                    statusDiv.className = 'status-synced';
+                } else if (heightData.lag < 10) {
+                    statusDiv.innerHTML = '🟡 NEARLY SYNCED';
+                    statusDiv.className = 'status-syncing';
+                } else {
+                    statusDiv.innerHTML = '🔴 SYNCING... (lag: ' + heightData.lag + ' blocks)';
+                    statusDiv.className = 'status-lagging';
+                }
+            } else {
+                document.getElementById('status').innerHTML = '🔴 API OFFLINE';
+                document.getElementById('status').className = 'status-lagging';
+            }
+            
+            // Загружаем блоки
+            const blocksData = await fetchJSON(API_URL + '/api/blocks/latest?limit=15');
+            if (blocksData && blocksData.blocks) {
+                let html = '';
+                for (const block of blocksData.blocks) {
+                    html += `<div class="block">
+                        <b>🔷 Block #${block.number}</b>
+                        <div>Hash: ${block.hash.substring(0, 30)}...</div>
+                        <div>Miner: ${block.miner ? block.miner.substring(0, 25) + '...' : 'Unknown'}</div>
+                        <div>📝 Transactions: ${block.tx_count || 0}</div>
+                        <div>⏱️ Time: ${new Date(block.timestamp * 1000).toLocaleTimeString()}</div>
+                    </div>`;
+                }
+                document.getElementById('blocks').innerHTML = html || '<p>No blocks</p>';
+            }
+        }
+        
+        refresh();
+        setInterval(refresh, 3000);
+    </script>
+</body>
+</html>
