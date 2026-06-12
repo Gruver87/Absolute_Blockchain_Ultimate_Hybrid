@@ -18,7 +18,7 @@ class Config:
     # ── Идентификация сети ──────────────────────────────────────────────────
     chain_id: int = 1337
     network_name: str = "Absolute"
-    node_version: str = "1.1.0-industrial"
+    node_version: str = "1.2.0-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -93,6 +93,10 @@ class Config:
     redis_rate_limit_enabled: bool = False  # distributed rate limit
     rate_limit_rpm: int = 120               # requests per minute per IP
 
+    # ── RPC Security (Phase 2b) ─────────────────────────────────────────────
+    rpc_api_key_required: bool = False      # prod: требовать ключ на :8545
+    rpc_api_keys: List[str] = field(default_factory=list)  # из RPC_API_KEYS env
+
     # ────────────────────────────────────────────────────────────────────────
 
     @classmethod
@@ -143,6 +147,10 @@ class Config:
         self.redis_url = env_str("REDIS_URL", self.redis_url)
         self.redis_rate_limit_enabled = env_bool("REDIS_RATE_LIMIT", self.redis_rate_limit_enabled)
         self.rate_limit_rpm = env_int("RATE_LIMIT_RPM", self.rate_limit_rpm)
+        self.rpc_api_key_required = env_bool("RPC_API_KEY_REQUIRED", self.rpc_api_key_required)
+        rpc_keys = env_list("RPC_API_KEYS")
+        if rpc_keys:
+            self.rpc_api_keys = rpc_keys
 
         peers = env_list("BOOTSTRAP_PEERS")
         if peers:
@@ -157,6 +165,8 @@ class Config:
             self.jwt_enforce_admin = env_bool("JWT_ENFORCE_ADMIN", True)
             self.sqlite_synchronous = env_str("SQLITE_SYNCHRONOUS", "FULL")
             self.enable_cors_rpc_proxy = env_bool("ENABLE_CORS_RPC_PROXY", False)
+            self.log_json = env_bool("LOG_JSON", True)
+            self.rpc_api_key_required = env_bool("RPC_API_KEY_REQUIRED", True)
             if self.cors_origins == ["*"]:
                 self.cors_origins = env_list("CORS_ORIGINS", ["http://localhost:8080"])
 
@@ -182,6 +192,8 @@ class Config:
             )
             if not os.path.isfile(wallet):
                 errors.append(f"prod mode requires wallet file: {wallet}")
+        if self.rpc_api_key_required and not self.rpc_api_keys:
+            errors.append("RPC_API_KEY_REQUIRED=true but RPC_API_KEYS is empty")
         return errors
 
     def __repr__(self) -> str:

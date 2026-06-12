@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""RPC API key authentication (промышленный профиль)."""
+
+import os
+import secrets
+from typing import List, Optional, Set
+
+
+class RPCApiKeyAuth:
+    """Проверка X-API-Key / Authorization: Bearer для JSON-RPC."""
+
+    def __init__(self, keys: Optional[List[str]] = None, required: bool = False):
+        self.required = required
+        self._keys: Set[str] = {k.strip() for k in (keys or []) if k and k.strip()}
+
+    @classmethod
+    def from_config(cls, config) -> "RPCApiKeyAuth":
+        keys = list(getattr(config, "rpc_api_keys", []) or [])
+        env_keys = os.getenv("RPC_API_KEYS", "")
+        if env_keys.strip():
+            keys.extend(x.strip() for x in env_keys.split(",") if x.strip())
+        required = bool(getattr(config, "rpc_api_key_required", False))
+        return cls(keys=keys, required=required)
+
+    @property
+    def enabled(self) -> bool:
+        return self.required and bool(self._keys)
+
+    def extract_key(self, headers) -> str:
+        if not headers:
+            return ""
+        api_key = headers.get("X-API-Key", headers.get("x-api-key", "")).strip()
+        if api_key:
+            return api_key
+        auth = headers.get("Authorization", headers.get("authorization", ""))
+        if auth.lower().startswith("bearer "):
+            return auth[7:].strip()
+        return ""
+
+    def verify(self, headers) -> tuple:
+        """
+        Returns (allowed: bool, error_message: str).
+        Если required=False — всегда allowed.
+        """
+        if not self.required:
+            return True, ""
+        if not self._keys:
+            return False, "RPC API keys not configured (set RPC_API_KEYS)"
+        key = self.extract_key(headers)
+        if not key:
+            return False, "Missing X-API-Key or Authorization: Bearer"
+        if key not in self._keys:
+            return False, "Invalid RPC API key"
+        return True, ""
+
+    @staticmethod
+    def generate_key() -> str:
+        return secrets.token_urlsafe(32)

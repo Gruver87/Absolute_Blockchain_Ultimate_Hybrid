@@ -98,6 +98,7 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
     mempool = None
     config = None
     evm = None
+    rpc_auth = None
 
     def log_message(self, fmt, *args):
         logger.debug(fmt % args)
@@ -124,6 +125,20 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
                 self.send_header("Retry-After", "60")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": "rate_limit_exceeded"}).encode())
+                return
+
+        rpc_auth = self.__class__.rpc_auth
+        if rpc_auth:
+            ok, err = rpc_auth.verify(self.headers)
+            if not ok:
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32001, "message": err},
+                    "id": None,
+                }).encode())
                 return
 
         length = int(self.headers.get("Content-Length", 0))
@@ -3540,6 +3555,13 @@ def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
 def create_rpc_server(blockchain, mempool, config, evm=None) -> HTTPServer:
     """Создаёт JSON-RPC сервер на config.rpc_port."""
     configure_rate_limiter(config)
+    try:
+        from middleware.rpc_auth import RPCApiKeyAuth
+        JSONRPCHandler.rpc_auth = RPCApiKeyAuth.from_config(config)
+        if JSONRPCHandler.rpc_auth.enabled:
+            logger.info("RPC API key auth: enabled")
+    except ImportError:
+        JSONRPCHandler.rpc_auth = None
     JSONRPCHandler.blockchain = blockchain
     JSONRPCHandler.mempool = mempool
     JSONRPCHandler.config = config

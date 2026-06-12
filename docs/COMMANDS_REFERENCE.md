@@ -1,6 +1,6 @@
 # Absolute Blockchain Ultimate — Справочник команд
 
-> **Версия:** `1.1.0-industrial` (unified node)  
+> **Версия:** `1.2.0-industrial` (unified node)  
 > **Автор:** Uladzimir Dabranski (Gruver87)  
 > **Обновлено:** 2026-06-12  
 > **Статус:** учебный проект, не production mainnet
@@ -180,9 +180,22 @@ Invoke-RestMethod http://localhost:8080/light/headers
 
 ## Часть 5: JSON-RPC (:8545)
 
+### RPC API Key (prod)
+
 ```powershell
-# Высота блока
-curl.exe -X POST http://localhost:8545 -H "Content-Type: application/json" `
+# Сгенерировать ключ локально (в .env, не в git)
+python scripts/generate_rpc_key.py
+
+# В .env:
+# RPC_API_KEY_REQUIRED=true
+# RPC_API_KEYS=your_generated_key_here
+```
+
+```powershell
+# Высота блока (с ключом в prod)
+curl.exe -X POST http://localhost:8545 `
+  -H "Content-Type: application/json" `
+  -H "X-API-Key: YOUR_KEY_FROM_ENV" `
   -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
 
 # Баланс
@@ -305,7 +318,22 @@ kubectl apply -k deploy/k8s/
 ```powershell
 python scripts/backup_db.py
 python scripts/backup_db.py --db data/blockchain.db
+.\scripts\backup_scheduled.ps1
 ```
+
+### JSON-логи (prod)
+
+```powershell
+$env:LOG_JSON = "true"
+python main.py
+# Логи в data/node.log — одна JSON-строка на событие
+```
+
+### Grafana + Prometheus
+
+- Dashboard: `deploy/grafana/dashboard.json`
+- Alerts: `deploy/prometheus/alerts.yml`
+- Metrics: `http://localhost:8080/metrics`
 
 ---
 

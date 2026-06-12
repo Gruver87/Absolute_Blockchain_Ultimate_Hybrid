@@ -17,14 +17,14 @@
 - [x] CORS allowlist
 - [x] JWT enforce on admin POST (optional)
 - [x] TLS termination guide (nginx) — `docs/TLS_NGINX.md`
-- [ ] API keys for RPC
+- [x] API keys for RPC (`RPC_API_KEYS`, `X-API-Key` header)
 
-## Phase 3 — Observability
+## Phase 3 — Observability ✅
 
 - [x] Prometheus metrics
-- [ ] JSON structured logs
-- [ ] Grafana dashboard
-- [ ] Alert rules
+- [x] JSON structured logs (`LOG_JSON=true`)
+- [x] Grafana dashboard (`deploy/grafana/dashboard.json`)
+- [x] Alert rules (`deploy/prometheus/alerts.yml`)
 
 ## Phase 4 — Data durability ✅
 

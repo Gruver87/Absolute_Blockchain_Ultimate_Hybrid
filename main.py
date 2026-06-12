@@ -233,16 +233,24 @@ except Exception:
 # ── Логирование ──────────────────────────────────────────────────────────────
 
 def _setup_logging(config: Config):
-    level = getattr(logging, config.log_level.upper(), logging.INFO)
-    os.makedirs(os.path.dirname(config.log_file) if os.path.dirname(config.log_file) else ".", exist_ok=True)
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
-        handlers=[
-            logging.StreamHandler(sys.stdout),
-            logging.FileHandler(config.log_file, encoding="utf-8"),
-        ],
+    from observability.logging_setup import setup_logging as _obs_setup
+    _obs_setup(
+        log_level=config.log_level,
+        log_file=config.log_file,
+        log_json=getattr(config, "log_json", False),
+        node_id=getattr(config, "node_id", "node-1"),
+        deployment_mode=getattr(config, "deployment_mode", "dev"),
     )
+
+
+_ACTIVE_NODE: "NodeOrchestrator | None" = None
+
+
+def _handle_shutdown_signal(signum, frame):
+    global _ACTIVE_NODE
+    if _ACTIVE_NODE:
+        _ACTIVE_NODE.stop()
+    sys.exit(0)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -267,13 +275,15 @@ class NodeOrchestrator:
     """
 
     def __init__(self, config: Config):
+        global _ACTIVE_NODE
         self.config = config
         self._running = False
         self._tasks = []
         self._rpc_server = None
         self._http_server = None
+        _ACTIVE_NODE = self
 
-        print("[Node] Initializing components...")
+        logging.getLogger("Node").info("Initializing components...")
 
         # 1. Шина событий
         self.bus = EventBus()
@@ -1368,11 +1378,15 @@ async def _run_node(config: Config):
     """Корутина верхнего уровня: создаёт узел и запускает его."""
     node = NodeOrchestrator(config)
 
-    # Graceful shutdown по сигналу (только Unix)
+    # Graceful shutdown: Unix (asyncio) + Windows/Linux (signal)
     loop = asyncio.get_running_loop()
     if sys.platform != "win32":
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, node.stop)
+    else:
+        signal.signal(signal.SIGINT, _handle_shutdown_signal)
+        if hasattr(signal, "SIGTERM"):
+            signal.signal(signal.SIGTERM, _handle_shutdown_signal)
 
     try:
         await node.start()
