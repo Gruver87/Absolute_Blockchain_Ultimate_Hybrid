@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # test_validator_selection.py
 import sys
 import os
@@ -11,7 +12,7 @@ if not callable(print):
 from consensus.validator_selection import ValidatorSelection
 
 print("=" * 70)
-print("VALIDATOR SELECTION — RANDAO STYLE")
+print("VALIDATOR SELECTION ? RANDAO STYLE")
 print("Pseudo-random proposer selection based on chain entropy")
 print("=" * 70)
 
@@ -90,7 +91,7 @@ test("Stats contain seed", "seed" in stats)
 print("\n" + "=" * 70)
 print(f"?? RESULTS: {passed}/{total} tests passed")
 if passed == total:
-    print("?? VALIDATOR SELECTION — ALL TESTS PASSED!")
+    print("?? VALIDATOR SELECTION ? ALL TESTS PASSED!")
     print("")
     print("   ? Proposer selection (deterministic pseudo-random)")
     print("   ? Weighted proposer selection (stake-based)")
@@ -102,3 +103,6 @@ if passed == total:
 else:
     print(f"?? Failed: {total - passed}")
 print("=" * 70)
+import sys
+if __name__ == '__main__':
+    raise SystemExit(0 if passed == total else 1)

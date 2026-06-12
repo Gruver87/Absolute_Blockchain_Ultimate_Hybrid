@@ -1,9 +1,14 @@
-﻿# test_tx.py - Simple transaction test
+# -*- coding: utf-8 -*-
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# test_tx.py - Simple transaction test
 import requests
 import json
 import time
+from tests.legacy.legacy_helpers import skip_if_rpc_down
 
 url = "http://localhost:8545"
+skip_if_rpc_down(url)
 
 print("=" * 60)
 print("SENDING TEST TRANSACTIONS")
@@ -24,11 +29,11 @@ for i in range(3):
         resp = requests.post(url, json=payload, timeout=2)
         result = resp.json()
         if "result" in result:
-            print(f"✅ Tx {i+1}: {result['result'][:20]}...")
+            print(f"? Tx {i+1}: {result['result'][:20]}...")
         else:
-            print(f"❌ Tx {i+1}: {result}")
+            print(f"? Tx {i+1}: {result}")
     except Exception as e:
-        print(f"❌ Tx {i+1}: {e}")
+        print(f"? Tx {i+1}: {e}")
     
     time.sleep(0.5)
 
@@ -39,5 +44,5 @@ payload = {"jsonrpc": "2.0", "method": "eth_getMempoolSize", "params": [], "id":
 resp = requests.post(url, json=payload)
 result = resp.json()
 size = int(result.get("result", "0x0"), 16)
-print(f"📊 Mempool size: {size}")
+print(f"? Mempool size: {size}")
 print("=" * 60)

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # test_vm_diagnostic.py - Detailed storage tests
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))

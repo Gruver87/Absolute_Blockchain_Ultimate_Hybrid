@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # test_sync_engine_v2.py
 import sys
 import os
@@ -5,14 +6,14 @@ import builtins
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-# Восстанавливаем print если был переопределён
+# ??????????????? print ???? ??? ????????????
 if not callable(print):
     print = builtins.print
 
 from sync.sync_engine import SyncEngine
 
 print("=" * 70)
-print("SYNC ENGINE — FAST CATCH-UP")
+print("SYNC ENGINE ? FAST CATCH-UP")
 print("Peer head selection, chain download, state sync")
 print("=" * 70)
 
@@ -56,7 +57,7 @@ class MockNode:
     def add_block(self, block):
         self.blocks[block["hash"]] = block
 
-# Создаём пиров
+# ?????? ?????
 class MockPeer:
     def __init__(self, head_hash, head_weight):
         self.head = {"hash": head_hash}
@@ -69,7 +70,7 @@ peers = [
 
 node = MockNode()
 
-# Добавляем блоки
+# ????????? ?????
 node.add_block({"hash": "0xgenesis", "number": 0, "parent": None})
 node.add_block({"hash": "0xblock1", "number": 1, "parent": "0xgenesis"})
 node.add_block({"hash": "0xhead_heavy", "number": 2, "parent": "0xblock1"})
@@ -128,7 +129,7 @@ test("Reset cleared progress", sync.sync_progress == 0)
 print("\n" + "=" * 70)
 print(f"?? RESULTS: {passed}/{total} tests passed")
 if passed == total:
-    print("?? SYNC ENGINE — ALL TESTS PASSED!")
+    print("?? SYNC ENGINE ? ALL TESTS PASSED!")
     print("")
     print("   ? Peer management")
     print("   ? Head request from peers")
@@ -141,3 +142,6 @@ if passed == total:
 else:
     print(f"?? Failed: {total - passed}")
 print("=" * 70)
+import sys
+if __name__ == '__main__':
+    raise SystemExit(0 if passed == total else 1)

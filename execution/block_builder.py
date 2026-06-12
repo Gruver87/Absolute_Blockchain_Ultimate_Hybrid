@@ -64,6 +64,18 @@ class BlockBuilder:
     
     def _tx_to_dict(self, tx) -> dict:
         """Convert transaction to dict for inclusion in block"""
+        if isinstance(tx, dict):
+            return {
+                "hash": tx.get("hash", ""),
+                "from": tx.get("from", ""),
+                "to": tx.get("to", ""),
+                "value": tx.get("value", 0),
+                "gas_limit": tx.get("gas", 21000),
+                "gas_price": tx.get("gasPrice", 0),
+                "nonce": tx.get("nonce", 0),
+                "data": tx.get("data", ""),
+                "timestamp": tx.get("timestamp", 0),
+            }
         return {
             "hash": tx["hash"],
             "from": tx["from"],
@@ -72,8 +84,8 @@ class BlockBuilder:
             "gas_limit": tx["gas"],
             "gas_price": tx["gasPrice"],
             "nonce": tx["nonce"],
-            "data": tx.data.hex() if isinstance(tx.data, bytes) else tx.data,
-            "timestamp": tx.timestamp
+            "data": tx.data.hex() if isinstance(getattr(tx, "data", ""), bytes) else getattr(tx, "data", ""),
+            "timestamp": getattr(tx, "timestamp", 0),
         }
     
     def finalize_block(self, block: dict, state_root: str) -> dict:

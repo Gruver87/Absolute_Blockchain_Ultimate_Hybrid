@@ -1,7 +1,12 @@
-﻿import requests
+# -*- coding: utf-8 -*-
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+import requests
 import json
+from tests.legacy.legacy_helpers import skip_if_rpc_down
 
 url = "http://localhost:8545"
+skip_if_rpc_down(url)
 
 # Расширенный список методов для проверки
 methods = [
@@ -18,7 +23,7 @@ methods = [
 ]
 
 print("="*60)
-print("🔍 RPC API TEST RESULTS")
+print("? RPC API TEST RESULTS")
 print("="*60)
 
 for method, params, description in methods:
@@ -33,13 +38,13 @@ for method, params, description in methods:
         result = response.json()
         
         if "result" in result:
-            print(f"✅ {description:30} | {method:25} | {result['result']}")
+            print(f"? {description:30} | {method:25} | {result['result']}")
         elif "error" in result:
-            print(f"⚠️ {description:30} | {method:25} | ERROR: {result['error']['message'][:50]}")
+            print(f"?? {description:30} | {method:25} | ERROR: {result['error']['message'][:50]}")
         else:
-            print(f"❌ {description:30} | {method:25} | Unexpected response")
+            print(f"? {description:30} | {method:25} | Unexpected response")
     except Exception as e:
-        print(f"💥 {description:30} | {method:25} | Exception: {str(e)[:50]}")
+        print(f"? {description:30} | {method:25} | Exception: {str(e)[:50]}")
 
 print("="*60)
 
@@ -50,7 +55,7 @@ try:
     block_hex = resp.get("result")
     if block_hex:
         block_num = int(block_hex, 16)
-        print(f"\n📊 Статистика:")
+        print(f"\n? Статистика:")
         print(f"   Высота блокчейна: {block_num} блоков")
         print(f"   Баланс кошелька: {1_000_000:,} монет")
         print(f"   Chain ID: 1337")

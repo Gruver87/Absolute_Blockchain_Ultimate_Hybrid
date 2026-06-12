@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # test_p2p.py - P2P Network Tests (FIXED)
 import sys
 import os
@@ -70,3 +71,6 @@ log(f"RESULTS: {passed}/{total} tests passed")
 if passed == total:
     log("[SUCCESS] ALL TESTS PASSED!")
 log("=" * 70)
+import sys
+if __name__ == '__main__':
+    raise SystemExit(0 if passed == total else 1)

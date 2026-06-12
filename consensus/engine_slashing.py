@@ -109,6 +109,9 @@ class ConsensusEngineSlashing:
         return {
             "validators": lmd_stats["validators"],
             "active_votes": lmd_stats["active_votes"],
+            "active_validators": slashing_stats.get("total_validators", 0) - slashing_stats.get("slashed_count", 0),
+            "active_stake": slashing_stats["active_stake"],
+            "slashed_count": slashing_stats["slashed_count"],
             "total_stake": slashing_stats["active_stake"],
             "slashed_validators": slashing_stats["slashed_validators"],
             "slashed_stake": slashing_stats["slashed_stake"],
@@ -121,6 +124,16 @@ class ConsensusEngineSlashing:
 
     def get_slashing_stats(self) -> dict:
         return self.slashing.get_stats()
+
+    def get_slashing_info(self) -> dict:
+        stats = self.get_slashing_stats()
+        stats["count"] = stats.get("slashed_count", stats.get("slashed_validators", 0))
+        stats["slashed"] = list(self.slashing.slashed)
+        reasons = {}
+        for event in self.slashing.get_events():
+            reasons[event.validator] = event.reason.upper()
+        stats["reasons"] = reasons
+        return stats
 
     def print_tree(self, block_hash: str = None, indent: int = 0):
         weights = self.lmd.get_weights()

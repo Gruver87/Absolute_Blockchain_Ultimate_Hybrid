@@ -1,8 +1,13 @@
-﻿# test_rpc_simple.py - Simple RPC test
+# -*- coding: utf-8 -*-
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# test_rpc_simple.py - Simple RPC test
 import requests
 import json
+from tests.legacy.legacy_helpers import skip_if_rpc_down
 
 url = "http://localhost:8545"
+skip_if_rpc_down(url)
 
 methods_to_test = [
     ("eth_blockNumber", []),
@@ -30,13 +35,13 @@ for method, params in methods_to_test:
         result = response.json()
         
         if "result" in result:
-            print(f"✅ {method}: {str(result['result'])[:50]}")
+            print(f"? {method}: {str(result['result'])[:50]}")
         elif "error" in result:
-            print(f"❌ {method}: {result['error']['message'][:50]}")
+            print(f"? {method}: {result['error']['message'][:50]}")
         else:
-            print(f"⚠️ {method}: Unexpected response")
+            print(f"?? {method}: Unexpected response")
     except Exception as e:
-        print(f"💥 {method}: {str(e)[:50]}")
+        print(f"? {method}: {str(e)[:50]}")
 
 print("=" * 60)
 

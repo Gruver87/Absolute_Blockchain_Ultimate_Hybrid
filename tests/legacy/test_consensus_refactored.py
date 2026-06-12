@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # test_consensus_refactored.py
 import sys
 import os
@@ -7,7 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from consensus.engine_refactored import ConsensusEngine
 
 print("=" * 70)
-print("CONSENSUS REFACTORED — LMD + GHOST SEPARATION")
+print("CONSENSUS REFACTORED ? LMD + GHOST SEPARATION")
 print("Deterministic fork choice (Ethereum-style)")
 print("=" * 70)
 
@@ -60,7 +61,7 @@ head = engine.get_head()
 test("Head is D after all votes", head == "D")
 
 # =========================================================
-print("\n[TEST 3] LMD rule — validator changes attestation")
+print("\n[TEST 3] LMD rule ? validator changes attestation")
 engine.on_attestation("v1", "Z", slot=2)
 head = engine.get_head()
 # D has 200 weight (v2+v3), Z has 100 weight (v1)
@@ -104,7 +105,7 @@ test("Stats contain blocks", stats.get("blocks") == 7)
 print("\n" + "=" * 70)
 print(f"?? RESULTS: {passed}/{total} tests passed")
 if passed == total:
-    print("?? CONSENSUS REFACTORED — ALL TESTS PASSED!")
+    print("?? CONSENSUS REFACTORED ? ALL TESTS PASSED!")
     print("")
     print("   ? LMD table (strict slot-based)")
     print("   ? Pure GHOST fork choice")
@@ -120,3 +121,6 @@ print("=" * 70)
 print("\n[DEMO] Fork tree with weights")
 engine.print_tree()
 print("")
+import sys
+if __name__ == '__main__':
+    raise SystemExit(0 if passed == total else 1)

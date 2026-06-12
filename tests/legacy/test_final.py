@@ -1,9 +1,14 @@
-﻿# test_final.py - Complete transaction test
+# -*- coding: utf-8 -*-
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# test_final.py - Complete transaction test
 import requests
 import json
 import time
+from tests.legacy.legacy_helpers import skip_if_rpc_down
 
 url = "http://localhost:8545"
+skip_if_rpc_down(url)
 
 print("=" * 60)
 print("FULL TRANSACTION CYCLE TEST")
@@ -34,12 +39,12 @@ for i in range(3):
         resp = requests.post(url, json=payload, timeout=3)
         result = resp.json()
         if "result" in result:
-            print(f"   ✅ Tx {i+1}: {result['result'][:20]}...")
+            print(f"   ? Tx {i+1}: {result['result'][:20]}...")
             txs_sent += 1
         else:
-            print(f"   ❌ Tx {i+1}: {result.get('error', {}).get('message', 'Unknown error')}")
+            print(f"   ? Tx {i+1}: {result.get('error', {}).get('message', 'Unknown error')}")
     except Exception as e:
-        print(f"   ❌ Tx {i+1}: {e}")
+        print(f"   ? Tx {i+1}: {e}")
     
     time.sleep(0.5)
 
@@ -72,11 +77,11 @@ if mempool_size > 0:
     print(f"   Final block: {final_block}")
     
     if int(final_block, 16) > int(block_num, 16):
-        print(f"\n✅ SUCCESS! Blockchain grew from {block_num} to {final_block}")
+        print(f"\n? SUCCESS! Blockchain grew from {block_num} to {final_block}")
     else:
-        print(f"\n⚠️ Blockchain didn't grow, check node window")
+        print(f"\n?? Blockchain didn't grow, check node window")
 else:
-    print("\n⚠️ No transactions in mempool")
+    print("\n?? No transactions in mempool")
 
 print("\n" + "=" * 60)
 print("Test complete!")

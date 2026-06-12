@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # test_reorg_engine.py
 import sys
 import os
@@ -5,14 +6,14 @@ import builtins
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-# ¬осстанавливаем print если был переопределЄн
+# ??????????????? print ???? ??? ????????????
 if not callable(print):
     print = builtins.print
 
 from consensus.reorg_engine import ReorgEngine
 
 print("=" * 70)
-print("REORG ENGINE Ч FINALITY-SAFE CONSENSUS")
+print("REORG ENGINE ? FINALITY-SAFE CONSENSUS")
 print("Finalized blocks cannot be reverted")
 print("=" * 70)
 
@@ -94,7 +95,7 @@ test("Stats contain total_blocks", "total_blocks" in stats)
 print("\n" + "=" * 70)
 print(f"?? RESULTS: {passed}/{total} tests passed")
 if passed == total:
-    print("?? REORG ENGINE Ч ALL TESTS PASSED!")
+    print("?? REORG ENGINE ? ALL TESTS PASSED!")
     print("")
     print("   ? Finalized blocks cannot be reverted")
     print("   ? Safe reorg detection")
@@ -114,3 +115,6 @@ print("   After A1 is finalized:")
 print("   > Reorg to Chain B is BLOCKED")
 print("   > Reorg to Chain containing A1 is ALLOWED")
 print("")
+import sys
+if __name__ == '__main__':
+    raise SystemExit(0 if passed == total else 1)

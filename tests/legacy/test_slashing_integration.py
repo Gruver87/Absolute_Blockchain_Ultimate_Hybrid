@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # test_slashing_integration.py
 import sys
 import os
@@ -5,14 +6,14 @@ import builtins
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-# ¬осстанавливаем print если был переопределЄн
+# ??????????????? print ???? ??? ????????????
 if not callable(print):
     print = builtins.print
 
 from consensus.engine_with_slashing import ConsensusEngineSlashing
 
 print("=" * 70)
-print("SLASHING INTEGRATION Ч DOUBLE VOTE DETECTION")
+print("SLASHING INTEGRATION ? DOUBLE VOTE DETECTION")
 print("Validator who double votes is removed from consensus")
 print("=" * 70)
 
@@ -91,7 +92,7 @@ test("Stats contain active_stake", "active_stake" in stats)
 print("\n" + "=" * 70)
 print(f"?? RESULTS: {passed}/{total} tests passed")
 if passed == total:
-    print("?? SLASHING INTEGRATION Ч ALL TESTS PASSED!")
+    print("?? SLASHING INTEGRATION ? ALL TESTS PASSED!")
     print("")
     print("   ? Double vote detection")
     print("   ? Slashed validator excluded from consensus")
@@ -102,3 +103,6 @@ if passed == total:
 else:
     print(f"?? Failed: {total - passed}")
 print("=" * 70)
+import sys
+if __name__ == '__main__':
+    raise SystemExit(0 if passed == total else 1)

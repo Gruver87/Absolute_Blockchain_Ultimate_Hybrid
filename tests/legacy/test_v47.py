@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # test_v47.py - Persistent Storage Tests (NO EMOJIS)
 import sys
 import os
@@ -32,14 +33,14 @@ def test(name, condition):
 
 # =========================================================
 log("\n[TEST 1] Database initialization")
-with tempfile.TemporaryDirectory() as tmpdir:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
     db = BlockchainDB(f"{tmpdir}/test.db")
     test("Database created", db is not None)
     test("Blocks table exists", db.get_latest_block_number() == 0)
 
 # =========================================================
 log("\n[TEST 2] Save and load block")
-with tempfile.TemporaryDirectory() as tmpdir:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
     db = BlockchainDB(f"{tmpdir}/test.db")
     block = {
         "hash": "0x123",
@@ -59,7 +60,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
 # =========================================================
 log("\n[TEST 3] Account persistence")
-with tempfile.TemporaryDirectory() as tmpdir:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
     db = BlockchainDB(f"{tmpdir}/test.db")
     db.save_account("alice", 1000, 0)
     balance = db.get_balance("alice")
@@ -67,7 +68,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
 # =========================================================
 log("\n[TEST 4] Persistent storage")
-with tempfile.TemporaryDirectory() as tmpdir:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
     storage = PersistentStorage(tmpdir)
     storage.save_account_state("bob", 500, 0)
     balance = storage.get_balance("bob")
@@ -75,7 +76,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
 # =========================================================
 log("\n[TEST 5] Latest block tracking")
-with tempfile.TemporaryDirectory() as tmpdir:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
     storage = PersistentStorage(tmpdir)
     for i in range(1, 6):
         storage.save_block({"hash": f"0x{i}", "number": i, "block_data": "{}"})
@@ -84,7 +85,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
 # =========================================================
 log("\n[TEST 6] Metadata storage")
-with tempfile.TemporaryDirectory() as tmpdir:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
     db = BlockchainDB(f"{tmpdir}/test.db")
     db.save_metadata("test_key", "test_value")
     value = db.get_metadata("test_key")
@@ -92,7 +93,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
 # =========================================================
 log("\n[TEST 7] Validators persistence")
-with tempfile.TemporaryDirectory() as tmpdir:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
     db = BlockchainDB(f"{tmpdir}/test.db")
     db.save_validator("validator1", 10000)
     validators = db.get_validators()
@@ -100,7 +101,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
 # =========================================================
 log("\n[TEST 8] Database stats")
-with tempfile.TemporaryDirectory() as tmpdir:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
     db = BlockchainDB(f"{tmpdir}/test.db")
     db.save_block({"hash": "0x1", "number": 1, "block_data": "{}"})
     db.save_account("alice", 1000, 0)
@@ -110,7 +111,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
 # =========================================================
 log("\n[TEST 9] Crash recovery")
-with tempfile.TemporaryDirectory() as tmpdir:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
     storage1 = PersistentStorage(tmpdir)
     storage1.save_account_state("alice", 1000, 0)
     storage1.save_block({"hash": "0x1", "number": 1})
@@ -123,7 +124,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
 # =========================================================
 log("\n[TEST 10] Snapshot creation")
-with tempfile.TemporaryDirectory() as tmpdir:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
     storage = PersistentStorage(tmpdir)
     result = storage.create_snapshot("0x123", 100)
     test("Snapshot created", result)
@@ -133,7 +134,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
 # =========================================================
 log("\n[TEST 11] Chain exists detection")
-with tempfile.TemporaryDirectory() as tmpdir:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
     storage1 = PersistentStorage(tmpdir)
     test("Empty chain detection", not storage1.chain_exists())
     
@@ -142,7 +143,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
 # =========================================================
 log("\n[TEST 12] Backup functionality")
-with tempfile.TemporaryDirectory() as tmpdir:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
     storage = PersistentStorage(tmpdir)
     storage.save_account_state("alice", 1000, 0)
     backup_dir = f"{tmpdir}/backup"
@@ -152,7 +153,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
 # =========================================================
 log("\n[TEST 13] Save metadata method")
-with tempfile.TemporaryDirectory() as tmpdir:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
     storage = PersistentStorage(tmpdir)
     result = storage.save_metadata("head_hash", "0xabc123")
     test("save_metadata works", result)
@@ -161,7 +162,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
 # =========================================================
 log("\n[TEST 14] Account state persistence")
-with tempfile.TemporaryDirectory() as tmpdir:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
     storage = PersistentStorage(tmpdir)
     storage.save_account_state("charlie", 777, 42)
     account = storage.get_account_state("charlie")
@@ -170,7 +171,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
 # =========================================================
 log("\n[TEST 15] Update balance")
-with tempfile.TemporaryDirectory() as tmpdir:
+with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
     storage = PersistentStorage(tmpdir)
     storage.save_account_state("dave", 500, 0)
     storage.update_balance("dave", 100)
@@ -185,3 +186,6 @@ if passed == total:
 else:
     log(f"[WARN] Failed: {total - passed}")
 log("=" * 70)
+import sys
+if __name__ == '__main__':
+    raise SystemExit(0 if passed == total else 1)

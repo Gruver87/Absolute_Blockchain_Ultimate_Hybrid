@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # test_adversarial_network.py
 import sys
 import os
@@ -6,14 +7,14 @@ import builtins
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-# ¬осстанавливаем print если был переопределЄн
+# ??????????????? print ???? ??? ????????????
 if not callable(print):
     print = builtins.print
 
 from network.adversarial_network import AdversarialNetwork
 
 print("=" * 70)
-print("ADVERSARIAL NETWORK Ч HOSTILE CONDITIONS")
+print("ADVERSARIAL NETWORK ? HOSTILE CONDITIONS")
 print("Delays, partitions, message loss, fork injection")
 print("=" * 70)
 
@@ -94,7 +95,7 @@ test("Stats contain loss_rate", "loss_rate" in stats)
 print("\n" + "=" * 70)
 print(f"?? RESULTS: {passed}/{total} tests passed")
 if passed == total:
-    print("?? ADVERSARIAL NETWORK Ч ALL TESTS PASSED!")
+    print("?? ADVERSARIAL NETWORK ? ALL TESTS PASSED!")
     print("")
     print("   ? Message delay simulation")
     print("   ? Message loss (50% rate)")
@@ -114,3 +115,6 @@ print("   Group 2: C, D")
 print("   Messages between groups are dropped")
 print("   After healing, communication restored")
 print("")
+import sys
+if __name__ == '__main__':
+    raise SystemExit(0 if passed == total else 1)

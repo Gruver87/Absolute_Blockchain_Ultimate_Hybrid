@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # test_transaction_cycle.py - Full transaction cycle test
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # test_v46.py - Crypto & Wallet Tests (FULLY FIXED - 25/25)
 import sys
 import os
@@ -150,3 +151,6 @@ if passed == total:
 else:
     log(f"[WARN] Failed: {total - passed}")
 log("=" * 70)
+import sys
+if __name__ == '__main__':
+    raise SystemExit(0 if passed == total else 1)

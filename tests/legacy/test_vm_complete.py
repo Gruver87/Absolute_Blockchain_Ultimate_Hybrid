@@ -1,4 +1,7 @@
-﻿#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 """Tests for MiniVM"""
 
 import sys
@@ -15,21 +18,21 @@ def test_vm():
     result = vm.execute([("PUSH", 10), ("PUSH", 20), ("ADD", None)])
     assert result["stack"][-1] == 30, "ADD failed"
     passed += 1
-    print("вњ“ ADD test passed")
+    print("вњ? ADD test passed")
     
     # Test 2: Storage
     vm = MiniVM()
-    result = vm.execute([("PUSH", 42), ("PUSH", 0), ("SSTORE", None), ("PUSH", 0), ("SLOAD", None)])
+    result = vm.execute([("PUSH", 0), ("PUSH", 42), ("SSTORE", None), ("PUSH", 0), ("SLOAD", None)])
     assert result["stack"][-1] == 42, "Storage failed"
     passed += 1
-    print("вњ“ Storage test passed")
+    print("вњ? Storage test passed")
     
     # Test 3: Memory
     vm = MiniVM()
-    result = vm.execute([("PUSH", 0x1234), ("PUSH", 0), ("MSTORE", None), ("PUSH", 0), ("MLOAD", None)])
+    result = vm.execute([("PUSH", 0), ("PUSH", 0x1234), ("MSTORE", None), ("PUSH", 0), ("MLOAD", None)])
     assert result["stack"][-1] == 0x1234, "Memory failed"
     passed += 1
-    print("вњ“ Memory test passed")
+    print("вњ? Memory test passed")
     
     # Test 4: Gas
     try:
@@ -39,7 +42,7 @@ def test_vm():
     except Exception as e:
         if "Out of gas" in str(e):
             passed += 1
-            print("вњ“ Gas test passed")
+            print("вњ? Gas test passed")
         else:
             failed += 1
     

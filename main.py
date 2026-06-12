@@ -39,7 +39,7 @@ from blockchain.mempool import Mempool, MempoolTransaction
 from kernel.event_bus import EventBus
 from consensus.adapter import ConsensusAdapter
 from execution.evm_adapter import EVMAdapter
-from network.p2p import P2PNode
+from network.p2p_node import P2PNode
 from api.http import start_rpc_server_thread, start_http_server_thread, shutdown_http_server
 from network.websocket import WebSocketServer
 from bridge.abs_bridge import RustBridge

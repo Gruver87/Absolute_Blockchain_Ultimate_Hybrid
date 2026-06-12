@@ -1,7 +1,12 @@
-﻿import requests
+# -*- coding: utf-8 -*-
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+import requests
 import json
+from tests.legacy.legacy_helpers import skip_if_rpc_down
 
 url = "http://localhost:8545"
+skip_if_rpc_down(url)
 
 # Запросы к ноде
 calls = [

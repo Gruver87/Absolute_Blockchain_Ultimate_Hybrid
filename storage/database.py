@@ -219,7 +219,7 @@ class Database:
                 tx_count, gas_used, total_burned, extra_data, data)
                VALUES (?,?,?,?,?,?,?,?,?,?)""",
             (
-                block.get("height", 0),
+                block.get("height", block.get("number", 0)),
                 block.get("hash", block.get("block_hash", "")),
                 block.get("parent_hash", "0" * 64),
                 block.get("timestamp", int(time.time())),
@@ -615,3 +615,30 @@ class Database:
     def close(self):
         with self.lock:
             self.conn.close()
+
+
+class BlockchainDB(Database):
+    """Legacy API used by v47 tests."""
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
+
+    def get_latest_block_number(self) -> int:
+        return self.get_chain_tip()
+
+    def get_block(self, block_hash: str) -> Optional[Dict]:
+        return self.get_block_by_hash(block_hash)
+
+    def save_metadata(self, key: str, value: Any) -> None:
+        self.set_meta(key, value)
+
+    def get_metadata(self, key: str, default: Any = None) -> Any:
+        return self.get_meta(key, default)
+
+    def get_stats(self) -> Dict:
+        stats = super().get_stats()
+        stats["total_blocks"] = stats.get("height", 0)
+        return stats

@@ -4,7 +4,7 @@ from typing import List, Tuple, Dict, Any, Optional
 class MiniVM:
     GAS_COSTS = {
         "PUSH": 2, "POP": 2, "ADD": 3, "SUB": 3, "MUL": 5, "DIV": 5,
-        "STORE": 20, "LOAD": 20, "STOP": 0, "INC": 2, "DEC": 2,
+        "STORE": 20, "SSTORE": 20, "MSTORE": 20, "LOAD": 20, "SLOAD": 20, "MLOAD": 20, "STOP": 0, "INC": 2, "DEC": 2,
         "EQ": 3, "LT": 3, "GT": 3, "JUMP": 1, "JUMPI": 1,
     }
     
@@ -26,7 +26,6 @@ class MiniVM:
         self.pc = 0
         self.gas_used = 0
         self.stack = []
-        self.storage = {}
         self.running = True
         
         while self.pc < len(bytecode) and self.running:
@@ -46,7 +45,7 @@ class MiniVM:
             elif op == "SUB":
                 b = self.stack.pop()
                 a = self.stack.pop()
-                self.stack.append(a - b)  # a - b = ïðàâèëüíûé ïîðÿäîê
+                self.stack.append(a - b)  # a - b = ˜˜˜˜˜˜˜˜˜˜ ˜˜˜˜˜˜˜
             elif op == "MUL":
                 b = self.stack.pop()
                 a = self.stack.pop()
@@ -55,11 +54,11 @@ class MiniVM:
                 b = self.stack.pop()
                 a = self.stack.pop()
                 self.stack.append(a // b if b != 0 else 0)
-            elif op == "STORE":
-                key = self.stack.pop()
+            elif op == "STORE" or op == "SSTORE" or op == "MSTORE":
                 value = self.stack.pop()
+                key = self.stack.pop()
                 self.storage[key] = value
-            elif op == "LOAD":
+            elif op == "LOAD" or op == "SLOAD" or op == "MLOAD":
                 key = self.stack.pop()
                 self.stack.append(self.storage.get(key, 0))
             elif op == "INC":

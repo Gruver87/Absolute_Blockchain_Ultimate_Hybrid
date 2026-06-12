@@ -96,9 +96,14 @@ class SlashingEngine:
             if self.missed_attestations[validator] > 50:
                 self._slash(validator, "offline", 0)
     
-    def report_invalid_proposal(self, validator: str, height: int):
-        """Report invalid block proposal"""
+    def add_proposal(self, validator: str, height: int, block_hash: str) -> bool:
+        return self.record_proposal(validator, height, block_hash)
+
+    def report_invalid_proposal(self, validator: str, height: int, detail: str = ""):
         self._slash(validator, "invalid_proposal", height // 32)
+
+    def get_summary(self) -> dict:
+        return {"total_slashed": len(self.slashed), **self.get_stats()}
     
     def _slash(self, validator: str, reason: str, epoch: int):
         """Slash validator"""

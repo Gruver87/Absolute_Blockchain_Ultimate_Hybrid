@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # test_finality.py
 import sys
 import os
@@ -7,7 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from consensus.engine_beacon import ConsensusEngineBeacon
 
 print("=" * 70)
-print("BEACON CHAIN FINALITY — CORRECT CASPER FFG")
+print("BEACON CHAIN FINALITY ? CORRECT CASPER FFG")
 print("Epoch N finalized when epoch N+1 is justified")
 print("=" * 70)
 
@@ -41,7 +42,7 @@ for i in range(1, 10):
 test("10 blocks created", len(engine._blocks) == 10)
 
 # =========================================================
-print("\n[TEST 1] No attestations — no finality")
+print("\n[TEST 1] No attestations ? no finality")
 finality_state = engine.get_finality_state()
 test("No finality without votes", finality_state.get("finalized_epochs") == [])
 
@@ -97,7 +98,7 @@ test("Stats contain finalized_epochs", stats.get("finalized_epochs") >= 1)
 print("\n" + "=" * 70)
 print(f"?? RESULTS: {passed}/{total} tests passed")
 if passed == total:
-    print("?? BEACON FINALITY — ALL TESTS PASSED!")
+    print("?? BEACON FINALITY ? ALL TESTS PASSED!")
     print("")
     print("   ? Checkpoint-based justification")
     print("   ? Correct Casper FFG (epoch N finalized when N+1 justified)")
@@ -112,3 +113,6 @@ print("=" * 70)
 print("\n[DEMO] Fork tree with finality markers (?? = finalized)")
 engine.print_tree()
 print("")
+import sys
+if __name__ == '__main__':
+    raise SystemExit(0 if passed == total else 1)

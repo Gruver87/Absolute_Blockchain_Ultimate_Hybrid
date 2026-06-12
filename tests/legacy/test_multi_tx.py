@@ -1,7 +1,13 @@
-﻿# test_multi_tx.py - Send multiple transactions to test mempool and blocks
+# -*- coding: utf-8 -*-
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# test_multi_tx.py - Send multiple transactions to test mempool and blocks
 import requests
 import json
 import time
+from tests.legacy.legacy_helpers import skip_if_rpc_down
+
+skip_if_rpc_down("http://localhost:8545")
 
 def get_mempool_size():
     try:
@@ -33,13 +39,14 @@ print("=" * 70)
 print("MONITORING NODE STATUS")
 print("=" * 70)
 
-while True:
+_ticks = 0
+while _ticks < 3:
     block_num = get_block_number()
     mempool_size = get_mempool_size()
-    
-    print(f"\r📊 Block: {block_num} | Mempool: {mempool_size} txs", end="")
-    
+    print(f"\r? Block: {block_num} | Mempool: {mempool_size} txs", end="")
     if mempool_size > 0:
-        print(f" 🔥", end="")
-    
-    time.sleep(3)
+        print(" ?", end="")
+    time.sleep(1)
+    _ticks += 1
+
+print("\nDone monitoring (3 samples).")

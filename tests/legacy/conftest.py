@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Legacy scripts: ensure repo root is on sys.path when run via pytest."""
 import os
 import sys

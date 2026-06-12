@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # test_mev_mempool.py - FIXED
 import sys
 import os
@@ -51,3 +52,6 @@ except Exception as e:
 log("\n" + "=" * 70)
 log(f"RESULTS: {passed}/{total} tests passed")
 log("=" * 70)
+import sys
+if __name__ == '__main__':
+    raise SystemExit(0 if passed == total else 1)

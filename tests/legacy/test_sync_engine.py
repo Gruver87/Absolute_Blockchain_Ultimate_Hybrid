@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # test_sync_engine.py
 import sys
 import os
@@ -53,7 +54,7 @@ class MockNode:
 
 
 print("=" * 70)
-print("SYNC ENGINE TEST — HEADER-FIRST SYNC")
+print("SYNC ENGINE TEST ? HEADER-FIRST SYNC")
 print("=" * 70)
 
 passed = 0
@@ -131,7 +132,7 @@ test("Status contains local_height", "local_height" in status)
 print("\n" + "=" * 70)
 print(f"?? RESULTS: {passed}/{total} tests passed")
 if passed == total:
-    print("?? SYNC ENGINE — ALL TESTS PASSED!")
+    print("?? SYNC ENGINE ? ALL TESTS PASSED!")
     print("")
     print("   ? Peer management")
     print("   ? Best peer selection")
@@ -143,3 +144,6 @@ if passed == total:
 else:
     print(f"?? Failed: {total - passed}")
 print("=" * 70)
+import sys
+if __name__ == '__main__':
+    raise SystemExit(0 if passed == total else 1)

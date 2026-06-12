@@ -1,6 +1,7 @@
+# -*- coding: utf-8 -*-
 # test_v45.py
 """
-Test suite for v45 — Real P2P Network Layer
+Test suite for v45 ? Real P2P Network Layer
 """
 
 import sys
@@ -18,7 +19,7 @@ def log(msg):
     sys.stdout.write(msg + "\n")
 
 log("=" * 70)
-log("v45 — REAL NETWORK LAYER (P2P)")
+log("v45 ? REAL NETWORK LAYER (P2P)")
 log("HANDSHAKE + DISCOVERY + SYNC + SCORING + BAN")
 log("=" * 70)
 
@@ -146,7 +147,7 @@ log("\n" + "=" * 70)
 log(f"?? RESULTS: {passed}/{total} tests passed")
 
 if passed == total:
-    log("?? v45 — ALL TESTS PASSED!")
+    log("?? v45 ? ALL TESTS PASSED!")
     log("")
     log("   ? Peer handshake with validation")
     log("   ? Peer scoring and reputation")
@@ -168,7 +169,7 @@ if passed == total:
     log("   > Compact blocks for efficiency")
     log("   > Peer discovery")
     log("")
-    log("?? NEXT: v46 — CRYPTOGRAPHY + SIGNATURES")
+    log("?? NEXT: v46 ? CRYPTOGRAPHY + SIGNATURES")
     log("   > secp256k1 for transaction signing")
     log("   > Validator signatures for blocks")
     log("   > Address derivation")
@@ -176,3 +177,6 @@ if passed == total:
 else:
     log(f"?? Failed: {total - passed}")
 log("=" * 70)
+import sys
+if __name__ == '__main__':
+    raise SystemExit(0 if passed == total else 1)

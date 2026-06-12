@@ -1,9 +1,14 @@
-﻿# test_rpc_final.py
+# -*- coding: utf-8 -*-
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# test_rpc_final.py
 import requests
 import json
 import time
+from tests.legacy.legacy_helpers import skip_if_rpc_down
 
 url = "http://localhost:8545"
+skip_if_rpc_down(url)
 
 print("=" * 60)
 print("RPC METHODS TEST")
@@ -62,5 +67,5 @@ except Exception as e:
     print(f"    Error: {e}")
 
 print("\n" + "=" * 60)
-print("✅ Test complete!")
+print("? Test complete!")
 print("=" * 60)

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # test_v51.py - Fast Sync Tests (FINAL FIX)
 import sys
 import os
@@ -53,7 +54,7 @@ class MockStorage:
     def save_metadata(self, k, v):
         pass
     def save_account_state(self, address, balance, nonce):
-        pass  # Добавлен для теста
+        pass  # ???????? ??? ?????
     def save_validator(self, address, stake):
         pass
 
@@ -146,7 +147,7 @@ state_dump = {
     ]
 }
 try:
-    # Создаём специальный мок для этого теста
+    # ?????? ??????????? ??? ??? ????? ?????
     class MockStorageForRestore:
         def save_account_state(self, address, balance, nonce):
             pass
@@ -188,3 +189,6 @@ if passed == total:
 else:
     log(f"[WARN] Failed: {total - passed}")
 log("=" * 70)
+import sys
+if __name__ == '__main__':
+    raise SystemExit(0 if passed == total else 1)

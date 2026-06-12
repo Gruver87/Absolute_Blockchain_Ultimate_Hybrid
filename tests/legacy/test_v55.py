@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # test_v55.py - FIXED VERSION
 import sys
 import os
@@ -8,7 +9,7 @@ def log(msg):
     sys.stdout.write(msg + "\n")
 
 log("=" * 70)
-log("v55 — TRANSACTION POOL + BLOCK BUILDER (FIXED)")
+log("v55 ? TRANSACTION POOL + BLOCK BUILDER (FIXED)")
 log("=" * 70)
 
 passed = 0
@@ -75,3 +76,6 @@ log(f"RESULTS: {passed}/{total} tests passed")
 if passed == total:
     log("[SUCCESS] ALL TESTS PASSED!")
 log("=" * 70)
+import sys
+if __name__ == '__main__':
+    raise SystemExit(0 if passed == total else 1)
