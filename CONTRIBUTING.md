@@ -1,121 +1,75 @@
-﻿# 🤝 Руководство по участию в проекте
+﻿# Contributing — Absolute Blockchain Ultimate
 
-Спасибо за интерес к проекту Absolute Blockchain Ultimate! Мы рады любым вкладам.
+Спасибо за интерес! Это **учебный** проект — любой вклад в код, тесты и документацию приветствуется.
 
-## 📋 Содержание
+## Перед началом
 
-- [Как помочь](#как-помочь)
-- [Настройка окружения](#настройка-окружения)
-- [Процесс разработки](#процесс-разработки)
-- [Code Style](#code-style)
-- [Тестирование](#тестирование)
-- [Создание Pull Request](#создание-pull-request)
+1. Прочитайте [DISCLAIMER.md](DISCLAIMER.md) — проект **не для production**.
+2. Запуск только через `python main.py` (не `_archive/` и не старые скрипты).
 
----
+## Как помочь
 
-## 🌟 Как помочь
+| Действие | Зачем |
+|----------|-------|
+| ⭐ Star | Помогает другим найти репозиторий |
+| 🍴 Fork | Безопасные эксперименты в своей копии |
+| 🐛 Issues | Баги, идеи, вопросы |
+| 📝 Docs | README, ARCHITECTURE, комментарии |
+| 🔧 PR | Фичи, фиксы, тесты |
+| 📢 Share | Курсы, статьи, демо — продвигайте дальше |
 
-| Задача | Сложность | Приоритет |
-|--------|-----------|-----------|
-| 🐛 Сообщать об ошибках | Низкая | Высокий |
-| 📝 Улучшать документацию | Низкая | Высокий |
-| ⭐ Поставить звезду | Низкая | Высокий |
-| 💡 Предлагать идеи | Средняя | Средний |
-| 🔧 Исправлять баги | Средняя | Средний |
-| 🚀 Добавлять новые функции | Высокая | Низкий |
+## Настройка
 
----
-
-## 🛠️ Настройка окружения
-
-### 1. Клонирование репозитория
 ```bash
 git clone https://github.com/Gruver87/absolute-blockchain-ultimate.git
 cd absolute-blockchain-ultimate
-2. Установка зависимостей
-bash
 pip install -r requirements.txt
-3. Запуск ноды
-bash
-python node_persistent.py
-4. Запуск тестов
-bash
-python test_final.py
-python quick_test.py
-python test_vm_complete.py
-📝 Процесс разработки
-Создайте Issue с описанием того, что вы хотите сделать
+cp .env.example .env
+python main.py
+```
 
-Форкните репозиторий
+Откройте http://localhost:8080
 
-Создайте ветку для ваших изменений
+## Разработка
 
-bash
-git checkout -b feature/название-функции
-Внесите изменения и закоммитьте
+```bash
+git checkout -b feature/my-change
+# ... правки ...
+python test_merkle_light.py
+python _final_audit.py
+git commit -m "feat: описание"
+git push origin feature/my-change
+```
 
-bash
-git commit -m "feat: описание изменений"
-Запушьте изменения
+Создайте Pull Request на GitHub.
 
-bash
-git push origin feature/название-функции
-Создайте Pull Request
+## Code style
 
-🎨 Code Style
-Используйте Python 3.11+
+- Минимальный diff — не рефакторить несвязанный код
+- Следовать стилю соседних файлов
+- Комментарии только для неочевидной логики
+- Не коммитить: `.env`, `data/`, ключи, `__pycache__`
 
-Следуйте PEP 8
+## Commit messages
 
-Используйте типизацию (Type Hints)
+```
+feat: add SPV endpoint for block proofs
+fix: pool lock check in mempool
+docs: update README tokenomics section
+test: merkle light client cases
+```
 
-Добавляйте докстринги для функций и классов
+## Идеи для контрибьюторов
 
-Пример:
-python
-def add_transaction(self, tx: dict) -> str:
-    """
-    Добавить транзакцию в мемпул.
+- Улучшение P2P и синхронизации между узлами
+- Больше pytest-тестов вместо script-style tests
+- Усиление безопасности (с пометкой «educational»)
+- Перевод документации
+- CI (GitHub Actions) для `test_merkle_light.py` и аудита
 
-    Args:
-        tx: Словарь с данными транзакции
+## Вопросы
 
-    Returns:
-        Хэш транзакции
-    """
-    pass
-🧪 Тестирование
-Запуск всех тестов
-bash
-python test_final.py
-Тесты отдельных компонентов
-bash
-# VM
-python test_vm_complete.py
+- Issues: https://github.com/Gruver87/absolute-blockchain-ultimate/issues
+- Автор: [@Gruver87](https://github.com/Gruver87)
 
-# NFT
-python -c "from nft_core import NFTMarketplace; print('OK')"
-
-# Шардинг
-python -c "from dynamic_sharding import sharding_manager; print('OK')"
-📦 Структура проекта
-text
-absolute-blockchain-ultimate/
-├── core/               # Ядро блокчейна
-├── consensus/          # Консенсус
-├── execution/          # Исполнение (VM)
-├── rpc/                # JSON-RPC API
-├── network/            # P2P сеть
-├── crypto/             # Криптография
-├── storage/            # Хранение
-├── web/                # Веб-интерфейс
-└── tests/              # Тесты
-📄 Лицензия
-MIT License — свободно для изучения и экспериментов
-
-💬 Контакты
-GitHub: @Gruver87
-
-Email: gruverpetrov@gmail.com
-
-Спасибо за ваш вклад! 🚀
+**Спасибо за развитие учебного блокчейна вместе с сообществом!**

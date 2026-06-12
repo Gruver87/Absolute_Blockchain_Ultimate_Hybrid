@@ -61,6 +61,20 @@ class ImmutableStateManager:
     def get_balance_abs(self, address: str) -> float:
         """Получить баланс в ABS (только для отображения)"""
         return self.get_balance_satoshi(address) / SATOSHI_MULTIPLIER
+
+    def credit(self, address: str, amount_abs: float) -> None:
+        """Начислить баланс (genesis / миграция)."""
+        with self._lock:
+            acc = self.get_account(address, create=True)
+            acc.balance_satoshi += self.to_satoshi(amount_abs)
+
+    def seed_from_balances(self, balances: dict) -> int:
+        """Загрузить начальные балансы {address: amount_abs}. Возвращает число аккаунтов."""
+        with self._lock:
+            for addr, amount in balances.items():
+                acc = self.get_account(addr, create=True)
+                acc.balance_satoshi = self.to_satoshi(float(amount))
+            return len(balances)
     
     def apply_transaction(self, tx: dict) -> bool:
         """

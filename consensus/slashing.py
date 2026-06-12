@@ -29,6 +29,36 @@ class SlashingEngine:
         self.slashed: Set[str] = set()
         self.events: List[SlashEvent] = []
         self.missed_attestations: Dict[str, int] = defaultdict(int)
+        # Stake tracking (used by engine_slashing.py)
+        self._stakes: Dict[str, int] = {}
+
+    # --- Methods required by engine_slashing.py ---
+
+    def register_validator(self, validator_id: str, stake: int = 100):
+        """Register a validator with stake."""
+        self._stakes[validator_id] = stake
+
+    def add_vote(self, validator_id: str, epoch: int, block_hash: str) -> bool:
+        """
+        Register vote and check for slashing conditions.
+        Returns True if vote accepted, False if validator is slashed.
+        """
+        if validator_id in self.slashed:
+            return False
+        return self.record_vote(validator_id, epoch, block_hash)
+
+    def get_stake(self, validator_id: str) -> int:
+        """Get validator stake (0 if slashed)."""
+        if validator_id in self.slashed:
+            return 0
+        return self._stakes.get(validator_id, 0)
+
+    def get_total_active_stake(self) -> int:
+        """Total stake of non-slashed validators."""
+        return sum(
+            stake for vid, stake in self._stakes.items()
+            if vid not in self.slashed
+        )
         
     def record_vote(self, validator: str, epoch: int, block_hash: str) -> bool:
         """Record validator vote, check for double voting"""
@@ -105,9 +135,15 @@ class SlashingEngine:
                 del self.votes[validator][epoch]
     
     def get_stats(self) -> dict:
+        slashed_stake = sum(self._stakes.get(v, 0) for v in self.slashed)
+        active_stake = self.get_total_active_stake()
         return {
             "slashed_count": len(self.slashed),
+            "slashed_validators": len(self.slashed),
+            "slashed_stake": slashed_stake,
+            "active_stake": active_stake,
+            "total_validators": len(self._stakes),
             "total_events": len(self.events),
-            "by_reason": {reason: len([e for e in self.events if e.reason == reason]) 
+            "by_reason": {reason: len([e for e in self.events if e.reason == reason])
                          for reason in self.PENALTIES}
         }

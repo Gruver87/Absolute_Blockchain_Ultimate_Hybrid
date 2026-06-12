@@ -1,293 +1,563 @@
-﻿# storage/database.py (FIXED)
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Absolute Blockchain — единый слой хранения данных.
+Один SQLite-файл, WAL-режим, все таблицы.
+"""
+
 import sqlite3
 import json
 import os
-import time
 import threading
-from typing import Dict, List, Optional, Any
-from contextlib import contextmanager
+import time
+from typing import Optional, List, Dict, Any
 
 
-class BlockchainDB:
+class Database:
+    """
+    Центральная база данных узла.
+    Один экземпляр на весь процесс — используется через self.db во всех модулях.
+    """
+
     def __init__(self, db_path: str = "data/blockchain.db"):
         self.db_path = db_path
         self.lock = threading.RLock()
-        self._init_db()
-    
-    def _init_db(self):
-        """Initialize database schema"""
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            
-            # Blocks table - FIXED: number as INTEGER PRIMARY KEY
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS blocks (
-                    hash TEXT PRIMARY KEY,
-                    number INTEGER UNIQUE,
-                    parent_hash TEXT,
-                    timestamp INTEGER,
-                    proposer TEXT,
-                    state_root TEXT,
-                    tx_root TEXT,
-                    signature TEXT,
-                    public_key TEXT,
-                    block_data TEXT,
-                    is_canonical INTEGER DEFAULT 1,
-                    created_at INTEGER
-                )
-            ''')
-            
-            # Create index only if column exists
-            cursor.execute("PRAGMA table_info(blocks)")
-            columns = [col[1] for col in cursor.fetchall()]
-            if 'number' in columns:
-                cursor.execute('CREATE INDEX IF NOT EXISTS idx_blocks_number ON blocks(number)')
-            
-            # Accounts table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS accounts (
-                    address TEXT PRIMARY KEY,
-                    balance INTEGER DEFAULT 0,
-                    nonce INTEGER DEFAULT 0,
-                    code_hash TEXT DEFAULT "",
-                    updated_at INTEGER
-                )
-            ''')
-            
-            # Validators table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS validators (
-                    address TEXT PRIMARY KEY,
-                    stake INTEGER DEFAULT 0,
-                    commission INTEGER DEFAULT 5,
-                    registered_at INTEGER,
-                    is_active INTEGER DEFAULT 1
-                )
-            ''')
-            
-            # Transactions table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS transactions (
-                    hash TEXT PRIMARY KEY,
-                    from_addr TEXT,
-                    to_addr TEXT,
-                    value INTEGER,
-                    nonce INTEGER,
-                    signature TEXT,
-                    block_hash TEXT,
-                    block_number INTEGER,
-                    status INTEGER DEFAULT 1,
-                    gas_used INTEGER DEFAULT 21000,
-                    logs TEXT,
-                    timestamp INTEGER
-                )
-            ''')
-            
-            # Attestations table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS attestations (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    validator TEXT,
-                    target_hash TEXT,
-                    target_height INTEGER,
-                    slot INTEGER,
-                    signature TEXT,
-                    created_at INTEGER
-                )
-            ''')
-            
-            # Metadata table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS metadata (
-                    key TEXT PRIMARY KEY,
-                    value TEXT,
-                    updated_at INTEGER
-                )
-            ''')
-            
-            # Checkpoints table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS checkpoints (
-                    hash TEXT PRIMARY KEY,
-                    height INTEGER,
-                    snapshot_data TEXT,
-                    created_at INTEGER
-                )
-            ''')
-            
-            conn.commit()
-            
-            # Initialize metadata if empty
-            cursor.execute("SELECT COUNT(*) FROM metadata")
-            if cursor.fetchone()[0] == 0:
-                cursor.execute("INSERT INTO metadata (key, value) VALUES ('version', '52')")
-                cursor.execute("INSERT INTO metadata (key, value) VALUES ('chain_id', '1337')")
-                conn.commit()
-    
-    @contextmanager
-    def get_connection(self):
-        conn = sqlite3.connect(self.db_path, timeout=10)
-        conn.row_factory = sqlite3.Row
+        os.makedirs(os.path.dirname(db_path) if os.path.dirname(db_path) else ".", exist_ok=True)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
+        self.conn.row_factory = sqlite3.Row  # доступ к полям по имени
+        self._configure()
+
+    # ── Инициализация ────────────────────────────────────────────────────────
+
+    def _configure(self):
+        """Настройка SQLite, создание таблиц и миграция старой схемы."""
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
+        self.conn.execute("PRAGMA foreign_keys=ON")
+        self._create_tables()
+        self._migrate()
+        self.conn.commit()
+
+    def _migrate(self):
+        """Добавляет недостающие колонки и переименовывает block_hash -> hash."""
+        import json as _json
+
+        # Читаем текущие колонки таблицы blocks
+        cols_info = self.conn.execute("PRAGMA table_info(blocks)").fetchall()
+        block_cols = {row[1] for row in cols_info}
+
+        # ── 1. Переименование block_hash -> hash (старая схема) ──────────────
+        if "block_hash" in block_cols and "hash" not in block_cols:
+            # SQLite 3.25+ поддерживает RENAME COLUMN
+            try:
+                self.conn.execute("ALTER TABLE blocks RENAME COLUMN block_hash TO hash")
+                block_cols.discard("block_hash")
+                block_cols.add("hash")
+                print("[DB] Migration: renamed 'block_hash' -> 'hash'")
+            except Exception:
+                # Fallback: добавляем колонку hash и копируем значения
+                self.conn.execute("ALTER TABLE blocks ADD COLUMN hash TEXT DEFAULT ''")
+                self.conn.execute("UPDATE blocks SET hash = block_hash")
+                block_cols.add("hash")
+                print("[DB] Migration: added 'hash' column (copied from block_hash)")
+
+        # ── 2. Добавляем недостающие колонки ─────────────────────────────────
+        add_cols = [
+            ("blocks", "data",         "TEXT DEFAULT '{}'"),
+            ("blocks", "tx_count",     "INTEGER DEFAULT 0"),
+            ("blocks", "gas_used",     "INTEGER DEFAULT 0"),
+            ("blocks", "total_burned", "REAL DEFAULT 0.0"),
+            ("blocks", "extra_data",   "TEXT DEFAULT ''"),
+            ("transactions", "burned",   "REAL NOT NULL DEFAULT 0.0"),
+            ("transactions", "fee",      "REAL NOT NULL DEFAULT 0.0"),
+            ("transactions", "gas_used", "INTEGER NOT NULL DEFAULT 21000"),
+        ]
+        existing: dict = {"blocks": block_cols}
+        for table, col, col_def in add_cols:
+            if table not in existing:
+                c = self.conn.execute(f"PRAGMA table_info({table})")
+                existing[table] = {row[1] for row in c.fetchall()}
+            if col not in existing[table]:
+                try:
+                    self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_def}")
+                    print(f"[DB] Migration: added '{table}.{col}'")
+                    existing[table].add(col)
+                except Exception as e:
+                    print(f"[DB] Migration warning ({table}.{col}): {e}")
+
+        # ── 3. Заполняем data для старых блоков ──────────────────────────────
         try:
-            yield conn
-        finally:
-            conn.close()
-    
-    def save_block(self, block: dict) -> bool:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT OR REPLACE INTO blocks 
-                (hash, number, parent_hash, timestamp, proposer, state_root, tx_root, 
-                 signature, public_key, block_data, is_canonical, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                block.get("hash"),
-                block.get("number"),
-                block.get("parent_hash"),
-                block.get("timestamp"),
-                block.get("proposer"),
-                block.get("state_root"),
-                block.get("tx_root"),
-                block.get("signature"),
-                block.get("public_key"),
-                json.dumps(block),
-                1,
-                int(time.time())
-            ))
-            conn.commit()
-            return True
-    
-    def get_block(self, block_hash: str) -> Optional[dict]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT block_data FROM blocks WHERE hash = ?", (block_hash,))
-            row = cursor.fetchone()
-            if row:
-                return json.loads(row[0])
-            return None
-    
-    def get_block_by_number(self, number: int) -> Optional[dict]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT block_data FROM blocks WHERE number = ?", (number,))
-            row = cursor.fetchone()
-            if row:
-                return json.loads(row[0])
-            return None
-    
-    def get_latest_block(self) -> Optional[dict]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT block_data FROM blocks 
-                WHERE is_canonical = 1 
-                ORDER BY number DESC LIMIT 1
-            ''')
-            row = cursor.fetchone()
-            if row:
-                return json.loads(row[0])
-            return None
-    
-    def get_latest_block_number(self) -> int:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT MAX(number) as max_num FROM blocks WHERE is_canonical = 1')
-            row = cursor.fetchone()
-            return row[0] if row and row[0] else 0
-    
-    def save_account(self, address: str, balance: int, nonce: int = 0) -> bool:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT OR REPLACE INTO accounts (address, balance, nonce, updated_at)
-                VALUES (?, ?, ?, ?)
-            ''', (address, balance, nonce, int(time.time())))
-            conn.commit()
-            return True
-    
-    def get_account(self, address: str) -> Optional[dict]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM accounts WHERE address = ?", (address,))
-            row = cursor.fetchone()
-            if row:
-                return dict(row)
-            return None
-    
-    def get_balance(self, address: str) -> int:
-        account = self.get_account(address)
-        return account["balance"] if account else 0
-    
-    def save_validator(self, address: str, stake: int) -> bool:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT OR REPLACE INTO validators (address, stake, registered_at)
-                VALUES (?, ?, ?)
-            ''', (address, stake, int(time.time())))
-            conn.commit()
-            return True
-    
-    def get_validators(self) -> List[dict]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM validators WHERE is_active = 1")
-            return [dict(row) for row in cursor.fetchall()]
-    
-    def save_metadata(self, key: str, value: str) -> bool:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT OR REPLACE INTO metadata (key, value, updated_at)
-                VALUES (?, ?, ?)
-            ''', (key, value, int(time.time())))
-            conn.commit()
-            return True
-    
-    def get_metadata(self, key: str) -> Optional[str]:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT value FROM metadata WHERE key = ?", (key,))
-            row = cursor.fetchone()
-            return row[0] if row else None
-    
-    def get_stats(self) -> dict:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM blocks")
-            blocks = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM accounts")
-            accounts = cursor.fetchone()[0]
+            count = self.conn.execute(
+                "SELECT COUNT(*) FROM blocks WHERE data='{}' OR data IS NULL OR data=''"
+            ).fetchone()[0]
+            if count > 0:
+                rows = self.conn.execute(
+                    "SELECT height, hash, parent_hash, timestamp, miner "
+                    "FROM blocks WHERE data='{}' OR data IS NULL OR data=''"
+                ).fetchall()
+                for row in rows:
+                    block_dict = {
+                        "height": row[0], "hash": row[1] or "",
+                        "parent_hash": row[2] or "", "timestamp": row[3] or 0,
+                        "miner": row[4] or "genesis",
+                        "tx_count": 0, "gas_used": 0,
+                        "total_burned": 0.0, "extra_data": "legacy",
+                        "transactions": [],
+                    }
+                    self.conn.execute(
+                        "UPDATE blocks SET data=? WHERE height=?",
+                        (_json.dumps(block_dict), row[0])
+                    )
+                print(f"[DB] Migration: backfilled 'data' for {count} old block(s)")
+        except Exception as e:
+            print(f"[DB] Migration backfill warning: {e}")
+
+    def _create_tables(self):
+        self.conn.executescript("""
+            CREATE TABLE IF NOT EXISTS blocks (
+                height       INTEGER PRIMARY KEY,
+                hash         TEXT    UNIQUE NOT NULL,
+                parent_hash  TEXT    NOT NULL,
+                timestamp    INTEGER NOT NULL,
+                miner        TEXT    NOT NULL,
+                tx_count     INTEGER DEFAULT 0,
+                gas_used     INTEGER DEFAULT 0,
+                total_burned REAL    DEFAULT 0.0,
+                extra_data   TEXT    DEFAULT '',
+                data         TEXT    NOT NULL DEFAULT '{}'
+            );
+
+            CREATE TABLE IF NOT EXISTS transactions (
+                hash         TEXT    PRIMARY KEY,
+                block_height INTEGER NOT NULL,
+                from_addr    TEXT    NOT NULL,
+                to_addr      TEXT    NOT NULL,
+                value        REAL    NOT NULL DEFAULT 0.0,
+                gas          INTEGER NOT NULL DEFAULT 21000,
+                gas_used     INTEGER NOT NULL DEFAULT 21000,
+                fee          REAL    NOT NULL DEFAULT 0.0,
+                burned       REAL    NOT NULL DEFAULT 0.0,
+                nonce        INTEGER NOT NULL DEFAULT 0,
+                tx_data      TEXT    DEFAULT '',
+                status       INTEGER DEFAULT 1,
+                timestamp    INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS accounts (
+                address  TEXT    PRIMARY KEY,
+                balance  REAL    NOT NULL DEFAULT 0.0,
+                nonce    INTEGER NOT NULL DEFAULT 0,
+                code     TEXT    DEFAULT NULL,
+                storage  TEXT    DEFAULT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS validators (
+                address  TEXT    PRIMARY KEY,
+                stake    REAL    NOT NULL DEFAULT 0.0,
+                active   INTEGER DEFAULT 1,
+                slashed  INTEGER DEFAULT 0,
+                joined_at INTEGER DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS checkpoints (
+                epoch      INTEGER PRIMARY KEY,
+                block_hash TEXT    NOT NULL,
+                justified  INTEGER DEFAULT 0,
+                finalized  INTEGER DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS burn_stats (
+                block_height  INTEGER PRIMARY KEY,
+                burned_amount REAL    NOT NULL DEFAULT 0.0,
+                total_burned  REAL    NOT NULL DEFAULT 0.0
+            );
+
+            CREATE TABLE IF NOT EXISTS bridge_locks (
+                tx_hash    TEXT    PRIMARY KEY,
+                from_addr  TEXT    NOT NULL,
+                to_chain   TEXT    NOT NULL,
+                to_addr    TEXT    NOT NULL,
+                amount     REAL    NOT NULL,
+                status     TEXT    DEFAULT 'pending',
+                created_at INTEGER DEFAULT 0
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_tx_block ON transactions(block_height);
+            CREATE INDEX IF NOT EXISTS idx_tx_from  ON transactions(from_addr);
+            CREATE INDEX IF NOT EXISTS idx_tx_to    ON transactions(to_addr);
+            CREATE TABLE IF NOT EXISTS meta (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL DEFAULT '{}'
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_blocks_ts ON blocks(timestamp);
+        """)
+
+    def initialize(self):
+        """Публичный метод инициализации (вызывается из NodeOrchestrator)."""
+        self._configure()
+
+    # ── Блоки ────────────────────────────────────────────────────────────────
+
+    def save_block(self, block: Dict) -> bool:
+        with self.lock:
+            try:
+                self.conn.execute(
+                    """INSERT OR REPLACE INTO blocks
+                       (height, hash, parent_hash, timestamp, miner,
+                        tx_count, gas_used, total_burned, extra_data, data)
+                       VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        block.get("height", 0),
+                        block.get("hash", block.get("block_hash", "")),
+                        block.get("parent_hash", "0" * 64),
+                        block.get("timestamp", int(time.time())),
+                        block.get("miner", ""),
+                        block.get("tx_count", len(block.get("transactions", []))),
+                        block.get("gas_used", 0),
+                        block.get("total_burned", 0.0),
+                        block.get("extra_data", ""),
+                        json.dumps(block),
+                    ),
+                )
+                self.conn.commit()
+                return True
+            except Exception as e:
+                print(f"[DB] save_block error: {e}")
+                return False
+
+    def get_block(self, height: int) -> Optional[Dict]:
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT data FROM blocks WHERE height=?", (height,)
+            ).fetchone()
+            return json.loads(row["data"]) if row else None
+
+    def get_block_by_hash(self, block_hash: str) -> Optional[Dict]:
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT data FROM blocks WHERE hash=?", (block_hash,)
+            ).fetchone()
+            return json.loads(row["data"]) if row else None
+
+    def get_latest_blocks(self, limit: int = 20) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT data FROM blocks ORDER BY height DESC LIMIT ?", (limit,)
+            ).fetchall()
+            return [json.loads(r["data"]) for r in rows]
+
+    def get_chain_tip(self) -> int:
+        """Возвращает высоту последнего блока (0 если цепь пуста)."""
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT COALESCE(MAX(height),0) as h FROM blocks"
+            ).fetchone()
+            return row["h"] if row else 0
+
+    def get_last_block(self) -> Optional[Dict]:
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT data FROM blocks ORDER BY height DESC LIMIT 1"
+            ).fetchone()
+            return json.loads(row["data"]) if row else None
+
+    # ── Транзакции ───────────────────────────────────────────────────────────
+
+    def save_transaction(self, tx: Dict) -> bool:
+        with self.lock:
+            try:
+                self.conn.execute(
+                    """INSERT OR REPLACE INTO transactions
+                       (hash, block_height, from_addr, to_addr, value,
+                        gas, gas_used, fee, burned, nonce, tx_data, status, timestamp)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        tx.get("hash", tx.get("tx_hash", "")),
+                        tx.get("block_height", 0),
+                        tx.get("from_addr", tx.get("from", "")),
+                        tx.get("to_addr", tx.get("to", "")),
+                        tx.get("value", tx.get("amount", 0.0)),
+                        tx.get("gas", 21000),
+                        tx.get("gas_used", tx.get("gas", 21000)),
+                        tx.get("fee", 0.0),
+                        tx.get("burned", 0.0),
+                        tx.get("nonce", 0),
+                        tx.get("data", tx.get("tx_data", "")),
+                        tx.get("status", 1),
+                        tx.get("timestamp", int(time.time())),
+                    ),
+                )
+                self.conn.commit()
+                return True
+            except Exception as e:
+                print(f"[DB] save_transaction error: {e}")
+                return False
+
+    def get_transaction(self, tx_hash: str) -> Optional[Dict]:
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT * FROM transactions WHERE hash=?", (tx_hash,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def get_transactions_by_address(self, address: str, limit: int = 50) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute(
+                """SELECT * FROM transactions
+                   WHERE from_addr=? OR to_addr=?
+                   ORDER BY block_height DESC LIMIT ?""",
+                (address, address, limit),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_transactions_in_block(self, height: int) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT * FROM transactions WHERE block_height=?", (height,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    # ── Аккаунты / балансы ───────────────────────────────────────────────────
+
+    def get_balance(self, address: str) -> float:
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT balance FROM accounts WHERE address=?", (address,)
+            ).fetchone()
+            return float(row["balance"]) if row else 0.0
+
+    def update_balance(self, address: str, delta: float) -> float:
+        """Изменяет баланс на delta (может быть отрицательным). Возвращает новый баланс."""
+        with self.lock:
+            # Используем два отдельных параметра, чтобы excluded.balance = delta
+            # (может быть отрицательным, что корректно для ON CONFLICT обновления)
+            self.conn.execute(
+                """INSERT INTO accounts (address, balance, nonce)
+                   VALUES (?, MAX(0.0, ?), 0)
+                   ON CONFLICT(address) DO UPDATE
+                   SET balance = MAX(0.0, balance + ?)""",
+                (address, delta, delta),
+            )
+            self.conn.commit()
+            return self.get_balance(address)
+
+    def set_balance(self, address: str, balance: float) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT INTO accounts (address, balance) VALUES (?,?)
+                   ON CONFLICT(address) DO UPDATE SET balance=excluded.balance""",
+                (address, balance),
+            )
+            self.conn.commit()
+
+    def get_nonce(self, address: str) -> int:
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT nonce FROM accounts WHERE address=?", (address,)
+            ).fetchone()
+            return row["nonce"] if row else 0
+
+    def increment_nonce(self, address: str) -> int:
+        with self.lock:
+            self.conn.execute(
+                """INSERT INTO accounts (address, balance, nonce) VALUES (?,0,1)
+                   ON CONFLICT(address) DO UPDATE SET nonce=nonce+1""",
+                (address,),
+            )
+            self.conn.commit()
+            return self.get_nonce(address)
+
+    def get_account(self, address: str) -> Optional[Dict]:
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT * FROM accounts WHERE address=?", (address,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def save_account(self, address: str, balance: float = 0.0,
+                     nonce: int = 0, code: str = None, storage: str = None) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT INTO accounts (address, balance, nonce, code, storage)
+                   VALUES (?,?,?,?,?)
+                   ON CONFLICT(address) DO UPDATE
+                   SET balance=excluded.balance, nonce=excluded.nonce,
+                       code=excluded.code, storage=excluded.storage""",
+                (address, balance, nonce, code, storage),
+            )
+            self.conn.commit()
+
+    def update_account_storage(self, address: str, storage: Dict) -> None:
+        with self.lock:
+            self.conn.execute(
+                "UPDATE accounts SET storage=? WHERE address=?",
+                (json.dumps(storage), address),
+            )
+            self.conn.commit()
+
+    # ── Валидаторы ───────────────────────────────────────────────────────────
+
+    def save_validator(self, address: str, stake: float) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT INTO validators (address, stake, joined_at)
+                   VALUES (?,?,?)
+                   ON CONFLICT(address) DO UPDATE SET stake=excluded.stake""",
+                (address, stake, int(time.time())),
+            )
+            self.conn.commit()
+
+    def get_validators(self, active_only: bool = True) -> List[Dict]:
+        with self.lock:
+            query = "SELECT * FROM validators"
+            if active_only:
+                query += " WHERE active=1 AND slashed=0"
+            rows = self.conn.execute(query).fetchall()
+            return [dict(r) for r in rows]
+
+    def slash_validator(self, address: str) -> None:
+        with self.lock:
+            self.conn.execute(
+                "UPDATE validators SET slashed=1, active=0 WHERE address=?", (address,)
+            )
+            self.conn.commit()
+
+    # ── Финальность (Casper FFG) ─────────────────────────────────────────────
+
+    def save_checkpoint(self, epoch: int, block_hash: str,
+                        justified: bool = False, finalized: bool = False) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT INTO checkpoints (epoch, block_hash, justified, finalized)
+                   VALUES (?,?,?,?)
+                   ON CONFLICT(epoch) DO UPDATE
+                   SET justified=excluded.justified, finalized=excluded.finalized""",
+                (epoch, block_hash, int(justified), int(finalized)),
+            )
+            self.conn.commit()
+
+    def get_checkpoint(self, epoch: int) -> Optional[Dict]:
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT * FROM checkpoints WHERE epoch=?", (epoch,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    # ── Сжигание токенов ─────────────────────────────────────────────────────
+
+    def record_burn(self, block_height: int, burned_amount: float) -> None:
+        with self.lock:
+            prev = self.conn.execute(
+                "SELECT COALESCE(MAX(total_burned),0) as tb FROM burn_stats"
+            ).fetchone()
+            total = float(prev["tb"]) + burned_amount
+            self.conn.execute(
+                """INSERT OR REPLACE INTO burn_stats (block_height, burned_amount, total_burned)
+                   VALUES (?,?,?)""",
+                (block_height, burned_amount, total),
+            )
+            self.conn.commit()
+
+    def get_total_burned(self) -> float:
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT COALESCE(MAX(total_burned),0) as tb FROM burn_stats"
+            ).fetchone()
+            return float(row["tb"]) if row else 0.0
+
+    def get_burn_stats(self) -> Dict:
+        with self.lock:
+            row = self.conn.execute(
+                """SELECT COUNT(*) as blocks_with_burn,
+                          COALESCE(SUM(burned_amount),0) as total,
+                          COALESCE(AVG(burned_amount),0) as avg_per_block
+                   FROM burn_stats"""
+            ).fetchone()
             return {
-                "total_blocks": blocks,
-                "total_accounts": accounts,
-                "latest_block": self.get_latest_block_number()
+                "total_burned": float(row["total"]),
+                "avg_per_block": float(row["avg_per_block"]),
+                "blocks_with_burn": int(row["blocks_with_burn"]),
             }
 
-    def save_checkpoint(self, block_hash: str, height: int, snapshot: dict) -> bool:
-        """Save checkpoint to database"""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT OR REPLACE INTO checkpoints (hash, height, snapshot_data, created_at)
-                VALUES (?, ?, ?, ?)
-            ''', (block_hash, height, json.dumps(snapshot), int(time.time())))
-            conn.commit()
-            return True
-    
-    def get_latest_checkpoint(self) -> Optional[dict]:
-        """Get latest checkpoint"""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT * FROM checkpoints ORDER BY height DESC LIMIT 1')
-            row = cursor.fetchone()
-            if row:
-                return {
-                    "hash": row[0],
-                    "height": row[1],
-                    "snapshot": json.loads(row[2])
-                }
-            return None
+    # ── Мост (Cross-chain) ───────────────────────────────────────────────────
+
+    def save_bridge_lock(self, from_addr: str, to_chain: str, to_addr: str,
+                         amount: float, tx_hash: str) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO bridge_locks
+                   (tx_hash, from_addr, to_chain, to_addr, amount, status, created_at)
+                   VALUES (?,?,?,?,?,'pending',?)""",
+                (tx_hash, from_addr, to_chain, to_addr, amount, int(time.time())),
+            )
+            self.conn.commit()
+
+    def confirm_bridge_lock(self, tx_hash: str) -> None:
+        with self.lock:
+            self.conn.execute(
+                "UPDATE bridge_locks SET status='confirmed' WHERE tx_hash=?", (tx_hash,)
+            )
+            self.conn.commit()
+
+    def get_bridge_locks(self, limit: int = 50) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT * FROM bridge_locks ORDER BY created_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    # ── Метаданные (токеномика, конфиг) ─────────────────────────────────────
+
+    def set_meta(self, key: str, value: Any) -> None:
+        with self.lock:
+            self.conn.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
+                (key, json.dumps(value, ensure_ascii=False)),
+            )
+            self.conn.commit()
+
+    def get_meta(self, key: str, default: Any = None) -> Any:
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT value FROM meta WHERE key=?", (key,)
+            ).fetchone()
+            if not row:
+                return default
+            try:
+                return json.loads(row["value"])
+            except Exception:
+                return row["value"]
+
+    def get_total_supply(self) -> float:
+        """Сумма всех балансов аккаунтов."""
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT COALESCE(SUM(balance), 0) as total FROM accounts"
+            ).fetchone()
+            return float(row["total"] if row else 0)
+
+    # ── Статистика ───────────────────────────────────────────────────────────
+
+    def get_stats(self) -> Dict:
+        with self.lock:
+            height = self.get_chain_tip()
+            tx_count = self.conn.execute(
+                "SELECT COUNT(*) as c FROM transactions"
+            ).fetchone()["c"]
+            account_count = self.conn.execute(
+                "SELECT COUNT(*) as c FROM accounts"
+            ).fetchone()["c"]
+            return {
+                "height": height,
+                "total_transactions": tx_count,
+                "total_accounts": account_count,
+                "total_burned": self.get_total_burned(),
+                "total_supply": self.get_total_supply(),
+            }
+
+    # ── Утилиты ──────────────────────────────────────────────────────────────
+
+    def close(self):
+        with self.lock:
+            self.conn.close()

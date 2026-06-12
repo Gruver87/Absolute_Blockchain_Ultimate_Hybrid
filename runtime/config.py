@@ -18,12 +18,17 @@ class Config:
     network_name: str = "Absolute"
     node_version: str = "1.0.0"
 
-    # ── Монета ─────────────────────────────────────────────────────────────
+    # ── Монета (токеномика D.U.P. / Uladzimir Dabranski) ───────────────────
     coin_symbol: str = "ABS"
     coin_name: str = "Absolute"
-    max_supply: int = 210_000_000       # максимальная эмиссия
-    genesis_supply: int = 100_000_000   # начальная эмиссия (на genesis-кошелёк)
-    block_reward: float = 50.0          # вознаграждение майнера за блок
+    max_supply: int = 221_000_000       # жёсткий лимит: 221 млн ABS
+    genesis_supply: int = 110_500_000   # genesis-эмиссия (без mining pool)
+    founder_percent: float = 17.4       # доля основателя D.U.P.
+    founder_amount: float = 38_454_000  # 17.4% от 221M
+    founder_address: str = ""           # заполняется из wallet при запуске
+    founder_initials: str = "D.U.P."
+    founder_name: str = "Uladzimir Dabranski"
+    block_reward: float = 50.0          # вознаграждение майнера за блок (из mining pool)
     burn_rate: float = 0.02             # 2% каждой комиссии сжигается навсегда
     burn_address: str = "0x000000000000000000000000000000000000dead"
     base_gas_price: int = 21_000        # базовая стоимость перевода в gas units
@@ -44,6 +49,7 @@ class Config:
 
     # ── Майнинг / Консенсус ─────────────────────────────────────────────────
     block_time: int = 15                # секунд между блоками
+    epoch_size: int = 32                # блоков в эпохе (staking release)
     max_tx_per_block: int = 500
     mining_enabled: bool = True
     miner_address: str = ""             # заполняется из wallet при запуске

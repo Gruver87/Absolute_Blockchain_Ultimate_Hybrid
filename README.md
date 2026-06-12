@@ -1,488 +1,243 @@
-<<<<<<< HEAD
-﻿# 🌐 Absolute Blockchain Ultimate v57
+﻿# Absolute Blockchain Ultimate
 
-> **Полноценный учебно-экспериментальный блокчейн-клиент | PoS консенсус | Mini-EVM | NFT | Sharding | P2P | Python + Rust**
+> **Учебно-экспериментальный блокчейн-клиент на Python** — единая нода, REST/RPC API, веб-эксплорер, PoS-консенсус, токеномика ABS.
 
-[![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Experimental-yellow.svg)]()
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Status](https://img.shields.io/badge/Status-Educational%20Only-orange.svg)]()
 
-## 📌 О проекте
-
-**Absolute Blockchain Ultimate v57** — это полностью работающий блокчейн-клиент с поддержкой:
-
-| Компонент | Статус | Описание |
-|-----------|--------|----------|
-| Blockchain Core | ✅ | 500+ блоков, автомайнинг |
-| JSON-RPC API | ✅ | Порт 8545, eth_* методы |
-| Mempool | ✅ | Пул транзакций |
-| Mini-EVM | ✅ | 50+ опкодов, газ |
-| NFT Marketplace | ✅ | 5 токенов |
-| Sharding | ✅ | 4 динамических шарда |
-| Oracles | ✅ | Цены ETH/BTC |
-| P2P Network | ✅ | Discovery, gossip |
-| Telegram Bot | ✅ | /balance, /stats, /nft, /price |
-| Web Interface | ✅ | Explorer + API |
-| ZK Proofs | ✅ | Доказательства |
-| SPHINCS+ | ✅ | Пост-квантовая криптография |
-| WebSocket | ✅ | Реалтайм-события (порт 8546) |
-| Rust Components | ✅ | 10x ускорение (опционально) |
-
-## ⚠️ Важное предупреждение
-=======
-﻿# 🌐 Absolute Blockchain Ultimate
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Status](https://img.shields.io/badge/status-production%20ready-brightgreen.svg)]()
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
-[![Rust](https://img.shields.io/badge/rust-optimized-red.svg)](https://www.rust-lang.org/)
-[![GitHub Actions](https://github.com/Gruver87/absolute-blockchain-ultimate/actions/workflows/test.yml/badge.svg)](https://github.com/Gruver87/absolute-blockchain-ultimate/actions)
-
-> **Полноценный учебно-экспериментальный блокчейн-клиент | PoS консенсус | JSON-RPC | Python + Rust**
+**Репозиторий:** [github.com/Gruver87/absolute-blockchain-ultimate](https://github.com/Gruver87/absolute-blockchain-ultimate)
 
 ---
 
-## 📌 **О проекте**
+## ⚠️ Это НЕ реальная блокчейн-сеть
 
-**Absolute Blockchain Ultimate** — это не просто "ещё один блокчейн на Python". Это **архитектурный фреймворк**, который объединяет лучшие практики индустрии (UTXO, LMD-GHOST, Casper FFG) с передовыми технологическими концепциями (квантовая криптография, ZK-proofs, шардинг) и **высокопроизводительными Rust компонентами**.
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║  УЧЕБНЫЙ / ЭКСПЕРИМЕНТАЛЬНЫЙ ПРОЕКТ — НЕ PRODUCTION                  ║
+║                                                                      ║
+║  ❌ Не используйте для реальных денег или ценных активов             ║
+║  ❌ Безопасность, аудит и консенсус не гарантируются                 ║
+║  ❌ Токен ABS здесь — учебная модель, не листинг и не криптовалюта   ║
+║                                                                      ║
+║  ✅ Изучение архитектуры блокчейна, API, консенсуса, состояния      ║
+║  ✅ Локальные эксперименты, демо, портфолио, форки                 ║
+║  ✅ Доработка сообществом — приветствуются PR и идеи               ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
 
-Проект создан для:
-- 🎓 **Изучения принципов работы блокчейнов** на реальном, работающем коде
-- 🧪 **Экспериментов** с консенсусами, криптографией и P2P сетями
-- 📊 **Демонстрации инженерных компетенций** в области распределенных систем
-- ⚡ **Тестирования гибридных решений** Python + Rust
+Подробнее: [DISCLAIMER.md](DISCLAIMER.md)
+
+**Если проект полезен для обучения — поставьте ⭐, форкните и продвигайте дальше.**  
+Любой может развивать код: улучшать консенсус, безопасность, P2P, документацию, тесты.
 
 ---
 
-## ⚠️ **Важное предупреждение**
->>>>>>> e1325e33910593a6992287e350ec884bed59f946
+## О проекте
 
-**Это УЧЕБНЫЙ/ЭКСПЕРИМЕНТАЛЬНЫЙ проект. НЕ ИСПОЛЬЗУЙТЕ В PRODUCTION!**
+**Absolute Blockchain Ultimate** — монорепозиторий с **одной точкой входа** `main.py`, который поднимает полный учебный узел:
 
-- 🧪 Проект в стадии активной разработки
-- 🔄 Данные могут быть сброшены в любой момент
-- 🔒 Безопасность не гарантируется
+| Компонент | Описание |
+|-----------|----------|
+| **Ядро** | Блоки, транзакции, burn 2%, genesis, SQLite |
+| **Токеномика** | Max supply **221 000 000 ABS**, основатель **D.U.P.** (17.4%) |
+| **Консенсус** | PoS-адаптер, эпохи, slashing, beacon/Casper-модули |
+| **API** | **230** REST endpoints + JSON-RPC `:8545` |
+| **Web UI** | SPA-эксплорер **31 вкладка** — `http://localhost:8080` |
+| **Light Client** | SPV / Merkle proofs |
+| **Pool Locks** | Блокировка ecosystem/treasury, staking release по эпохам |
+| **Features** | NFT, ZK, Lightning, Plasma, WASM VM, bridge, oracles и др. |
 
-<<<<<<< HEAD
-## 🏗️ Техническая архитектура
-=======
+Это **Mini-Ethereum-стиль** для обучения, а не конкурент Ethereum или Bitcoin.
+
 ---
 
-## 🏗️ **Техническая архитектура**
->>>>>>> e1325e33910593a6992287e350ec884bed59f946
-┌─────────────────────────────────────────────────────────────────────┐
-│ ПРИЛОЖНОЙ УРОВЕНЬ │
-│ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ │
-│ │ Web UI 8080 │ │ RPC 8545 │ │ REST API │ │ WebSocket │ │
-│ │ Explorer │ │ JSON-RPC │ │ 8081/docs │ │ 8546 │ │
-│ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ │
-├─────────────────────────────────────────────────────────────────────┤
-│ СЕРВИСНЫЙ УРОВЕНЬ │
-│ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ │
-│ │ Mempool │ │ Block │ │ Consensus │ │ P2P │ │
-│ │ (Tx Pool) │ │ Pipeline │ │ (PoS/LMD) │ │ Network │ │
-│ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ │
-├─────────────────────────────────────────────────────────────────────┤
-│ ВИРТУАЛЬНАЯ МАШИНА │
-│ ┌─────────────────────────────────────────────────────────────┐ │
-│ │ Mini-EVM │ │
-│ │ • 50+ опкодов • Стековая машина • Газ • Хранилище │ │
-│ └─────────────────────────────────────────────────────────────┘ │
-├─────────────────────────────────────────────────────────────────────┤
-<<<<<<< HEAD
-│ РАСШИРЕННЫЕ ФУНКЦИИ │
-│ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ │
-│ │ NFT │ │ Sharding │ │ Oracles │ │ ZK Proofs │ │
-│ │ Marketplace │ │ 4 shards │ │ ETH/BTC │ │ (ZK-SN) │ │
-=======
-│ КОНСЕНСУСНЫЙ УРОВЕНЬ │
-│ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ │
-│ │ LMD-GHOST │ │ Casper FFG │ │ Slashing │ │ Validators │ │
-│ │ Fork Choice│ │ Finality │ │ Penalty │ │ Registry │ │
-│ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ │
-├─────────────────────────────────────────────────────────────────────┤
-│ ХРАНИЛИЩНЫЙ УРОВЕНЬ │
-│ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ │
-│ │ SQLite │ │ Snapshots │ │ Backup │ │ Recovery │ │
-│ │ Persistent │ │ State │ │ System │ │ Crash │ │
-│ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ │
-├─────────────────────────────────────────────────────────────────────┤
-│ КРИПТОГРАФИЧЕСКИЙ УРОВЕНЬ │
-│ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ │
-│ │ ECDSA │ │ SPHINCS+ │ │ ZK Proofs │ │ SHA-256 │ │
-│ │ secp256k1 │ │Post-Quantum │ │ (ZK-SN) │ │ Merkle │ │
->>>>>>> e1325e33910593a6992287e350ec884bed59f946
-│ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ │
-└─────────────────────────────────────────────────────────────────────┘
+## Токеномика (учебная модель)
 
-text
+| Параметр | Значение |
+|----------|----------|
+| Символ | **ABS** |
+| Max supply | **221 000 000** |
+| Основатель | **Uladzimir Dabranski** (инициалы **D.U.P.**, alias Gruver87) |
+| Доля основателя | **17.4%** = **38 454 000 ABS** |
+| Ecosystem | 10% (DAO unlock) |
+| Treasury | 10% (DAO unlock) |
+| Staking pool | 12.6% (release по эпохам, 32 блока) |
+| Mining emission | 50% (block rewards до cap) |
 
-<<<<<<< HEAD
-## 🚀 Быстрый старт
+Конфиг: `runtime/tokenomics.py`, `runtime/config.py`
+
+---
+
+## Быстрый старт
+
+### Требования
+
+- Python **3.10+** (проверено на 3.11–3.13)
+- Windows / Linux / macOS
 
 ### Установка
+
 ```bash
-=======
----
-
-## ✅ **Что РАБОТАЕТ (полностью, проверено тестами)**
-
-### Core Components (100%)
-| Компонент | Статус | Описание |
-|-----------|--------|----------|
-| Blockchain Storage | ✅ | SQLite, сохранение блоков |
-| Block Production | ✅ | Автомайнинг каждые 15 секунд |
-| Wallets | ✅ | Создание, импорт, экспорт (ECDSA) |
-| Chain Recovery | ✅ | Восстановление после перезапуска |
-| UTXO Model | ✅ | Полноценная UTXO-модель |
-
-### Transaction System (100%)
-| Компонент | Статус | Описание |
-|-----------|--------|----------|
-| Mempool | ✅ | Пул транзакций с приоритетом по комиссии |
-| Transaction Processing | ✅ | Полный цикл: подпись → мемпул → блок |
-| Nonce Protection | ✅ | Защита от повторных транзакций |
-
-### Virtual Machine - Mini-EVM (100%)
-| Операции | Статус |
-|----------|--------|
-| ADD, SUB, MUL, DIV | ✅ |
-| SSTORE, SLOAD | ✅ |
-| LT, GT, EQ | ✅ |
-| PUSH, POP | ✅ |
-| JUMP, JUMPI | ✅ |
-| Gas Metering | ✅ |
-
-### RPC API - JSON-RPC 2.0 (85%)
-| Метод | Статус |
-|-------|--------|
-| `eth_blockNumber` | ✅ |
-| `eth_chainId` | ✅ |
-| `eth_getBalance` | ✅ |
-| `eth_gasPrice` | ✅ |
-| `eth_sendTransaction` | ✅ |
-| `eth_getMempoolSize` | ✅ |
-| `net_version` | ✅ |
-| `web3_clientVersion` | ✅ |
-| `txpool_status` | ✅ |
-
-### Advanced Features
-| Компонент | Статус | Описание |
-|-----------|--------|----------|
-| P2P Network | ✅ | Discovery, handshake, gossip |
-| NFT Marketplace | ✅ | Mint, transfer, list, buy |
-| Sharding | ✅ | 4 динамических шарда |
-| Oracles | ✅ | Цены криптовалют, погода |
-| ZK Proofs | ✅ | Доказательства с нулевым разглашением |
-| SPHINCS+ | ✅ | Пост-квантовая криптография |
-| WebSocket | ✅ | Реалтайм-события (порт 8546) |
-| Web Interface | ✅ | Полноценный блокчейн-эксплорер |
-
----
-
-## 🦀 **Rust High-Performance Components**
-
-Для критически важных операций добавлены **Rust компоненты**, которые работают через Python FFI:
-
-| Компонент | Функция | Производительность |
-|-----------|---------|---------------------|
-| **Block Mining** | Майнинг блоков | ⚡ 10x быстрее Python |
-| **Transaction Validation** | Валидация подписей | ⚡ 5x быстрее |
-| **SHA256 Hashing** | Криптографическое хэширование | ⚡ 8x быстрее |
-
-### Использование Rust компонентов:
-
-```python
-from rust_bridge import rust_blockchain
-
-# Проверка доступности
-if rust_blockchain.is_available():
-    # Валидация транзакции
-    result = rust_blockchain.validate_transaction(tx_data)
-    
-    # Проверка майнинг-движка
-    status = rust_blockchain.mining_ready(4)
-⚠️ Note: Rust компоненты опциональны. Проект полностью работает и без них.
-
-Пересборка Rust библиотеки:
-bash
-cd rust_blockchain
-cargo build --release
-🚀 Быстрый старт
-Установка
-bash
->>>>>>> e1325e33910593a6992287e350ec884bed59f946
 git clone https://github.com/Gruver87/absolute-blockchain-ultimate.git
 cd absolute-blockchain-ultimate
 pip install -r requirements.txt
-Запуск ноды
-bash
-python node_persistent.py
-Запуск RPC прокси (для веб-интерфейса)
-bash
-python rpc_proxy.py
-Открыть веб-интерфейс
-text
-http://localhost:8080
-Проверка RPC
-bash
-curl -X POST http://localhost:8545 -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
-<<<<<<< HEAD
-=======
-Отправка транзакции
-bash
-curl -X POST http://localhost:8545 -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_sendTransaction","params":[{"from":"0x123","to":"0x456","value":"0x64"}],"id":1}'
-📊 Тестирование
-bash
-# Все тесты
-python test_final.py
-python quick_test.py
-python test_vm_complete.py
+cp .env.example .env   # опционально
+cp wallet.example.json data/wallet.json   # опционально, локальный кошелёк (не коммитить ключи)
+```
 
-# Отдельные компоненты
-python -c "from execution.vm import MiniVM; print('VM OK')"
-python -c "from nft_core import NFTMarketplace; print('NFT OK')"
-python -c "from dynamic_sharding import sharding_manager; print('Sharding OK')"
-🛠️ Команды для работы
-Запуск всех сервисов (в отдельных окнах)
-powershell
-# ОКНО 1 - Нода
-python node_persistent.py
+### Запуск (одна команда)
 
-# ОКНО 2 - RPC прокси
-python rpc_proxy.py
+```bash
+python main.py
+```
 
-# ОКНО 3 - Extended API
-python extended_api_server.py
+Опции:
 
-# ОКНО 4 - WebSocket
-python websocket_server.py
-Очистка данных
-bash
-rm -rf data/*          # Удалить все данные
-rm data/wallet.json    # Удалить только кошелёк
-Остановка всех сервисов
-powershell
-Get-Process python | Stop-Process -Force
->>>>>>> e1325e33910593a6992287e350ec884bed59f946
-📁 Структура проекта
-text
+```bash
+python main.py --mode rpc-only    # без майнинга
+python main.py --port 5001        # другой P2P-порт
+python main.py --config node.json # свой конфиг
+```
+
+### Интерфейсы после старта
+
+| Сервис | URL |
+|--------|-----|
+| **Web Explorer** | http://localhost:8080 |
+| **REST API** | http://localhost:8080/status |
+| **JSON-RPC** | http://localhost:8545 |
+| **WebSocket** | ws://localhost:8766 |
+| **P2P** | `:5000` |
+
+### Проверка
+
+```bash
+curl http://localhost:8080/status
+curl http://localhost:8080/tokenomics
+curl http://localhost:8080/pools/locks
+python test_merkle_light.py
+```
+
+---
+
+## Структура проекта
+
+```
 absolute-blockchain-ultimate/
-├── core/               # Ядро блокчейна (блоки, транзакции, UTXO)
-├── consensus/          # Консенсус (PoS, LMD-GHOST, Casper, Slashing)
-├── execution/          # Исполнение (Mini-EVM, State Engine)
-├── rpc/                # JSON-RPC API сервер
-├── network/            # P2P сеть (discovery, sync, gossip)
-├── crypto/             # Криптография (ECDSA, SPHINCS+, ZK proofs)
-├── storage/            # Хранение (SQLite, snapshots)
-├── web/                # Веб-интерфейс (блокчейн-эксплорер)
-<<<<<<< HEAD
-├── rust_blockchain/    # Rust компоненты (опционально)
-├── node_persistent.py  # Главный файл запуска ноды
-├── nft_core.py         # NFT Marketplace
-├── dynamic_sharding.py # Система шардинга
-├── real_world_oracles.py # Оракулы цен и погоды
-├── telegram_super_bot.py # Telegram бот
-=======
-├── data/               # Данные (кошельки, блокчейн)
-├── logs/               # Логи работы
-├── rust_blockchain/    # Rust компоненты (опционально)
-├── node_persistent.py  # Главный файл запуска ноды
-├── rpc_proxy.py        # RPC прокси для веб-интерфейса
-├── extended_api_server.py # Дополнительный API сервер
-├── websocket_server.py # WebSocket сервер
-├── nft_core.py         # NFT Marketplace
-├── dynamic_sharding.py # Система шардинга
-├── zk_proofs.py        # Zero-Knowledge proofs
-├── real_world_oracles.py # Оракулы цен и погоды
->>>>>>> e1325e33910593a6992287e350ec884bed59f946
-└── test_*.py           # Тесты
-🌐 Доступные сервисы после запуска
-СервисПортURL
-Blockchain RPC8545http://localhost:8545
-Web Interface8080http://localhost:8080
-RPC Proxy8080http://localhost:8080/rpc
-Extended API8081http://localhost:8081/docs
-WebSocket8546ws://localhost:8546
-NFT Gallery8081http://localhost:8081/nft
-📈 Текущий статус проекта
-<<<<<<< HEAD
-ПодсистемаПроцентСтатус
-Blockchain Core100%✅
-Wallets & Signatures100%✅
-Persistent Storage100%✅
-Mempool100%✅
-Transactions100%✅
-JSON-RPC85%✅
-Mini-EVM100%✅
-P2P Network100%✅
-NFT Marketplace100%✅
-Sharding100%✅
-Oracles100%✅
-ZK Proofs100%✅
-WebSocket100%✅
-Web Interface100%✅
-Rust Components100%✅
-🧪 Результаты тестов (актуальные)
-text
-VM Tests:           12/12 passed ✅
-=======
-ПодсистемаСтатусПроцент
-Blockchain Core✅100%
-Wallets & Signatures✅100%
-Persistent Storage✅100%
-Mempool✅100%
-Transactions✅100%
-JSON-RPC✅85%
-Mini-EVM✅100%
-P2P Network✅100%
-NFT Marketplace✅100%
-Sharding✅100%
-Oracles✅100%
-ZK Proofs✅100%
-WebSocket✅100%
-Web Interface✅100%
-Rust Components✅100%
-🧪 Результаты тестов (актуальные)
-text
-VM Tests:           10/10 passed ✅
->>>>>>> e1325e33910593a6992287e350ec884bed59f946
-Transaction Tests:  3/3 passed ✅
-Mempool Tests:      1/1 passed ✅
-NFT Tests:          1/1 passed ✅
-Sharding Tests:     1/1 passed ✅
-ZK Proofs Tests:    1/1 passed ✅
-RPC Tests:          8/8 passed ✅
-🗺️ Roadmap
-v57 (✅ Текущая)
-✅ Полноценный блокчейн с UTXO
+├── main.py                 # Единственная точка входа узла
+├── api/http.py             # REST + RPC handlers (230 endpoints)
+├── web/explorer/index.html # Браузерный SPA (31 вкладка)
+├── core/blockchain.py      # Блоки, транзакции, genesis
+├── runtime/
+│   ├── config.py           # Конфигурация узла
+│   ├── tokenomics.py       # 221M ABS, D.U.P. 17.4%
+│   └── pool_locks.py       # Блокировки пулов
+├── light/light_client.py   # SPV light client
+├── consensus/              # PoS, эпохи, slashing, finality
+├── execution/              # VM, state engine, contracts
+├── features/               # NFT, ZK, Lightning, AI и др.
+├── storage/database.py     # SQLite + meta
+├── bridge/                 # Cross-chain (simulator)
+├── _archive/               # Устаревший код (не использовать)
+├── requirements.txt
+└── README.md
+```
 
-✅ PoS консенсус + LMD-GHOST + Casper FFG
+Подробная архитектура: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
-✅ Mini-EVM с 50+ опкодами
+---
 
-✅ NFT Marketplace
+## Что реально работает (локально)
 
-✅ Шардинг (4 шарда)
+| Функция | Статус |
+|---------|--------|
+| Единый `main.py` | ✅ |
+| Автомайнинг, mempool, burn | ✅ |
+| Genesis + токеномика 221M | ✅ |
+| Pool locks + staking epochs | ✅ |
+| Light client + Merkle SPV | ✅ (17/17 тестов) |
+| REST 230 endpoints + Web UI | ✅ 100% покрытие |
+| JSON-RPC, WebSocket | ✅ |
+| NFT, oracles, sharding (demo) | ✅ учебный режим |
 
-✅ ZK Proofs
+## Честные ограничения
 
-✅ SPHINCS+ пост-квантовая криптография
+| Ограничение | Пояснение |
+|-------------|-----------|
+| Production | ❌ Не готов |
+| Реальная сеть / mainnet | ❌ Это локальный учебный узел |
+| Полный EVM | ⚠️ Упрощённый / частичный |
+| P2P в интернете | ⚠️ Требует настройки, не «боевая» сеть |
+| Крипто-аудит | ❌ Не проводился |
 
-✅ WebSocket + Web Explorer
+---
 
-✅ Rust компоненты для ускорения
+## API (примеры)
 
-v58 (Планы)
-Полноценный EVM (100% совместимость)
+```bash
+# Статус узла
+GET /status
 
-Мультичейн мосты (Ethereum, BSC, Solana)
+# Токеномика
+GET /tokenomics
+GET /founder
+GET /allocation
 
-Децентрализованные оракулы
+# Pool locks
+GET /pools/locks
+POST /pools/dao/vote  {"pool_id":"ecosystem","voter":"0x..."}
 
-Улучшенный P2P с NAT traversal
+# Light client
+GET /light/stats
+GET /merkle/root/1
+POST /light/spv/verify
+```
 
-Поддержка смарт-контрактов на WASM
+Полный список — в `api/http.py` и вкладках веб-эксплорера.
 
-<<<<<<< HEAD
-🤝 Как помочь проекту
-⭐ Поставьте звезду на GitHub
-🐛 Сообщайте об ошибках через Issues
-💡 Предлагайте улучшения и новые функции
-=======
-Графический интерфейс (Desktop App)
+---
 
-v59 (Долгосрочные планы)
-ZK-Rollups для масштабирования
+## Тестирование
 
-AI-консенсус (Proof of Useful Work)
+```bash
+python test_merkle_light.py
+python _mega_audit.py      # интеграционный аудит
+python _final_audit.py     # финальная проверка
+```
 
-Крос-шардинг транзакции
+Большинство `test_*.py` — скрипты (`python test_v49.py`), не pytest.
 
-Токенизация реальных активов (RWA)
+---
 
-Децентрализованная идентификация (DID)
+## Как помочь и продвинуть проект
 
-❓ FAQ
-Часто задаваемые вопросы
-Q: Можно ли использовать этот блокчейн в production?
-A: НЕТ. Это УЧЕБНЫЙ/ЭКСПЕРИМЕНТАЛЬНЫЙ проект. Не используйте в реальных финансовых операциях.
+Мы **приветствуем** любое развитие:
 
-Q: Сколько времени занимает майнинг блока?
-A: Около 15 секунд (автоматический майнинг).
+1. ⭐ **Star** на GitHub — помогает другим найти проект  
+2. 🍴 **Fork** — экспериментируйте в своей ветке  
+3. 🐛 **Issues** — баги и идеи  
+4. 🔧 **Pull Requests** — код, тесты, документация  
+5. 📢 **Расскажите** — блог, курс, видео, портфолио  
 
-Q: Как создать свой кошелёк?
-A: Используйте RPC метод eth_sendTransaction или веб-интерфейс.
+См. [CONTRIBUTING.md](CONTRIBUTING.md)
 
-Q: Поддерживает ли проект смарт-контракты?
-A: Да, Mini-EVM поддерживает 50+ опкодов.
+---
 
-Q: Нужен ли Rust для работы проекта?
-A: Нет. Rust компоненты опциональны и нужны только для ускорения.
+## Автор
 
-Q: Как я могу помочь проекту?
-A: Поставьте звезду ⭐, сообщайте об ошибках, присылайте Pull Requests.
+**Uladzimir Dabranski** (инициалы **D.U.P.**)  
+- GitHub: [@Gruver87](https://github.com/Gruver87)  
+- Репозиторий: [absolute-blockchain-ultimate](https://github.com/Gruver87/absolute-blockchain-ultimate)  
+- Email: gruverpetrov@gmail.com  
 
-Q: Есть ли документация по API?
-A: Да, http://localhost:8081/docs после запуска Extended API.
+---
 
-📸 Скриншоты
-Веб-интерфейс (Блокчейн-эксплорер)
-https://docs/screenshots/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%2520%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0_24-5-2026_211830_localhost.jpeg
+## Лицензия
 
-API Документация (Swagger UI)
-https://docs/screenshots/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%2520%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0_24-5-2026_211915_localhost.jpeg
+[MIT License](LICENSE) — свободно для обучения, форков и экспериментов.  
+**Без гарантий.** См. [DISCLAIMER.md](DISCLAIMER.md).
 
-NFT Галерея
-https://docs/screenshots/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%2520%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0_24-5-2026_211855_localhost.jpeg
+---
 
-🏆 Статистика проекта
-МетрикаЗначение
-Python файлов78
-Модулей120+
-Тестов15+
-Блоков в тестовой сети250+
-Коммитов50+
-Релизов1 (v57)
-Звёзд⭐ 1
-📊 Языки проекта
-https://img.shields.io/badge/Python-96.2%2525-blue
-https://img.shields.io/badge/PowerShell-2.2%2525-purple
-https://img.shields.io/badge/HTML-1.6%2525-orange
-https://img.shields.io/badge/Rust-0.5%2525-red
-
-🤝 Как помочь проекту
-⭐ Поставьте звезду на GitHub — это помогает проекту расти
-
-🐛 Сообщайте об ошибках через Issues
-
-💡 Предлагайте улучшения и новые функции
-
-📝 Улучшайте документацию
-
->>>>>>> e1325e33910593a6992287e350ec884bed59f946
-🔧 Присылайте Pull Requests
-
-📄 Лицензия
-MIT License — свободно для изучения и экспериментов
-
-👤 Автор
-Uladzimir Dabranski (Gruver87)
-
-GitHub: @Gruver87
-
-Email: gruverpetrov@gmail.com
-
-Проект: absolute-blockchain-ultimate
-
-⚠️ Ещё раз: это УЧЕБНЫЙ проект, НЕ PRODUCTION!
-<<<<<<< HEAD
-
-⭐ Если вам полезен проект — поставьте звезду!
-=======
-Проект создан для изучения принципов работы блокчейна. Не используйте в реальных финансовых операциях.
-
-Спасибо за внимание! 🎉
->>>>>>> e1325e33910593a6992287e350ec884bed59f946
+*Последнее обновление документации: июнь 2026 — unified `main.py`, 230 API, токеномика 221M ABS, light client, pool locks.*

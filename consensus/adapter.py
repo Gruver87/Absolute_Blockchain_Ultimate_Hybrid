@@ -35,6 +35,21 @@ try:
 except ImportError:
     _SLASHING_AVAILABLE = False
 
+# --- Casper FFG finality engine (alternative two-step finality) ---
+try:
+    from consensus.engine_casper import ConsensusEngineCasper
+    from consensus.finality_casper import CasperFinality
+    _CASPER_AVAILABLE = True
+except ImportError:
+    _CASPER_AVAILABLE = False
+
+# --- Beacon Chain consensus engine ---
+try:
+    from consensus.engine_beacon import ConsensusEngineBeacon
+    _BEACON_AVAILABLE = True
+except ImportError:
+    _BEACON_AVAILABLE = False
+
 
 class ConsensusAdapter:
     """
@@ -74,6 +89,22 @@ class ConsensusAdapter:
             self.validator_registry = None
             self.pbs_market = None
             print("[Consensus] Basic PoS mode (engine_slashing not available)")
+
+        # --- Casper FFG engine (two-step finality, alternative to FinalityEngine) ---
+        if _CASPER_AVAILABLE:
+            epoch_sz = getattr(config, "epoch_size", 32)
+            self.casper_engine = ConsensusEngineCasper(epoch_size=epoch_sz)
+            print("[Consensus] CasperFFG two-step finality: enabled")
+        else:
+            self.casper_engine = None
+
+        # --- Beacon Chain consensus engine ---
+        if _BEACON_AVAILABLE:
+            epoch_sz = getattr(config, "epoch_size", 32)
+            self.beacon_engine = ConsensusEngineBeacon(epoch_size=epoch_sz)
+            print("[Consensus] BeaconChain engine: enabled (parallel fork choice)")
+        else:
+            self.beacon_engine = None
 
         self._last_block_time: float = 0.0
         self._load_validators_from_db()
@@ -266,16 +297,50 @@ class ConsensusAdapter:
             proposer=proposer,
         )
         # Feed block to GHOST fork tree
-        self.add_block_to_fork_choice({
+        blk_for_fork = {
             "hash": block_data.get("hash", ""),
             "parent_hash": block_data.get("parent_hash", ""),
             "number": block_data.get("height", 0),
-        })
+        }
+        self.add_block_to_fork_choice(blk_for_fork)
+
+        # Feed block to Casper FFG engine (two-step finality)
+        if self.casper_engine:
+            try:
+                self.casper_engine.add_block(blk_for_fork)
+            except Exception:
+                pass
+
+        # Feed block to Beacon Chain engine
+        if self.beacon_engine:
+            try:
+                self.beacon_engine.add_block(blk_for_fork)
+            except Exception:
+                pass
+
         # Record block production in validator registry
         if proposer and self.validator_registry:
             self.validator_registry.record_produced_block(proposer)
 
     # ── Статистика ───────────────────────────────────────────────────────────
+
+    def get_casper_status(self) -> Dict:
+        """Returns Casper FFG two-step finality status."""
+        if not self.casper_engine:
+            return {"enabled": False}
+        try:
+            return {"enabled": True, "finality": self.casper_engine.get_finality_status()}
+        except Exception as e:
+            return {"enabled": True, "error": str(e)}
+
+    def get_beacon_status(self) -> Dict:
+        """Returns Beacon Chain engine status (head, finality)."""
+        if not self.beacon_engine:
+            return {"enabled": False}
+        try:
+            return {"enabled": True, "stats": self.beacon_engine.get_stats()}
+        except Exception as e:
+            return {"enabled": True, "error": str(e)}
 
     def get_stats(self) -> Dict:
         engine_stats = self.engine.get_stats()

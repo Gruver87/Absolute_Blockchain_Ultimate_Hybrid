@@ -4,6 +4,7 @@
 
 import hashlib
 import hmac
+import json
 import secrets
 import time
 from typing import Dict, Any, Tuple, Optional
@@ -37,7 +38,7 @@ class TransactionSigner:
         # Упрощённая подпись (в production использовать cryptography или ecdsa)
         # HMAC на основе приватного ключа
         signature = hmac.new(
-            private_key.encode(),
+            private_key.encode() if isinstance(private_key, str) else private_key,
             tx_hash.encode(),
             hashlib.sha256
         ).hexdigest()
