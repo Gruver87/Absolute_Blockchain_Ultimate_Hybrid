@@ -8,8 +8,15 @@
 [![Industrial](https://img.shields.io/badge/Profile-Industrial%20Educational-blue.svg)](docs/INDUSTRIAL_ROADMAP.md)
 [![Release](https://img.shields.io/badge/Release-v1.2.0--industrial-blue.svg)](https://github.com/Gruver87/absolute-blockchain-ultimate/releases/tag/v1.2.0-industrial)
 
-**Репозиторий:** [github.com/Gruver87/absolute-blockchain-ultimate](https://github.com/Gruver87/absolute-blockchain-ultimate)  
-**Версия:** `1.2.0-industrial` — [Roadmap](docs/INDUSTRIAL_ROADMAP.md) | [Команды](docs/COMMANDS_REFERENCE.md) | [Observability](docs/OBSERVABILITY.md)
+**Репозиторий:** [github.com/Gruver87/absolute-blockchain-ultimate](https://github.com/Gruver87/absolute-blockchain-ultimate)
+
+**Версия:** 1.2.0-industrial
+
+| Документация | Ссылка |
+|--------------|--------|
+| Roadmap | [docs/INDUSTRIAL_ROADMAP.md](docs/INDUSTRIAL_ROADMAP.md) |
+| Команды | [docs/COMMANDS_REFERENCE.md](docs/COMMANDS_REFERENCE.md) |
+| Observability | [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) |
 
 ---
 
@@ -159,7 +166,7 @@ absolute-blockchain-ultimate/
 Подробная архитектура: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)  
 **Справочник команд (PowerShell/curl):** [docs/COMMANDS_REFERENCE.md](docs/COMMANDS_REFERENCE.md)
 
-**Старые версии (локально):** папка на рабочем столе `Начало блокчейна` — архив скриптов v54–v57, `_archive`, legacy API. Не входит в GitHub-релиз.
+**Старые версии (локально):** папка на рабочем столе `Desktop/Начало блокчейна/` — архив скриптов v54–v57 и legacy API. Не входит в GitHub-релиз.
 
 ---
 
