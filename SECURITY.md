@@ -18,6 +18,19 @@
 Ключи OpenWeather / WeatherAPI берутся только из переменных окружения:
 `OPENWEATHER_API_KEY`, `WEATHERAPI_KEY` в `.env`.
 
+## Проверка перед push
+
+```bash
+python scripts/check_secrets.py
+```
+
+Скрипт запускается в CI — push с ключами в коде будет заблокирован.
+
+## Старый справочник v57 (Часть 23)
+
+Файлы с **API keys, Telegram token, SSH, private keys** — **только локально** на ПК.  
+Не добавляйте в git. Используйте актуальный: `docs/COMMANDS_REFERENCE.md` (без секретов).
+
 ## Если ключ случайно попал в Git
 
 1. Немедленно **отзовите/ротируйте** ключ на стороне сервиса  

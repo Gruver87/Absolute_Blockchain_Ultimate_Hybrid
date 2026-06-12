@@ -114,8 +114,9 @@ rate_limiter = RateLimiter()
 # ============================================================
 import jwt
 import secrets
+import os
 
-JWT_SECRET = "absolute_blockchain_unified_secret_2024"
+JWT_SECRET = os.getenv("JWT_SECRET") or secrets.token_hex(32)
 
 class JWTAuth:
     def generate_token(self, address: str) -> str:

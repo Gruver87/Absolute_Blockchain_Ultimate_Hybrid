@@ -39,8 +39,16 @@ backup_*/
 Secrets
 .env
 .env.local
+.env.production
 *.pem
 *.key
+*oracle_keys*
+*secrets*.txt
+*secrets*.json
+*_backup_keys*
+COMMANDS_v57*.txt
+start_all_services.bat
+!wallet.example.json
 
 Coverage
 .coverage

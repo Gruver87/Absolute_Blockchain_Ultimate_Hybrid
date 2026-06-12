@@ -28,6 +28,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
+    - name: Secret scan (block keys in repo)
+      run: python scripts/check_secrets.py
+
     - name: Syntax check (compile all active modules)
       run: |
         python -c "

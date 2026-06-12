@@ -146,7 +146,8 @@ absolute-blockchain-ultimate/
 └── README.md
 ```
 
-Подробная архитектура: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+Подробная архитектура: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)  
+**Справочник команд (PowerShell/curl):** [docs/COMMANDS_REFERENCE.md](docs/COMMANDS_REFERENCE.md)
 
 **Старые версии (локально):** папка на рабочем столе `Начало блокчейна` — архив скриптов v54–v57, `_archive`, legacy API. Не входит в GitHub-релиз.
 
