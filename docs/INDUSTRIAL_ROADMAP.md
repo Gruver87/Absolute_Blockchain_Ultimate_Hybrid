@@ -70,3 +70,10 @@ Kubernetes:
 ```bash
 kubectl apply -k deploy/k8s/
 ```
+
+Observability (Grafana + Prometheus):
+
+```bash
+python main.py
+docker compose -f docker-compose.observability.yml up -d
+```

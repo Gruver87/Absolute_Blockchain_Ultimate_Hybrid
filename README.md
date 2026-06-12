@@ -5,10 +5,11 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Educational%20Only-orange.svg)]()
-[![Release](https://img.shields.io/github/v/release/Gruver87/absolute-blockchain-ultimate?label=v1.0-educational)](https://github.com/Gruver87/absolute-blockchain-ultimate/releases/tag/v1.0-educational)
+[![Industrial](https://img.shields.io/badge/Profile-Industrial%20Educational-blue.svg)](docs/INDUSTRIAL_ROADMAP.md)
+[![Release](https://img.shields.io/github/v/release/Gruver87/absolute-blockchain-ultimate?label=v1.2.0-industrial)](https://github.com/Gruver87/absolute-blockchain-ultimate/releases)
 
 **Репозиторий:** [github.com/Gruver87/absolute-blockchain-ultimate](https://github.com/Gruver87/absolute-blockchain-ultimate)  
-**Последний релиз:** [v1.0-educational](https://github.com/Gruver87/absolute-blockchain-ultimate/releases/tag/v1.0-educational)
+**Версия:** `1.2.0-industrial` — [Roadmap](docs/INDUSTRIAL_ROADMAP.md) | [Команды](docs/COMMANDS_REFERENCE.md) | [Observability](docs/OBSERVABILITY.md)
 
 ---
 
@@ -115,11 +116,20 @@ python main.py --config node.json # свой конфиг
 ### Проверка
 
 ```bash
+curl http://localhost:8080/health/live
 curl http://localhost:8080/status
-curl http://localhost:8080/tokenomics
-curl http://localhost:8080/pools/locks
-python test_merkle_light.py
+curl http://localhost:8080/metrics
+pytest tests/ -q
 ```
+
+### Мониторинг (Grafana + Prometheus)
+
+```bash
+docker compose -f docker-compose.observability.yml up -d
+# Grafana: http://localhost:3000 (admin/admin)
+```
+
+См. [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md)
 
 ---
 
