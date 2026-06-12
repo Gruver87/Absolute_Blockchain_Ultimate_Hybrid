@@ -5,8 +5,10 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Educational%20Only-orange.svg)]()
+[![Release](https://img.shields.io/github/v/release/Gruver87/absolute-blockchain-ultimate?label=v1.0-educational)](https://github.com/Gruver87/absolute-blockchain-ultimate/releases/tag/v1.0-educational)
 
-**Репозиторий:** [github.com/Gruver87/absolute-blockchain-ultimate](https://github.com/Gruver87/absolute-blockchain-ultimate)
+**Репозиторий:** [github.com/Gruver87/absolute-blockchain-ultimate](https://github.com/Gruver87/absolute-blockchain-ultimate)  
+**Последний релиз:** [v1.0-educational](https://github.com/Gruver87/absolute-blockchain-ultimate/releases/tag/v1.0-educational)
 
 ---
 
