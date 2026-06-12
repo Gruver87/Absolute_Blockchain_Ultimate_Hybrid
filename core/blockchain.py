@@ -398,21 +398,21 @@ class Blockchain:
     # ── Добавление блока ─────────────────────────────────────────────────────
 
     def add_block(self, block: Block) -> bool:
-        """Сохраняет блок в БД, обновляет статистику сжигания, эмитит событие."""
+        """Сохраняет блок в БД атомарно, эмитит событие."""
         with self.lock:
-            success = self.db.save_block(block.to_dict())
-            if not success:
-                return False
-
-            # Сохранить транзакции отдельно (для индексирования)
+            tx_dicts = []
             for tx in block.transactions:
                 tx.block_height = block.height
-                self.db.save_transaction(tx.to_dict())
+                tx_dicts.append(tx.to_dict())
 
-            # Записать статистику сжигания
-            if block.total_burned > 0:
-                self.db.record_burn(block.height, block.total_burned)
-                self.db.update_balance(self.config.burn_address, block.total_burned)
+            success = self.db.persist_block_atomic(
+                block.to_dict(),
+                tx_dicts,
+                burned_amount=block.total_burned,
+                burn_address=self.config.burn_address if block.total_burned > 0 else "",
+            )
+            if not success:
+                return False
 
             if self.bus:
                 self.bus.emit("block.new", block.to_dict())

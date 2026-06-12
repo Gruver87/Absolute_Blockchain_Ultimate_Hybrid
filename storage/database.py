@@ -19,8 +19,9 @@ class Database:
     Один экземпляр на весь процесс — используется через self.db во всех модулях.
     """
 
-    def __init__(self, db_path: str = "data/blockchain.db"):
+    def __init__(self, db_path: str = "data/blockchain.db", synchronous: str = "NORMAL"):
         self.db_path = db_path
+        self.synchronous = (synchronous or "NORMAL").upper()
         self.lock = threading.RLock()
         os.makedirs(os.path.dirname(db_path) if os.path.dirname(db_path) else ".", exist_ok=True)
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
@@ -32,7 +33,8 @@ class Database:
     def _configure(self):
         """Настройка SQLite, создание таблиц и миграция старой схемы."""
         self.conn.execute("PRAGMA journal_mode=WAL")
-        self.conn.execute("PRAGMA synchronous=NORMAL")
+        sync = self.synchronous if self.synchronous in ("OFF", "NORMAL", "FULL", "EXTRA") else "NORMAL"
+        self.conn.execute(f"PRAGMA synchronous={sync}")
         self.conn.execute("PRAGMA foreign_keys=ON")
         self._create_tables()
         self._migrate()
@@ -202,28 +204,57 @@ class Database:
     def save_block(self, block: Dict) -> bool:
         with self.lock:
             try:
-                self.conn.execute(
-                    """INSERT OR REPLACE INTO blocks
-                       (height, hash, parent_hash, timestamp, miner,
-                        tx_count, gas_used, total_burned, extra_data, data)
-                       VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                    (
-                        block.get("height", 0),
-                        block.get("hash", block.get("block_hash", "")),
-                        block.get("parent_hash", "0" * 64),
-                        block.get("timestamp", int(time.time())),
-                        block.get("miner", ""),
-                        block.get("tx_count", len(block.get("transactions", []))),
-                        block.get("gas_used", 0),
-                        block.get("total_burned", 0.0),
-                        block.get("extra_data", ""),
-                        json.dumps(block),
-                    ),
-                )
+                self._insert_block(block)
                 self.conn.commit()
                 return True
             except Exception as e:
+                self.conn.rollback()
                 print(f"[DB] save_block error: {e}")
+                return False
+
+    def _insert_block(self, block: Dict) -> None:
+        self.conn.execute(
+            """INSERT OR REPLACE INTO blocks
+               (height, hash, parent_hash, timestamp, miner,
+                tx_count, gas_used, total_burned, extra_data, data)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (
+                block.get("height", 0),
+                block.get("hash", block.get("block_hash", "")),
+                block.get("parent_hash", "0" * 64),
+                block.get("timestamp", int(time.time())),
+                block.get("miner", ""),
+                block.get("tx_count", len(block.get("transactions", []))),
+                block.get("gas_used", 0),
+                block.get("total_burned", 0.0),
+                block.get("extra_data", ""),
+                json.dumps(block),
+            ),
+        )
+
+    def persist_block_atomic(
+        self,
+        block: Dict,
+        transactions: List[Dict],
+        burned_amount: float = 0.0,
+        burn_address: str = "",
+    ) -> bool:
+        """Атомарно сохраняет блок, транзакции и статистику сжигания."""
+        with self.lock:
+            try:
+                self.conn.execute("BEGIN IMMEDIATE")
+                self._insert_block(block)
+                for tx in transactions:
+                    self._insert_transaction(tx)
+                if burned_amount > 0:
+                    self._insert_burn_record(block.get("height", 0), burned_amount)
+                    if burn_address:
+                        self._apply_balance_delta(burn_address, burned_amount)
+                self.conn.commit()
+                return True
+            except Exception as e:
+                self.conn.rollback()
+                print(f"[DB] persist_block_atomic error: {e}")
                 return False
 
     def get_block(self, height: int) -> Optional[Dict]:
@@ -264,33 +295,37 @@ class Database:
 
     # ── Транзакции ───────────────────────────────────────────────────────────
 
+    def _insert_transaction(self, tx: Dict) -> None:
+        self.conn.execute(
+            """INSERT OR REPLACE INTO transactions
+               (hash, block_height, from_addr, to_addr, value,
+                gas, gas_used, fee, burned, nonce, tx_data, status, timestamp)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                tx.get("hash", tx.get("tx_hash", "")),
+                tx.get("block_height", 0),
+                tx.get("from_addr", tx.get("from", "")),
+                tx.get("to_addr", tx.get("to", "")),
+                tx.get("value", tx.get("amount", 0.0)),
+                tx.get("gas", 21000),
+                tx.get("gas_used", tx.get("gas", 21000)),
+                tx.get("fee", 0.0),
+                tx.get("burned", 0.0),
+                tx.get("nonce", 0),
+                tx.get("data", tx.get("tx_data", "")),
+                tx.get("status", 1),
+                tx.get("timestamp", int(time.time())),
+            ),
+        )
+
     def save_transaction(self, tx: Dict) -> bool:
         with self.lock:
             try:
-                self.conn.execute(
-                    """INSERT OR REPLACE INTO transactions
-                       (hash, block_height, from_addr, to_addr, value,
-                        gas, gas_used, fee, burned, nonce, tx_data, status, timestamp)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (
-                        tx.get("hash", tx.get("tx_hash", "")),
-                        tx.get("block_height", 0),
-                        tx.get("from_addr", tx.get("from", "")),
-                        tx.get("to_addr", tx.get("to", "")),
-                        tx.get("value", tx.get("amount", 0.0)),
-                        tx.get("gas", 21000),
-                        tx.get("gas_used", tx.get("gas", 21000)),
-                        tx.get("fee", 0.0),
-                        tx.get("burned", 0.0),
-                        tx.get("nonce", 0),
-                        tx.get("data", tx.get("tx_data", "")),
-                        tx.get("status", 1),
-                        tx.get("timestamp", int(time.time())),
-                    ),
-                )
+                self._insert_transaction(tx)
                 self.conn.commit()
                 return True
             except Exception as e:
+                self.conn.rollback()
                 print(f"[DB] save_transaction error: {e}")
                 return False
 
@@ -327,18 +362,19 @@ class Database:
             ).fetchone()
             return float(row["balance"]) if row else 0.0
 
+    def _apply_balance_delta(self, address: str, delta: float) -> None:
+        self.conn.execute(
+            """INSERT INTO accounts (address, balance, nonce)
+               VALUES (?, MAX(0.0, ?), 0)
+               ON CONFLICT(address) DO UPDATE
+               SET balance = MAX(0.0, balance + ?)""",
+            (address, delta, delta),
+        )
+
     def update_balance(self, address: str, delta: float) -> float:
         """Изменяет баланс на delta (может быть отрицательным). Возвращает новый баланс."""
         with self.lock:
-            # Используем два отдельных параметра, чтобы excluded.balance = delta
-            # (может быть отрицательным, что корректно для ON CONFLICT обновления)
-            self.conn.execute(
-                """INSERT INTO accounts (address, balance, nonce)
-                   VALUES (?, MAX(0.0, ?), 0)
-                   ON CONFLICT(address) DO UPDATE
-                   SET balance = MAX(0.0, balance + ?)""",
-                (address, delta, delta),
-            )
+            self._apply_balance_delta(address, delta)
             self.conn.commit()
             return self.get_balance(address)
 
@@ -446,17 +482,20 @@ class Database:
 
     # ── Сжигание токенов ─────────────────────────────────────────────────────
 
+    def _insert_burn_record(self, block_height: int, burned_amount: float) -> None:
+        prev = self.conn.execute(
+            "SELECT COALESCE(MAX(total_burned),0) as tb FROM burn_stats"
+        ).fetchone()
+        total = float(prev["tb"]) + burned_amount
+        self.conn.execute(
+            """INSERT OR REPLACE INTO burn_stats (block_height, burned_amount, total_burned)
+               VALUES (?,?,?)""",
+            (block_height, burned_amount, total),
+        )
+
     def record_burn(self, block_height: int, burned_amount: float) -> None:
         with self.lock:
-            prev = self.conn.execute(
-                "SELECT COALESCE(MAX(total_burned),0) as tb FROM burn_stats"
-            ).fetchone()
-            total = float(prev["tb"]) + burned_amount
-            self.conn.execute(
-                """INSERT OR REPLACE INTO burn_stats (block_height, burned_amount, total_burned)
-                   VALUES (?,?,?)""",
-                (block_height, burned_amount, total),
-            )
+            self._insert_burn_record(block_height, burned_amount)
             self.conn.commit()
 
     def get_total_burned(self) -> float:
@@ -557,6 +596,21 @@ class Database:
             }
 
     # ── Утилиты ──────────────────────────────────────────────────────────────
+
+    def backup_to(self, dest_path: str) -> bool:
+        """Online-бэкап SQLite через встроенный backup API."""
+        with self.lock:
+            dest_dir = os.path.dirname(dest_path)
+            if dest_dir:
+                os.makedirs(dest_dir, exist_ok=True)
+            try:
+                dest = sqlite3.connect(dest_path)
+                self.conn.backup(dest)
+                dest.close()
+                return True
+            except Exception as e:
+                print(f"[DB] backup_to error: {e}")
+                return False
 
     def close(self):
         with self.lock:

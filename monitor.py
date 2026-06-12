@@ -18,17 +18,17 @@ class BlockchainMonitor:
     
     def _get_stats(self):
         try:
-            r = requests.get(f"{self.api_url}/api/stats", timeout=30)
+            r = requests.get(f"{self.api_url}/status", timeout=30)
             return r.json() if r.status_code == 200 else {}
-        except:
+        except Exception:
             return {}
-    
+
     def _get_peers(self):
         try:
-            r = requests.get(f"{self.api_url}/api/peers", timeout=30)
+            r = requests.get(f"{self.api_url}/network/peers", timeout=30)
             data = r.json() if r.status_code == 200 else {}
-            return data.get('peers', [])
-        except:
+            return data.get("peers", [])
+        except Exception:
             return []
     
     def _check_health(self):
@@ -36,12 +36,13 @@ class BlockchainMonitor:
         peers = self._get_peers()
         
         self.metrics = {
-            'timestamp': int(time.time()),
-            'blocks': stats.get('blocks', 0),
-            'pending': stats.get('pending_transactions', 0),
-            'difficulty': stats.get('difficulty', 1),
-            'peers_count': len(peers),
-            'api_status': 'online' if stats else 'offline'
+            "timestamp": int(time.time()),
+            "blocks": stats.get("height", stats.get("blocks", 0)),
+            "pending": stats.get("mempool_size", stats.get("pending_transactions", 0)),
+            "validators": stats.get("validator_count", 0),
+            "node_version": stats.get("node_version", ""),
+            "peers_count": len(peers),
+            "api_status": "online" if stats else "offline",
         }
         
         if not stats:

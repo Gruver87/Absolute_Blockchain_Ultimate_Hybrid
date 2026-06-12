@@ -55,6 +55,16 @@ except ImportError:
     jwt_auth = None
     _JWT_AVAILABLE = False
 
+# POST без JWT даже в prod (публичные операции)
+_PUBLIC_POST_PATHS = frozenset({"/transactions"})
+
+try:
+    from observability.metrics import MetricsCollector
+    _METRICS_AVAILABLE = True
+except ImportError:
+    MetricsCollector = None
+    _METRICS_AVAILABLE = False
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  JSON-RPC 2.0  (порт 8545, Ethereum-совместимый)
@@ -303,9 +313,44 @@ class RESTHandler(BaseHTTPRequestHandler):
     pool_locks = None                # PoolLockManager
     light_client = None              # LightClient (SPV)
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    metrics_collector = None
 
     def log_message(self, fmt, *args):
         logger.debug(fmt % args)
+
+    @classmethod
+    def _cors_origin(cls, request_origin: str = "") -> str:
+        cfg = cls.config
+        origins = list(getattr(cfg, "cors_origins", ["*"]) or ["*"]) if cfg else ["*"]
+        if "*" in origins:
+            return "*"
+        if request_origin and request_origin in origins:
+            return request_origin
+        return origins[0] if origins else "*"
+
+    def _track_request(self) -> None:
+        mc = self.__class__.metrics_collector
+        if mc:
+            mc.inc_http()
+
+    def _require_jwt_admin(self, path: str) -> bool:
+        cfg = self.__class__.config
+        if not cfg or not getattr(cfg, "jwt_enforce_admin", False):
+            return True
+        if path in _PUBLIC_POST_PATHS:
+            return True
+        auth = self.headers.get("Authorization", "")
+        if not auth.startswith("Bearer "):
+            self._error(401, "JWT required (Authorization: Bearer <token>)")
+            return False
+        if not _JWT_AVAILABLE or not jwt_auth:
+            self._error(503, "JWT auth not available (install PyJWT)")
+            return False
+        ok, _payload = jwt_auth.verify_token(auth[7:].strip())
+        if not ok:
+            self._error(401, "Invalid or expired JWT")
+            return False
+        return True
 
     def do_OPTIONS(self):
         self._cors()
@@ -335,6 +380,69 @@ class RESTHandler(BaseHTTPRequestHandler):
         evm_adapter = self.__class__.evm
 
         try:
+            self._track_request()
+
+            # ── Health & metrics (K8s / Prometheus) ──────────────────────────
+            if path == "/health/live":
+                mc = self.__class__.metrics_collector
+                self._json({
+                    "status": "alive",
+                    "node_id": getattr(cfg, "node_id", "node-1"),
+                    "deployment_mode": getattr(cfg, "deployment_mode", "dev"),
+                    "uptime_seconds": round(mc.uptime_seconds(), 2) if mc else 0,
+                })
+                return
+
+            if path == "/health/ready":
+                checks = {
+                    "blockchain": bc is not None,
+                    "database": db is not None,
+                    "mempool": mp is not None,
+                }
+                ready = all(checks.values())
+                payload = {
+                    "status": "ready" if ready else "not_ready",
+                    "checks": checks,
+                    "height": bc.get_height() if bc else 0,
+                }
+                if ready:
+                    self._json(payload)
+                else:
+                    body = json.dumps(payload, default=str).encode()
+                    origin = self._cors_origin(self.headers.get("Origin", ""))
+                    self.send_response(503)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Access-Control-Allow-Origin", origin)
+                    self.send_header("Content-Length", len(body))
+                    self.end_headers()
+                    self.wfile.write(body)
+                return
+
+            if path == "/metrics":
+                if not cfg or not getattr(cfg, "metrics_enabled", True):
+                    self._error(404, "Metrics disabled")
+                    return
+                mc = self.__class__.metrics_collector
+                if not mc:
+                    self._error(503, "Metrics collector unavailable")
+                    return
+                validators = db.get_validators() if db else []
+                text = mc.render_prometheus(
+                    height=bc.get_height() if bc else 0,
+                    peers=p2p.peer_count() if p2p else 0,
+                    mempool=mp.get_size() if mp else 0,
+                    validators=len(validators),
+                    deployment_mode=getattr(cfg, "deployment_mode", "dev"),
+                    node_id=getattr(cfg, "node_id", "node-1"),
+                )
+                body = text.encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+                self.send_header("Content-Length", len(body))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+
             # ── favicon (browsers always request it) ─────────────────────────
             if path in ("/favicon.ico", "/favicon.png"):
                 self.send_response(204)
@@ -359,7 +467,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", len(body))
-                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Origin", self._cors_origin(self.headers.get("Origin", "")))
                 self.end_headers()
                 self.wfile.write(body)
                 return
@@ -391,6 +499,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "total_burned": total_burned,
                     "evm_enabled": cfg.evm_enabled,
                     "bridge_enabled": cfg.bridge_enabled,
+                    "deployment_mode": getattr(cfg, "deployment_mode", "dev"),
+                    "node_id": getattr(cfg, "node_id", "node-1"),
+                    "health": {
+                        "live": "/health/live",
+                        "ready": "/health/ready",
+                        "metrics": "/metrics",
+                    },
                     "middleware": {
                         "rate_limit": _RATE_LIMIT_AVAILABLE,
                         "input_validation": _INPUT_VALIDATORS_AVAILABLE,
@@ -889,8 +1004,6 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path.startswith("/consensus/reorg-risk"):
                 rp = self.__class__.reorg_predictor
                 if rp:
-                    from urllib.parse import urlparse, parse_qs
-                    qs = parse_qs(urlparse(path).query)
                     confirmations = int(qs.get("confirmations", ["6"])[0])
                     risk = rp.calculate_risk(confirmations)
                     confidence = rp.get_confidence(confirmations)
@@ -1027,8 +1140,6 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/sharding/route":
                 sharding = self.__class__.sharding
                 if sharding:
-                    from urllib.parse import urlparse, parse_qs
-                    qs = parse_qs(urlparse(path).query)
                     addr = qs.get("address", [""])[0]
                     try:
                         shard_id = sharding.get_shard_for_address(addr) if hasattr(sharding, "get_shard_for_address") else 0
@@ -1077,8 +1188,6 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             elif path.startswith("/oracles/weather"):
                 oracles = self.__class__.oracles
-                from urllib.parse import urlparse, parse_qs
-                qs = parse_qs(urlparse(path).query)
                 city = qs.get("city", ["London"])[0]
                 if oracles and hasattr(oracles, "get_weather"):
                     try:
@@ -1771,6 +1880,10 @@ class RESTHandler(BaseHTTPRequestHandler):
 
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
+
+        self._track_request()
+        if not self._require_jwt_admin(path):
+            return
         length = int(self.headers.get("Content-Length", 0))
         body = {}
         if length:
@@ -3240,27 +3353,33 @@ class RESTHandler(BaseHTTPRequestHandler):
 
     def _json(self, data: Any):
         body = json.dumps(data, default=str).encode()
+        origin = self._cors_origin(self.headers.get("Origin", ""))
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Origin", origin)
         self.send_header("Content-Length", len(body))
         self.end_headers()
         self.wfile.write(body)
 
     def _error(self, code: int, message: str):
+        mc = self.__class__.metrics_collector
+        if mc:
+            mc.inc_error()
         body = json.dumps({"error": message}).encode()
+        origin = self._cors_origin(self.headers.get("Origin", ""))
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Origin", origin)
         self.send_header("Content-Length", len(body))
         self.end_headers()
         self.wfile.write(body)
 
     def _cors(self):
+        origin = self._cors_origin(self.headers.get("Origin", ""))
         self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Origin", origin)
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
 
 
@@ -3476,18 +3595,20 @@ def create_http_server(blockchain, mempool, db, config,
     RESTHandler.pool_locks = pool_locks
     RESTHandler.light_client = light_client
     RESTHandler.project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _METRICS_AVAILABLE and RESTHandler.metrics_collector is None:
+        RESTHandler.metrics_collector = MetricsCollector()
     server = ThreadedHTTPServer((config.http_host, config.http_port), RESTHandler)
     return server
 
 
-def start_rpc_server_thread(blockchain, mempool, config, evm=None) -> threading.Thread:
-    """Запускает JSON-RPC в отдельном потоке."""
+def start_rpc_server_thread(blockchain, mempool, config, evm=None):
+    """Запускает JSON-RPC в отдельном потоке. Возвращает (thread, server)."""
     server = create_rpc_server(blockchain, mempool, config, evm)
     t = threading.Thread(target=server.serve_forever, daemon=True,
                          name="JSONRPCServer")
     t.start()
     print(f"[RPC] JSON-RPC server started on {config.rpc_host}:{config.rpc_port}")
-    return t
+    return t, server
 
 
 def start_http_server_thread(blockchain, mempool, db, config,
@@ -3513,8 +3634,8 @@ def start_http_server_thread(blockchain, mempool, db, config,
                        consensus_engine_slashing=None,
                        casper_finality=None,
                        pool_locks=None,
-                       light_client=None) -> threading.Thread:
-    """Запускает REST API в отдельном потоке."""
+                       light_client=None):
+    """Запускает REST API в отдельном потоке. Возвращает (thread, server)."""
     server = create_http_server(
         blockchain, mempool, db, config, p2p, evm, nft, zk,
         sharding=sharding, oracles=oracles,
@@ -3543,4 +3664,16 @@ def start_http_server_thread(blockchain, mempool, db, config,
                          name="RESTServer")
     t.start()
     print(f"[HTTP] REST API server started on {config.http_host}:{config.http_port}")
-    return t
+    return t, server
+
+
+def shutdown_http_server(server, name: str = "HTTP") -> None:
+    """Корректно останавливает ThreadedHTTPServer (безопасно с другого потока)."""
+    if not server:
+        return
+    try:
+        threading.Thread(target=server.shutdown, daemon=True, name=f"{name}Shutdown").start()
+        server.server_close()
+        print(f"[{name}] Server shutdown initiated")
+    except Exception as e:
+        print(f"[{name}] Shutdown warning: {e}")

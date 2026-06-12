@@ -40,7 +40,7 @@ from kernel.event_bus import EventBus
 from consensus.adapter import ConsensusAdapter
 from execution.evm_adapter import EVMAdapter
 from network.p2p import P2PNode
-from api.http import start_rpc_server_thread, start_http_server_thread
+from api.http import start_rpc_server_thread, start_http_server_thread, shutdown_http_server
 from network.websocket import WebSocketServer
 from bridge.abs_bridge import RustBridge
 from features.nft import NFTMarketplace
@@ -270,6 +270,8 @@ class NodeOrchestrator:
         self.config = config
         self._running = False
         self._tasks = []
+        self._rpc_server = None
+        self._http_server = None
 
         print("[Node] Initializing components...")
 
@@ -277,7 +279,7 @@ class NodeOrchestrator:
         self.bus = EventBus()
 
         # 2. База данных
-        self.db = Database(config.db_path)
+        self.db = Database(config.db_path, synchronous=config.sqlite_synchronous)
         self.db.initialize()
         print(f"[Node] Database: {config.db_path}")
 
@@ -310,7 +312,8 @@ class NodeOrchestrator:
 
         # Если miner_address не задан — загружаем wallet.json или генерируем ECDSA
         self.wallet = None
-        _wallet_path = os.path.join("data", "wallet.json")
+        _data_dir = os.path.dirname(config.db_path) if os.path.dirname(config.db_path) else "data"
+        _wallet_path = os.path.join(_data_dir, "wallet.json")
         if os.path.exists(_wallet_path):
             try:
                 import json as _json
@@ -327,7 +330,11 @@ class NodeOrchestrator:
                     self.wallet = Wallet.import_wallet(_wallet_path)
             except Exception as _we:
                 print(f"[Node] Wallet load warning ({_we})")
-        if _WALLET_AVAILABLE and self.wallet is None:
+        if config.require_wallet_file and self.wallet is None:
+            raise RuntimeError(
+                f"Production mode requires wallet with private_key at: {_wallet_path}"
+            )
+        if _WALLET_AVAILABLE and self.wallet is None and not config.require_wallet_file:
             try:
                 self.wallet = Wallet.create_new()
                 if not config.miner_address:
@@ -801,14 +808,14 @@ class NodeOrchestrator:
         self._running = True
 
         # Запускаем API-серверы в отдельных потоках (не блокируют event loop)
-        start_rpc_server_thread(
+        _, self._rpc_server = start_rpc_server_thread(
             self.blockchain, self.mempool, self.config, self.evm
         )
         # Aliases for audit compatibility
         self.websocket_server = self.ws_server
         self.bot = getattr(self, '_bot_instance', None)
 
-        start_http_server_thread(
+        _, self._http_server = start_http_server_thread(
             self.blockchain, self.mempool, self.db, self.config,
             self.p2p, self.evm, self.nft, self.zk,
             sharding=self.sharding, oracles=self.oracles,
@@ -883,41 +890,50 @@ class NodeOrchestrator:
         except Exception as _me:
             self.monitor = None  # monitor is optional
 
-        # RPC CORS Proxy — запускаем на порту 8082 для dApp разработки
-        try:
-            import threading as _threading
-            from http.server import HTTPServer as _HTTPServer, BaseHTTPRequestHandler as _BH
-            import json as _json_mod
-            class _CORSProxy(_BH):
-                def do_OPTIONS(self):
-                    self.send_response(200)
-                    self.send_header("Access-Control-Allow-Origin", "*")
-                    self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-                    self.send_header("Access-Control-Allow-Headers", "Content-Type")
-                    self.end_headers()
-                def do_POST(self):
-                    import requests as _req
-                    cl = int(self.headers.get("Content-Length", 0))
-                    body = self.rfile.read(cl)
-                    try:
-                        resp = _req.post("http://localhost:8545", data=body,
-                                         headers={"Content-Type": "application/json"}, timeout=5)
-                        data = resp.content
-                    except Exception as e:
-                        data = _json_mod.dumps({"error": str(e)}).encode()
-                    self.send_response(200)
-                    self.send_header("Content-Type", "application/json")
-                    self.send_header("Access-Control-Allow-Origin", "*")
-                    self.send_header("Content-Length", len(data))
-                    self.end_headers()
-                    try: self.wfile.write(data)
-                    except Exception: pass
-                def log_message(self, *a): pass
-            _proxy = _HTTPServer(("0.0.0.0", 8082), _CORSProxy)
-            _threading.Thread(target=_proxy.serve_forever, daemon=True, name="RPCProxy").start()
-            print(f"[RPC Proxy] CORS proxy started: http://localhost:8082/rpc -> :8545")
-        except Exception as _pe:
-            pass  # proxy is optional
+        # RPC CORS Proxy — dev-only (:8082 → :8545)
+        if self.config.enable_cors_rpc_proxy:
+            try:
+                import threading as _threading
+                from http.server import HTTPServer as _HTTPServer, BaseHTTPRequestHandler as _BH
+                import json as _json_mod
+                _rpc_port = self.config.rpc_port
+                class _CORSProxy(_BH):
+                    def do_OPTIONS(self):
+                        self.send_response(200)
+                        self.send_header("Access-Control-Allow-Origin", "*")
+                        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+                        self.end_headers()
+                    def do_POST(self):
+                        import requests as _req
+                        cl = int(self.headers.get("Content-Length", 0))
+                        body = self.rfile.read(cl)
+                        try:
+                            resp = _req.post(
+                                f"http://localhost:{_rpc_port}", data=body,
+                                headers={"Content-Type": "application/json"}, timeout=5,
+                            )
+                            data = resp.content
+                        except Exception as e:
+                            data = _json_mod.dumps({"error": str(e)}).encode()
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Access-Control-Allow-Origin", "*")
+                        self.send_header("Content-Length", len(data))
+                        self.end_headers()
+                        try:
+                            self.wfile.write(data)
+                        except Exception:
+                            pass
+                    def log_message(self, *a):
+                        pass
+                _proxy = _HTTPServer(("0.0.0.0", 8082), _CORSProxy)
+                _threading.Thread(target=_proxy.serve_forever, daemon=True, name="RPCProxy").start()
+                print(f"[RPC Proxy] CORS proxy started: http://localhost:8082/rpc -> :{self.config.rpc_port}")
+            except Exception:
+                pass  # proxy is optional
+        else:
+            print("[RPC Proxy] Disabled (ENABLE_CORS_RPC_PROXY=false or prod mode)")
 
         # Telegram Bot — автозапуск если TELEGRAM_BOT_TOKEN установлен
         import os as _os
@@ -953,6 +969,8 @@ class NodeOrchestrator:
             return
         self._running = False
         print("\n[Node] Shutting down...")
+        shutdown_http_server(getattr(self, "_http_server", None), "HTTP")
+        shutdown_http_server(getattr(self, "_rpc_server", None), "RPC")
         # Отменяем asyncio-задачи
         for task in self._tasks:
             if not task.done():
@@ -1311,6 +1329,27 @@ def build_config(args: argparse.Namespace) -> Config:
         config.evm_enabled = False
     if args.log_level:
         config.log_level = args.log_level
+
+    # Переменные окружения / .env (Docker, K8s, prod)
+    try:
+        from runtime.env_loader import load_dotenv_file
+        load_dotenv_file(os.path.join(BASE_DIR, ".env"))
+    except Exception:
+        pass
+    if not args.data_dir and os.getenv("DATA_DIR"):
+        data_dir = os.getenv("DATA_DIR", "")
+        config.db_path = os.path.join(data_dir, "blockchain.db")
+        config.log_file = os.path.join(data_dir, "node.log")
+    config.apply_env()
+
+    errors = config.validate()
+    if errors and config.is_production:
+        for e in errors:
+            print(f"[Config] ERROR: {e}")
+        raise SystemExit(1)
+    elif errors:
+        for e in errors:
+            print(f"[Config] WARN: {e}")
 
     # Режимы работы
     if args.mode == "rpc-only":

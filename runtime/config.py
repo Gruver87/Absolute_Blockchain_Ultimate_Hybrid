@@ -8,7 +8,9 @@ Absolute Blockchain — единая конфигурация узла.
 import json
 import os
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
+
+from runtime.env_loader import env_str, env_int, env_bool, env_list
 
 
 @dataclass
@@ -16,7 +18,9 @@ class Config:
     # ── Идентификация сети ──────────────────────────────────────────────────
     chain_id: int = 1337
     network_name: str = "Absolute"
-    node_version: str = "1.0.0"
+    node_version: str = "1.1.0-industrial"
+    node_id: str = "node-1"
+    deployment_mode: str = "dev"          # dev | staging | prod
 
     # ── Монета (токеномика D.U.P. / Uladzimir Dabranski) ───────────────────
     coin_symbol: str = "ABS"
@@ -74,6 +78,15 @@ class Config:
     # ── Логирование ─────────────────────────────────────────────────────────
     log_level: str = "INFO"
     log_file: str = "data/node.log"
+    log_json: bool = False                # structured JSON logs (prod)
+
+    # ── Промышленный профиль ────────────────────────────────────────────────
+    cors_origins: List[str] = field(default_factory=lambda: ["*"])
+    jwt_enforce_admin: bool = False       # prod: требовать JWT на POST/admin
+    require_wallet_file: bool = False     # prod: не генерировать кошелёк автоматически
+    enable_cors_rpc_proxy: bool = True    # dev-only RPC proxy :8082
+    sqlite_synchronous: str = "NORMAL"      # prod: FULL
+    metrics_enabled: bool = True
 
     # ────────────────────────────────────────────────────────────────────────
 
@@ -98,6 +111,66 @@ class Config:
     def base_fee(self) -> float:
         """Базовая комиссия за обычный перевод в ABS."""
         return self.base_gas_price * self.gas_price_wei
+
+    @property
+    def is_production(self) -> bool:
+        return self.deployment_mode == "prod"
+
+    def apply_env(self) -> "Config":
+        """Переопределяет поля из переменных окружения (.env / Docker / K8s)."""
+        data_dir = env_str("DATA_DIR")
+        if data_dir:
+            self.db_path = os.path.join(data_dir, "blockchain.db")
+            self.log_file = os.path.join(data_dir, "node.log")
+
+        self.node_id = env_str("NODE_ID", self.node_id)
+        self.deployment_mode = env_str("DEPLOYMENT_MODE", self.deployment_mode).lower()
+        self.rpc_port = env_int("RPC_PORT", self.rpc_port)
+        self.http_port = env_int("HTTP_PORT", env_int("WEB_PORT", self.http_port))
+        self.ws_port = env_int("WS_PORT", self.ws_port)
+        self.p2p_port = env_int("P2P_PORT", self.p2p_port)
+        self.log_level = env_str("LOG_LEVEL", self.log_level)
+        self.log_json = env_bool("LOG_JSON", self.log_json)
+        self.mining_enabled = env_bool("MINING_ENABLED", self.mining_enabled)
+        self.metrics_enabled = env_bool("METRICS_ENABLED", self.metrics_enabled)
+        self.jwt_enforce_admin = env_bool("JWT_ENFORCE_ADMIN", self.jwt_enforce_admin)
+        self.enable_cors_rpc_proxy = env_bool("ENABLE_CORS_RPC_PROXY", self.enable_cors_rpc_proxy)
+
+        origins = env_list("CORS_ORIGINS")
+        if origins:
+            self.cors_origins = origins
+
+        if self.is_production:
+            self.require_wallet_file = env_bool("REQUIRE_WALLET_FILE", True)
+            self.jwt_enforce_admin = env_bool("JWT_ENFORCE_ADMIN", True)
+            self.sqlite_synchronous = env_str("SQLITE_SYNCHRONOUS", "FULL")
+            self.enable_cors_rpc_proxy = env_bool("ENABLE_CORS_RPC_PROXY", False)
+            if self.cors_origins == ["*"]:
+                self.cors_origins = env_list("CORS_ORIGINS", ["http://localhost:8080"])
+
+        return self
+
+    def validate(self) -> List[str]:
+        """Возвращает список ошибок конфигурации (пустой = OK)."""
+        errors = []
+        for name, port in [
+            ("rpc_port", self.rpc_port),
+            ("http_port", self.http_port),
+            ("p2p_port", self.p2p_port),
+            ("ws_port", self.ws_port),
+        ]:
+            if not (1 <= port <= 65535):
+                errors.append(f"{name} invalid: {port}")
+        if self.deployment_mode not in ("dev", "staging", "prod"):
+            errors.append(f"deployment_mode invalid: {self.deployment_mode}")
+        if self.is_production and self.require_wallet_file:
+            wallet = os.path.join(
+                os.path.dirname(self.db_path) if os.path.dirname(self.db_path) else "data",
+                "wallet.json",
+            )
+            if not os.path.isfile(wallet):
+                errors.append(f"prod mode requires wallet file: {wallet}")
+        return errors
 
     def __repr__(self) -> str:
         return (

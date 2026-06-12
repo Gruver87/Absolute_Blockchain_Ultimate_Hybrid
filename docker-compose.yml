@@ -5,10 +5,17 @@ services:
     build: .
     ports:
       - "8545:8545"
-      - "8000:8000"
+      - "8080:8080"
+      - "5000:5000"
+      - "8766:8766"
     environment:
       - NODE_ID=node1
       - DATA_DIR=/app/data/node1
+      - DEPLOYMENT_MODE=dev
+      - HTTP_PORT=8080
+      - P2P_PORT=5000
+      - RPC_PORT=8545
+      - WS_PORT=8766
     volumes:
       - ./data/node1:/app/data/node1
     networks:
@@ -18,10 +25,17 @@ services:
     build: .
     ports:
       - "8546:8545"
-      - "8001:8000"
+      - "8081:8080"
+      - "5001:5000"
+      - "8767:8766"
     environment:
       - NODE_ID=node2
       - DATA_DIR=/app/data/node2
+      - DEPLOYMENT_MODE=dev
+      - HTTP_PORT=8080
+      - P2P_PORT=5000
+      - RPC_PORT=8545
+      - WS_PORT=8766
     volumes:
       - ./data/node2:/app/data/node2
     networks:
@@ -33,10 +47,17 @@ services:
     build: .
     ports:
       - "8547:8545"
-      - "8002:8000"
+      - "8082:8080"
+      - "5002:5000"
+      - "8768:8766"
     environment:
       - NODE_ID=node3
       - DATA_DIR=/app/data/node3
+      - DEPLOYMENT_MODE=dev
+      - HTTP_PORT=8080
+      - P2P_PORT=5000
+      - RPC_PORT=8545
+      - WS_PORT=8766
     volumes:
       - ./data/node3:/app/data/node3
     networks:

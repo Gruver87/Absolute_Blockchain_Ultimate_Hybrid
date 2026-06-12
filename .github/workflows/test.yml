@@ -48,6 +48,9 @@ jobs:
     - name: Merkle + Light Client test
       run: python test_merkle_light.py
 
+    - name: Pytest (unit + integration)
+      run: pytest tests/ -q --tb=short -x
+
     - name: Import main module
       run: python -c "import main; print('main.py OK')"
 
