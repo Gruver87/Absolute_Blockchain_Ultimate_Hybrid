@@ -331,45 +331,50 @@ class NodeOrchestrator:
                     _wdata = _json.load(_wf)
                 _waddr = _wdata.get("address", "")
                 if _waddr:
-                    if not config.miner_address:
-                        config.miner_address = _waddr
                     if not getattr(config, "founder_address", ""):
                         config.founder_address = _waddr
+                    if not config.miner_address:
+                        config.miner_address = _waddr
                     print(f"[Node] Founder wallet (D.U.P.): {_waddr}")
-                if _WALLET_AVAILABLE and _wdata.get("private_key"):
-                    self.wallet = Wallet.import_wallet(_wallet_path)
-                elif _WALLET_AVAILABLE:
-                    _pk_env = os.environ.get("WALLET_PRIVATE_KEY", "").strip()
-                    if _pk_env:
-                        try:
-                            _w = Wallet.from_private_key(_pk_env)
-                            _exp_pub = (_wdata.get("public_key") or "").lower()
-                            _exp_addr = (_waddr or "").lower()
-                            _match = (
-                                (not _exp_pub or _w.public_key.lower() == _exp_pub)
-                                and (not _exp_addr or _w.address.lower() == _exp_addr)
-                            )
-                            if _match:
+                if _WALLET_AVAILABLE:
+                    if _wdata.get("private_key"):
+                        self.wallet = Wallet.import_wallet(_wallet_path)
+                        config.signing_address = self.wallet.address
+                        if not config.miner_address:
+                            config.miner_address = self.wallet.address
+                        print(f"[Node] Wallet loaded from wallet.json (signing enabled): {self.wallet.address}")
+                    else:
+                        _pk_env = os.environ.get("WALLET_PRIVATE_KEY", "").strip()
+                        if _pk_env:
+                            try:
+                                _w = Wallet.from_private_key(_pk_env)
                                 self.wallet = _w
-                                print(
-                                    f"[Node] Wallet loaded from WALLET_PRIVATE_KEY "
-                                    f"(signing enabled): {_w.address}"
-                                )
-                            else:
-                                self.wallet = _w
+                                config.signing_address = _w.address
+                                config.miner_address = _w.address
                                 print(
                                     f"[Node] Operational wallet from WALLET_PRIVATE_KEY: "
-                                    f"{_w.address}"
+                                    f"{_w.address} (mining + signing)"
                                 )
-                                if _waddr:
+                                if _waddr and _w.address.lower() != _waddr.lower():
                                     print(
-                                        f"[Node] Founder address in wallet.json "
-                                        f"(watch-only): {_waddr}"
+                                        f"[Node] Founder in wallet.json is watch-only "
+                                        f"(tokenomics): {_waddr}"
                                     )
-                        except Exception as _pke:
-                            print(f"[Node] WALLET_PRIVATE_KEY invalid ({_pke})")
+                            except Exception as _pke:
+                                print(f"[Node] WALLET_PRIVATE_KEY invalid ({_pke})")
             except Exception as _we:
                 print(f"[Node] Wallet load warning ({_we})")
+        elif _WALLET_AVAILABLE:
+            _pk_env = os.environ.get("WALLET_PRIVATE_KEY", "").strip()
+            if _pk_env:
+                try:
+                    _w = Wallet.from_private_key(_pk_env)
+                    self.wallet = _w
+                    config.signing_address = _w.address
+                    config.miner_address = _w.address
+                    print(f"[Node] Operational wallet from WALLET_PRIVATE_KEY: {_w.address}")
+                except Exception as _pke:
+                    print(f"[Node] WALLET_PRIVATE_KEY invalid ({_pke})")
         if config.require_wallet_file and self.wallet is None:
             raise RuntimeError(
                 f"Production mode requires wallet with private_key at: {_wallet_path}"
@@ -898,6 +903,8 @@ class NodeOrchestrator:
             casper_finality=self.casper_finality,
             pool_locks=self.pool_locks,
             light_client=self.light_client,
+            bridge=self.bridge,
+            wallet=self.wallet,
         )
 
         self._print_banner()

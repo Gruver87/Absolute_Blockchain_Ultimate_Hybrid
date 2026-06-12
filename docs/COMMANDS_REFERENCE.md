@@ -173,13 +173,42 @@ $body = @{
 
 Invoke-RestMethod -Uri "http://localhost:8080/transactions" `
     -Method POST -Body $body -ContentType "application/json"
+
+# Алиас + авто-подпись (если в .env задан WALLET_PRIVATE_KEY):
+$body = @{
+    auto_sign = $true
+    to        = "0xRECIPIENT_ADDRESS"
+    value     = 1.0
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:8080/tx/send" `
+    -Method POST -Body $body -ContentType "application/json"
+
+Invoke-RestMethod http://localhost:8080/wallet/status
 ```
 
 ### P2P (v57 Часть 7)
 
 ```powershell
+Invoke-RestMethod http://localhost:8080/peers
 Invoke-RestMethod http://localhost:8080/network/peers
 Invoke-RestMethod http://localhost:8080/network/stats
+Invoke-RestMethod http://localhost:8080/sync/status
+```
+
+Два узла:
+
+```powershell
+.\scripts\start_two_nodes.ps1
+```
+
+### Мост и документация API
+
+```powershell
+Invoke-RestMethod http://localhost:8080/bridge
+Invoke-RestMethod http://localhost:8080/bridge/locks
+Invoke-RestMethod http://localhost:8080/openapi.json
+# Браузер: http://localhost:8080/docs
 ```
 
 ### Валидаторы и слэшинг (v57 Часть 15)

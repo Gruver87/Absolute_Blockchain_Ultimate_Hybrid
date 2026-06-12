@@ -125,9 +125,14 @@ python main.py --config node.json # свой конфиг
 ```bash
 curl http://localhost:8080/health/live
 curl http://localhost:8080/status
-curl http://localhost:8080/metrics
+curl http://localhost:8080/tokenomics
+curl http://localhost:8080/peers
+curl http://localhost:8080/bridge
+curl http://localhost:8080/docs
 pytest tests/ -q
 ```
+
+Два узла локально (P2P): `.\scripts\start_two_nodes.ps1` — см. `node.example.json` / `node2.example.json`.
 
 ### Мониторинг (Grafana + Prometheus)
 

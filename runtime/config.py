@@ -57,6 +57,7 @@ class Config:
     max_tx_per_block: int = 500
     mining_enabled: bool = True
     miner_address: str = ""             # заполняется из wallet при запуске
+    signing_address: str = ""           # operational wallet for API signing
     validator_count: int = 21
     min_stake: float = 1000.0           # минимальный стейк валидатора
 

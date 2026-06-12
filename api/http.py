@@ -77,7 +77,26 @@ except ImportError:
     _JWT_AVAILABLE = False
 
 # POST без JWT даже в prod (публичные операции)
-_PUBLIC_POST_PATHS = frozenset({"/transactions"})
+_PUBLIC_POST_PATHS = frozenset({"/transactions", "/tx/send"})
+
+# Ключевые маршруты для /openapi.json и /docs
+_PUBLIC_API_ROUTES = [
+    {"method": "GET", "path": "/status", "summary": "Node status"},
+    {"method": "GET", "path": "/health/live", "summary": "Liveness probe"},
+    {"method": "GET", "path": "/health/ready", "summary": "Readiness probe"},
+    {"method": "GET", "path": "/tokenomics", "summary": "ABS tokenomics"},
+    {"method": "GET", "path": "/founder", "summary": "Founder allocation"},
+    {"method": "GET", "path": "/allocation", "summary": "Genesis allocation"},
+    {"method": "GET", "path": "/mempool", "summary": "Pending transactions"},
+    {"method": "GET", "path": "/peers", "summary": "Connected P2P peers (alias)"},
+    {"method": "GET", "path": "/network/peers", "summary": "Connected P2P peers"},
+    {"method": "GET", "path": "/sync/status", "summary": "Chain sync status"},
+    {"method": "GET", "path": "/bridge", "summary": "Bridge overview"},
+    {"method": "GET", "path": "/bridge/locks", "summary": "Bridge lock records"},
+    {"method": "GET", "path": "/wallet/status", "summary": "Signing wallet status"},
+    {"method": "POST", "path": "/transactions", "summary": "Submit transaction"},
+    {"method": "POST", "path": "/tx/send", "summary": "Submit transaction (alias, optional auto_sign)"},
+]
 
 try:
     from observability.metrics import MetricsCollector
@@ -348,6 +367,8 @@ class RESTHandler(BaseHTTPRequestHandler):
     casper_finality = None           # CasperFinality
     pool_locks = None                # PoolLockManager
     light_client = None              # LightClient (SPV)
+    wallet = None                    # Operational signing wallet (crypto.wallet.Wallet)
+    bridge = None                    # bridge.abs_bridge.RustBridge
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     metrics_collector = None
 
@@ -549,6 +570,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "ready": "/health/ready",
                         "metrics": "/metrics",
                     },
+                    "api_docs": "/docs",
+                    "openapi": "/openapi.json",
                     "middleware": {
                         "rate_limit": _RATE_LIMIT_AVAILABLE,
                         "input_validation": _INPUT_VALIDATORS_AVAILABLE,
@@ -670,12 +693,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "min_stake": cfg.min_stake,
                 })
 
-            elif path == "/network/peers":
+            elif path in ("/network/peers", "/peers"):
                 peers_info = p2p.get_peers_info() if p2p else []
                 self._json({
                     "peers": peers_info,
                     "count": len(peers_info),
                     "p2p_port": cfg.p2p_port,
+                    "solo_mode": len(peers_info) == 0,
+                    "bootstrap_peers": getattr(cfg, "bootstrap_peers", []),
                 })
 
             elif path == "/network/stats":
@@ -1373,6 +1398,51 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json({"agents": am.get_all_agents() if am else []})
 
             # ── Cross-Chain Bridge ────────────────────────────────────────────
+            elif path == "/bridge":
+                self._json(_build_bridge_overview(
+                    self.__class__.bridge,
+                    self.__class__.cross_bridge,
+                    cfg,
+                    db,
+                ))
+
+            elif path == "/wallet/status":
+                w = self.__class__.wallet
+                self._json({
+                    "signing_enabled": w is not None,
+                    "address": w.address if w else None,
+                    "signing_address": getattr(cfg, "signing_address", "") or (w.address if w else ""),
+                    "founder_address": getattr(cfg, "founder_address", ""),
+                    "miner_address": cfg.miner_address,
+                    "hint": (
+                        "Set WALLET_PRIVATE_KEY in .env for operational signing; "
+                        "block rewards accrue to miner_address"
+                    ),
+                })
+
+            elif path == "/docs":
+                routes_html = "".join(
+                    f"<li><code>{r['method']}</code> <a href='{r['path']}'>{r['path']}</a> — {r['summary']}</li>"
+                    for r in _PUBLIC_API_ROUTES
+                )
+                body = (
+                    "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+                    "<title>Absolute Blockchain API</title></head><body>"
+                    "<h1>Absolute Blockchain REST API</h1>"
+                    f"<p>OpenAPI: <a href='/openapi.json'>/openapi.json</a> | "
+                    f"Explorer: <a href='/'>/</a></p><ul>{routes_html}</ul></body></html>"
+                ).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", len(body))
+                self.send_header("Access-Control-Allow-Origin", self._cors_origin(self.headers.get("Origin", "")))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+
+            elif path == "/openapi.json":
+                self._json(_build_openapi_spec(cfg))
+
             elif path == "/bridge2/stats":
                 cb = self.__class__.cross_bridge
                 self._json(cb.get_bridge_stats() if cb else {"enabled": False})
@@ -1402,7 +1472,7 @@ class RESTHandler(BaseHTTPRequestHandler):
             # ── Sync Engine ───────────────────────────────────────────────────
             elif path == "/sync/status":
                 se = self.__class__.sync_engine
-                self._json(se.get_status() if se else {"enabled": False})
+                self._json(_build_sync_status(se, p2p, bc, cfg))
 
             # ── StateEngine ───────────────────────────────────────────────────
             elif path == "/state/supply":
@@ -1612,8 +1682,9 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             # ── Bridge: lock details, pending ─────────────────────────────────
             elif path == "/bridge/locks":
-                br = self.__class__.bridge if hasattr(self.__class__,'bridge') else None
-                locks = list(getattr(br, "locks", {}).values()) if br else []
+                locks = []
+                if db and hasattr(db, "get_bridge_locks"):
+                    locks = db.get_bridge_locks(limit=500)
                 self._json({"locks": locks, "count": len(locks)})
 
             # ── ZK verify range ───────────────────────────────────────────────
@@ -1957,8 +2028,9 @@ class RESTHandler(BaseHTTPRequestHandler):
         evm_adapter = self.__class__.evm
 
         try:
-            if path == "/transactions":
-                result = _handle_send_tx_obj(body, bc, mp, cfg)
+            if path in ("/transactions", "/tx/send"):
+                wallet = self.__class__.wallet
+                result = _handle_send_tx_with_wallet(body, bc, mp, cfg, wallet)
                 self._json({"tx_hash": result, "status": "pending"})
 
             elif path == "/contract/deploy":
@@ -3494,6 +3566,127 @@ def _format_receipt(tx: Optional[Dict]) -> Optional[Dict]:
     }
 
 
+def _parse_tx_value(value_raw) -> float:
+    """ABS amount: plain float, or 0x wei when value looks like Ethereum wei."""
+    if isinstance(value_raw, str):
+        if value_raw.startswith("0x"):
+            wei = int(value_raw, 16)
+            return wei / 10**18 if wei >= 10**15 else float(wei)
+        return float(value_raw)
+    return float(value_raw)
+
+
+def _build_sync_status(se, p2p, bc, cfg) -> Dict:
+    """Real sync view: SyncEngine when present, otherwise live P2P + local height."""
+    local_h = bc.get_height() if bc and hasattr(bc, "get_height") else 0
+    if se and hasattr(se, "get_status"):
+        status = dict(se.get_status())
+        status["enabled"] = True
+        status["source"] = "sync_engine"
+        status["local_height"] = local_h
+        return status
+
+    peer_count = p2p.peer_count() if p2p else 0
+    peers_info = p2p.get_peers_info() if p2p else []
+    best_peer_height = max((p.get("height", 0) for p in peers_info), default=local_h)
+    p2p_sync = {}
+    if p2p and getattr(p2p, "sync_engine", None):
+        try:
+            p2p_sync = p2p.sync_engine.get_status()
+        except Exception:
+            p2p_sync = {}
+
+    return {
+        "enabled": True,
+        "source": "p2p",
+        "syncing": bool(p2p_sync.get("syncing", False)),
+        "local_height": local_h,
+        "best_peer_height": best_peer_height,
+        "behind": max(0, best_peer_height - local_h),
+        "peers": peer_count,
+        "solo_mode": peer_count == 0,
+        "bootstrap_peers": getattr(cfg, "bootstrap_peers", []) if cfg else [],
+        "hint": (
+            "Solo node is normal locally. Connect peers: "
+            "python main.py --peers 127.0.0.1:5000 or bootstrap_peers in config"
+            if peer_count == 0 else None
+        ),
+    }
+
+
+def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
+    """Unified GET /bridge summary (RustBridge + CrossChainBridge + DB locks)."""
+    overview = {
+        "enabled": bool(getattr(cfg, "bridge_enabled", False)),
+        "mode": getattr(cfg, "bridge_mode", "simulator"),
+        "deployment_note": "Educational simulator — not a production mainnet bridge",
+        "supported_chains": ["ethereum", "bsc", "solana", "absolute"],
+        "endpoints": {
+            "locks": "GET /bridge/locks",
+            "lock": "POST /bridge/lock",
+            "confirm": "POST /bridge/confirm",
+            "stats_detail": "GET /bridge2/stats",
+            "fee": "GET /bridge2/fee",
+        },
+    }
+    locks = db.get_bridge_locks(limit=1000) if db and hasattr(db, "get_bridge_locks") else []
+    overview["locks"] = {
+        "total": len(locks),
+        "pending": sum(1 for l in locks if l.get("status") == "pending"),
+        "confirmed": sum(1 for l in locks if l.get("status") == "confirmed"),
+    }
+    if rb and hasattr(rb, "get_stats"):
+        overview["rust_bridge"] = rb.get_stats()
+    if cb and hasattr(cb, "get_bridge_stats"):
+        overview["cross_chain"] = cb.get_bridge_stats()
+    return overview
+
+
+def _build_openapi_spec(cfg) -> Dict:
+    http_port = getattr(cfg, "http_port", 8080) if cfg else 8080
+    paths = {}
+    for route in _PUBLIC_API_ROUTES:
+        paths.setdefault(route["path"], {})[route["method"].lower()] = {
+            "summary": route["summary"],
+            "responses": {"200": {"description": "OK"}},
+        }
+    return {
+        "openapi": "3.0.3",
+        "info": {
+            "title": "Absolute Blockchain REST API",
+            "version": getattr(cfg, "node_version", "1.2.0") if cfg else "1.2.0",
+            "description": "Educational ABS node API. See /docs for quick reference.",
+        },
+        "servers": [{"url": f"http://localhost:{http_port}"}],
+        "paths": paths,
+    }
+
+
+def _handle_send_tx_with_wallet(tx_obj: Dict, bc, mp, cfg, wallet=None) -> str:
+    """Submit tx; optional auto_sign fills from/nonce/signature from operational wallet."""
+    body = dict(tx_obj or {})
+    if wallet and body.get("auto_sign"):
+        to_addr = body.get("to", body.get("to_addr", ""))
+        if not to_addr:
+            raise ValueError("auto_sign requires 'to' address")
+        value = _parse_tx_value(body.get("value", body.get("amount", 0)))
+        nonce_raw = body.get("nonce")
+        if nonce_raw is None:
+            nonce = bc.db.get_nonce(wallet.address)
+        elif isinstance(nonce_raw, str) and nonce_raw.startswith("0x"):
+            nonce = int(nonce_raw, 16)
+        else:
+            nonce = int(nonce_raw)
+        signed = wallet.sign_transaction(
+            to_addr,
+            int(value) if value == int(value) else value,
+            nonce,
+            getattr(cfg, "chain_id", 1),
+        )
+        body.update(signed)
+    return _handle_send_tx_obj(body, bc, mp, cfg)
+
+
 def _handle_send_tx(raw_hex: str, bc, mp, cfg) -> str:
     """Принимает raw hex транзакцию и добавляет в мемпул."""
     try:
@@ -3513,12 +3706,7 @@ def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
     from_addr = tx_obj.get("from", tx_obj.get("from_addr", ""))
     to_addr = tx_obj.get("to", tx_obj.get("to_addr", ""))
     value_raw = tx_obj.get("value", tx_obj.get("amount", 0))
-
-    # Обрабатываем hex value (Ethereum-style)
-    if isinstance(value_raw, str) and value_raw.startswith("0x"):
-        value = int(value_raw, 16) / 10**18
-    else:
-        value = float(value_raw)
+    value = _parse_tx_value(value_raw)
 
     gas = int(tx_obj.get("gas", cfg.base_gas_price), 16) if isinstance(
         tx_obj.get("gas"), str) else int(tx_obj.get("gas", cfg.base_gas_price))
@@ -3532,6 +3720,9 @@ def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
         nonce=nonce,
         gas=gas,
         data=tx_obj.get("data", tx_obj.get("input", "")),
+        signature=tx_obj.get("signature", ""),
+        public_key=tx_obj.get("public_key", ""),
+        tx_hash=tx_obj.get("hash", ""),
     )
 
     validation = bc.validate_transaction(tx)
@@ -3614,7 +3805,9 @@ def create_http_server(blockchain, mempool, db, config,
                        consensus_engine_slashing=None,
                        casper_finality=None,
                        pool_locks=None,
-                       light_client=None) -> ThreadedHTTPServer:
+                       light_client=None,
+                       bridge=None,
+                       wallet=None) -> ThreadedHTTPServer:
     """Создаёт REST API сервер на config.http_port."""
     configure_rate_limiter(config)
     RESTHandler.blockchain = blockchain
@@ -3660,6 +3853,8 @@ def create_http_server(blockchain, mempool, db, config,
     RESTHandler.casper_finality = casper_finality
     RESTHandler.pool_locks = pool_locks
     RESTHandler.light_client = light_client
+    RESTHandler.bridge = bridge
+    RESTHandler.wallet = wallet
     RESTHandler.project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if _METRICS_AVAILABLE and RESTHandler.metrics_collector is None:
         RESTHandler.metrics_collector = MetricsCollector()
@@ -3700,7 +3895,9 @@ def start_http_server_thread(blockchain, mempool, db, config,
                        consensus_engine_slashing=None,
                        casper_finality=None,
                        pool_locks=None,
-                       light_client=None):
+                       light_client=None,
+                       bridge=None,
+                       wallet=None):
     """Запускает REST API в отдельном потоке. Возвращает (thread, server)."""
     server = create_http_server(
         blockchain, mempool, db, config, p2p, evm, nft, zk,
@@ -3725,6 +3922,8 @@ def start_http_server_thread(blockchain, mempool, db, config,
         casper_finality=casper_finality,
         pool_locks=pool_locks,
         light_client=light_client,
+        bridge=bridge,
+        wallet=wallet,
     )
     t = threading.Thread(target=server.serve_forever, daemon=True,
                          name="RESTServer")
