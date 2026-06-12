@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Educational%20Only-orange.svg)]()
 [![Industrial](https://img.shields.io/badge/Profile-Industrial%20Educational-blue.svg)](docs/INDUSTRIAL_ROADMAP.md)
-[![Release](https://img.shields.io/github/v/release/Gruver87/absolute-blockchain-ultimate?label=v1.2.0-industrial)](https://github.com/Gruver87/absolute-blockchain-ultimate/releases)
+[![Release](https://img.shields.io/badge/Release-v1.2.0--industrial-blue.svg)](https://github.com/Gruver87/absolute-blockchain-ultimate/releases/tag/v1.2.0-industrial)
 
 **Репозиторий:** [github.com/Gruver87/absolute-blockchain-ultimate](https://github.com/Gruver87/absolute-blockchain-ultimate)  
 **Версия:** `1.2.0-industrial` — [Roadmap](docs/INDUSTRIAL_ROADMAP.md) | [Команды](docs/COMMANDS_REFERENCE.md) | [Observability](docs/OBSERVABILITY.md)

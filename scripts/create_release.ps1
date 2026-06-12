@@ -1,4 +1,4 @@
-# Create GitHub Release for v1.0-educational
+# Create or update GitHub Release for v1.2.0-industrial
 # Run from repo ROOT: C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate
 
 $ErrorActionPreference = "Stop"
@@ -12,13 +12,13 @@ if (-not (Test-Path $Gh)) {
 $Root = Split-Path $PSScriptRoot -Parent
 Set-Location $Root
 
-$Notes = Join-Path $Root "RELEASE_NOTES_v1.0-educational.md"
+$Tag = "v1.2.0-industrial"
+$Notes = Join-Path $Root "RELEASE_NOTES_v1.2.0-industrial.md"
 if (-not (Test-Path $Notes)) {
     Write-Host "Missing: $Notes" -ForegroundColor Red
     exit 1
 }
 
-# Add gh to PATH for this session
 $env:Path = "$env:Path;C:\Program Files\GitHub CLI"
 
 Write-Host "Repo: $Root" -ForegroundColor Cyan
@@ -30,12 +30,24 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-& $Gh release create "v1.0-educational" `
-    --title "v1.0-educational - Unified Educational Node" `
-    --notes-file $Notes `
-    --prerelease `
-    --repo "Gruver87/absolute-blockchain-ultimate"
+$existing = & $Gh release view $Tag --repo "Gruver87/absolute-blockchain-ultimate" 2>&1
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "Updating release $Tag ..." -ForegroundColor Cyan
+    & $Gh release edit $Tag `
+        --title "v1.2.0-industrial - Industrial Educational Node" `
+        --notes-file $Notes `
+        --latest `
+        --prerelease=false `
+        --repo "Gruver87/absolute-blockchain-ultimate"
+} else {
+    Write-Host "Creating release $Tag ..." -ForegroundColor Cyan
+    & $Gh release create $Tag `
+        --title "v1.2.0-industrial - Industrial Educational Node" `
+        --notes-file $Notes `
+        --latest `
+        --repo "Gruver87/absolute-blockchain-ultimate"
+}
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "Release created: https://github.com/Gruver87/absolute-blockchain-ultimate/releases/tag/v1.0-educational" -ForegroundColor Green
+    Write-Host "Release ready: https://github.com/Gruver87/absolute-blockchain-ultimate/releases/tag/$Tag" -ForegroundColor Green
 }

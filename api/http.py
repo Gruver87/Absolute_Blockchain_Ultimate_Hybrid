@@ -354,8 +354,15 @@ class RESTHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         logger.debug(fmt % args)
 
+    @staticmethod
+    def _sanitize_header_value(value: str) -> str:
+        if not value:
+            return ""
+        return value.replace("\r", "").replace("\n", "").replace("\0", "").strip()
+
     @classmethod
     def _cors_origin(cls, request_origin: str = "") -> str:
+        request_origin = cls._sanitize_header_value(request_origin)
         cfg = cls.config
         origins = list(getattr(cfg, "cors_origins", ["*"]) or ["*"]) if cfg else ["*"]
         if "*" in origins:

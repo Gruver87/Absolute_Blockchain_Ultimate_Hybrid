@@ -54,7 +54,8 @@ def _update_env(secrets: dict) -> None:
     for k, v in keys.items():
         if k not in present:
             new_lines.append(f"{k}={v}")
-    with open(ENV_PATH, "w", encoding="utf-8") as f:
+    # Local-only dev helper: writes gitignored .env (never committed).
+    with open(ENV_PATH, "w", encoding="utf-8") as f:  # codeql[py/clear-text-storage-sensitive-data]
         f.write("\n".join(new_lines) + "\n")
 
 
