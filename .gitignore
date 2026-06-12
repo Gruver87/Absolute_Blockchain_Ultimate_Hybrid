@@ -9,13 +9,16 @@ venv/
 ENV/
 .venv
 
-Data (исключаем БД)
+Data (исключаем БД и локальные кошельки)
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
 data/
+data/wallet.json
+wallet.json
 logs/
+.hypothesis/
 
 IDE
 .vscode/
@@ -52,3 +55,4 @@ __pycache__/
 Old files
 Новый.py
 ABSOLUTE_FINAL_FIXED_backup.py
+absolute-blockchain-ultimate/
