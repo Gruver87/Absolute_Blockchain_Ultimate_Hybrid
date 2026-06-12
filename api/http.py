@@ -3577,18 +3577,27 @@ def _parse_tx_value(value_raw) -> float:
 
 
 def _build_sync_status(se, p2p, bc, cfg) -> Dict:
-    """Real sync view: SyncEngine when present, otherwise live P2P + local height."""
+    """Real sync view: SyncEngine when present, merged with live P2P peer heights."""
     local_h = bc.get_height() if bc and hasattr(bc, "get_height") else 0
+    peer_count = p2p.peer_count() if p2p else 0
+    peers_info = p2p.get_peers_info() if p2p else []
+    best_peer_height = max((p.get("height", 0) for p in peers_info), default=local_h)
+
     if se and hasattr(se, "get_status"):
         status = dict(se.get_status())
         status["enabled"] = True
         status["source"] = "sync_engine"
         status["local_height"] = local_h
+        status["p2p_peers"] = peer_count
+        status["best_peer_height"] = best_peer_height
+        status["behind"] = max(0, best_peer_height - local_h)
+        status["solo_mode"] = peer_count == 0
+        if peer_count == 0:
+            status["hint"] = (
+                "Solo node is normal locally. Connect peers: "
+                "python main.py --peers 127.0.0.1:5000 or .\\scripts\\start_two_nodes.ps1"
+            )
         return status
-
-    peer_count = p2p.peer_count() if p2p else 0
-    peers_info = p2p.get_peers_info() if p2p else []
-    best_peer_height = max((p.get("height", 0) for p in peers_info), default=local_h)
     p2p_sync = {}
     if p2p and getattr(p2p, "sync_engine", None):
         try:
@@ -3637,8 +3646,10 @@ def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
     }
     if rb and hasattr(rb, "get_stats"):
         overview["rust_bridge"] = rb.get_stats()
+        overview["bridge_fees"] = overview["rust_bridge"].get("bridge_fees", {})
     if cb and hasattr(cb, "get_bridge_stats"):
         overview["cross_chain"] = cb.get_bridge_stats()
+    overview["status"] = "simulator" if overview.get("mode") == "simulator" else overview.get("mode")
     return overview
 
 

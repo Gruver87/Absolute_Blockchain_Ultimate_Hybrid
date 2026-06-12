@@ -1362,14 +1362,26 @@ def parse_args() -> argparse.Namespace:
 
 
 def build_config(args: argparse.Namespace) -> Config:
-    """Строит Config из файла + аргументов командной строки."""
-    if args.config and os.path.exists(args.config):
-        config = Config.from_json(args.config)
-        print(f"[Config] Loaded from: {args.config}")
-    else:
-        config = Config()
+    """Строит Config: .env → JSON-файл → CLI (последний побеждает)."""
+    config = Config()
 
-    # Переопределяем из аргументов CLI
+    # 1) Глобальные значения из .env / окружения
+    try:
+        from runtime.env_loader import load_dotenv_file
+        load_dotenv_file(os.path.join(BASE_DIR, ".env"))
+    except Exception:
+        pass
+    config.apply_env()
+
+    # 2) JSON-файл узла (перекрывает .env — важно для node2 на других портах)
+    if args.config and os.path.exists(args.config):
+        file_cfg = Config.from_json(args.config)
+        for key, value in file_cfg.__dict__.items():
+            if not key.startswith("_"):
+                setattr(config, key, value)
+        print(f"[Config] Loaded from: {args.config}")
+
+    # 3) CLI — высший приоритет
     if args.port:
         config.p2p_port = args.port
     if args.rpc_port:
@@ -1389,18 +1401,6 @@ def build_config(args: argparse.Namespace) -> Config:
         config.evm_enabled = False
     if args.log_level:
         config.log_level = args.log_level
-
-    # Переменные окружения / .env (Docker, K8s, prod)
-    try:
-        from runtime.env_loader import load_dotenv_file
-        load_dotenv_file(os.path.join(BASE_DIR, ".env"))
-    except Exception:
-        pass
-    if not args.data_dir and os.getenv("DATA_DIR"):
-        data_dir = os.getenv("DATA_DIR", "")
-        config.db_path = os.path.join(data_dir, "blockchain.db")
-        config.log_file = os.path.join(data_dir, "node.log")
-    config.apply_env()
 
     errors = config.validate()
     if errors and config.is_production:

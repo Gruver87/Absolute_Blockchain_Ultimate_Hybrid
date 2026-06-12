@@ -70,8 +70,12 @@ python main.py --rpc-port 8545
 python main.py --port 5001          # P2P порт
 python main.py --data-dir ./data/node2
 python main.py --config node.json
+python main.py --config node2.example.json   # порты из JSON перекрывают .env
 python main.py --log-level DEBUG
 ```
+
+Порядок конфигурации: **`.env` → JSON-файл узла → CLI`**.  
+Для второго узла используйте `node2.example.json` (P2P `:5001`, REST `:8081`).
 
 ### Prod-профиль
 

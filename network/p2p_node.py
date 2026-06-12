@@ -178,6 +178,7 @@ class P2PNode:
         # Периодические задачи
         asyncio.create_task(self._ping_loop())
         asyncio.create_task(self._discovery_loop())
+        asyncio.create_task(self._bootstrap_retry_loop())
         asyncio.create_task(self._solo_node_hint())
 
         if self._server:
@@ -511,6 +512,17 @@ class P2PNode:
                     parts = addr.split(":")
                     if len(parts) == 2:
                         asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
+
+    async def _bootstrap_retry_loop(self):
+        """Переподключение к bootstrap-пирам, пока нет соединений."""
+        while self._running:
+            await asyncio.sleep(20)
+            if self.peers or not self.config.bootstrap_peers:
+                continue
+            for peer_addr in self.config.bootstrap_peers:
+                parts = peer_addr.split(":")
+                if len(parts) == 2:
+                    asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
 
     async def _solo_node_hint(self):
         """One-time hint when running without peers (normal for solo dev)."""

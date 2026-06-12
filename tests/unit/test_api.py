@@ -57,6 +57,15 @@ def _get(url: str) -> tuple:
         return resp.status, resp.read()
 
 
+def _post(url: str, payload: dict) -> tuple:
+    data = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        url, data=data, headers={"Content-Type": "application/json"}, method="POST"
+    )
+    with urllib.request.urlopen(req, timeout=5) as resp:
+        return resp.status, resp.read()
+
+
 def test_config_apply_env_prod_wallet_required(tmp_path, monkeypatch):
     monkeypatch.setenv("DEPLOYMENT_MODE", "prod")
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
@@ -110,3 +119,70 @@ def test_status_has_health_links(api_server):
     assert status == 200
     assert "health" in data
     assert data["health"]["live"] == "/health/live"
+    assert data.get("api_docs") == "/docs"
+    assert data.get("openapi") == "/openapi.json"
+
+
+def test_peers_alias(api_server):
+    base, _ = api_server
+    status, body = _get(f"{base}/peers")
+    data = json.loads(body)
+    assert status == 200
+    assert "peers" in data
+    assert "solo_mode" in data
+    assert data["count"] == 0
+    assert data["solo_mode"] is True
+
+
+def test_bridge_overview(api_server):
+    base, _ = api_server
+    status, body = _get(f"{base}/bridge")
+    data = json.loads(body)
+    assert status == 200
+    assert data["enabled"] is True
+    assert data["mode"] in ("simulator", "rust")
+    assert "locks" in data
+    assert "supported_chains" in data
+
+
+def test_sync_status_real(api_server):
+    base, _ = api_server
+    status, body = _get(f"{base}/sync/status")
+    data = json.loads(body)
+    assert status == 200
+    assert data["enabled"] is True
+    assert "local_height" in data
+    assert data["solo_mode"] is True
+
+
+def test_wallet_status(api_server):
+    base, _ = api_server
+    status, body = _get(f"{base}/wallet/status")
+    data = json.loads(body)
+    assert status == 200
+    assert "signing_enabled" in data
+    assert "miner_address" in data
+
+
+def test_openapi_spec(api_server):
+    base, _ = api_server
+    status, body = _get(f"{base}/openapi.json")
+    data = json.loads(body)
+    assert status == 200
+    assert data["openapi"] == "3.0.3"
+    assert "/peers" in data["paths"]
+    assert "/bridge" in data["paths"]
+
+
+def test_tx_send_alias(api_server, industrial_config):
+    base, cfg = api_server
+    db = Database(cfg.db_path, synchronous="NORMAL")
+    sender = "0x" + "a" * 40
+    recipient = "0x" + "b" * 40
+    db.set_balance(sender, 100.0)
+    body = {"from": sender, "to": recipient, "value": 1.0, "nonce": 0}
+    status, raw = _post(f"{base}/tx/send", body)
+    data = json.loads(raw)
+    assert status == 200
+    assert data["status"] == "pending"
+    assert len(data["tx_hash"]) == 64
