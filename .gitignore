@@ -57,8 +57,9 @@ htmlcov/
 __pycache__/
 *.pyc
 
-# Local audit reports (optional keep locally)
-# data/mega_audit_report.json
+# Local audit reports (may contain outdated snippets)
+audit_export.txt
+data/mega_audit_report.json
 
 Old files
 Новый.py
