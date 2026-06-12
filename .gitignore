@@ -10,6 +10,7 @@ venv/
 ENV/
 .venv
 
+<<<<<<< HEAD
 Data (исключаем БД)
 *.db
 *.db-journal
@@ -17,16 +18,31 @@ Data (исключаем БД)
 *.db-shm
 data/
 logs/
+=======
+Project data
+data/
+logs/
+*.db
+*.db.backup
+*.corrupted_backup
+*.db-shm
+*.db-wal
+>>>>>>> e1325e33910593a6992287e350ec884bed59f946
 
 IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+<<<<<<< HEAD
+=======
+*~
+>>>>>>> e1325e33910593a6992287e350ec884bed59f946
 
 OS
 .DS_Store
 Thumbs.db
+<<<<<<< HEAD
 
 Backup
 backup_*/
@@ -35,10 +51,34 @@ backup_*/
 *.broken
 
 Secrets
+=======
+desktop.ini
+
+Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+
+Backup files
+*.backup
+backup.py
+backup/
+*.bak
+
+Temp files
+*.log
+*.tmp
+test_hardened_system/
+
+Sensitive
+>>>>>>> e1325e33910593a6992287e350ec884bed59f946
 .env
 .env.local
 *.pem
 *.key
+<<<<<<< HEAD
 
 Coverage
 .coverage
@@ -48,3 +88,19 @@ htmlcov/
 Old files
 Новый.py
 ABSOLUTE_FINAL_FIXED_backup.py
+=======
+secrets.py
+
+Docker
+*.tar
+*.tar.gz
+
+Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+C extensions
+*.so
+*.pyd
+*.dll
+>>>>>>> e1325e33910593a6992287e350ec884bed59f946

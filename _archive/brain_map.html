@@ -1,0 +1,140 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ethereum Brain Map</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: monospace; }
+        #graph { width: 100vw; height: 100vh; background: #0a0a0a; }
+        .node text { fill: #0f0; font-size: 12px; }
+        .link { stroke: #0f0; stroke-opacity: 0.5; }
+        .tooltip { position: absolute; background: #111; border: 1px solid #0f0; padding: 5px; border-radius: 5px; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="graph"></div>
+    <script>
+        const graphData = {
+  "nodes": [
+    {
+      "id": "mempool",
+      "type": "input",
+      "label": "Mempool\n15 txs",
+      "value": 0.15
+    },
+    {
+      "id": "validators",
+      "type": "process",
+      "label": "Validators\n32 active\n1000000 stake",
+      "value": 0.32
+    },
+    {
+      "id": "blocks",
+      "type": "storage",
+      "label": "Blocks\n500 blocks\n5000000 gas",
+      "value": 0.5
+    },
+    {
+      "id": "state",
+      "type": "output",
+      "label": "State\n250 accounts\n12 contracts",
+      "value": 0.25
+    }
+  ],
+  "links": [
+    {
+      "source": "mempool",
+      "target": "validators",
+      "strength": 0.8
+    },
+    {
+      "source": "validators",
+      "target": "blocks",
+      "strength": 0.9
+    },
+    {
+      "source": "blocks",
+      "target": "state",
+      "strength": 1.0
+    },
+    {
+      "source": "mempool",
+      "target": "blocks",
+      "strength": 0.6
+    }
+  ]
+};
+        
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        
+        const svg = d3.select("#graph")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+        
+        const simulation = d3.forceSimulation(graphData.nodes)
+            .force("link", d3.forceLink(graphData.links).id(d => d.id).distance(200))
+            .force("charge", d3.forceManyBody().strength(-500))
+            .force("center", d3.forceCenter(width / 2, height / 2));
+        
+        const link = svg.append("g")
+            .selectAll("line")
+            .data(graphData.links)
+            .enter()
+            .append("line")
+            .attr("class", "link")
+            .attr("stroke-width", d => d.strength * 3);
+        
+        const node = svg.append("g")
+            .selectAll("g")
+            .data(graphData.nodes)
+            .enter()
+            .append("g")
+            .call(d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended));
+        
+        node.append("circle")
+            .attr("r", d => 30 + d.value * 30)
+            .attr("fill", d => d.type === "input" ? "#0a3a0a" : d.type === "output" ? "#3a0a3a" : "#0a0a3a")
+            .attr("stroke", "#0f0")
+            .attr("stroke-width", 2);
+        
+        node.append("text")
+            .attr("text-anchor", "middle")
+            .attr("dy", ".3em")
+            .text(d => d.label)
+            .attr("fill", "#0f0")
+            .attr("font-size", "12px");
+        
+        simulation.on("tick", () => {
+            link.attr("x1", d => d.source.x)
+                .attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x)
+                .attr("y2", d => d.target.y);
+            
+            node.attr("transform", d => `translate(${d.x}, ${d.y})`);
+        });
+        
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+        
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+        
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+    </script>
+</body>
+</html>

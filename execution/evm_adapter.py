@@ -1,0 +1,246 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+EVM Adapter — подключает evm_interpreter.py к живому состоянию блокчейна.
+
+Обеспечивает:
+  - Деплой смарт-контрактов (сохранение байткода в БД)
+  - Вызов методов контрактов (загрузка/сохранение storage из БД)
+  - Оценка газа
+"""
+
+import hashlib
+import json
+import sys
+import os
+import time
+from typing import Optional, Dict, Any
+
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
+from evm_interpreter import EVM
+from storage.database import Database
+from runtime.config import Config
+
+
+class EVMResult:
+    """Результат выполнения EVM-транзакции."""
+
+    def __init__(self, success: bool, return_value: Any = None,
+                 gas_used: int = 0, error: str = "", logs: list = None,
+                 storage_changes: Dict = None):
+        self.success = success
+        self.return_value = return_value
+        self.gas_used = gas_used
+        self.error = error
+        self.logs = logs or []
+        self.storage_changes = storage_changes or {}
+
+    def to_dict(self) -> Dict:
+        return {
+            "success": self.success,
+            "return_value": self.return_value,
+            "gas_used": self.gas_used,
+            "error": self.error,
+            "logs": self.logs,
+            "storage_changes": self.storage_changes,
+        }
+
+
+class EVMAdapter:
+    """
+    Адаптер EVM: связывает evm_interpreter.EVM с хранилищем узла.
+    Загружает/сохраняет storage и bytecode в Database.
+    """
+
+    def __init__(self, db: Database, config: Config):
+        self.db = db
+        self.config = config
+
+    # ── Деплой контракта ─────────────────────────────────────────────────────
+
+    def deploy_contract(self, deployer: str, bytecode_hex: str,
+                        value: float = 0.0, gas_limit: int = 0) -> EVMResult:
+        """
+        Деплоит смарт-контракт.
+        Сохраняет байткод и начальное состояние в БД.
+        Возвращает адрес контракта.
+        """
+        gas_limit = gas_limit or self.config.evm_gas_limit
+
+        try:
+            bytecode = bytes.fromhex(bytecode_hex.replace("0x", ""))
+        except ValueError as e:
+            return EVMResult(success=False, error=f"invalid_bytecode: {e}")
+
+        # Адрес контракта = sha256(deployer + timestamp)
+        contract_addr = "0x" + hashlib.sha256(
+            f"{deployer}{time.time()}".encode()
+        ).hexdigest()[:40]
+
+        # Выполняем конструктор
+        evm = EVM(gas_limit=gas_limit)
+        try:
+            result = evm.execute_bytecode(bytecode)
+        except Exception as e:
+            return EVMResult(success=False, error=str(e),
+                             gas_used=evm.gas_used)
+
+        # Сохраняем контракт в БД
+        self.db.save_account(
+            address=contract_addr,
+            balance=value,
+            nonce=0,
+            code=bytecode_hex,
+            storage=json.dumps(result.get("storage", {})),
+        )
+
+        # Стоимость деплоя списывается с deployer
+        if value > 0:
+            self.db.update_balance(deployer, -value)
+            self.db.update_balance(contract_addr, value)
+
+        return EVMResult(
+            success=True,
+            return_value=contract_addr,
+            gas_used=result["gas_used"],
+            storage_changes=result.get("storage", {}),
+        )
+
+    # ── Вызов контракта ──────────────────────────────────────────────────────
+
+    def call_contract(self, caller: str, contract_addr: str,
+                      calldata_hex: str = "", value: float = 0.0,
+                      gas_limit: int = 0) -> EVMResult:
+        """
+        Вызывает метод смарт-контракта (изменяет состояние).
+        Загружает bytecode и storage из БД, после выполнения сохраняет изменения.
+        """
+        gas_limit = gas_limit or self.config.evm_gas_limit
+
+        account = self.db.get_account(contract_addr)
+        if not account or not account.get("code"):
+            return EVMResult(success=False, error="not_a_contract")
+
+        try:
+            bytecode = bytes.fromhex(account["code"].replace("0x", ""))
+        except ValueError as e:
+            return EVMResult(success=False, error=f"invalid_stored_bytecode: {e}")
+
+        # Загружаем хранилище контракта
+        storage_raw = account.get("storage") or "{}"
+        try:
+            storage = {int(k): int(v) for k, v in json.loads(storage_raw).items()}
+        except Exception:
+            storage = {}
+
+        evm = EVM(gas_limit=gas_limit)
+        evm.storage = storage
+
+        # Если есть calldata — кладём её в стек как число (упрощённо)
+        if calldata_hex:
+            try:
+                calldata_int = int(calldata_hex.replace("0x", ""), 16)
+                evm.stack.append(calldata_int)
+            except ValueError:
+                pass
+
+        try:
+            result = evm.execute_bytecode(bytecode)
+        except Exception as e:
+            return EVMResult(success=False, error=str(e),
+                             gas_used=evm.gas_used)
+
+        # Сохраняем изменённое storage
+        new_storage = {str(k): v for k, v in result.get("storage", {}).items()}
+        self.db.update_account_storage(contract_addr, new_storage)
+
+        # Перевод value от caller к контракту
+        if value > 0:
+            self.db.update_balance(caller, -value)
+            self.db.update_balance(contract_addr, value)
+
+        # Возвращаемое значение — последний элемент стека
+        stack = result.get("stack", [])
+        return_value = stack[-1] if stack else None
+
+        return EVMResult(
+            success=result["success"],
+            return_value=return_value,
+            gas_used=result["gas_used"],
+            storage_changes=new_storage,
+        )
+
+    # ── Статический вызов (read-only) ────────────────────────────────────────
+
+    def static_call(self, contract_addr: str,
+                    calldata_hex: str = "", gas_limit: int = 0) -> EVMResult:
+        """
+        Вызывает контракт без изменения состояния (eth_call).
+        Storage НЕ сохраняется.
+        """
+        gas_limit = gas_limit or self.config.evm_gas_limit
+
+        account = self.db.get_account(contract_addr)
+        if not account or not account.get("code"):
+            return EVMResult(success=False, error="not_a_contract")
+
+        try:
+            bytecode = bytes.fromhex(account["code"].replace("0x", ""))
+        except ValueError as e:
+            return EVMResult(success=False, error=f"invalid_bytecode: {e}")
+
+        storage_raw = account.get("storage") or "{}"
+        try:
+            storage = {int(k): int(v) for k, v in json.loads(storage_raw).items()}
+        except Exception:
+            storage = {}
+
+        evm = EVM(gas_limit=gas_limit)
+        evm.storage = storage
+
+        if calldata_hex:
+            try:
+                evm.stack.append(int(calldata_hex.replace("0x", ""), 16))
+            except ValueError:
+                pass
+
+        try:
+            result = evm.execute_bytecode(bytecode)
+        except Exception as e:
+            return EVMResult(success=False, error=str(e), gas_used=evm.gas_used)
+
+        stack = result.get("stack", [])
+        return EVMResult(
+            success=result["success"],
+            return_value=stack[-1] if stack else None,
+            gas_used=result["gas_used"],
+        )
+
+    # ── Оценка газа ──────────────────────────────────────────────────────────
+
+    def estimate_gas(self, contract_addr: str, calldata_hex: str = "") -> int:
+        """Оценивает количество газа для вызова. Запускает dry-run."""
+        result = self.static_call(contract_addr, calldata_hex,
+                                  gas_limit=self.config.evm_gas_limit)
+        if result.success:
+            return int(result.gas_used * 1.2)  # +20% буфер
+        return self.config.evm_gas_limit
+
+    # ── Справочная информация ────────────────────────────────────────────────
+
+    def get_contract_info(self, contract_addr: str) -> Dict:
+        """Возвращает информацию о смарт-контракте."""
+        account = self.db.get_account(contract_addr)
+        if not account:
+            return {"exists": False}
+        return {
+            "exists": True,
+            "address": contract_addr,
+            "is_contract": bool(account.get("code")),
+            "balance": account.get("balance", 0.0),
+            "code_size": len(account.get("code") or "") // 2,
+            "storage_slots": len(json.loads(account.get("storage") or "{}")),
+        }

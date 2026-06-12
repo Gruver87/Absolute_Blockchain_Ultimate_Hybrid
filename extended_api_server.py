@@ -1,5 +1,9 @@
+<<<<<<< HEAD
 ﻿import os
 #!/usr/bin/env python3
+=======
+﻿#!/usr/bin/env python3
+>>>>>>> e1325e33910593a6992287e350ec884bed59f946
 # -*- coding: utf-8 -*-
 """
 ABSOLUTE BLOCKCHAIN - ДОПОЛНИТЕЛЬНЫЙ API СЕРВЕР
@@ -295,4 +299,7 @@ async def metrics_info():
     uvicorn.run(app, host="0.0.0.0", port=8081)
 
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> e1325e33910593a6992287e350ec884bed59f946

@@ -1,0 +1,299 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Consensus Adapter — связывает все компоненты консенсуса с живым узлом.
+
+Интегрирует:
+  - ConsensusEngineSlashing  : LMD-GHOST fork choice + Casper FFG + Slashing
+  - ConsensusEngine          : PoS proposer rotation, slots/epochs (fallback)
+  - FinalityEngine           : Casper FFG checkpoint finalization
+  - ValidatorRegistry        : Репутация, слэшинг, статистика валидаторов
+  - PBSMarket                : Proposer/Builder Separation (MEV protection)
+"""
+
+import time
+import sys
+import os
+from typing import Optional, Dict, List
+
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
+from consensus_engine import ConsensusEngine, Validator
+from finality_engine import FinalityEngine
+from storage.database import Database
+from runtime.config import Config
+from kernel.event_bus import EventBus
+
+# --- System C consensus (LMD-GHOST + Slashing + BeaconFinality) ---
+try:
+    from consensus.engine_slashing import ConsensusEngineSlashing
+    from consensus.validator_registry import ValidatorRegistry
+    from consensus.pbs import PBSMarket, Builder, Proposer
+    _SLASHING_AVAILABLE = True
+except ImportError:
+    _SLASHING_AVAILABLE = False
+
+
+class ConsensusAdapter:
+    """
+    Unified consensus adapter — объединяет лучшее из трёх систем:
+
+    System A (основная):
+      ConsensusEngine      → proposer selection, slot advancement
+      FinalityEngine       → Casper FFG checkpoints
+
+    System C (расширенная):
+      ConsensusEngineSlashing → LMD-GHOST fork choice + slashing protection
+      ValidatorRegistry       → reputation, missed-block penalties
+      PBSMarket               → proposer/builder separation (MEV)
+    """
+
+    def __init__(self, config: Config, db: Database, bus: Optional[EventBus] = None):
+        self.config = config
+        self.db = db
+        self.bus = bus
+
+        # --- System A engines (always available) ---
+        self.engine = ConsensusEngine()
+        self.finality = FinalityEngine()
+
+        # --- System C engines (available if imported) ---
+        if _SLASHING_AVAILABLE:
+            epoch_size = getattr(config, "epoch_size", 32)
+            self.slashing_engine = ConsensusEngineSlashing(epoch_size=epoch_size)
+            self.validator_registry = ValidatorRegistry()
+            self.pbs_market = PBSMarket()
+            # Default builder/proposer
+            self.pbs_market.add_builder(Builder("default-builder"))
+            self.pbs_market.add_proposer(Proposer("default-proposer"))
+            print("[Consensus] LMD-GHOST + Slashing + ValidatorRegistry + PBS: enabled")
+        else:
+            self.slashing_engine = None
+            self.validator_registry = None
+            self.pbs_market = None
+            print("[Consensus] Basic PoS mode (engine_slashing not available)")
+
+        self._last_block_time: float = 0.0
+        self._load_validators_from_db()
+
+        if self.bus:
+            self.bus.on("block.new", self._on_new_block)
+
+    # ── Инициализация ────────────────────────────────────────────────────────
+
+    def _load_validators_from_db(self):
+        """Загружает валидаторов из БД при старте."""
+        validators = self.db.get_validators(active_only=True)
+        for v in validators:
+            self._register_validator_all(v["address"], float(v["stake"]))
+        if validators:
+            print(f"[Consensus] Loaded {len(validators)} validators from DB")
+
+    def _register_validator_all(self, address: str, stake: float):
+        """Регистрирует валидатора во всех подсистемах."""
+        self.engine.add_validator(address, stake)
+        if self.slashing_engine:
+            self.slashing_engine.add_validator(address, int(stake))
+        if self.validator_registry:
+            self.validator_registry.register_validator(address, int(stake))
+
+    # ── Управление валидаторами ──────────────────────────────────────────────
+
+    def add_validator(self, address: str, stake: float) -> bool:
+        """Регистрирует нового валидатора (сохраняет в БД + во все движки)."""
+        ok = self.engine.add_validator(address, stake)
+        if ok:
+            self.db.save_validator(address, stake)
+            if self.slashing_engine:
+                self.slashing_engine.add_validator(address, int(stake))
+            if self.validator_registry:
+                self.validator_registry.register_validator(address, int(stake))
+            print(f"[Consensus] New validator: {address[:12]}... stake={stake}")
+        return ok
+
+    def slash_validator(self, address: str):
+        """Слэшит валидатора (нарушение консенсуса)."""
+        if self.validator_registry:
+            self.validator_registry.slash_validator(address)
+            print(f"[Consensus] Validator slashed: {address[:12]}...")
+
+    def get_validators(self) -> List[Dict]:
+        if self.validator_registry:
+            return [v.to_dict() for v in self.validator_registry.get_all_validators()]
+        return [
+            {
+                "address": v.address,
+                "stake": v.stake,
+                "is_active": v.is_active,
+                "attestations": v.attestations,
+                "blocks_proposed": v.blocks_proposed,
+            }
+            for v in self.engine.validators.values()
+        ]
+
+    def get_total_stake(self) -> float:
+        return self.engine.get_total_stake()
+
+    # ── Выбор proposer ───────────────────────────────────────────────────────
+
+    def select_proposer(self) -> Optional[str]:
+        """Возвращает адрес валидатора для форжинга следующего блока."""
+        if not self.engine.validators:
+            return self.config.miner_address or "genesis"
+
+        # Используем ValidatorRegistry для выбора лучшего валидатора
+        if self.validator_registry:
+            top = self.validator_registry.get_top_validators(limit=1)
+            if top and not top[0].slashed:
+                return top[0].address
+
+        validator = self.engine.select_proposer()
+        return validator.address if validator else self.config.miner_address or "genesis"
+
+    def should_produce_block(self) -> bool:
+        """Проверяет, наступило ли время форжить следующий блок."""
+        now = time.time()
+        return now - self._last_block_time >= self.config.block_time
+
+    def mark_block_produced(self, proposer: str = None):
+        """Вызывается после успешного форжинга блока."""
+        self._last_block_time = time.time()
+        self.engine.advance_slot()
+        if proposer and self.validator_registry:
+            self.validator_registry.record_produced_block(proposer)
+
+    # ── Аттестации ───────────────────────────────────────────────────────────
+
+    def attest(self, validator_addr: str, block_hash: str) -> bool:
+        """Аттестация блока от валидатора. Проверяет на double-vote (slashing)."""
+        slot = self.engine.current_slot
+
+        # LMD-GHOST + slashing check
+        if self.slashing_engine:
+            ok = self.slashing_engine.on_attestation(validator_addr, block_hash, slot)
+            if not ok:
+                print(f"[Consensus] Attestation rejected (slashing): {validator_addr[:12]}...")
+                return False
+
+        ok = self.engine.attest(validator_addr, slot, block_hash)
+        if ok:
+            if self.validator_registry:
+                self.validator_registry.record_vote(validator_addr)
+            if self.bus:
+                self.bus.emit("consensus.attestation", {
+                    "validator": validator_addr,
+                    "slot": slot,
+                    "block_hash": block_hash,
+                })
+        return ok
+
+    # ── GHOST fork choice ────────────────────────────────────────────────────
+
+    def get_canonical_head(self) -> Optional[str]:
+        """Возвращает хэш канонической головы цепи по LMD-GHOST."""
+        if self.slashing_engine:
+            return self.slashing_engine.get_head()
+        return None
+
+    def add_block_to_fork_choice(self, block: Dict):
+        """Добавляет блок в дерево для GHOST fork choice."""
+        if self.slashing_engine:
+            self.slashing_engine.add_block(block)
+
+    def get_cumulative_weight(self, block_hash: str) -> int:
+        """Кумулятивный вес блока для LMD-GHOST."""
+        if self.slashing_engine:
+            return self.slashing_engine.get_cumulative_weight(block_hash)
+        return 0
+
+    # ── PBS (MEV protection) ─────────────────────────────────────────────────
+
+    def run_pbs_auction(self, pending_txs: List[Dict]) -> Optional[Dict]:
+        """
+        Запускает аукцион PBS: builders создают блоки,
+        proposer выбирает наиболее доходный.
+        """
+        if self.pbs_market and pending_txs:
+            return self.pbs_market.run_auction(pending_txs)
+        return None
+
+    # ── Финальность ──────────────────────────────────────────────────────────
+
+    def process_block_finality(self, block_number: int, block_hash: str,
+                               proposer: str) -> Dict:
+        """Обновляет статус финализации после добавления блока."""
+        result = self.finality.process_block(block_number, block_hash, proposer)
+
+        epoch = result["epoch"]
+        justified = epoch in result["justified"]
+        finalized = epoch in result["finalized"]
+        self.db.save_checkpoint(epoch, block_hash, justified, finalized)
+
+        if finalized and self.bus:
+            self.bus.emit("consensus.finalized", {"epoch": epoch, "block": block_number})
+
+        # Также обновляем слэшинг-движок финальностью
+        if self.slashing_engine:
+            self.slashing_engine.finality.set_total_stake(
+                self.slashing_engine.slashing.get_total_active_stake()
+            )
+
+        return result
+
+    def is_finalized(self, block_number: int) -> bool:
+        epoch = self.finality.get_epoch(block_number)
+        finalized_by_casper = epoch in self.finality.finalized_checkpoints
+        if self.slashing_engine and not finalized_by_casper:
+            # Also check GHOST finality
+            return False
+        return finalized_by_casper
+
+    def get_finality_status(self, block_number: int) -> Dict:
+        return self.finality.get_finality_status(block_number)
+
+    # ── Слушатель событий ────────────────────────────────────────────────────
+
+    def _on_new_block(self, block_data: Dict):
+        """Автоматически обрабатывает финализацию при каждом новом блоке."""
+        if not isinstance(block_data, dict):
+            return
+        proposer = block_data.get("miner", "")
+        self.process_block_finality(
+            block_number=block_data.get("height", 0),
+            block_hash=block_data.get("hash", ""),
+            proposer=proposer,
+        )
+        # Feed block to GHOST fork tree
+        self.add_block_to_fork_choice({
+            "hash": block_data.get("hash", ""),
+            "parent_hash": block_data.get("parent_hash", ""),
+            "number": block_data.get("height", 0),
+        })
+        # Record block production in validator registry
+        if proposer and self.validator_registry:
+            self.validator_registry.record_produced_block(proposer)
+
+    # ── Статистика ───────────────────────────────────────────────────────────
+
+    def get_stats(self) -> Dict:
+        engine_stats = self.engine.get_stats()
+        finality_stats = self.finality.get_stats()
+        stats = {
+            **engine_stats,
+            **finality_stats,
+            "block_time": self.config.block_time,
+            "min_stake": self.config.min_stake,
+            "lmd_ghost_enabled": self.slashing_engine is not None,
+            "pbs_enabled": self.pbs_market is not None,
+        }
+        if self.slashing_engine:
+            slashing_stats = self.slashing_engine.get_stats()
+            stats["slashed_validators"] = slashing_stats.get("slashed_validators", 0)
+            stats["slashed_stake"] = slashing_stats.get("slashed_stake", 0)
+            stats["canonical_head"] = slashing_stats.get("head_hash")
+        if self.validator_registry:
+            reg_stats = self.validator_registry.get_stats()
+            stats.update(reg_stats)
+        return stats

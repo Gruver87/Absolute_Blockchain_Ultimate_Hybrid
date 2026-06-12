@@ -1,0 +1,142 @@
+[
+  {
+    "entry": "main",
+    "used_files_count": 1,
+    "components": {
+      "🔐 CRYPTO": 1
+    },
+    "capabilities": [
+      "❌ Blockchain Core",
+      "❌ Storage",
+      "❌ RPC/API",
+      "❌ WebSocket",
+      "❌ P2P Network",
+      "❌ Consensus Engine",
+      "❌ EVM/VM",
+      "❌ NFT Marketplace",
+      "❌ Sharding",
+      "❌ Oracles"
+    ],
+    "init_calls": [],
+    "threads": 0,
+    "api_routes": 0
+  },
+  {
+    "entry": "run_unified",
+    "used_files_count": 1,
+    "components": {
+      "🔐 CRYPTO": 1
+    },
+    "capabilities": [
+      "❌ Blockchain Core",
+      "❌ Storage",
+      "❌ RPC/API",
+      "❌ WebSocket",
+      "❌ P2P Network",
+      "❌ Consensus Engine",
+      "❌ EVM/VM",
+      "❌ NFT Marketplace",
+      "❌ Sharding",
+      "❌ Oracles"
+    ],
+    "init_calls": [],
+    "threads": 0,
+    "api_routes": 0
+  },
+  {
+    "entry": "node_persistent",
+    "used_files_count": 1,
+    "components": {
+      "🔐 CRYPTO": 1
+    },
+    "capabilities": [
+      "❌ Blockchain Core",
+      "❌ Storage",
+      "❌ RPC/API",
+      "❌ WebSocket",
+      "❌ P2P Network",
+      "❌ Consensus Engine",
+      "❌ EVM/VM",
+      "❌ NFT Marketplace",
+      "❌ Sharding",
+      "❌ Oracles"
+    ],
+    "init_calls": [],
+    "threads": 0,
+    "api_routes": 0
+  },
+  {
+    "entry": "ABSOLUTE_FINAL_FIXED",
+    "used_files_count": 2,
+    "components": {
+      "🔐 CRYPTO": 2
+    },
+    "capabilities": [
+      "❌ Blockchain Core",
+      "❌ Storage",
+      "❌ RPC/API",
+      "❌ WebSocket",
+      "❌ P2P Network",
+      "❌ Consensus Engine",
+      "❌ EVM/VM",
+      "❌ NFT Marketplace",
+      "❌ Sharding",
+      "❌ Oracles"
+    ],
+    "init_calls": [
+      "p2p",
+      "sharding",
+      "miner",
+      "evm",
+      "consensus",
+      "zk",
+      "nft"
+    ],
+    "threads": 11,
+    "api_routes": 237
+  },
+  {
+    "entry": "ABSOLUTE_UNIFIED",
+    "used_files_count": 1,
+    "components": {
+      "🔐 CRYPTO": 1
+    },
+    "capabilities": [
+      "❌ Blockchain Core",
+      "❌ Storage",
+      "❌ RPC/API",
+      "❌ WebSocket",
+      "❌ P2P Network",
+      "❌ Consensus Engine",
+      "❌ EVM/VM",
+      "❌ NFT Marketplace",
+      "❌ Sharding",
+      "❌ Oracles"
+    ],
+    "init_calls": [],
+    "threads": 0,
+    "api_routes": 0
+  },
+  {
+    "entry": "ABSOLUTE_UNIFIED_FULL",
+    "used_files_count": 1,
+    "components": {
+      "🔐 CRYPTO": 1
+    },
+    "capabilities": [
+      "❌ Blockchain Core",
+      "❌ Storage",
+      "❌ RPC/API",
+      "❌ WebSocket",
+      "❌ P2P Network",
+      "❌ Consensus Engine",
+      "❌ EVM/VM",
+      "❌ NFT Marketplace",
+      "❌ Sharding",
+      "❌ Oracles"
+    ],
+    "init_calls": [],
+    "threads": 0,
+    "api_routes": 0
+  }
+]
