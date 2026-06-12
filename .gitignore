@@ -56,3 +56,7 @@ Old files
 Новый.py
 ABSOLUTE_FINAL_FIXED_backup.py
 absolute-blockchain-ultimate/
+_archive/
+
+# Локальный архив старых версий — на рабочем столе:
+# Desktop/Начало блокчейна/  (не в git)

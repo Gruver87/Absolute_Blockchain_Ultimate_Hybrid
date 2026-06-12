@@ -141,12 +141,14 @@ absolute-blockchain-ultimate/
 ├── features/               # NFT, ZK, Lightning, AI и др.
 ├── storage/database.py     # SQLite + meta
 ├── bridge/                 # Cross-chain (simulator)
-├── _archive/               # Устаревший код (не использовать)
+├── scripts/                # setup_gh.ps1, create_release.ps1
 ├── requirements.txt
 └── README.md
 ```
 
 Подробная архитектура: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+
+**Старые версии (локально):** папка на рабочем столе `Начало блокчейна` — архив скриптов v54–v57, `_archive`, legacy API. Не входит в GitHub-релиз.
 
 ---
 
