@@ -3134,6 +3134,15 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             # ── Sync: fast sync, add/remove peer ─────────────────────────────
             elif path == "/sync/fast-sync":
+                p2p = self.__class__.p2p
+                if p2p and hasattr(p2p, "trigger_catch_up"):
+                    p2p.trigger_catch_up()
+                    self._json({
+                        "success": True,
+                        "local_height": self.__class__.blockchain.get_height(),
+                        "message": "P2P catch-up scheduled",
+                    })
+                    return
                 se = self.__class__.sync_engine
                 if not se:
                     self._error(503, "SyncEngine not enabled"); return

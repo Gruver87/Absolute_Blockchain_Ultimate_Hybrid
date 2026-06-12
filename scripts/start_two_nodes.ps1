@@ -9,6 +9,13 @@ Write-Host ""
 
 & (Join-Path $ProjectRoot "scripts\stop_node.ps1") 2>$null
 
+# Fresh node2 DB so it joins node1 chain (avoids fork at height 18 vs 4000+)
+$node2Db = Join-Path $ProjectRoot "data\node2\blockchain.db"
+foreach ($f in @($node2Db, "$node2Db-shm", "$node2Db-wal")) {
+    if (Test-Path $f) { Remove-Item $f -Force -ErrorAction SilentlyContinue }
+}
+Write-Host "Reset node2 database for clean P2P join" -ForegroundColor Gray
+
 foreach ($dir in @("data", "data\node2")) {
     if (-not (Test-Path $dir)) {
         New-Item -ItemType Directory -Path $dir | Out-Null

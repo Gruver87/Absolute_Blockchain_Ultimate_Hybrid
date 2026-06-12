@@ -113,6 +113,8 @@ class P2PNode:
         self._server: Optional[asyncio.Server] = None
         self._running = False
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        # Sync responses routed from _message_loop (avoid double recv on same socket)
+        self._sync_waiters: Dict[str, tuple] = {}  # peer_id -> (expected_types, Future)
 
         # Подписка на события шины — транслируем в сеть
         if self.bus:
@@ -181,6 +183,7 @@ class P2PNode:
         asyncio.create_task(self._discovery_loop())
         asyncio.create_task(self._bootstrap_retry_loop())
         asyncio.create_task(self._solo_node_hint())
+        asyncio.create_task(self._catch_up_loop())
 
         if self._server:
             async with self._server:
@@ -220,6 +223,7 @@ class P2PNode:
         self.peers[peer.peer_id] = peer
         print(f"[P2P] Connected: {peer}")
 
+        asyncio.create_task(self._sync_with_peer_safe(peer))
         await self._message_loop(peer)
         self._remove_peer(peer.peer_id)
 
@@ -255,7 +259,7 @@ class P2PNode:
             print(f"[P2P] Connected to {peer}")
 
             # Синхронизация если отстаём
-            asyncio.create_task(self._sync_with_peer(peer))
+            asyncio.create_task(self._sync_with_peer_safe(peer))
             asyncio.create_task(self._message_loop(peer))
             return True
 
@@ -317,6 +321,13 @@ class P2PNode:
     async def _handle_message(self, peer: PeerConnection, msg: Dict):
         msg_type = msg.get("type")
         data = msg.get("data")
+
+        waiter = self._sync_waiters.get(peer.peer_id)
+        if waiter:
+            expected_types, fut = waiter
+            if msg_type in expected_types and not fut.done():
+                fut.set_result(msg)
+                return
 
         if msg_type == MSG_PING:
             await peer.send(MSG_PONG, {"ts": time.time()})
@@ -425,36 +436,86 @@ class P2PNode:
 
     # ── Синхронизация ────────────────────────────────────────────────────────
 
+    async def _sync_with_peer_safe(self, peer: PeerConnection):
+        try:
+            await self._sync_with_peer(peer)
+        except Exception as e:
+            print(f"[P2P] Sync error via {peer.peer_id[:8]}: {e}")
+            logger.exception("[P2P] sync failed")
+
+    async def _wait_peer_response(
+        self,
+        peer: PeerConnection,
+        expected_types: tuple,
+        timeout: float = 30,
+        presend=None,
+    ) -> Optional[Dict]:
+        loop = asyncio.get_running_loop()
+        fut = loop.create_future()
+        self._sync_waiters[peer.peer_id] = (expected_types, fut)
+        try:
+            if presend:
+                await presend()
+            return await asyncio.wait_for(fut, timeout=timeout)
+        except asyncio.TimeoutError:
+            return None
+        finally:
+            self._sync_waiters.pop(peer.peer_id, None)
+
     async def _sync_with_peer(self, peer: PeerConnection):
         """Догоняем пира если он выше нас."""
         our_height = self.blockchain.get_height()
         if peer.height <= our_height:
             return
 
-        # Register peer with SyncEngine
         if self.sync_engine:
             self.sync_engine.add_peer(peer)
 
         print(f"[P2P] Syncing from #{our_height} to #{peer.height} via {peer.peer_id[:8]}")
-        current = our_height + 1
+        current = 0 if our_height == 0 else our_height + 1
 
         while current <= peer.height and self._running:
             batch_end = min(current + self.config.sync_batch_size - 1, peer.height)
-            await peer.send(MSG_GET_BLOCKS, {"from_height": current, "to_height": batch_end})
 
-            msg = await asyncio.wait_for(peer.recv(), timeout=30)
+            msg = await self._wait_peer_response(
+                peer,
+                (MSG_BLOCKS,),
+                timeout=45,
+                presend=lambda c=current, e=batch_end: peer.send(
+                    MSG_GET_BLOCKS, {"from_height": c, "to_height": e}
+                ),
+            )
             if not msg or msg.get("type") != MSG_BLOCKS:
+                print(f"[P2P] Sync stalled at #{current} (no blocks response)")
                 break
 
             blocks_data = msg.get("data", [])
+            if not blocks_data:
+                break
+
+            imported_any = False
             for block_data in blocks_data:
                 try:
                     if self.blockchain.import_block(block_data):
                         h = block_data.get("height", block_data.get("number", current))
                         current = int(h) + 1
+                        imported_any = True
+                    else:
+                        if our_height > 0 and hasattr(self.blockchain, "truncate_to_height"):
+                            print("[P2P] Fork at import — truncating chain to genesis for resync")
+                            self.blockchain.truncate_to_height(0)
+                            our_height = 0
+                            current = 1
+                            break
+                        return
                 except Exception as e:
                     logger.debug(f"[P2P] Sync block error: {e}")
                     return
+
+            if not imported_any:
+                break
+
+            peer.height = max(peer.height, self.blockchain.get_height())
 
         print(f"[P2P] Sync complete. Our height: {self.blockchain.get_height()}")
 
@@ -462,11 +523,12 @@ class P2PNode:
         """Запрашивает у пира полный блок по hash."""
         if not block_hash:
             return None
-        await peer.send(MSG_GET_BLOCK_BY_HASH, {"hash": block_hash})
-        try:
-            msg = await asyncio.wait_for(peer.recv(), timeout=15)
-        except asyncio.TimeoutError:
-            return None
+        msg = await self._wait_peer_response(
+            peer,
+            (MSG_BLOCK,),
+            timeout=15,
+            presend=lambda: peer.send(MSG_GET_BLOCK_BY_HASH, {"hash": block_hash}),
+        )
         if not msg or msg.get("type") != MSG_BLOCK:
             return None
         data = msg.get("data")
@@ -483,6 +545,14 @@ class P2PNode:
             if blk and blk.get("hash") == block_hash:
                 return blk
         return None
+
+    def trigger_catch_up(self) -> None:
+        """Schedule sync with all higher peers (callable from REST thread)."""
+        if not self._loop or not self._running:
+            return
+        for peer in list(self.peers.values()):
+            if peer.height > self.blockchain.get_height():
+                asyncio.run_coroutine_threadsafe(self._sync_with_peer_safe(peer), self._loop)
 
     def fetch_block_from_peers_sync(self, block_hash: str, timeout: float = 15) -> Optional[Dict]:
         """Синхронная обёртка для SyncEngine (из другого потока)."""
@@ -568,6 +638,15 @@ class P2PNode:
                 parts = peer_addr.split(":")
                 if len(parts) == 2:
                     asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
+
+    async def _catch_up_loop(self):
+        """Периодически догоняем пиров с большей высотой."""
+        while self._running:
+            await asyncio.sleep(15)
+            our_height = self.blockchain.get_height()
+            for peer in list(self.peers.values()):
+                if peer.height > our_height:
+                    asyncio.create_task(self._sync_with_peer_safe(peer))
 
     async def _solo_node_hint(self):
         """One-time hint when running without peers (normal for solo dev)."""

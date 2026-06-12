@@ -122,6 +122,18 @@ class ConsensusAdapter:
         if validators:
             print(f"[Consensus] Loaded {len(validators)} validators from DB")
 
+        if self.slashing_engine:
+            self.slashing_engine.slashing.register_slash_callback(self._on_validator_slashed)
+
+    def _on_validator_slashed(self, address: str, reason: str, slot: int, penalty: int):
+        """Persist slash to SQLite and validator registry."""
+        try:
+            self.db.slash_validator(address)
+        except Exception:
+            pass
+        if self.validator_registry:
+            self.validator_registry.slash_validator(address)
+
     def _register_validator_all(self, address: str, stake: float):
         """Регистрирует валидатора во всех подсистемах."""
         self.engine.add_validator(address, stake)

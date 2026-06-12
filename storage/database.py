@@ -339,6 +339,20 @@ class Database:
             ).fetchone()
             return json.loads(row["data"]) if row else None
 
+    def truncate_blocks_above(self, height: int) -> int:
+        """Remove blocks with height > given tip (for P2P fork resync). Returns deleted count."""
+        with self.atomic():
+            cur = self.conn.execute(
+                "DELETE FROM blocks WHERE height > ?", (int(height),)
+            )
+            return cur.rowcount
+
+    def truncate_all_blocks(self) -> int:
+        """Remove entire chain (used when joining peer with different genesis)."""
+        with self.atomic():
+            cur = self.conn.execute("DELETE FROM blocks")
+            return cur.rowcount
+
     # ── Транзакции ───────────────────────────────────────────────────────────
 
     def _insert_transaction(self, tx: Dict) -> None:

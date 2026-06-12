@@ -31,6 +31,7 @@ class SlashingEngine:
         self.missed_attestations: Dict[str, int] = defaultdict(int)
         # Stake tracking (used by engine_slashing.py)
         self._stakes: Dict[str, int] = {}
+        self._on_slash_callback = None
 
     # --- Methods required by engine_slashing.py ---
 
@@ -125,6 +126,14 @@ class SlashingEngine:
         self.events.append(event)
         
         print(f"   ⚡ SLASH: {validator[:16]}... | {reason} | penalty={penalty}")
+        if self._on_slash_callback:
+            try:
+                self._on_slash_callback(validator, reason, epoch, penalty)
+            except Exception:
+                pass
+    
+    def register_slash_callback(self, callback) -> None:
+        self._on_slash_callback = callback
     
     def is_slashed(self, validator: str) -> bool:
         return validator in self.slashed

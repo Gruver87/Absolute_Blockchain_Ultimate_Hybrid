@@ -57,8 +57,8 @@ function Stop-NodeProcesses {
 
 for ($attempt = 1; $attempt -le $MaxRetries; $attempt++) {
     $procIds = Get-ListenerPids -PortList $Ports
-    foreach ($pid in (Get-MainPyPids).Keys) {
-        $procIds[$pid] = $true
+    foreach ($mainPid in (Get-MainPyPids).Keys) {
+        $procIds[$mainPid] = $true
     }
 
     if ($procIds.Count -eq 0) {
@@ -84,9 +84,9 @@ if ($remaining.Count -gt 0) {
     foreach ($port in $Ports) {
         $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
         if ($conns) {
-            $pid = ($conns | Select-Object -First 1).OwningProcess
-            Write-Host ("  :" + $port + " -> PID " + $pid) -ForegroundColor Red
-            Write-Host ("  taskkill /PID " + $pid + " /F") -ForegroundColor Gray
+            $ownerPid = ($conns | Select-Object -First 1).OwningProcess
+            Write-Host ("  :" + $port + " -> PID " + $ownerPid) -ForegroundColor Red
+            Write-Host ("  taskkill /PID " + $ownerPid + " /F") -ForegroundColor Gray
         }
     }
     exit 1

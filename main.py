@@ -524,6 +524,9 @@ class NodeOrchestrator:
         # 18. RANDAO Validator Selection
         if _VALIDATOR_SELECTION_AVAILABLE:
             self.validator_selection = ValidatorSelection()
+            last_blk = self.blockchain.get_last_block()
+            if last_blk and last_blk.get("hash"):
+                self.validator_selection.update_seed(last_blk["hash"])
             print("[Node] RANDAO ValidatorSelection: enabled")
         else:
             self.validator_selection = None
@@ -1089,10 +1092,11 @@ class NodeOrchestrator:
             if not self.consensus.should_produce_block():
                 continue
 
-            # ── Proposer selection: operational wallet → RANDAO → AI → fallback ──
+            # ── Proposer: solo operational wallet OR RANDAO when multiple validators ──
             proposer = None
             _signing = getattr(self.config, "signing_address", "")
-            if _signing and self.wallet:
+            _active_vals = self.db.get_validators(active_only=True) if self.db else []
+            if _signing and self.wallet and len(_active_vals) <= 1:
                 proposer = _signing
 
             # 1) RANDAO-style selection if validators registered

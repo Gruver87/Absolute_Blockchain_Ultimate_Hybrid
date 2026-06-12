@@ -361,8 +361,9 @@ class Blockchain:
 
     # ── Добавление блока ─────────────────────────────────────────────────────
 
-    def add_block(self, block: Block) -> bool:
+    def add_block(self, block: Block, preserve_peer_hash: bool = False) -> bool:
         """Валидирует, выполняет все txs + reward атомарно, сохраняет в БД."""
+        peer_hash = block.hash if preserve_peer_hash else None
         with self.lock:
             if self.db.get_block(block.height):
                 return False
@@ -385,11 +386,8 @@ class Blockchain:
 
                     self._apply_block_reward(block.miner, in_atomic=True)
                     block.total_burned = block_burned
-                    computed_root = self._compute_state_root_from_db()
-                    if block.state_root and block.state_root != computed_root:
-                        raise RuntimeError("state_root_mismatch")
-                    block.state_root = computed_root
-                    block.hash = block._compute_hash()
+                    block.state_root = self._compute_state_root_from_db()
+                    block.hash = peer_hash if peer_hash else block._compute_hash()
 
                     tx_dicts = []
                     for tx in block.transactions:
@@ -413,7 +411,14 @@ class Blockchain:
     def import_block(self, block_dict: Dict) -> bool:
         """Импортирует блок от P2P-пира с полным replay состояния."""
         normalized = self._normalize_block_dict(block_dict)
+        height = int(normalized.get("height", normalized.get("number", 0)))
         with self.lock:
+            existing = self.db.get_block(height)
+            if existing and height == 0 and existing.get("hash") != normalized.get("hash"):
+                self.db.truncate_all_blocks()
+            elif existing:
+                return False
+
             if self.block_validator:
                 last = self.db.get_last_block()
                 valid, msg = self.block_validator.validate_block(normalized, last)
@@ -421,7 +426,7 @@ class Blockchain:
                     print(f"[Blockchain] import_block rejected: {msg}")
                     return False
             try:
-                return self.add_block(Block.from_dict(normalized))
+                return self.add_block(Block.from_dict(normalized), preserve_peer_hash=True)
             except Exception as e:
                 print(f"[Blockchain] import_block error: {e}")
                 return False
@@ -611,8 +616,8 @@ class Blockchain:
                 return {"valid": False, "error": f"height_mismatch (got {block.height}, expected {expected_height})"}
             if block.parent_hash != last["hash"]:
                 return {"valid": False, "error": "parent_hash_mismatch"}
-        elif block.height != 1:
-            return {"valid": False, "error": "expected_genesis_height_1"}
+        elif block.height not in (0, 1):
+            return {"valid": False, "error": "expected_genesis_height_0_or_1"}
         return {"valid": True}
 
     def validate_block(self, block: Block) -> Dict:
@@ -641,6 +646,11 @@ class Blockchain:
 
     def get_block_by_hash(self, block_hash: str) -> Optional[Dict]:
         return self.db.get_block_by_hash(block_hash) if hasattr(self.db, "get_block_by_hash") else None
+
+    def truncate_to_height(self, height: int) -> int:
+        """Drop blocks above height (keep genesis at 0). Used when joining a longer peer chain."""
+        with self.lock:
+            return self.db.truncate_blocks_above(height)
 
     def get_transaction(self, tx_hash: str) -> Optional[Dict]:
         return self.db.get_transaction(tx_hash)

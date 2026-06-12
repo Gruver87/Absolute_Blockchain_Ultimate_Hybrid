@@ -7,7 +7,7 @@
   "rpc_port": 8546,
   "ws_port": 8767,
   "bootstrap_peers": ["127.0.0.1:5000"],
-  "mining_enabled": true,
+  "mining_enabled": false,
   "bridge_enabled": true,
   "bridge_mode": "simulator",
   "db_path": "data/node2/blockchain.db",
