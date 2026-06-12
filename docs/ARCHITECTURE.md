@@ -57,7 +57,7 @@ Old scripts (`level12_node.py`, `ABSOLUTE_*.py`, etc.) are removed or moved to `
 
 ## Audit scripts
 
-- `_mega_audit.py` — syntax, endpoints, web coverage, tokenomics
-- `_final_audit.py` — wiring, runtime smoke tests
+- `scripts/mega_audit.py` — syntax, endpoints, web coverage, tokenomics
+- `scripts/final_audit.py` — wiring, runtime smoke tests
 
 Reports: `data/final_audit_report.json` (local, gitignored `data/`)

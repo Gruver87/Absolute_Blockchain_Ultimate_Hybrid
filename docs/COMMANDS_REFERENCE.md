@@ -329,9 +329,9 @@ start http://localhost:8080
 
 ```powershell
 pytest tests/ -q
-python test_merkle_light.py
+python tests/smoke/merkle_light.py
 python scripts/load_test.py --spawn-local
-python _final_audit.py
+python scripts/final_audit.py
 ```
 
 Примеры из v57 (если файлы есть):

@@ -158,7 +158,10 @@ absolute-blockchain-ultimate/
 ├── features/               # NFT, ZK, Lightning, AI и др.
 ├── storage/database.py     # SQLite + meta
 ├── bridge/                 # Cross-chain (simulator)
-├── scripts/                # setup_gh.ps1, create_release.ps1
+├── scripts/                # start/stop node, audits, release
+├── tests/                  # pytest (unit + integration)
+│   ├── smoke/              # merkle_light.py
+│   └── legacy/             # старые test_v*.py (не CI)
 ├── requirements.txt
 └── README.md
 ```
@@ -223,12 +226,13 @@ POST /light/spv/verify
 ## Тестирование
 
 ```bash
-python test_merkle_light.py
-python _mega_audit.py      # интеграционный аудит
-python _final_audit.py     # финальная проверка
+pytest tests/ -q
+python tests/smoke/merkle_light.py
+python scripts/mega_audit.py      # интеграционный аудит
+python scripts/final_audit.py     # финальная проверка
 ```
 
-Большинство `test_*.py` — скрипты (`python test_v49.py`), не pytest.
+Старые скрипты `test_v*.py` перенесены в `tests/legacy/` (не CI).
 
 ---
 

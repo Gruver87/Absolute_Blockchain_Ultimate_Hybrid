@@ -35,8 +35,9 @@ python main.py
 ```bash
 git checkout -b feature/my-change
 # ... правки ...
-python test_merkle_light.py
-python _final_audit.py
+pytest tests/ -q
+python tests/smoke/merkle_light.py
+python scripts/final_audit.py
 git commit -m "feat: описание"
 git push origin feature/my-change
 ```
@@ -65,7 +66,7 @@ test: merkle light client cases
 - Больше pytest-тестов вместо script-style tests
 - Усиление безопасности (с пометкой «educational»)
 - Перевод документации
-- CI (GitHub Actions) для `test_merkle_light.py` и аудита
+- CI (GitHub Actions): `pytest tests/`, `tests/smoke/merkle_light.py`, `scripts/final_audit.py`
 
 ## Вопросы
 

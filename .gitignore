@@ -35,8 +35,12 @@ backup_*/
 backups/
 *.zip
 *.backup
-*.bak
+*.old
 *.broken
+*.bak
+node_debug.log
+test_hardened_system/
+pytest-cache-files*/
 
 Secrets
 .env

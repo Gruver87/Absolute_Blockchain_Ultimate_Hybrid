@@ -25,8 +25,8 @@ python main.py
 ## Audit (local)
 
 ```bash
-python test_merkle_light.py
-python _final_audit.py
+python tests/smoke/merkle_light.py
+python scripts/final_audit.py
 ```
 
 ## Commits in this release

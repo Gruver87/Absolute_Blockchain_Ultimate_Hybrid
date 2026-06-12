@@ -17,8 +17,8 @@
 Run local audit:
 
 ```bash
-python _mega_audit.py
-python _final_audit.py
+python scripts/mega_audit.py
+python scripts/final_audit.py
 ```
 
 **Educational project — not production.**

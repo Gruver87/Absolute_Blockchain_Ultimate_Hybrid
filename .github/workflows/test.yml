@@ -52,7 +52,7 @@ jobs:
         "
 
     - name: Merkle + Light Client test
-      run: python test_merkle_light.py
+      run: python tests/smoke/merkle_light.py
 
     - name: Pytest (unit + integration)
       run: pytest tests/ -q --tb=short -x
@@ -64,5 +64,5 @@ jobs:
       run: python -c "import main; print('main.py OK')"
 
     - name: Final audit (non-blocking)
-      run: python _final_audit.py || true
+      run: python scripts/final_audit.py || true
       continue-on-error: true
