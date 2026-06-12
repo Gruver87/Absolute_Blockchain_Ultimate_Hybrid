@@ -58,9 +58,8 @@ class ConsensusEngineSlashing:
         Обработка аттестации с проверкой слэшинга
         Returns: True если голос принят, False если валидатор слэшнут
         """
-        # Сначала проверяем и регистрируем голос в slashing engine
-        epoch = self.epoch_mgr.get_epoch(slot)
-        slashing_ok = self.slashing.add_vote(validator_id, epoch, block_hash)
+        # Slot-based double-vote detection (one attestation per slot)
+        slashing_ok = self.slashing.add_vote(validator_id, slot, block_hash)
 
         if not slashing_ok:
             # Валидатор слэшнут — его голоса больше не учитываются

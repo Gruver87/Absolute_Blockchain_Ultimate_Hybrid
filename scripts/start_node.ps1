@@ -1,4 +1,8 @@
 # Quick start: unified node (Windows PowerShell 5.1 + pwsh)
+param(
+    [switch]$NoAutoStop
+)
+
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $ProjectRoot
 
@@ -31,18 +35,18 @@ if ($busy.Count -gt 0) {
         Write-Host ("  :" + $b.Port + " -> PID " + $b.OwningPid + " (" + $name + ")") -ForegroundColor Yellow
     }
     Write-Host ""
-    $answer = Read-Host "Stop old node and continue? [Y/n]"
-    if ($answer -eq "" -or $answer -match "^[Yy]") {
-        & (Join-Path $ProjectRoot "scripts\stop_node.ps1")
-        Start-Sleep -Seconds 1
-        $busy = Get-PortListeners -Ports $NodePorts
-        if ($busy.Count -gt 0) {
-            Write-Host "Ports still busy - aborting. Run .\scripts\stop_node.ps1 manually." -ForegroundColor Red
-            exit 1
-        }
+
+    if ($NoAutoStop) {
+        Write-Host "Aborted (-NoAutoStop). Run .\scripts\stop_node.ps1 first." -ForegroundColor Yellow
+        exit 1
     }
-    else {
-        Write-Host "Aborted. Stop the old node first: .\scripts\stop_node.ps1" -ForegroundColor Yellow
+
+    Write-Host "Stopping previous node automatically..." -ForegroundColor Cyan
+    & (Join-Path $ProjectRoot "scripts\stop_node.ps1")
+    Start-Sleep -Seconds 2
+    $busy = Get-PortListeners -Ports $NodePorts
+    if ($busy.Count -gt 0) {
+        Write-Host "Ports still busy - aborting. Run .\scripts\stop_node.ps1 manually." -ForegroundColor Red
         exit 1
     }
 }

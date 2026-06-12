@@ -38,14 +38,15 @@ class SlashingEngine:
         """Register a validator with stake."""
         self._stakes[validator_id] = stake
 
-    def add_vote(self, validator_id: str, epoch: int, block_hash: str) -> bool:
+    def add_vote(self, validator_id: str, slot: int, block_hash: str) -> bool:
         """
-        Register vote and check for slashing conditions.
+        Register attestation vote for a slot.
+        Double-vote = two different block hashes in the same slot (not same epoch).
         Returns True if vote accepted, False if validator is slashed.
         """
         if validator_id in self.slashed:
             return False
-        return self.record_vote(validator_id, epoch, block_hash)
+        return self.record_vote(validator_id, slot, block_hash)
 
     def get_stake(self, validator_id: str) -> int:
         """Get validator stake (0 if slashed)."""
@@ -60,20 +61,21 @@ class SlashingEngine:
             if vid not in self.slashed
         )
         
-    def record_vote(self, validator: str, epoch: int, block_hash: str) -> bool:
-        """Record validator vote, check for double voting"""
+    def record_vote(self, validator: str, slot: int, block_hash: str) -> bool:
+        """Record validator attestation; slash only on conflicting votes in one slot."""
         if validator in self.slashed:
             return False
-        
+
         if validator not in self.votes:
             self.votes[validator] = {}
-        
-        if epoch in self.votes[validator]:
-            if self.votes[validator][epoch] != block_hash:
-                self._slash(validator, "double_vote", epoch)
+
+        if slot in self.votes[validator]:
+            if self.votes[validator][slot] != block_hash:
+                self._slash(validator, "double_vote", slot)
                 return False
-        
-        self.votes[validator][epoch] = block_hash
+            return True
+
+        self.votes[validator][slot] = block_hash
         return True
     
     def record_proposal(self, validator: str, height: int, block_hash: str) -> bool:

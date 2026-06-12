@@ -1188,13 +1188,13 @@ class NodeOrchestrator:
                 for tx in block.transactions:
                     self.mempool.remove(tx.hash)
 
-                self.consensus.mark_block_produced(proposer=proposer)
-
-                # LMD-GHOST: local validator attests the new head
+                # LMD-GHOST: attest at current slot, then advance for next block
                 try:
                     self.consensus.attest(proposer, block.hash)
                 except Exception:
                     pass
+
+                self.consensus.mark_block_produced(proposer=proposer)
 
                 self._log_block(block)
 

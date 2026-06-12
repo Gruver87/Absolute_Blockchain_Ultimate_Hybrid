@@ -52,7 +52,7 @@
 | **Ядро** | Блоки, транзакции, burn 2%, genesis, SQLite |
 | **Токеномика** | Max supply **221 000 000 ABS**, основатель **D.U.P.** (17.4%) |
 | **Консенсус** | PoS-адаптер, эпохи, slashing, beacon/Casper-модули |
-| **API** | **230** REST endpoints + JSON-RPC `:8545` |
+| **API** | **~100+** REST handlers в `api/http.py`; **16** документированы в `/openapi.json` и `/docs` |
 | **Web UI** | SPA-эксплорер **31 вкладка** — `http://localhost:8080` |
 | **Light Client** | SPV / Merkle proofs |
 | **Pool Locks** | Блокировка ecosystem/treasury, staking release по эпохам |
@@ -150,7 +150,7 @@ docker compose -f docker-compose.observability.yml up -d
 ```
 absolute-blockchain-ultimate/
 ├── main.py                 # Единственная точка входа узла
-├── api/http.py             # REST + RPC handlers (230 endpoints)
+├── api/http.py             # REST + RPC handlers (~100+ routes, см. /docs)
 ├── web/explorer/index.html # Браузерный SPA (31 вкладка)
 ├── core/blockchain.py      # Блоки, транзакции, genesis
 ├── runtime/
@@ -180,16 +180,49 @@ absolute-blockchain-ultimate/
 
 ## Что реально работает (локально)
 
-| Функция | Статус |
-|---------|--------|
-| Единый `main.py` | ✅ |
-| Автомайнинг, mempool, burn | ✅ |
-| Genesis + токеномика 221M | ✅ |
-| Pool locks + staking epochs | ✅ |
-| Light client + Merkle SPV | ✅ (17/17 тестов) |
-| REST 230 endpoints + Web UI | ✅ 100% покрытие |
-| JSON-RPC, WebSocket | ✅ |
-| NFT, oracles, sharding (demo) | ✅ учебный режим |
+| Компонент | Статус |
+|-----------|--------|
+| Core blockchain + SQLite | 🟢 |
+| Mining (15s) + эмиссия ABS | 🟢 |
+| REST API `:8080` | 🟢 (~100+ handlers, `/docs` + `verify_endpoints.ps1`) |
+| JSON-RPC `:8545` | 🟢 |
+| WebSocket `:8766` + Explorer live feed | 🟢 |
+| Wallet + auto-sign TX | 🟢 |
+| Validators + PoS-модули | 🟢 |
+| NFT, Oracles, State Engine | 🟢 |
+| P2P (интернет) | 🟡 solo по умолчанию; 2 узла — `start_two_nodes.ps1` |
+| Bridge / Sharding / Lightning / Plasma | 🟡 demo / simulator |
+| Production mainnet | 🔴 не цель проекта |
+
+Проверка ключевых маршрутов:
+
+```powershell
+.\scripts\verify_endpoints.ps1   # /tokenomics, /bridge, /founder, /allocation, …
+```
+
+## Устранение проблем
+
+### Два узла / порты заняты
+
+```
+[P2P] Could not bind port 5000
+[WebSocket] port 8766 already in use
+```
+
+Остановите старый процесс:
+
+```powershell
+.\scripts\stop_node.ps1
+# или вручную:
+netstat -ano | findstr :5000
+taskkill /PID <pid> /F
+```
+
+`start_node.ps1` теперь **автоматически** останавливает предыдущий узел (флаг `-NoAutoStop` — отключить).
+
+### Ложный slashing `double_vote`
+
+Исправлено: slashing считает конфликт **по slot**, а не по epoch (32 блока). Solo-валидатор при майнинге больше не режется за каждый новый блок.
 
 ## Честные ограничения
 
