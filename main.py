@@ -863,6 +863,23 @@ class NodeOrchestrator:
 
         print("[Node] All components initialized.")
 
+    # ── SyncEngine node interface ─────────────────────────────────────────────
+
+    def get_block(self, block_hash: str):
+        """Resolve block locally or via P2P peers (for SyncEngine.download_chain)."""
+        blk = self.blockchain.get_block_by_hash(block_hash)
+        if blk:
+            return blk
+        if self.p2p and hasattr(self.p2p, "fetch_block_from_peers_sync"):
+            return self.p2p.fetch_block_from_peers_sync(block_hash)
+        return None
+
+    def import_block(self, block_data: dict) -> bool:
+        return self.blockchain.import_block(block_data)
+
+    def get_height(self) -> int:
+        return self.blockchain.get_height()
+
     # ── Запуск ───────────────────────────────────────────────────────────────
 
     async def start(self):
@@ -1172,6 +1189,13 @@ class NodeOrchestrator:
                     self.mempool.remove(tx.hash)
 
                 self.consensus.mark_block_produced(proposer=proposer)
+
+                # LMD-GHOST: local validator attests the new head
+                try:
+                    self.consensus.attest(proposer, block.hash)
+                except Exception:
+                    pass
+
                 self._log_block(block)
 
                 # RANDAO: обновляем seed случайности после каждого блока

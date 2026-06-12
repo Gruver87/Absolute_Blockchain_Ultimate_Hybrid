@@ -36,6 +36,7 @@ MSG_PING       = "ping"
 MSG_PONG       = "pong"
 MSG_NEW_BLOCK  = "new_block"
 MSG_GET_BLOCK  = "get_block"
+MSG_GET_BLOCK_BY_HASH = "get_block_by_hash"
 MSG_BLOCK      = "block"
 MSG_GET_BLOCKS = "get_blocks"   # диапазон блоков
 MSG_BLOCKS     = "blocks"
@@ -331,6 +332,17 @@ class P2PNode:
             block = self.blockchain.get_block(int(height))
             await peer.send(MSG_BLOCK, block)
 
+        elif msg_type == MSG_GET_BLOCK_BY_HASH:
+            block_hash = ""
+            if isinstance(data, dict):
+                block_hash = data.get("hash", "")
+            elif isinstance(data, str):
+                block_hash = data
+            block = None
+            if block_hash and hasattr(self.blockchain, "get_block_by_hash"):
+                block = self.blockchain.get_block_by_hash(block_hash)
+            await peer.send(MSG_BLOCK, block)
+
         elif msg_type == MSG_GET_BLOCKS:
             await self._handle_get_blocks(peer, data)
 
@@ -445,6 +457,44 @@ class P2PNode:
                     return
 
         print(f"[P2P] Sync complete. Our height: {self.blockchain.get_height()}")
+
+    async def _request_block_by_hash(self, peer: PeerConnection, block_hash: str) -> Optional[Dict]:
+        """Запрашивает у пира полный блок по hash."""
+        if not block_hash:
+            return None
+        await peer.send(MSG_GET_BLOCK_BY_HASH, {"hash": block_hash})
+        try:
+            msg = await asyncio.wait_for(peer.recv(), timeout=15)
+        except asyncio.TimeoutError:
+            return None
+        if not msg or msg.get("type") != MSG_BLOCK:
+            return None
+        data = msg.get("data")
+        return data if isinstance(data, dict) else None
+
+    async def fetch_block_from_peers(self, block_hash: str) -> Optional[Dict]:
+        """Ищет блок локально, затем у подключённых пиров."""
+        if hasattr(self.blockchain, "get_block_by_hash"):
+            local = self.blockchain.get_block_by_hash(block_hash)
+            if local:
+                return local
+        for peer in list(self.peers.values()):
+            blk = await self._request_block_by_hash(peer, block_hash)
+            if blk and blk.get("hash") == block_hash:
+                return blk
+        return None
+
+    def fetch_block_from_peers_sync(self, block_hash: str, timeout: float = 15) -> Optional[Dict]:
+        """Синхронная обёртка для SyncEngine (из другого потока)."""
+        if not self._loop or not self._running:
+            return None
+        future = asyncio.run_coroutine_threadsafe(
+            self.fetch_block_from_peers(block_hash), self._loop
+        )
+        try:
+            return future.result(timeout=timeout)
+        except Exception:
+            return None
 
     # ── Broadcast ────────────────────────────────────────────────────────────
 

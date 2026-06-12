@@ -32,71 +32,107 @@ class SyncEngine:
     def get_peers(self) -> List:
         return self.peers
 
+    def _collect_p2p_peers(self) -> List:
+        """Peers from live P2P connections or explicit sync peer list."""
+        p2p = getattr(self.node, "p2p", None)
+        if p2p and getattr(p2p, "peers", None):
+            live = list(p2p.peers.values())
+            if live:
+                return live
+        return list(self.peers)
+
     def request_heads(self) -> List[Dict]:
-        """
-        Запрашивает у пиров их текущие головы
-        В реальной реализации: P2P запрос
-        """
+        """Collect head hashes from connected P2P peers."""
         heads = []
-        for peer in self.peers:
-            # В реальной реализации: peer.request_head()
-            head = getattr(peer, "head", None)
-            if head:
-                heads.append(head)
+        for peer in self._collect_p2p_peers():
+            head_raw = getattr(peer, "head", None)
+            head_hash = ""
+            if isinstance(head_raw, dict):
+                head_hash = head_raw.get("hash", "")
+            elif isinstance(head_raw, str):
+                head_hash = head_raw
+            if not head_hash and getattr(peer, "height", 0):
+                p2p = getattr(self.node, "p2p", None)
+                if p2p and hasattr(self.node, "blockchain"):
+                    blk = self.node.blockchain.get_block(peer.height)
+                    if blk:
+                        head_hash = blk.get("hash")
+            if head_hash:
+                heads.append({
+                    "hash": head_hash,
+                    "height": int(getattr(peer, "height", 0) or 0),
+                    "peer_id": getattr(peer, "peer_id", ""),
+                })
         return heads
 
     def select_best_head(self, heads: List[Dict]) -> Optional[str]:
         """
-        Выбирает лучшую голову на основе cumulative weight
-        Использует LMD-GHOST для выбора
+        LMD-GHOST cumulative weight when consensus is available;
+        otherwise highest peer height (longest chain).
         """
         if not heads:
             return None
 
         best_head = None
-        best_weight = -1
+        best_key = (-1, -1)  # (weight, height)
 
+        consensus = getattr(self.node, "consensus", None)
         for head_info in heads:
-            head_hash = head_info.get("hash") if isinstance(head_info, dict) else head_info
-            if hasattr(self.node, "consensus"):
-                weight = self.node.consensus.get_cumulative_weight(head_hash) if hasattr(self.node.consensus, "get_cumulative_weight") else 0
-                if weight > best_weight:
-                    best_weight = weight
-                    best_head = head_hash
+            if isinstance(head_info, dict):
+                head_hash = head_info.get("hash", "")
+                height = int(head_info.get("height", 0) or 0)
             else:
-                # Simplified: pick first
+                head_hash = str(head_info)
+                height = 0
+            if not head_hash:
+                continue
+
+            weight = 0
+            if consensus and hasattr(consensus, "get_cumulative_weight"):
+                weight = int(consensus.get_cumulative_weight(head_hash) or 0)
+
+            key = (weight, height)
+            if key > best_key:
+                best_key = key
                 best_head = head_hash
 
         return best_head
 
+    def _resolve_block(self, block_hash: str) -> Optional[Dict]:
+        """Local DB first, then P2P peer fetch."""
+        if hasattr(self.node, "get_block"):
+            blk = self.node.get_block(block_hash)
+            if blk:
+                return blk
+        if hasattr(self.node, "blockchain"):
+            blk = self.node.blockchain.get_block_by_hash(block_hash)
+            if blk:
+                return blk
+        p2p = getattr(self.node, "p2p", None)
+        if p2p and hasattr(p2p, "fetch_block_from_peers_sync"):
+            return p2p.fetch_block_from_peers_sync(block_hash)
+        return None
+
     def download_chain(self, head: str) -> List[Dict]:
-        """
-        Скачивает цепочку от головы до генезиса
-        """
+        """Walk parent chain from head; fetch missing blocks from peers."""
         chain = []
         current = head
+        seen = set()
 
-        while current:
-            # В реальной реализации: запрос блока через P2P
-            block = None
-            if hasattr(self.node, "get_block"):
-                block = self.node.get_block(current)
-            elif hasattr(self.node, "chain") and hasattr(self.node.chain, "get_block_by_hash"):
-                block = self.node.chain.get_block_by_hash(current)
-
+        while current and current not in seen:
+            seen.add(current)
+            block = self._resolve_block(current)
             if not block:
                 break
 
             chain.append(block)
             current = block.get("parent_hash") or block.get("parent")
-
-            # Защита от бесконечного цикла
             if len(chain) > 10000:
                 break
 
         return list(reversed(chain))
 
-    def fast_sync(self) -> bool:
+    def fast_sync(self, target_block: int = 0) -> bool:
         """
         Полная процедура синхронизации
         """
@@ -170,7 +206,7 @@ class SyncEngine:
             local_height = self.node.chain.get_head_height()
 
         best_peer_height = 0
-        for peer in self.peers:
+        for peer in self._collect_p2p_peers():
             best_peer_height = max(best_peer_height, int(getattr(peer, "height", 0) or 0))
 
         return {
