@@ -23,7 +23,7 @@ logger = logging.getLogger("P2P")
 
 # --- SyncEngine (System C: fast catch-up) ---
 try:
-    from network.sync_engine import SyncEngine
+    from sync.sync_engine import SyncEngine
     _SYNC_ENGINE_AVAILABLE = True
 except ImportError:
     _SYNC_ENGINE_AVAILABLE = False

@@ -408,6 +408,15 @@ class NodeOrchestrator:
             self.consensus.add_validator(config.miner_address, config.min_stake)
             print(f"[Node] Registered self as validator: {config.miner_address}")
 
+        # Operational wallet (WALLET_PRIVATE_KEY) must mine + sign on solo devnet
+        _op = getattr(config, "signing_address", "") or ""
+        if _op and self.wallet:
+            _vals = self.db.get_validators(active_only=True) or []
+            if not any(v["address"].lower() == _op.lower() for v in _vals):
+                self.consensus.add_validator(_op, config.min_stake)
+            config.miner_address = _op
+            print(f"[Node] Mining proposer locked to operational wallet: {_op}")
+
         # 4b. Pool locks (ecosystem/treasury/staking enforcement)
         try:
             from runtime.pool_locks import PoolLockManager
@@ -906,6 +915,7 @@ class NodeOrchestrator:
             light_client=self.light_client,
             bridge=self.bridge,
             wallet=self.wallet,
+            bus=self.bus,
         )
 
         self._print_banner()
@@ -1062,11 +1072,14 @@ class NodeOrchestrator:
             if not self.consensus.should_produce_block():
                 continue
 
-            # ── Proposer selection: RANDAO → AI → ConsensusAdapter fallback ──
+            # ── Proposer selection: operational wallet → RANDAO → AI → fallback ──
             proposer = None
+            _signing = getattr(self.config, "signing_address", "")
+            if _signing and self.wallet:
+                proposer = _signing
 
             # 1) RANDAO-style selection if validators registered
-            if self.validator_selection and self.db:
+            if not proposer and self.validator_selection and self.db:
                 try:
                     validators_dict = {v["address"]: v.get("stake", 100)
                                        for v in (self.db.get_validators() or [])}

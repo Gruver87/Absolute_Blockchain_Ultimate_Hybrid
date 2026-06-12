@@ -369,6 +369,7 @@ class RESTHandler(BaseHTTPRequestHandler):
     light_client = None              # LightClient (SPV)
     wallet = None                    # Operational signing wallet (crypto.wallet.Wallet)
     bridge = None                    # bridge.abs_bridge.RustBridge
+    bus = None                       # kernel.event_bus.EventBus
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     metrics_collector = None
 
@@ -1409,15 +1410,19 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             elif path == "/wallet/status":
                 w = self.__class__.wallet
+                addr = w.address if w else None
+                balance = bc.get_balance(addr) if addr else 0.0
                 self._json({
                     "signing_enabled": w is not None,
-                    "address": w.address if w else None,
-                    "signing_address": getattr(cfg, "signing_address", "") or (w.address if w else ""),
+                    "address": addr,
+                    "signing_address": getattr(cfg, "signing_address", "") or addr,
                     "founder_address": getattr(cfg, "founder_address", ""),
                     "miner_address": cfg.miner_address,
+                    "balance": balance,
+                    "balance_formatted": f"{balance:.6f} {cfg.coin_symbol}",
                     "hint": (
-                        "Set WALLET_PRIVATE_KEY in .env for operational signing; "
-                        "block rewards accrue to miner_address"
+                        "Set WALLET_PRIVATE_KEY in .env — this wallet mines blocks and signs txs. "
+                        "Rewards accrue here after restart if operational wallet is the proposer."
                     ),
                 })
 
@@ -3741,22 +3746,34 @@ def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
     if not validation["valid"]:
         raise ValueError(validation["error"])
 
-    # Extra validation via TransactionValidator (nonce/fee/balance/size caps)
+    # Extra validation via TransactionValidator (Database-backed)
     try:
         from blockchain.tx_validator import TransactionValidator
-        _state = getattr(bc, "state_engine", None)
-        if _state:
-            tx_dict = {"from": from_addr, "to": to_addr, "amount": value, "nonce": nonce,
-                       "fee": gas * cfg.gas_price_wei}
-            ok, reason = TransactionValidator.validate(tx_dict, _state)
-            if not ok:
-                raise ValueError(f"tx_validator: {reason}")
+        from blockchain.state_adapter import DatabaseStateAdapter
+        adapter = DatabaseStateAdapter(bc.db)
+        tx_dict = {
+            "from": from_addr,
+            "to": to_addr,
+            "amount": value,
+            "value": value,
+            "nonce": nonce,
+            "fee": gas * cfg.gas_price_wei,
+            "signature": tx_obj.get("signature", ""),
+            "public_key": tx_obj.get("public_key", ""),
+            "hash": tx.hash,
+        }
+        ok, reason = TransactionValidator.validate(
+            tx_dict, adapter, mempool=mp, chain_id=getattr(cfg, "chain_id", 1),
+            require_signature=bool(tx_obj.get("signature")),
+        )
+        if not ok:
+            raise ValueError(f"tx_validator: {reason}")
     except ImportError:
         pass
     except ValueError:
         raise
     except Exception:
-        pass  # tx_validator is best-effort
+        pass
 
     fee = gas * cfg.gas_price_wei
     mp_tx = MempoolTransaction(
@@ -3766,8 +3783,21 @@ def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
         amount=value,
         fee=fee,
         nonce=nonce,
+        signature=tx_obj.get("signature", ""),
+        public_key=tx_obj.get("public_key", ""),
     )
-    mp.add(mp_tx)
+    if not mp.add(mp_tx):
+        raise ValueError("mempool_rejected")
+
+    bus = getattr(RESTHandler, "bus", None)
+    if bus:
+        bus.emit("tx.new", {
+            "hash": tx.hash,
+            "from_addr": from_addr,
+            "to_addr": to_addr,
+            "value": value,
+            "nonce": nonce,
+        })
 
     return tx.hash
 
@@ -3819,7 +3849,8 @@ def create_http_server(blockchain, mempool, db, config,
                        pool_locks=None,
                        light_client=None,
                        bridge=None,
-                       wallet=None) -> ThreadedHTTPServer:
+                       wallet=None,
+                       bus=None) -> ThreadedHTTPServer:
     """Создаёт REST API сервер на config.http_port."""
     configure_rate_limiter(config)
     RESTHandler.blockchain = blockchain
@@ -3867,6 +3898,7 @@ def create_http_server(blockchain, mempool, db, config,
     RESTHandler.light_client = light_client
     RESTHandler.bridge = bridge
     RESTHandler.wallet = wallet
+    RESTHandler.bus = bus
     RESTHandler.project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if _METRICS_AVAILABLE and RESTHandler.metrics_collector is None:
         RESTHandler.metrics_collector = MetricsCollector()
@@ -3909,7 +3941,8 @@ def start_http_server_thread(blockchain, mempool, db, config,
                        pool_locks=None,
                        light_client=None,
                        bridge=None,
-                       wallet=None):
+                       wallet=None,
+                       bus=None):
     """Запускает REST API в отдельном потоке. Возвращает (thread, server)."""
     server = create_http_server(
         blockchain, mempool, db, config, p2p, evm, nft, zk,
@@ -3936,6 +3969,7 @@ def start_http_server_thread(blockchain, mempool, db, config,
         light_client=light_client,
         bridge=bridge,
         wallet=wallet,
+        bus=bus,
     )
     t = threading.Thread(target=server.serve_forever, daemon=True,
                          name="RESTServer")

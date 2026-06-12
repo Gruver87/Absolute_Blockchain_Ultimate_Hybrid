@@ -256,6 +256,7 @@
     <div class="card" style="max-width:500px">
       <h3>Send Transaction</h3>
       <div class="form-row"><label>From Address</label><input id="tx-from" placeholder="0x..." /></div>
+      <div class="form-row" style="margin-top:-8px"><span style="color:var(--gray);font-size:12px">Balance: <span id="tx-balance">—</span></span></div>
       <div class="form-row"><label>To Address</label><input id="tx-to" placeholder="0x..." /></div>
       <div class="form-row"><label>Amount (ABS)</label><input id="tx-value" type="number" placeholder="0.001" step="0.001" /></div>
       <div class="form-row"><label>Memo (optional)</label><input id="tx-memo" placeholder="optional note" /></div>
@@ -1546,6 +1547,7 @@ function show(tab) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('sec-' + tab).classList.add('active');
   event.currentTarget.classList.add('active');
+  if (tab === 'send')        prefillSendWallet();
   if (tab === 'explorer')   loadBlocks(0);
   if (tab === 'nft')        loadNFTs();
   if (tab === 'sharding')   loadSharding();
@@ -1650,7 +1652,11 @@ async function refreshStatus() {
 // ── Dashboard blocks ─────────────────────────────────────────────────────────
 let feedBlocks = [];
 function addBlockToFeed(b) {
-  feedBlocks.unshift(b);
+  const height = b.height ?? b.number ?? 0;
+  const hash = b.hash || b.block_hash || '';
+  const txs = b.txs ?? b.tx_count ?? (Array.isArray(b.transactions) ? b.transactions.length : 0);
+  const burned = parseFloat(b.burned ?? b.total_burned ?? 0);
+  feedBlocks.unshift({ height, hash, txs, burned });
   if (feedBlocks.length > 50) feedBlocks.pop();
   const feed = document.getElementById('block-feed');
   feed.innerHTML = feedBlocks.slice(0,20).map(b => `
@@ -1661,8 +1667,43 @@ function addBlockToFeed(b) {
       <span class="badge badge-blue">${b.txs||0} txs</span>
       <span style="color:var(--gray);margin-left:auto">${b.burned>0?b.burned.toFixed(4)+' burned':''}</span>
     </div>`).join('');
-  // also update height in statusbar
   document.getElementById('s-height').textContent = feedBlocks[0]?.height ?? '—';
+}
+
+async function loadRecentActivity() {
+  const data = await get('/blocks?limit=12');
+  if (!data?.blocks?.length) return;
+  feedBlocks = [];
+  const sorted = [...data.blocks].sort((a, b) => (b.height||0) - (a.height||0));
+  for (const b of sorted) {
+    addBlockToFeed({
+      height: b.height,
+      hash: b.hash,
+      txs: b.tx_count ?? (b.transactions?.length || 0),
+      burned: b.total_burned || 0,
+    });
+    for (const tx of b.transactions || []) {
+      addTxToFeed({
+        hash: tx.hash || tx.tx_hash,
+        from: tx.from_addr || tx.from,
+        to: tx.to_addr || tx.to,
+        value: tx.value ?? tx.amount,
+        block: b.height,
+      });
+    }
+  }
+}
+
+async function prefillSendWallet() {
+  const w = await get('/wallet/status');
+  const fromEl = document.getElementById('tx-from');
+  const balEl = document.getElementById('tx-balance');
+  if (!fromEl) return;
+  if (w?.signing_enabled && w.address) {
+    fromEl.value = w.address;
+    fromEl.placeholder = 'Operational wallet (auto-sign)';
+    if (balEl) balEl.textContent = w.balance_formatted || `${w.balance||0} ABS`;
+  }
 }
 
 let feedTxs = [];
@@ -1694,6 +1735,7 @@ async function connectWS() {
     ws.onopen = () => {
       document.getElementById('wsdot').className = 'on';
       document.getElementById('ws-status').textContent = 'live';
+      loadRecentActivity();
     };
     ws.onmessage = (e) => {
       const d = JSON.parse(e.data);
@@ -1774,11 +1816,20 @@ async function checkBalance() {
 
 // ── Send TX ───────────────────────────────────────────────────────────────────
 async function sendTx() {
-  const from  = document.getElementById('tx-from').value.trim();
   const to    = document.getElementById('tx-to').value.trim();
   const value = parseFloat(document.getElementById('tx-value').value) || 0;
-  if (!from||!to||!value) { toast('Fill all fields', false); return; }
-  const r = await post('/transactions', {from, to, value, memo: document.getElementById('tx-memo').value});
+  if (!to || !value) { toast('Fill To and Amount', false); return; }
+  const w = await get('/wallet/status');
+  let body;
+  if (w?.signing_enabled) {
+    body = { auto_sign: true, to, value };
+  } else {
+    const from = document.getElementById('tx-from').value.trim();
+    if (!from) { toast('Fill From address', false); return; }
+    const acct = await get('/address/' + encodeURIComponent(from));
+    body = { from, to, value, nonce: acct?.nonce ?? 0 };
+  }
+  const r = await post('/tx/send', body);
   const el = document.getElementById('tx-result');
   if (r && (r.tx_hash||r.hash)) {
     el.innerHTML = `<div class="badge badge-green">Sent!</div> <span class="hash">${(r.tx_hash||r.hash).slice(0,20)}…</span>`;
@@ -3574,6 +3625,7 @@ async function deactivateAIAgent() {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 connectWS();
 refreshStatus();
+loadRecentActivity();
 loadBlocks(0);
 loadDashboardStats();
 loadTokenomics();

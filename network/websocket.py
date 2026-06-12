@@ -17,6 +17,8 @@ except ImportError:
     _WS_AVAILABLE = False
     logger.warning("[WebSocket] 'websockets' package not found — WS disabled. Run: pip install websockets")
 
+from network.ws_events import normalize_block_event, normalize_tx_event
+
 
 class WebSocketServer:
     """Asyncio WebSocket server that broadcasts chain events to browser clients."""
@@ -29,41 +31,30 @@ class WebSocketServer:
         self._loop = None
 
         if event_bus:
-            # EventBus uses .on() or .subscribe() depending on implementation
             reg = getattr(event_bus, "subscribe", None) or getattr(event_bus, "on", None)
             if reg:
                 reg("block.new", self._on_block)
                 reg("tx.new", self._on_tx)
+                reg("tx.applied", self._on_tx)
 
     # ── Event handlers (called from other threads) ────────────────────────────
 
     def _on_block(self, block):
+        data = normalize_block_event(block)
         msg = {
             "type": "event",
             "event": "NEW_BLOCK",
-            "data": {
-                "height":    getattr(block, "height", 0),
-                "hash":      getattr(block, "hash", ""),
-                "txs":       len(getattr(block, "transactions", [])),
-                "timestamp": getattr(block, "timestamp", time.time()),
-                "miner":     getattr(block, "miner", ""),
-                "burned":    float(getattr(block, "total_burned", 0)),
-                "state_root": getattr(block, "state_root", ""),
-            },
+            "data": data,
             "ts": time.time(),
         }
         self._schedule(msg)
 
     def _on_tx(self, tx):
+        data = normalize_tx_event(tx)
         msg = {
             "type": "event",
             "event": "NEW_TX",
-            "data": {
-                "hash":  getattr(tx, "tx_hash", str(tx)),
-                "from":  getattr(tx, "from_addr", ""),
-                "to":    getattr(tx, "to_addr", ""),
-                "value": getattr(tx, "amount", 0),
-            },
+            "data": data,
             "ts": time.time(),
         }
         self._schedule(msg)

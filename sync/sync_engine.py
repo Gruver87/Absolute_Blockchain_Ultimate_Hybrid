@@ -161,10 +161,24 @@ class SyncEngine:
         return True
 
     def get_status(self) -> dict:
+        local_height = 0
+        if hasattr(self.node, "blockchain"):
+            local_height = self.node.blockchain.get_height()
+        elif hasattr(self.node, "get_height"):
+            local_height = self.node.get_height()
+        elif hasattr(self.node, "chain") and hasattr(self.node.chain, "get_head_height"):
+            local_height = self.node.chain.get_head_height()
+
+        best_peer_height = 0
+        for peer in self.peers:
+            best_peer_height = max(best_peer_height, int(getattr(peer, "height", 0) or 0))
+
         return {
             "syncing": self.is_syncing,
             "peers": len(self.peers),
-            "progress": self.sync_progress
+            "progress": self.sync_progress,
+            "local_height": local_height,
+            "best_peer_height": best_peer_height,
         }
 
     def reset(self):
