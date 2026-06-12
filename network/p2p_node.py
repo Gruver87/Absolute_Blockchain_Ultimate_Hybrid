@@ -374,13 +374,11 @@ class P2PNode:
 
         validation = self.blockchain.validate_block(block)
         if validation["valid"]:
-            # Применяем транзакции к мемпулу — удаляем подтверждённые
             for tx in block.transactions:
                 self.mempool.remove(tx.hash)
-            self.blockchain.add_block(block)
-            print(f"[P2P] Accepted block #{block.height} from {peer.peer_id[:8]}")
-            # Ретранслируем другим пирам
-            await self._broadcast_block(data, exclude_peer=peer.peer_id)
+            if self.blockchain.import_block(data):
+                print(f"[P2P] Accepted block #{block.height} from {peer.peer_id[:8]}")
+                await self._broadcast_block(data, exclude_peer=peer.peer_id)
 
     async def _handle_get_blocks(self, peer: PeerConnection, data: Dict):
         """Отправляем диапазон блоков пиру."""
@@ -438,13 +436,10 @@ class P2PNode:
 
             blocks_data = msg.get("data", [])
             for block_data in blocks_data:
-                from core.blockchain import Block
                 try:
-                    blk = Block.from_dict(block_data)
-                    validation = self.blockchain.validate_block(blk)
-                    if validation["valid"]:
-                        self.blockchain.add_block(blk)
-                        current = blk.height + 1
+                    if self.blockchain.import_block(block_data):
+                        h = block_data.get("height", block_data.get("number", current))
+                        current = int(h) + 1
                 except Exception as e:
                     logger.debug(f"[P2P] Sync block error: {e}")
                     return

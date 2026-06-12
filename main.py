@@ -298,6 +298,7 @@ class NodeOrchestrator:
 
         # 4. Ядро блокчейна
         self.blockchain = Blockchain(config, self.db, self.bus)
+        self.mempool.set_blockchain(self.blockchain)
         print(f"[Node] Blockchain height: {self.blockchain.get_height()}")
         # Сохраняем токеномику и применяем genesis-аллокацию (миграция старых БД)
         try:

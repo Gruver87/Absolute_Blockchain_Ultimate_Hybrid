@@ -43,24 +43,26 @@ class MempoolTransaction:
     timestamp: float = field(default_factory=time.time)
 
     def has_valid_signature(self) -> bool:
-        """Проверяет ECDSA подпись транзакции (если присутствует)."""
-        if not self.signature or not self.public_key:
-            return True  # Unsigned transactions allowed (fallback)
-        if not _ECDSA_AVAILABLE:
+        """ECDSA check when signature fields are present."""
+        if not self.signature:
             return True
+        if not self.public_key:
+            return False
+        if not _ECDSA_AVAILABLE:
+            return False
         try:
             tx_dict = {
                 "from": self.from_addr,
                 "to": self.to_addr,
-                "value": self.amount,
+                "value": int(self.amount) if self.amount == int(self.amount) else self.amount,
                 "nonce": self.nonce,
-                "chain_id": 1,
+                "chain_id": getattr(self, "_chain_id", 1),
                 "signature": self.signature,
                 "public_key": self.public_key,
             }
             return verify_transaction_signature(tx_dict)
         except Exception:
-            return True  # Don't reject on verification error
+            return False
 
 
 def _validate_mempool_tx(tx: MempoolTransaction, min_fee: float) -> Tuple[bool, str]:
@@ -106,6 +108,14 @@ class Mempool:
         self.min_fee = min_fee
         self.lock = threading.RLock()
         self._rejected_count = 0
+        self.blockchain = None
+        self.chain_id = 1
+
+    def set_blockchain(self, blockchain) -> None:
+        """Attach live chain for nonce/balance/signature checks."""
+        self.blockchain = blockchain
+        if blockchain and getattr(blockchain, "config", None):
+            self.chain_id = blockchain.config.chain_id
 
     def add(self, tx: MempoolTransaction) -> bool:
         """Добавить транзакцию с полной валидацией."""
@@ -123,6 +133,24 @@ class Mempool:
             if not tx.has_valid_signature():
                 self._rejected_count += 1
                 return False
+
+            if self.blockchain:
+                from core.blockchain import Transaction
+                chain_tx = Transaction(
+                    from_addr=tx.from_addr,
+                    to_addr=tx.to_addr,
+                    value=tx.amount,
+                    nonce=tx.nonce,
+                    gas=self.blockchain.config.base_gas_price,
+                    tx_hash=tx.tx_hash,
+                    signature=tx.signature,
+                    public_key=tx.public_key,
+                )
+                tx._chain_id = self.chain_id
+                check = self.blockchain.validate_transaction(chain_tx)
+                if not check.get("valid"):
+                    self._rejected_count += 1
+                    return False
 
             if len(self.transactions) >= self.max_size:
                 self._cleanup()

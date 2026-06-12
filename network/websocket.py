@@ -1,6 +1,6 @@
 """
 WebSocket server — broadcasts blockchain events in real-time to browser clients.
-Port 8546  (ws://localhost:8546)
+Port 8766  (ws://localhost:8766)
 """
 import asyncio
 import json

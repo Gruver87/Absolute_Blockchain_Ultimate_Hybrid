@@ -1538,7 +1538,7 @@
 <script>
 const API = 'http://localhost:8080';
 const RPC = 'http://localhost:8545';
-const WS  = 'ws://localhost:8546';
+let WS  = 'ws://localhost:8766';
 
 // ── Navigation ──────────────────────────────────────────────────────────────
 function show(tab) {
@@ -1682,8 +1682,14 @@ function addTxToFeed(tx) {
 
 // ── WebSocket ────────────────────────────────────────────────────────────────
 let ws;
-function connectWS() {
+async function connectWS() {
   try {
+    try {
+      const st = await fetch(API + '/status').then(r => r.json());
+      const port = st.ws_port || 8766;
+      const host = location.hostname || 'localhost';
+      WS = `ws://${host}:${port}`;
+    } catch (_) {}
     ws = new WebSocket(WS);
     ws.onopen = () => {
       document.getElementById('wsdot').className = 'on';

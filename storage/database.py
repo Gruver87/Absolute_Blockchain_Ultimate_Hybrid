@@ -10,6 +10,7 @@ import json
 import os
 import threading
 import time
+from contextlib import contextmanager
 from typing import Optional, List, Dict, Any
 
 
@@ -243,19 +244,64 @@ class Database:
         with self.lock:
             try:
                 self.conn.execute("BEGIN IMMEDIATE")
-                self._insert_block(block)
-                for tx in transactions:
-                    self._insert_transaction(tx)
-                if burned_amount > 0:
-                    self._insert_burn_record(block.get("height", 0), burned_amount)
-                    if burn_address:
-                        self._apply_balance_delta(burn_address, burned_amount)
+                self._persist_block_locked(block, transactions, burned_amount, burn_address)
                 self.conn.commit()
                 return True
             except Exception as e:
                 self.conn.rollback()
                 print(f"[DB] persist_block_atomic error: {e}")
                 return False
+
+    def _persist_block_locked(
+        self,
+        block: Dict,
+        transactions: List[Dict],
+        burned_amount: float = 0.0,
+        burn_address: str = "",
+    ) -> None:
+        """Persist block + txs inside an open transaction (caller holds BEGIN)."""
+        self._insert_block(block)
+        for tx in transactions:
+            self._insert_transaction(tx)
+        if burned_amount > 0:
+            self._insert_burn_record(block.get("height", 0), burned_amount)
+            if burn_address:
+                self._apply_balance_delta(burn_address, burned_amount)
+
+    @contextmanager
+    def atomic(self):
+        """Single-writer SQLite transaction for block execution."""
+        with self.lock:
+            self.conn.execute("BEGIN IMMEDIATE")
+            try:
+                yield self
+                self.conn.commit()
+            except Exception:
+                self.conn.rollback()
+                raise
+
+    def balance_delta(self, address: str, delta: float) -> None:
+        """Balance change without commit (inside atomic())."""
+        self._apply_balance_delta(address, delta)
+
+    def nonce_increment(self, address: str) -> int:
+        """Nonce bump without commit (inside atomic())."""
+        self.conn.execute(
+            """INSERT INTO accounts (address, balance, nonce) VALUES (?,0,1)
+               ON CONFLICT(address) DO UPDATE SET nonce=nonce+1""",
+            (address,),
+        )
+        row = self.conn.execute(
+            "SELECT nonce FROM accounts WHERE address=?", (address,)
+        ).fetchone()
+        return int(row["nonce"]) if row else 1
+
+    def get_all_accounts(self) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT address, balance, nonce FROM accounts ORDER BY address"
+            ).fetchall()
+            return [dict(r) for r in rows]
 
     def get_block(self, height: int) -> Optional[Dict]:
         with self.lock:

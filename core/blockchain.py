@@ -218,9 +218,9 @@ class Block:
     def from_dict(cls, d: Dict) -> "Block":
         txs = [Transaction.from_dict(t) for t in d.get("transactions", [])]
         blk = cls(
-            height=d["height"],
-            parent_hash=d["parent_hash"],
-            miner=d["miner"],
+            height=int(d.get("height", d.get("number", 0))),
+            parent_hash=d.get("parent_hash", "0" * 64),
+            miner=d.get("miner", d.get("proposer", "")),
             transactions=txs,
             timestamp=d.get("timestamp", 0),
             block_hash=d.get("hash", d.get("block_hash", "")),
@@ -336,118 +336,160 @@ class Blockchain:
     # ── Создание блока ───────────────────────────────────────────────────────
 
     def create_block(self, transactions: List[Transaction], proposer: str) -> Block:
-        """Собирает новый блок из транзакций и текущего tip."""
+        """Собирает новый блок: валидирует txs, state применяется в add_block()."""
         with self.lock:
             last = self.db.get_last_block()
             height = last["height"] + 1 if last else 1
             parent_hash = last["hash"] if last else self.GENESIS_HASH
 
-            # Применяем транзакции, считаем burn
             applied_txs = []
-            block_burned = 0.0
+            nonce_cursor: Dict[str, int] = {}
 
             for tx in transactions:
-                result = self._apply_transaction(tx, height)
-                if result["success"]:
+                check = self._validate_tx_for_block(tx, nonce_cursor)
+                if check["valid"]:
                     applied_txs.append(tx)
-                    block_burned += tx.burned
+                    nonce_cursor[tx.from_addr] = tx.nonce + 1
 
-            # Начисляем block reward майнеру (не выше max supply)
-            current_supply = self.db.get_total_supply()
-            max_supply = float(getattr(self.config, "max_supply", MAX_SUPPLY_ABS))
-            reward = self.config.block_reward
-            if current_supply + reward > max_supply:
-                reward = max(0.0, max_supply - current_supply)
-            if reward > 0:
-                self.db.update_balance(proposer, reward)
-
-            # Вычисляем state_root через StateEngine (System C)
-            state_root = ""
-            if self.state_engine:
-                try:
-                    block_dict = {
-                        "number": height,
-                        "hash": "pending",
-                        "parent_hash": parent_hash,
-                        "timestamp": int(time.time()),
-                        "transactions": [
-                            {
-                                "from": tx.from_addr,
-                                "to": tx.to_addr,
-                                "amount": tx.value,
-                                "nonce": tx.nonce,
-                            }
-                            for tx in applied_txs
-                        ],
-                    }
-                    new_state = self.state_engine.transition(block_dict)
-                    state_root = new_state.state_root
-                except Exception:
-                    state_root = ""
-
-            block = Block(
+            return Block(
                 height=height,
                 parent_hash=parent_hash,
                 miner=proposer,
                 transactions=applied_txs,
                 extra_data=f"v{self.config.node_version}",
-                state_root=state_root,
             )
-            return block
 
     # ── Добавление блока ─────────────────────────────────────────────────────
 
     def add_block(self, block: Block) -> bool:
-        """Сохраняет блок в БД атомарно, эмитит событие."""
+        """Валидирует, выполняет все txs + reward атомарно, сохраняет в БД."""
         with self.lock:
-            tx_dicts = []
-            for tx in block.transactions:
-                tx.block_height = block.height
-                tx_dicts.append(tx.to_dict())
+            if self.db.get_block(block.height):
+                return False
 
-            success = self.db.persist_block_atomic(
-                block.to_dict(),
-                tx_dicts,
-                burned_amount=block.total_burned,
-                burn_address=self.config.burn_address if block.total_burned > 0 else "",
-            )
-            if not success:
+            validation = self._validate_block_structure(block)
+            if not validation["valid"]:
+                print(f"[Blockchain] Reject block #{block.height}: {validation.get('error')}")
+                return False
+
+            try:
+                with self.db.atomic():
+                    block_burned = 0.0
+                    for tx in block.transactions:
+                        result = self._apply_transaction(
+                            tx, block.height, proposer=block.miner, in_atomic=True
+                        )
+                        if not result["success"]:
+                            raise RuntimeError(result.get("error", "tx_failed"))
+                        block_burned += tx.burned
+
+                    self._apply_block_reward(block.miner, in_atomic=True)
+                    block.total_burned = block_burned
+                    computed_root = self._compute_state_root_from_db()
+                    if block.state_root and block.state_root != computed_root:
+                        raise RuntimeError("state_root_mismatch")
+                    block.state_root = computed_root
+                    block.hash = block._compute_hash()
+
+                    tx_dicts = []
+                    for tx in block.transactions:
+                        tx.block_height = block.height
+                        tx_dicts.append(tx.to_dict())
+
+                    self.db._persist_block_locked(
+                        block.to_dict(),
+                        tx_dicts,
+                        burned_amount=block.total_burned,
+                        burn_address=self.config.burn_address if block.total_burned > 0 else "",
+                    )
+            except Exception as e:
+                print(f"[Blockchain] Block execution failed #{block.height}: {e}")
                 return False
 
             if self.bus:
                 self.bus.emit("block.new", block.to_dict())
-
             return True
 
     def import_block(self, block_dict: Dict) -> bool:
-        """
-        Импортирует блок от P2P-пира.
-        Использует BlockValidator (System C) для проверки.
-        """
+        """Импортирует блок от P2P-пира с полным replay состояния."""
+        normalized = self._normalize_block_dict(block_dict)
         with self.lock:
-            # Validate using System C BlockValidator if available
             if self.block_validator:
                 last = self.db.get_last_block()
-                valid, msg = self.block_validator.validate_block(block_dict, last)
+                valid, msg = self.block_validator.validate_block(normalized, last)
                 if not valid:
+                    print(f"[Blockchain] import_block rejected: {msg}")
                     return False
-
             try:
-                block = Block.from_dict(block_dict)
-                return self.add_block(block)
-            except Exception:
+                return self.add_block(Block.from_dict(normalized))
+            except Exception as e:
+                print(f"[Blockchain] import_block error: {e}")
                 return False
+
+    def _normalize_block_dict(self, block_dict: Dict) -> Dict:
+        b = dict(block_dict)
+        if "height" not in b and "number" in b:
+            b["height"] = b["number"]
+        if "miner" not in b and "proposer" in b:
+            b["miner"] = b["proposer"]
+        txs = []
+        for tx in b.get("transactions", []):
+            t = dict(tx)
+            if "from_addr" not in t and "from" in t:
+                t["from_addr"] = t["from"]
+            if "to_addr" not in t and "to" in t:
+                t["to_addr"] = t["to"]
+            if "value" not in t and "amount" in t:
+                t["value"] = t["amount"]
+            txs.append(t)
+        b["transactions"] = txs
+        return b
+
+    def _validate_tx_for_block(self, tx: Transaction, nonce_cursor: Dict[str, int]) -> Dict:
+        expected = nonce_cursor.get(tx.from_addr, self.db.get_nonce(tx.from_addr))
+        if tx.nonce != expected:
+            return {"valid": False, "error": "nonce_mismatch_in_block"}
+        return self.validate_transaction(tx)
+
+    def _apply_block_reward(self, proposer: str, in_atomic: bool = False) -> float:
+        current_supply = self.db.get_total_supply()
+        max_supply = float(getattr(self.config, "max_supply", MAX_SUPPLY_ABS))
+        reward = self.config.block_reward
+        if current_supply + reward > max_supply:
+            reward = max(0.0, max_supply - current_supply)
+        if reward > 0:
+            if in_atomic:
+                self.db.balance_delta(proposer, reward)
+            else:
+                self.db.update_balance(proposer, reward)
+        return reward
+
+    def _compute_state_root_from_db(self) -> str:
+        accounts = self.db.get_all_accounts()
+        payload = [
+            {"a": r["address"], "b": round(float(r["balance"]), 12), "n": int(r["nonce"])}
+            for r in accounts
+        ]
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(encoded.encode()).hexdigest()
 
     # ── Применение транзакции ────────────────────────────────────────────────
 
-    def _apply_transaction(self, tx: Transaction, block_height: int) -> Dict:
+    def _apply_transaction(
+        self, tx: Transaction, block_height: int, proposer: str = None, in_atomic: bool = False
+    ) -> Dict:
         """
         Применяет одну транзакцию к состоянию.
         Реализует механизм сжигания: burn_rate% от комиссии уничтожается.
         """
+        proposer = proposer or self.config.miner_address or "genesis"
         fee = tx.gas * self.config.gas_price_wei
         burn_amount = fee * self.config.burn_rate
         miner_fee = fee - burn_amount
+
+        expected_nonce = self.db.get_nonce(tx.from_addr)
+        if tx.nonce != expected_nonce:
+            return {"success": False, "error": "nonce_mismatch"}
 
         sender_balance = self.db.get_balance(tx.from_addr)
         total_cost = tx.value + fee
@@ -462,20 +504,41 @@ class Blockchain:
             if not allowed:
                 return {"success": False, "error": reason}
 
-        # Списание у отправителя
-        self.db.update_balance(tx.from_addr, -total_cost)
-        # Зачисление получателю
-        self.db.update_balance(tx.to_addr, tx.value)
-        # Комиссия майнеру (за вычетом сожжённой части)
-        self.db.update_balance(self.config.miner_address or "genesis", miner_fee)
+        if tx.signature and tx.public_key:
+            try:
+                from crypto.wallet import verify_transaction_signature
+                tx_dict = {
+                    "from": tx.from_addr,
+                    "to": tx.to_addr,
+                    "value": int(tx.value) if tx.value == int(tx.value) else tx.value,
+                    "nonce": tx.nonce,
+                    "chain_id": self.config.chain_id,
+                    "signature": tx.signature,
+                    "public_key": tx.public_key,
+                }
+                if not verify_transaction_signature(tx_dict):
+                    return {"success": False, "error": "invalid_signature"}
+            except Exception as e:
+                return {"success": False, "error": f"signature_check_failed: {e}"}
 
-        # Обновляем nonce
-        self.db.increment_nonce(tx.from_addr)
+        if in_atomic:
+            self.db.balance_delta(tx.from_addr, -total_cost)
+            self.db.balance_delta(tx.to_addr, tx.value)
+            self.db.balance_delta(proposer, miner_fee)
+            if burn_amount > 0 and self.config.burn_address:
+                self.db.balance_delta(self.config.burn_address, burn_amount)
+            self.db.nonce_increment(tx.from_addr)
+        else:
+            self.db.update_balance(tx.from_addr, -total_cost)
+            self.db.update_balance(tx.to_addr, tx.value)
+            self.db.update_balance(proposer, miner_fee)
+            if burn_amount > 0 and self.config.burn_address:
+                self.db.update_balance(self.config.burn_address, burn_amount)
+            self.db.increment_nonce(tx.from_addr)
 
         if self.pool_locks:
             self.pool_locks.record_outgoing(tx.from_addr, total_cost)
 
-        # Заполняем поля транзакции
         tx.fee = fee
         tx.burned = burn_amount
         tx.gas_used = tx.gas
@@ -539,8 +602,8 @@ class Blockchain:
 
         return {"valid": True}
 
-    def validate_block(self, block: Block) -> Dict:
-        """Базовая структурная валидация блока (для P2P-синхронизации)."""
+    def _validate_block_structure(self, block: Block) -> Dict:
+        """Height/parent/hash checks before state execution."""
         last = self.db.get_last_block()
         if last:
             expected_height = last["height"] + 1
@@ -548,12 +611,18 @@ class Blockchain:
                 return {"valid": False, "error": f"height_mismatch (got {block.height}, expected {expected_height})"}
             if block.parent_hash != last["hash"]:
                 return {"valid": False, "error": "parent_hash_mismatch"}
+        elif block.height != 1:
+            return {"valid": False, "error": "expected_genesis_height_1"}
+        return {"valid": True}
 
-        # Проверка хеша
+    def validate_block(self, block: Block) -> Dict:
+        """Полная структурная валидация блока (для P2P-синхронизации)."""
+        base = self._validate_block_structure(block)
+        if not base["valid"]:
+            return base
         recomputed = block._compute_hash()
         if block.hash != recomputed:
             return {"valid": False, "error": "invalid_hash"}
-
         return {"valid": True}
 
     # ── Публичные геттеры ────────────────────────────────────────────────────
@@ -577,10 +646,8 @@ class Blockchain:
         return self.db.get_transaction(tx_hash)
 
     def get_state_root(self) -> str:
-        """Текущий state root (детерминированный, System C)."""
-        if self.state_engine:
-            return self.state_engine.get_state_root()
-        return ""
+        """Текущий state root из реальных балансов SQLite."""
+        return self._compute_state_root_from_db()
 
     def get_stats(self) -> Dict:
         db_stats = self.db.get_stats()

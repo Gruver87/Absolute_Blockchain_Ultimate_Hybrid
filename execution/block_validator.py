@@ -4,112 +4,94 @@ Block Validator — validates blocks before import
 """
 
 import hashlib
-import json
-from typing import Dict, Any, Optional
+import time
+from typing import Dict, Optional, Tuple
 
 
 class BlockValidator:
-    """Validates blocks for consensus and execution"""
-    
+    """Validates block structure before state replay in Blockchain.add_block."""
+
     def __init__(self, state_engine, mempool):
         self.state = state_engine
         self.mempool = mempool
-    
-    def validate_block(self, block: dict, parent_block: Optional[dict] = None) -> tuple[bool, str]:
-        """
-        Validate block before execution
-        Returns: (is_valid, error_message)
-        """
-        # Check basic structure
-        required_fields = ["number", "parent_hash", "timestamp", "proposer", "transactions"]
-        for field in required_fields:
-            if field not in block:
-                return False, f"Missing field: {field}"
-        
-        # Check parent exists (if not genesis)
-        if block["number"] > 0 and not parent_block:
-            return False, "Parent block not found"
-        
-        # Check parent hash matches
-        if parent_block and block["parent_hash"] != parent_block.get("hash"):
-            return False, "Parent hash mismatch"
-        
-        # Check block number sequential
-        if parent_block and block["number"] != parent_block.get("number", -1) + 1:
-            return False, f"Invalid block number: {block['number']}"
-        
-        # Validate timestamp (not in future)
-        import time
-        if block["timestamp"] > int(time.time()) + 60:
-            return False, "Timestamp too far in future"
-        
-        if parent_block and block["timestamp"] <= parent_block.get("timestamp", 0):
-            return False, "Timestamp not increasing"
-        
-        # Validate transactions
-        for tx in block.get("transactions", []):
-            valid, msg = self._validate_transaction(tx)
-            if not valid:
-                return False, f"Invalid transaction {tx.get('hash')}: {msg}"
-        
-        # Validate tx_root matches
-        computed_root = self._compute_tx_root(block["transactions"])
-        if computed_root != block.get("tx_root"):
-            return False, f"Tx root mismatch: expected {computed_root}"
-        
-        return True, ""
-    
-    def _validate_transaction(self, tx: dict) -> tuple[bool, str]:
-        """Validate single transaction"""
-        # Check required fields
-        required = ["hash", "from", "to", "value", "nonce"]
-        for field in required:
-            if field not in tx:
-                return False, f"Missing field: {field}"
-        
-        # Check positive value
-        if tx["value"] < 0:
-            return False, "Negative value"
-        
-        # Check sender balance (if we have state)
-        balance = self.state.get_balance(tx["from"])
-        if balance < tx["value"]:
-            return False, "Insufficient balance"
-        
-        # Check nonce
-        expected_nonce = self.state.get_nonce(tx["from"])
-        if tx["nonce"] != expected_nonce:
-            return False, f"Invalid nonce: expected {expected_nonce}"
-        
-        return True, ""
-    
-    def _compute_tx_root(self, transactions: list) -> str:
-        """Compute transaction merkle root"""
-        if not transactions:
-            return hashlib.sha256(b"empty_tx").hexdigest()[:32]
-        
-        tx_hashes = [tx.get("hash", "") for tx in transactions]
-        combined = "".join(sorted(tx_hashes))
-        return hashlib.sha256(combined.encode()).hexdigest()[:32]
-    
-    def validate_state_root(self, block: dict, computed_root: str) -> bool:
-        """Validate state root after execution"""
-        expected = block.get("state_root")
-        return expected == computed_root
-    
-    def validate_block_hash(self, block: dict) -> bool:
-        """Validate block hash matches content"""
-        computed = self._compute_block_hash(block)
-        return computed == block.get("hash")
-    
-    def _compute_block_hash(self, block: dict) -> str:
-        block_data = json.dumps({
-            "number": block["number"],
-            "parent_hash": block["parent_hash"],
-            "timestamp": block["timestamp"],
-            "proposer": block.get("proposer", ""),
-            "tx_root": block.get("tx_root", ""),
-            "state_root": block.get("state_root", "")
-        }, sort_keys=True)
-        return hashlib.sha256(block_data.encode()).hexdigest()[:32]
 
+    def validate_block(self, block: dict, parent_block: Optional[dict] = None) -> Tuple[bool, str]:
+        b = self._normalize(block)
+        height = b["number"]
+
+        for field in ("number", "parent_hash", "timestamp", "miner", "transactions"):
+            if field not in b:
+                return False, f"Missing field: {field}"
+
+        if height > 1 and not parent_block:
+            return False, "Parent block not found"
+
+        if parent_block and b["parent_hash"] != parent_block.get("hash"):
+            return False, "Parent hash mismatch"
+
+        if parent_block:
+            parent_h = parent_block.get("height", parent_block.get("number", 0))
+            if height != parent_h + 1:
+                return False, f"Invalid block number: {height}"
+
+        if b["timestamp"] > int(time.time()) + 120:
+            return False, "Timestamp too far in future"
+
+        if parent_block and b["timestamp"] <= parent_block.get("timestamp", 0):
+            return False, "Timestamp not increasing"
+
+        for tx in b.get("transactions", []):
+            valid, msg = self._validate_transaction_shape(tx)
+            if not valid:
+                return False, f"Invalid transaction {tx.get('hash', '?')}: {msg}"
+
+        if b.get("tx_root") and b.get("transactions"):
+            computed = self._compute_tx_root(b["transactions"])
+            expected = b["tx_root"]
+            if computed != expected and computed[: len(expected)] != expected:
+                return False, f"Tx root mismatch: expected {computed}"
+
+        return True, ""
+
+    def _normalize(self, block: dict) -> dict:
+        b = dict(block)
+        if "number" not in b:
+            b["number"] = b.get("height", 0)
+        if "height" not in b:
+            b["height"] = b["number"]
+        if "miner" not in b:
+            b["miner"] = b.get("proposer", "")
+        if "proposer" not in b:
+            b["proposer"] = b["miner"]
+        txs = []
+        for tx in b.get("transactions", []):
+            t = dict(tx)
+            t.setdefault("from", t.get("from_addr", ""))
+            t.setdefault("to", t.get("to_addr", ""))
+            t.setdefault("value", t.get("amount", 0))
+            t.setdefault("hash", t.get("tx_hash", ""))
+            txs.append(t)
+        b["transactions"] = txs
+        return b
+
+    def _validate_transaction_shape(self, tx: dict) -> Tuple[bool, str]:
+        for field in ("hash", "from", "to", "nonce"):
+            if field not in tx or tx[field] in ("", None):
+                alt = {"from": "from_addr", "to": "to_addr", "hash": "tx_hash"}.get(field)
+                if not alt or alt not in tx:
+                    return False, f"Missing field: {field}"
+        value = float(tx.get("value", tx.get("amount", -1)))
+        if value < 0:
+            return False, "Negative value"
+        return True, ""
+
+    def _compute_tx_root(self, transactions: list) -> str:
+        if not transactions:
+            return hashlib.sha256(b"empty").hexdigest()
+        try:
+            from crypto.merkle import merkle_root
+            items = [tx.get("hash", tx.get("tx_hash", "")) for tx in transactions]
+            return merkle_root(items)
+        except Exception:
+            combined = "".join(sorted(tx.get("hash", "") for tx in transactions))
+            return hashlib.sha256(combined.encode()).hexdigest()

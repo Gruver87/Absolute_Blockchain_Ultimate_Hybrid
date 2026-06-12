@@ -558,6 +558,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "founder_address": getattr(cfg, "founder_address", ""),
                     "rpc_port": cfg.rpc_port,
                     "http_port": cfg.http_port,
+                    "ws_port": getattr(cfg, "ws_port", 8766),
                     "state_root": bc.get_state_root() if hasattr(bc, "get_state_root") else "",
                     "validator_count": len(validators),
                     "total_burned": total_burned,
