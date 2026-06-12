@@ -10,12 +10,11 @@ import base58
 from typing import Tuple, Optional
 from dataclasses import dataclass
 
-try:
-    from ecdsa import SigningKey, VerifyingKey, SECP256k1
-    ECDSA_AVAILABLE = True
-except ImportError:
-    ECDSA_AVAILABLE = False
-    print("⚠️ ecdsa not installed. Run: pip install ecdsa")
+from crypto.secp256k1_backend import (
+    CRYPTO_AVAILABLE as ECDSA_AVAILABLE,
+    generate_keypair as _generate_keypair,
+    _private_key_from_bytes,
+)
 
 
 @dataclass
@@ -39,23 +38,17 @@ class KeyGenerator:
     @staticmethod
     def generate_private_key() -> bytes:
         """Generate random private key"""
-        if ECDSA_AVAILABLE:
-            sk = SigningKey.generate(curve=SECP256k1)
-            return sk.to_string()
-        else:
-            # Fallback: secure random
-            return secrets.token_bytes(32)
-    
+        private_key, _ = _generate_keypair()
+        return private_key
+
     @staticmethod
     def private_to_public(private_key: bytes) -> bytes:
         """Derive public key from private key"""
         if ECDSA_AVAILABLE:
-            sk = SigningKey.from_string(private_key, curve=SECP256k1)
-            vk = sk.verifying_key
-            return vk.to_string()
-        else:
-            # Simplified fallback (not secure!)
-            return hashlib.sha256(private_key).digest()
+            sk = _private_key_from_bytes(private_key)
+            nums = sk.public_key().public_numbers()
+            return nums.x.to_bytes(32, "big") + nums.y.to_bytes(32, "big")
+        return hashlib.sha256(private_key).digest()
     
     @staticmethod
     def derive_address(public_key: bytes) -> str:

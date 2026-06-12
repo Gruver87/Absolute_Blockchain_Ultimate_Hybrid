@@ -13,6 +13,11 @@
 - `.env.example` — плейсхолдеры
 - Адрес основателя в `runtime/tokenomics.py` — **публичный** учебный адрес (не приватный ключ)
 
+## Криптография (SECP256K1)
+
+Подписи используют **`cryptography`** (OpenSSL), не `python-ecdsa`.  
+Причина: CVE-2024-23342 (Minerva timing attack) — в `ecdsa` нет исправления.
+
 ## Oracles
 
 Ключи OpenWeather / WeatherAPI берутся только из переменных окружения:

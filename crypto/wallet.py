@@ -10,13 +10,13 @@ import time
 from typing import Optional, Dict
 from dataclasses import dataclass
 
-try:
-    from ecdsa import SigningKey, VerifyingKey, SECP256k1
-    from ecdsa.util import sigencode_der, sigdecode_der
-    ECDSA_AVAILABLE = True
-except ImportError:
-    ECDSA_AVAILABLE = False
-    print("WARNING: ecdsa not installed. Run: pip install ecdsa")
+from crypto.secp256k1_backend import (
+    CRYPTO_AVAILABLE as ECDSA_AVAILABLE,
+    generate_keypair as _generate_secp_keypair,
+    sign,
+    verify,
+)
+from crypto.keys import KeyGenerator
 
 
 @dataclass
@@ -35,10 +35,7 @@ class Wallet:
     def _generate_keypair(self) -> KeyPair:
         """Generate new secp256k1 keypair"""
         if ECDSA_AVAILABLE:
-            sk = SigningKey.generate(curve=SECP256k1)
-            private_key = sk.to_string()
-            vk = sk.verifying_key
-            public_key = vk.to_string()
+            private_key, public_key = _generate_secp_keypair()
         else:
             private_key = os.urandom(32)
             public_key = hashlib.sha256(private_key).digest()
@@ -107,8 +104,7 @@ class Wallet:
         if not ECDSA_AVAILABLE:
             return hashlib.sha256((data_hash + self.private_key).encode()).hexdigest()
         
-        sk = SigningKey.from_string(self.keypair.private_key, curve=SECP256k1)
-        signature = sk.sign(data_hash.encode(), hashfunc=hashlib.sha256, sigencode=sigencode_der)
+        signature = sign(data_hash.encode(), self.keypair.private_key, hashfunc=hashlib.sha256)
         return signature.hex()
     
     def sign_block(self, block: dict) -> str:
@@ -174,13 +170,8 @@ class Wallet:
     @classmethod
     def from_private_key(cls, private_key_hex: str) -> "Wallet":
         private_key = bytes.fromhex(private_key_hex)
-        if ECDSA_AVAILABLE:
-            sk = SigningKey.from_string(private_key, curve=SECP256k1)
-            public_key = sk.verifying_key.to_string()
-        else:
-            public_key = hashlib.sha256(private_key).digest()
-        
-        address = cls._derive_address(cls, public_key)
+        public_key = KeyGenerator.private_to_public(private_key)
+        address = KeyGenerator.derive_address(public_key)
         keypair = KeyPair(
             private_key=private_key,
             public_key=public_key,
@@ -219,12 +210,7 @@ def verify_transaction_signature(tx: dict) -> bool:
     if not ECDSA_AVAILABLE:
         expected = hashlib.sha256((tx_hash_hashed + public_key.hex()).encode()).hexdigest()
         return signature.hex() == expected
-    
-    try:
-        vk = VerifyingKey.from_string(public_key, curve=SECP256k1)
-        return vk.verify(signature, tx_hash_hashed.encode(), hashfunc=hashlib.sha256, sigdecode=sigdecode_der)
-    except Exception:
-        return False
+    return verify(tx_hash_hashed.encode(), signature, public_key, hashfunc=hashlib.sha256)
 
 
 def create_test_wallet() -> Wallet:

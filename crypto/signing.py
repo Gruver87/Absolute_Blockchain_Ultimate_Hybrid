@@ -9,13 +9,7 @@ from typing import Tuple, Optional
 from crypto.keys import KeyGenerator, KeyPair
 from crypto.hashing import Hasher
 
-try:
-    from ecdsa import SigningKey, VerifyingKey, SECP256k1
-    from ecdsa.util import sigencode_der, sigdecode_der
-    ECDSA_AVAILABLE = True
-except ImportError:
-    ECDSA_AVAILABLE = False
-    print("⚠️ ecdsa not installed. Run: pip install ecdsa")
+from crypto.secp256k1_backend import CRYPTO_AVAILABLE as ECDSA_AVAILABLE, sign, verify
 
 
 class Signer:
@@ -43,11 +37,8 @@ class Signer:
     def _sign_hash(data_hash: str, private_key: bytes) -> str:
         """Internal: sign a hash with private key"""
         if not ECDSA_AVAILABLE:
-            # Simplified for testing (not secure!)
             return hashlib.sha256((data_hash + private_key.hex()).encode()).hexdigest()
-        
-        sk = SigningKey.from_string(private_key, curve=SECP256k1)
-        signature = sk.sign(data_hash.encode(), hashfunc=hashlib.sha256, sigencode=sigencode_der)
+        signature = sign(data_hash.encode(), private_key, hashfunc=hashlib.sha256)
         return signature.hex()
     
     @staticmethod
@@ -85,11 +76,7 @@ class Signer:
             # Simplified for testing
             return len(signature) > 0
         
-        try:
-            vk = VerifyingKey.from_string(public_key, curve=SECP256k1)
-            return vk.verify(signature, data_hash.encode(), hashfunc=hashlib.sha256, sigdecode=sigdecode_der)
-        except Exception:
-            return False
+        return verify(data_hash.encode(), signature, public_key, hashfunc=hashlib.sha256)
     
     @staticmethod
     def get_address_from_public_key(public_key_hex: str) -> str:
