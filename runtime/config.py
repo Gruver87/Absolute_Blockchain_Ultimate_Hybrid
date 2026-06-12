@@ -88,6 +88,11 @@ class Config:
     sqlite_synchronous: str = "NORMAL"      # prod: FULL
     metrics_enabled: bool = True
 
+    # ── Scale / HA (Phase 5) ────────────────────────────────────────────────
+    redis_url: str = ""                     # redis://localhost:6379/0
+    redis_rate_limit_enabled: bool = False  # distributed rate limit
+    rate_limit_rpm: int = 120               # requests per minute per IP
+
     # ────────────────────────────────────────────────────────────────────────
 
     @classmethod
@@ -135,6 +140,13 @@ class Config:
         self.metrics_enabled = env_bool("METRICS_ENABLED", self.metrics_enabled)
         self.jwt_enforce_admin = env_bool("JWT_ENFORCE_ADMIN", self.jwt_enforce_admin)
         self.enable_cors_rpc_proxy = env_bool("ENABLE_CORS_RPC_PROXY", self.enable_cors_rpc_proxy)
+        self.redis_url = env_str("REDIS_URL", self.redis_url)
+        self.redis_rate_limit_enabled = env_bool("REDIS_RATE_LIMIT", self.redis_rate_limit_enabled)
+        self.rate_limit_rpm = env_int("RATE_LIMIT_RPM", self.rate_limit_rpm)
+
+        peers = env_list("BOOTSTRAP_PEERS")
+        if peers:
+            self.bootstrap_peers = peers
 
         origins = env_list("CORS_ORIGINS")
         if origins:

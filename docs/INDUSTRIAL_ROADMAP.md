@@ -16,7 +16,7 @@
 - [x] `DEPLOYMENT_MODE=prod` profile
 - [x] CORS allowlist
 - [x] JWT enforce on admin POST (optional)
-- [ ] TLS termination guide (nginx)
+- [x] TLS termination guide (nginx) — `docs/TLS_NGINX.md`
 - [ ] API keys for RPC
 
 ## Phase 3 — Observability
@@ -33,12 +33,13 @@
 - [x] Backup script (`python scripts/backup_db.py`)
 - [x] Graceful HTTP/RPC shutdown
 
-## Phase 5 — Scale & HA
+## Phase 5 — Scale & HA ✅
 
-- [ ] ASGI migration (optional)
-- [ ] Multi-node K8s manifests
-- [ ] Distributed rate limit (Redis)
-- [ ] Load tests in CI
+- [x] ASGI migration (optional, documented — stdlib sufficient for HA)
+- [x] Multi-node K8s manifests (`deploy/k8s/`)
+- [x] Distributed rate limit (Redis) — `REDIS_RATE_LIMIT=true`
+- [x] Load tests in CI (`scripts/load_test.py`)
+- [x] HA docker-compose (`docker-compose.ha.yml`)
 
 ## Quick start (prod profile)
 
@@ -56,4 +57,16 @@ Docker:
 
 ```bash
 docker compose up --build
+```
+
+HA (3 nodes + Redis):
+
+```bash
+docker compose -f docker-compose.ha.yml up --build
+```
+
+Kubernetes:
+
+```bash
+kubectl apply -k deploy/k8s/
 ```

@@ -18,6 +18,9 @@ requests>=2.31.0
 # JWT (промышленный профиль API)
 PyJWT>=2.8.0
 
+# Redis — distributed rate limit (Phase 5 HA, optional)
+redis>=5.0.0
+
 # Тестирование
 pytest>=8.0.0
 pytest-asyncio>=0.23.0

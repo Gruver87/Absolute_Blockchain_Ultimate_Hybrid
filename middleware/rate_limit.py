@@ -41,5 +41,22 @@ class RateLimiter:
         if client_id in self.requests:
             del self.requests[client_id]
 
-# Глобальный экземпляр
+# Глобальный экземпляр (in-memory fallback)
 rate_limiter = RateLimiter()
+
+
+def create_rate_limiter(
+    *,
+    redis_url: str = "",
+    redis_enabled: bool = False,
+    requests_per_minute: int = 120,
+    window_seconds: int = 60,
+):
+    """In-memory или Redis (если включён и доступен)."""
+    if redis_enabled and redis_url:
+        from middleware.redis_rate_limit import try_create_redis_limiter
+
+        rl = try_create_redis_limiter(redis_url, requests_per_minute, window_seconds)
+        if rl:
+            return rl
+    return RateLimiter(requests_per_minute=requests_per_minute, window_seconds=window_seconds)

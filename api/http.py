@@ -32,12 +32,33 @@ logger = logging.getLogger("API")
 
 # --- Rate Limiter (middleware/rate_limit.py) ---
 try:
-    from middleware.rate_limit import RateLimiter
-    _rate_limiter = RateLimiter(requests_per_minute=120, window_seconds=60)
+    from middleware.rate_limit import create_rate_limiter
+    _rate_limiter = create_rate_limiter(requests_per_minute=120, window_seconds=60)
     _RATE_LIMIT_AVAILABLE = True
 except ImportError:
     _rate_limiter = None
     _RATE_LIMIT_AVAILABLE = False
+
+
+def configure_rate_limiter(config) -> None:
+    """Переинициализирует rate limiter из Config (in-memory или Redis)."""
+    global _rate_limiter, _RATE_LIMIT_AVAILABLE
+    if not config:
+        return
+    try:
+        from middleware.rate_limit import create_rate_limiter
+        _rate_limiter = create_rate_limiter(
+            redis_url=getattr(config, "redis_url", ""),
+            redis_enabled=getattr(config, "redis_rate_limit_enabled", False),
+            requests_per_minute=getattr(config, "rate_limit_rpm", 120),
+            window_seconds=60,
+        )
+        _RATE_LIMIT_AVAILABLE = _rate_limiter is not None
+        backend = "redis" if getattr(config, "redis_rate_limit_enabled", False) else "memory"
+        logger.info("Rate limiter: %s (%s rpm)", backend, getattr(config, "rate_limit_rpm", 120))
+    except ImportError:
+        _rate_limiter = None
+        _RATE_LIMIT_AVAILABLE = False
 
 # --- Input validators (middleware/validators.py) ---
 try:
@@ -3518,6 +3539,7 @@ def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
 
 def create_rpc_server(blockchain, mempool, config, evm=None) -> HTTPServer:
     """Создаёт JSON-RPC сервер на config.rpc_port."""
+    configure_rate_limiter(config)
     JSONRPCHandler.blockchain = blockchain
     JSONRPCHandler.mempool = mempool
     JSONRPCHandler.config = config
@@ -3551,6 +3573,7 @@ def create_http_server(blockchain, mempool, db, config,
                        pool_locks=None,
                        light_client=None) -> ThreadedHTTPServer:
     """Создаёт REST API сервер на config.http_port."""
+    configure_rate_limiter(config)
     RESTHandler.blockchain = blockchain
     RESTHandler.mempool = mempool
     RESTHandler.config = config

@@ -51,6 +51,9 @@ jobs:
     - name: Pytest (unit + integration)
       run: pytest tests/ -q --tb=short -x
 
+    - name: Load test (health endpoint)
+      run: python scripts/load_test.py --spawn-local --workers 6 --requests 20
+
     - name: Import main module
       run: python -c "import main; print('main.py OK')"
 
