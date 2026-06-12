@@ -770,13 +770,21 @@ class RESTHandler(BaseHTTPRequestHandler):
                     return
                 try:
                     result = []
-                    for sym in ["bitcoin", "ethereum"]:
+                    for sym in ["bitcoin", "ethereum", "solana"]:
                         p = oracles.get_crypto_price(sym)
                         if p:
                             result.append({
                                 "symbol": sym, "price": p.price,
                                 "change_24h": p.change_24h, "volume": p.volume,
+                                "source": getattr(p, "source", "coingecko"),
                             })
+                    abs_p = oracles.get_abs_reference_price()
+                    result.append({
+                        "symbol": "absolute",
+                        "price": abs_p.price,
+                        "change_24h": abs_p.change_24h,
+                        "source": abs_p.source,
+                    })
                     self._json({"prices": result, "count": len(result)})
                 except Exception as e:
                     self._json({"prices": [], "error": str(e)})
@@ -1229,12 +1237,18 @@ class RESTHandler(BaseHTTPRequestHandler):
                     try:
                         w = oracles.get_weather(city)
                         if w:
-                            self._json({"city": city,
-                                        "temperature": getattr(w, "temperature", None),
-                                        "condition":   getattr(w, "condition", None),
-                                        "humidity":    getattr(w, "humidity", None)})
+                            self._json({
+                                "city": city,
+                                "temperature": getattr(w, "temperature", None),
+                                "condition": getattr(w, "condition", None),
+                                "humidity": getattr(w, "humidity", None),
+                                "source": getattr(w, "source", "api"),
+                            })
                         else:
-                            self._json({"city": city, "error": "no data"})
+                            self._json({
+                                "city": city,
+                                "error": "no data — set OPENWEATHER_API_KEY or WEATHERAPI_KEY in .env",
+                            })
                     except Exception as e:
                         self._json({"city": city, "error": str(e)})
                 else:

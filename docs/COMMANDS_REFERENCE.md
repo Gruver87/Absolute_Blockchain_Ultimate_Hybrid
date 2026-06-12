@@ -3,23 +3,41 @@
 > **Версия:** `1.2.0-industrial` (unified node)  
 > **Автор:** Uladzimir Dabranski (Gruver87)  
 > **Обновлено:** 2026-06-12  
-> **Статус:** учебный проект, не production mainnet
+> **Статус:** учебный проект, не production mainnet  
+> **Заменяет:** справочник v57 (2026-06-08)
 
 ---
 
-## ⚠️ Важно: что изменилось с v57
+## Миграция v57 → v1.2.0 (полная таблица)
 
-| Было (v57) | Сейчас (unified) |
-|------------|------------------|
-| `node_persistent.py` + 3 отдельных сервера | **Один** `python main.py` |
-| `extended_api_server.py` :8081 | Всё в REST `:8080` |
-| `rpc_proxy.py` :8080 | RPC `:8545`, REST `:8080`, dev CORS proxy `:8082` |
-| `global_p2p_network.py` отдельно | P2P встроен в `main.py` :5000 |
-| `/api/stats`, `/api/peers` | `/status`, `/network/peers` |
-| Логи в `logs/` | `data/node.log` |
-| Legacy-файлы | Архив: `Desktop/Начало блокчейна` |
+| v57 (Часть) | Старый способ | Сейчас (unified) |
+|-------------|---------------|------------------|
+| 1 Нода | `python node_persistent.py` | `python main.py` или `.\scripts\start_node.ps1` |
+| 2 Extended API :8081 | `python extended_api_server.py` | REST на **:8080** (встроено в `main.py`) |
+| 3 RPC proxy :8080 | `python rpc_proxy.py` | RPC **:8545**, REST **:8080**, dev CORS **:8082/rpc** |
+| 4 Оракулы отдельно | `python real_world_oracles.py` | `/oracles/*` на :8080, ключи в `.env` |
+| 5 Шардинг отдельно | `python dynamic_sharding.py` | `/sharding/*` на :8080 |
+| 6 NFT отдельно | `python nft_core.py` | `/nft/*` на :8080 + `features/nft.py` |
+| 7 P2P отдельно | `python global_p2p_network.py` | P2P **:5000** в `main.py` |
+| 8 Telegram отдельно | `python telegram_super_bot.py` | Автостарт из `.env` `TELEGRAM_BOT_TOKEN` |
+| 9 HTTP картинок :8081 | `python -m http.server 8081` | Explorer :8080, NFT в `/nft` |
+| 10 Тесты | `test_vm_complete.py`, `quick_test.py` | `pytest tests/ -q` |
+| 11 Транзакции | `/api/balance`, `/api/transaction/send` | `/wallet/balance/`, `/transactions` POST |
+| 12 Майнинг POST | `/api/mine` | Автоматический цикл в `main.py` (~15 сек) |
+| 13 Web UI | много URL на :8080/:8081 | **Один** SPA: http://localhost:8080 |
+| 14 Блоки | RPC + `/api/stats` | `/blocks`, `/status`, RPC `eth_*` |
+| 15 Слэшинг | скрипт Python | `/slashing/status`, встроено в консенсус |
+| 16 Запуск всего стека | `start_all_services.bat` (3 окна) | **Одна** команда `start_node.ps1` |
+| 17 Остановка | `Stop-Process python` | `.\scripts\stop_node.ps1` |
+| 18 Очистка data | `Remove-Item data\*` | то же (осторожно: потеряете цепочку) |
+| 19 Логи `logs/` | `logs/blockchain.log` | `data/node.log` |
+| 20 Диагностика | netstat 8545/8080/8081/5000 | + 8766 WS, 8092 monitor, 8082 proxy |
+| 21–22 Git / бэкап | git + zip | `scripts/backup_db.py`, `backup_scheduled.ps1` |
+| 23 Секреты в .txt | **ОПАСНО** | Только локальный `.env` (см. ниже) |
+| 24–26 Пути / ссылки | v57 пути | см. Часть 15 ниже |
 
-**Секреты (API keys, токены, private keys) — только в `.env` локально. Никогда в git и не в этот файл.**
+**Секреты из v57 Части 23 никогда не копируйте в git, чаты и markdown.**  
+Локально: скопируйте `.env.example` → `.env` или выполните `python scripts/apply_local_secrets.py` (читает Desktop-файл команд, если он есть).
 
 ---
 
@@ -28,13 +46,19 @@
 ```powershell
 cd C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate
 pip install -r requirements.txt
+.\scripts\start_node.ps1
+```
+
+Или напрямую:
+
+```powershell
 python main.py
 ```
 
-Альтернатива (deprecated shim):
+Deprecated (перенаправляет на `main.py`):
 
 ```powershell
-python node_persistent.py   # перенаправляет на main.py
+python node_persistent.py
 ```
 
 ### Опции CLI
@@ -49,7 +73,7 @@ python main.py --config node.json
 python main.py --log-level DEBUG
 ```
 
-### Prod-профиль (staging/prod)
+### Prod-профиль
 
 ```powershell
 $env:DEPLOYMENT_MODE = "prod"
@@ -60,40 +84,40 @@ $env:CORS_ORIGINS = "http://localhost:8080"
 python main.py
 ```
 
-### Быстрый старт (скрипт)
+### Сброс данных (v57 Часть 18)
 
 ```powershell
-.\scripts\start_node.ps1
-```
-
-### Сброс данных (начать с нуля)
-
-```powershell
+.\scripts\stop_node.ps1
 Remove-Item -Recurse -Force data\* -ErrorAction SilentlyContinue
 python main.py
 ```
 
-### Остановка
+### Остановка (v57 Части 1.2, 17)
 
-- `Ctrl+C` в окне ноды (graceful shutdown HTTP/RPC)
-- Или: `Get-Process python | Stop-Process` (жёстко)
+```powershell
+.\scripts\stop_node.ps1
+```
+
+- `Ctrl+C` в окне ноды (graceful shutdown)
+- Перед повторным запуском — `stop_node.ps1` (иначе WinError 10048 на P2P/WS)
 
 ---
 
 ## Часть 2: Порты и URL
 
-| Сервис | Порт | URL |
-|--------|------|-----|
-| Web Explorer + REST | **8080** | http://localhost:8080 |
-| JSON-RPC | **8545** | http://localhost:8545 |
-| P2P | **5000** | TCP |
-| WebSocket | **8766** | ws://localhost:8766 |
-| Monitor (опц.) | **8092** | http://localhost:8092 |
-| CORS RPC proxy (dev) | **8082** | http://localhost:8082 |
+| Сервис | v57 | v1.2.0 |
+|--------|-----|--------|
+| Web Explorer + REST | :8080 (proxy) | **:8080** |
+| Extended API | :8081 | объединён в :8080 |
+| JSON-RPC | :8545 | **:8545** |
+| P2P | :5000 / :4567 | **:5000** |
+| WebSocket | — | **:8766** |
+| Monitor | — | **:8092** |
+| CORS RPC proxy (dev) | — | **:8082/rpc** |
 
 ---
 
-## Часть 3: Health & метрики (industrial)
+## Часть 3: Health и метрики
 
 ```powershell
 Invoke-RestMethod http://localhost:8080/health/live
@@ -104,18 +128,19 @@ Invoke-RestMethod http://localhost:8080/status
 
 ---
 
-## Часть 4: REST API — основные команды
+## Часть 4: REST API
 
-### Статус и токеномика
+### Статус и токеномика (221M, D.U.P. 17.4%)
 
 ```powershell
 Invoke-RestMethod http://localhost:8080/status
 Invoke-RestMethod http://localhost:8080/tokenomics
 Invoke-RestMethod http://localhost:8080/founder
 Invoke-RestMethod http://localhost:8080/stats
+Invoke-RestMethod http://localhost:8080/allocation
 ```
 
-### Блоки и мемпул
+### Блоки и мемпул (v57 Часть 14)
 
 ```powershell
 Invoke-RestMethod http://localhost:8080/blocks
@@ -123,16 +148,19 @@ Invoke-RestMethod http://localhost:8080/mempool
 Invoke-RestMethod http://localhost:8080/burn-stats
 ```
 
-### Баланс
+### Баланс (v57 Часть 11.1)
 
 ```powershell
-# Подставьте реальный адрес из wallet.json или /status
+# Founder D.U.P. (текущая токеномика v1.2)
+$founder = "0xbeb0962327d6f0ad8de263bd883bb184e88744a2"
+Invoke-RestMethod "http://localhost:8080/wallet/balance/$founder"
+
+# Любой адрес
 $addr = "0xYOUR_ADDRESS"
 Invoke-RestMethod "http://localhost:8080/state/balance/$addr"
-Invoke-RestMethod "http://localhost:8080/wallet/balance/$addr"
 ```
 
-### Транзакция (POST)
+### Транзакция POST (v57 Часть 11.2)
 
 ```powershell
 $body = @{
@@ -147,14 +175,14 @@ Invoke-RestMethod -Uri "http://localhost:8080/transactions" `
     -Method POST -Body $body -ContentType "application/json"
 ```
 
-### P2P
+### P2P (v57 Часть 7)
 
 ```powershell
 Invoke-RestMethod http://localhost:8080/network/peers
 Invoke-RestMethod http://localhost:8080/network/stats
 ```
 
-### Валидаторы и консенсус
+### Валидаторы и слэшинг (v57 Часть 15)
 
 ```powershell
 Invoke-RestMethod http://localhost:8080/validators
@@ -162,7 +190,7 @@ Invoke-RestMethod http://localhost:8080/consensus/stats
 Invoke-RestMethod http://localhost:8080/slashing/status
 ```
 
-### Pool locks (D.U.P. токеномика)
+### Pool locks
 
 ```powershell
 Invoke-RestMethod http://localhost:8080/pools/locks
@@ -180,69 +208,79 @@ Invoke-RestMethod http://localhost:8080/light/headers
 
 ## Часть 5: JSON-RPC (:8545)
 
-### RPC API Key (prod)
-
 ```powershell
-# Сгенерировать ключ локально (в .env, не в git)
-python scripts/generate_rpc_key.py
-
-# В .env:
-# RPC_API_KEY_REQUIRED=true
-# RPC_API_KEYS=your_generated_key_here
-```
-
-```powershell
-# Высота блока (с ключом в prod)
-curl.exe -X POST http://localhost:8545 `
-  -H "Content-Type: application/json" `
-  -H "X-API-Key: YOUR_KEY_FROM_ENV" `
+curl.exe -X POST http://localhost:8545 -H "Content-Type: application/json" `
   -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
 
-# Баланс
 curl.exe -X POST http://localhost:8545 -H "Content-Type: application/json" `
   -d '{"jsonrpc":"2.0","method":"eth_getBalance","params":["0xADDRESS","latest"],"id":1}'
 
-# Последний блок
 curl.exe -X POST http://localhost:8545 -H "Content-Type: application/json" `
   -d '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["latest",true],"id":1}'
 ```
 
-Dev CORS proxy (если `ENABLE_CORS_RPC_PROXY=true`):
+### RPC API Key (prod)
+
+```powershell
+python scripts/generate_rpc_key.py
+# .env: RPC_API_KEY_REQUIRED=true, RPC_API_KEYS=<key>
+```
+
+Dev CORS (v57 proxy :8080/rpc → сейчас :8082/rpc):
 
 ```powershell
 curl.exe -X POST http://localhost:8082/rpc -H "Content-Type: application/json" `
   -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
 ```
 
+### Несколько транзакций подряд (v57 Часть 11.3)
+
+```powershell
+python -c @"
+import requests, time
+for i in range(3):
+    tx = {'from':'0xFROM','to':f'0x{i+1:040x}','value':'0x64','gas':'0x5208','gasPrice':'0x1'}
+    r = requests.post('http://localhost:8545', json={'jsonrpc':'2.0','method':'eth_sendTransaction','params':[tx],'id':i+1})
+    print(f'Tx {i+1}:', r.json())
+    time.sleep(0.5)
+"@
+```
+
 ---
 
-## Часть 6: NFT, оракулы, шардинг
-
-Всё доступно через `:8080` после `python main.py` (не нужен отдельный сервер).
-
-### NFT
+## Часть 6: NFT (v57 Часть 6)
 
 ```powershell
 Invoke-RestMethod http://localhost:8080/nft
 Invoke-RestMethod http://localhost:8080/nft/listings
 Invoke-RestMethod http://localhost:8080/nft/marketplace
+Invoke-RestMethod http://localhost:8080/nft/auctions
 ```
 
 ```powershell
 python -c "from features.nft import NFTMarketplace; m=NFTMarketplace(); print(m.get_stats())"
 ```
 
-### Оракулы
+```powershell
+start http://localhost:8080
+```
+
+---
+
+## Часть 7: Оракулы (v57 Часть 4)
 
 ```powershell
 Invoke-RestMethod http://localhost:8080/oracles/prices
 Invoke-RestMethod "http://localhost:8080/oracles/weather?city=Moscow"
+Invoke-RestMethod "http://localhost:8080/oracles/weather?city=London"
 Invoke-RestMethod http://localhost:8080/oracles/stats
 ```
 
-Ключи погоды — в `.env`: `OPENWEATHER_API_KEY`, `WEATHERAPI_KEY` (без ключей — demo-режим).
+Ключи в `.env`: `OPENWEATHER_API_KEY`, `WEATHERAPI_KEY` (без ключей — demo).
 
-### Шардинг
+---
+
+## Часть 8: Шардинг (v57 Часть 5)
 
 ```powershell
 Invoke-RestMethod http://localhost:8080/sharding/stats
@@ -252,42 +290,42 @@ Invoke-RestMethod "http://localhost:8080/sharding/route?address=0xABC"
 
 ---
 
-## Часть 7: Telegram бот
+## Часть 9: Telegram (v57 Часть 8)
+
+Токен только в локальном `.env`:
 
 ```powershell
-$env:TELEGRAM_BOT_TOKEN = "your_token_from_botfather"
+# .env: TELEGRAM_BOT_TOKEN=<from BotFather>
 python main.py
-# Бот стартует автоматически если токен в env
 ```
 
-Команды в чате: `/start`, `/balance`, `/block`, `/price`, `/help`
+Команды в чате: `/start`, `/balance`, `/block`, `/price`, `/weather`, `/nft`, `/help`
 
 ---
 
-## Часть 8: Майнинг
+## Часть 10: Майнинг (v57 Часть 12)
 
-Майнинг **автоматический** — цикл в `main.py` каждые ~15 сек (`block_time`).
+Автоматически в `main.py` каждые ~15 сек. Ручной POST `/api/mine` больше не нужен.
 
 ```powershell
-# Проверить высоту (растёт = блоки создаются)
-Invoke-RestMethod http://localhost:8080/status | Select-Object height, mempool_size
+Invoke-RestMethod http://localhost:8080/status | Select-Object height
 ```
 
-Отключить: `python main.py --mode rpc-only` или `$env:MINING_ENABLED="false"`
+Отключить: `python main.py --mode rpc-only`
 
 ---
 
-## Часть 9: Web UI
+## Часть 11: Web UI (v57 Часть 13)
 
 ```powershell
 start http://localhost:8080
 ```
 
-31 вкладка в SPA (`web/explorer/index.html`): Explorer, Wallet, NFT, Staking, EVM, ZK, Bridge, Pools, Light Client и др.
+31 вкладка SPA: Explorer, Wallet, NFT, Staking, EVM, WASM, Lightning, Plasma, ZK, Bridge, AI, MEV и др.
 
 ---
 
-## Часть 10: Тестирование
+## Часть 12: Тестирование (v57 Часть 10)
 
 ```powershell
 pytest tests/ -q
@@ -296,63 +334,94 @@ python scripts/load_test.py --spawn-local
 python _final_audit.py
 ```
 
----
-
-## Часть 11: Docker & HA
+Примеры из v57 (если файлы есть):
 
 ```powershell
-# Одна нода
+python -c "from consensus.slashing import SlashingEngine; e=SlashingEngine(); print(e.get_stats())"
+```
+
+---
+
+## Часть 13: Docker, HA, observability
+
+```powershell
 docker compose up --build
-
-# 3 ноды + Redis
 docker compose -f docker-compose.ha.yml up --build
-
-# Kubernetes
+docker compose -f docker-compose.observability.yml up
 kubectl apply -k deploy/k8s/
 ```
-
----
-
-## Часть 12: Бэкап
-
-```powershell
-python scripts/backup_db.py
-python scripts/backup_db.py --db data/blockchain.db
-.\scripts\backup_scheduled.ps1
-```
-
-### JSON-логи (prod)
 
 ```powershell
 $env:LOG_JSON = "true"
 python main.py
-# Логи в data/node.log — одна JSON-строка на событие
 ```
 
-### Grafana + Prometheus
-
-- Dashboard: `deploy/grafana/dashboard.json`
-- Alerts: `deploy/prometheus/alerts.yml`
-- Metrics: `http://localhost:8080/metrics`
+- Metrics: http://localhost:8080/metrics  
+- Grafana: `deploy/grafana/dashboard.json`
 
 ---
 
-## Часть 13: Диагностика
+## Часть 14: Бэкап (v57 Часть 22)
 
 ```powershell
-netstat -an | findstr "8545 8080 5000 8766"
-Get-Process python -ErrorAction SilentlyContinue
+python scripts/backup_db.py
+.\scripts\backup_scheduled.ps1
 
-# Лог узла
-Get-Content data\node.log -Tail 50
-
-# Монитор (если запущен)
-Invoke-RestMethod http://localhost:8092/api/monitor/metrics
+$ts = Get-Date -Format "yyyyMMdd_HHmmss"
+Copy-Item data\blockchain.db "C:\Users\vovun\Desktop\blockchain_backup_$ts.db"
 ```
 
 ---
 
-## Часть 14: Git
+## Часть 15: Диагностика (v57 Части 19–20)
+
+```powershell
+netstat -an | findstr "8545 8080 5000 8766 8082 8092"
+Get-Process python -ErrorAction SilentlyContinue
+
+Get-Content data\node.log -Tail 50
+Invoke-RestMethod http://localhost:8092/api/monitor/metrics -ErrorAction SilentlyContinue
+
+curl.exe -X POST http://localhost:8545 -H "Content-Type: application/json" `
+  -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
+```
+
+---
+
+## Часть 16: Секреты и кошельки (v57 Часть 23 — БЕЗОПАСНО)
+
+**Не храните ключи в `.txt`, чатах и git.** Только локальный `.env`:
+
+```powershell
+Copy-Item .env.example .env
+# Заполните вручную или:
+python scripts/apply_local_secrets.py
+```
+
+| Переменная | Назначение |
+|------------|------------|
+| `TELEGRAM_BOT_TOKEN` | Telegram бот |
+| `OPENWEATHER_API_KEY` | Оракул погоды |
+| `WEATHERAPI_KEY` | Оракул погоды (запасной) |
+| `WALLET_PRIVATE_KEY` | ECDSA 64 hex (подпись TX) |
+| `JWT_SECRET` | Admin API (prod) |
+| `RPC_API_KEYS` | RPC auth (prod) |
+
+### Кошельки v1.2 vs v57
+
+| Роль | v57 | v1.2.0-industrial |
+|------|-----|-------------------|
+| Founder D.U.P. (221M, 17.4%) | `0x40e908...` (старая модель) | `0xbeb0962327d6f0ad8de263bd883bb184e88744a2` |
+| Файл | `data/wallet.json` | то же |
+| Подпись | нужен `private_key` в json или `WALLET_PRIVATE_KEY` в `.env` | то же |
+
+Если в `wallet.json` только `address` + `public_key` — добавьте `WALLET_PRIVATE_KEY` в `.env` или поле `private_key` в json (локально).
+
+**Срочно:** если v57 Часть 23 когда-либо попадала в git/чат — перевыпустите Telegram, API погоды, Ngrok, SSH.
+
+---
+
+## Часть 17: Git (v57 Часть 21)
 
 ```powershell
 cd C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate
@@ -361,9 +430,11 @@ git pull origin master
 git push origin master
 ```
 
+Перед push: `python scripts/check_secrets.py`
+
 ---
 
-## Часть 15: Полезные пути
+## Часть 18: Полезные пути (v57 Часть 24)
 
 | Что | Путь |
 |-----|------|
@@ -371,33 +442,36 @@ git push origin master
 | REST API | `api/http.py` |
 | Web UI | `web/explorer/index.html` |
 | База данных | `data/blockchain.db` |
-| Кошелёк (локально) | `data/wallet.json` |
-| Конфиг env | `.env` (из `.env.example`) |
+| Кошелёк | `data/wallet.json` (gitignore) |
+| Секреты | `.env` (gitignore) |
+| Лог | `data/node.log` |
+| Справочник | `docs/COMMANDS_REFERENCE.md` |
 | Legacy v57 | `Desktop/Начало блокчейна` |
-| Roadmap | `docs/INDUSTRIAL_ROADMAP.md` |
 
 ---
 
-## Часть 16: Параметры сети
+## Часть 19: Параметры сети (v57 Часть 26)
 
-| Параметр | Значение |
-|----------|----------|
-| Chain ID | 1337 |
-| Символ | ABS |
-| Max supply | 221 000 000 |
-| Founder D.U.P. | 17.4% (38 454 000 ABS) |
-| Block time | ~15 сек |
-| Epoch | 32 блока |
-| Burn | 2% комиссии |
+| Параметр | v57 | v1.2.0 |
+|----------|-----|--------|
+| Chain ID | 1337 | 1337 |
+| RPC | 8545 | 8545 |
+| Web | 8080 | 8080 |
+| Extended API | 8081 | объединён в 8080 |
+| P2P | 5000, 4567 | 5000 |
+| Block time | ~15 сек | ~15 сек |
+| Max supply | — | **221 000 000 ABS** |
+| Founder D.U.P. | — | **17.4%** (38 454 000 ABS) |
+| Burn | — | 2% комиссии |
 
 ---
 
-## Ссылки
+## Ссылки (v57 Часть 25)
 
 - GitHub: https://github.com/Gruver87/absolute-blockchain-ultimate
 - Releases: https://github.com/Gruver87/absolute-blockchain-ultimate/releases
-- CI Actions: https://github.com/Gruver87/absolute-blockchain-ultimate/actions
+- Actions: https://github.com/Gruver87/absolute-blockchain-ultimate/actions
 
 ---
 
-*Конец справочника — unified industrial edition*
+*Конец справочника — unified industrial edition (замена v57)*

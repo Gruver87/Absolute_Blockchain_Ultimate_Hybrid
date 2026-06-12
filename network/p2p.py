@@ -167,6 +167,7 @@ class P2PNode:
             print(f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port}")
         except OSError as e:
             print(f"[P2P] Could not bind port {self.config.p2p_port}: {e}")
+            print("[P2P] Hint: stop other node — .\\scripts\\stop_node.ps1 — or use --port 5001")
 
         # Подключаемся к bootstrap пирам
         for peer_addr in self.config.bootstrap_peers:
@@ -177,6 +178,7 @@ class P2PNode:
         # Периодические задачи
         asyncio.create_task(self._ping_loop())
         asyncio.create_task(self._discovery_loop())
+        asyncio.create_task(self._solo_node_hint())
 
         if self._server:
             async with self._server:
@@ -197,6 +199,9 @@ class P2PNode:
                                 writer: asyncio.StreamWriter):
         peer = PeerConnection(reader, writer)
         peer_addr = writer.get_extra_info("peername")
+        if peer_addr and len(peer_addr) >= 2:
+            peer.host = peer_addr[0]
+            peer.port = int(peer_addr[1] or 0)
         logger.debug(f"[P2P] Incoming from {peer_addr}")
 
         if len(self.peers) >= self.config.max_peers:
@@ -264,6 +269,7 @@ class P2PNode:
             "chain_id": self.config.chain_id,
             "version": self.config.node_version,
             "height": our_height,
+            "head_hash": self.head or "",
             "node_id": f"abs-{self.config.p2p_port}",
         }
 
@@ -288,6 +294,11 @@ class P2PNode:
         peer.peer_id = ack.get("node_id", f"{peer.host}:{peer.port}")
         peer.chain_id = ack.get("chain_id", 0)
         peer.height = ack.get("height", 0)
+        peer.head = ack.get("head_hash") or peer.head
+        await peer.send(MSG_STATUS, {
+            "height": our_height,
+            "head_hash": self.head or "",
+        })
         return True
 
     # ── Цикл сообщений ───────────────────────────────────────────────────────
@@ -500,6 +511,19 @@ class P2PNode:
                     parts = addr.split(":")
                     if len(parts) == 2:
                         asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
+
+    async def _solo_node_hint(self):
+        """One-time hint when running without peers (normal for solo dev)."""
+        await asyncio.sleep(45)
+        if not self._running or self.peers:
+            return
+        if self.config.bootstrap_peers:
+            print("[P2P] No peers connected — check BOOTSTRAP_PEERS / firewall")
+        else:
+            print(
+                "[P2P] Solo mode (0 peers). For a second node: "
+                f"python main.py --port 5001 --peers 127.0.0.1:{self.config.p2p_port}"
+            )
 
     def _remove_peer(self, peer_id: str):
         peer = self.peers.pop(peer_id, None)

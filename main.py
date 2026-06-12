@@ -338,6 +338,36 @@ class NodeOrchestrator:
                     print(f"[Node] Founder wallet (D.U.P.): {_waddr}")
                 if _WALLET_AVAILABLE and _wdata.get("private_key"):
                     self.wallet = Wallet.import_wallet(_wallet_path)
+                elif _WALLET_AVAILABLE:
+                    _pk_env = os.environ.get("WALLET_PRIVATE_KEY", "").strip()
+                    if _pk_env:
+                        try:
+                            _w = Wallet.from_private_key(_pk_env)
+                            _exp_pub = (_wdata.get("public_key") or "").lower()
+                            _exp_addr = (_waddr or "").lower()
+                            _match = (
+                                (not _exp_pub or _w.public_key.lower() == _exp_pub)
+                                and (not _exp_addr or _w.address.lower() == _exp_addr)
+                            )
+                            if _match:
+                                self.wallet = _w
+                                print(
+                                    f"[Node] Wallet loaded from WALLET_PRIVATE_KEY "
+                                    f"(signing enabled): {_w.address}"
+                                )
+                            else:
+                                self.wallet = _w
+                                print(
+                                    f"[Node] Operational wallet from WALLET_PRIVATE_KEY: "
+                                    f"{_w.address}"
+                                )
+                                if _waddr:
+                                    print(
+                                        f"[Node] Founder address in wallet.json "
+                                        f"(watch-only): {_waddr}"
+                                    )
+                        except Exception as _pke:
+                            print(f"[Node] WALLET_PRIVATE_KEY invalid ({_pke})")
             except Exception as _we:
                 print(f"[Node] Wallet load warning ({_we})")
         if config.require_wallet_file and self.wallet is None:
@@ -345,15 +375,21 @@ class NodeOrchestrator:
                 f"Production mode requires wallet with private_key at: {_wallet_path}"
             )
         if _WALLET_AVAILABLE and self.wallet is None and not config.require_wallet_file:
-            try:
-                self.wallet = Wallet.create_new()
-                if not config.miner_address:
-                    config.miner_address = self.wallet.address
-                if not getattr(config, "founder_address", ""):
-                    config.founder_address = self.wallet.address
-                print(f"[Node] ECDSA wallet generated. Address: {config.miner_address}")
-            except Exception as _we:
-                print(f"[Node] Wallet unavailable ({_we})")
+            if config.miner_address and os.path.exists(_wallet_path):
+                print(
+                    f"[Node] Wallet address loaded (no private_key in file — "
+                    f"signing disabled): {config.miner_address}"
+                )
+            else:
+                try:
+                    self.wallet = Wallet.create_new()
+                    if not config.miner_address:
+                        config.miner_address = self.wallet.address
+                    if not getattr(config, "founder_address", ""):
+                        config.founder_address = self.wallet.address
+                    print(f"[Node] ECDSA wallet generated. Address: {config.miner_address}")
+                except Exception as _we:
+                    print(f"[Node] Wallet unavailable ({_we})")
         if not config.miner_address:
             import hashlib as _hl
             config.miner_address = "0x" + _hl.sha256(
@@ -948,7 +984,12 @@ class NodeOrchestrator:
         # Telegram Bot — автозапуск если TELEGRAM_BOT_TOKEN установлен
         import os as _os
         _tg_token = _os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
-        if _tg_token:
+        try:
+            from runtime.secret_utils import is_placeholder_secret
+            _tg_placeholder = is_placeholder_secret(_tg_token)
+        except ImportError:
+            _tg_placeholder = _tg_token.lower().startswith("your_")
+        if _tg_token and not _tg_placeholder:
             try:
                 import threading as _threading
                 # BOT_TOKEN is read at module import time from env — already set above
@@ -959,8 +1000,10 @@ class NodeOrchestrator:
                 print(f"[Telegram] Bot started (token: {_tg_token[:8]}...)")
             except Exception as _te:
                 print(f"[Telegram] Bot unavailable: {_te}")
+        elif _tg_token and _tg_placeholder:
+            print("[Telegram] Skipped — TELEGRAM_BOT_TOKEN is placeholder in .env")
         else:
-            print("[Telegram] Bot ready — set TELEGRAM_BOT_TOKEN env var to activate")
+            print("[Telegram] Bot ready — set TELEGRAM_BOT_TOKEN in .env to activate")
 
         # Обработка tx из мемпула (периодическое включение в блок)
         tasks.append(asyncio.create_task(self._mempool_monitor(), name="MempoolMonitor"))

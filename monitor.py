@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import json
+import os
 import time
 import threading
 import requests
@@ -13,6 +14,7 @@ class BlockchainMonitor:
         self.alerts = []
         self.metrics = {}
         self.is_running = True
+        self._peer_warn_count = 0
         self._start_monitoring()
         print(f"📊 Blockchain Monitor initialized")
     
@@ -50,7 +52,15 @@ class BlockchainMonitor:
         elif self.metrics['pending'] > 100:
             self._add_alert('WARNING', f'Большая очередь: {self.metrics["pending"]}')
         elif self.metrics['peers_count'] == 0:
-            self._add_alert('WARNING', 'Нет подключённых пиров')
+            bootstrap = os.getenv("BOOTSTRAP_PEERS", "").strip()
+            mode = stats.get("deployment_mode", os.getenv("DEPLOYMENT_MODE", "dev"))
+            if bootstrap or mode not in ("dev", "development", ""):
+                self._peer_warn_count += 1
+                if self._peer_warn_count >= 2:
+                    self._add_alert('WARNING', 'Нет подключённых пиров')
+            elif self._peer_warn_count == 0:
+                self._peer_warn_count = 1
+                print("[Monitor] Solo node (0 peers) — OK for local dev")
     
     def _add_alert(self, level, message):
         alert = {'level': level, 'message': message, 'timestamp': int(time.time())}

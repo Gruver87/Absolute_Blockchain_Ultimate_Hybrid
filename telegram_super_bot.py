@@ -43,7 +43,23 @@ class AbsoluteBot:
             return response.json().get("result", [])
         except:
             return []
-    
+
+    def _api_get(self, path: str, timeout: int = 10):
+        try:
+            r = requests.get(f"{API_URL}{path}", timeout=timeout)
+            if r.status_code == 200:
+                return r.json()
+        except Exception as e:
+            print(f"[Telegram] API {path}: {e}")
+        return None
+
+    def _resolve_address(self, address: str) -> str:
+        low = (address or "").strip().lower()
+        if low in ("foundation", "founder", "dup", "d.u.p."):
+            st = self._api_get("/founder") or self._api_get("/status") or {}
+            return st.get("founder_address") or st.get("address") or address
+        return address
+
     def handle_message(self, message):
         chat_id = message["chat"]["id"]
         text = message.get("text", "").strip().lower()
@@ -107,6 +123,11 @@ class AbsoluteBot:
                 
         elif text == "/market":
             self.show_market(chat_id)
+
+        elif text.startswith("/weather"):
+            parts = text.split(maxsplit=1)
+            city = parts[1] if len(parts) > 1 else "Grodno"
+            self.show_weather(chat_id, city)
             
         # ========== ДРУГИЕ ==========
         elif text == "/about":
@@ -136,6 +157,7 @@ class AbsoluteBot:
 📈 РЫНОК
 /price [символ] - цена (ABS, BTC, ETH...)
 /market - обзор рынка
+/weather [город] - погода (оракул)
 
 ℹ️ ИНФО
 /about - о проекте
@@ -148,9 +170,9 @@ class AbsoluteBot:
         return """
 ⚡ ABSOLUTE BLOCKCHAIN
 
-Версия: 15.0
-Консенсус: DPoS
-TPS: 10,000+
+Версия: 1.2.0-industrial
+Консенсус: PoS (LMD-GHOST + Casper FFG)
+TPS: educational devnet
 Комиссия: 0.001 ABS
 Квантовая защита: SPHINCS+
 
@@ -170,224 +192,164 @@ TPS: 10,000+
         """
     
     def show_stats(self, chat_id):
-        try:
-            response = requests.get(f"{API_URL}/api/stats", timeout=10)
-            if response.status_code == 200:
-                stats = response.json()
-                text = f"""
-📊 СТАТИСТИКА БЛОКЧЕЙНА
+        st = self._api_get("/status")
+        if not st:
+            self.send_message(chat_id, "❌ Нода недоступна — запустите main.py")
+            return
+        text = f"""📊 СТАТИСТИКА ABSOLUTE
 
-🏗️ Блоков: {stats.get('blocks', 0)}
-💰 Эмиссия: {stats.get('total_supply', 0):,.0f} ABS
-⚡ Сложность: {stats.get('difficulty', 1)}
-⏳ Ожидание: {stats.get('pending_transactions', 0)} тxs
-👥 Валидаторов: {stats.get('validators_count', 0)}
-🌍 Пиров: {stats.get('peers', 0)}
+🏗️ Высота: {st.get('height', 0)}
+💰 Max supply: {st.get('max_supply', 0):,.0f} ABS
+⏳ Mempool: {st.get('mempool_size', 0)} tx
+👥 Валидаторов: {st.get('validator_count', 0)}
+🌍 Пиров: {st.get('peers', 0)}
+🔥 Сожжено: {st.get('total_burned', 0):.4f} ABS
+📦 Версия: {st.get('node_version', '?')}
+👤 Founder: {st.get('founder_initials', 'D.U.P.')}"""
+        self.send_message(chat_id, text)
 
-🔐 Квантовая защита: SPHINCS+
-🎨 NFT: 60 героев
-                """
-                self.send_message(chat_id, text)
-            else:
-                self.send_message(chat_id, "❌ Ошибка получения статистики")
-        except Exception as e:
-            self.send_message(chat_id, f"❌ Ошибка: {str(e)[:100]}")
-    
     def show_blocks(self, chat_id):
-        try:
-            response = requests.get(f"{API_URL}/api/blocks", timeout=10)
-            if response.status_code == 200:
-                blocks = response.json()
-                text = "📦 ПОСЛЕДНИЕ БЛОКИ\n\n"
-                for block in blocks[-5:]:
-                    text += f"🔹 Блок #{block.get('height', 0)}\n"
-                    text += f"   📝 Транзакций: {block.get('transaction_count', 0)}\n"
-                    if block.get('timestamp'):
-                        text += f"   ⏱️ {datetime.fromtimestamp(block.get('timestamp')).strftime('%H:%M:%S')}\n\n"
-                self.send_message(chat_id, text)
-            else:
-                self.send_message(chat_id, "❌ Ошибка получения блоков")
-        except:
-            self.send_message(chat_id, "❌ Ошибка получения блоков")
-    
+        data = self._api_get("/blocks?limit=5")
+        if not data:
+            self.send_message(chat_id, "❌ Ошибка /blocks")
+            return
+        blocks = data.get("blocks", [])
+        text = "📦 ПОСЛЕДНИЕ БЛОКИ\n\n"
+        for block in blocks:
+            h = block.get("height", block.get("number", 0))
+            txs = block.get("tx_count", block.get("transaction_count", len(block.get("transactions", []))))
+            text += f"🔹 #{h} — {txs} tx\n"
+        self.send_message(chat_id, text or "Нет блоков")
+
     def show_block(self, chat_id, block_num):
-        try:
-            response = requests.get(f"{API_URL}/api/blocks", timeout=10)
-            if response.status_code == 200:
-                blocks = response.json()
-                block = next((b for b in blocks if b.get('height') == int(block_num)), None)
-                if block:
-                    text = f"""
-📦 БЛОК #{block.get('height')}
+        blk = self._api_get(f"/blocks/{block_num}")
+        if not blk:
+            self.send_message(chat_id, f"❌ Блок #{block_num} не найден")
+            return
+        text = f"""📦 БЛОК #{blk.get('height', block_num)}
 
-🔗 Хеш: {block.get('block_hash', 'unknown')[:32]}...
-📝 Транзакций: {block.get('transaction_count', 0)}
-⛏️ Майнер: {block.get('miner', 'unknown')[:16]}...
-💰 Награда: {block.get('block_reward', 0)} ABS
-⏱️ Время: {datetime.fromtimestamp(block.get('timestamp', 0)).strftime('%Y-%m-%d %H:%M:%S')}
-                    """
-                    self.send_message(chat_id, text)
-                else:
-                    self.send_message(chat_id, f"❌ Блок #{block_num} не найден")
-            else:
-                self.send_message(chat_id, "❌ Ошибка получения блока")
-        except:
-            self.send_message(chat_id, "❌ Ошибка получения блока")
-    
+🔗 {str(blk.get('hash', ''))[:32]}...
+📝 tx: {blk.get('tx_count', len(blk.get('transactions', [])))}
+⛏️ {str(blk.get('miner', blk.get('proposer', '')))[:20]}..."""
+        self.send_message(chat_id, text)
+
     def show_balance(self, chat_id, address):
-        try:
-            response = requests.get(f"{API_URL}/api/balance?address={address}", timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                text = f"""
-💰 БАЛАНС
+        addr = self._resolve_address(address)
+        data = self._api_get(f"/wallet/balance/{addr}")
+        if not data:
+            data = self._api_get(f"/state/balance/{addr}")
+        if not data:
+            self.send_message(chat_id, f"❌ Баланс для {addr[:16]}... недоступен")
+            return
+        bal = data.get("balance", 0)
+        self.send_message(chat_id, f"💰 {addr[:20]}...\n💎 {bal:,.6f} ABS")
 
-📍 Адрес: {address[:24]}...
-💎 Баланс: {data.get('balance', 0):,.2f} ABS
-                """
-                self.send_message(chat_id, text)
-            else:
-                self.send_message(chat_id, f"❌ Адрес {address[:16]}... не найден")
-        except:
-            self.send_message(chat_id, "❌ Ошибка получения баланса")
-    
     def show_peers(self, chat_id):
-        try:
-            response = requests.get(f"{API_URL}/api/peers", timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                peers = data.get('peers', [])
-                text = f"🌍 P2P ПИРЫ\n\n📡 Всего пиров: {len(peers)}\n"
-                for peer in peers[:10]:
-                    text += f"🔗 {peer}\n"
-                self.send_message(chat_id, text)
+        data = self._api_get("/network/peers") or {}
+        peers = data.get("peers", [])
+        text = f"🌍 P2P: {data.get('count', len(peers))} пиров\n"
+        for p in peers[:10]:
+            if isinstance(p, dict):
+                text += f"🔗 {p.get('host', '?')}:{p.get('port', '?')}\n"
             else:
-                self.send_message(chat_id, "❌ Ошибка получения пиров")
-        except:
-            self.send_message(chat_id, "❌ Ошибка получения пиров")
-    
+                text += f"🔗 {p}\n"
+        if not peers:
+            text += "\nSolo mode — нормально для одной ноды."
+        self.send_message(chat_id, text)
+
     def show_validators(self, chat_id):
-        try:
-            response = requests.get(f"{API_URL}/api/validators", timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                validators = data.get('validators', [])
-                text = "⚖️ АКТИВНЫЕ ВАЛИДАТОРЫ\n\n"
-                if validators:
-                    for v in validators[:10]:
-                        text += f"🔹 {v.get('validator_id', '')[:16]}...\n"
-                        text += f"   💰 Стейк: {v.get('stake', 0):,.0f} ABS\n\n"
-                else:
-                    text += "Нет активных валидаторов"
-                self.send_message(chat_id, text)
-            else:
-                self.send_message(chat_id, "❌ Ошибка получения валидаторов")
-        except:
-            self.send_message(chat_id, "❌ Ошибка получения валидаторов")
-    
+        data = self._api_get("/validators") or {}
+        validators = data.get("validators", [])
+        text = f"⚖️ ВАЛИДАТОРЫ ({data.get('count', len(validators))})\n\n"
+        for v in validators[:10]:
+            addr = v.get("address", v.get("validator_id", ""))[:20]
+            stake = v.get("stake", 0)
+            text += f"🔹 {addr}... stake={stake:,.0f}\n"
+        self.send_message(chat_id, text or "Нет валидаторов")
+
     def show_staking_info(self, chat_id):
-        try:
-            response = requests.get(f"{API_URL}/api/staking", timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                text = f"""
-⚡ СТЕЙКИНГ
+        val = self._api_get("/validators") or {}
+        pools = self._api_get("/pools/locks") or {}
+        text = f"""⚡ СТЕЙКИНГ / POOLS
 
-💰 Всего застейкано: {data.get('total_staked', 0):,.0f} ABS
-📈 APY: {data.get('apy', 5)}%
-🎯 Мин. стейк: {data.get('min_stake', 100)} ABS
-🏆 Валидаторов: {data.get('validators_count', 0)}
-                """
-                self.send_message(chat_id, text)
-            else:
-                self.send_message(chat_id, "❌ Ошибка получения стейкинга")
-        except:
-            self.send_message(chat_id, "❌ Ошибка получения стейкинга")
-    
+🏆 Валидаторов: {val.get('count', 0)}
+🎯 Min stake: {val.get('min_stake', 1000)} ABS
+🔒 Pool locks: {len(pools.get('locks', pools) if isinstance(pools, dict) else [])}"""
+        self.send_message(chat_id, text)
+
     def show_nft_collections(self, chat_id):
-        try:
-            response = requests.get(f"{API_URL}/api/nft/collections", timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                collections = data.get('collections', [])
-                text = "🦋 NFT КОЛЛЕКЦИИ\n\n"
-                for col in collections[:5]:
-                    text += f"📁 {col.get('name', 'Unknown')}\n"
-                    text += f"   🎨 NFT: {col.get('total_supply', 0)}\n"
-                    text += f"   👑 Создатель: {col.get('creator', '')[:16]}...\n\n"
-                self.send_message(chat_id, text)
-            else:
-                self.send_message(chat_id, "❌ Ошибка получения коллекций")
-        except:
-            self.send_message(chat_id, "❌ Ошибка получения коллекций")
-    
-    def show_nft(self, chat_id, address):
-        try:
-            response = requests.get(f"{API_URL}/api/nft/owner?address={address}", timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                tokens = data.get('tokens', [])
-                if tokens:
-                    text = f"🦋 NFT {address[:16]}...\n\n"
-                    for token in tokens[:10]:
-                        text += f"🎨 {token.get('name', 'Unknown')}\n"
-                        text += f"   📍 ID: {token.get('token_id', '')[:16]}...\n"
-                        if token.get('price', 0) > 0:
-                            text += f"   💰 Цена: {token.get('price', 0)} ABS\n"
-                        text += "\n"
-                    self.send_message(chat_id, text)
-                else:
-                    self.send_message(chat_id, f"🦋 У {address[:16]}... нет NFT")
-            else:
-                self.send_message(chat_id, f"❌ Ошибка получения NFT")
-        except:
-            self.send_message(chat_id, "❌ Ошибка получения NFT")
-    
-    def show_nft_marketplace(self, chat_id):
-        try:
-            response = requests.get(f"{API_URL}/api/nft/listings", timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                listings = data.get('listings', [])
-                if listings:
-                    text = "🛒 NFT МАРКЕТПЛЕЙС\n\n"
-                    for listing in listings[:5]:
-                        text += f"🎨 NFT: {listing.get('token_id', '')[:16]}...\n"
-                        text += f"   💰 Цена: {listing.get('price', 0)} ABS\n"
-                        text += f"   👤 Продавец: {listing.get('seller', '')[:16]}...\n\n"
-                    self.send_message(chat_id, text)
-                else:
-                    self.send_message(chat_id, "🛒 Нет активных продаж")
-            else:
-                self.send_message(chat_id, "❌ Ошибка получения маркетплейса")
-        except:
-            self.send_message(chat_id, "❌ Ошибка получения маркетплейса")
-    
-    def show_price(self, chat_id, symbol):
-        if symbol == "ABS":
-            try:
-                response = requests.get(f"{API_URL}/api/stats", timeout=10)
-                if response.status_code == 200:
-                    stats = response.json()
-                    supply = stats.get('total_supply', 100000000)
-                    text = f"""
-📈 ЦЕНА {symbol}
+        data = self._api_get("/nft") or self._api_get("/nft/marketplace") or {}
+        tokens = data.get("tokens", data.get("nfts", []))
+        text = f"🦋 NFT ({len(tokens)} genesis/market)\n"
+        for t in (tokens if isinstance(tokens, list) else [])[:5]:
+            if isinstance(t, dict):
+                text += f"🎨 {t.get('name', t.get('token_id', '?'))}\n"
+        self.send_message(chat_id, text or "NFT пусто")
 
-💰 Цена: 0.001 USD (тестовая)
-💎 Рыночная капитализация: ${supply * 0.001:,.0f}
-📊 Эмиссия: {supply:,.0f} ABS
-🔗 Блокчейн: Absolute v15.0
-                    """
-                    self.send_message(chat_id, text)
-                else:
-                    self.send_message(chat_id, f"❌ Ошибка получения цены {symbol}")
-            except:
-                self.send_message(chat_id, f"❌ Ошибка получения цены {symbol}")
-        else:
-            self.send_message(chat_id, f"📈 {symbol.upper()}: Данные временно недоступны")
-    
+    def show_nft(self, chat_id, address):
+        addr = self._resolve_address(address)
+        data = self._api_get(f"/nft/owner/{addr}") or self._api_get("/nft")
+        tokens = []
+        if isinstance(data, dict):
+            tokens = data.get("tokens", data.get("nfts", []))
+        if not tokens:
+            self.send_message(chat_id, f"🦋 У {addr[:16]}... нет NFT")
+            return
+        text = f"🦋 NFT {addr[:16]}...\n\n"
+        for token in tokens[:8]:
+            if isinstance(token, dict):
+                text += f"🎨 {token.get('name', token.get('token_id', '?'))}\n"
+        self.send_message(chat_id, text)
+
+    def show_nft_marketplace(self, chat_id):
+        data = self._api_get("/nft/listings") or {}
+        listings = data.get("listings", [])
+        if not listings:
+            self.send_message(chat_id, "🛒 Нет активных листингов")
+            return
+        text = "🛒 NFT МАРКЕТ\n\n"
+        for L in listings[:5]:
+            text += f"🎨 {str(L.get('token_id', ''))[:16]}... — {L.get('price', 0)} ABS\n"
+        self.send_message(chat_id, text)
+
+    def show_price(self, chat_id, symbol):
+        sym = symbol.upper()
+        cg_map = {"BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana", "DOGE": "dogecoin", "ABS": "absolute"}
+        prices = self._api_get("/oracles/prices") or {}
+        for p in prices.get("prices", []):
+            ps = (p.get("symbol") or "").lower()
+            if ps == cg_map.get(sym, sym.lower()) or (sym == "ABS" and ps == "absolute"):
+                src = p.get("source", "api")
+                self.send_message(
+                    chat_id,
+                    f"📈 {sym}\n💵 ${p.get('price', 0):,.4f}\n"
+                    f"24h: {p.get('change_24h', 0):+.2f}%\n📡 source: {src}",
+                )
+                return
+        self.send_message(chat_id, f"❌ Цена {sym} недоступна (оракул / сеть)")
+
     def show_market(self, chat_id):
-        self.send_message(chat_id, "📊 РЫНОК\n\nABS: $0.001\nBTC: $60,000\nETH: $3,000\n\nДанные обновляются...")
+        prices = self._api_get("/oracles/prices")
+        if not prices:
+            self.send_message(chat_id, "❌ /oracles/prices недоступен")
+            return
+        text = "📊 РЫНОК (live oracles)\n\n"
+        for p in prices.get("prices", [])[:6]:
+            sym = (p.get("symbol") or "?").upper()
+            text += f"{sym}: ${p.get('price', 0):,.4f} ({p.get('source', '?')})\n"
+        self.send_message(chat_id, text)
+
+    def show_weather(self, chat_id, city):
+        data = self._api_get(f"/oracles/weather?city={city}")
+        if not data or data.get("error"):
+            self.send_message(chat_id, f"❌ Погода {city}: {data.get('error', 'нет данных') if data else 'API off'}")
+            return
+        self.send_message(
+            chat_id,
+            f"🌤 {data.get('city', city)}\n"
+            f"🌡 {data.get('temperature')}°C — {data.get('condition')}\n"
+            f"💧 {data.get('humidity')}% | source: {data.get('source', 'api')}",
+        )
     
     def run(self):
         print("🤖 ABSOLUTE BLOCKCHAIN TELEGRAM BOT v2.0")

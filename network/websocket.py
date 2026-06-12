@@ -124,6 +124,14 @@ class WebSocketServer:
                 logger.info(f"[WebSocket] server running on {self.host}:{self.port}")
                 while self._running:
                     await asyncio.sleep(1)
+        except OSError as e:
+            if getattr(e, "winerror", None) == 10048 or getattr(e, "errno", None) in (48, 98):
+                logger.error(
+                    f"[WebSocket] could not bind port {self.port}: {e} "
+                    "(stop other node: .\\scripts\\stop_node.ps1)"
+                )
+            else:
+                logger.error(f"[WebSocket] error: {e}")
         except Exception as e:
             logger.error(f"[WebSocket] error: {e}")
 
