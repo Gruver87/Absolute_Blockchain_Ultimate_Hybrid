@@ -41,3 +41,13 @@ def test_prod_requires_jwt_secret():
     finally:
         if old:
             os.environ["JWT_SECRET"] = old
+
+
+def test_prod_example_json_structure():
+    root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    path = os.path.join(root, "node.prod.example.json")
+    cfg = Config.from_json(path)
+    assert cfg.deployment_mode == "prod"
+    assert cfg.bridge_mode == "rust"
+    assert cfg.jwt_enforce_admin is True
+    assert cfg.rpc_api_key_required is True

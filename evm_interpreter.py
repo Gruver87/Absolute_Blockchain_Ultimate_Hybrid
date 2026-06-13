@@ -19,7 +19,8 @@ class EVMContext:
     timestamp: int = 0
     chain_id: int = 77777
     balance_of: Optional[Callable[[str], int]] = None
-    contract_call: Optional[Callable[[str, bytes, int, int, bool], Dict[str, Any]]] = None
+    contract_call: Optional[Callable[..., Dict[str, Any]]] = None
+    contract_create: Optional[Callable[[bytes, int, "EVMContext"], Dict[str, Any]]] = None
 
     def addr_int(self, who: str) -> int:
         raw = (who or "").replace("0x", "").lower()
@@ -45,7 +46,7 @@ class EVM:
         "SHA3": 30, "RETURN": 0, "REVERT": 0, "JUMPDEST": 1,
         "AND": 3, "OR": 3, "XOR": 3, "NOT": 3, "LT": 3, "GT": 3,
         "EQ": 3, "ISZERO": 3, "BYTE": 3, "SHL": 3, "SHR": 3,
-        "CALL": 700, "DELEGATECALL": 700,
+        "CALL": 700, "DELEGATECALL": 700, "STATICCALL": 700, "CREATE": 32000,
     }
 
     def __init__(self, gas_limit: int = 1_000_000, context: Optional[EVMContext] = None):
@@ -109,20 +110,51 @@ class EVM:
         chunk = data[:ret_size]
         self.memory[ret_offset:ret_offset + len(chunk)] = chunk
 
+    def _available_gas(self, requested: int) -> int:
+        remaining = max(0, self.gas_limit - self.gas_used)
+        if requested <= 0 or requested > remaining:
+            return remaining
+        return requested
+
+    def _charge_subcall_gas(self, sub_gas: int) -> None:
+        if sub_gas > 0:
+            self.gas_used += sub_gas
+            if self.gas_used > self.gas_limit:
+                raise RuntimeError(
+                    f"out_of_gas (used={self.gas_used}, limit={self.gas_limit})"
+                )
+
     def _execute_call(self, to_word: int, value: int, args_offset: int, args_size: int,
-                      ret_offset: int, ret_size: int, delegate: bool) -> int:
+                      ret_offset: int, ret_size: int, gas: int,
+                      delegate: bool, static: bool) -> int:
         if not self.ctx.contract_call:
             self.return_data = b""
             return 0
         self._mem_extend(args_offset, args_size)
         call_data = bytes(self.memory[args_offset:args_offset + args_size])
         to_addr = self._word_to_addr(to_word)
-        out = self.ctx.contract_call(to_addr, call_data, value, 0, delegate)
+        call_gas = self._available_gas(gas)
+        out = self.ctx.contract_call(
+            to_addr, call_data, value, call_gas, delegate, static
+        )
+        self._charge_subcall_gas(int(out.get("gas_used", 0) or 0))
         self.return_data = out.get("return_data", b"") or b""
         if delegate and isinstance(out.get("storage"), dict):
             self.storage = dict(out["storage"])
         self._write_return_to_memory(ret_offset, ret_size, self.return_data)
         return 1 if out.get("success") and not out.get("reverted") else 0
+
+    def _execute_create(self, value: int, offset: int, size: int) -> int:
+        if not self.ctx.contract_create:
+            return 0
+        self._mem_extend(offset, size)
+        init_code = bytes(self.memory[offset:offset + size])
+        out = self.ctx.contract_create(init_code, value, self.ctx)
+        self._charge_subcall_gas(int(out.get("gas_used", 0) or 0))
+        if not out.get("success") or out.get("reverted"):
+            return 0
+        addr = out.get("address") or ""
+        return self.ctx.addr_int(addr) if addr else 0
 
     def execute_bytecode(self, bytecode: bytes) -> Dict[str, Any]:
         self.pc = 0
@@ -300,6 +332,11 @@ class EVM:
                 b = self.stack[-1 - n]
                 self.stack[-1] = b
                 self.stack[-1 - n] = a
+            elif op_byte == 0xF0:  # CREATE
+                size = self._pop()
+                offset = self._pop()
+                value = self._pop()
+                self._push(self._execute_create(value, offset, size))
             elif op_byte == 0xF1:  # CALL
                 gas = self._pop()
                 to_word = self._pop()
@@ -309,7 +346,8 @@ class EVM:
                 ret_offset = self._pop()
                 ret_size = self._pop()
                 self._push(self._execute_call(
-                    to_word, value, args_offset, args_size, ret_offset, ret_size, False
+                    to_word, value, args_offset, args_size, ret_offset, ret_size,
+                    gas, False, False
                 ))
             elif op_byte == 0xF4:  # DELEGATECALL
                 gas = self._pop()
@@ -319,7 +357,19 @@ class EVM:
                 ret_offset = self._pop()
                 ret_size = self._pop()
                 self._push(self._execute_call(
-                    to_word, 0, args_offset, args_size, ret_offset, ret_size, True
+                    to_word, 0, args_offset, args_size, ret_offset, ret_size,
+                    gas, True, False
+                ))
+            elif op_byte == 0xFA:  # STATICCALL
+                gas = self._pop()
+                to_word = self._pop()
+                args_offset = self._pop()
+                args_size = self._pop()
+                ret_offset = self._pop()
+                ret_size = self._pop()
+                self._push(self._execute_call(
+                    to_word, 0, args_offset, args_size, ret_offset, ret_size,
+                    gas, False, True
                 ))
             elif op_byte == 0xF3:  # RETURN
                 offset, size = self._pop(), self._pop()
@@ -366,7 +416,7 @@ class EVM:
             0x50: "POP", 0x51: "MLOAD",
             0x52: "MSTORE", 0x53: "MSTORE8", 0x54: "SLOAD", 0x55: "SSTORE",
             0x56: "JUMP", 0x57: "JUMPI", 0x5A: "GAS", 0x5B: "JUMPDEST", 0x5F: "PUSH0",
-            0xF1: "CALL", 0xF4: "DELEGATECALL", 0xF3: "RETURN",
+            0xF0: "CREATE", 0xF1: "CALL", 0xF4: "DELEGATECALL", 0xFA: "STATICCALL", 0xF3: "RETURN",
             0xFD: "REVERT", 0xFE: "INVALID",
         }
         if 0x60 <= op <= 0x7F:

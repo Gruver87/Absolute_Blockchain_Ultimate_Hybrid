@@ -147,6 +147,18 @@ class Config:
     def is_production(self) -> bool:
         return self.deployment_mode == "prod"
 
+    def resolve_rust_bridge_path(self) -> str:
+        """Resolve rust bridge binary (incl. .exe on Windows and project-relative paths)."""
+        candidates = [self.rust_bridge_path, self.rust_bridge_path + ".exe"]
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        for base in candidates:
+            if os.path.isfile(base):
+                return base
+            rel = os.path.join(root, base)
+            if os.path.isfile(rel):
+                return rel
+        return self.rust_bridge_path
+
     def apply_env(self) -> "Config":
         """Переопределяет поля из переменных окружения (.env / Docker / K8s)."""
         data_dir = env_str("DATA_DIR")
@@ -199,6 +211,9 @@ class Config:
         self.bridge_auto_confirm_sec = env_int(
             "BRIDGE_AUTO_CONFIRM_SEC", self.bridge_auto_confirm_sec
         )
+        rust_path = env_str("RUST_BRIDGE_PATH", "")
+        if rust_path:
+            self.rust_bridge_path = rust_path
 
         origins = env_list("CORS_ORIGINS")
         if origins:
@@ -241,11 +256,9 @@ class Config:
         if self.bridge_mode not in ("simulator", "rust"):
             errors.append(f"bridge_mode invalid: {self.bridge_mode}")
         if self.bridge_mode == "rust":
-            path_ok = os.path.isfile(self.rust_bridge_path) or os.path.isfile(
-                self.rust_bridge_path + ".exe"
-            )
-            if not path_ok:
-                msg = f"bridge_mode=rust but binary missing: {self.rust_bridge_path}"
+            resolved = self.resolve_rust_bridge_path()
+            if not os.path.isfile(resolved):
+                msg = f"bridge_mode=rust but binary missing: {resolved}"
                 if self.is_production:
                     errors.append(msg)
         if self.is_production and self.bridge_mode == "simulator":

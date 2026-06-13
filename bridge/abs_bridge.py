@@ -78,14 +78,15 @@ class RustBridge:
             self.bus.on("bridge.incoming", self._on_incoming)
 
         # Если включён Rust-режим — проверяем наличие бинарника
+        self._rust_bin = self._resolve_rust_bin()
         if config.bridge_mode == "rust":
-            if not os.path.exists(config.rust_bridge_path):
+            if not self._rust_bin:
                 print(f"[Bridge] WARNING: Rust bridge binary not found at "
                       f"'{config.rust_bridge_path}'. Falling back to simulator.")
                 self._mode = "simulator"
             else:
                 self._mode = "rust"
-                print(f"[Bridge] Rust bridge: {config.rust_bridge_path}")
+                print(f"[Bridge] Rust bridge: {self._rust_bin}")
         else:
             self._mode = "simulator"
 
@@ -284,12 +285,28 @@ class RustBridge:
             if lock["status"] == "pending" and now - lock["created_at"] > sec:
                 self.confirm_lock(lock["tx_hash"])
 
+    def _resolve_rust_bin(self) -> Optional[str]:
+        path = getattr(self.config, "resolve_rust_bridge_path", None)
+        if callable(path):
+            resolved = self.config.resolve_rust_bridge_path()
+            return resolved if os.path.isfile(resolved) else None
+        for candidate in (
+            self.config.rust_bridge_path,
+            self.config.rust_bridge_path + ".exe",
+        ):
+            if os.path.isfile(candidate):
+                return candidate
+        return None
+
     def _call_rust(self, command: str, args: Dict) -> Optional[str]:
         """Вызывает Rust-бинарник через subprocess и возвращает tx_hash."""
+        exe = self._rust_bin or self._resolve_rust_bin()
+        if not exe:
+            return None
         try:
             payload = json.dumps({"command": command, "args": args})
             result = subprocess.run(
-                [self.config.rust_bridge_path],
+                [exe],
                 input=payload.encode(),
                 capture_output=True,
                 timeout=10,

@@ -83,7 +83,7 @@ class EVMAdapter:
         return word_or_addr
 
     def _contract_call_hook(self, target: str, calldata: bytes, value: int,
-                            gas: int, delegate: bool,
+                            gas: int, delegate: bool, static: bool,
                             caller_ctx: EVMContext) -> Dict[str, Any]:
         target = self._normalize_addr(target)
         account = self.db.get_account(target)
@@ -112,12 +112,23 @@ class EVMAdapter:
             storage = {}
 
         sub_ctx = self._make_context(caller, exec_addr, calldata, call_value)
-        sub_ctx.contract_call = lambda t, d, v, g, delg: self._contract_call_hook(
-            t, d, v, g, delg, sub_ctx
+        sub_ctx.contract_call = lambda t, d, v, g, delg, st: self._contract_call_hook(
+            t, d, v, g, delg, st, sub_ctx
+        )
+        sub_ctx.contract_create = lambda code, val, ctx: self._contract_create_hook(
+            code, val, ctx
         )
         evm = EVM(gas_limit=gas or self.config.evm_gas_limit, context=sub_ctx)
         evm.storage = dict(storage)
         result = evm.execute_bytecode(bytecode)
+
+        if static:
+            return {
+                "success": not result.get("reverted"),
+                "reverted": result.get("reverted", False),
+                "return_data": result.get("return_data", b"") or b"",
+                "gas_used": result.get("gas_used", 0),
+            }
 
         if delegate:
             new_storage = {str(k): v for k, v in result.get("storage", {}).items()}
@@ -136,15 +147,64 @@ class EVMAdapter:
             "reverted": result.get("reverted", False),
             "return_data": result.get("return_data", b"") or b"",
             "storage": result.get("storage", {}),
+            "gas_used": result.get("gas_used", 0),
+        }
+
+    def _contract_create_hook(self, init_code: bytes, value: int,
+                              caller_ctx: EVMContext) -> Dict[str, Any]:
+        deployer = caller_ctx.address or caller_ctx.caller
+        if not deployer:
+            return {"success": False, "reverted": True, "gas_used": 0}
+        seed = f"{deployer}{caller_ctx.block_number}{len(init_code)}"
+        contract_addr = "0x" + hashlib.sha256(seed.encode()).hexdigest()[:40]
+        try:
+            result = self._run_evm(
+                init_code, {}, self.config.evm_gas_limit,
+                caller=deployer,
+                contract_addr=contract_addr,
+                value=value,
+            )
+        except Exception:
+            return {"success": False, "reverted": True, "gas_used": 0}
+
+        if result.get("reverted"):
+            return {
+                "success": False,
+                "reverted": True,
+                "gas_used": result.get("gas_used", 0),
+            }
+
+        ret_code = result.get("return_data") or b""
+        code_hex = ret_code.hex() if ret_code else init_code.hex()
+        self.db.save_account(
+            address=contract_addr,
+            balance=value / 10**18 if value else 0.0,
+            nonce=0,
+            code=code_hex,
+            storage=json.dumps(
+                {str(k): v for k, v in result.get("storage", {}).items()}
+            ),
+        )
+        if value > 0:
+            wei_to_abs = value / 10**18
+            self.db.update_balance(deployer, -wei_to_abs)
+            self.db.update_balance(contract_addr, wei_to_abs)
+
+        return {
+            "success": True,
+            "reverted": False,
+            "address": contract_addr,
+            "gas_used": result.get("gas_used", 0),
         }
 
     def _run_evm(self, bytecode: bytes, storage: Dict[int, int], gas_limit: int,
                  caller: str = "", contract_addr: str = "",
                  calldata: bytes = b"", value: int = 0) -> Dict:
         ctx = self._make_context(caller, contract_addr, calldata, value)
-        ctx.contract_call = lambda t, d, v, g, delg: self._contract_call_hook(
-            t, d, v, g, delg, ctx
+        ctx.contract_call = lambda t, d, v, g, delg, st: self._contract_call_hook(
+            t, d, v, g, delg, st, ctx
         )
+        ctx.contract_create = lambda code, val, c: self._contract_create_hook(code, val, c)
         evm = EVM(gas_limit=gas_limit, context=ctx)
         evm.storage = dict(storage)
         return evm.execute_bytecode(bytecode)

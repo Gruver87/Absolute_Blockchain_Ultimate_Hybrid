@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """EVM CALL / DELEGATECALL opcodes."""
+import hashlib
 import os
 import sys
 
@@ -42,26 +43,80 @@ def _build_call_bytecode(target: str) -> bytes:
 def test_call_opcode_with_hook():
     callee = "0x00000000000000000000000000000000000000bb"
 
-    def hook(target, calldata, value, gas, delegate):
+    def hook(target, calldata, value, gas, delegate, static=False):
         assert target == callee
         assert delegate is False
+        assert static is False
+        assert gas > 0
         return {
             "success": True,
             "reverted": False,
             "return_data": (42).to_bytes(32, "big"),
+            "gas_used": 2500,
+        }
+
+    ctx = EVMContext(contract_call=hook)
+    evm = EVM(gas_limit=500_000, context=ctx)
+    result = evm.execute_bytecode(_build_call_bytecode(callee))
+    assert result["stack"][-1] == 42
+    assert result["gas_used"] >= 2500 + 700  # subcall + CALL base
+
+
+def test_staticcall_readonly():
+    callee = "0x00000000000000000000000000000000000000ee"
+
+    def hook(target, calldata, value, gas, delegate, static=False):
+        assert static is True
+        assert value == 0
+        return {
+            "success": True,
+            "reverted": False,
+            "return_data": (7).to_bytes(32, "big"),
+            "gas_used": 1200,
         }
 
     ctx = EVMContext(contract_call=hook)
     evm = EVM(context=ctx)
-    result = evm.execute_bytecode(_build_call_bytecode(callee))
-    assert result["stack"][-1] == 42
+    bytecode = bytes([
+        0x60, 0x20, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00,
+        0x73, *bytes.fromhex(callee.replace("0x", "")),
+        0x60, 0x64,
+        0xFA,
+        0x60, 0x00, 0x51,
+        0x00,
+    ])
+    result = evm.execute_bytecode(bytecode)
+    assert result["stack"][-1] == 7
+
+
+def test_create_opcode_with_hook():
+    created = "0x" + "dd" * 20
+
+    def create_hook(init_code, value, ctx):
+        assert value == 0
+        assert len(init_code) > 0
+        return {"success": True, "address": created, "gas_used": 8000}
+
+    ctx = EVMContext(contract_create=create_hook)
+    evm = EVM(context=ctx)
+    init = bytes.fromhex("60006000f3")
+    evm.memory = bytearray(init)
+    bytecode = bytes([
+        0x60, 0x00,
+        0x60, 0x00,
+        0x60, len(init),
+        0xF0,
+        0x00,
+    ])
+    result = evm.execute_bytecode(bytecode)
+    assert result["stack"][-1] == ctx.addr_int(created)
 
 
 def test_delegatecall_merges_storage():
     callee = "0x00000000000000000000000000000000000000cc"
     merged = {}
 
-    def hook(target, calldata, value, gas, delegate):
+    def hook(target, calldata, value, gas, delegate, static=False):
         assert delegate is True
         merged[7] = 99
         return {"success": True, "reverted": False, "return_data": b"", "storage": merged}
@@ -96,3 +151,49 @@ def test_adapter_call_between_contracts(evm_db):
     out = adapter.call_contract(deployer, caller.return_value, "")
     assert out.success, out.error
     assert out.return_value == 42
+
+
+def test_adapter_staticcall_between_contracts(evm_db):
+    adapter, db = evm_db
+    deployer = "0xdeployer000000000000000000000000000001"
+    db.save_account(deployer, balance=100.0, nonce=0)
+
+    callee_bc = "602a60005260206000f3"
+    callee = adapter.deploy_contract(deployer, callee_bc, salt="callee2")
+    assert callee.success
+
+    addr_hex = callee.return_value.replace("0x", "").lower().zfill(40)
+    static_caller = bytes([
+        0x60, 0x20, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00,
+        0x73, *bytes.fromhex(addr_hex),
+        0x60, 0x64,
+        0xFA,
+        0x60, 0x00, 0x51,
+        0x00,
+    ]).hex()
+    caller = adapter.deploy_contract(deployer, static_caller, salt="static-caller")
+    assert caller.success
+    out = adapter.call_contract(deployer, caller.return_value, "")
+    assert out.success, out.error
+    assert out.return_value == 42
+
+
+def test_adapter_create_deploys_child(evm_db):
+    adapter, db = evm_db
+    deployer = "0xdeployer000000000000000000000000000001"
+    db.save_account(deployer, balance=100.0, nonce=0)
+
+    init = bytes.fromhex("602a60005260206000f3")
+    init_len = len(init)
+    prefix = bytes([
+        0x60, init_len, 0x60, 15, 0x60, 0x00, 0x39,
+        0x60, 0x00, 0x60, 0x00, 0x60, init_len, 0xF0, 0x00,
+    ])
+    factory = adapter.deploy_contract(deployer, (prefix + init).hex(), salt="factory")
+    assert factory.success, factory.error
+
+    factory_addr = factory.return_value
+    child_seed = f"{factory_addr}{adapter._make_context('', factory_addr).block_number}{init_len}"
+    child_addr = "0x" + hashlib.sha256(child_seed.encode()).hexdigest()[:40]
+    child = adapter.get_contract_info(child_addr)
+    assert child.get("is_contract") is True

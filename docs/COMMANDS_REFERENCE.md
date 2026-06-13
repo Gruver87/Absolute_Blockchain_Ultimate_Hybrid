@@ -79,6 +79,21 @@ python main.py --log-level DEBUG
 
 ### Prod-профиль
 
+Скопируйте `node.prod.example.json`, соберите Rust-мост и задайте секреты:
+
+```powershell
+.\scripts\build_bridge.ps1
+copy node.prod.example.json node.prod.json
+# data\wallet.json — обязателен; RPC_API_KEYS и JWT_SECRET в .env
+$env:JWT_SECRET = "your-secret"
+$env:RPC_API_KEYS = "your-rpc-key"
+$env:BRIDGE_MODE = "rust"
+$env:RUST_BRIDGE_PATH = "bridge\abs_bridge_bin.exe"
+python main.py --config node.prod.json
+```
+
+Минимальный prod через env:
+
 ```powershell
 $env:DEPLOYMENT_MODE = "prod"
 $env:DATA_DIR = ".\data\node1"
