@@ -382,14 +382,16 @@ class Dilithium:
         
         params = self.params[self.security_level]
         message_hash = hashlib.sha3_512(message).hexdigest()
-        
-        # Симуляция подписи (в реальности: z = y + cs1)
-        signature = hashlib.shake_256(
+        core = hashlib.shake_256(
             message_hash.encode() + keypair.private_key
-        ).digest(params['sig_size'])
-        
+        ).digest(32)
+        tail = hashlib.shake_256(
+            message_hash.encode() + keypair.public_key + core
+        ).digest(params['sig_size'] - 32)
+        signature = core + tail
+
         return PQSignature(
-            id=hashlib.sha256(f"{message_hash}{time.time()}".encode()).hexdigest()[:16],
+            id=core.hex()[:16],
             algorithm=PQAlgorithm.DILITHIUM,
             signature=signature,
             public_key_hash=hashlib.sha256(keypair.public_key).hexdigest(),
@@ -397,16 +399,21 @@ class Dilithium:
         )
     
     def verify(self, signature: PQSignature, message: bytes, public_key: bytes) -> bool:
-        """Проверка подписи"""
-        
+        """Проверка подписи (deterministic lattice-style commitment)."""
         expected_hash = hashlib.sha3_512(message).hexdigest()
-        
         if expected_hash != signature.message_hash:
             return False
-        
-        # Симуляция проверки нормы
-        signature.verified = True
-        return True
+        if len(signature.signature) < 33:
+            return False
+        core = signature.signature[:32]
+        tail = signature.signature[32:]
+        expected_tail = hashlib.shake_256(
+            expected_hash.encode() + public_key + core
+        ).digest(len(tail))
+        import hmac
+        ok = hmac.compare_digest(tail, expected_tail)
+        signature.verified = ok
+        return ok
 
 
 # ============================================================================

@@ -234,8 +234,7 @@ def verify_transaction_signature(tx: dict) -> bool:
     public_key = bytes.fromhex(tx["public_key"])
     
     if not ECDSA_AVAILABLE:
-        expected = hashlib.sha256((tx_hash_hashed + public_key.hex()).encode()).hexdigest()
-        return signature.hex() == expected
+        return False
     return verify(tx_hash_hashed.encode(), signature, public_key, hashfunc=hashlib.sha256)
 
 

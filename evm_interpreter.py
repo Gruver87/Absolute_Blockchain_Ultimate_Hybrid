@@ -1,201 +1,320 @@
 ﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""FULL EVM INTERPRETER - Исполняет байткод, как настоящий EVM"""
+"""EVM interpreter — bytecode execution with real execution context."""
 
-import json
 import hashlib
-from typing import List, Dict, Any, Optional
+from dataclasses import dataclass, field
+from typing import Callable, Dict, List, Optional, Any
+
+
+@dataclass
+class EVMContext:
+    """Runtime environment for contract execution."""
+    caller: str = ""
+    origin: str = ""
+    address: str = ""
+    calldata: bytes = b""
+    value: int = 0
+    block_number: int = 0
+    timestamp: int = 0
+    balance_of: Optional[Callable[[str], int]] = None
+
+    def addr_int(self, who: str) -> int:
+        raw = (who or "").replace("0x", "").lower()
+        if not raw:
+            return 0
+        try:
+            return int(raw[:40], 16)
+        except ValueError:
+            return int(hashlib.sha256(who.encode()).hexdigest()[:16], 16)
+
 
 class EVM:
-    """Полноценный EVM-интерпретатор с опкодами"""
-    
-    OPCODES = {
-        # Stack operations
-        0x60: "PUSH1", 0x61: "PUSH2", 0x62: "PUSH3", 0x63: "PUSH4",
-        0x50: "POP", 0x80: "DUP1", 0x81: "DUP2",
-        0x90: "SWAP1", 0x91: "SWAP2",
-        
-        # Arithmetic
-        0x01: "ADD", 0x02: "MUL", 0x03: "SUB", 0x04: "DIV",
-        
-        # Memory/Storage
-        0x52: "MSTORE", 0x51: "MLOAD",
-        0x55: "SSTORE", 0x54: "SLOAD",
-        
-        # Environment
-        0x31: "BALANCE", 0x32: "ORIGIN", 0x33: "CALLER",
-        
-        # Control flow
-        0x56: "JUMP", 0x57: "JUMPI", 0x5b: "JUMPDEST",
-        
-        # Blockchain
-        0x40: "BLOCKHASH", 0x41: "COINBASE", 0x42: "TIMESTAMP",
-        
-        # Stop
-        0x00: "STOP", 0xfd: "REVERT", 0xfe: "INVALID"
-    }
-    
+    """Stack-machine EVM with storage, memory, calldata and environment opcodes."""
+
     GAS_COSTS = {
-        "STOP": 0, "ADD": 3, "MUL": 5, "SUB": 3, "DIV": 5,
-        "PUSH1": 3, "PUSH2": 3, "POP": 2, "DUP1": 3, "SWAP1": 3,
-        "MSTORE": 3, "MLOAD": 3, "SLOAD": 50, "SSTORE": 100,
-        "JUMP": 8, "JUMPI": 10, "BALANCE": 20, "CALLER": 2
+        "STOP": 0, "ADD": 3, "MUL": 5, "SUB": 3, "DIV": 5, "MOD": 5,
+        "POP": 2, "MLOAD": 3, "MSTORE": 3, "MSTORE8": 3,
+        "SLOAD": 200, "SSTORE": 5000, "JUMP": 8, "JUMPI": 10,
+        "BALANCE": 400, "CALLER": 2, "ORIGIN": 2, "ADDRESS": 2,
+        "TIMESTAMP": 2, "NUMBER": 2, "CALLVALUE": 2,
+        "CALLDATALOAD": 3, "CALLDATASIZE": 2, "RETURNDATASIZE": 2,
+        "SHA3": 30, "RETURN": 0, "REVERT": 0, "JUMPDEST": 1,
+        "AND": 3, "OR": 3, "XOR": 3, "NOT": 3, "LT": 3, "GT": 3,
+        "EQ": 3, "ISZERO": 3, "BYTE": 3, "SHL": 3, "SHR": 3,
     }
-    
-    def __init__(self, gas_limit: int = 1000000):
+
+    def __init__(self, gas_limit: int = 1_000_000, context: Optional[EVMContext] = None):
         self.stack: List[int] = []
-        self.memory: Dict[int, int] = {}
+        self.memory = bytearray()
         self.storage: Dict[int, int] = {}
         self.gas_used = 0
         self.gas_limit = gas_limit
         self.pc = 0
         self.running = True
+        self.reverted = False
+        self.return_data = b""
         self.trace: List[Dict] = []
-    
-    def _consume_gas(self, op: str):
-        cost = self.GAS_COSTS.get(op, 1)
+        self.ctx = context or EVMContext()
+
+    def _consume_gas(self, op: str, extra: int = 0):
+        cost = self.GAS_COSTS.get(op, 3) + extra
         if self.gas_used + cost > self.gas_limit:
-            raise Exception(f"Out of gas! Used {self.gas_used}, need {cost}")
+            raise RuntimeError(f"out_of_gas (used={self.gas_used}, need={cost})")
         self.gas_used += cost
-    
-    def execute_bytecode(self, bytecode: bytes) -> Dict:
-        """Исполнение байткода"""
+
+    def _push(self, value: int):
+        self.stack.append(value & ((1 << 256) - 1))
+
+    def _pop(self) -> int:
+        if not self.stack:
+            raise RuntimeError("stack underflow")
+        return self.stack.pop()
+
+    def _mem_extend(self, offset: int, size: int):
+        need = offset + size
+        if need > len(self.memory):
+            self.memory.extend(b"\x00" * (need - len(self.memory)))
+
+    def _read_word(self, offset: int) -> int:
+        self._mem_extend(offset, 32)
+        return int.from_bytes(self.memory[offset:offset + 32], "big")
+
+    def _write_word(self, offset: int, value: int):
+        self._mem_extend(offset, 32)
+        self.memory[offset:offset + 32] = (value & ((1 << 256) - 1)).to_bytes(32, "big")
+
+    def _read_push(self, bytecode: bytes, n: int) -> int:
+        start = self.pc + 1
+        end = min(start + n, len(bytecode))
+        chunk = bytecode[start:end]
+        if len(chunk) < n:
+            chunk = chunk + b"\x00" * (n - len(chunk))
+        return int.from_bytes(chunk, "big")
+
+    def _is_jumpdest(self, bytecode: bytes, dest: int) -> bool:
+        return 0 <= dest < len(bytecode) and bytecode[dest] == 0x5B
+
+    def execute_bytecode(self, bytecode: bytes) -> Dict[str, Any]:
         self.pc = 0
         self.stack = []
-        self.memory = {}
         self.gas_used = 0
+        self.running = True
+        self.reverted = False
+        self.return_data = b""
         self.trace = []
-        
+
         while self.pc < len(bytecode) and self.running:
             op_byte = bytecode[self.pc]
-            op = self.OPCODES.get(op_byte, "UNKNOWN")
-            
-            self._consume_gas(op)
-            self.trace.append({"pc": self.pc, "op": op, "stack": self.stack.copy()})
-            
-            if op == "STOP":
+            op_name = self._opcode_name(op_byte)
+            self._consume_gas(op_name)
+            self.trace.append({"pc": self.pc, "op": op_name, "stack_depth": len(self.stack)})
+
+            if op_byte == 0x00:  # STOP
                 self.running = False
                 break
-            
-            elif op == "ADD":
-                a = self.stack.pop()
-                b = self.stack.pop()
-                self.stack.append(a + b)
-            
-            elif op == "SUB":
-                a = self.stack.pop()
-                b = self.stack.pop()
-                self.stack.append(a - b)
-            
-            elif op == "MUL":
-                a = self.stack.pop()
-                b = self.stack.pop()
-                self.stack.append(a * b)
-            
-            elif op == "DIV":
-                a = self.stack.pop()
-                b = self.stack.pop()
-                self.stack.append(a // b if b != 0 else 0)
-            
-            elif op.startswith("PUSH"):
-                n = int(op[4:])
-                if n == 1:
-                    self.pc += 1
-                    value = bytecode[self.pc] if self.pc < len(bytecode) else 0
-                    self.stack.append(value)
+
+            if 0x60 <= op_byte <= 0x7F:  # PUSH1..PUSH32
+                n = op_byte - 0x5F
+                self._push(self._read_push(bytecode, n))
+                self.pc += n
+            elif op_byte == 0x01:
+                self._push(self._pop() + self._pop())
+            elif op_byte == 0x02:
+                self._push(self._pop() * self._pop())
+            elif op_byte == 0x03:
+                a, b = self._pop(), self._pop()
+                self._push(a - b)
+            elif op_byte == 0x04:
+                a, b = self._pop(), self._pop()
+                self._push(0 if b == 0 else a // b)
+            elif op_byte == 0x06:
+                a, b = self._pop(), self._pop()
+                self._push(0 if b == 0 else a % b)
+            elif op_byte == 0x10:
+                a, b = self._pop(), self._pop()
+                self._push(a & b)
+            elif op_byte == 0x11:
+                a, b = self._pop(), self._pop()
+                self._push(a | b)
+            elif op_byte == 0x12:
+                a, b = self._pop(), self._pop()
+                self._push(a ^ b)
+            elif op_byte == 0x14:
+                a, b = self._pop(), self._pop()
+                self._push(1 if a == b else 0)
+            elif op_byte == 0x15:
+                self._push(1 if self._pop() == 0 else 0)
+            elif op_byte == 0x16:
+                a, b = self._pop(), self._pop()
+                self._push(1 if a < b else 0)
+            elif op_byte == 0x17:
+                a, b = self._pop(), self._pop()
+                self._push(1 if a > b else 0)
+            elif op_byte == 0x19:
+                self._push((~self._pop()) & ((1 << 256) - 1))
+            elif op_byte == 0x1A:
+                i, x = self._pop(), self._pop()
+                if i >= 32:
+                    self._push(0)
                 else:
-                    # multi-byte push
-                    self.pc += 1
-                    value = 0
-                    for i in range(n):
-                        if self.pc + i < len(bytecode):
-                            value = (value << 8) | bytecode[self.pc + i]
-                    self.stack.append(value)
-                    self.pc += n - 1
-            
-            elif op == "POP":
-                self.stack.pop()
-            
-            elif op.startswith("DUP"):
-                n = int(op[3:])
-                if len(self.stack) >= n:
-                    self.stack.append(self.stack[-n])
-            
-            elif op.startswith("SWAP"):
-                n = int(op[4:])
-                if len(self.stack) >= n + 1:
-                    a = self.stack[-1]
-                    b = self.stack[-(n+1)]
-                    self.stack[-1] = b
-                    self.stack[-(n+1)] = a
-            
-            elif op == "MSTORE":
-                offset = self.stack.pop()
-                value = self.stack.pop()
-                self.memory[offset] = value
-            
-            elif op == "MLOAD":
-                offset = self.stack.pop()
-                self.stack.append(self.memory.get(offset, 0))
-            
-            elif op == "SSTORE":
-                key = self.stack.pop()
-                value = self.stack.pop()
-                self.storage[key] = value
-            
-            elif op == "SLOAD":
-                key = self.stack.pop()
-                self.stack.append(self.storage.get(key, 0))
-            
-            elif op == "CALLER":
-                self.stack.append(0x1234)  # mock caller
-            
-            elif op == "JUMP":
-                dest = self.stack.pop()
-                if dest < 0 or dest >= len(bytecode):
-                    raise Exception(f"Invalid jump destination: {dest}")
-                self.pc = dest - 1
-            
-            elif op == "JUMPI":
-                dest = self.stack.pop()
-                cond = self.stack.pop()
+                    self._push((x >> (8 * (31 - i))) & 0xFF)
+            elif op_byte == 0x1B:
+                shift, v = self._pop(), self._pop()
+                self._push((v << shift) & ((1 << 256) - 1))
+            elif op_byte == 0x1C:
+                shift, v = self._pop(), self._pop()
+                self._push(v >> shift)
+            elif op_byte == 0x20:  # SHA3
+                offset, size = self._pop(), self._pop()
+                self._mem_extend(offset, size)
+                data = bytes(self.memory[offset:offset + size])
+                self._push(int.from_bytes(hashlib.sha3_256(data).digest(), "big"))
+            elif op_byte == 0x30:  # ADDRESS
+                self._push(self.ctx.addr_int(self.ctx.address))
+            elif op_byte == 0x31:  # BALANCE
+                who = self._pop()
+                addr = hex(who)[2:].rjust(40, "0")
+                bal = 0
+                if self.ctx.balance_of:
+                    bal = int(self.ctx.balance_of("0x" + addr[-40:]))
+                self._push(bal)
+            elif op_byte == 0x32:  # ORIGIN
+                self._push(self.ctx.addr_int(self.ctx.origin))
+            elif op_byte == 0x33:  # CALLER
+                self._push(self.ctx.addr_int(self.ctx.caller))
+            elif op_byte == 0x34:  # CALLVALUE
+                self._push(self.ctx.value)
+            elif op_byte == 0x35:  # CALLDATALOAD
+                i = self._pop()
+                chunk = self.ctx.calldata[i:i + 32]
+                if len(chunk) < 32:
+                    chunk = chunk + b"\x00" * (32 - len(chunk))
+                self._push(int.from_bytes(chunk, "big"))
+            elif op_byte == 0x36:  # CALLDATASIZE
+                self._push(len(self.ctx.calldata))
+            elif op_byte == 0x37:  # CALLDATACOPY
+                dest, offset, size = self._pop(), self._pop(), self._pop()
+                self._mem_extend(dest, size)
+                self.memory[dest:dest + size] = self.ctx.calldata[offset:offset + size]
+            elif op_byte == 0x42:  # TIMESTAMP
+                self._push(self.ctx.timestamp)
+            elif op_byte == 0x43:  # NUMBER
+                self._push(self.ctx.block_number)
+            elif op_byte == 0x50:  # POP
+                self._pop()
+            elif op_byte == 0x51:
+                offset = self._pop()
+                self._push(self._read_word(offset))
+            elif op_byte == 0x52:
+                offset, value = self._pop(), self._pop()
+                self._write_word(offset, value)
+            elif op_byte == 0x53:
+                offset, value = self._pop(), self._pop()
+                self._mem_extend(offset, 1)
+                self.memory[offset] = value & 0xFF
+            elif op_byte == 0x54:
+                key = self._pop()
+                self._push(self.storage.get(key, 0))
+            elif op_byte == 0x55:
+                key, value = self._pop(), self._pop()
+                if value == 0 and key in self.storage:
+                    del self.storage[key]
+                else:
+                    self.storage[key] = value
+            elif op_byte == 0x56:
+                dest = self._pop()
+                if not self._is_jumpdest(bytecode, dest):
+                    raise RuntimeError(f"invalid jump destination: {dest}")
+                self.pc = dest
+                continue
+            elif op_byte == 0x57:
+                dest, cond = self._pop(), self._pop()
                 if cond != 0:
-                    if dest < 0 or dest >= len(bytecode):
-                        raise Exception(f"Invalid jump destination: {dest}")
-                    self.pc = dest - 1
-            
-            elif op == "REVERT":
+                    if not self._is_jumpdest(bytecode, dest):
+                        raise RuntimeError(f"invalid jump destination: {dest}")
+                    self.pc = dest
+                    continue
+            elif op_byte == 0x5B:  # JUMPDEST
+                pass
+            elif 0x80 <= op_byte <= 0x8F:  # DUP1..DUP16
+                n = op_byte - 0x7F
+                if len(self.stack) < n:
+                    raise RuntimeError("stack underflow")
+                self._push(self.stack[-n])
+            elif 0x90 <= op_byte <= 0x9F:  # SWAP1..SWAP16
+                n = op_byte - 0x8F
+                if len(self.stack) < n + 1:
+                    raise RuntimeError("stack underflow")
+                a = self.stack[-1]
+                b = self.stack[-1 - n]
+                self.stack[-1] = b
+                self.stack[-1 - n] = a
+            elif op_byte == 0xF3:  # RETURN
+                offset, size = self._pop(), self._pop()
+                self._mem_extend(offset, size)
+                self.return_data = bytes(self.memory[offset:offset + size])
                 self.running = False
-                raise Exception("Transaction reverted")
-            
-            elif op == "INVALID":
-                raise Exception("Invalid opcode")
-            
+                break
+            elif op_byte == 0xFD:  # REVERT
+                offset, size = self._pop(), self._pop()
+                self._mem_extend(offset, size)
+                self.return_data = bytes(self.memory[offset:offset + size])
+                self.reverted = True
+                self.running = False
+                break
+            elif op_byte == 0xFE:  # INVALID
+                raise RuntimeError("invalid opcode")
+            else:
+                raise RuntimeError(f"unsupported opcode 0x{op_byte:02x}")
+
             self.pc += 1
-        
+
         return {
-            "success": self.running,
+            "success": self.running or (not self.reverted and bool(self.return_data or self.stack)),
+            "reverted": self.reverted,
             "stack": self.stack.copy(),
-            "memory": self.memory.copy(),
+            "memory": bytes(self.memory),
             "storage": self.storage.copy(),
             "gas_used": self.gas_used,
-            "trace": self.trace
+            "return_data": self.return_data,
+            "trace": self.trace,
         }
 
+    @staticmethod
+    def _opcode_name(op: int) -> str:
+        names = {
+            0x00: "STOP", 0x01: "ADD", 0x02: "MUL", 0x03: "SUB", 0x04: "DIV",
+            0x06: "MOD", 0x10: "AND", 0x11: "OR", 0x12: "XOR", 0x14: "EQ",
+            0x15: "ISZERO", 0x16: "LT", 0x17: "GT", 0x19: "NOT", 0x1A: "BYTE",
+            0x1B: "SHL", 0x1C: "SHR", 0x20: "SHA3", 0x30: "ADDRESS",
+            0x31: "BALANCE", 0x32: "ORIGIN", 0x33: "CALLER", 0x34: "CALLVALUE",
+            0x35: "CALLDATALOAD", 0x36: "CALLDATASIZE", 0x37: "CALLDATACOPY",
+            0x42: "TIMESTAMP", 0x43: "NUMBER", 0x50: "POP", 0x51: "MLOAD",
+            0x52: "MSTORE", 0x53: "MSTORE8", 0x54: "SLOAD", 0x55: "SSTORE",
+            0x56: "JUMP", 0x57: "JUMPI", 0x5B: "JUMPDEST", 0xF3: "RETURN",
+            0xFD: "REVERT", 0xFE: "INVALID",
+        }
+        if 0x60 <= op <= 0x7F:
+            return f"PUSH{op - 0x5F}"
+        if 0x80 <= op <= 0x8F:
+            return f"DUP{op - 0x7F}"
+        if 0x90 <= op <= 0x9F:
+            return f"SWAP{op - 0x8F}"
+        return names.get(op, f"UNKNOWN_{op:02x}")
+
+
 def test_evm():
-    print("🧠 EVM Interpreter Test")
-    print("=" * 40)
-    
-    evm = EVM()
-    
-    # Test: PUSH 5, PUSH 7, ADD
+    ctx = EVMContext(caller="0x00000000000000000000000000000000000000ab")
+    evm = EVM(context=ctx)
     bytecode = bytes([0x60, 0x05, 0x60, 0x07, 0x01, 0x00])
     result = evm.execute_bytecode(bytecode)
-    print(f"   ✅ 5 + 7 = {result['stack'][-1] if result['stack'] else '?'}")
-    print(f"   📊 Gas used: {result['gas_used']}")
-    print(f"   🔍 Trace: {result['trace'][:3]}...")
-    
-    return True
+    assert result["stack"][-1] == 12
+    evm2 = EVM(context=ctx)
+    r2 = evm2.execute_bytecode(bytes([0x33, 0x00]))
+    assert r2["stack"][-1] == ctx.addr_int(ctx.caller)
+    print("EVM interpreter OK")
+
 
 if __name__ == "__main__":
     test_evm()

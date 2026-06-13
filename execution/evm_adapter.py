@@ -20,7 +20,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from evm_interpreter import EVM
+from evm_interpreter import EVM, EVMContext
 from storage.database import Database
 from runtime.config import Config
 
@@ -59,7 +59,29 @@ class EVMAdapter:
         self.db = db
         self.config = config
 
-    # ── Деплой контракта ─────────────────────────────────────────────────────
+    def _make_context(self, caller: str, contract_addr: str = "",
+                      calldata: bytes = b"", value: int = 0) -> EVMContext:
+        tip = self.db.get_chain_tip() if hasattr(self.db, "get_chain_tip") else 0
+        last = self.db.get_last_block() if hasattr(self.db, "get_last_block") else None
+        ts = int(last.get("timestamp", 0)) if last else int(time.time())
+        return EVMContext(
+            caller=caller or "",
+            origin=caller or "",
+            address=contract_addr or "",
+            calldata=calldata or b"",
+            value=int(value),
+            block_number=int(tip),
+            timestamp=ts,
+            balance_of=lambda addr: int(self.db.get_balance(addr) * 10**18),
+        )
+
+    def _run_evm(self, bytecode: bytes, storage: Dict[int, int], gas_limit: int,
+                 caller: str = "", contract_addr: str = "",
+                 calldata: bytes = b"", value: int = 0) -> Dict:
+        ctx = self._make_context(caller, contract_addr, calldata, value)
+        evm = EVM(gas_limit=gas_limit, context=ctx)
+        evm.storage = dict(storage)
+        return evm.execute_bytecode(bytecode)
 
     def deploy_contract(self, deployer: str, bytecode_hex: str,
                         value: float = 0.0, gas_limit: int = 0,
@@ -86,12 +108,19 @@ class EVMAdapter:
         ).hexdigest()[:40]
 
         # Выполняем конструктор
-        evm = EVM(gas_limit=gas_limit)
         try:
-            result = evm.execute_bytecode(bytecode)
+            result = self._run_evm(
+                bytecode, {}, gas_limit,
+                caller=deployer,
+                contract_addr=contract_addr,
+                value=int(value * 10**18) if value else 0,
+            )
         except Exception as e:
-            return EVMResult(success=False, error=str(e),
-                             gas_used=evm.gas_used)
+            return EVMResult(success=False, error=str(e))
+
+        if result.get("reverted"):
+            return EVMResult(success=False, error="constructor_reverted",
+                             gas_used=result["gas_used"])
 
         # Сохраняем контракт в БД
         self.db.save_account(
@@ -141,22 +170,25 @@ class EVMAdapter:
         except Exception:
             storage = {}
 
-        evm = EVM(gas_limit=gas_limit)
-        evm.storage = storage
-
-        # Если есть calldata — кладём её в стек как число (упрощённо)
-        if calldata_hex:
-            try:
-                calldata_int = int(calldata_hex.replace("0x", ""), 16)
-                evm.stack.append(calldata_int)
-            except ValueError:
-                pass
+        try:
+            calldata = bytes.fromhex(calldata_hex.replace("0x", "")) if calldata_hex else b""
+        except ValueError:
+            calldata = b""
 
         try:
-            result = evm.execute_bytecode(bytecode)
+            result = self._run_evm(
+                bytecode, storage, gas_limit,
+                caller=caller,
+                contract_addr=contract_addr,
+                calldata=calldata,
+                value=int(value * 10**18) if value else 0,
+            )
         except Exception as e:
-            return EVMResult(success=False, error=str(e),
-                             gas_used=evm.gas_used)
+            return EVMResult(success=False, error=str(e))
+
+        if result.get("reverted"):
+            return EVMResult(success=False, error="execution_reverted",
+                             gas_used=result["gas_used"])
 
         # Сохраняем изменённое storage
         new_storage = {str(k): v for k, v in result.get("storage", {}).items()}
@@ -167,12 +199,16 @@ class EVMAdapter:
             self.db.update_balance(caller, -value)
             self.db.update_balance(contract_addr, value)
 
-        # Возвращаемое значение — последний элемент стека
-        stack = result.get("stack", [])
-        return_value = stack[-1] if stack else None
+        # Возвращаемое значение — return_data или стек
+        ret = result.get("return_data") or b""
+        if ret:
+            return_value = int.from_bytes(ret[:32].ljust(32, b"\x00"), "big")
+        else:
+            stack = result.get("stack", [])
+            return_value = stack[-1] if stack else None
 
         return EVMResult(
-            success=result["success"],
+            success=not result.get("reverted", False),
             return_value=return_value,
             gas_used=result["gas_used"],
             storage_changes=new_storage,
@@ -203,24 +239,31 @@ class EVMAdapter:
         except Exception:
             storage = {}
 
-        evm = EVM(gas_limit=gas_limit)
-        evm.storage = storage
-
-        if calldata_hex:
-            try:
-                evm.stack.append(int(calldata_hex.replace("0x", ""), 16))
-            except ValueError:
-                pass
+        try:
+            calldata = bytes.fromhex(calldata_hex.replace("0x", "")) if calldata_hex else b""
+        except ValueError:
+            calldata = b""
 
         try:
-            result = evm.execute_bytecode(bytecode)
+            result = self._run_evm(
+                bytecode, storage, gas_limit,
+                caller="",
+                contract_addr=contract_addr,
+                calldata=calldata,
+            )
         except Exception as e:
-            return EVMResult(success=False, error=str(e), gas_used=evm.gas_used)
+            return EVMResult(success=False, error=str(e), gas_used=0)
 
-        stack = result.get("stack", [])
+        ret = result.get("return_data") or b""
+        if ret:
+            return_value = int.from_bytes(ret[:32].ljust(32, b"\x00"), "big")
+        else:
+            stack = result.get("stack", [])
+            return_value = stack[-1] if stack else None
+
         return EVMResult(
-            success=result["success"],
-            return_value=stack[-1] if stack else None,
+            success=not result.get("reverted", False),
+            return_value=return_value,
             gas_used=result["gas_used"],
         )
 

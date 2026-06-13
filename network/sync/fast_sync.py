@@ -28,7 +28,7 @@ class FastSyncManager:
     def start_sync(self, peer_id: str, target_height: int) -> bool:
         self.syncing = True
         self.target_height = target_height
-        self.state_root = "0x" + "a" * 64
+        self.state_root = None
         return True
 
     def start_fast_sync(self, peer_id: str) -> bool:
