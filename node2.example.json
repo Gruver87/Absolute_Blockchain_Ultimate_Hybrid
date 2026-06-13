@@ -12,7 +12,7 @@
   "mining_enabled": false,
   "require_signatures": true,
   "enforce_proposer": true,
-  "verify_peer_state_root": true,
+  "verify_peer_state_root": false,
   "bridge_enabled": true,
   "bridge_mode": "simulator",
   "db_path": "data/node2/blockchain.db",

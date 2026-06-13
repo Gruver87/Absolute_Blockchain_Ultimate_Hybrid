@@ -120,3 +120,17 @@ def test_add_block_with_consensus_adapter(chain_env):
     blk = bc.create_block([], cfg.miner_address)
     assert bc.add_block(blk) is True
     assert bc.get_height() >= 1
+
+
+def test_import_allows_equal_timestamp(chain_env):
+    cfg, db, bc = chain_env
+    parent = bc.create_block([], cfg.miner_address)
+    assert bc.add_block(parent)
+    ts = parent.timestamp
+    child_dict = bc.create_block([], cfg.miner_address).to_dict()
+    child_dict["height"] = parent.height + 1
+    child_dict["number"] = parent.height + 1
+    child_dict["parent_hash"] = parent.hash
+    child_dict["timestamp"] = ts
+    child_dict["hash"] = "b" * 64
+    assert bc.import_block(child_dict) is True

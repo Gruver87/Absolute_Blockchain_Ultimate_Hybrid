@@ -517,8 +517,8 @@ class P2PNode:
                             our_height = ancestor
                             current = ancestor + 1
                             break
-                        print(f"[P2P] Import failed at #{current}, aborting sync")
-                        return
+                        print(f"[P2P] Import failed at #{current}, aborting batch")
+                        break
                 except Exception as e:
                     logger.debug(f"[P2P] Sync block error: {e}")
                     return

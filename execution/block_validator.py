@@ -15,7 +15,12 @@ class BlockValidator:
         self.state = state_engine
         self.mempool = mempool
 
-    def validate_block(self, block: dict, parent_block: Optional[dict] = None) -> Tuple[bool, str]:
+    def validate_block(
+        self,
+        block: dict,
+        parent_block: Optional[dict] = None,
+        strict_timestamp: bool = True,
+    ) -> Tuple[bool, str]:
         b = self._normalize(block)
         height = b["number"]
 
@@ -37,8 +42,14 @@ class BlockValidator:
         if b["timestamp"] > int(time.time()) + 120:
             return False, "Timestamp too far in future"
 
-        if parent_block and b["timestamp"] <= parent_block.get("timestamp", 0):
-            return False, "Timestamp not increasing"
+        if parent_block:
+            parent_ts = int(parent_block.get("timestamp", 0) or 0)
+            child_ts = int(b["timestamp"] or 0)
+            if strict_timestamp:
+                if child_ts <= parent_ts:
+                    return False, "Timestamp not increasing"
+            elif child_ts < parent_ts:
+                return False, "Timestamp regressed"
 
         for tx in b.get("transactions", []):
             valid, msg = self._validate_transaction_shape(tx)

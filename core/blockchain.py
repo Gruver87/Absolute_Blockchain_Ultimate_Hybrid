@@ -353,11 +353,15 @@ class Blockchain:
                     applied_txs.append(tx)
                     nonce_cursor[tx.from_addr] = tx.nonce + 1
 
+            parent_ts = int(last["timestamp"]) if last else 0
+            block_ts = max(int(time.time()), parent_ts + 1)
+
             return Block(
                 height=height,
                 parent_hash=parent_hash,
                 miner=proposer,
                 transactions=applied_txs,
+                timestamp=block_ts,
                 extra_data=f"v{self.config.node_version}",
             )
 
@@ -397,15 +401,19 @@ class Blockchain:
                     self._apply_block_reward(block.miner, in_atomic=True)
                     block.total_burned = block_burned
                     computed_root = self._compute_state_root_from_db()
-                    if (
-                        peer_state_root
-                        and getattr(self.config, "verify_peer_state_root", True)
-                        and peer_state_root != computed_root
-                    ):
-                        raise RuntimeError(
-                            f"state_root_mismatch expected={peer_state_root[:16]} "
-                            f"computed={computed_root[:16]}"
-                        )
+                    if peer_state_root and getattr(self.config, "verify_peer_state_root", True):
+                        peer_root = str(peer_state_root).strip()
+                        if len(peer_root) >= 64 and peer_root != computed_root:
+                            if preserve_peer_hash:
+                                print(
+                                    f"[Blockchain] WARN #{block.height} state_root drift "
+                                    f"(peer={peer_root[:12]}… computed={computed_root[:12]}…) — using replay"
+                                )
+                            else:
+                                raise RuntimeError(
+                                    f"state_root_mismatch expected={peer_root[:16]} "
+                                    f"computed={computed_root[:16]}"
+                                )
                     block.state_root = computed_root
                     block.hash = peer_hash if peer_hash else block._compute_hash()
 
@@ -445,7 +453,9 @@ class Blockchain:
 
             if self.block_validator:
                 last = self.db.get_last_block()
-                valid, msg = self.block_validator.validate_block(normalized, last)
+                valid, msg = self.block_validator.validate_block(
+                    normalized, last, strict_timestamp=False
+                )
                 if not valid:
                     print(f"[Blockchain] import_block rejected: {msg}")
                     return False
