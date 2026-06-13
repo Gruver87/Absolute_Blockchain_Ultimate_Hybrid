@@ -72,6 +72,7 @@ class EVMAdapter:
             value=int(value),
             block_number=int(tip),
             timestamp=ts,
+            chain_id=int(getattr(self.config, "chain_id", 77777)),
             balance_of=lambda addr: int(self.db.get_balance(addr) * 10**18),
         )
 

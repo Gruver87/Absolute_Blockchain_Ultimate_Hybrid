@@ -17,6 +17,7 @@ class EVMContext:
     value: int = 0
     block_number: int = 0
     timestamp: int = 0
+    chain_id: int = 77777
     balance_of: Optional[Callable[[str], int]] = None
 
     def addr_int(self, who: str) -> int:
@@ -38,7 +39,8 @@ class EVM:
         "SLOAD": 200, "SSTORE": 5000, "JUMP": 8, "JUMPI": 10,
         "BALANCE": 400, "CALLER": 2, "ORIGIN": 2, "ADDRESS": 2,
         "TIMESTAMP": 2, "NUMBER": 2, "CALLVALUE": 2,
-        "CALLDATALOAD": 3, "CALLDATASIZE": 2, "RETURNDATASIZE": 2,
+        "CALLDATALOAD": 3, "CALLDATASIZE": 2, "RETURNDATASIZE": 2, "RETURNDATACOPY": 3,
+        "CODESIZE": 2, "CODECOPY": 3, "CHAINID": 2, "GASLIMIT": 2, "GAS": 2, "PUSH0": 2,
         "SHA3": 30, "RETURN": 0, "REVERT": 0, "JUMPDEST": 1,
         "AND": 3, "OR": 3, "XOR": 3, "NOT": 3, "LT": 3, "GT": 3,
         "EQ": 3, "ISZERO": 3, "BYTE": 3, "SHL": 3, "SHR": 3,
@@ -56,6 +58,7 @@ class EVM:
         self.return_data = b""
         self.trace: List[Dict] = []
         self.ctx = context or EVMContext()
+        self.bytecode = b""
 
     def _consume_gas(self, op: str, extra: int = 0):
         cost = self.GAS_COSTS.get(op, 3) + extra
@@ -103,6 +106,7 @@ class EVM:
         self.reverted = False
         self.return_data = b""
         self.trace = []
+        self.bytecode = bytecode
 
         while self.pc < len(bytecode) and self.running:
             op_byte = bytecode[self.pc]
@@ -197,10 +201,26 @@ class EVM:
                 dest, offset, size = self._pop(), self._pop(), self._pop()
                 self._mem_extend(dest, size)
                 self.memory[dest:dest + size] = self.ctx.calldata[offset:offset + size]
+            elif op_byte == 0x38:  # CODESIZE
+                self._push(len(self.bytecode))
+            elif op_byte == 0x39:  # CODECOPY
+                dest, offset, size = self._pop(), self._pop(), self._pop()
+                self._mem_extend(dest, size)
+                self.memory[dest:dest + size] = self.bytecode[offset:offset + size]
+            elif op_byte == 0x3D:  # RETURNDATASIZE
+                self._push(len(self.return_data))
+            elif op_byte == 0x3E:  # RETURNDATACOPY
+                dest, offset, size = self._pop(), self._pop(), self._pop()
+                self._mem_extend(dest, size)
+                self.memory[dest:dest + size] = self.return_data[offset:offset + size]
             elif op_byte == 0x42:  # TIMESTAMP
                 self._push(self.ctx.timestamp)
             elif op_byte == 0x43:  # NUMBER
                 self._push(self.ctx.block_number)
+            elif op_byte == 0x45:  # GASLIMIT
+                self._push(self.gas_limit)
+            elif op_byte == 0x46:  # CHAINID
+                self._push(self.ctx.chain_id)
             elif op_byte == 0x50:  # POP
                 self._pop()
             elif op_byte == 0x51:
@@ -235,8 +255,12 @@ class EVM:
                         raise RuntimeError(f"invalid jump destination: {dest}")
                     self.pc = dest
                     continue
+            elif op_byte == 0x5A:  # GAS
+                self._push(max(0, self.gas_limit - self.gas_used))
             elif op_byte == 0x5B:  # JUMPDEST
                 pass
+            elif op_byte == 0x5F:  # PUSH0
+                self._push(0)
             elif 0x80 <= op_byte <= 0x8F:  # DUP1..DUP16
                 n = op_byte - 0x7F
                 if len(self.stack) < n:
@@ -290,9 +314,12 @@ class EVM:
             0x1B: "SHL", 0x1C: "SHR", 0x20: "SHA3", 0x30: "ADDRESS",
             0x31: "BALANCE", 0x32: "ORIGIN", 0x33: "CALLER", 0x34: "CALLVALUE",
             0x35: "CALLDATALOAD", 0x36: "CALLDATASIZE", 0x37: "CALLDATACOPY",
-            0x42: "TIMESTAMP", 0x43: "NUMBER", 0x50: "POP", 0x51: "MLOAD",
+            0x38: "CODESIZE", 0x39: "CODECOPY", 0x3D: "RETURNDATASIZE", 0x3E: "RETURNDATACOPY",
+            0x42: "TIMESTAMP", 0x43: "NUMBER", 0x45: "GASLIMIT", 0x46: "CHAINID",
+            0x50: "POP", 0x51: "MLOAD",
             0x52: "MSTORE", 0x53: "MSTORE8", 0x54: "SLOAD", 0x55: "SSTORE",
-            0x56: "JUMP", 0x57: "JUMPI", 0x5B: "JUMPDEST", 0xF3: "RETURN",
+            0x56: "JUMP", 0x57: "JUMPI", 0x5A: "GAS", 0x5B: "JUMPDEST", 0x5F: "PUSH0",
+            0xF3: "RETURN",
             0xFD: "REVERT", 0xFE: "INVALID",
         }
         if 0x60 <= op <= 0x7F:
