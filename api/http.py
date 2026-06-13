@@ -2086,8 +2086,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if stake < cfg.min_stake:
                     self._error(400, f"Stake must be >= {cfg.min_stake}")
                     return
-                bc.db.save_validator(address, stake)
-                self._json({"registered": True, "address": address, "stake": stake})
+                ca = self.__class__.consensus_adapter
+                if ca and hasattr(ca, "add_validator"):
+                    ok = ca.add_validator(address, stake)
+                    self._json({"registered": bool(ok), "address": address, "stake": stake})
+                else:
+                    bc.db.save_validator(address, stake)
+                    self._json({"registered": True, "address": address, "stake": stake})
 
             # ── NFT POST ─────────────────────────────────────────────────────
             elif path == "/nft/mint":

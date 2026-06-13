@@ -47,6 +47,7 @@ MSG_STATUS     = "status"       # height + head hash
 MSG_ATTESTATION = "attestation"
 MSG_STATE_ROOT_REQUEST = "state_root_request"
 MSG_STATE_ROOT_RESPONSE = "state_root_response"
+MSG_VALIDATOR_REGISTER = "validator_register"
 
 
 class PeerConnection:
@@ -401,6 +402,9 @@ class P2PNode:
         elif msg_type == MSG_ATTESTATION:
             await self._handle_attestation(peer, data)
 
+        elif msg_type == MSG_VALIDATOR_REGISTER:
+            await self._handle_validator_register(peer, data)
+
         elif msg_type == MSG_STATE_ROOT_REQUEST:
             height = int(data.get("height", self.blockchain.get_height())) if isinstance(data, dict) else self.blockchain.get_height()
             await peer.send(MSG_STATE_ROOT_RESPONSE, {
@@ -420,6 +424,39 @@ class P2PNode:
                         f"[P2P] State root mismatch vs {peer.peer_id[:8]}: "
                         f"local={local_root[:12]} peer={peer_root[:12]}"
                     )
+
+    async def _handle_validator_register(self, peer: PeerConnection, data: Dict):
+        """Register peer validator in local consensus when announced."""
+        if not isinstance(data, dict):
+            return
+        address = data.get("address", "")
+        stake = float(data.get("stake", getattr(self.config, "min_stake", 1000)))
+        if not address or not self._consensus:
+            return
+        vals = self.blockchain.db.get_validators(active_only=False) or []
+        known = {v["address"].lower() for v in vals}
+        if address.lower() in known:
+            return
+        if hasattr(self._consensus, "add_validator"):
+            if self._consensus.add_validator(address, stake):
+                print(f"[P2P] Registered peer validator {address[:12]}… from {peer.peer_id[:8]}")
+                await self._relay_validator_register(data, exclude_peer=peer.peer_id)
+
+    async def _relay_validator_register(self, payload: Dict, exclude_peer: str = ""):
+        tasks = []
+        for pid, peer in list(self.peers.items()):
+            if pid != exclude_peer:
+                tasks.append(peer.send(MSG_VALIDATOR_REGISTER, payload))
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    def announce_validator(self, address: str, stake: float) -> None:
+        """Gossip local validator registration to connected peers."""
+        payload = {"address": address, "stake": stake, "node_id": f"abs-{self.config.p2p_port}"}
+        if self._loop and self._running:
+            asyncio.run_coroutine_threadsafe(
+                self._relay_validator_register(payload), self._loop
+            )
 
     async def _handle_attestation(self, peer: PeerConnection, data: Dict):
         """Accept signed attestation from peer and apply to local consensus."""
@@ -611,6 +648,11 @@ class P2PNode:
             loop = asyncio.get_running_loop()
             ok = await loop.run_in_executor(None, self.sync_engine.sync_state)
             self._state_consistent = bool(ok)
+
+        new_h = self.blockchain.get_height()
+        if hasattr(self.blockchain, "set_state_root_baseline"):
+            self.blockchain.set_state_root_baseline(new_h)
+            print(f"[P2P] State-root baseline set to #{new_h} (strict above)")
 
     async def request_peer_state_root(self, peer: PeerConnection, height: int = None) -> Optional[Dict]:
         """Request state_root at height from a single peer."""

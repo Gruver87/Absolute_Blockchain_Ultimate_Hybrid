@@ -473,6 +473,11 @@
       </div>
     </div>
     <div class="card">
+      <h3>Truth Layer</h3>
+      <button class="btn btn-outline" onclick="loadTruthLayer()" style="margin-bottom:10px">Refresh</button>
+      <table><tbody id="truth-layer-stats"></tbody></table>
+    </div>
+    <div class="card">
       <h3>Consensus Stats</h3>
       <table><tbody id="consensus-stats"></tbody></table>
     </div>
@@ -1329,6 +1334,7 @@
       <div class="card">
         <h3>Sync Engine Status</h3>
         <button class="btn btn-green" onclick="loadSyncStatus()" style="margin-bottom:12px;width:100%">Refresh</button>
+        <button class="btn btn-outline" onclick="loadTruthLayer()" style="margin-bottom:8px;width:100%">Truth Layer</button>
         <button class="btn btn-outline" onclick="loadSyncPeers()" style="margin-bottom:8px;width:100%">Load Peers</button>
         <div id="sync-status" style="font-family:monospace;font-size:12px"></div>
         <div id="sync-peers-list" style="margin-top:8px;font-size:12px"></div>
@@ -1970,11 +1976,54 @@ async function loadConsensus() {
 
   const cs = await get('/consensus/stats');
   if (cs) {
+    const att = cs.attestation_count ?? cs.active_votes ?? 0;
+    const truthRow = document.getElementById('truth-layer-stats');
+    if (truthRow) {
+      const sync = await get('/sync/status');
+      const consistent = sync?.state_consistent !== false;
+      truthRow.innerHTML = `
+        <tr><td style="color:var(--gray)">State consistent</td>
+            <td><span class="badge ${consistent?'badge-green':'badge-red'}">${consistent?'YES':'DRIFT'}</span></td></tr>
+        <tr><td style="color:var(--gray)">State root</td><td class="hash">${(sync?.state_root||'').slice(0,24)}…</td></tr>
+        <tr><td style="color:var(--gray)">Attestations (LMD)</td><td><b>${att}</b></td></tr>
+        <tr><td style="color:var(--gray)">Validators</td><td>${cs.validators ?? cs.active_validators ?? '—'}</td></tr>
+        <tr><td style="color:var(--gray)">Canonical head</td><td class="hash">${(cs.canonical_head||'').slice(0,20)}…</td></tr>`;
+    }
     const entries = Object.entries(cs).filter(([k]) => !['systems'].includes(k));
     document.getElementById('consensus-stats').innerHTML = entries.map(([k,v]) =>
       `<tr><td style="color:var(--gray)">${k}</td><td>${JSON.stringify(v)}</td></tr>`).join('');
   }
 }
+
+async function loadTruthLayer() {
+  const sync = await api('/sync/status');
+  const cs = await api('/consensus/stats');
+  const el = document.getElementById('truth-layer-stats');
+  if (!el) return;
+  const consistent = sync?.state_consistent !== false;
+  const att = cs?.attestation_count ?? cs?.active_votes ?? 0;
+  el.innerHTML = `<table>
+    <tr><td style="color:var(--gray)">Local height</td><td>${sync?.local_height ?? '—'}</td></tr>
+    <tr><td style="color:var(--gray)">Peer height</td><td>${sync?.best_peer_height ?? '—'}</td></tr>
+    <tr><td style="color:var(--gray)">Behind</td><td>${sync?.behind ?? 0}</td></tr>
+    <tr><td style="color:var(--gray)">State consistent</td>
+        <td><span class="badge ${consistent?'badge-green':'badge-red'}">${consistent?'YES':'DRIFT'}</span></td></tr>
+    <tr><td style="color:var(--gray)">State root</td><td class="hash" style="word-break:break-all">${sync?.state_root || '—'}</td></tr>
+    <tr><td style="color:var(--gray)">Attestations</td><td><b>${att}</b></td></tr>
+    <tr><td style="color:var(--gray)">Validators</td><td>${cs?.validators ?? cs?.active_validators ?? '—'}</td></tr>
+  </table>`;
+  const syncEl = document.getElementById('sync-status');
+  if (syncEl && sync) {
+    syncEl.innerHTML = `<table>
+      <tr><td style="color:var(--gray)">Syncing</td><td><span class="badge ${sync.syncing?'badge-yellow':'badge-green'}">${sync.syncing?'YES':'NO'}</span></td></tr>
+      <tr><td style="color:var(--gray)">Peers</td><td>${sync.peers ?? sync.p2p_peers ?? 0}</td></tr>
+      <tr><td style="color:var(--gray)">Local height</td><td>${sync.local_height ?? '—'}</td></tr>
+      <tr><td style="color:var(--gray)">Best peer</td><td>${sync.best_peer_height ?? '—'}</td></tr>
+      <tr><td style="color:var(--gray)">State consistent</td>
+          <td><span class="badge ${consistent?'badge-green':'badge-red'}">${consistent?'YES':'DRIFT'}</span></td></tr>
+      <tr><td style="color:var(--gray)">State root</td><td class="hash">${(sync.state_root||'').slice(0,28)}…</td></tr>
+    </table>`;
+  }
 
 // ── ZK Proofs ─────────────────────────────────────────────────────────────────
 async function loadZKInfo() {
@@ -2754,9 +2803,16 @@ async function loadSyncStatus() {
   const r = await api('/sync/status');
   const el = document.getElementById('sync-status');
   if (!r || r.enabled === false) { el.innerHTML='<span style="color:var(--gray)">SyncEngine not available</span>'; return; }
+  const ok = r.state_consistent !== false;
   el.innerHTML = `<table>
     <tr><td style="color:var(--gray)">Syncing</td><td><span class="badge ${r.syncing?'badge-yellow':'badge-green'}">${r.syncing?'YES':'NO'}</span></td></tr>
-    <tr><td style="color:var(--gray)">Peers</td><td>${r.peers||0}</td></tr>
+    <tr><td style="color:var(--gray)">Peers</td><td>${r.peers ?? r.p2p_peers ?? 0}</td></tr>
+    <tr><td style="color:var(--gray)">Local height</td><td>${r.local_height ?? '—'}</td></tr>
+    <tr><td style="color:var(--gray)">Best peer height</td><td>${r.best_peer_height ?? '—'}</td></tr>
+    <tr><td style="color:var(--gray)">Behind</td><td>${r.behind ?? 0}</td></tr>
+    <tr><td style="color:var(--gray)">State consistent</td>
+        <td><span class="badge ${ok?'badge-green':'badge-red'}">${ok?'YES':'DRIFT'}</span></td></tr>
+    <tr><td style="color:var(--gray)">State root</td><td class="hash">${(r.state_root||'').slice(0,32)}…</td></tr>
     <tr><td style="color:var(--gray)">Progress</td><td>${r.progress||0} blocks</td></tr>
   </table>`;
 }

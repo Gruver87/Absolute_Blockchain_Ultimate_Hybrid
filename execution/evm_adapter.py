@@ -62,7 +62,8 @@ class EVMAdapter:
     # ── Деплой контракта ─────────────────────────────────────────────────────
 
     def deploy_contract(self, deployer: str, bytecode_hex: str,
-                        value: float = 0.0, gas_limit: int = 0) -> EVMResult:
+                        value: float = 0.0, gas_limit: int = 0,
+                        salt: str = None) -> EVMResult:
         """
         Деплоит смарт-контракт.
         Сохраняет байткод и начальное состояние в БД.
@@ -75,9 +76,13 @@ class EVMAdapter:
         except ValueError as e:
             return EVMResult(success=False, error=f"invalid_bytecode: {e}")
 
-        # Адрес контракта = sha256(deployer + timestamp)
+        if not bytecode:
+            return EVMResult(success=False, error="empty_bytecode")
+
+        # Deterministic address when salt provided (block execution); else dev-only
+        seed = salt if salt is not None else str(time.time())
         contract_addr = "0x" + hashlib.sha256(
-            f"{deployer}{time.time()}".encode()
+            f"{deployer}{seed}".encode()
         ).hexdigest()[:40]
 
         # Выполняем конструктор

@@ -14,6 +14,7 @@ from network.p2p_node import (
     MSG_ATTESTATION,
     MSG_STATE_ROOT_REQUEST,
     MSG_STATE_ROOT_RESPONSE,
+    MSG_VALIDATOR_REGISTER,
 )
 
 
@@ -57,6 +58,7 @@ def test_p2p_state_message_types():
     assert MSG_ATTESTATION == "attestation"
     assert MSG_STATE_ROOT_REQUEST == "state_root_request"
     assert MSG_STATE_ROOT_RESPONSE == "state_root_response"
+    assert MSG_VALIDATOR_REGISTER == "validator_register"
 
 
 def test_bridge_lock_arity():
@@ -67,7 +69,54 @@ def test_bridge_lock_arity():
     assert params == ["self", "from_addr", "to_chain", "to_addr", "amount"]
 
 
-def test_sync_state_wire_protocol(monkeypatch):
+def test_state_root_strict_above_baseline():
+    from core.blockchain import Blockchain
+    from runtime.config import Config
+    from storage.database import Database
+    from kernel.event_bus import EventBus
+    import tempfile
+    import os
+
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    cfg = Config()
+    cfg.db_path = path
+    cfg.verify_peer_state_root = True
+    db = Database(path)
+    db.initialize()
+    bc = Blockchain(cfg, db, EventBus())
+    bc.set_state_root_baseline(5)
+    assert bc._state_root_check_mode(5, "a" * 64, True) == "legacy_warn"
+    assert bc._state_root_check_mode(6, "b" * 64, True) == "strict"
+    assert bc._state_root_check_mode(6, "abc", True) == "legacy_warn"
+    db.close()
+    os.remove(path)
+
+
+def test_evm_deploy_deterministic_address():
+    from execution.evm_adapter import EVMAdapter
+    from runtime.config import Config
+    from storage.database import Database
+    import tempfile
+    import os
+
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    cfg = Config()
+    db = Database(path)
+    db.initialize()
+    db.set_balance("0x" + "1" * 40, 100.0)
+    evm = EVMAdapter(db, cfg)
+    bytecode = "600160005260206000f3"  # minimal init
+    r1 = evm.deploy_contract("0x" + "1" * 40, bytecode, salt="1:0:abc")
+    r2 = evm.deploy_contract("0x" + "1" * 40, bytecode, salt="1:0:abc")
+    assert r1.success and r2.success
+    assert r1.return_value == r2.return_value
+    db.close()
+    os.remove(path)
+
+
+def test_sync_state_wire_protocol():
     from sync.sync_engine import SyncEngine
 
     class Node:

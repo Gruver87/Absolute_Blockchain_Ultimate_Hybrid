@@ -300,6 +300,16 @@ class NodeOrchestrator:
         self.blockchain = Blockchain(config, self.db, self.bus)
         self.mempool.set_blockchain(self.blockchain)
         print(f"[Node] Blockchain height: {self.blockchain.get_height()}")
+        if (
+            config.verify_peer_state_root
+            and not config.state_root_legacy_cutoff_height
+            and self.blockchain.get_height() > 0
+        ):
+            config.state_root_legacy_cutoff_height = self.blockchain.get_height()
+            print(
+                f"[Node] state_root legacy cutoff: #{config.state_root_legacy_cutoff_height} "
+                "(blocks above require strict match)"
+            )
         # Сохраняем токеномику и применяем genesis-аллокацию (миграция старых БД)
         try:
             from runtime.tokenomics import get_tokenomics_summary, genesis_balances, FOUNDER_AMOUNT_ABS
@@ -395,6 +405,12 @@ class NodeOrchestrator:
                     if not getattr(config, "founder_address", ""):
                         config.founder_address = self.wallet.address
                     print(f"[Node] ECDSA wallet generated. Address: {config.miner_address}")
+                    try:
+                        os.makedirs(_data_dir, exist_ok=True)
+                        self.wallet.export(_wallet_path)
+                        print(f"[Node] Wallet saved: {_wallet_path}")
+                    except Exception as _save_err:
+                        print(f"[Node] Wallet save warning: {_save_err}")
                 except Exception as _we:
                     print(f"[Node] Wallet unavailable ({_we})")
         if not config.miner_address:
@@ -628,6 +644,16 @@ class NodeOrchestrator:
 
         if self.p2p:
             self.p2p.set_consensus(self.consensus, self.validator_keys)
+
+        # Register attestation validator (node2 gets its own key separate from miner)
+        self._attestation_validator = None
+        if self.validator_keys and self.wallet:
+            _vaddr = self.validator_keys.get_address()
+            _vals = self.db.get_validators(active_only=False) or []
+            if not any(v["address"].lower() == _vaddr.lower() for v in _vals):
+                self.consensus.add_validator(_vaddr, config.min_stake)
+                print(f"[Node] Registered attestation validator: {_vaddr[:16]}…")
+            self._attestation_validator = _vaddr
 
         # 28. Lightning Network (payment channels)
         if _LIGHTNING_AVAILABLE:
@@ -956,6 +982,10 @@ class NodeOrchestrator:
 
         # P2P сервер
         tasks.append(asyncio.create_task(self.p2p.start(), name="P2PServer"))
+        if self._attestation_validator and self.p2p:
+            tasks.append(asyncio.create_task(
+                self._announce_validator_loop(), name="ValidatorAnnounce"
+            ))
 
         # Цикл майнинга (если включён)
         if self.config.mining_enabled:
@@ -1064,6 +1094,16 @@ class NodeOrchestrator:
             await asyncio.gather(*tasks)
         except asyncio.CancelledError:
             pass
+
+    async def _announce_validator_loop(self):
+        """Gossip attestation validator to peers once P2P is up."""
+        await asyncio.sleep(8)
+        while self._running:
+            if self.p2p and self._attestation_validator:
+                self.p2p.announce_validator(
+                    self._attestation_validator, self.config.min_stake
+                )
+            await asyncio.sleep(60)
 
     # ── Остановка ────────────────────────────────────────────────────────────
 

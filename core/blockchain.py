@@ -277,8 +277,12 @@ class Blockchain:
         self.pool_locks = None  # runtime.pool_locks.PoolLockManager
         self.consensus_adapter = None  # wired from main.NodeOrchestrator
         self.evm = None  # execution.evm_adapter.EVMAdapter
+        self._state_root_baseline = 0
 
         self._ensure_genesis()
+        h = self.get_height()
+        cutoff = int(getattr(self.config, "state_root_legacy_cutoff_height", 0) or 0)
+        self._state_root_baseline = max(cutoff, h)
 
     def _init_state_engine(self):
         """Инициализирует StateEngine из данных genesis или текущего состояния БД."""
@@ -335,6 +339,25 @@ class Blockchain:
                 f"max_supply={MAX_SUPPLY_ABS:,}, founder={initials} "
                 f"{getattr(self.config, 'founder_percent', 17.4)}%)"
             )
+
+    def set_state_root_baseline(self, height: int) -> None:
+        """Blocks at or below baseline may use legacy warn-on-drift on P2P import."""
+        self._state_root_baseline = int(height)
+
+    def _state_root_check_mode(
+        self, block_height: int, peer_root: str, preserve_peer: bool
+    ) -> str:
+        """Returns strict | legacy_warn | skip for peer state_root verification."""
+        if not getattr(self.config, "verify_peer_state_root", True):
+            return "skip"
+        peer_root = str(peer_root or "").strip()
+        if not peer_root:
+            return "skip"
+        if len(peer_root) < 64:
+            return "legacy_warn"
+        if preserve_peer and block_height <= self._state_root_baseline:
+            return "legacy_warn"
+        return "strict"
 
     # ── Создание блока ───────────────────────────────────────────────────────
 
@@ -402,19 +425,21 @@ class Blockchain:
                     self._apply_block_reward(block.miner, in_atomic=True)
                     block.total_burned = block_burned
                     computed_root = self._compute_state_root_from_db()
-                    if peer_state_root and getattr(self.config, "verify_peer_state_root", True):
+                    if peer_state_root:
+                        mode = self._state_root_check_mode(
+                            block.height, peer_state_root, preserve_peer_hash
+                        )
                         peer_root = str(peer_state_root).strip()
-                        if len(peer_root) >= 64 and peer_root != computed_root:
-                            if preserve_peer_hash:
-                                print(
-                                    f"[Blockchain] WARN #{block.height} state_root drift "
-                                    f"(peer={peer_root[:12]}… computed={computed_root[:12]}…) — using replay"
-                                )
-                            else:
+                        if mode != "skip" and peer_root != computed_root:
+                            if mode == "strict":
                                 raise RuntimeError(
                                     f"state_root_mismatch expected={peer_root[:16]} "
                                     f"computed={computed_root[:16]}"
                                 )
+                            print(
+                                f"[Blockchain] WARN #{block.height} state_root drift "
+                                f"(peer={peer_root[:12]}… computed={computed_root[:12]}…) — legacy"
+                            )
                     block.state_root = computed_root
                     block.hash = peer_hash if peer_hash else block._compute_hash()
 
@@ -557,7 +582,7 @@ class Blockchain:
         if not sig_check["valid"]:
             return {"success": False, "error": sig_check.get("error", "invalid_signature")}
 
-        # EVM contract call when calldata + deployed code at destination
+        # EVM: contract call or deploy when calldata present
         if tx.data and getattr(self, "evm", None):
             target_acct = self.db.get_account(tx.to_addr)
             if target_acct and target_acct.get("code"):
@@ -601,6 +626,53 @@ class Blockchain:
                     "burned": burn_amount,
                     "miner_fee": miner_fee,
                     "evm": True,
+                }
+
+            deploy_data = (tx.data or "").strip()
+            if deploy_data and len(deploy_data.replace("0x", "")) >= 16:
+                deploy_salt = f"{block_height}:{tx.nonce}:{tx.hash}"
+                evm_res = self.evm.deploy_contract(
+                    tx.from_addr,
+                    deploy_data,
+                    tx.value,
+                    gas_limit=tx.gas or self.config.evm_gas_limit,
+                    salt=deploy_salt,
+                )
+                if not evm_res.success:
+                    return {"success": False, "error": evm_res.error or "evm_deploy_failed"}
+                fee = max(fee, evm_res.gas_used * self.config.gas_price_wei)
+                burn_amount = fee * self.config.burn_rate
+                miner_fee = fee - burn_amount
+                deploy_cost = fee + tx.value
+                if sender_balance < deploy_cost:
+                    return {"success": False, "error": "insufficient_funds_for_deploy"}
+                if in_atomic:
+                    self.db.balance_delta(tx.from_addr, -fee)
+                    self.db.balance_delta(proposer, miner_fee)
+                    if burn_amount > 0 and self.config.burn_address:
+                        self.db.balance_delta(self.config.burn_address, burn_amount)
+                    self.db.nonce_increment(tx.from_addr)
+                else:
+                    self.db.update_balance(tx.from_addr, -fee)
+                    self.db.update_balance(proposer, miner_fee)
+                    if burn_amount > 0 and self.config.burn_address:
+                        self.db.update_balance(self.config.burn_address, burn_amount)
+                    self.db.increment_nonce(tx.from_addr)
+                if self.pool_locks:
+                    self.pool_locks.record_outgoing(tx.from_addr, deploy_cost)
+                tx.fee = fee
+                tx.burned = burn_amount
+                tx.gas_used = evm_res.gas_used or tx.gas
+                tx.block_height = block_height
+                if self.bus:
+                    self.bus.emit("tx.applied", tx.to_dict())
+                return {
+                    "success": True,
+                    "fee": fee,
+                    "burned": burn_amount,
+                    "miner_fee": miner_fee,
+                    "evm": True,
+                    "contract_address": evm_res.return_value,
                 }
 
         if in_atomic:

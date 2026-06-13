@@ -370,6 +370,8 @@ class ConsensusAdapter:
             stats["slashed_validators"] = slashing_stats.get("slashed_validators", 0)
             stats["slashed_stake"] = slashing_stats.get("slashed_stake", 0)
             stats["canonical_head"] = slashing_stats.get("head_hash")
+            stats["attestation_count"] = slashing_stats.get("active_votes", 0)
+            stats["active_votes"] = slashing_stats.get("active_votes", 0)
         if self.validator_registry:
             reg_stats = self.validator_registry.get_stats()
             stats.update(reg_stats)
