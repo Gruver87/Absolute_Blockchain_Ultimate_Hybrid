@@ -409,8 +409,8 @@ class Blockchain:
                     block.state_root = computed_root
                     block.hash = peer_hash if peer_hash else block._compute_hash()
 
-                    if slashing and proposer and proposer != "genesis":
-                        if not slashing.record_proposal(proposer, block.height, block.hash):
+                    if slashing and block.miner and block.miner != "genesis":
+                        if not slashing.record_proposal(block.miner, block.height, block.hash):
                             raise RuntimeError("double_proposal")
 
                     tx_dicts = []

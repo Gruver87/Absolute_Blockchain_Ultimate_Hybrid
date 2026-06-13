@@ -110,3 +110,13 @@ def test_slashing_core_resolves_from_adapter(chain_env):
     assert core is not None
     assert hasattr(core, "slashed")
     assert hasattr(core, "record_proposal")
+
+
+def test_add_block_with_consensus_adapter(chain_env):
+    from consensus.adapter import ConsensusAdapter
+
+    cfg, db, bc = chain_env
+    bc.consensus_adapter = ConsensusAdapter(cfg, db, None)
+    blk = bc.create_block([], cfg.miner_address)
+    assert bc.add_block(blk) is True
+    assert bc.get_height() >= 1
