@@ -21,3 +21,15 @@ def test_devnet_probe_paths_exempt():
 def test_write_paths_not_exempt():
     assert _is_rate_limit_exempt("/transactions") is False
     assert _is_rate_limit_exempt("/tx/send") is False
+
+
+def test_rate_limit_disabled_when_rpm_zero():
+    from api.http import configure_rate_limiter
+    from runtime.config import Config
+
+    cfg = Config()
+    cfg.rate_limit_rpm = 0
+    configure_rate_limiter(cfg)
+    import api.http as http_mod
+    assert http_mod._RATE_LIMIT_AVAILABLE is False
+    assert http_mod._rate_limiter is None

@@ -15,6 +15,7 @@
   "bridge_enabled": true,
   "bridge_mode": "simulator",
   "bridge_auto_confirm_sec": 0,
+  "rate_limit_rpm": 0,
   "db_path": "data/blockchain.db",
   "log_file": "data/node.log"
 }

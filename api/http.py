@@ -45,6 +45,12 @@ def configure_rate_limiter(config) -> None:
     global _rate_limiter, _RATE_LIMIT_AVAILABLE
     if not config:
         return
+    rpm = int(getattr(config, "rate_limit_rpm", 120) or 0)
+    if rpm <= 0:
+        _rate_limiter = None
+        _RATE_LIMIT_AVAILABLE = False
+        logger.info("Rate limiter: disabled (rate_limit_rpm=%s)", rpm)
+        return
     try:
         from middleware.rate_limit import create_rate_limiter
         _rate_limiter = create_rate_limiter(
@@ -482,9 +488,8 @@ class RESTHandler(BaseHTTPRequestHandler):
         self._cors()
 
     def do_GET(self):
+        # Read-only Explorer/dashboard traffic — no rate limit on GET
         parsed = urlparse(self.path)
-        if not _check_rate_limit(self, parsed.path):
-            return
         path = parsed.path.rstrip("/")
         qs = parse_qs(parsed.query)
 
