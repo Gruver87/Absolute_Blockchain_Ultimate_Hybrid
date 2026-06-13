@@ -206,6 +206,11 @@ absolute-blockchain-ultimate/
 
 ## Устранение проблем
 
+### Monitor «API сервер не отвечает» на node2
+
+Monitor смотрит на **свой** REST-порт (`http_port`). Node2: API `:8081`, monitor `:8093`.
+Node1: API `:8080`, monitor `:8092`. RPC proxy: `:8082` (node1), `:8083` (node2).
+
 ### Два узла / порты заняты
 
 ```

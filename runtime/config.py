@@ -63,6 +63,9 @@ class Config:
     require_signatures: bool = False    # prod / node.json: true — reject unsigned txs
     enforce_proposer: bool = True       # reject blocks from unknown/slashed proposers
     verify_peer_state_root: bool = True # compare state_root on P2P import
+    monitor_port: int = 0               # 0 = http_port + 12 (8092 for :8080)
+    rpc_proxy_port: int = 0             # 0 = http_port + 2 (8082 for :8080)
+    monitor_enabled: bool = True
 
     # ── P2P ─────────────────────────────────────────────────────────────────
     bootstrap_peers: List[str] = field(default_factory=list)
@@ -125,6 +128,12 @@ class Config:
         """Базовая комиссия за обычный перевод в ABS."""
         return self.base_gas_price * self.gas_price_wei
 
+    def resolved_monitor_port(self) -> int:
+        return self.monitor_port or (self.http_port + 12)
+
+    def resolved_rpc_proxy_port(self) -> int:
+        return self.rpc_proxy_port or (self.http_port + 2)
+
     @property
     def is_production(self) -> bool:
         return self.deployment_mode == "prod"
@@ -153,6 +162,9 @@ class Config:
         self.verify_peer_state_root = env_bool(
             "VERIFY_PEER_STATE_ROOT", self.verify_peer_state_root
         )
+        self.monitor_enabled = env_bool("MONITOR_ENABLED", self.monitor_enabled)
+        self.monitor_port = env_int("MONITOR_PORT", self.monitor_port)
+        self.rpc_proxy_port = env_int("RPC_PROXY_PORT", self.rpc_proxy_port)
         self.metrics_enabled = env_bool("METRICS_ENABLED", self.metrics_enabled)
         self.jwt_enforce_admin = env_bool("JWT_ENFORCE_ADMIN", self.jwt_enforce_admin)
         self.enable_cors_rpc_proxy = env_bool("ENABLE_CORS_RPC_PROXY", self.enable_cors_rpc_proxy)

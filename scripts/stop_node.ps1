@@ -1,9 +1,12 @@
-# Stop Absolute Blockchain node (free ports 8080, 8545, 5000, 8766, 8082, 8092)
+# Stop Absolute Blockchain nodes (node1 + node2 devnet ports)
 param(
     [int]$MaxRetries = 3
 )
 
-$Ports = @(8080, 8545, 5000, 8766, 8082, 8092)
+$Ports = @(
+    8080, 8081, 8545, 8546, 5000, 5001, 8766, 8767,
+    8082, 8083, 8092, 8093
+)
 
 function Get-ListenerPids {
     param([int[]]$PortList)

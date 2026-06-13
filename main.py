@@ -958,30 +958,31 @@ class NodeOrchestrator:
         # WebSocket сервер (порт 8546)
         tasks.append(asyncio.create_task(self.ws_server.start(), name="WebSocketServer"))
 
-        # Blockchain Monitor (порт 8092, HTTP health/metrics) — опционально
-        try:
-            from monitor import MonitorServer, BlockchainMonitor
-            self.monitor = MonitorServer()
-            self.monitor.start()  # starts daemon thread internally
-            print(f"[Monitor] Health monitor started: http://localhost:8092")
-        except ImportError:
+        # Blockchain Monitor — per-node port (8092 node1, 8093 node2)
+        self.monitor = None
+        if self.config.monitor_enabled:
             try:
                 from monitor import MonitorServer
-                self.monitor = MonitorServer()
+                _mon_port = self.config.resolved_monitor_port()
+                _api_url = f"http://127.0.0.1:{self.config.http_port}"
+                self.monitor = MonitorServer(
+                    api_url=_api_url,
+                    port=_mon_port,
+                    node_id=self.config.node_id,
+                )
                 self.monitor.start()
-                print(f"[Monitor] Health monitor started: http://localhost:8092")
+                print(f"[Monitor] Health monitor started: http://localhost:{_mon_port}")
             except Exception:
                 self.monitor = None
-        except Exception as _me:
-            self.monitor = None  # monitor is optional
 
-        # RPC CORS Proxy — dev-only (:8082 → :8545)
+        # RPC CORS Proxy — per-node port (8082 node1, 8083 node2)
         if self.config.enable_cors_rpc_proxy:
             try:
                 import threading as _threading
                 from http.server import HTTPServer as _HTTPServer, BaseHTTPRequestHandler as _BH
                 import json as _json_mod
                 _rpc_port = self.config.rpc_port
+                _proxy_port = self.config.resolved_rpc_proxy_port()
                 class _CORSProxy(_BH):
                     def do_OPTIONS(self):
                         self.send_response(200)
@@ -1012,9 +1013,9 @@ class NodeOrchestrator:
                             pass
                     def log_message(self, *a):
                         pass
-                _proxy = _HTTPServer(("0.0.0.0", 8082), _CORSProxy)
+                _proxy = _HTTPServer(("0.0.0.0", _proxy_port), _CORSProxy)
                 _threading.Thread(target=_proxy.serve_forever, daemon=True, name="RPCProxy").start()
-                print(f"[RPC Proxy] CORS proxy started: http://localhost:8082/rpc -> :{self.config.rpc_port}")
+                print(f"[RPC Proxy] CORS proxy started: http://localhost:{_proxy_port}/rpc -> :{_rpc_port}")
             except Exception:
                 pass  # proxy is optional
         else:

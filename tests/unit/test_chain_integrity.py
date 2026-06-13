@@ -98,3 +98,15 @@ def test_reorg_replays_state(chain_env):
     assert bc.reorg_to_ancestor(ancestor) is True
     assert bc.get_height() == ancestor
     assert bc.get_state_root() == db.get_block(ancestor).get("state_root", bc.get_state_root())
+
+
+def test_slashing_core_resolves_from_adapter(chain_env):
+    from consensus.adapter import ConsensusAdapter
+
+    cfg, db, bc = chain_env
+    adapter = ConsensusAdapter(cfg, db, None)
+    bc.consensus_adapter = adapter
+    core = bc._resolve_slashing_core()
+    assert core is not None
+    assert hasattr(core, "slashed")
+    assert hasattr(core, "record_proposal")

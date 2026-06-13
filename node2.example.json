@@ -6,6 +6,8 @@
   "http_port": 8081,
   "rpc_port": 8546,
   "ws_port": 8767,
+  "monitor_port": 8093,
+  "rpc_proxy_port": 8083,
   "bootstrap_peers": ["127.0.0.1:5000"],
   "mining_enabled": false,
   "require_signatures": true,

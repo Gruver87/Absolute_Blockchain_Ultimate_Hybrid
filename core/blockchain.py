@@ -381,8 +381,7 @@ class Blockchain:
                 return False
 
             peer_state_root = block.state_root if preserve_peer_hash and block.state_root else None
-            adapter = self.consensus_adapter
-            slashing = getattr(adapter, "slashing_engine", None) if adapter else None
+            slashing = self._resolve_slashing_core()
 
             try:
                 with self.db.atomic():
@@ -637,8 +636,7 @@ class Blockchain:
         if not proposer or proposer == "genesis":
             return {"valid": True}
 
-        adapter = self.consensus_adapter
-        slashing = getattr(adapter, "slashing_engine", None) if adapter else None
+        slashing = self._resolve_slashing_core()
         if slashing:
             if proposer in slashing.slashed:
                 return {"valid": False, "error": "proposer_slashed"}
@@ -657,6 +655,20 @@ class Blockchain:
         if proposer.lower() not in allowed:
             return {"valid": False, "error": "unauthorized_proposer"}
         return {"valid": True}
+
+    def _resolve_slashing_core(self):
+        """Return underlying SlashingEngine from consensus adapter."""
+        adapter = self.consensus_adapter
+        if not adapter:
+            return None
+        engine = getattr(adapter, "slashing_engine", None)
+        if engine is None:
+            return None
+        if hasattr(engine, "slashing"):
+            return engine.slashing
+        if hasattr(engine, "slashed"):
+            return engine
+        return None
 
     def find_ancestor_height(self, parent_hash: str) -> Optional[int]:
         """Local height of parent_hash (fork common ancestor lookup)."""

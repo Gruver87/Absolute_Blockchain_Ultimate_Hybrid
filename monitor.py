@@ -9,14 +9,15 @@ import requests
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 class BlockchainMonitor:
-    def __init__(self, api_url: str = "http://localhost:8080"):
-        self.api_url = api_url
+    def __init__(self, api_url: str = "http://127.0.0.1:8080", node_id: str = "node"):
+        self.api_url = api_url.rstrip("/")
+        self.node_id = node_id
         self.alerts = []
         self.metrics = {}
         self.is_running = True
         self._peer_warn_count = 0
         self._start_monitoring()
-        print(f"📊 Blockchain Monitor initialized")
+        print(f"📊 Blockchain Monitor initialized ({self.node_id} -> {self.api_url})")
     
     def _get_stats(self):
         try:
@@ -26,12 +27,16 @@ class BlockchainMonitor:
             return {}
 
     def _get_peers(self):
-        try:
-            r = requests.get(f"{self.api_url}/network/peers", timeout=30)
-            data = r.json() if r.status_code == 200 else {}
-            return data.get("peers", [])
-        except Exception:
-            return []
+        for path in ("/peers", "/network/peers"):
+            try:
+                r = requests.get(f"{self.api_url}{path}", timeout=5)
+                if r.status_code == 200:
+                    data = r.json()
+                    peers = data.get("peers", data if isinstance(data, list) else [])
+                    return peers
+            except Exception:
+                continue
+        return []
     
     def _check_health(self):
         stats = self._get_stats()
@@ -48,7 +53,7 @@ class BlockchainMonitor:
         }
         
         if not stats:
-            self._add_alert('CRITICAL', 'API сервер не отвечает')
+            self._add_alert('CRITICAL', f'API сервер не отвечает ({self.api_url})')
         elif self.metrics['pending'] > 100:
             self._add_alert('WARNING', f'Большая очередь: {self.metrics["pending"]}')
         elif self.metrics['peers_count'] == 0:
@@ -84,9 +89,9 @@ class BlockchainMonitor:
 
 
 class MonitorServer:
-    def __init__(self):
-        self.monitor = BlockchainMonitor()
-        self.port = 8092
+    def __init__(self, api_url: str = "http://127.0.0.1:8080", port: int = 8092, node_id: str = "node"):
+        self.port = port
+        self.monitor = BlockchainMonitor(api_url=api_url, node_id=node_id)
     
     def start(self):
         class Handler(BaseHTTPRequestHandler):
