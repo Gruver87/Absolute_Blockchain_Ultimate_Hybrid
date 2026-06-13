@@ -376,3 +376,23 @@ class ConsensusAdapter:
             reg_stats = self.validator_registry.get_stats()
             stats.update(reg_stats)
         return stats
+
+    def get_attestations(self) -> List[Dict]:
+        """Latest LMD votes per validator (live attestation table)."""
+        if not self.slashing_engine:
+            return []
+        out = []
+        lmd = getattr(self.slashing_engine, "lmd", None)
+        if not lmd:
+            return []
+        weights = lmd.get_weights()
+        for validator, (block_hash, slot) in lmd.latest_vote.items():
+            out.append({
+                "validator": validator,
+                "block_hash": block_hash,
+                "slot": int(slot),
+                "stake": int(lmd.validator_stake.get(validator, 0)),
+                "block_weight": int(weights.get(block_hash, 0)),
+            })
+        out.sort(key=lambda x: (-x["slot"], x["validator"]))
+        return out

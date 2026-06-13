@@ -1211,12 +1211,20 @@ class NodeOrchestrator:
             # ── Конвертируем MempoolTransaction → Transaction ─────────────────
             txs = []
             for mp_tx in pending:
+                tx_gas = int(getattr(mp_tx, "gas", 0) or 0)
+                if not tx_gas:
+                    tx_gas = (
+                        self.config.evm_gas_limit
+                        if getattr(mp_tx, "data", "")
+                        else self.config.base_gas_price
+                    )
                 txs.append(Transaction(
                     from_addr=mp_tx.from_addr,
                     to_addr=mp_tx.to_addr,
                     value=mp_tx.amount,
                     nonce=mp_tx.nonce,
-                    gas=self.config.base_gas_price,
+                    gas=tx_gas,
+                    data=getattr(mp_tx, "data", "") or "",
                     timestamp=int(mp_tx.timestamp),
                     tx_hash=mp_tx.tx_hash,
                     signature=mp_tx.signature,

@@ -40,6 +40,8 @@ class MempoolTransaction:
     nonce: int = 0
     signature: str = ""
     public_key: str = ""
+    data: str = ""
+    gas: int = 21_000
     timestamp: float = field(default_factory=time.time)
 
     def has_valid_signature(self) -> bool:
@@ -60,6 +62,7 @@ class MempoolTransaction:
                 "chain_id": getattr(self, "_chain_id", None) or getattr(self, "chain_id", 1),
                 "signature": self.signature,
                 "public_key": self.public_key,
+                "data": self.data or "",
             }
             return verify_transaction_signature(tx_dict)
         except Exception:
@@ -201,9 +204,9 @@ class Mempool:
                     "to": tx.to_addr,
                     "value": tx.amount,
                     "gasPrice": tx.fee,
-                    "gas": 21000,
+                    "gas": tx.gas or 21000,
                     "nonce": tx.nonce,
-                    "data": "",
+                    "data": tx.data or "",
                     "timestamp": tx.timestamp,
                 }
                 for tx in sorted_txs

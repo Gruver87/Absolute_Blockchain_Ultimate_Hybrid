@@ -545,6 +545,8 @@ class P2PNode:
                 nonce=int(data.get("nonce", 0)),
                 signature=data.get("signature", ""),
                 public_key=data.get("public_key", ""),
+                data=data.get("data", data.get("input", "")),
+                gas=int(data.get("gas", 0) or 0) or 21_000,
             )
             self.mempool.add(tx)
         except Exception as e:

@@ -36,6 +36,7 @@ class WebSocketServer:
                 reg("block.new", self._on_block)
                 reg("tx.new", self._on_tx)
                 reg("tx.applied", self._on_tx)
+                reg("consensus.attestation", self._on_attestation)
 
     # ── Event handlers (called from other threads) ────────────────────────────
 
@@ -55,6 +56,21 @@ class WebSocketServer:
             "type": "event",
             "event": "NEW_TX",
             "data": data,
+            "ts": time.time(),
+        }
+        self._schedule(msg)
+
+    def _on_attestation(self, att):
+        if not isinstance(att, dict):
+            return
+        msg = {
+            "type": "event",
+            "event": "ATTESTATION",
+            "data": {
+                "validator": att.get("validator", ""),
+                "block_hash": att.get("block_hash", ""),
+                "slot": att.get("slot", 0),
+            },
             "ts": time.time(),
         }
         self._schedule(msg)

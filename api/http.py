@@ -92,11 +92,13 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/network/peers", "summary": "Connected P2P peers"},
     {"method": "GET", "path": "/sync/status", "summary": "Chain sync status"},
     {"method": "GET", "path": "/features", "summary": "Feature flags and module availability"},
+    {"method": "GET", "path": "/consensus/attestations", "summary": "Latest validator attestations (LMD)"},
     {"method": "GET", "path": "/bridge", "summary": "Bridge overview"},
     {"method": "GET", "path": "/bridge/locks", "summary": "Bridge lock records"},
     {"method": "GET", "path": "/wallet/status", "summary": "Signing wallet status"},
     {"method": "POST", "path": "/transactions", "summary": "Submit transaction"},
     {"method": "POST", "path": "/tx/send", "summary": "Submit transaction (alias, optional auto_sign)"},
+    {"method": "POST", "path": "/tx/deploy", "summary": "Submit EVM deploy tx to mempool"},
 ]
 
 try:
@@ -745,6 +747,18 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "lightning": self.__class__.lightning,
                 }
                 self._json(flags.to_api_dict(instances))
+
+            elif path == "/consensus/attestations":
+                ca = self.__class__.consensus_adapter
+                if ca and hasattr(ca, "get_attestations"):
+                    votes = ca.get_attestations()
+                    self._json({
+                        "count": len(votes),
+                        "attestations": votes,
+                        "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+                    })
+                else:
+                    self._json({"count": 0, "attestations": [], "enabled": False})
 
             elif path == "/auth/token":
                 # JWT token generation endpoint
@@ -2061,12 +2075,24 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not evm_adapter:
                     self._error(503, "EVM not enabled")
                     return
+                if body.get("via_mempool", body.get("mempool", False)):
+                    tx_hash = _handle_deploy_tx(body, bc, mp, cfg, self.__class__.wallet, evm_adapter)
+                    self._json({"tx_hash": tx_hash, "status": "pending", "via_mempool": True})
+                    return
                 result = evm_adapter.deploy_contract(
-                    deployer=body.get("from", ""),
-                    bytecode_hex=body.get("bytecode", ""),
+                    deployer=body.get("from", body.get("from_address", "")),
+                    bytecode_hex=body.get("bytecode", body.get("data", "")),
                     value=float(body.get("value", 0)),
+                    salt=body.get("salt"),
                 )
                 self._json(result.to_dict())
+
+            elif path == "/tx/deploy":
+                if not evm_adapter:
+                    self._error(503, "EVM not enabled")
+                    return
+                tx_hash = _handle_deploy_tx(body, bc, mp, cfg, self.__class__.wallet, evm_adapter)
+                self._json({"tx_hash": tx_hash, "status": "pending", "via_mempool": True})
 
             elif path == "/contract/call":
                 if not evm_adapter:
@@ -3720,6 +3746,61 @@ def _build_openapi_spec(cfg) -> Dict:
     }
 
 
+def _handle_deploy_tx(body: Dict, bc, mp, cfg, wallet=None, evm=None) -> str:
+    """Queue EVM contract deploy as a signed mempool transaction."""
+    from core.blockchain import Transaction
+
+    bytecode = body.get("bytecode", body.get("data", ""))
+    if not bytecode:
+        raise ValueError("bytecode required")
+    if not str(bytecode).replace("0x", "").strip():
+        raise ValueError("empty_bytecode")
+
+    zero_addr = "0x0000000000000000000000000000000000000000"
+    from_addr = body.get("from", body.get("from_address", ""))
+    value = _parse_tx_value(body.get("value", body.get("amount", 0)))
+    gas = int(body.get("gas", getattr(cfg, "evm_gas_limit", 8_000_000)))
+
+    tx_body = dict(body or {})
+    if wallet and (body.get("auto_sign") or not from_addr):
+        nonce = bc.db.get_nonce(wallet.address)
+        signed = wallet.sign_transaction(
+            zero_addr,
+            int(value) if value == int(value) else value,
+            nonce,
+            getattr(cfg, "chain_id", 1),
+        )
+        tx_body.update(signed)
+        from_addr = wallet.address
+
+    if not from_addr:
+        raise ValueError("from address required (or auto_sign with wallet)")
+
+    nonce = int(tx_body.get("nonce", bc.db.get_nonce(from_addr)))
+    tx = Transaction(
+        from_addr=from_addr,
+        to_addr=zero_addr,
+        value=value,
+        nonce=nonce,
+        gas=gas,
+        data=bytecode,
+        signature=tx_body.get("signature", ""),
+        public_key=tx_body.get("public_key", ""),
+    )
+    tx_body = {
+        "from": from_addr,
+        "to": zero_addr,
+        "value": value,
+        "nonce": nonce,
+        "gas": gas,
+        "data": tx.data,
+        "signature": tx.signature,
+        "public_key": tx.public_key,
+        "hash": tx.hash,
+    }
+    return _handle_send_tx_obj(tx_body, bc, mp, cfg)
+
+
 def _handle_send_tx_with_wallet(tx_obj: Dict, bc, mp, cfg, wallet=None) -> str:
     """Submit tx; optional auto_sign fills from/nonce/signature from operational wallet."""
     body = dict(tx_obj or {})
@@ -3826,6 +3907,8 @@ def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
         nonce=nonce,
         signature=tx_obj.get("signature", ""),
         public_key=tx_obj.get("public_key", ""),
+        data=tx_obj.get("data", tx_obj.get("input", "")),
+        gas=gas,
     )
     if not mp.add(mp_tx):
         raise ValueError("mempool_rejected")
@@ -3838,6 +3921,8 @@ def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
             "to_addr": to_addr,
             "value": value,
             "nonce": nonce,
+            "data": tx_obj.get("data", tx_obj.get("input", "")),
+            "gas": gas,
         })
 
     return tx.hash

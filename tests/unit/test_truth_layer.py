@@ -116,6 +116,46 @@ def test_evm_deploy_deterministic_address():
     os.remove(path)
 
 
+def test_mempool_tx_carries_data():
+    from blockchain.mempool import Mempool, MempoolTransaction
+
+    mp = Mempool()
+    tx = MempoolTransaction(
+        tx_hash="abc",
+        from_addr="0x" + "1" * 40,
+        to_addr="0x" + "0" * 40,
+        amount=0.0,
+        fee=0.01,
+        nonce=0,
+        data="0x600160005260206000f3",
+        gas=500000,
+    )
+    assert mp.add_raw(tx)
+    got = mp.get(limit=1)[0]
+    assert got.data.startswith("0x")
+    assert got.gas == 500000
+
+
+def test_consensus_get_attestations_empty():
+    from consensus.adapter import ConsensusAdapter
+    from runtime.config import Config
+    from storage.database import Database
+    from kernel.event_bus import EventBus
+    import tempfile
+    import os
+
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    cfg = Config()
+    db = Database(path)
+    db.initialize()
+    ca = ConsensusAdapter(cfg, db, EventBus())
+    votes = ca.get_attestations()
+    assert isinstance(votes, list)
+    db.close()
+    os.remove(path)
+
+
 def test_sync_state_wire_protocol():
     from sync.sync_engine import SyncEngine
 

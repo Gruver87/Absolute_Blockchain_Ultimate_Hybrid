@@ -478,6 +478,13 @@
       <table><tbody id="truth-layer-stats"></tbody></table>
     </div>
     <div class="card">
+      <h3>Live Attestations</h3>
+      <button class="btn btn-green" onclick="loadAttestations()" style="margin-bottom:10px">Load</button>
+      <div id="attestation-feed" style="font-family:monospace;font-size:11px;max-height:220px;overflow-y:auto"></div>
+      <table style="margin-top:10px"><thead><tr><th>Validator</th><th>Slot</th><th>Block</th><th>Stake</th></tr></thead>
+        <tbody id="attestations-table"></tbody></table>
+    </div>
+    <div class="card">
       <h3>Consensus Stats</h3>
       <table><tbody id="consensus-stats"></tbody></table>
     </div>
@@ -1558,7 +1565,7 @@ function show(tab) {
   if (tab === 'nft')        loadNFTs();
   if (tab === 'sharding')   loadSharding();
   if (tab === 'oracles')    loadOracles();
-  if (tab === 'consensus')  loadConsensus();
+  if (tab === 'consensus')  { loadConsensus(); loadAttestations(); }
   if (tab === 'zk')         loadZKInfo();
   if (tab === 'minivm')     loadMiniVMContracts();
   if (tab === 'pq')         pqStatus();
@@ -1747,6 +1754,7 @@ async function connectWS() {
       const d = JSON.parse(e.data);
       if (d.event === 'NEW_BLOCK') addBlockToFeed(d.data);
       if (d.event === 'NEW_TX') addTxToFeed(d.data);
+      if (d.event === 'ATTESTATION') addAttestationToFeed(d.data);
     };
     ws.onclose = () => {
       document.getElementById('wsdot').className = '';
@@ -1993,6 +2001,35 @@ async function loadConsensus() {
     document.getElementById('consensus-stats').innerHTML = entries.map(([k,v]) =>
       `<tr><td style="color:var(--gray)">${k}</td><td>${JSON.stringify(v)}</td></tr>`).join('');
   }
+}
+
+async function loadAttestations() {
+  const r = await api('/consensus/attestations');
+  const rows = r?.attestations || [];
+  const tbody = document.getElementById('attestations-table');
+  if (!tbody) return;
+  tbody.innerHTML = rows.length ? rows.map(a => `
+    <tr>
+      <td class="addr">${String(a.validator||'').slice(0,14)}…</td>
+      <td>${a.slot ?? '—'}</td>
+      <td class="hash">${String(a.block_hash||'').slice(0,12)}…</td>
+      <td>${a.stake ?? 0}</td>
+    </tr>`).join('') : '<tr><td colspan="4" style="color:var(--gray)">No attestations yet</td></tr>';
+}
+
+function addAttestationToFeed(att) {
+  const el = document.getElementById('attestation-feed');
+  if (!el || !att) return;
+  const line = document.createElement('div');
+  line.style.borderBottom = '1px solid var(--border)';
+  line.style.padding = '4px 0';
+  line.innerHTML = `<span style="color:var(--green)">ATTEST</span> `
+    + `<span class="addr">${String(att.validator||'').slice(0,12)}…</span> `
+    + `slot <b>${att.slot||0}</b> `
+    + `<span class="hash">${String(att.block_hash||'').slice(0,10)}…</span>`;
+  el.prepend(line);
+  while (el.children.length > 40) el.removeChild(el.lastChild);
+  loadAttestations();
 }
 
 async function loadTruthLayer() {
