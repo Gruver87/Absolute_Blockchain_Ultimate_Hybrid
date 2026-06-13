@@ -76,10 +76,75 @@ class EVMAdapter:
             balance_of=lambda addr: int(self.db.get_balance(addr) * 10**18),
         )
 
+    def _normalize_addr(self, word_or_addr: str) -> str:
+        raw = str(word_or_addr).replace("0x", "").lower()
+        if len(raw) <= 40 and all(c in "0123456789abcdef" for c in raw):
+            return "0x" + raw.rjust(40, "0")[-40:]
+        return word_or_addr
+
+    def _contract_call_hook(self, target: str, calldata: bytes, value: int,
+                            gas: int, delegate: bool,
+                            caller_ctx: EVMContext) -> Dict[str, Any]:
+        target = self._normalize_addr(target)
+        account = self.db.get_account(target)
+        if not account or not account.get("code"):
+            return {"success": False, "reverted": True, "return_data": b""}
+        try:
+            bytecode = bytes.fromhex(account["code"].replace("0x", ""))
+        except ValueError:
+            return {"success": False, "reverted": True, "return_data": b""}
+
+        if delegate:
+            storage_raw = self.db.get_account(caller_ctx.address)
+            storage_src = (storage_raw or {}).get("storage") or "{}"
+            exec_addr = caller_ctx.address
+            call_value = 0
+            caller = caller_ctx.caller
+        else:
+            storage_src = account.get("storage") or "{}"
+            exec_addr = target
+            call_value = value
+            caller = caller_ctx.address
+
+        try:
+            storage = {int(k): int(v) for k, v in json.loads(storage_src).items()}
+        except Exception:
+            storage = {}
+
+        sub_ctx = self._make_context(caller, exec_addr, calldata, call_value)
+        sub_ctx.contract_call = lambda t, d, v, g, delg: self._contract_call_hook(
+            t, d, v, g, delg, sub_ctx
+        )
+        evm = EVM(gas_limit=gas or self.config.evm_gas_limit, context=sub_ctx)
+        evm.storage = dict(storage)
+        result = evm.execute_bytecode(bytecode)
+
+        if delegate:
+            new_storage = {str(k): v for k, v in result.get("storage", {}).items()}
+            self.db.update_account_storage(caller_ctx.address, new_storage)
+        else:
+            if not result.get("reverted"):
+                new_storage = {str(k): v for k, v in result.get("storage", {}).items()}
+                self.db.update_account_storage(target, new_storage)
+                if call_value > 0:
+                    wei_to_abs = call_value / 10**18
+                    self.db.update_balance(caller, -wei_to_abs)
+                    self.db.update_balance(target, wei_to_abs)
+
+        return {
+            "success": not result.get("reverted"),
+            "reverted": result.get("reverted", False),
+            "return_data": result.get("return_data", b"") or b"",
+            "storage": result.get("storage", {}),
+        }
+
     def _run_evm(self, bytecode: bytes, storage: Dict[int, int], gas_limit: int,
                  caller: str = "", contract_addr: str = "",
                  calldata: bytes = b"", value: int = 0) -> Dict:
         ctx = self._make_context(caller, contract_addr, calldata, value)
+        ctx.contract_call = lambda t, d, v, g, delg: self._contract_call_hook(
+            t, d, v, g, delg, ctx
+        )
         evm = EVM(gas_limit=gas_limit, context=ctx)
         evm.storage = dict(storage)
         return evm.execute_bytecode(bytecode)

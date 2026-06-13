@@ -240,13 +240,14 @@ class Config:
             errors.append("RPC_API_KEY_REQUIRED=true but RPC_API_KEYS is empty")
         if self.bridge_mode not in ("simulator", "rust"):
             errors.append(f"bridge_mode invalid: {self.bridge_mode}")
-        if self.bridge_mode == "rust" and not os.path.isfile(self.rust_bridge_path):
-            msg = f"bridge_mode=rust but binary missing: {self.rust_bridge_path}"
-            if self.is_production:
-                errors.append(msg)
-            else:
-                # dev/staging may fall back to simulator at runtime
-                pass
+        if self.bridge_mode == "rust":
+            path_ok = os.path.isfile(self.rust_bridge_path) or os.path.isfile(
+                self.rust_bridge_path + ".exe"
+            )
+            if not path_ok:
+                msg = f"bridge_mode=rust but binary missing: {self.rust_bridge_path}"
+                if self.is_production:
+                    errors.append(msg)
         if self.is_production and self.bridge_mode == "simulator":
             errors.append("prod deployment should use bridge_mode=rust (or disable bridge)")
         if self.is_production and not os.environ.get("JWT_SECRET") and not getattr(self, "jwt_secret", ""):

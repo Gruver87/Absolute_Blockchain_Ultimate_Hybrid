@@ -55,11 +55,26 @@ jobs:
       run: python tests/smoke/merkle_light.py
 
     - name: Pytest (unit + integration)
-      run: pytest tests/ -q --tb=short -x
+      env:
+        PYTHONUTF8: "1"
+      run: pytest tests/ -q --tb=short
 
-    - name: Two-node P2P smoke (Linux)
+    - name: Build Rust bridge CLI
       if: runner.os == 'Linux' && matrix.python-version == '3.12'
-      run: python scripts/verify_p2p_ci.py
+      run: |
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        source "$HOME/.cargo/env"
+        bash scripts/build_bridge.sh
+
+    - name: Rust bridge CLI test
+      if: runner.os == 'Linux' && matrix.python-version == '3.12'
+      run: pytest tests/unit/test_rust_bridge_cli.py -q
+
+    - name: Two-node P2P smoke (Linux CI mode)
+      if: runner.os == 'Linux' && matrix.python-version == '3.12'
+      env:
+        PYTHONUTF8: "1"
+      run: python scripts/verify_p2p_ci.py --mode ci
 
     - name: Load test (health endpoint)
       run: python scripts/load_test.py --spawn-local --workers 6 --requests 20

@@ -67,6 +67,11 @@ __pycache__/
 audit_export.txt
 data/mega_audit_report.json
 
+# Rust bridge build artifacts
+bridge/abs_bridge_bin
+bridge/abs_bridge_bin.exe
+bridge/rust_bridge/target/
+
 Old files
 Новый.py
 ABSOLUTE_FINAL_FIXED_backup.py
