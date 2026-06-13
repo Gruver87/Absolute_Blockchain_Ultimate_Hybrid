@@ -66,37 +66,60 @@ class Wallet:
     def private_key(self) -> str:
         return self.keypair.private_key.hex()
     
-    def sign_transaction(self, to: str, value: int, nonce: int, chain_id: int = 1) -> dict:
-        """Create and sign a transaction"""
+    def sign_transaction(
+        self,
+        to: str,
+        value: int,
+        nonce: int,
+        chain_id: int = 1,
+        data: str = "",
+        gas_limit: int = 21000,
+    ) -> dict:
+        """Create and sign a transaction (optional calldata + gas for EVM deploy/call)."""
         tx = {
             "from": self.address,
             "to": to,
             "value": value,
             "nonce": nonce,
             "chain_id": chain_id,
-            "gas_limit": 21000,
-            "gas_price": 1
+            "gas_limit": int(gas_limit),
+            "data": data or "",
         }
-        
+
         tx_hash = self._hash_transaction(tx)
         signature = self._sign_hash(tx_hash)
-        
+
         tx["signature"] = signature
         tx["public_key"] = self.public_key
         tx["hash"] = tx_hash
-        
+
         return tx
-    
-    def _hash_transaction(self, tx: dict) -> str:
-        """Create canonical hash of transaction for signing"""
-        tx_for_hash = {
+
+    @staticmethod
+    def _canonical_tx_for_hash(tx: dict) -> dict:
+        """Canonical signing payload; includes data/gas only when non-default."""
+        payload = {
             "from": tx["from"],
             "to": tx["to"],
             "value": tx["value"],
             "nonce": tx["nonce"],
-            "chain_id": tx["chain_id"]
+            "chain_id": tx.get("chain_id", 1),
         }
-        encoded = json.dumps(tx_for_hash, sort_keys=True, separators=(',', ':'))
+        data = tx.get("data", "") or ""
+        if data:
+            payload["data"] = data
+        gas_limit = tx.get("gas_limit") or tx.get("gas")
+        if gas_limit is not None and int(gas_limit) != 21000:
+            payload["gas_limit"] = int(gas_limit)
+        return payload
+
+    def _hash_transaction(self, tx: dict) -> str:
+        """Create canonical hash of transaction for signing."""
+        encoded = json.dumps(
+            self._canonical_tx_for_hash(tx),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         return hashlib.sha256(encoded.encode()).hexdigest()
     
     def _sign_hash(self, data_hash: str) -> str:
@@ -192,17 +215,20 @@ def verify_transaction_signature(tx: dict) -> bool:
     """Verify transaction signature"""
     if "signature" not in tx or "public_key" not in tx:
         return False
-    
-    tx_to_verify = {
+
+    tx_to_verify = Wallet._canonical_tx_for_hash({
         "from": tx["from"],
         "to": tx["to"],
         "value": tx["value"],
         "nonce": tx["nonce"],
-        "chain_id": tx.get("chain_id", 1)
-    }
-    
-    tx_hash = json.dumps(tx_to_verify, sort_keys=True, separators=(',', ':'))
-    tx_hash_hashed = hashlib.sha256(tx_hash.encode()).hexdigest()
+        "chain_id": tx.get("chain_id", 1),
+        "data": tx.get("data", ""),
+        "gas_limit": tx.get("gas_limit") or tx.get("gas"),
+    })
+
+    tx_hash_hashed = hashlib.sha256(
+        json.dumps(tx_to_verify, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     
     signature = bytes.fromhex(tx["signature"])
     public_key = bytes.fromhex(tx["public_key"])

@@ -156,6 +156,44 @@ def test_consensus_get_attestations_empty():
     os.remove(path)
 
 
+def test_wallet_sign_verify_with_calldata():
+    from crypto.wallet import Wallet, verify_transaction_signature
+
+    w = Wallet.create_new()
+    zero = "0x0000000000000000000000000000000000000000"
+    data = "0x600160005260206000f3"
+    signed = w.sign_transaction(zero, 0, 0, chain_id=77777, data=data, gas_limit=500000)
+    assert verify_transaction_signature(signed)
+    plain = w.sign_transaction("0x" + "b" * 40, 1, 0, chain_id=77777)
+    assert verify_transaction_signature(plain)
+
+
+def test_attestations_by_block_aggregate():
+    from consensus.adapter import ConsensusAdapter
+    from runtime.config import Config
+    from storage.database import Database
+    from kernel.event_bus import EventBus
+    import tempfile
+    import os
+
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    cfg = Config()
+    db = Database(path)
+    db.initialize()
+    ca = ConsensusAdapter(cfg, db, EventBus())
+    if ca.slashing_engine:
+        v1, v2 = "0x" + "a" * 40, "0x" + "b" * 40
+        ca.slashing_engine.add_validator(v1, 1000)
+        ca.slashing_engine.add_validator(v2, 1000)
+        ca.slashing_engine.on_attestation(v1, "block_hash_1", 1)
+        ca.slashing_engine.on_attestation(v2, "block_hash_1", 1)
+        rows = ca.get_attestations_by_block()
+        assert any(r["block_hash"] == "block_hash_1" and r["votes"] == 2 for r in rows)
+    db.close()
+    os.remove(path)
+
+
 def test_sync_state_wire_protocol():
     from sync.sync_engine import SyncEngine
 

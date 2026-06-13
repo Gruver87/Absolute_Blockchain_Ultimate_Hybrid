@@ -57,6 +57,10 @@ jobs:
     - name: Pytest (unit + integration)
       run: pytest tests/ -q --tb=short -x
 
+    - name: Two-node P2P smoke (Linux)
+      if: runner.os == 'Linux' && matrix.python-version == '3.12'
+      run: python scripts/verify_p2p_ci.py
+
     - name: Load test (health endpoint)
       run: python scripts/load_test.py --spawn-local --workers 6 --requests 20
 

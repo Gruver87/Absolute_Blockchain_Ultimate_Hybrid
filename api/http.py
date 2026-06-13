@@ -93,6 +93,7 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/sync/status", "summary": "Chain sync status"},
     {"method": "GET", "path": "/features", "summary": "Feature flags and module availability"},
     {"method": "GET", "path": "/consensus/attestations", "summary": "Latest validator attestations (LMD)"},
+    {"method": "GET", "path": "/consensus/attestations/by-block", "summary": "Attestation votes aggregated per block"},
     {"method": "GET", "path": "/bridge", "summary": "Bridge overview"},
     {"method": "GET", "path": "/bridge/locks", "summary": "Bridge lock records"},
     {"method": "GET", "path": "/wallet/status", "summary": "Signing wallet status"},
@@ -748,6 +749,27 @@ class RESTHandler(BaseHTTPRequestHandler):
                 }
                 self._json(flags.to_api_dict(instances))
 
+            elif path == "/consensus/attestations/by-block":
+                ca = self.__class__.consensus_adapter
+                if ca and hasattr(ca, "get_attestations_by_block"):
+                    rows = ca.get_attestations_by_block()
+                    self._json({"count": len(rows), "blocks": rows})
+                else:
+                    self._json({"count": 0, "blocks": [], "enabled": False})
+
+            elif path.startswith("/consensus/attestations/block/"):
+                block_hash = path.split("/consensus/attestations/block/", 1)[1]
+                ca = self.__class__.consensus_adapter
+                if ca and hasattr(ca, "get_attestations_for_block"):
+                    votes = ca.get_attestations_for_block(block_hash)
+                    self._json({
+                        "block_hash": block_hash,
+                        "count": len(votes),
+                        "attestations": votes,
+                    })
+                else:
+                    self._json({"block_hash": block_hash, "count": 0, "attestations": []})
+
             elif path == "/consensus/attestations":
                 ca = self.__class__.consensus_adapter
                 if ca and hasattr(ca, "get_attestations"):
@@ -868,8 +890,20 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path.startswith("/tx/"):
                 tx_hash = path.split("/tx/")[1]
                 tx = bc.get_transaction(tx_hash)
-                if tx: self._json(tx)
-                else: self._error(404, "Transaction not found")
+                if tx:
+                    self._json(tx)
+                elif mp and hasattr(mp, "has_transaction") and mp.has_transaction(tx_hash):
+                    pending = mp.transactions.get(tx_hash) if hasattr(mp, "transactions") else None
+                    self._json({
+                        "hash": tx_hash,
+                        "status": "pending",
+                        "mempool": True,
+                        "from_addr": getattr(pending, "from_addr", ""),
+                        "to_addr": getattr(pending, "to_addr", ""),
+                        "data": getattr(pending, "data", ""),
+                    })
+                else:
+                    self._error(404, "Transaction not found")
 
             # ── MiniVM contracts ──────────────────────────────────────────────
             elif path == "/minivm/contracts":
@@ -3769,6 +3803,8 @@ def _handle_deploy_tx(body: Dict, bc, mp, cfg, wallet=None, evm=None) -> str:
             int(value) if value == int(value) else value,
             nonce,
             getattr(cfg, "chain_id", 1),
+            data=bytecode,
+            gas_limit=gas,
         )
         tx_body.update(signed)
         from_addr = wallet.address
@@ -3821,6 +3857,8 @@ def _handle_send_tx_with_wallet(tx_obj: Dict, bc, mp, cfg, wallet=None) -> str:
             int(value) if value == int(value) else value,
             nonce,
             getattr(cfg, "chain_id", 1),
+            data=body.get("data", body.get("input", "")),
+            gas_limit=int(body.get("gas", body.get("gas_limit", 21000))),
         )
         body.update(signed)
     return _handle_send_tx_obj(body, bc, mp, cfg)
@@ -3883,6 +3921,7 @@ def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
             "signature": tx_obj.get("signature", ""),
             "public_key": tx_obj.get("public_key", ""),
             "hash": tx.hash,
+            "data": tx_obj.get("data", tx_obj.get("input", "")),
         }
         ok, reason = TransactionValidator.validate(
             tx_dict, adapter, mempool=mp, chain_id=getattr(cfg, "chain_id", 1),

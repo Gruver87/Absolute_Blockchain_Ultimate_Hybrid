@@ -761,6 +761,8 @@ class Blockchain:
                 "chain_id": self.config.chain_id,
                 "signature": tx.signature,
                 "public_key": tx.public_key,
+                "data": tx.data or "",
+                "gas_limit": tx.gas,
             }
             if not verify_transaction_signature(tx_dict):
                 return {"valid": False, "error": "invalid_signature"}

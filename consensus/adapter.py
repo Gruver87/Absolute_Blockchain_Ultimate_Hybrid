@@ -396,3 +396,37 @@ class ConsensusAdapter:
             })
         out.sort(key=lambda x: (-x["slot"], x["validator"]))
         return out
+
+    def get_attestations_by_block(self) -> List[Dict]:
+        """Aggregate LMD votes grouped by target block hash."""
+        grouped: Dict[str, Dict] = {}
+        for vote in self.get_attestations():
+            block_hash = vote.get("block_hash", "")
+            if not block_hash:
+                continue
+            entry = grouped.get(block_hash)
+            if not entry:
+                entry = {
+                    "block_hash": block_hash,
+                    "votes": 0,
+                    "total_stake": 0,
+                    "validators": [],
+                }
+                grouped[block_hash] = entry
+            entry["votes"] += 1
+            entry["total_stake"] += int(vote.get("stake", 0))
+            entry["validators"].append(vote.get("validator", ""))
+        rows = list(grouped.values())
+        rows.sort(key=lambda x: (-x["votes"], -x["total_stake"]))
+        return rows
+
+    def get_attestations_for_block(self, block_hash: str) -> List[Dict]:
+        """Votes targeting a specific block hash."""
+        target = (block_hash or "").strip().lower()
+        if not target:
+            return []
+        return [
+            v for v in self.get_attestations()
+            if str(v.get("block_hash", "")).lower().startswith(target)
+            or target in str(v.get("block_hash", "")).lower()
+        ]
