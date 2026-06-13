@@ -10,12 +10,16 @@ import time
 logger = logging.getLogger("WebSocket")
 
 try:
-    import websockets
-    from websockets.server import serve as ws_serve
+    from websockets.asyncio.server import serve as ws_serve
     _WS_AVAILABLE = True
 except ImportError:
-    _WS_AVAILABLE = False
-    logger.warning("[WebSocket] 'websockets' package not found — WS disabled. Run: pip install websockets")
+    try:
+        from websockets import serve as ws_serve
+        _WS_AVAILABLE = True
+    except ImportError:
+        ws_serve = None
+        _WS_AVAILABLE = False
+        logger.warning("[WebSocket] 'websockets' package not found — WS disabled. Run: pip install websockets")
 
 from network.ws_events import normalize_block_event, normalize_tx_event
 
@@ -124,7 +128,7 @@ class WebSocketServer:
             logger.warning("[WebSocket] disabled (install websockets>=12.0)")
             return
 
-        self._loop = asyncio.get_event_loop()
+        self._loop = asyncio.get_running_loop()
         self._running = True
         try:
             async with ws_serve(self._handler, self.host, self.port):
