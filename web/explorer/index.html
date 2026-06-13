@@ -1627,8 +1627,9 @@ function show(tab) {
   document.getElementById('sec-' + tab).classList.add('active');
   event.currentTarget.classList.add('active');
   if (tab === 'send')        prefillSendWallet();
-  if (tab === 'explorer')   loadBlocks(0);
-  if (tab === 'nft')        loadNFTs();
+  if (tab === 'wallet')      loadWalletPanel();
+  if (tab === 'bridge2')     { loadBridge2Stats(); prefillBridgeWallet(); }
+  if (tab === 'nft')        { loadNFTs(); loadNFTMarketplace(); }
   if (tab === 'sharding')   loadSharding();
   if (tab === 'oracles')    loadOracles();
   if (tab === 'consensus')  { loadConsensus(); loadAttestations(); }
@@ -1648,15 +1649,13 @@ function show(tab) {
   if (tab === 'will')       loadWillStats();
   if (tab === 'wasmvm')     loadWASMStats();
   if (tab === 'aiagents')   loadAIAgentStats();
-  if (tab === 'bridge2')    loadBridge2Stats();
   if (tab === 'finality')   loadFinalityStats();
   if (tab === 'synceng')    loadSyncStatus();
   if (tab === 'stateeng')   { loadStateEngine(); loadTotalSupply(); }
   if (tab === 'slashing')   { loadSlashingStatus(); loadBeaconFinality(); loadLMDStats(); loadCasperStatus(); }
   if (tab === 'valreg')     { loadValidatorRegistry(); loadCurrentEpoch(); }
-  if (tab === 'nft')        { loadNFTs(); loadNFTMarketplace(); }
-  if (tab === 'wallet')     {}
-  if (tab === 'cryptotools'){} 
+  if (tab === 'explorer')   loadBlocks(0);
+  if (tab === 'cryptotools'){}
   if (tab === 'bot')        {}
 }
 
@@ -1682,7 +1681,11 @@ async function post(path, body) {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(body)
     });
-    return await r.json();
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      return { error: data.error || data.message || `HTTP ${r.status}` };
+    }
+    return data;
   } catch(e) { return {error: String(e)}; }
 }
 async function api(path, method = 'GET', body = null) {
@@ -1785,9 +1788,52 @@ async function prefillSendWallet() {
   if (!fromEl) return;
   if (w?.signing_enabled && w.address) {
     fromEl.value = w.address;
+    fromEl.readOnly = true;
     fromEl.placeholder = 'Operational wallet (auto-sign)';
     if (balEl) balEl.textContent = w.balance_formatted || `${w.balance||0} ABS`;
+  } else {
+    fromEl.readOnly = false;
+    fromEl.placeholder = '0x... (manual tx needs signature)';
+    if (balEl) balEl.textContent = '—';
   }
+}
+
+async function loadWalletPanel() {
+  const w = await get('/wallet/status');
+  if (!w) return;
+  const addrEl = document.getElementById('w-address');
+  const signFrom = document.getElementById('tx-sign-from');
+  if (w.address) {
+    if (addrEl && !addrEl.value) addrEl.value = w.address;
+    if (signFrom && !signFrom.value) signFrom.value = w.address;
+    document.getElementById('balance-display').textContent =
+      w.balance_formatted || `${parseFloat(w.balance||0).toFixed(6)} ABS`;
+    document.getElementById('wallet-info').innerHTML =
+      `<div>Signer: <span class="addr">${w.address}</span></div>` +
+      `<div style="margin-top:4px">${w.signing_enabled ? '<span class="badge badge-green">AUTO-SIGN ON</span>' : '<span class="badge badge-yellow">VIEW ONLY</span>'}</div>`;
+    const acct = await get('/address/' + encodeURIComponent(w.address));
+    const txs = acct?.transactions || [];
+    const tbody = document.getElementById('wallet-txs');
+    if (tbody) {
+      tbody.innerHTML = txs.length ? txs.slice(0, 15).map(tx => `
+        <tr>
+          <td class="hash">${String(tx.hash||tx.tx_hash||'').slice(0,14)}…</td>
+          <td>${tx.from_addr === w.address || tx.from === w.address ? 'OUT' : 'IN'}</td>
+          <td>${tx.value ?? tx.amount ?? 0}</td>
+          <td>${tx.block_height ?? tx.height ?? '—'}</td>
+        </tr>`).join('') : '<tr><td colspan="4" style="color:var(--gray)">No transactions yet</td></tr>';
+    }
+  }
+}
+
+async function prefillBridgeWallet() {
+  const w = await get('/wallet/status');
+  if (!w?.address) return;
+  const fields = ['bridge2-from-addr', 'bridge-lock-addr'];
+  fields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !el.value) el.value = w.address;
+  });
 }
 
 let feedTxs = [];
@@ -1924,18 +1970,21 @@ async function sendTx() {
     body = { auto_sign: true, to, value };
   } else {
     const from = document.getElementById('tx-from').value.trim();
-    if (!from) { toast('Fill From address', false); return; }
+    if (!from) { toast('Fill From address or enable signing wallet', false); return; }
     const acct = await get('/address/' + encodeURIComponent(from));
     body = { from, to, value, nonce: acct?.nonce ?? 0 };
   }
   const r = await post('/tx/send', body);
   const el = document.getElementById('tx-result');
-  if (r && (r.tx_hash||r.hash)) {
-    el.innerHTML = `<div class="badge badge-green">Sent!</div> <span class="hash">${(r.tx_hash||r.hash).slice(0,20)}…</span>`;
-    toast('Transaction sent!');
+  const hash = r?.tx_hash || r?.hash;
+  if (hash) {
+    el.innerHTML = `<div class="badge badge-green">Sent (pending)</div> <span class="hash">${hash.slice(0,24)}…</span>`;
+    toast('Transaction queued in mempool');
+    await prefillSendWallet();
+    if (w?.address) loadWalletPanel();
   } else {
     el.innerHTML = `<span style="color:var(--red)">${r?.error||'Failed'}</span>`;
-    toast('TX failed', false);
+    toast(r?.error || 'TX failed', false);
   }
 }
 
@@ -2926,16 +2975,37 @@ async function aiAgentTrade() {
 
 // ── Cross-Chain Bridge 2 ───────────────────────────────────────────────────────
 async function loadBridge2Stats() {
-  const r = await api('/bridge2/stats');
+  let r = await api('/bridge2/stats');
+  if (!r || r.enabled === false) {
+    const overview = await api('/bridge');
+    if (overview) {
+      r = {
+        total_transactions: overview.locks?.total || 0,
+        confirmed: overview.locks?.confirmed || 0,
+        pending: overview.locks?.pending || 0,
+        supported_chains: overview.supported_chains || [],
+        mode: overview.mode,
+        auto_confirm_sec: overview.auto_confirm_sec,
+      };
+    }
+  }
   const el = document.getElementById('bridge2-stats');
-  if (!r || r.enabled === false) { el.innerHTML='<span style="color:var(--gray)">Bridge not available</span>'; return; }
+  if (!el) return;
+  if (!r) { el.innerHTML='<span style="color:var(--gray)">Bridge not available</span>'; return; }
+  const manual = (r.auto_confirm_sec ?? 0) <= 0;
   el.innerHTML = `<table>
+    <tr><td style="color:var(--gray)">Mode</td><td>${r.mode||'simulator'}</td></tr>
+    <tr><td style="color:var(--gray)">Confirm</td><td>${manual ? '<span class="badge badge-yellow">MANUAL</span>' : 'auto'}</td></tr>
     <tr><td style="color:var(--gray)">Total Transfers</td><td>${r.total_transactions||0}</td></tr>
     <tr><td style="color:var(--gray)">Confirmed</td><td>${r.confirmed||0}</td></tr>
     <tr><td style="color:var(--gray)">Pending</td><td>${r.pending||0}</td></tr>
-    <tr><td style="color:var(--gray)">Total Value</td><td>${(r.total_value||0).toFixed(4)}</td></tr>
+    <tr><td style="color:var(--gray)">Total Value</td><td>${(r.total_value||0).toFixed ? (r.total_value||0).toFixed(4) : (r.total_value||0)}</td></tr>
     <tr><td style="color:var(--gray)">Supported Chains</td><td>${(r.supported_chains||[]).join(', ')}</td></tr>
   </table>`;
+  const locks = await api('/bridge/locks');
+  if (locks?.locks?.length) {
+    el.innerHTML += `<div style="margin-top:10px;font-size:11px;color:var(--gray)">Recent locks: ${locks.locks.slice(0,3).map(l => (l.tx_hash||l.tx_id||'').slice(0,12)).join(', ')}</div>`;
+  }
 }
 async function bridge2Transfer() {
   const from_chain = document.getElementById('bridge2-from').value;
@@ -3076,15 +3146,19 @@ async function lookupWalletBalance() {
 }
 
 async function signTransaction() {
-  const from = document.getElementById('tx-sign-from').value;
-  const to = document.getElementById('tx-sign-to').value;
+  const from = document.getElementById('tx-sign-from').value.trim();
+  const to = document.getElementById('tx-sign-to').value.trim();
   const amount = parseFloat(document.getElementById('tx-sign-amount').value)||1;
-  const private_key = document.getElementById('tx-sign-key').value;
+  const private_key = document.getElementById('tx-sign-key').value.trim();
+  if (!from || !to) return alert('From and To required');
   if (!private_key) return alert('Private key required');
-  const r = await post('/tx/sign', {from, to, amount, nonce: Date.now()%1000000, private_key});
+  const acct = await get('/address/' + encodeURIComponent(from));
+  const nonce = acct?.nonce ?? 0;
+  const r = await post('/tx/sign', {from, to, amount, nonce, private_key});
   document.getElementById('tx-sign-result').innerHTML =
     r?.tx_hash ? `<div class="badge badge-green">Signed!</div>
       <div>Hash: <span class="hash">${r.tx_hash}</span></div>
+      <div>Nonce: ${nonce}</div>
       <div>Signature: <span style="color:var(--yellow);font-size:10px;word-break:break-all">${r.signature}</span></div>`
     : `<span style="color:var(--red)">${r?.error||'Failed'}</span>`;
 }
@@ -3940,6 +4014,7 @@ async function boot() {
   loadTokenomics();
   loadFounderInfo();
   loadPoolLocks();
+  prefillSendWallet();
   setInterval(refreshStatus, 10000);
   setInterval(loadDashboardStats, 30000);
 }
