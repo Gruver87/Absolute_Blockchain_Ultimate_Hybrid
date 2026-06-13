@@ -2045,17 +2045,21 @@ async function loadOracles() {
 async function loadConsensus() {
   const data = await get('/consensus/stats');
   if (!data) return;
+  const on = (v) => v === true || v === 'true' || v === 1;
   const features = [
-    ['LMD-GHOST', data.lmd_ghost_enabled ?? data.systems?.lmd_ghost, 'Fork-choice algorithm'],
-    ['Casper FFG', data.casper_ffg ?? data.systems?.casper_ffg, 'Finality gadget'],
-    ['Slashing', data.slashing_enabled ?? data.systems?.slashing, 'Slash equivocating validators'],
-    ['PBS', data.pbs_enabled ?? data.systems?.pbs, 'Proposer-Builder Separation'],
-    ['Validator Registry', data.validator_registry ?? data.systems?.validator_registry, 'On-chain validator management'],
+    ['LMD-GHOST', on(data.lmd_ghost_enabled ?? data.systems?.lmd_ghost), 'Fork-choice algorithm'],
+    ['Casper FFG', on(data.casper_ffg ?? data.casper_ffg_enabled ?? data.systems?.casper_ffg ?? data.finality_engine_enabled), 'Finality gadget'],
+    ['Slashing', on(data.slashing_enabled ?? data.systems?.slashing), 'Slash equivocating validators'],
+    ['PBS', on(data.pbs_enabled ?? data.systems?.pbs), 'Proposer-Builder Separation'],
+    ['Validator Registry', on(data.validator_registry ?? data.systems?.validator_registry), 'On-chain validator management'],
   ];
-  document.getElementById('consensus-features').innerHTML = features.map(([name,on,desc]) => `
+  const errBanner = data.error
+    ? `<tr><td colspan="2"><span class="badge badge-red">Stats partial: ${data.error}</span></td></tr>`
+    : '';
+  document.getElementById('consensus-features').innerHTML = errBanner + features.map(([name,active,desc]) => `
     <tr>
       <td><b>${name}</b><br><span style="color:var(--gray);font-size:11px">${desc}</span></td>
-      <td>${on ? '<span class="badge badge-green">ACTIVE</span>' : '<span class="badge" style="background:var(--bg3);color:var(--gray)">OFF</span>'}</td>
+      <td>${active ? '<span class="badge badge-green">ACTIVE</span>' : '<span class="badge" style="background:var(--bg3);color:var(--gray)">OFF</span>'}</td>
     </tr>`).join('');
 
   const validators = await get('/validators');
@@ -3558,14 +3562,17 @@ async function bridgeLock() {
   const amount = parseFloat(document.getElementById('bridge-lock-amount').value)||10;
   const target_chain = document.getElementById('bridge-lock-chain').value;
   const r = await post('/bridge/lock', {from_address, amount, target_chain});
-  document.getElementById('bridge-lock-result').innerHTML = r?.success
-    ? `<div class="badge badge-green">Locked!</div> TX: ${r.tx_id||r.transaction_id||'?'}`
+  const txHash = r?.tx_hash || r?.tx_id || r?.transaction_id || '';
+  const ok = !!txHash && !r?.error;
+  document.getElementById('bridge-lock-result').innerHTML = ok
+    ? `<div class="badge badge-green">Locked!</div> TX: ${txHash}`
     : `<span style="color:var(--red)">${r?.error||JSON.stringify(r)}</span>`;
+  if (ok) document.getElementById('bridge-confirm-txid').value = txHash;
 }
 async function bridgeConfirm() {
   const tx_id = document.getElementById('bridge-confirm-txid').value;
-  if (!tx_id) return alert('TX ID required');
-  const r = await post('/bridge/confirm', {tx_id});
+  if (!tx_id) return alert('TX hash required');
+  const r = await post('/bridge/confirm-lock', {tx_hash: tx_id, tx_id});
   document.getElementById('bridge-confirm-result').innerHTML = r?.success
     ? `<div class="badge badge-green">Confirmed!</div>`
     : `<span style="color:var(--red)">${r?.error||JSON.stringify(r)}</span>`;

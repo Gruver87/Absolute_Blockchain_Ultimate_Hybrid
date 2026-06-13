@@ -16,12 +16,13 @@ function Get-NodeInfo($Url, $Name) {
         if ($vcount -eq 0 -and $validators -is [array]) { $vcount = $validators.Count }
         $consistent = ($sync.state_consistent -ne $false)
         Write-Host (
-            "{0}: peers={1} height={2} validators={3} attestations={4} state_ok={5}" -f `
-                $Name, $peers.count, $height, $vcount, $att.count, $consistent
+            "{0}: peers={1} height={2} chain_id={3} validators={4} attestations={5} state_ok={6}" -f `
+                $Name, $peers.count, $height, $status.chain_id, $vcount, $att.count, $consistent
         ) -ForegroundColor $(if ($peers.count -gt 0) { "Green" } else { "Yellow" })
         return @{
             peers = $peers.count
             height = $height
+            chain_id = $status.chain_id
             validators = $vcount
             attestations = [int]$att.count
             state_consistent = $consistent
@@ -38,8 +39,14 @@ $n1 = Get-NodeInfo "http://127.0.0.1:8080" "node1"
 $n2 = Get-NodeInfo "http://127.0.0.1:8081" "node2"
 
 if (-not $n1.ok -or -not $n2.ok) {
-    Write-Host "Start nodes first: .\scripts\start_two_nodes.ps1" -ForegroundColor Yellow
+    Write-Host "Start nodes first: .\scripts\stop_node.ps1  then  .\scripts\start_two_nodes.ps1" -ForegroundColor Yellow
     exit 1
+}
+
+if ($n1.chain_id -and $n2.chain_id -and $n1.chain_id -ne $n2.chain_id) {
+    Write-Host "FAIL: chain_id mismatch node1=$($n1.chain_id) node2=$($n2.chain_id)" -ForegroundColor Red
+    Write-Host "Stop stray nodes and restart with start_two_nodes.ps1 (uses node.example.json)" -ForegroundColor Yellow
+    exit 4
 }
 
 if ($n1.peers -eq 0 -and $n2.peers -eq 0) {

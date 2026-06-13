@@ -63,6 +63,7 @@ class MempoolTransaction:
                 "signature": self.signature,
                 "public_key": self.public_key,
                 "data": self.data or "",
+                "gas_limit": int(self.gas or 21_000),
             }
             return verify_transaction_signature(tx_dict)
         except Exception:
@@ -92,12 +93,15 @@ def _validate_mempool_tx(tx: MempoolTransaction, min_fee: float) -> Tuple[bool, 
             if len(tx.to_addr) < 5:
                 return False, f"invalid_to: {err}"
 
-        # Validate amount
-        valid, err = validate_amount(tx.amount, min_amount=0.0)
-        if not valid:
-            return False, f"invalid_amount: {err}"
+        # Validate amount (zero-value allowed for contract deploy/call)
+        if tx.amount < 0:
+            return False, "negative_amount"
+        if tx.amount > 0:
+            valid, err = validate_amount(tx.amount, min_amount=0.0)
+            if not valid:
+                return False, f"invalid_amount: {err}"
 
-    if tx.amount < 0:
+    elif tx.amount < 0:
         return False, "negative_amount"
 
     return True, "ok"
@@ -138,6 +142,7 @@ class Mempool:
                 return False
 
             tx._chain_id = self.chain_id
+            tx.require_signatures = self.require_signatures
 
             # ECDSA signature check
             if not tx.has_valid_signature():
@@ -151,7 +156,8 @@ class Mempool:
                     to_addr=tx.to_addr,
                     value=tx.amount,
                     nonce=tx.nonce,
-                    gas=self.blockchain.config.base_gas_price,
+                    gas=int(getattr(tx, "gas", 0) or 0) or self.blockchain.config.base_gas_price,
+                    data=getattr(tx, "data", "") or "",
                     tx_hash=tx.tx_hash,
                     signature=tx.signature,
                     public_key=tx.public_key,

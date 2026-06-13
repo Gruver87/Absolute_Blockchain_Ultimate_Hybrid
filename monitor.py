@@ -17,7 +17,7 @@ class BlockchainMonitor:
         self.is_running = True
         self._peer_warn_count = 0
         self._start_monitoring()
-        print(f"📊 Blockchain Monitor initialized ({self.node_id} -> {self.api_url})")
+        print(f"[Monitor] Blockchain Monitor initialized ({self.node_id} -> {self.api_url})")
     
     def _get_stats(self):
         try:
@@ -72,7 +72,7 @@ class BlockchainMonitor:
         self.alerts.append(alert)
         if len(self.alerts) > 100:
             self.alerts = self.alerts[-100:]
-        print(f"⚠️ [{level}] {message}")
+        print(f"[{level}] {message}")
     
     def _start_monitoring(self):
         def monitor():
@@ -150,7 +150,7 @@ class MonitorServer:
         monitor = self.monitor
         server = HTTPServer(('0.0.0.0', self.port), Handler)
         threading.Thread(target=server.serve_forever, daemon=True).start()
-        print(f"📊 Monitor started on http://localhost:{self.port}")
+        print(f"[Monitor] Monitor started on http://localhost:{self.port}")
         return server
 
 
@@ -162,13 +162,13 @@ if __name__ == "__main__":
     server = MonitorServer()
     server.start()
     
-    print(f"\n✅ Мониторинг активен: http://localhost:8092")
+    print(f"\n[Monitor] Active: http://localhost:8092")
     
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\n🛑 Мониторинг остановлен")
+        print("\n[Monitor] Stopped")
 
 
 

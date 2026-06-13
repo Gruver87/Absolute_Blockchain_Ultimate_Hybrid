@@ -200,11 +200,30 @@ Invoke-RestMethod http://localhost:8080/network/stats
 Invoke-RestMethod http://localhost:8080/sync/status
 ```
 
-Два узла:
+Два узла (devnet):
 
 ```powershell
+.\scripts\stop_node.ps1
 .\scripts\start_two_nodes.ps1
 ```
+
+Скрипт:
+- клонирует `data/blockchain.db` в `data/node2/` (одинаковая высота, без replay 4000+ блоков);
+- поднимает node1 (`node.example.json` :8080) и node2 (`node2.example.json` :8081) в фоне;
+- ждёт P2P и синхронизацию высот;
+- запускает `python scripts/verify_p2p_ci.py --mode devnet`.
+
+Проверка вручную:
+
+```powershell
+.\scripts\verify_p2p.ps1
+python scripts/verify_p2p_ci.py
+python scripts/verify_p2p_ci.py --mode devnet
+```
+
+Логи: `data/node_stdout.log`, `data/node2/node_stdout.log`, PID-файл `data/node_pids.json`.
+
+Остановка: `.\scripts\stop_node.ps1`
 
 ### Мост и документация API
 

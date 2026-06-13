@@ -254,19 +254,35 @@ class RustBridge:
                 from_chain=event.get("from_chain", ""),
             )
 
+    def confirm_lock(self, tx_hash: str) -> Dict:
+        """Confirm outbound bridge lock (oracle / admin). No balance change — funds already locked."""
+        locks = self.db.get_bridge_locks(limit=1000)
+        for lock in locks:
+            if lock["tx_hash"] == tx_hash and lock["status"] == "pending":
+                self._simulator.confirm_transaction(tx_hash)
+                self.db.confirm_bridge_lock(tx_hash)
+                if self.bus:
+                    self.bus.emit("bridge.confirmed", {
+                        "tx_hash": tx_hash,
+                        "direction": "outbound",
+                        "to_chain": lock.get("to_chain", ""),
+                    })
+                return {"confirmed": True, "tx_hash": tx_hash, "direction": "outbound"}
+        return {"confirmed": False, "error": "pending lock not found"}
+
     def _process_pending(self):
         """
-        Симулирует автоматическое подтверждение pending транзакций
-        (в режиме simulator подтверждаем через 30 секунд).
+        Auto-confirm pending outbound locks when bridge_auto_confirm_sec > 0.
+        Set bridge_auto_confirm_sec=0 for manual oracle confirmation only.
         """
-        if self._mode != "simulator":
+        sec = int(getattr(self.config, "bridge_auto_confirm_sec", 0) or 0)
+        if self._mode != "simulator" or sec <= 0:
             return
         locks = self.db.get_bridge_locks()
         now = int(time.time())
         for lock in locks:
-            if lock["status"] == "pending" and now - lock["created_at"] > 30:
-                self._simulator.confirm_transaction(lock["tx_hash"])
-                self.db.confirm_bridge_lock(lock["tx_hash"])
+            if lock["status"] == "pending" and now - lock["created_at"] > sec:
+                self.confirm_lock(lock["tx_hash"])
 
     def _call_rust(self, command: str, args: Dict) -> Optional[str]:
         """Вызывает Rust-бинарник через subprocess и возвращает tx_hash."""

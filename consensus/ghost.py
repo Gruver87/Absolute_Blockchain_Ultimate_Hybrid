@@ -8,11 +8,24 @@ from typing import Dict, List, Optional
 
 
 def get_cumulative_weight(block_hash: str, tree: Dict, weights: Dict[str, int]) -> int:
-    """Get cumulative weight of block and all its descendants"""
-    total = weights.get(block_hash, 0)
-    for child in tree.get(block_hash, {}).get("children", []):
-        total += get_cumulative_weight(child, tree, weights)
-    return total
+    """Cumulative weight of block and descendants (iterative — safe on long chains)."""
+    memo: Dict[str, int] = {}
+    stack: List[tuple] = [(block_hash, False)]
+
+    while stack:
+        node, expanded = stack.pop()
+        if expanded:
+            total = weights.get(node, 0)
+            for child in tree.get(node, {}).get("children", []):
+                total += memo.get(child, 0)
+            memo[node] = total
+        else:
+            stack.append((node, True))
+            for child in reversed(tree.get(node, {}).get("children", [])):
+                if child not in memo:
+                    stack.append((child, False))
+
+    return memo.get(block_hash, weights.get(block_hash, 0))
 
 
 def select_head(tree: Dict, weights: Dict[str, int]) -> Optional[str]:

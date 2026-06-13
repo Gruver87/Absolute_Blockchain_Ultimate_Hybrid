@@ -113,16 +113,32 @@ class SyncEngine:
             return p2p.fetch_block_from_peers_sync(block_hash)
         return None
 
-    def download_chain(self, head: str) -> List[Dict]:
-        """Walk parent chain from head; fetch missing blocks from peers."""
+    def _local_height(self) -> int:
+        if hasattr(self.node, "blockchain") and self.node.blockchain:
+            return int(self.node.blockchain.get_height())
+        if hasattr(self.node, "get_height"):
+            return int(self.node.get_height() or 0)
+        return 0
+
+    def download_chain(self, head: str, stop_at_height: Optional[int] = None) -> List[Dict]:
+        """Walk parent chain from head; stop at a block we already have locally."""
         chain = []
         current = head
         seen = set()
+        stop_h = self._local_height() if stop_at_height is None else int(stop_at_height)
 
         while current and current not in seen:
             seen.add(current)
-            block = self._resolve_block(current)
+            block = None
+            if hasattr(self.node, "blockchain") and self.node.blockchain:
+                block = self.node.blockchain.get_block_by_hash(current)
             if not block:
+                block = self._resolve_block(current)
+            if not block:
+                break
+
+            height = int(block.get("height", block.get("number", 0)) or 0)
+            if height <= stop_h:
                 break
 
             chain.append(block)
@@ -134,67 +150,93 @@ class SyncEngine:
 
     def fast_sync(self, target_block: int = 0) -> bool:
         """
-        Полная процедура синхронизации
+        Полная процедура синхронизации.
+        Импортирует только блоки выше локальной высоты (без полного replay).
         """
         if self.is_syncing:
-            print("⚠️ Sync already in progress")
+            print("[Sync] Already in progress")
             return False
 
-        print("🔄 Starting fast sync...")
+        local_h = self._local_height()
+        print(f"[Sync] Starting fast sync from height {local_h}...")
         self.is_syncing = True
 
-        # 1. Get heads from peers
         heads = self.request_heads()
         if not heads:
-            print("❌ No peers available for sync")
+            print("[Sync] No peers available")
             self.is_syncing = False
             return False
 
-        # 2. Select best head
         best_head = self.select_best_head(heads)
         if not best_head:
-            print("❌ No valid head selected")
+            print("[Sync] No valid head selected")
             self.is_syncing = False
             return False
 
-        print(f"   Selected head: {best_head[:8]}...")
+        best_peer_h = max(int(h.get("height", 0) or 0) for h in heads)
+        if target_block > 0:
+            best_peer_h = min(best_peer_h, int(target_block))
 
-        # 3. Download chain
-        chain = self.download_chain(best_head)
+        if best_peer_h <= local_h:
+            print(f"[Sync] Already at head (local={local_h}, peer={best_peer_h})")
+            self.sync_state()
+            self.is_syncing = False
+            return True
+
+        print(f"[Sync] Selected head: {best_head[:8]}... (peer height {best_peer_h})")
+
+        chain = self.download_chain(best_head, stop_at_height=local_h)
         if not chain:
-            print("❌ Chain download failed")
+            print("[Sync] Chain download failed")
             self.is_syncing = False
             return False
 
-        print(f"   Downloaded {len(chain)} blocks")
+        to_import = [
+            b for b in chain
+            if int(b.get("height", b.get("number", 0)) or 0) > local_h
+        ]
+        to_import.sort(key=lambda b: int(b.get("height", b.get("number", 0)) or 0))
 
-        # 4. Import blocks
-        for i, block in enumerate(chain):
+        if not to_import:
+            print(f"[Sync] No new blocks (local={local_h}, chain_len={len(chain)})")
+            self.sync_state()
+            self.is_syncing = False
+            return True
+
+        imported = 0
+        for i, block in enumerate(to_import):
+            ok = False
             if hasattr(self.node, "import_block"):
-                self.node.import_block(block)
+                ok = bool(self.node.import_block(block))
             elif hasattr(self.node, "consensus") and hasattr(self.node.consensus, "add_block"):
-                self.node.consensus.add_block(block)
+                ok = bool(self.node.consensus.add_block(block))
+            if ok:
+                imported += 1
             self.sync_progress = i + 1
 
-        # 5. Set head
         if hasattr(self.node, "consensus") and hasattr(self.node.consensus, "set_head"):
             self.node.consensus.set_head(best_head)
         elif hasattr(self.node, "chain") and hasattr(self.node.chain, "set_head"):
             self.node.chain.set_head(best_head)
 
+        self.sync_state()
         self.is_syncing = False
-        print(f"✅ Fast sync complete! Synced {len(chain)} blocks")
-        return True
+        print(f"[Sync] Done: imported {imported}/{len(to_import)} blocks (local now {self._local_height()})")
+        return imported > 0 or best_peer_h <= local_h
 
     def sync_state(self) -> bool:
         """Compare local state_root with peer-reported roots when available."""
-        print("🔍 Checking state consistency...")
+        print("[Sync] Checking state consistency...")
         if not hasattr(self.node, "blockchain"):
             print("   No blockchain attached")
             return False
 
-        local_root = self.node.blockchain.get_state_root()
-        local_height = self.node.blockchain.get_height()
+        bc = self.node.blockchain
+        if not hasattr(bc, "get_state_root"):
+            return True
+
+        local_root = bc.get_state_root()
+        local_height = bc.get_height()
         mismatches = []
 
         wire_roots = []
@@ -235,24 +277,23 @@ class SyncEngine:
         return True
 
     def get_status(self) -> dict:
-        local_height = 0
-        if hasattr(self.node, "blockchain"):
-            local_height = self.node.blockchain.get_height()
-        elif hasattr(self.node, "get_height"):
-            local_height = self.node.get_height()
-        elif hasattr(self.node, "chain") and hasattr(self.node.chain, "get_head_height"):
-            local_height = self.node.chain.get_head_height()
-
+        local_height = self._local_height()
+        peers = self._collect_p2p_peers()
         best_peer_height = 0
-        for peer in self._collect_p2p_peers():
+        for peer in peers:
             best_peer_height = max(best_peer_height, int(getattr(peer, "height", 0) or 0))
+
+        p2p = getattr(self.node, "p2p", None)
+        state_consistent = getattr(p2p, "_state_consistent", True) if p2p else True
 
         return {
             "syncing": self.is_syncing,
-            "peers": len(self.peers),
+            "peers": len(peers),
             "progress": self.sync_progress,
             "local_height": local_height,
             "best_peer_height": best_peer_height,
+            "behind": max(0, best_peer_height - local_height),
+            "state_consistent": state_consistent,
         }
 
     def reset(self):

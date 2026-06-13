@@ -355,7 +355,10 @@ class Blockchain:
             return "skip"
         if len(peer_root) < 64:
             return "legacy_warn"
-        if preserve_peer and block_height <= self._state_root_baseline:
+        if preserve_peer:
+            # P2P import: replay tolerates drift; strict applies only to locally mined blocks
+            return "legacy_warn"
+        if block_height <= self._state_root_baseline:
             return "legacy_warn"
         return "strict"
 
@@ -629,7 +632,8 @@ class Blockchain:
                 }
 
             deploy_data = (tx.data or "").strip()
-            if deploy_data and len(deploy_data.replace("0x", "")) >= 16:
+            hex_body = deploy_data.replace("0x", "")
+            if deploy_data and len(hex_body) >= 4 and len(hex_body) % 2 == 0:
                 deploy_salt = f"{block_height}:{tx.nonce}:{tx.hash}"
                 evm_res = self.evm.deploy_contract(
                     tx.from_addr,

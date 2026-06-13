@@ -79,6 +79,42 @@ except ImportError:
 # POST без JWT даже в prod (публичные операции)
 _PUBLIC_POST_PATHS = frozenset({"/transactions", "/tx/send"})
 
+# Devnet / probes: не считаем в rate limit (start_two_nodes, devnet_status, K8s)
+_RATE_LIMIT_EXEMPT_PATHS = frozenset({
+    "/status",
+    "/peers",
+    "/network/peers",
+    "/sync/status",
+    "/consensus/stats",
+    "/metrics",
+    "/sync/fast-sync",
+})
+
+
+def _is_rate_limit_exempt(path: str) -> bool:
+    p = (path or "").rstrip("/")
+    return p in _RATE_LIMIT_EXEMPT_PATHS or p.startswith("/health/")
+
+
+def _check_rate_limit(handler, path: Optional[str] = None) -> bool:
+    """Return True if request may proceed; sends 429 and returns False when limited."""
+    if not _RATE_LIMIT_AVAILABLE or not _rate_limiter:
+        return True
+    if path is None:
+        path = urlparse(handler.path).path
+    if _is_rate_limit_exempt(path):
+        return True
+    client_ip = handler.client_address[0]
+    allowed, _remaining = _rate_limiter.allow_request(client_ip)
+    if allowed:
+        return True
+    handler.send_response(429)
+    handler.send_header("Content-Type", "application/json")
+    handler.send_header("Retry-After", "60")
+    handler.end_headers()
+    handler.wfile.write(json.dumps({"error": "rate_limit_exceeded"}).encode())
+    return False
+
 # Ключевые маршруты для /openapi.json и /docs
 _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/status", "summary": "Node status"},
@@ -142,17 +178,8 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
-        # Rate limiting
-        if _RATE_LIMIT_AVAILABLE and _rate_limiter:
-            client_ip = self.client_address[0]
-            allowed, remaining = _rate_limiter.allow_request(client_ip)
-            if not allowed:
-                self.send_response(429)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Retry-After", "60")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": "rate_limit_exceeded"}).encode())
-                return
+        if not _check_rate_limit(self):
+            return
 
         rpc_auth = self.__class__.rpc_auth
         if rpc_auth:
@@ -455,19 +482,9 @@ class RESTHandler(BaseHTTPRequestHandler):
         self._cors()
 
     def do_GET(self):
-        # Rate limiting
-        if _RATE_LIMIT_AVAILABLE and _rate_limiter:
-            client_ip = self.client_address[0]
-            allowed, remaining = _rate_limiter.allow_request(client_ip)
-            if not allowed:
-                self.send_response(429)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Retry-After", "60")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": "rate_limit_exceeded"}).encode())
-                return
-
         parsed = urlparse(self.path)
+        if not _check_rate_limit(self, parsed.path):
+            return
         path = parsed.path.rstrip("/")
         qs = parse_qs(parsed.query)
 
@@ -750,7 +767,21 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/consensus/stats":
                 ca = self.__class__.consensus_adapter
                 if ca and hasattr(ca, "get_stats"):
-                    stats = dict(ca.get_stats())
+                    try:
+                        stats = dict(ca.get_stats())
+                    except Exception as e:
+                        stats = {
+                            "enabled": True,
+                            "error": str(e),
+                            "lmd_ghost_enabled": getattr(ca, "slashing_engine", None) is not None,
+                            "casper_ffg": (
+                                getattr(ca, "casper_engine", None) is not None
+                                or getattr(ca, "finality", None) is not None
+                            ),
+                            "slashing_enabled": getattr(ca, "slashing_engine", None) is not None,
+                            "pbs_enabled": getattr(ca, "pbs_market", None) is not None,
+                            "validator_registry": getattr(ca, "validator_registry", None) is not None,
+                        }
                     validators = db.get_validators()
                     stats["validators"] = len(validators)
                     checkpoints = db.get_checkpoints() if hasattr(db, "get_checkpoints") else []
@@ -2121,20 +2152,10 @@ class RESTHandler(BaseHTTPRequestHandler):
             self._error(500, str(e))
 
     def do_POST(self):
-        # Rate limiting
-        if _RATE_LIMIT_AVAILABLE and _rate_limiter:
-            client_ip = self.client_address[0]
-            allowed, remaining = _rate_limiter.allow_request(client_ip)
-            if not allowed:
-                self.send_response(429)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Retry-After", "60")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": "rate_limit_exceeded"}).encode())
-                return
-
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
+        if not _check_rate_limit(self, parsed.path):
+            return
 
         self._track_request()
         if not self._require_jwt_admin(path):
@@ -3104,6 +3125,16 @@ class RESTHandler(BaseHTTPRequestHandler):
                 else:
                     self._json({"success": False, "error": "confirm not available"})
 
+            elif path == "/bridge/confirm-lock":
+                br = getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge
+                if not br:
+                    self._error(503, "Bridge not enabled"); return
+                tx_hash = body.get("tx_hash", body.get("tx_id", ""))
+                if hasattr(br, "confirm_lock"):
+                    self._json(br.confirm_lock(tx_hash))
+                else:
+                    self._error(501, "confirm_lock not available")
+
             elif path == "/bridge/refund":
                 br = getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge
                 if not br:
@@ -3812,12 +3843,18 @@ def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
     overview = {
         "enabled": bool(getattr(cfg, "bridge_enabled", False)),
         "mode": getattr(cfg, "bridge_mode", "simulator"),
-        "deployment_note": "Educational simulator — not a production mainnet bridge",
+        "auto_confirm_sec": int(getattr(cfg, "bridge_auto_confirm_sec", 0) or 0),
+        "deployment_note": (
+            "Manual confirm mode — use POST /bridge/confirm-lock"
+            if int(getattr(cfg, "bridge_auto_confirm_sec", 0) or 0) <= 0
+            else "Devnet simulator — auto-confirm after bridge_auto_confirm_sec"
+        ),
         "supported_chains": ["ethereum", "bsc", "solana", "absolute"],
         "endpoints": {
             "locks": "GET /bridge/locks",
             "lock": "POST /bridge/lock",
             "confirm": "POST /bridge/confirm",
+            "confirm_lock": "POST /bridge/confirm-lock",
             "stats_detail": "GET /bridge2/stats",
             "fee": "GET /bridge2/fee",
         },

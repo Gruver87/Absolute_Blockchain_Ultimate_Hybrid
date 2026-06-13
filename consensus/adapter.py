@@ -372,24 +372,51 @@ class ConsensusAdapter:
     def get_stats(self) -> Dict:
         engine_stats = self.engine.get_stats()
         finality_stats = self.finality.get_stats()
+        lmd_on = self.slashing_engine is not None
+        casper_on = self.casper_engine is not None or self.finality is not None
+        slashing_on = self.slashing_engine is not None
+        pbs_on = self.pbs_market is not None
+        registry_on = self.validator_registry is not None
         stats = {
             **engine_stats,
             **finality_stats,
+            "enabled": True,
             "block_time": self.config.block_time,
             "min_stake": self.config.min_stake,
-            "lmd_ghost_enabled": self.slashing_engine is not None,
-            "pbs_enabled": self.pbs_market is not None,
+            "lmd_ghost_enabled": lmd_on,
+            "casper_ffg": casper_on,
+            "casper_ffg_enabled": self.casper_engine is not None,
+            "finality_engine_enabled": self.finality is not None,
+            "slashing_enabled": slashing_on,
+            "pbs_enabled": pbs_on,
+            "validator_registry": registry_on,
+            "beacon_enabled": self.beacon_engine is not None,
+            "systems": {
+                "lmd_ghost": lmd_on,
+                "casper_ffg": casper_on,
+                "slashing": slashing_on,
+                "pbs": pbs_on,
+                "validator_registry": registry_on,
+                "beacon": self.beacon_engine is not None,
+            },
         }
         if self.slashing_engine:
-            slashing_stats = self.slashing_engine.get_stats()
-            stats["slashed_validators"] = slashing_stats.get("slashed_validators", 0)
-            stats["slashed_stake"] = slashing_stats.get("slashed_stake", 0)
-            stats["canonical_head"] = slashing_stats.get("head_hash")
-            stats["attestation_count"] = slashing_stats.get("active_votes", 0)
-            stats["active_votes"] = slashing_stats.get("active_votes", 0)
+            try:
+                slashing_stats = self.slashing_engine.get_stats()
+                stats["slashed_validators"] = slashing_stats.get("slashed_validators", 0)
+                stats["slashed_stake"] = slashing_stats.get("slashed_stake", 0)
+                stats["canonical_head"] = slashing_stats.get("head_hash")
+                stats["attestation_count"] = slashing_stats.get("active_votes", 0)
+                stats["active_votes"] = slashing_stats.get("active_votes", 0)
+                stats["head_height"] = slashing_stats.get("head_height")
+            except Exception as e:
+                stats["head_stats_error"] = str(e)
         if self.validator_registry:
-            reg_stats = self.validator_registry.get_stats()
-            stats.update(reg_stats)
+            try:
+                reg_stats = self.validator_registry.get_stats()
+                stats.update(reg_stats)
+            except Exception as e:
+                stats["registry_stats_error"] = str(e)
         return stats
 
     def get_attestations(self) -> List[Dict]:

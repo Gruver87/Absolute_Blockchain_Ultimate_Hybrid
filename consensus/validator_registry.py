@@ -79,7 +79,7 @@ class ValidatorRegistry:
             if address in self.validators:
                 return False
             self.validators[address] = ValidatorState(address, stake)
-            print(f"✅ Validator registered: {address[:16]}... stake={stake}")
+            print(f"[OK] Validator registered: {address[:16]}... stake={stake}")
             return True
     
     def get_validator(self, address: str) -> Optional[ValidatorState]:

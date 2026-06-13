@@ -87,7 +87,8 @@ def test_state_root_strict_above_baseline():
     bc = Blockchain(cfg, db, EventBus())
     bc.set_state_root_baseline(5)
     assert bc._state_root_check_mode(5, "a" * 64, True) == "legacy_warn"
-    assert bc._state_root_check_mode(6, "b" * 64, True) == "strict"
+    assert bc._state_root_check_mode(6, "b" * 64, True) == "legacy_warn"
+    assert bc._state_root_check_mode(6, "b" * 64, False) == "strict"
     assert bc._state_root_check_mode(6, "abc", True) == "legacy_warn"
     db.close()
     os.remove(path)

@@ -316,7 +316,11 @@ class P2PNode:
 
         # Проверяем совместимость
         if ack.get("chain_id") != self.config.chain_id:
-            logger.debug(f"[P2P] Chain ID mismatch: {ack.get('chain_id')} vs {self.config.chain_id}")
+            print(
+                f"[P2P] Rejected {peer.host}:{peer.port}: chain_id mismatch "
+                f"(remote={ack.get('chain_id')} local={self.config.chain_id}). "
+                f"Use the same node.json on both nodes."
+            )
             return False
 
         peer.peer_id = ack.get("node_id", f"{peer.host}:{peer.port}")
@@ -662,7 +666,7 @@ class P2PNode:
                         print(f"[P2P] Import failed at #{current}, aborting batch")
                         break
                 except Exception as e:
-                    logger.debug(f"[P2P] Sync block error: {e}")
+                    print(f"[P2P] Sync block error at #{current}: {e}")
                     return
 
             if not imported_any:

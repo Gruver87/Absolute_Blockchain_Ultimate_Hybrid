@@ -16,7 +16,7 @@ from runtime.env_loader import env_str, env_int, env_bool, env_list
 @dataclass
 class Config:
     # ── Идентификация сети ──────────────────────────────────────────────────
-    chain_id: int = 1337
+    chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     network_name: str = "Absolute"
     node_version: str = "1.2.0-industrial"
     node_id: str = "node-1"
@@ -88,6 +88,7 @@ class Config:
     # ── Мост (Cross-chain bridge) ────────────────────────────────────────────
     bridge_enabled: bool = True
     bridge_mode: str = "simulator"      # "simulator" | "rust"
+    bridge_auto_confirm_sec: int = 0    # 0 = manual POST /bridge/confirm-lock only
     rust_bridge_path: str = "bridge/abs_bridge_bin"
 
     # ── Логирование ─────────────────────────────────────────────────────────
@@ -191,6 +192,12 @@ class Config:
         peers = env_list("BOOTSTRAP_PEERS")
         if peers:
             self.bootstrap_peers = peers
+
+        self.bridge_enabled = env_bool("BRIDGE_ENABLED", self.bridge_enabled)
+        self.bridge_mode = env_str("BRIDGE_MODE", self.bridge_mode)
+        self.bridge_auto_confirm_sec = env_int(
+            "BRIDGE_AUTO_CONFIRM_SEC", self.bridge_auto_confirm_sec
+        )
 
         origins = env_list("CORS_ORIGINS")
         if origins:

@@ -26,6 +26,22 @@ import time
 import threading
 import logging
 
+
+def _configure_stdio_utf8() -> None:
+    """Windows cp1251 consoles crash on emoji in print when stdout is redirected."""
+    if sys.platform != "win32":
+        return
+    for name in ("stdout", "stderr"):
+        stream = getattr(sys, name, None)
+        if stream and hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+
+
+_configure_stdio_utf8()
+
 # ── Настройка путей ──────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
@@ -1182,8 +1198,10 @@ class NodeOrchestrator:
             try:
                 pending_dicts = [{"hash": t.tx_hash, "from": t.from_addr, "to": t.to_addr,
                                   "value": t.amount, "gasPrice": int(t.fee * 1e9),
-                                  "gas": 21000, "nonce": t.nonce,
-                                  "data": "", "timestamp": t.timestamp}
+                                  "gas": int(getattr(t, "gas", 0) or 21000),
+                                  "nonce": t.nonce,
+                                  "data": getattr(t, "data", "") or "",
+                                  "timestamp": t.timestamp}
                                  for t in self.mempool.get(limit=self.config.max_tx_per_block)]
                 pbs_result = self.consensus.run_pbs_auction(pending_dicts)
                 if pbs_result and pbs_result.get("transactions"):
