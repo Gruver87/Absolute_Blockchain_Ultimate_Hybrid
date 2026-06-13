@@ -74,6 +74,8 @@ class Database:
             ("transactions", "burned",   "REAL NOT NULL DEFAULT 0.0"),
             ("transactions", "fee",      "REAL NOT NULL DEFAULT 0.0"),
             ("transactions", "gas_used", "INTEGER NOT NULL DEFAULT 21000"),
+            ("accounts", "code",     "TEXT DEFAULT NULL"),
+            ("accounts", "storage",  "TEXT DEFAULT NULL"),
         ]
         existing: dict = {"blocks": block_cols}
         for table, col, col_def in add_cols:
