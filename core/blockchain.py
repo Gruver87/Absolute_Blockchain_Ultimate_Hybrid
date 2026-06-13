@@ -894,6 +894,9 @@ class Blockchain:
         recomputed = block._compute_hash()
         if block.hash != recomputed:
             return {"valid": False, "error": "invalid_hash"}
+        proposer = self._verify_block_proposer(block)
+        if not proposer["valid"]:
+            return proposer
         return {"valid": True}
 
     # ── Публичные геттеры ────────────────────────────────────────────────────

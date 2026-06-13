@@ -100,6 +100,7 @@ _PUBLIC_API_ROUTES = [
     {"method": "POST", "path": "/transactions", "summary": "Submit transaction"},
     {"method": "POST", "path": "/tx/send", "summary": "Submit transaction (alias, optional auto_sign)"},
     {"method": "POST", "path": "/tx/deploy", "summary": "Submit EVM deploy tx to mempool"},
+    {"method": "POST", "path": "/tx/call", "summary": "Submit EVM contract call tx to mempool"},
 ]
 
 try:
@@ -121,6 +122,9 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
     mempool = None
     config = None
     evm = None
+    p2p = None
+    wallet = None
+    sync_engine = None
     rpc_auth = None
 
     def log_message(self, fmt, *args):
@@ -198,6 +202,9 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
         mp = self.__class__.mempool
         cfg = self.__class__.config
         evm_adapter = self.__class__.evm
+        p2p = self.__class__.p2p
+        wallet = self.__class__.wallet
+        sync_engine = self.__class__.sync_engine
 
         # ── net / web3 ─────────────────────────────────────────────────────
         if method == "net_version":
@@ -207,10 +214,26 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             return f"Absolute/{cfg.node_version}/python"
 
         if method == "net_peerCount":
-            return hex(0)
+            count = p2p.peer_count() if p2p else 0
+            return hex(count)
 
         if method == "eth_chainId":
             return hex(cfg.chain_id)
+
+        if method == "eth_mining":
+            return bool(getattr(cfg, "mining_enabled", False))
+
+        if method == "eth_syncing":
+            status = _build_sync_status(sync_engine, p2p, bc, cfg)
+            behind = int(status.get("behind", 0) or 0)
+            syncing = bool(status.get("syncing", False)) or behind > 0
+            if syncing:
+                return {
+                    "startingBlock": hex(max(0, int(status.get("local_height", 0)) - behind)),
+                    "currentBlock": hex(int(status.get("local_height", 0))),
+                    "highestBlock": hex(int(status.get("best_peer_height", status.get("local_height", 0)))),
+                }
+            return False
 
         # ── Блоки ─────────────────────────────────────────────────────────
         if method == "eth_blockNumber":
@@ -219,14 +242,7 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
         if method == "eth_getBlockByNumber":
             tag = params[0] if params else "latest"
             full_tx = params[1] if len(params) > 1 else False
-            if tag in ("latest", "pending"):
-                blk = bc.get_last_block()
-            else:
-                try:
-                    h = int(tag, 16) if tag.startswith("0x") else int(tag)
-                    blk = bc.get_block(h)
-                except ValueError:
-                    blk = None
+            blk = _resolve_block_by_tag(bc, tag)
             return _format_block(blk, full_tx)
 
         if method == "eth_getBlockByHash":
@@ -261,8 +277,12 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             return _handle_send_tx(raw, bc, mp, cfg)
 
         if method == "eth_sendTransaction":
-            tx_obj = params[0] if params else {}
-            return _handle_send_tx_obj(tx_obj, bc, mp, cfg)
+            tx_obj = dict(params[0] if params else {})
+            if wallet:
+                from_addr = str(tx_obj.get("from", "")).lower()
+                if from_addr and from_addr == wallet.address.lower() and not tx_obj.get("signature"):
+                    tx_obj["auto_sign"] = True
+            return _handle_send_tx_with_wallet(tx_obj, bc, mp, cfg, wallet)
 
         if method == "eth_getTransactionByHash":
             tx_hash = params[0] if params else ""
@@ -298,8 +318,17 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             return hex(int(cfg.gas_price_wei * 10**18))
 
         # ── Мемпул ────────────────────────────────────────────────────────
-        if method == "eth_getBlockTransactionCountByNumber":
+        if method == "eth_getMempoolSize":
             return hex(mp.get_size())
+
+        if method == "eth_getBlockTransactionCountByNumber":
+            tag = params[0] if params else "latest"
+            blk = _resolve_block_by_tag(bc, tag)
+            if not blk:
+                return hex(0)
+            txs = blk.get("transactions", [])
+            count = len(txs) if isinstance(txs, list) else int(blk.get("tx_count", 0) or 0)
+            return hex(count)
 
         raise ValueError(f"Method not supported: {method}")
 
@@ -626,6 +655,11 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/blocks":
                 limit = int(qs.get("limit", ["20"])[0])
                 blocks = db.get_latest_blocks(min(limit, 100))
+                att_map = _attestation_count_map(self.__class__.consensus_adapter)
+                if att_map:
+                    for blk in blocks:
+                        h = str(blk.get("hash", blk.get("block_hash", ""))).lower()
+                        blk["attestation_count"] = att_map.get(h, 0)
                 self._json({"blocks": blocks, "count": len(blocks)})
 
             elif path.startswith("/blocks/"):
@@ -882,8 +916,15 @@ class RESTHandler(BaseHTTPRequestHandler):
                 param = path.split("/block/")[1]
                 try:
                     blk = bc.get_block(int(param))
-                    if blk: self._json(blk)
-                    else: self._error(404, "Block not found")
+                    if blk:
+                        ca = self.__class__.consensus_adapter
+                        if ca and hasattr(ca, "get_attestations_for_block"):
+                            votes = ca.get_attestations_for_block(blk.get("hash", ""))
+                            blk["attestation_count"] = len(votes)
+                            blk["attestations"] = votes
+                        self._json(blk)
+                    else:
+                        self._error(404, "Block not found")
                 except Exception:
                     self._error(400, "Invalid block number")
 
@@ -1762,15 +1803,29 @@ class RESTHandler(BaseHTTPRequestHandler):
             # ── ZK verify range ───────────────────────────────────────────────
             elif path == "/zk/verify/range":
                 zk = self.__class__.zk
+                if not zk:
+                    self._error(503, "ZK module not enabled")
+                    return
+                from features.zk import ZKProof
                 value = int(qs.get("value", ["42"])[0])
                 min_v = int(qs.get("min", ["0"])[0])
                 max_v = int(qs.get("max", ["100"])[0])
-                proof = qs.get("proof", [""])[0]
-                if zk and hasattr(zk, "verify_range"):
-                    ok = zk.verify_range(proof, value, min_v, max_v)
-                    self._json({"valid": bool(ok)})
-                else:
-                    self._error(503, "ZK range verification not available")
+                proof_raw = qs.get("proof", [""])[0]
+                try:
+                    if proof_raw.startswith("{"):
+                        proof = ZKProof.from_dict(json.loads(proof_raw))
+                    else:
+                        proof = ZKProof(
+                            commitment=proof_raw,
+                            response=int(qs.get("response", ["0"])[0]),
+                            challenge=int(qs.get("challenge", ["0"])[0]),
+                            proof_type="range",
+                        )
+                except (json.JSONDecodeError, ValueError, TypeError) as e:
+                    self._error(400, f"invalid proof: {e}")
+                    return
+                ok = zk.verify_range(proof, min_v, max_v)
+                self._json({"valid": bool(ok), "value_checked": value})
 
             # ── Slashing engine ───────────────────────────────────────────────
             elif path == "/slashing/status":
@@ -2128,6 +2183,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                 tx_hash = _handle_deploy_tx(body, bc, mp, cfg, self.__class__.wallet, evm_adapter)
                 self._json({"tx_hash": tx_hash, "status": "pending", "via_mempool": True})
 
+            elif path == "/tx/call":
+                if not evm_adapter:
+                    self._error(503, "EVM not enabled")
+                    return
+                tx_hash = _handle_call_tx(body, bc, mp, cfg, self.__class__.wallet)
+                self._json({"tx_hash": tx_hash, "status": "pending", "via_mempool": True})
+
             elif path == "/contract/call":
                 if not evm_adapter:
                     self._error(503, "EVM not enabled")
@@ -2388,11 +2450,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not pqm:
                     self._error(503, "PostQuantumManager not enabled"); return
                 message = body.get("message", "")
-                algo    = body.get("algorithm", "dilithium")
+                algo = body.get("algorithm", "dilithium")
+                key_id = body.get("key_id", "")
                 try:
-                    if hasattr(pqm, "sign"):
-                        sig = pqm.sign(message, algo)
-                        self._json({"algorithm": algo, "signature": sig})
+                    if hasattr(pqm, "sign_text"):
+                        result = pqm.sign_text(message, algorithm=algo, key_id=key_id or None)
+                        self._json(result)
                     else:
                         self._error(501, "sign not implemented in PQ manager")
                 except Exception as e:
@@ -2402,13 +2465,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                 pqm = self.__class__.pq_manager
                 if not pqm:
                     self._error(503, "PostQuantumManager not enabled"); return
-                message   = body.get("message", "")
-                signature = body.get("signature", "")
-                algo      = body.get("algorithm", "dilithium")
+                message = body.get("message", "")
+                signature = body.get("signature", body.get("signature_payload", {}))
+                algo = body.get("algorithm", "dilithium")
+                public_key = body.get("public_key", "")
                 try:
-                    if hasattr(pqm, "verify"):
-                        ok = pqm.verify(message, signature, algo)
-                        self._json({"algorithm": algo, "valid": ok})
+                    if hasattr(pqm, "verify_text"):
+                        ok = pqm.verify_text(message, signature, algorithm=algo, public_key_hex=public_key)
+                        self._json({"algorithm": algo, "valid": bool(ok)})
                     else:
                         self._error(501, "verify not implemented in PQ manager")
                 except Exception as e:
@@ -3668,6 +3732,19 @@ def _format_receipt(tx: Optional[Dict]) -> Optional[Dict]:
     }
 
 
+def _resolve_block_by_tag(bc, tag: str) -> Optional[Dict]:
+    """Resolve eth block tag (latest/pending/hex/decimal) to block dict."""
+    if not bc:
+        return None
+    if tag in ("latest", "pending"):
+        return bc.get_last_block()
+    try:
+        height = int(tag, 16) if str(tag).startswith("0x") else int(tag)
+        return bc.get_block(height)
+    except (TypeError, ValueError):
+        return None
+
+
 def _parse_tx_value(value_raw) -> float:
     """ABS amount: plain float, or 0x wei when value looks like Ethereum wei."""
     if isinstance(value_raw, str):
@@ -3837,6 +3914,50 @@ def _handle_deploy_tx(body: Dict, bc, mp, cfg, wallet=None, evm=None) -> str:
     return _handle_send_tx_obj(tx_body, bc, mp, cfg)
 
 
+def _handle_call_tx(body: Dict, bc, mp, cfg, wallet=None) -> str:
+    """Queue EVM contract call as a signed mempool transaction."""
+    to_addr = body.get("to", body.get("contract", body.get("to_addr", "")))
+    data = body.get("data", body.get("input", body.get("calldata", "")))
+    if not to_addr:
+        raise ValueError("contract address (to) required")
+    if not str(data).replace("0x", "").strip():
+        raise ValueError("calldata required")
+
+    from_addr = body.get("from", body.get("from_address", ""))
+    value = _parse_tx_value(body.get("value", body.get("amount", 0)))
+    gas = int(body.get("gas", getattr(cfg, "evm_gas_limit", 500_000)))
+
+    tx_body = dict(body or {})
+    if wallet and (body.get("auto_sign") or not from_addr):
+        nonce = bc.db.get_nonce(wallet.address)
+        signed = wallet.sign_transaction(
+            to_addr,
+            int(value) if value == int(value) else value,
+            nonce,
+            getattr(cfg, "chain_id", 1),
+            data=data,
+            gas_limit=gas,
+        )
+        tx_body.update(signed)
+        from_addr = wallet.address
+
+    if not from_addr:
+        raise ValueError("from address required (or auto_sign with wallet)")
+
+    nonce = int(tx_body.get("nonce", bc.db.get_nonce(from_addr)))
+    tx_body = {
+        "from": from_addr,
+        "to": to_addr,
+        "value": value,
+        "nonce": nonce,
+        "gas": gas,
+        "data": data,
+        "signature": tx_body.get("signature", ""),
+        "public_key": tx_body.get("public_key", ""),
+    }
+    return _handle_send_tx_obj(tx_body, bc, mp, cfg)
+
+
 def _handle_send_tx_with_wallet(tx_obj: Dict, bc, mp, cfg, wallet=None) -> str:
     """Submit tx; optional auto_sign fills from/nonce/signature from operational wallet."""
     body = dict(tx_obj or {})
@@ -3866,13 +3987,16 @@ def _handle_send_tx_with_wallet(tx_obj: Dict, bc, mp, cfg, wallet=None) -> str:
 
 def _handle_send_tx(raw_hex: str, bc, mp, cfg) -> str:
     """Принимает raw hex транзакцию и добавляет в мемпул."""
+    if not raw_hex:
+        raise ValueError("empty_raw_transaction")
     try:
-        raw = bytes.fromhex(raw_hex.replace("0x", ""))
+        raw = bytes.fromhex(str(raw_hex).replace("0x", ""))
         decoded = json.loads(raw.decode())
+        if not isinstance(decoded, dict):
+            raise ValueError("raw_tx_must_decode_to_object")
         return _handle_send_tx_obj(decoded, bc, mp, cfg)
-    except Exception:
-        tx_hash = "0x" + hashlib.sha256(raw_hex.encode()).hexdigest()
-        return tx_hash
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as e:
+        raise ValueError(f"invalid_raw_transaction: {e}") from e
 
 
 def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
@@ -3925,7 +4049,9 @@ def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
         }
         ok, reason = TransactionValidator.validate(
             tx_dict, adapter, mempool=mp, chain_id=getattr(cfg, "chain_id", 1),
-            require_signature=bool(tx_obj.get("signature")),
+            require_signature=bool(
+                tx_obj.get("signature") or getattr(cfg, "require_signatures", False)
+            ),
         )
         if not ok:
             raise ValueError(f"tx_validator: {reason}")
@@ -3933,8 +4059,6 @@ def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
         pass
     except ValueError:
         raise
-    except Exception:
-        pass
 
     fee = gas * cfg.gas_price_wei
     mp_tx = MempoolTransaction(
@@ -3971,7 +4095,7 @@ def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
 #  Фабрики серверов
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def create_rpc_server(blockchain, mempool, config, evm=None) -> HTTPServer:
+def create_rpc_server(blockchain, mempool, config, evm=None, p2p=None, wallet=None, sync_engine=None) -> HTTPServer:
     """Создаёт JSON-RPC сервер на config.rpc_port."""
     configure_rate_limiter(config)
     try:
@@ -3985,6 +4109,9 @@ def create_rpc_server(blockchain, mempool, config, evm=None) -> HTTPServer:
     JSONRPCHandler.mempool = mempool
     JSONRPCHandler.config = config
     JSONRPCHandler.evm = evm
+    JSONRPCHandler.p2p = p2p
+    JSONRPCHandler.wallet = wallet
+    JSONRPCHandler.sync_engine = sync_engine
     server = ThreadedHTTPServer((config.rpc_host, config.rpc_port), JSONRPCHandler)
     return server
 
@@ -4073,9 +4200,21 @@ def create_http_server(blockchain, mempool, db, config,
     return server
 
 
-def start_rpc_server_thread(blockchain, mempool, config, evm=None):
+def _attestation_count_map(consensus_adapter) -> Dict[str, int]:
+    """Map block_hash -> attestation vote count from consensus adapter."""
+    if not consensus_adapter or not hasattr(consensus_adapter, "get_attestations_by_block"):
+        return {}
+    out: Dict[str, int] = {}
+    for row in consensus_adapter.get_attestations_by_block():
+        h = str(row.get("block_hash", "")).lower()
+        if h:
+            out[h] = int(row.get("votes", 0))
+    return out
+
+
+def start_rpc_server_thread(blockchain, mempool, config, evm=None, p2p=None, wallet=None, sync_engine=None):
     """Запускает JSON-RPC в отдельном потоке. Возвращает (thread, server)."""
-    server = create_rpc_server(blockchain, mempool, config, evm)
+    server = create_rpc_server(blockchain, mempool, config, evm, p2p, wallet, sync_engine)
     t = threading.Thread(target=server.serve_forever, daemon=True,
                          name="JSONRPCServer")
     t.start()

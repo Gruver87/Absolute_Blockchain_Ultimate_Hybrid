@@ -926,7 +926,8 @@ class NodeOrchestrator:
 
         # Запускаем API-серверы в отдельных потоках (не блокируют event loop)
         _, self._rpc_server = start_rpc_server_thread(
-            self.blockchain, self.mempool, self.config, self.evm
+            self.blockchain, self.mempool, self.config, self.evm,
+            p2p=self.p2p, wallet=self.wallet, sync_engine=self.sync_engine,
         )
         # Aliases for audit compatibility
         self.websocket_server = self.ws_server

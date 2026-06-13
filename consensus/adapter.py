@@ -287,11 +287,26 @@ class ConsensusAdapter:
 
     def is_finalized(self, block_number: int) -> bool:
         epoch = self.finality.get_epoch(block_number)
-        finalized_by_casper = epoch in self.finality.finalized_checkpoints
-        if self.slashing_engine and not finalized_by_casper:
-            # Also check GHOST finality
-            return False
-        return finalized_by_casper
+        if epoch in self.finality.finalized_checkpoints:
+            return True
+        blk = self.db.get_block(block_number) if self.db else None
+        block_hash = blk.get("hash", "") if blk else ""
+        if block_hash and self.slashing_engine:
+            if self.slashing_engine.is_finalized(block_hash):
+                return True
+        if block_hash and self.casper_engine:
+            try:
+                if self.casper_engine.is_finalized(block_hash):
+                    return True
+            except Exception:
+                pass
+        if block_hash and self.beacon_engine:
+            try:
+                if self.beacon_engine.is_finalized(block_hash):
+                    return True
+            except Exception:
+                pass
+        return False
 
     def get_finality_status(self, block_number: int) -> Dict:
         return self.finality.get_finality_status(block_number)

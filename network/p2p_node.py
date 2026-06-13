@@ -531,26 +531,52 @@ class P2PNode:
         await peer.send(MSG_BLOCKS, blocks)
 
     async def _handle_new_tx(self, data: Dict):
-        """Принимаем транзакцию из сети."""
+        """Принимаем транзакцию из сети — с полной валидацией как в RPC."""
         if not isinstance(data, dict):
             return
+        from core.blockchain import Transaction
         from blockchain.mempool import MempoolTransaction
-        try:
-            tx = MempoolTransaction(
-                tx_hash=data.get("hash", data.get("tx_hash", "")),
-                from_addr=data.get("from_addr", data.get("from", "")),
-                to_addr=data.get("to_addr", data.get("to", "")),
-                amount=float(data.get("value", data.get("amount", 0))),
-                fee=float(data.get("fee", 0)),
-                nonce=int(data.get("nonce", 0)),
-                signature=data.get("signature", ""),
-                public_key=data.get("public_key", ""),
-                data=data.get("data", data.get("input", "")),
-                gas=int(data.get("gas", 0) or 0) or 21_000,
-            )
-            self.mempool.add(tx)
-        except Exception as e:
-            logger.debug(f"[P2P] Invalid tx: {e}")
+
+        from_addr = data.get("from_addr", data.get("from", ""))
+        to_addr = data.get("to_addr", data.get("to", ""))
+        value = float(data.get("value", data.get("amount", 0)))
+        nonce = int(data.get("nonce", 0))
+        gas = int(data.get("gas", 0) or 0) or 21_000
+        signature = data.get("signature", "")
+        public_key = data.get("public_key", "")
+        calldata = data.get("data", data.get("input", ""))
+
+        tx = Transaction(
+            from_addr=from_addr,
+            to_addr=to_addr,
+            value=value,
+            nonce=nonce,
+            gas=gas,
+            data=calldata,
+            signature=signature,
+            public_key=public_key,
+            tx_hash=data.get("hash", data.get("tx_hash", "")),
+        )
+        validation = self.blockchain.validate_transaction(tx)
+        if not validation["valid"]:
+            logger.debug(f"[P2P] Tx rejected: {validation.get('error')}")
+            return
+
+        fee = float(data.get("fee", gas * getattr(self.config, "gas_price_wei", 0.001)))
+        mp_tx = MempoolTransaction(
+            tx_hash=tx.hash,
+            from_addr=from_addr,
+            to_addr=to_addr,
+            amount=value,
+            fee=fee,
+            nonce=nonce,
+            signature=signature,
+            public_key=public_key,
+            data=calldata,
+            gas=gas,
+        )
+        if self.mempool.add(mp_tx):
+            logger.debug(f"[P2P] Accepted tx {tx.hash[:12]}… from network")
 
     # ── Синхронизация ────────────────────────────────────────────────────────
 

@@ -616,6 +616,65 @@ class PostQuantumManager:
             }
         }
 
+    def _parse_algorithm(self, name: str) -> PQAlgorithm:
+        raw = (name or "dilithium").strip().lower().replace("-", "_")
+        for algo in PQAlgorithm:
+            if algo.value == raw or algo.name.lower() == raw:
+                return algo
+        raise ValueError(f"Unsupported algorithm: {name}")
+
+    def sign_text(
+        self,
+        message: str,
+        algorithm: str = "dilithium",
+        key_id: Optional[str] = None,
+    ) -> Dict:
+        """API-friendly sign: returns signature payload + public key hex."""
+        algo = self._parse_algorithm(algorithm)
+        keypair = self.keypairs.get(key_id) if key_id else None
+        if not keypair:
+            keypair = self.generate_keypair(algo)
+        msg_bytes = message.encode("utf-8")
+        sig = self.sign(msg_bytes, keypair, algo)
+        return {
+            "algorithm": algo.value,
+            "key_id": keypair.key_id,
+            "public_key": keypair.public_key.hex(),
+            "signature": sig.signature.hex(),
+            "signature_id": sig.id,
+            "message_hash": sig.message_hash,
+        }
+
+    def verify_text(
+        self,
+        message: str,
+        signature_payload,
+        algorithm: str = "dilithium",
+        public_key_hex: str = "",
+    ) -> bool:
+        """API-friendly verify from REST /pq/verify."""
+        algo = self._parse_algorithm(algorithm)
+        msg_bytes = message.encode("utf-8")
+        if isinstance(signature_payload, dict):
+            sig_hex = signature_payload.get("signature", "")
+            pub_hex = public_key_hex or signature_payload.get("public_key", "")
+            sig_id = signature_payload.get("signature_id", signature_payload.get("id", "api"))
+        else:
+            sig_hex = str(signature_payload)
+            pub_hex = public_key_hex
+            sig_id = "api"
+        if not sig_hex or not pub_hex:
+            return False
+        pq_sig = PQSignature(
+            id=sig_id,
+            algorithm=algo,
+            signature=bytes.fromhex(sig_hex.replace("0x", "")),
+            public_key_hash=hashlib.sha256(pub_hex.encode()).hexdigest(),
+            message_hash=hashlib.sha256(msg_bytes).hexdigest(),
+        )
+        pub_bytes = bytes.fromhex(pub_hex.replace("0x", ""))
+        return self.verify(pq_sig, msg_bytes, pub_bytes)
+
 
 # ============================================================================
 # ГИБРИДНАЯ КРИПТОГРАФИЯ (КЛАССИЧЕСКАЯ + ПОСТ-КВАНТОВАЯ)

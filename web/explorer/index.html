@@ -96,38 +96,38 @@
 <!-- Sidebar -->
 <nav class="sidebar">
   <h2>⛓ Absolute Chain</h2>
-  <div class="nav-item active" onclick="show('dashboard')"><span class="icon">📊</span> Dashboard</div>
-  <div class="nav-item" onclick="show('explorer')"><span class="icon">🔍</span> Explorer</div>
-  <div class="nav-item" onclick="show('wallet')"><span class="icon">👛</span> Wallet</div>
-  <div class="nav-item" onclick="show('send')"><span class="icon">💸</span> Send TX</div>
-  <div class="nav-item" onclick="show('nft')"><span class="icon">🖼</span> NFT</div>
-  <div class="nav-item" onclick="show('sharding')"><span class="icon">🔷</span> Sharding</div>
-  <div class="nav-item" onclick="show('oracles')"><span class="icon">🌐</span> Oracles</div>
-  <div class="nav-item" onclick="show('consensus')"><span class="icon">⚖️</span> Consensus</div>
-  <div class="nav-item" onclick="show('zk')"><span class="icon">🔐</span> ZK Proofs</div>
-  <div class="nav-item" onclick="show('minivm')"><span class="icon">📟</span> MiniVM</div>
-  <div class="nav-item" onclick="show('evm')"><span class="icon">⛽</span> EVM</div>
-  <div class="nav-item" onclick="show('pq')"><span class="icon">🛡️</span> Post-Quantum</div>
-  <div class="nav-item" onclick="show('smartacc')"><span class="icon">🤖</span> Smart Accounts</div>
-  <div class="nav-item" onclick="show('cryptotools')"><span class="icon">🔑</span> Crypto Tools</div>
-  <div class="nav-item" onclick="show('ai')"><span class="icon">🧠</span> AI Validator</div>
-  <div class="nav-item" onclick="show('mev')"><span class="icon">💣</span> MEV Analysis</div>
-  <div class="nav-item" onclick="show('reorg')"><span class="icon">🔀</span> Reorg Risk</div>
-  <div class="nav-item" onclick="show('merkle')"><span class="icon">🌳</span> Merkle Proofs</div>
-  <div class="nav-item" onclick="show('bot')"><span class="icon">🤖</span> Telegram Bot</div>
-  <div class="nav-item" onclick="show('satoshi')"><span class="icon">⚡</span> Satoshi State</div>
-  <div class="nav-item" onclick="show('beacon')"><span class="icon">🏮</span> Beacon Chain</div>
-  <div class="nav-item" onclick="show('lightning')"><span class="icon">⚡</span> Lightning</div>
-  <div class="nav-item" onclick="show('plasma')"><span class="icon">🌊</span> Plasma L2</div>
-  <div class="nav-item" onclick="show('will')"><span class="icon">📜</span> Crypto Will</div>
-  <div class="nav-item" onclick="show('wasmvm')"><span class="icon">🦀</span> WASM VM</div>
-  <div class="nav-item" onclick="show('aiagents')"><span class="icon">🤖</span> AI Agents</div>
-  <div class="nav-item" onclick="show('bridge2')"><span class="icon">🌉</span> Cross-Chain</div>
-  <div class="nav-item" onclick="show('finality')"><span class="icon">🔒</span> Finality</div>
-  <div class="nav-item" onclick="show('synceng')"><span class="icon">🔄</span> Sync Engine</div>
-  <div class="nav-item" onclick="show('stateeng')"><span class="icon">⚙</span> State Engine</div>
-  <div class="nav-item" onclick="show('slashing')"><span class="icon">⚡</span> Slashing</div>
-  <div class="nav-item" onclick="show('valreg')"><span class="icon">🏛</span> Validators</div>
+  <div class="nav-item active" onclick="show('dashboard')" data-feature="core"><span class="icon">📊</span> Dashboard</div>
+  <div class="nav-item" onclick="show('explorer')" data-feature="core"><span class="icon">🔍</span> Explorer</div>
+  <div class="nav-item" onclick="show('wallet')" data-feature="core"><span class="icon">👛</span> Wallet</div>
+  <div class="nav-item" onclick="show('send')" data-feature="core"><span class="icon">💸</span> Send TX</div>
+  <div class="nav-item" onclick="show('nft')" data-feature="nft"><span class="icon">🖼</span> NFT</div>
+  <div class="nav-item" onclick="show('sharding')" data-feature="sharding"><span class="icon">🔷</span> Sharding</div>
+  <div class="nav-item" onclick="show('oracles')" data-feature="oracles"><span class="icon">🌐</span> Oracles</div>
+  <div class="nav-item" onclick="show('consensus')" data-feature="core"><span class="icon">⚖️</span> Consensus</div>
+  <div class="nav-item" onclick="show('zk')" data-feature="zk"><span class="icon">🔐</span> ZK Proofs</div>
+  <div class="nav-item" onclick="show('minivm')" data-feature="core"><span class="icon">📟</span> MiniVM</div>
+  <div class="nav-item" onclick="show('evm')" data-feature="evm"><span class="icon">⛽</span> EVM</div>
+  <div class="nav-item" onclick="show('pq')" data-feature="core"><span class="icon">🛡️</span> Post-Quantum</div>
+  <div class="nav-item" onclick="show('smartacc')" data-feature="core"><span class="icon">🤖</span> Smart Accounts</div>
+  <div class="nav-item" onclick="show('cryptotools')" data-feature="core"><span class="icon">🔑</span> Crypto Tools</div>
+  <div class="nav-item" onclick="show('ai')" data-feature="core"><span class="icon">🧠</span> AI Validator</div>
+  <div class="nav-item" onclick="show('mev')" data-feature="core"><span class="icon">💣</span> MEV Analysis</div>
+  <div class="nav-item" onclick="show('reorg')" data-feature="core"><span class="icon">🔀</span> Reorg Risk</div>
+  <div class="nav-item" onclick="show('merkle')" data-feature="core"><span class="icon">🌳</span> Merkle Proofs</div>
+  <div class="nav-item" onclick="show('bot')" data-feature="core"><span class="icon">🤖</span> Telegram Bot</div>
+  <div class="nav-item" onclick="show('satoshi')" data-feature="core"><span class="icon">⚡</span> Satoshi State</div>
+  <div class="nav-item" onclick="show('beacon')" data-feature="core"><span class="icon">🏮</span> Beacon Chain</div>
+  <div class="nav-item" onclick="show('lightning')" data-feature="lightning"><span class="icon">⚡</span> Lightning</div>
+  <div class="nav-item" onclick="show('plasma')" data-feature="plasma"><span class="icon">🌊</span> Plasma L2</div>
+  <div class="nav-item" onclick="show('will')" data-feature="core"><span class="icon">📜</span> Crypto Will</div>
+  <div class="nav-item" onclick="show('wasmvm')" data-feature="wasm"><span class="icon">🦀</span> WASM VM</div>
+  <div class="nav-item" onclick="show('aiagents')" data-feature="core"><span class="icon">🤖</span> AI Agents</div>
+  <div class="nav-item" onclick="show('bridge2')" data-feature="bridge"><span class="icon">🌉</span> Cross-Chain</div>
+  <div class="nav-item" onclick="show('finality')" data-feature="core"><span class="icon">🔒</span> Finality</div>
+  <div class="nav-item" onclick="show('synceng')" data-feature="core"><span class="icon">🔄</span> Sync Engine</div>
+  <div class="nav-item" onclick="show('stateeng')" data-feature="core"><span class="icon">⚙</span> State Engine</div>
+  <div class="nav-item" onclick="show('slashing')" data-feature="core"><span class="icon">⚡</span> Slashing</div>
+  <div class="nav-item" onclick="show('valreg')" data-feature="core"><span class="icon">🏛</span> Validators</div>
   <div style="position:absolute;bottom:16px;left:20px;right:20px;">
     <div style="color:var(--gray);font-size:11px;display:flex;align-items:center;gap:6px;">
       <span id="wsdot"></span> WS <span id="ws-status">offline</span>
@@ -200,7 +200,7 @@
     <div class="card">
       <h3>Blocks <span id="block-count" class="badge badge-green"></span></h3>
       <table>
-        <thead><tr><th>#</th><th>Hash</th><th>Txs</th><th>Miner</th><th>Burned</th><th>State Root</th><th>Time</th></tr></thead>
+        <thead><tr><th>#</th><th>Hash</th><th>Txs</th><th>Attest</th><th>Miner</th><th>Burned</th><th>State Root</th><th>Time</th></tr></thead>
         <tbody id="blocks-table"></tbody>
       </table>
       <div style="margin-top:12px;display:flex;gap:10px">
@@ -208,6 +208,7 @@
         <button class="btn btn-outline" onclick="loadBlocks(10)">Newer →</button>
         <button class="btn btn-green" onclick="loadBlocks(0)">Latest</button>
       </div>
+      <div id="block-detail" style="margin-top:14px;font-size:12px"></div>
     </div>
   </div>
 
@@ -563,6 +564,19 @@
           <button class="btn btn-outline" onclick="lookupEVMContract()" style="width:auto">Info</button>
         </div>
         <div id="evm-contract-info" style="margin-top:8px;font-size:12px"></div>
+      </div>
+      <div class="card">
+        <h3>Call Contract (on-chain)</h3>
+        <p style="font-size:11px;color:var(--gray);margin-bottom:10px">Calldata → mempool → next block → EVM execution.</p>
+        <div class="form-row"><label>Contract Address</label><input id="evm-call-to" placeholder="0xcontract..."/></div>
+        <div class="form-row"><label>Calldata (hex)</label>
+          <textarea id="evm-call-data" rows="3" placeholder="0x..."></textarea>
+        </div>
+        <div class="form-row"><label>Value (ABS)</label><input id="evm-call-value" type="number" value="0" step="0.01"/></div>
+        <div class="form-row"><label>Gas</label><input id="evm-call-gas" type="number" value="300000"/></div>
+        <button class="btn btn-blue" onclick="callEVMOnChain()" style="width:100%;margin-bottom:8px">Call via Mempool</button>
+        <button class="btn btn-outline" onclick="staticEVMCall()" style="width:100%">Static eth_call (read-only)</button>
+        <div id="evm-call-result" style="margin-top:12px;font-family:monospace;font-size:12px"></div>
       </div>
     </div>
   </div>
@@ -1814,13 +1828,14 @@ async function loadBlocks(delta) {
   }
   const data = await get('/blocks?limit=20&offset=' + Math.max(0, blockOffset - 20));
   const tbody = document.getElementById('blocks-table');
-  if (!data || !data.blocks) { tbody.innerHTML = '<tr><td colspan="7" style="color:var(--gray)">No data</td></tr>'; return; }
+  if (!data || !data.blocks) { tbody.innerHTML = '<tr><td colspan="8" style="color:var(--gray)">No data</td></tr>'; return; }
   document.getElementById('block-count').textContent = blockOffset;
   tbody.innerHTML = data.blocks.reverse().map(b => `
-    <tr>
+    <tr style="cursor:pointer" onclick="showBlockDetail(${b.height||b.index||0})">
       <td><b style="color:var(--green)">#${b.height||b.index||0}</b></td>
       <td class="hash">${String(b.hash||b.block_hash||'').slice(0,16)}…</td>
       <td><span class="badge badge-blue">${b.tx_count||0}</span></td>
+      <td><span class="badge ${(b.attestation_count||0)>0?'badge-green':'badge-gray'}">${b.attestation_count||0}</span></td>
       <td class="addr">${String(b.miner||'').slice(0,14)||'—'}…</td>
       <td>${b.total_burned>0?parseFloat(b.total_burned).toFixed(4)+' ABS':'0'}</td>
       <td class="hash">${String(b.state_root||'').slice(0,12)||'—'}…</td>
@@ -1828,13 +1843,26 @@ async function loadBlocks(delta) {
     </tr>`).join('');
 }
 
+async function showBlockDetail(height) {
+  const el = document.getElementById('block-detail');
+  if (!el) return;
+  const b = await get('/block/' + height);
+  if (!b || b.error) { el.innerHTML = '<span style="color:var(--red)">Block not found</span>'; return; }
+  const att = b.attestation_count ?? (b.attestations?.length || 0);
+  const validators = (b.attestations || []).map(a => String(a.validator||'').slice(0,12)+'…').join(', ') || '—';
+  el.innerHTML = `<div class="card" style="padding:12px">
+    <b>Block #${b.height}</b> · <span class="hash">${b.hash||''}</span><br>
+    Attestations: <span class="badge badge-green">${att}</span>
+    ${att ? `<div style="margin-top:6px;color:var(--gray)">Validators: ${validators}</div>` : ''}
+  </div>`;
+}
+
 async function search() {
   const q = document.getElementById('search-input').value.trim();
   if (!q) return;
   if (/^\d+$/.test(q)) {
-    const b = await get('/block/' + q);
-    if (b && !b.error) toast('Block #' + q + ' found: ' + (b.hash||'').slice(0,16) + '…');
-    else toast('Block not found', false);
+    await showBlockDetail(parseInt(q, 10));
+    toast('Block #' + q);
   } else {
     const tx = await get('/tx/' + q);
     if (tx && !tx.error) toast('TX found in block #' + (tx.block_height||'?'));
@@ -2132,6 +2160,47 @@ async function lookupEVMContract() {
   if (!addr) return;
   const r = await api('/contract/' + encodeURIComponent(addr));
   el.innerHTML = r ? `<pre style="font-size:11px">${JSON.stringify(r, null, 2)}</pre>` : 'Not found';
+  if (addr) document.getElementById('evm-call-to').value = addr;
+}
+
+async function callEVMOnChain() {
+  const to = document.getElementById('evm-call-to').value.trim();
+  const data = document.getElementById('evm-call-data').value.trim();
+  const value = parseFloat(document.getElementById('evm-call-value').value) || 0;
+  const gas = parseInt(document.getElementById('evm-call-gas').value, 10) || 300000;
+  if (!to || !data) return alert('Contract address and calldata required');
+  const r = await post('/tx/call', { to, data, value, gas, auto_sign: true });
+  const el = document.getElementById('evm-call-result');
+  if (r?.tx_hash) {
+    document.getElementById('evm-tx-hash').value = r.tx_hash;
+    el.innerHTML = `<div class="badge badge-green">Queued</div> hash: <span class="hash">${r.tx_hash}</span>`;
+    pollEVMTxStatus();
+  } else {
+    el.innerHTML = `<span style="color:var(--red)">${r?.error||JSON.stringify(r)}</span>`;
+  }
+}
+
+async function staticEVMCall() {
+  const to = document.getElementById('evm-call-to').value.trim();
+  const data = document.getElementById('evm-call-data').value.trim();
+  const el = document.getElementById('evm-call-result');
+  if (!to) return alert('Contract address required');
+  const r = await rpc('eth_call', [{ to, data: data || '0x' }, 'latest']);
+  el.innerHTML = r ? `<span style="color:var(--green)">Result:</span> <span class="hash">${r}</span>` : '0x (no return)';
+}
+
+async function applyFeatureGates() {
+  const feats = await api('/features');
+  if (!feats) return;
+  document.querySelectorAll('.nav-item[data-feature]').forEach(item => {
+    const key = item.getAttribute('data-feature');
+    if (key === 'core') return;
+    const f = feats[key];
+    if (f && !f.enabled) {
+      item.style.display = 'none';
+      item.title = `${key} module not loaded on this node`;
+    }
+  });
 }
 
 function addAttestationToFeed(att) {
@@ -3834,6 +3903,7 @@ async function deactivateAIAgent() {
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 connectWS();
+applyFeatureGates();
 refreshStatus();
 loadRecentActivity();
 loadBlocks(0);
