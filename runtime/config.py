@@ -156,6 +156,7 @@ class Config:
 
         self.node_id = env_str("NODE_ID", self.node_id)
         self.deployment_mode = env_str("DEPLOYMENT_MODE", self.deployment_mode).lower()
+        self.chain_id = env_int("CHAIN_ID", self.chain_id)
         self.rpc_port = env_int("RPC_PORT", self.rpc_port)
         self.http_port = env_int("HTTP_PORT", env_int("WEB_PORT", self.http_port))
         self.ws_port = env_int("WS_PORT", self.ws_port)
