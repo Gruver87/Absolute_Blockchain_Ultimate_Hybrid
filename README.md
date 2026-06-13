@@ -188,6 +188,10 @@ absolute-blockchain-ultimate/
 | JSON-RPC `:8545` | 🟢 |
 | WebSocket `:8766` + Explorer live feed | 🟢 |
 | Wallet + auto-sign TX | 🟢 |
+| Signed TX enforcement (`require_signatures`) | 🟢 |
+| State root verify on P2P import | 🟢 |
+| Fork reorg (common ancestor + replay) | 🟢 |
+| Proposer slashing (`double_proposal`) | 🟢 |
 | Validators + PoS-модули | 🟢 |
 | NFT, Oracles, State Engine | 🟢 |
 | P2P (интернет) | 🟡 solo по умолчанию; 2 узла — `start_two_nodes.ps1` |
@@ -304,4 +308,4 @@ python scripts/final_audit.py     # финальная проверка
 
 ---
 
-*Последнее обновление документации: июнь 2026 — unified `main.py`, 230 API, токеномика 221M ABS, light client, pool locks.*
+*Последнее обновление документации: июнь 2026 — chain integrity (signatures, state_root, reorg), ~100+ API, токеномика 221M ABS.*

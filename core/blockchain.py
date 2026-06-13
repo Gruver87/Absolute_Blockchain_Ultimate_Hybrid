@@ -257,6 +257,7 @@ class Blockchain:
         self.db = db
         self.bus = bus
         self.lock = threading.RLock()
+        self.require_signatures = False
 
         # --- System C: StateEngine ---
         if _STATE_ENGINE_AVAILABLE:
@@ -274,6 +275,7 @@ class Blockchain:
             self.block_validator = None
 
         self.pool_locks = None  # runtime.pool_locks.PoolLockManager
+        self.consensus_adapter = None  # wired from main.NodeOrchestrator
 
         self._ensure_genesis()
 
@@ -373,6 +375,15 @@ class Blockchain:
                 print(f"[Blockchain] Reject block #{block.height}: {validation.get('error')}")
                 return False
 
+            proposer_check = self._verify_block_proposer(block)
+            if not proposer_check["valid"]:
+                print(f"[Blockchain] Reject block #{block.height}: {proposer_check.get('error')}")
+                return False
+
+            peer_state_root = block.state_root if preserve_peer_hash and block.state_root else None
+            adapter = self.consensus_adapter
+            slashing = getattr(adapter, "slashing_engine", None) if adapter else None
+
             try:
                 with self.db.atomic():
                     block_burned = 0.0
@@ -386,8 +397,22 @@ class Blockchain:
 
                     self._apply_block_reward(block.miner, in_atomic=True)
                     block.total_burned = block_burned
-                    block.state_root = self._compute_state_root_from_db()
+                    computed_root = self._compute_state_root_from_db()
+                    if (
+                        peer_state_root
+                        and getattr(self.config, "verify_peer_state_root", True)
+                        and peer_state_root != computed_root
+                    ):
+                        raise RuntimeError(
+                            f"state_root_mismatch expected={peer_state_root[:16]} "
+                            f"computed={computed_root[:16]}"
+                        )
+                    block.state_root = computed_root
                     block.hash = peer_hash if peer_hash else block._compute_hash()
+
+                    if slashing and proposer and proposer != "genesis":
+                        if not slashing.record_proposal(proposer, block.height, block.hash):
+                            raise RuntimeError("double_proposal")
 
                     tx_dicts = []
                     for tx in block.transactions:
@@ -509,22 +534,9 @@ class Blockchain:
             if not allowed:
                 return {"success": False, "error": reason}
 
-        if tx.signature and tx.public_key:
-            try:
-                from crypto.wallet import verify_transaction_signature
-                tx_dict = {
-                    "from": tx.from_addr,
-                    "to": tx.to_addr,
-                    "value": int(tx.value) if tx.value == int(tx.value) else tx.value,
-                    "nonce": tx.nonce,
-                    "chain_id": self.config.chain_id,
-                    "signature": tx.signature,
-                    "public_key": tx.public_key,
-                }
-                if not verify_transaction_signature(tx_dict):
-                    return {"success": False, "error": "invalid_signature"}
-            except Exception as e:
-                return {"success": False, "error": f"signature_check_failed: {e}"}
+        sig_check = self._verify_tx_signature(tx)
+        if not sig_check["valid"]:
+            return {"success": False, "error": sig_check.get("error", "invalid_signature")}
 
         if in_atomic:
             self.db.balance_delta(tx.from_addr, -total_cost)
@@ -587,25 +599,127 @@ class Blockchain:
             if not allowed:
                 return {"valid": False, "error": reason}
 
-        # Verify ECDSA signature if present
-        if tx.signature and tx.public_key:
-            try:
-                from crypto.wallet import verify_transaction_signature
-                tx_dict = {
-                    "from": tx.from_addr,
-                    "to": tx.to_addr,
-                    "value": tx.value,
-                    "nonce": tx.nonce,
-                    "chain_id": self.config.chain_id,
-                    "signature": tx.signature,
-                    "public_key": tx.public_key,
-                }
-                if not verify_transaction_signature(tx_dict):
-                    return {"valid": False, "error": "invalid_signature"}
-            except Exception:
-                pass  # Signature verification optional if ecdsa not installed
+        sig_check = self._verify_tx_signature(tx)
+        if not sig_check["valid"]:
+            return sig_check
 
         return {"valid": True}
+
+    def _verify_tx_signature(self, tx: Transaction) -> Dict:
+        """Require and verify ECDSA when config.require_signatures is enabled."""
+        require = getattr(self.config, "require_signatures", False)
+        if not tx.signature:
+            if require:
+                return {"valid": False, "error": "missing_signature"}
+            return {"valid": True}
+        if not tx.public_key:
+            return {"valid": False, "error": "missing_public_key"}
+        try:
+            from crypto.wallet import verify_transaction_signature
+            tx_dict = {
+                "from": tx.from_addr,
+                "to": tx.to_addr,
+                "value": int(tx.value) if tx.value == int(tx.value) else tx.value,
+                "nonce": tx.nonce,
+                "chain_id": self.config.chain_id,
+                "signature": tx.signature,
+                "public_key": tx.public_key,
+            }
+            if not verify_transaction_signature(tx_dict):
+                return {"valid": False, "error": "invalid_signature"}
+        except Exception as e:
+            return {"valid": False, "error": f"signature_check_failed: {e}"}
+        return {"valid": True}
+
+    def _verify_block_proposer(self, block: Block) -> Dict:
+        """Slashing + authorized proposer checks before block execution."""
+        proposer = block.miner or ""
+        if not proposer or proposer == "genesis":
+            return {"valid": True}
+
+        adapter = self.consensus_adapter
+        slashing = getattr(adapter, "slashing_engine", None) if adapter else None
+        if slashing:
+            if proposer in slashing.slashed:
+                return {"valid": False, "error": "proposer_slashed"}
+
+        if not getattr(self.config, "enforce_proposer", True):
+            return {"valid": True}
+
+        validators = self.db.get_validators(active_only=True) if hasattr(self.db, "get_validators") else []
+        if len(validators) <= 1:
+            return {"valid": True}
+
+        allowed = {v["address"].lower() for v in validators}
+        for addr in (self.config.miner_address, self.config.signing_address):
+            if addr:
+                allowed.add(addr.lower())
+        if proposer.lower() not in allowed:
+            return {"valid": False, "error": "unauthorized_proposer"}
+        return {"valid": True}
+
+    def find_ancestor_height(self, parent_hash: str) -> Optional[int]:
+        """Local height of parent_hash (fork common ancestor lookup)."""
+        if not parent_hash or parent_hash == self.GENESIS_HASH:
+            return 0
+        blk = self.get_block_by_hash(parent_hash)
+        if blk:
+            return int(blk.get("height", blk.get("number", 0)))
+        return None
+
+    def reorg_to_ancestor(self, ancestor_height: int) -> bool:
+        """Rollback blocks above ancestor and replay state from genesis allocation."""
+        from runtime.tokenomics import genesis_balances
+
+        with self.lock:
+            tip = self.get_height()
+            if ancestor_height >= tip:
+                return True
+
+            founder = (
+                getattr(self.config, "founder_address", "")
+                or self.config.miner_address
+                or ""
+            )
+            alloc = genesis_balances(founder or None)
+            if self.config.miner_address and self.config.miner_address not in alloc:
+                alloc[self.config.miner_address] = int(
+                    getattr(self.config, "min_stake", 1000)
+                )
+
+            try:
+                if hasattr(self.db, "truncate_chain_state"):
+                    self.db.truncate_chain_state(ancestor_height)
+                else:
+                    self.db.truncate_blocks_above(ancestor_height)
+
+                self.db.reset_accounts_from_alloc(alloc)
+
+                for h in range(1, ancestor_height + 1):
+                    blk_dict = self.db.get_block(h)
+                    if not blk_dict:
+                        raise RuntimeError(f"missing_block_at_replay_{h}")
+                    block = Block.from_dict(blk_dict)
+                    with self.db.atomic():
+                        for tx in block.transactions:
+                            result = self._apply_transaction(
+                                tx, block.height, proposer=block.miner, in_atomic=True
+                            )
+                            if not result["success"]:
+                                raise RuntimeError(result.get("error", "replay_tx_failed"))
+                        self._apply_block_reward(block.miner, in_atomic=True)
+
+                replay_root = self._compute_state_root_from_db()
+                ancestor_blk = self.db.get_block(ancestor_height)
+                if ancestor_blk and ancestor_blk.get("state_root"):
+                    expected = ancestor_blk["state_root"]
+                    if expected and expected != replay_root:
+                        raise RuntimeError("reorg_state_root_mismatch")
+                print(f"[Blockchain] Reorg complete at height #{ancestor_height}")
+                return True
+            except Exception as e:
+                print(f"[Blockchain] Reorg failed: {e}")
+                return False
 
     def _validate_block_structure(self, block: Block) -> Dict:
         """Height/parent/hash checks before state execution."""

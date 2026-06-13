@@ -187,13 +187,32 @@ class SyncEngine:
         return True
 
     def sync_state(self) -> bool:
-        """
-        Проверка и синхронизация состояния
-        """
-        # В реальной реализации: сравнение state root с peers
+        """Compare local state_root with peer-reported roots when available."""
         print("🔍 Checking state consistency...")
-        # Simplified: assume state is consistent
-        print("   State is consistent")
+        if not hasattr(self.node, "blockchain"):
+            print("   No blockchain attached")
+            return False
+
+        local_root = self.node.blockchain.get_state_root()
+        local_height = self.node.blockchain.get_height()
+        mismatches = []
+
+        for peer in self._collect_p2p_peers():
+            peer_height = int(getattr(peer, "height", 0) or 0)
+            if peer_height != local_height:
+                continue
+            blk = self.node.blockchain.get_block(peer_height)
+            if not blk:
+                continue
+            peer_root = blk.get("state_root", "")
+            if peer_root and peer_root != local_root:
+                mismatches.append(getattr(peer, "peer_id", "peer")[:8])
+
+        if mismatches:
+            print(f"   State root mismatch vs peers: {', '.join(mismatches)}")
+            return False
+
+        print(f"   State consistent (root={local_root[:12]}... height={local_height})")
         return True
 
     def get_status(self) -> dict:

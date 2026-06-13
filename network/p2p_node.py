@@ -423,12 +423,14 @@ class P2PNode:
         from blockchain.mempool import MempoolTransaction
         try:
             tx = MempoolTransaction(
-                tx_hash=data.get("hash", ""),
-                from_addr=data.get("from_addr", ""),
-                to_addr=data.get("to_addr", ""),
-                amount=float(data.get("value", 0)),
+                tx_hash=data.get("hash", data.get("tx_hash", "")),
+                from_addr=data.get("from_addr", data.get("from", "")),
+                to_addr=data.get("to_addr", data.get("to", "")),
+                amount=float(data.get("value", data.get("amount", 0))),
                 fee=float(data.get("fee", 0)),
                 nonce=int(data.get("nonce", 0)),
+                signature=data.get("signature", ""),
+                public_key=data.get("public_key", ""),
             )
             self.mempool.add(tx)
         except Exception as e:
@@ -501,12 +503,21 @@ class P2PNode:
                         current = int(h) + 1
                         imported_any = True
                     else:
-                        if our_height > 0 and hasattr(self.blockchain, "truncate_to_height"):
-                            print("[P2P] Fork at import — truncating chain to genesis for resync")
-                            self.blockchain.truncate_to_height(0)
-                            our_height = 0
-                            current = 1
+                        parent_hash = block_data.get("parent_hash", "")
+                        ancestor = None
+                        if hasattr(self.blockchain, "find_ancestor_height"):
+                            ancestor = self.blockchain.find_ancestor_height(parent_hash)
+                        if (
+                            ancestor is not None
+                            and ancestor < self.blockchain.get_height()
+                            and hasattr(self.blockchain, "reorg_to_ancestor")
+                            and self.blockchain.reorg_to_ancestor(ancestor)
+                        ):
+                            print(f"[P2P] Fork resolved — reorg to #{ancestor}, retry import")
+                            our_height = ancestor
+                            current = ancestor + 1
                             break
+                        print(f"[P2P] Import failed at #{current}, aborting sync")
                         return
                 except Exception as e:
                     logger.debug(f"[P2P] Sync block error: {e}")

@@ -60,6 +60,9 @@ class Config:
     signing_address: str = ""           # operational wallet for API signing
     validator_count: int = 21
     min_stake: float = 1000.0           # минимальный стейк валидатора
+    require_signatures: bool = False    # prod / node.json: true — reject unsigned txs
+    enforce_proposer: bool = True       # reject blocks from unknown/slashed proposers
+    verify_peer_state_root: bool = True # compare state_root on P2P import
 
     # ── P2P ─────────────────────────────────────────────────────────────────
     bootstrap_peers: List[str] = field(default_factory=list)
@@ -142,6 +145,14 @@ class Config:
         self.log_level = env_str("LOG_LEVEL", self.log_level)
         self.log_json = env_bool("LOG_JSON", self.log_json)
         self.mining_enabled = env_bool("MINING_ENABLED", self.mining_enabled)
+        self.require_signatures = env_bool(
+            "REQUIRE_SIGNATURES",
+            self.require_signatures if not self.is_production else True,
+        )
+        self.enforce_proposer = env_bool("ENFORCE_PROPOSER", self.enforce_proposer)
+        self.verify_peer_state_root = env_bool(
+            "VERIFY_PEER_STATE_ROOT", self.verify_peer_state_root
+        )
         self.metrics_enabled = env_bool("METRICS_ENABLED", self.metrics_enabled)
         self.jwt_enforce_admin = env_bool("JWT_ENFORCE_ADMIN", self.jwt_enforce_admin)
         self.enable_cors_rpc_proxy = env_bool("ENABLE_CORS_RPC_PROXY", self.enable_cors_rpc_proxy)

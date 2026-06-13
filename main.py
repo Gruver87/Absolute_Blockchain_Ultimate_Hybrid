@@ -320,6 +320,7 @@ class NodeOrchestrator:
 
         # 5. Консенсус
         self.consensus = ConsensusAdapter(config, self.db, self.bus)
+        self.blockchain.consensus_adapter = self.consensus
 
         # Если miner_address не задан — загружаем wallet.json или генерируем ECDSA
         self.wallet = None
@@ -1167,6 +1168,8 @@ class NodeOrchestrator:
                     gas=self.config.base_gas_price,
                     timestamp=int(mp_tx.timestamp),
                     tx_hash=mp_tx.tx_hash,
+                    signature=mp_tx.signature,
+                    public_key=mp_tx.public_key,
                 ))
 
             # Обновляем miner_address в конфиге если задан

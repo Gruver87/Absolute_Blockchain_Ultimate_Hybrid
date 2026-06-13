@@ -73,8 +73,7 @@ class Signer:
     def _verify_hash(data_hash: str, signature: bytes, public_key: bytes) -> bool:
         """Internal: verify hash signature"""
         if not ECDSA_AVAILABLE:
-            # Simplified for testing
-            return len(signature) > 0
+            return False
         
         return verify(data_hash.encode(), signature, public_key, hashfunc=hashlib.sha256)
     

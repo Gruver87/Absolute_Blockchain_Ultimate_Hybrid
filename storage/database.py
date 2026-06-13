@@ -339,6 +339,30 @@ class Database:
             ).fetchone()
             return json.loads(row["data"]) if row else None
 
+    def truncate_chain_state(self, height: int) -> int:
+        """Remove blocks, txs, and burn stats above height."""
+        with self.atomic():
+            self.conn.execute(
+                "DELETE FROM transactions WHERE block_height > ?", (int(height),)
+            )
+            self.conn.execute(
+                "DELETE FROM burn_stats WHERE block_height > ?", (int(height),)
+            )
+            cur = self.conn.execute(
+                "DELETE FROM blocks WHERE height > ?", (int(height),)
+            )
+            return cur.rowcount
+
+    def reset_accounts_from_alloc(self, alloc: Dict[str, float]) -> None:
+        """Reset all account balances/nonces from genesis allocation map."""
+        with self.atomic():
+            self.conn.execute("DELETE FROM accounts")
+            for addr, amount in alloc.items():
+                self.conn.execute(
+                    "INSERT INTO accounts (address, balance, nonce) VALUES (?, ?, 0)",
+                    (addr, float(amount)),
+                )
+
     def truncate_blocks_above(self, height: int) -> int:
         """Remove blocks with height > given tip (for P2P fork resync). Returns deleted count."""
         with self.atomic():
