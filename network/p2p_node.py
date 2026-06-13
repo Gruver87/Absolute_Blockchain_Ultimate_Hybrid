@@ -44,6 +44,9 @@ MSG_NEW_TX     = "new_tx"
 MSG_GET_PEERS  = "get_peers"
 MSG_PEERS      = "peers"
 MSG_STATUS     = "status"       # height + head hash
+MSG_ATTESTATION = "attestation"
+MSG_STATE_ROOT_REQUEST = "state_root_request"
+MSG_STATE_ROOT_RESPONSE = "state_root_response"
 
 
 class PeerConnection:
@@ -115,11 +118,15 @@ class P2PNode:
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         # Sync responses routed from _message_loop (avoid double recv on same socket)
         self._sync_waiters: Dict[str, tuple] = {}  # peer_id -> (expected_types, Future)
+        self._consensus = None
+        self.validator_keys = None
+        self._state_consistent = True
 
         # Подписка на события шины — транслируем в сеть
         if self.bus:
             self.bus.on("block.new", self._on_local_block)
             self.bus.on("tx.new", self._on_local_tx)
+            self.bus.on("consensus.attestation", self._on_consensus_attestation)
 
         # SyncEngine (System C) — fast catch-up
         if _SYNC_ENGINE_AVAILABLE:
@@ -128,13 +135,27 @@ class P2PNode:
         else:
             self.sync_engine = None
 
-    # --- SyncEngine interface (called by SyncEngine) ---
-
-    @property
     def head(self) -> Optional[str]:
         """Current head block hash for SyncEngine."""
         last = self.blockchain.get_last_block()
         return last["hash"] if last else None
+
+    @property
+    def height(self) -> int:
+        return self.blockchain.get_height()
+
+    @property
+    def consensus(self):
+        return self._consensus
+
+    @consensus.setter
+    def consensus(self, value):
+        self._consensus = value
+
+    def set_consensus(self, consensus, validator_keys=None) -> None:
+        """Wire consensus for attestation gossip and fork choice."""
+        self._consensus = consensus
+        self.validator_keys = validator_keys
 
     def get_block(self, block_hash: str) -> Optional[Dict]:
         """For SyncEngine.download_chain()."""
@@ -275,7 +296,7 @@ class P2PNode:
             "chain_id": self.config.chain_id,
             "version": self.config.node_version,
             "height": our_height,
-            "head_hash": self.head or "",
+            "head_hash": self.head() or "",
             "node_id": f"abs-{self.config.p2p_port}",
         }
 
@@ -303,7 +324,7 @@ class P2PNode:
         peer.head = ack.get("head_hash") or peer.head
         await peer.send(MSG_STATUS, {
             "height": our_height,
-            "head_hash": self.head or "",
+            "head_hash": self.head() or "",
         })
         return True
 
@@ -377,6 +398,55 @@ class P2PNode:
                 peer.height = data.get("height", peer.height)
                 peer.head = data.get("head_hash", peer.head)
 
+        elif msg_type == MSG_ATTESTATION:
+            await self._handle_attestation(peer, data)
+
+        elif msg_type == MSG_STATE_ROOT_REQUEST:
+            height = int(data.get("height", self.blockchain.get_height())) if isinstance(data, dict) else self.blockchain.get_height()
+            await peer.send(MSG_STATE_ROOT_RESPONSE, {
+                "height": height,
+                "state_root": self.blockchain.get_state_root(),
+                "head_hash": self.head() or "",
+            })
+
+        elif msg_type == MSG_STATE_ROOT_RESPONSE:
+            if isinstance(data, dict) and waiter is None:
+                peer_root = data.get("state_root", "")
+                local_root = self.blockchain.get_state_root()
+                peer_h = int(data.get("height", 0))
+                if peer_h == self.blockchain.get_height() and peer_root and peer_root != local_root:
+                    self._state_consistent = False
+                    logger.warning(
+                        f"[P2P] State root mismatch vs {peer.peer_id[:8]}: "
+                        f"local={local_root[:12]} peer={peer_root[:12]}"
+                    )
+
+    async def _handle_attestation(self, peer: PeerConnection, data: Dict):
+        """Accept signed attestation from peer and apply to local consensus."""
+        if not isinstance(data, dict):
+            return
+        vkeys = self.validator_keys
+        if vkeys and hasattr(vkeys, "verify_attestation"):
+            if not vkeys.verify_attestation(data):
+                logger.debug(f"[P2P] Invalid attestation sig from {peer.peer_id[:8]}")
+                return
+        validator = data.get("validator", "")
+        block_hash = data.get("target_hash", "")
+        if not validator or not block_hash:
+            return
+        consensus = self._consensus
+        if consensus and hasattr(consensus, "attest"):
+            if consensus.attest(validator, block_hash):
+                await self._relay_attestation(data, exclude_peer=peer.peer_id)
+
+    async def _relay_attestation(self, attestation: Dict, exclude_peer: str = ""):
+        tasks = []
+        for pid, peer in list(self.peers.items()):
+            if pid != exclude_peer:
+                tasks.append(peer.send(MSG_ATTESTATION, attestation))
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
     async def _handle_new_block(self, peer: PeerConnection, data: Dict):
         """Принимаем анонс нового блока от пира."""
         if not isinstance(data, dict):
@@ -401,6 +471,13 @@ class P2PNode:
                 self.mempool.remove(tx.hash)
             if self.blockchain.import_block(data):
                 print(f"[P2P] Accepted block #{block.height} from {peer.peer_id[:8]}")
+                if self._consensus and self.validator_keys:
+                    try:
+                        self._consensus.attest(
+                            self.validator_keys.get_address(), block.hash
+                        )
+                    except Exception:
+                        pass
                 await self._broadcast_block(data, exclude_peer=peer.peer_id)
 
     async def _handle_get_blocks(self, peer: PeerConnection, data: Dict):
@@ -530,6 +607,47 @@ class P2PNode:
 
         print(f"[P2P] Sync complete. Our height: {self.blockchain.get_height()}")
 
+        if self.sync_engine:
+            loop = asyncio.get_running_loop()
+            ok = await loop.run_in_executor(None, self.sync_engine.sync_state)
+            self._state_consistent = bool(ok)
+
+    async def request_peer_state_root(self, peer: PeerConnection, height: int = None) -> Optional[Dict]:
+        """Request state_root at height from a single peer."""
+        h = height if height is not None else self.blockchain.get_height()
+        msg = await self._wait_peer_response(
+            peer,
+            (MSG_STATE_ROOT_RESPONSE,),
+            timeout=12,
+            presend=lambda: peer.send(MSG_STATE_ROOT_REQUEST, {"height": h}),
+        )
+        if not msg or msg.get("type") != MSG_STATE_ROOT_RESPONSE:
+            return None
+        data = msg.get("data")
+        return data if isinstance(data, dict) else None
+
+    async def request_peer_state_roots(self) -> List[Dict]:
+        """Collect state_root responses from all connected peers."""
+        height = self.blockchain.get_height()
+        results = []
+        for peer in list(self.peers.values()):
+            resp = await self.request_peer_state_root(peer, height)
+            if resp:
+                resp["peer_id"] = peer.peer_id
+                results.append(resp)
+        return results
+
+    def request_peer_state_roots_sync(self, timeout: float = 15) -> List[Dict]:
+        if not self._loop or not self._running:
+            return []
+        future = asyncio.run_coroutine_threadsafe(
+            self.request_peer_state_roots(), self._loop
+        )
+        try:
+            return future.result(timeout=timeout)
+        except Exception:
+            return []
+
     async def _request_block_by_hash(self, peer: PeerConnection, block_hash: str) -> Optional[Dict]:
         """Запрашивает у пира полный блок по hash."""
         if not block_hash:
@@ -595,6 +713,30 @@ class P2PNode:
             await asyncio.gather(*tasks, return_exceptions=True)
 
     # ── Колбэки EventBus ─────────────────────────────────────────────────────
+
+    def _on_consensus_attestation(self, att_data: Dict):
+        """Gossip signed attestation after local consensus.attest()."""
+        if not self.validator_keys or not isinstance(att_data, dict):
+            return
+        validator = att_data.get("validator", "")
+        block_hash = att_data.get("target_hash") or att_data.get("block_hash", "")
+        if validator != self.validator_keys.get_address() or not block_hash:
+            return
+        block_data = {"hash": block_hash, "number": att_data.get("target_height")}
+        if not block_data.get("number") and self.blockchain:
+            last = self.blockchain.get_last_block()
+            if last:
+                block_data["number"] = last.get("height", last.get("number"))
+        slot = att_data.get("slot", 0)
+        try:
+            signed = self.validator_keys.sign_attestation(block_data, slot)
+        except Exception as e:
+            logger.debug(f"[P2P] Attestation sign failed: {e}")
+            return
+        if self._loop and self._running:
+            asyncio.run_coroutine_threadsafe(
+                self._relay_attestation(signed), self._loop
+            )
 
     def _on_local_block(self, block_data: Dict):
         """Вызывается EventBus при новом блоке — рассылаем пирам."""
@@ -702,6 +844,8 @@ class P2PNode:
             "running": self._running,
             "port": self.config.p2p_port,
             "sync_engine": self.sync_engine is not None,
+            "state_consistent": self._state_consistent,
+            "state_root": self.blockchain.get_state_root() if self.blockchain else "",
         }
         if self.sync_engine:
             stats["sync_status"] = self.sync_engine.get_status()

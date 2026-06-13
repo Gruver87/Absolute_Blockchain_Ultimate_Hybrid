@@ -452,6 +452,7 @@ class NodeOrchestrator:
         self.evm = EVMAdapter(self.db, config) if config.evm_enabled else None
         if self.evm:
             print("[Node] EVM: enabled")
+        self.blockchain.evm = self.evm
 
         # 7. P2P
         self.p2p = P2PNode(config, self.blockchain, self.mempool, self.bus)
@@ -624,6 +625,9 @@ class NodeOrchestrator:
                 print(f"[Node] ValidatorKeys: unavailable ({e})")
         else:
             self.validator_keys = None
+
+        if self.p2p:
+            self.p2p.set_consensus(self.consensus, self.validator_keys)
 
         # 28. Lightning Network (payment channels)
         if _LIGHTNING_AVAILABLE:
@@ -884,6 +888,11 @@ class NodeOrchestrator:
     def get_height(self) -> int:
         return self.blockchain.get_height()
 
+    def request_peer_state_roots_sync(self, timeout: float = 15):
+        if self.p2p and hasattr(self.p2p, "request_peer_state_roots_sync"):
+            return self.p2p.request_peer_state_roots_sync(timeout)
+        return []
+
     # ── Запуск ───────────────────────────────────────────────────────────────
 
     async def start(self):
@@ -916,6 +925,7 @@ class NodeOrchestrator:
             wasm_vm=self.wasm_vm,
             ai_manager=self.ai_manager,
             cross_bridge=self.cross_bridge,
+            consensus_adapter=self.consensus,
             consensus_engine_standalone=self.consensus_engine_standalone,
             finality_engine=self.finality_engine,
             sync_engine=self.sync_engine,

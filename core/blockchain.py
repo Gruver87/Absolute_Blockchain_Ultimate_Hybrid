@@ -276,6 +276,7 @@ class Blockchain:
 
         self.pool_locks = None  # runtime.pool_locks.PoolLockManager
         self.consensus_adapter = None  # wired from main.NodeOrchestrator
+        self.evm = None  # execution.evm_adapter.EVMAdapter
 
         self._ensure_genesis()
 
@@ -505,10 +506,19 @@ class Blockchain:
 
     def _compute_state_root_from_db(self) -> str:
         accounts = self.db.get_all_accounts()
-        payload = [
-            {"a": r["address"], "b": round(float(r["balance"]), 12), "n": int(r["nonce"])}
-            for r in accounts
-        ]
+        payload = []
+        for r in accounts:
+            code = r.get("code") or ""
+            storage = r.get("storage") or "{}"
+            code_hash = hashlib.sha256(code.encode()).hexdigest() if code else ""
+            storage_hash = hashlib.sha256(storage.encode()).hexdigest() if storage else ""
+            payload.append({
+                "a": r["address"],
+                "b": round(float(r["balance"]), 12),
+                "n": int(r["nonce"]),
+                "c": code_hash,
+                "s": storage_hash,
+            })
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(encoded.encode()).hexdigest()
 
@@ -546,6 +556,52 @@ class Blockchain:
         sig_check = self._verify_tx_signature(tx)
         if not sig_check["valid"]:
             return {"success": False, "error": sig_check.get("error", "invalid_signature")}
+
+        # EVM contract call when calldata + deployed code at destination
+        if tx.data and getattr(self, "evm", None):
+            target_acct = self.db.get_account(tx.to_addr)
+            if target_acct and target_acct.get("code"):
+                evm_res = self.evm.call_contract(
+                    tx.from_addr,
+                    tx.to_addr,
+                    tx.data,
+                    tx.value,
+                    gas_limit=tx.gas or self.config.evm_gas_limit,
+                )
+                if not evm_res.success:
+                    return {"success": False, "error": evm_res.error or "evm_call_failed"}
+                fee = max(fee, evm_res.gas_used * self.config.gas_price_wei)
+                burn_amount = fee * self.config.burn_rate
+                miner_fee = fee - burn_amount
+                if sender_balance < fee + tx.value:
+                    return {"success": False, "error": "insufficient_funds_for_gas"}
+                if in_atomic:
+                    self.db.balance_delta(tx.from_addr, -fee)
+                    self.db.balance_delta(proposer, miner_fee)
+                    if burn_amount > 0 and self.config.burn_address:
+                        self.db.balance_delta(self.config.burn_address, burn_amount)
+                    self.db.nonce_increment(tx.from_addr)
+                else:
+                    self.db.update_balance(tx.from_addr, -fee)
+                    self.db.update_balance(proposer, miner_fee)
+                    if burn_amount > 0 and self.config.burn_address:
+                        self.db.update_balance(self.config.burn_address, burn_amount)
+                    self.db.increment_nonce(tx.from_addr)
+                if self.pool_locks:
+                    self.pool_locks.record_outgoing(tx.from_addr, fee + tx.value)
+                tx.fee = fee
+                tx.burned = burn_amount
+                tx.gas_used = evm_res.gas_used or tx.gas
+                tx.block_height = block_height
+                if self.bus:
+                    self.bus.emit("tx.applied", tx.to_dict())
+                return {
+                    "success": True,
+                    "fee": fee,
+                    "burned": burn_amount,
+                    "miner_fee": miner_fee,
+                    "evm": True,
+                }
 
         if in_atomic:
             self.db.balance_delta(tx.from_addr, -total_cost)

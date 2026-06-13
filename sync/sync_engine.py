@@ -197,6 +197,19 @@ class SyncEngine:
         local_height = self.node.blockchain.get_height()
         mismatches = []
 
+        wire_roots = []
+        if hasattr(self.node, "request_peer_state_roots_sync"):
+            try:
+                wire_roots = self.node.request_peer_state_roots_sync()
+            except Exception:
+                wire_roots = []
+
+        for entry in wire_roots:
+            peer_root = entry.get("state_root", "")
+            peer_h = int(entry.get("height", 0) or 0)
+            if peer_h == local_height and peer_root and peer_root != local_root:
+                mismatches.append(entry.get("peer_id", "peer")[:8])
+
         for peer in self._collect_p2p_peers():
             peer_height = int(getattr(peer, "height", 0) or 0)
             if peer_height != local_height:
@@ -206,13 +219,19 @@ class SyncEngine:
                 continue
             peer_root = blk.get("state_root", "")
             if peer_root and peer_root != local_root:
-                mismatches.append(getattr(peer, "peer_id", "peer")[:8])
+                pid = getattr(peer, "peer_id", "peer")[:8]
+                if pid not in mismatches:
+                    mismatches.append(pid)
 
         if mismatches:
             print(f"   State root mismatch vs peers: {', '.join(mismatches)}")
+            if hasattr(self.node, "_state_consistent"):
+                self.node._state_consistent = False
             return False
 
         print(f"   State consistent (root={local_root[:12]}... height={local_height})")
+        if hasattr(self.node, "_state_consistent"):
+            self.node._state_consistent = True
         return True
 
     def get_status(self) -> dict:

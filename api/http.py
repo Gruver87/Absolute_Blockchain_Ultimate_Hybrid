@@ -91,6 +91,7 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/peers", "summary": "Connected P2P peers (alias)"},
     {"method": "GET", "path": "/network/peers", "summary": "Connected P2P peers"},
     {"method": "GET", "path": "/sync/status", "summary": "Chain sync status"},
+    {"method": "GET", "path": "/features", "summary": "Feature flags and module availability"},
     {"method": "GET", "path": "/bridge", "summary": "Bridge overview"},
     {"method": "GET", "path": "/bridge/locks", "summary": "Bridge lock records"},
     {"method": "GET", "path": "/wallet/status", "summary": "Signing wallet status"},
@@ -350,6 +351,7 @@ class RESTHandler(BaseHTTPRequestHandler):
     ai_manager = None                # AIAgentManager
     cross_bridge = None              # CrossChainBridge
     consensus_engine_standalone = None  # Standalone ConsensusEngine
+    consensus_adapter = None           # consensus.adapter.ConsensusAdapter
     finality_engine = None           # FinalityEngine
     sync_engine = None               # SyncEngine
     state_engine = None              # StateEngine
@@ -709,24 +711,40 @@ class RESTHandler(BaseHTTPRequestHandler):
                 self._json(p2p.get_stats() if p2p else {})
 
             elif path == "/consensus/stats":
-                # Full consensus stats including LMD-GHOST + slashing + PBS
-                from consensus.adapter import ConsensusAdapter
-                # We expose stats via the blockchain stats endpoint since we don't
-                # hold a reference here — expose what's in DB
-                validators = db.get_validators()
-                checkpoints = db.get_checkpoints() if hasattr(db, "get_checkpoints") else []
-                self._json({
-                    "validators": len(validators),
-                    "checkpoints": len(checkpoints) if isinstance(checkpoints, list) else 0,
-                    "systems": {
-                        "lmd_ghost": True,
-                        "casper_ffg": True,
-                        "slashing": True,
-                        "pbs": True,
-                        "validator_registry": True,
-                    },
-                    "description": "Unified consensus: LMD-GHOST + Casper FFG + Slashing + PBS",
-                })
+                ca = self.__class__.consensus_adapter
+                if ca and hasattr(ca, "get_stats"):
+                    stats = dict(ca.get_stats())
+                    validators = db.get_validators()
+                    stats["validators"] = len(validators)
+                    checkpoints = db.get_checkpoints() if hasattr(db, "get_checkpoints") else []
+                    stats["checkpoints"] = len(checkpoints) if isinstance(checkpoints, list) else 0
+                    self._json(stats)
+                else:
+                    validators = db.get_validators()
+                    checkpoints = db.get_checkpoints() if hasattr(db, "get_checkpoints") else []
+                    self._json({
+                        "validators": len(validators),
+                        "checkpoints": len(checkpoints) if isinstance(checkpoints, list) else 0,
+                        "enabled": False,
+                        "error": "consensus adapter not loaded",
+                    })
+
+            elif path == "/features":
+                from features import FeatureFlags
+                cfg = self.__class__.config
+                flags = FeatureFlags.from_config(cfg) if cfg else FeatureFlags()
+                instances = {
+                    "evm": self.__class__.evm,
+                    "bridge": getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge,
+                    "nft": self.__class__.nft,
+                    "zk": self.__class__.zk,
+                    "sharding": self.__class__.sharding,
+                    "oracles": self.__class__.oracles,
+                    "wasm": self.__class__.wasm_vm,
+                    "plasma": self.__class__.plasma,
+                    "lightning": self.__class__.lightning,
+                }
+                self._json(flags.to_api_dict(instances))
 
             elif path == "/auth/token":
                 # JWT token generation endpoint
@@ -1704,7 +1722,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ok = zk.verify_range(proof, value, min_v, max_v)
                     self._json({"valid": bool(ok)})
                 else:
-                    self._json({"valid": value >= min_v and value <= max_v, "simulated": True})
+                    self._error(503, "ZK range verification not available")
 
             # ── Slashing engine ───────────────────────────────────────────────
             elif path == "/slashing/status":
@@ -2932,9 +2950,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "Bridge not enabled"); return
                 amount = float(body.get("amount", 0))
                 from_addr = body.get("from_address", body.get("from", ""))
-                target_chain = body.get("target_chain", "ETH")
+                to_addr = body.get("to_address", body.get("to", ""))
+                target_chain = body.get("target_chain", body.get("to_chain", "ethereum"))
                 if hasattr(br, "lock_and_bridge"):
-                    result = br.lock_and_bridge(from_addr, amount, target_chain)
+                    result = br.lock_and_bridge(from_addr, target_chain, to_addr, amount)
                     self._json(result if isinstance(result, dict) else {"success": bool(result)})
                 elif hasattr(br, "transfer"):
                     result = br.transfer(from_addr, body.get("to_address",""), amount, target_chain)
@@ -2946,9 +2965,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                 br = getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge
                 if not br:
                     self._error(503, "Bridge not enabled"); return
-                tx_id = body.get("tx_id", "")
+                tx_id = body.get("tx_id", body.get("tx_hash", ""))
+                recipient = body.get("recipient", body.get("to_address", ""))
+                amount = float(body.get("amount", 0))
+                from_chain = body.get("from_chain", body.get("source_chain", "ethereum"))
                 if hasattr(br, "confirm_incoming"):
-                    result = br.confirm_incoming(tx_id)
+                    result = br.confirm_incoming(tx_id, recipient, amount, from_chain)
                     self._json(result if isinstance(result, dict) else {"success": bool(result)})
                 else:
                     self._json({"success": False, "error": "confirm not available"})
@@ -3476,7 +3498,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     proof = zk.prove_range(value, min_v, max_v)
                     self._json({"proof": str(proof), "valid": True})
                 else:
-                    self._json({"valid": value >= min_v and value <= max_v, "simulated": True})
+                    self._error(503, "ZK range proofs not available")
 
             elif path == "/zk/create-tx":
                 zk = self.__class__.zk
@@ -3594,9 +3616,12 @@ def _parse_tx_value(value_raw) -> float:
 def _build_sync_status(se, p2p, bc, cfg) -> Dict:
     """Real sync view: SyncEngine when present, merged with live P2P peer heights."""
     local_h = bc.get_height() if bc and hasattr(bc, "get_height") else 0
+    state_root = bc.get_state_root() if bc and hasattr(bc, "get_state_root") else ""
     peer_count = p2p.peer_count() if p2p else 0
     peers_info = p2p.get_peers_info() if p2p else []
     best_peer_height = max((p.get("height", 0) for p in peers_info), default=local_h)
+    state_consistent = getattr(p2p, "_state_consistent", True) if p2p else True
+    root_fields = {"state_root": state_root, "state_consistent": state_consistent}
 
     if se and hasattr(se, "get_status"):
         status = dict(se.get_status())
@@ -3607,6 +3632,7 @@ def _build_sync_status(se, p2p, bc, cfg) -> Dict:
         status["best_peer_height"] = best_peer_height
         status["behind"] = max(0, best_peer_height - local_h)
         status["solo_mode"] = peer_count == 0
+        status.update(root_fields)
         if peer_count == 0:
             status["hint"] = (
                 "Solo node is normal locally. Connect peers: "
@@ -3630,6 +3656,7 @@ def _build_sync_status(se, p2p, bc, cfg) -> Dict:
         "peers": peer_count,
         "solo_mode": peer_count == 0,
         "bootstrap_peers": getattr(cfg, "bootstrap_peers", []) if cfg else [],
+        **root_fields,
         "hint": (
             "Solo node is normal locally. Connect peers: "
             "python main.py --peers 127.0.0.1:5000 or bootstrap_peers in config"
@@ -3845,6 +3872,7 @@ def create_http_server(blockchain, mempool, db, config,
                        lightning=None, crypto_will=None, plasma=None,
                        wasm_vm=None, ai_manager=None, cross_bridge=None,
                        consensus_engine_standalone=None,
+                       consensus_adapter=None,
                        finality_engine=None, sync_engine=None,
                        state_engine=None,
                        slashing_engine=None, validator_registry=None,
@@ -3888,6 +3916,7 @@ def create_http_server(blockchain, mempool, db, config,
     RESTHandler.ai_manager = ai_manager
     RESTHandler.cross_bridge = cross_bridge
     RESTHandler.consensus_engine_standalone = consensus_engine_standalone
+    RESTHandler.consensus_adapter = consensus_adapter
     RESTHandler.finality_engine = finality_engine
     RESTHandler.sync_engine = sync_engine
     RESTHandler.state_engine = state_engine
@@ -3935,7 +3964,8 @@ def start_http_server_thread(blockchain, mempool, db, config,
                               mev_simulator=None,
                               immutable_state=None,
                               lightning=None, crypto_will=None, plasma=None,
-                              wasm_vm=None, ai_manager=None, cross_bridge=None,
+                              wasm_vm=None, ai_manager=None,                               cross_bridge=None,
+                              consensus_adapter=None,
                               consensus_engine_standalone=None,
                               finality_engine=None, sync_engine=None,
                               state_engine=None,
@@ -3962,7 +3992,8 @@ def start_http_server_thread(blockchain, mempool, db, config,
         ai_validator=ai_validator, reorg_predictor=reorg_predictor,
         mev_simulator=mev_simulator, immutable_state=immutable_state,
         lightning=lightning, crypto_will=crypto_will, plasma=plasma,
-        wasm_vm=wasm_vm, ai_manager=ai_manager, cross_bridge=cross_bridge,
+        wasm_vm=wasm_vm, ai_manager=ai_manager,         cross_bridge=cross_bridge,
+        consensus_adapter=consensus_adapter,
         consensus_engine_standalone=consensus_engine_standalone,
         finality_engine=finality_engine, sync_engine=sync_engine,
         state_engine=state_engine,

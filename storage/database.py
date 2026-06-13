@@ -299,7 +299,7 @@ class Database:
     def get_all_accounts(self) -> List[Dict]:
         with self.lock:
             rows = self.conn.execute(
-                "SELECT address, balance, nonce FROM accounts ORDER BY address"
+                "SELECT address, balance, nonce, code, storage FROM accounts ORDER BY address"
             ).fetchall()
             return [dict(r) for r in rows]
 

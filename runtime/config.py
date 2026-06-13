@@ -76,6 +76,13 @@ class Config:
     # ── EVM ─────────────────────────────────────────────────────────────────
     evm_enabled: bool = True
     evm_gas_limit: int = 8_000_000
+    feature_nft: bool = True
+    feature_zk: bool = True
+    feature_sharding: bool = True
+    feature_oracles: bool = True
+    feature_wasm: bool = True
+    feature_plasma: bool = True
+    feature_lightning: bool = True
 
     # ── Мост (Cross-chain bridge) ────────────────────────────────────────────
     bridge_enabled: bool = True
