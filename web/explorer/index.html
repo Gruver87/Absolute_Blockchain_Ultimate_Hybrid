@@ -1601,9 +1601,24 @@
 <div id="toast"></div>
 
 <script>
-const API = 'http://localhost:8080';
-const RPC = 'http://localhost:8545';
+let API = (location.protocol === 'http:' || location.protocol === 'https:')
+  ? location.origin
+  : 'http://localhost:8080';
+let RPC = 'http://localhost:8545';
 let WS  = 'ws://localhost:8766';
+
+async function configureEndpoints() {
+  const probe = (location.protocol === 'http:' || location.protocol === 'https:')
+    ? location.origin
+    : 'http://localhost:8080';
+  try {
+    const st = await fetch(probe + '/status').then(r => r.json());
+    const host = location.hostname || 'localhost';
+    if (st.http_port) API = `http://${host}:${st.http_port}`;
+    if (st.rpc_port) RPC = `http://${host}:${st.rpc_port}`;
+    if (st.ws_port) WS = `ws://${host}:${st.ws_port}`;
+  } catch (_) {}
+}
 
 // ── Navigation ──────────────────────────────────────────────────────────────
 function show(tab) {
@@ -1669,6 +1684,10 @@ async function post(path, body) {
     });
     return await r.json();
   } catch(e) { return {error: String(e)}; }
+}
+async function api(path, method = 'GET', body = null) {
+  if (String(method).toUpperCase() === 'POST') return post(path, body || {});
+  return get(path);
 }
 async function rpc(method, params=[]) {
   try {
@@ -2247,6 +2266,7 @@ async function loadTruthLayer() {
       <tr><td style="color:var(--gray)">State root</td><td class="hash">${(sync.state_root||'').slice(0,28)}…</td></tr>
     </table>`;
   }
+}
 
 // ── ZK Proofs ─────────────────────────────────────────────────────────────────
 async function loadZKInfo() {
@@ -3902,17 +3922,21 @@ async function deactivateAIAgent() {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-connectWS();
-applyFeatureGates();
-refreshStatus();
-loadRecentActivity();
-loadBlocks(0);
-loadDashboardStats();
-loadTokenomics();
-loadFounderInfo();
-loadPoolLocks();
-setInterval(refreshStatus, 10000);
-setInterval(loadDashboardStats, 30000);
+async function boot() {
+  await configureEndpoints();
+  connectWS();
+  applyFeatureGates();
+  refreshStatus();
+  loadRecentActivity();
+  loadBlocks(0);
+  loadDashboardStats();
+  loadTokenomics();
+  loadFounderInfo();
+  loadPoolLocks();
+  setInterval(refreshStatus, 10000);
+  setInterval(loadDashboardStats, 30000);
+}
+boot();
 </script>
 </body>
 </html>
