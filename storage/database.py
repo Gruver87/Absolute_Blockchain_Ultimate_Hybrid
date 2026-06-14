@@ -187,6 +187,32 @@ class Database:
                 created_at INTEGER DEFAULT 0
             );
 
+            CREATE TABLE IF NOT EXISTS bridge_credits (
+                credit_key  TEXT PRIMARY KEY,
+                l1_tx_hash  TEXT NOT NULL,
+                recipient   TEXT NOT NULL,
+                amount      REAL NOT NULL,
+                from_chain  TEXT NOT NULL,
+                credited_at INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS minivm_contracts (
+                address     TEXT PRIMARY KEY,
+                bytecode    TEXT NOT NULL,
+                storage     TEXT NOT NULL DEFAULT '{}',
+                deployed_at INTEGER NOT NULL DEFAULT 0,
+                calls       INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS slash_events (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                validator  TEXT NOT NULL,
+                reason     TEXT NOT NULL,
+                epoch      INTEGER NOT NULL DEFAULT 0,
+                penalty    INTEGER NOT NULL DEFAULT 0,
+                timestamp  INTEGER NOT NULL DEFAULT 0
+            );
+
             CREATE INDEX IF NOT EXISTS idx_tx_block ON transactions(block_height);
             CREATE INDEX IF NOT EXISTS idx_tx_from  ON transactions(from_addr);
             CREATE INDEX IF NOT EXISTS idx_tx_to    ON transactions(to_addr);
@@ -639,6 +665,81 @@ class Database:
         with self.lock:
             rows = self.conn.execute(
                 "SELECT * FROM bridge_locks ORDER BY created_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def bridge_credit_key(self, l1_tx_hash: str, recipient: str, amount: float, from_chain: str) -> str:
+        import hashlib
+        raw = f"{l1_tx_hash}:{recipient}:{amount}:{from_chain}".lower()
+        return hashlib.sha256(raw.encode()).hexdigest()
+
+    def has_bridge_credit(self, credit_key: str) -> bool:
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT 1 FROM bridge_credits WHERE credit_key=?", (credit_key,)
+            ).fetchone()
+            return row is not None
+
+    def save_bridge_credit(self, l1_tx_hash: str, recipient: str, amount: float, from_chain: str) -> str:
+        key = self.bridge_credit_key(l1_tx_hash, recipient, amount, from_chain)
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR IGNORE INTO bridge_credits
+                   (credit_key, l1_tx_hash, recipient, amount, from_chain, credited_at)
+                   VALUES (?,?,?,?,?,?)""",
+                (key, l1_tx_hash, recipient, amount, from_chain, int(time.time())),
+            )
+            self.conn.commit()
+        return key
+
+    def save_minivm_contract(self, address: str, bytecode: list, storage: dict, calls: int = 0) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO minivm_contracts
+                   (address, bytecode, storage, deployed_at, calls)
+                   VALUES (?,?,?,?,?)""",
+                (
+                    address,
+                    json.dumps(bytecode, ensure_ascii=False),
+                    json.dumps(storage, ensure_ascii=False),
+                    int(time.time()),
+                    calls,
+                ),
+            )
+            self.conn.commit()
+
+    def load_minivm_contracts(self) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute("SELECT * FROM minivm_contracts").fetchall()
+            out = []
+            for row in rows:
+                item = dict(row)
+                try:
+                    item["bytecode"] = json.loads(item.get("bytecode") or "[]")
+                    item["storage"] = json.loads(item.get("storage") or "{}")
+                except Exception:
+                    item["bytecode"] = []
+                    item["storage"] = {}
+                out.append(item)
+            return out
+
+    def save_slash_event(self, validator: str, reason: str, epoch: int, penalty: int) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT INTO slash_events (validator, reason, epoch, penalty, timestamp)
+                   VALUES (?,?,?,?,?)""",
+                (validator, reason, epoch, penalty, int(time.time())),
+            )
+            self.conn.execute(
+                "UPDATE validators SET slashed=1, active=0 WHERE address=?",
+                (validator,),
+            )
+            self.conn.commit()
+
+    def get_slash_events(self, limit: int = 100) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT * FROM slash_events ORDER BY id DESC LIMIT ?", (limit,)
             ).fetchall()
             return [dict(r) for r in rows]
 

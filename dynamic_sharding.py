@@ -35,14 +35,19 @@ class CrossShardTransaction:
 class ShardingManager:
     """Complete sharding system for blockchain scalability"""
 
-    def __init__(self, num_shards: int = 4):
+    def __init__(self, num_shards: int = 4, db=None):
         self.num_shards = num_shards
         self.shards: Dict[int, Shard] = {}
         self.cross_shard_txs: Dict[str, CrossShardTransaction] = {}
         self.pending_cross_txs: List[str] = []
         self.node_to_shard: Dict[str, int] = {}
         self.shard_lock = threading.Lock()
+        self._db = db
         self._initialize_shards()
+
+    def set_database(self, db) -> None:
+        """Attach chain database for real balance lookups."""
+        self._db = db
 
     def _initialize_shards(self):
         """Initialize shards"""
@@ -99,8 +104,23 @@ class ShardingManager:
                 self.pending_cross_txs.remove(tx_id)
 
     def _validate_cross_shard_tx(self, tx: CrossShardTransaction) -> bool:
-        """Validate cross-shard transaction"""
+        """Validate cross-shard transaction against chain balances."""
+        if tx.amount <= 0:
+            return False
+        if not tx.from_addr or not tx.to_addr:
+            return False
+        if self._db and hasattr(self._db, "get_balance"):
+            balance = float(self._db.get_balance(tx.from_addr))
+            return balance >= float(tx.amount)
         return True
+
+    def get_shard_balance(self, address: str, shard_id: int = None) -> float:
+        """Balance for address (logical shard routing; funds live on L1 state)."""
+        if shard_id is None:
+            shard_id = self.get_shard_for_address(address)
+        if self._db and hasattr(self._db, "get_balance"):
+            return float(self._db.get_balance(address))
+        return 0.0
 
     def get_shard_state(self, shard_id: int) -> dict:
         """Get state of a specific shard"""
@@ -158,16 +178,12 @@ class ShardingManager:
 
         return block
 
-    def get_shard_balance(self, address: str, shard_id: int = None) -> int:
-        """Get balance from specific shard"""
-        if shard_id is None:
-            shard_id = self.get_shard_for_address(address)
-        return 0
-
     def get_stats(self) -> dict:
         """Get sharding statistics"""
         return {
             "enabled": True,
+            "tier": "routing",
+            "balance_source": "chain_state" if self._db else "unavailable",
             "total_shards": self.num_shards,
             "total_transactions": sum(len(s.transactions) for s in self.shards.values()),
             "total_cross_shard_txs": len(self.cross_shard_txs),

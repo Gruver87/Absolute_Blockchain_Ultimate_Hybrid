@@ -2,6 +2,24 @@
 from dataclasses import dataclass, asdict
 from typing import Dict, Any, Optional
 
+# production = affects L1 state; routing = logical layer on L1; demo = simulation only
+MODULE_TIERS: Dict[str, str] = {
+    "evm": "production",
+    "bridge": "production",
+    "mempool": "production",
+    "p2p": "production",
+    "consensus": "production",
+    "sharding": "routing",
+    "oracles": "offchain",
+    "nft": "production",
+    "wasm": "demo",
+    "plasma": "demo",
+    "lightning": "demo",
+    "zk": "educational",
+    "pq": "educational",
+    "mev": "demo",
+}
+
 
 @dataclass
 class FeatureFlags:
@@ -29,14 +47,19 @@ class FeatureFlags:
             lightning=getattr(config, "feature_lightning", True),
         )
 
-    def to_api_dict(self, instances: Optional[Dict[str, Any]] = None) -> Dict:
+    def to_api_dict(self, instances: Optional[Dict[str, Any]] = None, config=None) -> Dict:
         instances = instances or {}
-        out = {}
+        is_prod = getattr(config, "is_production", False) if config else False
+        out = {"deployment_mode": getattr(config, "deployment_mode", "dev") if config else "dev"}
         for name, enabled in asdict(self).items():
             live = instances.get(name)
+            tier = MODULE_TIERS.get(name, "demo")
+            blocked_in_prod = is_prod and tier in ("demo", "educational")
             out[name] = {
-                "enabled": bool(enabled and live is not None),
+                "enabled": bool(enabled and live is not None and not blocked_in_prod),
                 "configured": enabled,
                 "loaded": live is not None,
+                "tier": tier,
+                "demo": tier in ("demo", "educational", "offchain"),
             }
         return out

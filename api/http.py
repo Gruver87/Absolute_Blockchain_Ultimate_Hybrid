@@ -950,7 +950,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "plasma": self.__class__.plasma,
                     "lightning": self.__class__.lightning,
                 }
-                self._json(flags.to_api_dict(instances))
+                self._json(flags.to_api_dict(instances, cfg))
 
             elif path == "/consensus/attestations/by-block":
                 ca = self.__class__.consensus_adapter
@@ -1964,16 +1964,20 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path.startswith("/sharding/balance/"):
                 addr = path.split("/sharding/balance/")[-1]
                 sh = self.__class__.sharding
-                if sh and hasattr(sh, "get_shard_balance"):
-                    self._json({"address": addr, "balance": sh.get_shard_balance(addr)})
-                elif sh and hasattr(sh, "shards"):
-                    total = 0
-                    for shard in sh.shards.values():
-                        if hasattr(shard, "balances"):
-                            total += shard.balances.get(addr, 0)
-                    self._json({"address": addr, "total_shard_balance": total})
+                bc = self.__class__.blockchain
+                shard_id = sh.get_shard_for_address(addr) if sh and hasattr(sh, "get_shard_for_address") else None
+                if bc and hasattr(bc, "get_balance"):
+                    balance = float(bc.get_balance(addr))
+                elif sh and hasattr(sh, "get_shard_balance"):
+                    balance = float(sh.get_shard_balance(addr))
                 else:
-                    self._error(404, "Sharding not enabled")
+                    balance = 0.0
+                self._json({
+                    "address": addr,
+                    "shard_id": shard_id,
+                    "balance": balance,
+                    "source": "chain_state",
+                })
 
             elif path.startswith("/sharding/state/"):
                 shard_id_str = path.split("/sharding/state/")[-1]
@@ -2236,13 +2240,40 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             # ── MEV frontrun simulation ───────────────────────────────────────
             elif path == "/mev/frontrun":
+                cfg = self.__class__.config
+                if getattr(cfg, "is_production", False):
+                    self._json({"enabled": False, "demo": True, "error": "MEV disabled in production"})
+                    return
                 mev = self.__class__.mev_simulator
-                tx_hash = qs.get("tx_hash", ["sample_tx"])[0]
-                if mev and hasattr(mev, "simulate_frontrun"):
-                    result = mev.simulate_frontrun(tx_hash)
-                    self._json(result if isinstance(result, dict) else {"result": str(result)})
+                mp = self.__class__.mempool
+                tx_hash = qs.get("tx_hash", [""])[0]
+                target = None
+                if mp and tx_hash:
+                    for tx in mp.get(limit=500):
+                        if tx.tx_hash == tx_hash:
+                            from features.mev_simulator import Transaction as MevTx
+                            target = MevTx(
+                                hash=tx.tx_hash,
+                                from_addr=tx.from_addr,
+                                to_addr=tx.to_addr,
+                                value=float(tx.amount),
+                                gas_price=int(tx.fee * 1e9) if tx.fee else 1,
+                                timestamp=0,
+                            )
+                            break
+                if mev and target and hasattr(mev, "simulate_frontrun"):
+                    result = mev.simulate_frontrun(target, bot_balance=1000.0)
+                    result["demo"] = True
+                    result["tx_hash"] = tx_hash
+                    self._json(result)
                 else:
-                    self._json({"profit_potential": 0.0, "feasible": False, "enabled": bool(mev)})
+                    self._json({
+                        "success": False,
+                        "feasible": False,
+                        "demo": True,
+                        "enabled": bool(mev),
+                        "error": "tx not in mempool" if tx_hash else "tx_hash required",
+                    })
 
             # ── Reorg depth & fork analysis ───────────────────────────────────
             elif path == "/reorg/depth":
@@ -2747,6 +2778,21 @@ class RESTHandler(BaseHTTPRequestHandler):
                     if hasattr(sa, "recover_account"):
                         ok = sa.recover_account(account, new_owner, guardians)
                         self._json({"success": ok, "account": account, "new_owner": new_owner})
+                    elif hasattr(sa, "get_account"):
+                        acc = sa.get_account(account)
+                        if not acc:
+                            self._error(404, "account not found"); return
+                        if not guardians:
+                            self._error(400, "guardians required"); return
+                        req_id = None
+                        for g in guardians:
+                            req_id = acc.request_recovery(g) or req_id
+                            if req_id:
+                                acc.approve_recovery(req_id, g)
+                        if req_id and acc.execute_recovery(req_id, new_owner):
+                            self._json({"success": True, "account": account, "new_owner": new_owner, "request_id": req_id})
+                        else:
+                            self._json({"success": False, "error": "recovery not approved"})
                     else:
                         self._error(501, "recovery not implemented")
                 except Exception as e:
@@ -3925,14 +3971,50 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             # ── MEV frontrun analysis ─────────────────────────────────────────
             elif path == "/mev/frontrun":
+                cfg = self.__class__.config
+                if getattr(cfg, "is_production", False):
+                    self._json({"enabled": False, "demo": True, "error": "MEV disabled in production"})
+                    return
                 mev = self.__class__.mev_simulator
+                mp = self.__class__.mempool
                 tx_data = body.get("transaction", {})
-                tx_hash = body.get("tx_hash", "sample_tx")
-                if mev and hasattr(mev, "simulate_frontrun"):
-                    result = mev.simulate_frontrun(tx_hash)
-                    self._json(result if isinstance(result, dict) else {"result": str(result)})
+                tx_hash = body.get("tx_hash", tx_data.get("hash", ""))
+                target = None
+                if tx_data:
+                    from features.mev_simulator import Transaction as MevTx
+                    target = MevTx(
+                        hash=tx_data.get("hash", tx_hash or "0x0"),
+                        from_addr=tx_data.get("from", ""),
+                        to_addr=tx_data.get("to", ""),
+                        value=float(tx_data.get("value", tx_data.get("amount", 0))),
+                        gas_price=int(tx_data.get("gas_price", 1)),
+                        timestamp=0,
+                    )
+                elif mp and tx_hash:
+                    for tx in mp.get(limit=500):
+                        if tx.tx_hash == tx_hash:
+                            from features.mev_simulator import Transaction as MevTx
+                            target = MevTx(
+                                hash=tx.tx_hash,
+                                from_addr=tx.from_addr,
+                                to_addr=tx.to_addr,
+                                value=float(tx.amount),
+                                gas_price=int(tx.fee * 1e9) if tx.fee else 1,
+                                timestamp=0,
+                            )
+                            break
+                if mev and target and hasattr(mev, "simulate_frontrun"):
+                    result = mev.simulate_frontrun(target, bot_balance=1000.0)
+                    result["demo"] = True
+                    self._json(result)
                 else:
-                    self._json({"profit_potential": 0.0, "feasible": False, "enabled": bool(mev)})
+                    self._json({
+                        "success": False,
+                        "feasible": False,
+                        "demo": True,
+                        "enabled": bool(mev),
+                        "error": "transaction or tx_hash required",
+                    })
 
             # ── ZK: range proof & transaction ─────────────────────────────────
             elif path == "/zk/prove/range":
@@ -4183,6 +4265,8 @@ def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
     overview = {
         "enabled": bool(getattr(cfg, "bridge_enabled", False)),
         "mode": getattr(cfg, "bridge_mode", "simulator"),
+        "demo": getattr(cfg, "bridge_mode", "simulator") == "simulator",
+        "tier": "production" if getattr(cfg, "bridge_mode", "") == "rust" else "simulator",
         "auto_confirm_sec": int(getattr(cfg, "bridge_auto_confirm_sec", 0) or 0),
         "deployment_note": (
             "Manual confirm mode — use POST /bridge/confirm-lock"

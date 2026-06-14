@@ -667,6 +667,20 @@ class SmartAccountManager:
         
         return True
     
+    def recover_account(self, identifier: str, new_owner: str, guardians: List[str]) -> bool:
+        """Guardian quorum recovery — request, approve, execute."""
+        account = self.get_account(identifier)
+        if not account or not new_owner or not guardians:
+            return False
+        request_id = None
+        for guardian in guardians:
+            request_id = account.request_recovery(guardian) or request_id
+            if request_id:
+                account.approve_recovery(request_id, guardian)
+        if not request_id:
+            return False
+        return account.execute_recovery(request_id, new_owner)
+
     def get_stats(self) -> Dict:
         """Статистика по всем аккаунтам"""
         

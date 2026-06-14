@@ -499,7 +499,7 @@ class NodeOrchestrator:
 
         # 11. Dynamic Sharding (4 shards: Genesis, Finance, Governance, Identity)
         if _SHARDING_AVAILABLE:
-            self.sharding = ShardingManager(num_shards=4)
+            self.sharding = ShardingManager(num_shards=4, db=self.db)
             self.sharding.register_node(config.miner_address or "node-0")
             print(f"[Node] Sharding: {self.sharding.num_shards} shards active")
         else:
@@ -545,7 +545,7 @@ class NodeOrchestrator:
 
         # 17. MiniVM Contract Manager + Assembler
         if _MINIVM_CONTRACTS_AVAILABLE:
-            self.contract_manager = ContractManager()
+            self.contract_manager = ContractManager(db=self.db)
             self.assembler = Assembler()
             print("[Node] MiniVM ContractManager: ready (deploy/call via /minivm/*)")
         else:
@@ -753,6 +753,10 @@ class NodeOrchestrator:
             self.slashing_engine = _SlashingEng()
             if config.miner_address:
                 self.slashing_engine.register_validator(config.miner_address, config.min_stake)
+            if self.db and hasattr(self.db, "save_slash_event"):
+                self.slashing_engine.register_slash_callback(
+                    lambda v, r, e, p: self.db.save_slash_event(v, r, e, p)
+                )
             print("[Node] SlashingEngine: double-vote detection ready")
         except Exception as _e:
             self.slashing_engine = None
