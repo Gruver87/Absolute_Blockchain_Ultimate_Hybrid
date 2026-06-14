@@ -16,6 +16,7 @@ After start_two_nodes.ps1 use either:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -146,6 +147,33 @@ def _peer_saw_tx(base_url: str, tx_hash: str, height_hint: int = 0) -> bool:
     return False
 
 
+def _unique_recipient(salt: str = "") -> str:
+    """Unique to-address so repeated verify runs do not hit 'already in mempool'."""
+    seed = f"abs-p2p-verify-{time.time_ns()}-{salt}-{os.getpid()}"
+    return "0x" + hashlib.sha256(seed.encode()).hexdigest()[:40]
+
+
+def _send_propagation_tx(url1: str, attempt: int = 0) -> dict:
+    """POST /tx/send with auto_sign; retries with fresh recipient on duplicate mempool."""
+    _ensure_signer_funded(url1)
+    last_exc: Exception | None = None
+    for i in range(4):
+        recipient = _unique_recipient(f"{attempt}-{i}")
+        body = {"auto_sign": True, "to": recipient, "value": 0.01, "gas": 21000}
+        try:
+            return _post_json(url1, "/tx/send", body, timeout=20)
+        except Exception as exc:
+            last_exc = exc
+            msg = str(exc).lower()
+            if "already in mempool" in msg or "500" in msg:
+                time.sleep(0.2)
+                continue
+            raise
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("tx/send failed after retries")
+
+
 def _verify_tx_propagation_multi(url1: str, target_urls: list[str], s1: dict) -> bool:
     """Wave 52: signed tx on node1 must reach all target mempools."""
     wave = int(s1.get("api_wave", 0) or 0)
@@ -153,18 +181,11 @@ def _verify_tx_propagation_multi(url1: str, target_urls: list[str], s1: dict) ->
         print("SKIP: tx propagation (api_wave < 51)")
         return True
 
-    _ensure_signer_funded(url1)
-    recipient = "0x" + "3" * 40
     try:
-        body = {"auto_sign": True, "to": recipient, "value": 0.01, "gas": 21000}
-        resp = _post_json(url1, "/tx/send", body, timeout=20)
+        resp = _send_propagation_tx(url1)
     except Exception as exc:
-        _ensure_signer_funded(url1)
-        try:
-            resp = _post_json(url1, "/tx/send", body, timeout=20)
-        except Exception as exc2:
-            print(f"WARN: tx propagation send failed: {exc2}")
-            return False
+        print(f"WARN: tx propagation send failed: {exc}")
+        return False
 
     tx_hash = resp.get("tx_hash")
     if not tx_hash:

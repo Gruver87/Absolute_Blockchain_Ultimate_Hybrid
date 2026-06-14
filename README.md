@@ -5,8 +5,9 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Educational%20Only-orange)]()
-[![API Wave](https://img.shields.io/badge/API%20Wave-51-blue)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/Unit%20Tests-210%20passed-brightgreen)](tests/unit/)
+[![API Wave](https://img.shields.io/badge/API%20Wave-55-blue)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/Unit%20Tests-292%20passed-brightgreen)](tests/unit/)
+[![Audit](https://img.shields.io/badge/Full%20Audit-passing-brightgreen)](scripts/full_audit.py)
 [![Release](https://img.shields.io/badge/Release-v1.2.0--industrial-blue)](https://github.com/Gruver87/absolute-blockchain-ultimate/releases)
 
 **Repo:** [github.com/Gruver87/absolute-blockchain-ultimate](https://github.com/Gruver87/absolute-blockchain-ultimate)
@@ -14,7 +15,7 @@
 | Field | Value |
 |-------|-------|
 | **Version** | `1.2.0-industrial` |
-| **API Wave** | `52` → check `GET /status` → `api_wave` |
+| **API Wave** | `55` → check `GET /status` → `api_wave` |
 | **Entry point** | `python main.py` |
 | **Storage** | SQLite `data/blockchain.db` |
 | **Chain ID (dev)** | `77777` |
@@ -41,21 +42,44 @@
 
 ## Snapshot (for reviewers & investors)
 
-Honest one-screen view — no marketing claims beyond what is tested in-repo.
+**Absolute Blockchain Ultimate** is a single-process educational L1 node: real SQLite persistence, deterministic `state_root`, multi-node P2P sync, a full REST/RPC surface, and a browser explorer — designed as a portfolio-grade demo and research base, not as a production mainnet.
 
-| Area | Level | Notes |
-|------|-------|-------|
-| **L1 chain** | 🟢 Strong demo | Blocks, balances, burn 2%, genesis, SQLite, ~15s blocks |
-| **REST API** | 🟢 | 256+ routes, OpenAPI `/docs`, `api_wave=50` |
-| **P2P 2-node** | 🟢 Verified | Docker + scripts; `state_roots_match=True` |
-| **JSON-RPC** | 🟢 | `eth_*` subset, MetaMask-style |
-| **Explorer UI** | 🟢 | SPA at `:8080` (32 tabs) |
-| **EVM** | 🟡 Partial | Opcodes + logs SQLite; not full Ethereum parity |
-| **L2 modules** | 🟡 Demo | Lightning, Plasma, WASM, Will, AI, MEV — SQLite + L1 effects where documented |
-| **Bridge** | 🟡 Demo | `simulator` or `rust` binary; L1 RPC optional |
-| **Production** | 🔴 Out of scope | By design |
+| Area | Level | What is verified in-repo |
+|------|-------|--------------------------|
+| **L1 core** | 🟢 Production-quality demo | Blocks, balances, 2% burn, genesis, ECDSA txs, auto-mining ~12–15s |
+| **REST API** | 🟢 | **283** route handlers, OpenAPI `/docs`, `api_wave=55` |
+| **Web Explorer** | 🟢 | SPA at `:8080` — **32** functional tabs |
+| **P2P networking** | 🟢 Verified | 2 / 3 / 5-node Docker meshes; strict `state_root` on import |
+| **TX propagation** | 🟢 | Signed gossip + mempool pull + `/tx/trace/{hash}` |
+| **Multi-validator devnet** | 🟢 | 5 validators, proposer rotation, 3 miners + 2 attesters |
+| **State consistency** | 🟢 | Cross-node harness + auto-repair (`/chain/consistency/*`) |
+| **Fork & slashing CI** | 🟢 | `/testnet/fork-status`, double-vote detection |
+| **JSON-RPC** | 🟢 | `eth_*` subset (MetaMask-style) on `:8545` |
+| **Tokenomics model** | 🟢 | 221M ABS cap, founder D.U.P. 17.4% — enforced in code |
+| **EVM / L2 / Bridge** | 🟡 Educational | Working demos with SQLite persistence; not full Ethereum parity |
+| **Production mainnet** | 🔴 Out of scope | By design — see [DISCLAIMER.md](DISCLAIMER.md) |
 
-**Tests (Jun 2026):** `210 passed, 1 skipped` · **Docker devnet:** 2 nodes, P2P sync, strict `state_root` policy
+**Quality gate (Jun 2026):** `292 passed, 1 skipped` · **`python scripts/full_audit.py --live --p2p`** → 12/12 sections OK
+
+---
+
+## What you get out of the box
+
+| Capability | Status | How to try |
+|------------|--------|------------|
+| Solo node + Explorer | ✅ | `python main.py` → http://localhost:8080 |
+| Two-node local devnet | ✅ | `.\scripts\start_two_nodes.ps1` |
+| Docker 2-node mesh | ✅ | `.\scripts\docker_devnet.ps1` |
+| Docker 3-node testnet (Wave 52) | ✅ | `.\scripts\docker_devnet_3node.ps1` |
+| Docker 5-validator devnet (Wave 55) | ✅ | `.\scripts\docker_devnet_5validator.ps1` |
+| P2P sync verification | ✅ | `python scripts/verify_p2p_ci.py --mode devnet3` |
+| Full project audit (one command) | ✅ | `python scripts/full_audit.py --live --p2p` |
+| Unit + integration tests | ✅ | `pytest tests/ -q` |
+| Cross-chain bridge (sim / rust) | ✅ Demo | Explorer → Cross-Chain tab |
+| NFT marketplace | ✅ Demo | Persisted in SQLite |
+| Lightning / Plasma / WASM / Will | ✅ Demo | `GET /l2/status` |
+| Oracles (prices + weather) | ✅ Demo | `GET /oracles/prices` |
+| Post-quantum crypto demos | ✅ Educational | SPHINCS+, Kyber, Dilithium |
 
 ---
 
@@ -160,18 +184,28 @@ Expected when healthy:
 
 ```
 OK: peers n1=1 n2=1 heights X / X state_consistent=True state_roots_match=True
-api_wave=50
+api_wave=55
 ```
 
-> After `docker compose up`, wait 15–30 s before API calls, or use `docker_devnet.ps1` (waits for readiness).
+### Full audit (recommended before release)
+
+Single script — syntax, tokenomics, Waves 52–55, secrets scan, mega/final audit, pytest, live API, P2P mesh:
+
+```powershell
+python scripts/full_audit.py --live --p2p
+# Report: data/full_audit_report.json
+```
 
 ### Verify
 
 ```powershell
-pytest tests/unit -q
+pytest tests/ -q
+python scripts/verify_p2p_ci.py --mode devnet3    # 3-node mesh
+python scripts/verify_p2p_ci.py --mode devnet5    # 5-validator mesh
 curl.exe http://localhost:8080/health/live
 curl.exe http://localhost:8080/status
-curl.exe http://localhost:8080/chain/state-root/status
+curl.exe http://localhost:8080/testnet/validators
+curl.exe http://localhost:8080/chain/consistency/harness
 ```
 
 ---

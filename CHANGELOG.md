@@ -15,6 +15,9 @@
 - `GET /testnet/validators` — validator set health, proposer rotation stats
 - Mining proposer gate — only selected validator forges when `active_validators > 1`
 - `verify_p2p_ci.py --mode devnet5`; `.\scripts\docker_devnet_5validator.ps1`
+- Devnet5 sync fix — seeded-chain `dev_signer` skip, `ensure_state_at_tip` replay at tip
+- **`scripts/full_audit.py`** — unified audit: syntax, Waves 52–55, secrets, mega/final, pytest, live API, P2P
+- `verify_p2p_ci.py` — unique tx recipient per run (no false fail on repeat audit)
 
 ### Wave 54 — State consistency harness
 
