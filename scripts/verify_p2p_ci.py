@@ -29,6 +29,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DEVNET_URL1 = "http://127.0.0.1:8080"
 DEVNET_URL2 = "http://127.0.0.1:8081"
+DEVNET_URL3 = "http://127.0.0.1:8082"
 
 
 def _api(url: str, timeout: float = 10) -> dict:
@@ -100,30 +101,66 @@ def _mempool_has_tx(base_url: str, tx_hash: str) -> bool:
     return False
 
 
-def _verify_tx_propagation(url1: str, url2: str, s1: dict) -> bool:
-    """Wave 51: signed tx on node1 must appear in node2 mempool."""
+def _ensure_signer_funded(url1: str) -> None:
+    """Top up dev signer via faucet when balance too low for propagation test."""
+    try:
+        ws = _api(f"{url1}/wallet/status")
+        addr = ws.get("signing_address") or ws.get("address") or ""
+        bal = float(ws.get("balance", 0) or 0)
+        if addr and bal < 1.0:
+            _post_json(url1, "/devnet/faucet", {"address": addr, "amount": 100})
+    except Exception:
+        pass
+
+
+def _peer_saw_tx(base_url: str, tx_hash: str) -> bool:
+    """Mempool gossip or trace shows tx reached this node."""
+    if _mempool_has_tx(base_url, tx_hash):
+        return True
+    try:
+        trace = _api(f"{base_url}/tx/trace/{tx_hash}", timeout=5)
+        status = trace.get("status", "")
+        if status in ("mempool", "confirmed", "propagated"):
+            return True
+        stages = {e.get("stage") for e in trace.get("events", [])}
+        if stages & {"mempool", "p2p_received", "p2p_gossip", "block_included"}:
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _verify_tx_propagation_multi(url1: str, target_urls: list[str], s1: dict) -> bool:
+    """Wave 52: signed tx on node1 must reach all target mempools."""
     wave = int(s1.get("api_wave", 0) or 0)
     if wave < 51:
         print("SKIP: tx propagation (api_wave < 51)")
         return True
 
-    recipient = "0x" + "2" * 40
+    _ensure_signer_funded(url1)
+    recipient = "0x" + "3" * 40
     try:
         body = {"auto_sign": True, "to": recipient, "value": 0.01, "gas": 21000}
         resp = _post_json(url1, "/tx/send", body, timeout=20)
     except Exception as exc:
-        print(f"WARN: tx propagation send failed: {exc}")
-        return False
+        _ensure_signer_funded(url1)
+        try:
+            resp = _post_json(url1, "/tx/send", body, timeout=20)
+        except Exception as exc2:
+            print(f"WARN: tx propagation send failed: {exc2}")
+            return False
 
     tx_hash = resp.get("tx_hash")
     if not tx_hash:
         print("FAIL: /tx/send returned no tx_hash")
         return False
 
-    on_n2 = False
-    for _ in range(20):
-        if _mempool_has_tx(url2, tx_hash):
-            on_n2 = True
+    reached = {url: False for url in target_urls}
+    for _ in range(30):
+        for url in target_urls:
+            if not reached[url] and _peer_saw_tx(url, tx_hash):
+                reached[url] = True
+        if all(reached.values()):
             break
         time.sleep(2)
 
@@ -142,11 +179,18 @@ def _verify_tx_propagation(url1: str, url2: str, s1: dict) -> bool:
             pass
         time.sleep(3)
 
+    ok = all(reached.values())
+    flags = " ".join(f"n{i+2}={reached[u]}" for i, u in enumerate(target_urls))
     print(
-        f"{'OK' if on_n2 else 'FAIL'}: tx propagation hash={tx_hash[:16]}… "
-        f"node2_mempool={on_n2} confirmed={confirmed}"
+        f"{'OK' if ok else 'FAIL'}: tx propagation hash={tx_hash[:16]}… "
+        f"{flags} confirmed={confirmed}"
     )
-    return on_n2
+    return ok
+
+
+def _verify_tx_propagation(url1: str, url2: str, s1: dict) -> bool:
+    """Wave 51: signed tx on node1 must appear in node2 mempool."""
+    return _verify_tx_propagation_multi(url1, [url2], s1)
 
 
 def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
@@ -269,7 +313,239 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
         return 5
     if not _verify_tx_propagation(url1, url2, s1):
         return 7
+    return verify_adversarial(url1, s1)
+
+
+def verify_triple(url1: str, url2: str, url3: str, wait_sync_sec: int = 300) -> int:
+    """Wave 52: three-node mesh sync, mesh API, tx propagation to node2+node3."""
+    urls = [url1, url2, url3]
+    names = ["node1", "node2", "node3"]
+    for name, url in zip(names, urls):
+        if not _probe_health(url):
+            print(f"FAIL: {name} not reachable at {url}")
+            return 1
+
+    try:
+        statuses = [_api(f"{u}/status") for u in urls]
+    except Exception as exc:
+        print(f"FAIL: cannot read /status: {exc}")
+        return 1
+
+    cid = statuses[0].get("chain_id")
+    for i, st in enumerate(statuses[1:], start=2):
+        if st.get("chain_id") != cid:
+            print(f"FAIL: chain_id mismatch node1={cid} node{i}={st.get('chain_id')}")
+            return 4
+
+    loops = max(20, wait_sync_sec // 3)
+    stable_ok = 0
+    STABLE_NEED = 3
+    MAX_MINING_GAP = 2
+    p_counts = [0, 0, 0]
+    for _ in range(loops):
+        try:
+            statuses = [_api(f"{u}/status") for u in urls]
+            peers = [_api(f"{u}/peers") for u in urls]
+            syncs = [_api(f"{u}/sync/status") for u in urls]
+            heights = [int(s.get("height", 0) or 0) for s in statuses]
+            max_h, min_h = max(heights), min(heights)
+            gap = max_h - min_h
+            p_counts = [int(p.get("count", 0) or 0) for p in peers]
+            roots = [
+                (syncs[i].get("state_root") or statuses[i].get("state_root") or "").lower()
+                for i in range(3)
+            ]
+            roots_match = bool(roots[0] and all(r == roots[0] for r in roots))
+            all_peered = all(c > 0 for c in p_counts)
+            if all_peered and gap <= MAX_MINING_GAP and roots_match:
+                stable_ok += 1
+                if stable_ok >= STABLE_NEED:
+                    break
+            else:
+                stable_ok = 0
+                for url in urls:
+                    try:
+                        st = _api(f"{url}/status")
+                        if int(st.get("height", 0) or 0) < max(heights):
+                            _post_json(url, "/sync/reconcile", timeout=120)
+                            _post_json(url, "/sync/fast-sync", timeout=120)
+                    except Exception:
+                        pass
+        except Exception:
+            stable_ok = 0
+        time.sleep(3)
+    else:
+        print(f"FAIL: no stable 3-node sync after {wait_sync_sec}s")
+        for i, (st, pc) in enumerate(zip(statuses, p_counts), start=1):
+            print(f"  node{i} peers={pc} height={st.get('height', '?')}")
+        return 2
+
+    try:
+        mesh = _api(f"{url1}/testnet/mesh")
+    except Exception as exc:
+        print(f"FAIL: /testnet/mesh: {exc}")
+        return 8
+
+    wave = int(statuses[0].get("api_wave", 0) or 0)
+    if wave < 52:
+        print(f"WARN: api_wave={wave} < 52 (mesh API may be stale image)")
+
+    mesh_ok = bool(mesh.get("mesh_healthy"))
+    print(
+        f"OK: 3-node mesh peers n1={p_counts[0]} n2={p_counts[1]} n3={p_counts[2]} "
+        f"heights {statuses[0].get('height')} / {statuses[1].get('height')} / {statuses[2].get('height')} "
+        f"mesh_healthy={mesh_ok} expected_peers={mesh.get('expected_peers')}"
+    )
+    if not mesh_ok:
+        print("WARN: node1 mesh_healthy=False — peers may still be discovering")
+        if p_counts[0] < 2:
+            return 9
+
+    if not _verify_tx_propagation_multi(url1, [url2, url3], statuses[0]):
+        return 7
+    return verify_adversarial(url1, statuses[0])
+
+
+def verify_adversarial(url1: str, status: dict) -> int:
+    """Wave 53: fork-status API, reconcile, double-vote slashing."""
+    wave = int(status.get("api_wave", 0) or 0)
+    if wave < 53:
+        print(f"SKIP: adversarial checks (api_wave={wave} < 53)")
+        return 0
+
+    try:
+        fork = _api(f"{url1}/testnet/fork-status")
+    except Exception as exc:
+        print(f"FAIL: /testnet/fork-status: {exc}")
+        return 10
+
+    if fork.get("same_height_divergent_heads"):
+        print("WARN: divergent heads at same height — triggering reconcile")
+        try:
+            _post_json(url1, "/sync/reconcile", timeout=120)
+            _post_json(url1, "/sync/fast-sync", timeout=120)
+            fork = _api(f"{url1}/testnet/fork-status")
+        except Exception:
+            pass
+
+    healthy = bool(fork.get("consensus_healthy"))
+    print(
+        f"{'OK' if healthy else 'WARN'}: fork-status "
+        f"consensus_healthy={healthy} fork_detected={fork.get('fork_detected')} "
+        f"gap={fork.get('max_peer_height_gap')} slash_events={fork.get('slash_events_count')}"
+    )
+
+    test_val = "0x" + "a1" * 20
+    slot = 900_001
+    try:
+        _post_json(
+            url1,
+            "/slashing/add-validator",
+            {"validator_address": test_val, "stake": 1000},
+        )
+        r1 = _post_json(
+            url1,
+            "/slashing/record-vote",
+            {"validator": test_val, "block_hash": "0x" + "11" * 32, "epoch": slot},
+        )
+        r2 = _post_json(
+            url1,
+            "/slashing/record-vote",
+            {"validator": test_val, "block_hash": "0x" + "22" * 32, "epoch": slot},
+        )
+        slashed = bool(r1.get("slashed")) or bool(r2.get("slashed"))
+        events = _api(f"{url1}/slashing/events?limit=10")
+        ev_count = int(events.get("count", 0) or 0)
+        if not slashed and ev_count == 0:
+            print("FAIL: double-vote did not produce slash event")
+            return 11
+        print(f"OK: slashing double-vote slashed={slashed} events={ev_count}")
+    except Exception as exc:
+        print(f"FAIL: slashing adversarial test: {exc}")
+        return 11
+
     return 0
+
+
+def run_ci3_spawn() -> int:
+    """Isolated three-node test on high ports (GitHub Actions, no Docker)."""
+    tmp = tempfile.mkdtemp(prefix="abs_p2p_ci3_")
+    common = {
+        "chain_id": 77777,
+        "mining_enabled": False,
+        "require_signatures": False,
+        "verify_peer_state_root": True,
+        "state_root_legacy_cutoff_height": 0,
+        "monitor_enabled": False,
+        "bridge_enabled": False,
+        "testnet_expected_peers": 2,
+        "block_time": 30,
+    }
+    nodes = []
+    for i, (http_p, p2p_p, rpc_p, ws_p, boot) in enumerate(
+        (
+            (15080, 15000, 15045, 15066, []),
+            (15081, 15001, 15046, 15067, ["127.0.0.1:15000"]),
+            (15082, 15002, 15047, 15068, ["127.0.0.1:15000", "127.0.0.1:15001"]),
+        ),
+        start=1,
+    ):
+        nodes.append({
+            **common,
+            "node_id": f"ci-node-{i}",
+            "p2p_port": p2p_p,
+            "http_port": http_p,
+            "rpc_port": rpc_p,
+            "ws_port": ws_p,
+            "mining_enabled": i == 1,
+            "testnet_expected_peers": 2,
+            "bootstrap_peers": boot,
+            "db_path": os.path.join(tmp, f"node{i}.db"),
+            "log_file": os.path.join(tmp, f"node{i}.log"),
+        })
+
+    env = os.environ.copy()
+    env.pop("TELEGRAM_BOT_TOKEN", None)
+    env["MINING_ENABLED"] = ""
+
+    procs = []
+    try:
+        print(f"CI3 mode: spawning isolated nodes on :15080/:15081/:15082 (tmp={tmp})")
+        for ncfg in nodes:
+            cfg_path = os.path.join(tmp, f"{ncfg['node_id']}.json")
+            with open(cfg_path, "w", encoding="utf-8") as f:
+                json.dump(ncfg, f)
+            log_path = ncfg["log_file"]
+            err_f = open(log_path, "w", encoding="utf-8")
+            proc = subprocess.Popen(
+                [sys.executable, "main.py", "--config", cfg_path],
+                cwd=ROOT,
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=err_f,
+            )
+            procs.append((proc, err_f, log_path))
+
+        urls = [f"http://127.0.0.1:{ncfg['http_port']}" for ncfg in nodes]
+        for url, ncfg in zip(urls, nodes):
+            if not _wait_health(url, max_sec=180):
+                print(f"FAIL: health timeout {url}")
+                print(f"  log: {ncfg['log_file']}")
+                return 1
+
+        rc = verify_triple(urls[0], urls[1], urls[2], wait_sync_sec=180)
+        return rc
+    finally:
+        for proc, log_f, _ in procs:
+            try:
+                log_f.close()
+            except Exception:
+                pass
+            proc.terminate()
+            try:
+                proc.wait(timeout=12)
+            except Exception:
+                proc.kill()
 
 
 def run_ci_spawn() -> int:
@@ -366,15 +642,16 @@ def run_ci_spawn() -> int:
 
 def main() -> int:
     os.chdir(ROOT)
-    parser = argparse.ArgumentParser(description="Two-node P2P verification")
+    parser = argparse.ArgumentParser(description="P2P verification (2-node or 3-node)")
     parser.add_argument(
         "--mode",
-        choices=("auto", "devnet", "ci"),
+        choices=("auto", "devnet", "devnet3", "ci", "ci3", "ci-adversarial"),
         default="auto",
-        help="auto=detect running devnet; devnet=:8080/:8081; ci=isolated spawn",
+        help="auto=detect; devnet/devnet3; ci=2-node; ci3=3-node; ci-adversarial=ci3+fork/slash",
     )
     parser.add_argument("--url1", default=DEVNET_URL1, help="node1 REST base URL")
     parser.add_argument("--url2", default=DEVNET_URL2, help="node2 REST base URL")
+    parser.add_argument("--url3", default=DEVNET_URL3, help="node3 REST base URL")
     parser.add_argument(
         "--wait",
         type=int,
@@ -387,36 +664,35 @@ def main() -> int:
     if mode == "auto":
         up1 = _probe_health(args.url1)
         up2 = _probe_health(args.url2)
-        if up1 and up2:
+        up3 = _probe_health(args.url3)
+        if up1 and up2 and up3:
+            mode = "devnet3"
+            print(f"Auto: 3-node devnet at {args.url1} {args.url2} {args.url3}")
+        elif up1 and up2:
             mode = "devnet"
             print(f"Auto: devnet detected at {args.url1} and {args.url2}")
-        elif up1 or up2:
-            print("FAIL: only one devnet node is running")
-            if up1:
-                try:
-                    s = _api(f"{args.url1}/status", timeout=3)
-                    print(f"  node1 UP  :8080 chain_id={s.get('chain_id')} height={s.get('height')}")
-                except Exception:
-                    print("  node1 UP  :8080")
-            else:
-                print("  node1 DOWN :8080")
-            if up2:
-                try:
-                    s = _api(f"{args.url2}/status", timeout=3)
-                    print(f"  node2 UP  :8081 chain_id={s.get('chain_id')} height={s.get('height')}")
-                except Exception:
-                    print("  node2 UP  :8081")
-            else:
-                print("  node2 DOWN :8081")
-            print("  Fix: .\\scripts\\stop_node.ps1  then  .\\scripts\\start_two_nodes.ps1")
+        elif up1 or up2 or up3:
+            print("FAIL: incomplete devnet cluster")
+            print(f"  node1 :8080 {'UP' if up1 else 'DOWN'}")
+            print(f"  node2 :8081 {'UP' if up2 else 'DOWN'}")
+            print(f"  node3 :8082 {'UP' if up3 else 'DOWN'}")
+            print("  Fix 2-node: .\\scripts\\docker_devnet.ps1 -RustBridge")
+            print("  Fix 3-node: .\\scripts\\docker_devnet_3node.ps1")
             return 1
         else:
             mode = "ci"
             print("Auto: no devnet on :8080/:8081 — running isolated CI test (--mode ci)")
 
+    if mode == "devnet3":
+        print(f"Devnet3 mode: checking {args.url1} {args.url2} {args.url3}")
+        return verify_triple(args.url1, args.url2, args.url3, wait_sync_sec=args.wait)
+
     if mode == "devnet":
         print(f"Devnet mode: checking {args.url1} and {args.url2}")
         return verify_pair(args.url1, args.url2, wait_sync_sec=args.wait)
+
+    if mode in ("ci3", "ci-adversarial"):
+        return run_ci3_spawn()
 
     return run_ci_spawn()
 

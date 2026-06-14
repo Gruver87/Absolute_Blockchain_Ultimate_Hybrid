@@ -318,6 +318,29 @@ class NodeOrchestrator:
         self.db.initialize()
         print(f"[Node] Database: {config.db_path}")
 
+        _data_dir = os.path.dirname(config.db_path) if os.path.dirname(config.db_path) else "data"
+        _wallet_path = os.path.join(_data_dir, "wallet.json")
+        _founder_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "docker", "founder.wallet.json"
+        )
+        if not os.path.exists(_wallet_path) and os.path.isfile(_founder_tpl):
+            os.makedirs(_data_dir, exist_ok=True)
+            import shutil as _shutil
+            _shutil.copy(_founder_tpl, _wallet_path)
+            print(f"[Node] Founder wallet template installed: {_wallet_path}")
+        if os.path.exists(_wallet_path):
+            try:
+                import json as _json
+                with open(_wallet_path, encoding="utf-8") as _wf:
+                    _waddr = _json.load(_wf).get("address", "")
+                if _waddr:
+                    if not getattr(config, "founder_address", ""):
+                        config.founder_address = _waddr
+                    if not config.miner_address:
+                        config.miner_address = _waddr
+            except Exception:
+                pass
+
         # 3. Мемпул
         self.mempool = Mempool(max_size=10_000, min_fee=config.base_fee() * 0.5)
 
@@ -360,6 +383,7 @@ class NodeOrchestrator:
         self.wallet = None
         _data_dir = os.path.dirname(config.db_path) if os.path.dirname(config.db_path) else "data"
         _wallet_path = os.path.join(_data_dir, "wallet.json")
+        _chain_h_boot = self.blockchain.get_height() if self.blockchain else 0
         if os.path.exists(_wallet_path):
             try:
                 import json as _json
@@ -373,12 +397,18 @@ class NodeOrchestrator:
                         config.miner_address = _waddr
                     print(f"[Node] Founder wallet (D.U.P.): {_waddr}")
                 if _WALLET_AVAILABLE:
-                    if _wdata.get("private_key"):
+                    _follower_node = not config.mining_enabled and _chain_h_boot > 1
+                    if _wdata.get("private_key") and not _follower_node:
                         self.wallet = Wallet.import_wallet(_wallet_path)
                         config.signing_address = self.wallet.address
                         if not config.miner_address:
                             config.miner_address = self.wallet.address
                         print(f"[Node] Wallet loaded from wallet.json (signing enabled): {self.wallet.address}")
+                    elif _wdata.get("private_key") and _follower_node:
+                        print(
+                            f"[Node] Follower node: wallet.json private_key ignored "
+                            f"(height={_chain_h_boot})"
+                        )
                     else:
                         _pk_env = os.environ.get("WALLET_PRIVATE_KEY", "").strip()
                         if _pk_env:
@@ -432,10 +462,16 @@ class NodeOrchestrator:
                 _dev_loaded = False
                 if config.deployment_mode == "dev":
                     _dev_signer_path = os.path.join(_data_dir, "dev_signer.json")
+                    _chain_h = self.blockchain.get_height() if self.blockchain else 0
                     try:
-                        if os.path.exists(_dev_signer_path):
+                        if _chain_h > 1 and not os.path.exists(_dev_signer_path):
+                            print(
+                                f"[Node] Seeded chain (height={_chain_h}) — "
+                                "dev_signer skipped (state integrity)"
+                            )
+                        elif os.path.exists(_dev_signer_path) and config.mining_enabled:
                             self.wallet = Wallet.import_wallet(_dev_signer_path)
-                        else:
+                        elif _chain_h <= 1 and config.mining_enabled:
                             self.wallet = Wallet.create_new()
                             os.makedirs(_data_dir, exist_ok=True)
                             self.wallet.export(_dev_signer_path)
@@ -448,7 +484,7 @@ class NodeOrchestrator:
                             config.signing_address = self.wallet.address
                             self._dev_signer_only = True
                             _dev_loaded = True
-                            if self.db.get_balance(self.wallet.address) < 1.0:
+                            if _chain_h <= 1 and self.db.get_balance(self.wallet.address) < 1.0:
                                 self.db.update_balance(self.wallet.address, 10_000.0)
                             print(
                                 f"[Node] Dev signing wallet ready: {self.wallet.address} "
@@ -509,12 +545,14 @@ class NodeOrchestrator:
             )
             self.blockchain.pool_locks = self.pool_locks
             h = self.blockchain.get_height()
-            if h > 0:
+            if h > 0 and config.mining_enabled:
                 from consensus.epoch import EpochManager as _EpCatch
                 _ep = _EpCatch(epoch_size=getattr(config, "epoch_size", 32))
                 catch = self.pool_locks.catch_up_epochs(_ep.get_epoch(h))
                 if catch.get("staking_released_total", 0) > 0:
                     print(f"[Node] Staking catch-up: +{catch['staking_released_total']:,.0f} ABS released")
+            elif h > 0 and not config.mining_enabled:
+                print("[Node] Staking catch-up skipped (follower node)")
             print("[Node] PoolLockManager: ecosystem/treasury/staking locks active")
         except Exception as _pl_err:
             self.pool_locks = None
@@ -535,6 +573,9 @@ class NodeOrchestrator:
         if self.evm:
             print("[Node] EVM: enabled")
         self.blockchain.evm = self.evm
+
+        if self.blockchain.get_height() > 0:
+            self.blockchain.ensure_state_at_tip()
 
         # 7. P2P
         self.p2p = P2PNode(config, self.blockchain, self.mempool, self.bus)

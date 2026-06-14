@@ -88,6 +88,18 @@
 # Wave 47 (ядро L1):
 #   TX receipts в SQLite при каждом блоке (fee, burned, gas_used)
 #   GET /tx/receipt/{hash}, GET /receipts/block/{height}, GET /chain/metrics
+# Wave 52 (3-node testnet):
+#   docker-compose.devnet-3node.yml — :8080 / :8081 / :8082
+#   GET /testnet/mesh — mesh_healthy, peer_count, height gaps
+#   .\scripts\docker_devnet_3node.ps1
+#   python scripts/verify_p2p_ci.py --mode devnet3
+#
+# Wave 53 (fork / slashing / partition CI):
+#   GET /testnet/fork-status — consensus_healthy, divergent heads, slash_events_count
+#   GET /slashing/events — SQLite slash audit log
+#   python scripts/verify_p2p_ci.py --mode ci3
+#   python scripts/verify_p2p_ci.py --mode ci-adversarial
+#
 # Wave 51 (P2P tx propagation):
 #   Full signed tx gossip + mempool pull sync (GET_MEMPOOL / MEMPOOL)
 #   SQLite tx_propagation_events — api_submit → mempool → P2P → block → receipt

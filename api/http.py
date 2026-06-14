@@ -108,6 +108,9 @@ _RATE_LIMIT_EXEMPT_PATHS = frozenset({
     "/peers",
     "/network/peers",
     "/sync/status",
+    "/testnet/mesh",
+    "/testnet/fork-status",
+    "/slashing/events",
     "/consensus/stats",
     "/metrics",
     "/sync/fast-sync",
@@ -152,6 +155,9 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/sharding/pending", "summary": "Pending cross-shard transactions"},
     {"method": "GET", "path": "/peers", "summary": "Connected P2P peers (alias)"},
     {"method": "GET", "path": "/network/peers", "summary": "Connected P2P peers"},
+    {"method": "GET", "path": "/testnet/mesh", "summary": "P2P mesh health (3-node testnet)"},
+    {"method": "GET", "path": "/testnet/fork-status", "summary": "Fork heads, gaps, slashing summary (Wave 53)"},
+    {"method": "GET", "path": "/slashing/events", "summary": "Persisted slash events from SQLite"},
     {"method": "GET", "path": "/sync/status", "summary": "Chain sync status"},
     {"method": "GET", "path": "/features", "summary": "Feature flags and module availability"},
     {"method": "GET", "path": "/evm/supported-opcodes", "summary": "EVM opcode support matrix"},
@@ -725,7 +731,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 51,
+                    "api_wave": 53,
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,
                     "crypto_will_enabled": self.__class__.crypto_will is not None,
@@ -1052,7 +1058,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "lightning": self.__class__.lightning,
                 }
                 payload = flags.to_api_dict(instances, cfg)
-                payload["api_wave"] = 51
+                payload["api_wave"] = 53
                 rp = self.__class__.reorg_predictor
                 if rp and hasattr(rp, "get_stats"):
                     payload["reorg_predictor"] = rp.get_stats()
@@ -2146,6 +2152,27 @@ class RESTHandler(BaseHTTPRequestHandler):
                 self._json(fe.get_finality_status(blk_num) if fe else {"enabled": False})
 
             # ── Sync Engine ───────────────────────────────────────────────────
+            elif path == "/testnet/mesh":
+                self._json(_build_testnet_mesh(p2p, bc, cfg))
+
+            elif path == "/testnet/fork-status":
+                db = self.__class__.db
+                self._json(_build_testnet_fork_status(p2p, bc, cfg, db))
+
+            elif path == "/slashing/events":
+                db = self.__class__.db
+                limit = min(200, max(1, int(qs.get("limit", ["50"])[0] or 50)))
+                events = (
+                    db.get_slash_events(limit)
+                    if db and hasattr(db, "get_slash_events")
+                    else []
+                )
+                self._json({
+                    "count": len(events),
+                    "events": events,
+                    "api_wave": 53,
+                })
+
             elif path == "/sync/status":
                 se = self.__class__.sync_engine
                 self._json(_build_sync_status(se, p2p, bc, cfg))
@@ -4668,6 +4695,110 @@ def _parse_tx_value(value_raw) -> float:
     return float(value_raw)
 
 
+def _build_testnet_mesh(p2p, bc, cfg) -> Dict:
+    """Live P2P mesh view for multi-node devnet (Wave 52)."""
+    local_h = bc.get_height() if bc and hasattr(bc, "get_height") else 0
+    state_root = bc.get_state_root() if bc and hasattr(bc, "get_state_root") else ""
+    peers_info = p2p.get_peers_info() if p2p else []
+    peers = []
+    max_gap = 0
+    for p in peers_info:
+        ph = int(p.get("height", 0) or 0)
+        gap = abs(ph - local_h)
+        max_gap = max(max_gap, gap)
+        peers.append({
+            "peer_id": p.get("id", ""),
+            "host": p.get("host", ""),
+            "port": p.get("port", 0),
+            "height": ph,
+            "head": p.get("head", ""),
+            "height_gap": gap,
+            "connected_for_sec": p.get("connected_for", 0),
+        })
+    peer_count = len(peers)
+    expected_peers = max(1, int(getattr(cfg, "testnet_expected_peers", 1) or 1))
+    state_consistent = getattr(p2p, "_state_consistent", True) if p2p else True
+    height_aligned = max_gap <= 2
+    mesh_healthy = peer_count >= expected_peers and height_aligned and state_consistent
+    return {
+        "node_id": getattr(cfg, "node_id", ""),
+        "chain_id": getattr(cfg, "chain_id", 0),
+        "local_height": local_h,
+        "state_root": state_root,
+        "peer_count": peer_count,
+        "expected_peers": expected_peers,
+        "max_peer_height_gap": max_gap,
+        "state_consistent": state_consistent,
+        "mesh_healthy": mesh_healthy,
+        "height_aligned": height_aligned,
+        "bootstrap_peers": getattr(cfg, "bootstrap_peers", []),
+        "peers": peers,
+        "testnet_mode": "3-node" if expected_peers >= 2 else "multi",
+        "api_wave": 53,
+    }
+
+
+def _build_testnet_fork_status(p2p, bc, cfg, db=None) -> Dict:
+    """Fork / partition view for adversarial testnet CI (Wave 53)."""
+    local_h = bc.get_height() if bc and hasattr(bc, "get_height") else 0
+    last = bc.get_last_block() if bc and hasattr(bc, "get_last_block") else None
+    local_head = (last or {}).get("hash", "")
+    local_root = bc.get_state_root() if bc and hasattr(bc, "get_state_root") else ""
+    peers_info = p2p.get_peers_info() if p2p else []
+    peers = []
+    max_gap = 0
+    heads_by_height: Dict[int, set] = {}
+    if local_head:
+        heads_by_height.setdefault(local_h, set()).add(local_head)
+    for p in peers_info:
+        ph = int(p.get("height", 0) or 0)
+        head = p.get("head", "") or ""
+        gap = abs(ph - local_h)
+        max_gap = max(max_gap, gap)
+        if head:
+            heads_by_height.setdefault(ph, set()).add(head)
+        peers.append({
+            "peer_id": p.get("id", ""),
+            "host": p.get("host", ""),
+            "port": p.get("port", 0),
+            "height": ph,
+            "head": head,
+            "height_gap": gap,
+        })
+    same_height_fork = any(len(heads) > 1 for heads in heads_by_height.values())
+    peer_count = len(peers)
+    expected_peers = max(1, int(getattr(cfg, "testnet_expected_peers", 1) or 1))
+    state_consistent = getattr(p2p, "_state_consistent", True) if p2p else True
+    slash_events = (
+        db.get_slash_events(100) if db and hasattr(db, "get_slash_events") else []
+    )
+    fork_detected = same_height_fork or max_gap > 2 or not state_consistent
+    consensus_healthy = (
+        peer_count >= expected_peers
+        and max_gap <= 2
+        and not same_height_fork
+        and state_consistent
+    )
+    return {
+        "node_id": getattr(cfg, "node_id", ""),
+        "chain_id": getattr(cfg, "chain_id", 0),
+        "local_height": local_h,
+        "local_head": local_head,
+        "local_state_root": local_root,
+        "peer_count": peer_count,
+        "expected_peers": expected_peers,
+        "max_peer_height_gap": max_gap,
+        "same_height_divergent_heads": same_height_fork,
+        "state_consistent": state_consistent,
+        "fork_detected": fork_detected,
+        "consensus_healthy": consensus_healthy,
+        "slash_events_count": len(slash_events),
+        "recent_slash_events": slash_events[:5],
+        "peers": peers,
+        "api_wave": 53,
+    }
+
+
 def _build_sync_status(se, p2p, bc, cfg) -> Dict:
     """Real sync view: SyncEngine when present, merged with live P2P peer heights."""
     local_h = bc.get_height() if bc and hasattr(bc, "get_height") else 0
@@ -4807,7 +4938,7 @@ def _build_l2_status(handler_cls) -> Dict:
         m.get("persisted") for m in modules.values() if isinstance(m, dict)
     )
     return {
-        "api_wave": 51,
+        "api_wave": 53,
         "l2_persisted": persisted,
         "nft_persisted": nft_persisted,
         "core": {

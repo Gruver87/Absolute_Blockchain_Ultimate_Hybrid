@@ -2,11 +2,26 @@
 
 Все значимые изменения документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/).
 
-**Текущая волна API:** `api_wave = 51` (проверка: `GET /status`)
+**Текущая волна API:** `api_wave = 53` (проверка: `GET /status`)
 
 ---
 
-## [1.2.0-industrial] — Wave 37–51 (июнь 2026)
+## [1.2.0-industrial] — Wave 37–53 (июнь 2026)
+
+### Wave 53 — Fork / slashing / partition CI
+
+- `GET /testnet/fork-status` — divergent heads, height gaps, `consensus_healthy`, slash summary
+- `GET /slashing/events` — persisted slash events from SQLite
+- `verify_p2p_ci.py --mode ci3` / `ci-adversarial` — isolated 3-node + double-vote slash test
+- Atomic `reorg_to_ancestor` rollback; `ensure_state_at_tip()` on boot; staking catch-up only on miner
+
+### Wave 52 — 3-node testnet (Docker)
+
+- `docker-compose.devnet-3node.yml` — node1 `:8080`, node2 `:8081`, node3 `:8082`
+- `GET /testnet/mesh` — peer heights, `mesh_healthy`, `expected_peers`
+- `verify_p2p_ci.py --mode devnet3` — 3-node sync + tx on node2 **and** node3 mempools
+- `.\scripts\docker_devnet_3node.ps1` — seed DB, force-recreate, CI verify
+- Faucet top-up in verify when dev signer balance low
 
 ### Wave 51 — Transaction propagation (P2P)
 
@@ -103,9 +118,10 @@
 
 | Проверка | Результат |
 |----------|-----------|
-| `pytest tests/unit` | 214 passed, 1 skipped |
+| `pytest tests/unit` | 217 passed, 1 skipped |
 | Docker devnet 2 nodes | P2P sync, heights aligned, `state_roots_match=True` |
-| `api_wave` | 51 |
+| Docker devnet 3 nodes | `GET /testnet/mesh`, tx on node2+node3 mempools |
+| `api_wave` | 52 |
 | `mega_audit.py` | 256 REST routes |
 
 ---

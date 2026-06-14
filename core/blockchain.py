@@ -909,19 +909,41 @@ class Blockchain:
                 )
 
             try:
-                if hasattr(self.db, "truncate_chain_state"):
-                    self.db.truncate_chain_state(ancestor_height)
-                else:
-                    self.db.truncate_blocks_above(ancestor_height)
+                with self.db.atomic():
+                    cut = int(ancestor_height)
+                    self.db.conn.execute(
+                        "DELETE FROM transactions WHERE block_height > ?", (cut,)
+                    )
+                    self.db.conn.execute(
+                        "DELETE FROM tx_receipts WHERE block_height > ?", (cut,)
+                    )
+                    self.db.conn.execute(
+                        "DELETE FROM block_proposer_audit WHERE height > ?", (cut,)
+                    )
+                    self.db.conn.execute(
+                        "DELETE FROM state_root_mismatches WHERE height > ?", (cut,)
+                    )
+                    self.db.conn.execute(
+                        "DELETE FROM burn_stats WHERE block_height > ?", (cut,)
+                    )
+                    self.db.conn.execute(
+                        "DELETE FROM blocks WHERE height > ?", (cut,)
+                    )
 
-                self.db.reset_accounts_from_alloc(alloc)
+                    self.db.conn.execute("DELETE FROM accounts")
+                    for addr, amount in alloc.items():
+                        self.db.conn.execute(
+                            "INSERT INTO accounts (address, balance, nonce) VALUES (?, ?, 0)",
+                            (addr, float(amount)),
+                        )
 
-                for h in range(1, ancestor_height + 1):
-                    blk_dict = self.db.get_block(h)
-                    if not blk_dict:
-                        raise RuntimeError(f"missing_block_at_replay_{h}")
-                    block = Block.from_dict(blk_dict)
-                    with self.db.atomic():
+                    for h in range(1, ancestor_height + 1):
+                        row = self.db.conn.execute(
+                            "SELECT data FROM blocks WHERE height=?", (h,)
+                        ).fetchone()
+                        if not row:
+                            raise RuntimeError(f"missing_block_at_replay_{h}")
+                        block = Block.from_dict(json.loads(row["data"]))
                         for tx in block.transactions:
                             result = self._apply_transaction(
                                 tx, block.height, proposer=block.miner, in_atomic=True
@@ -930,17 +952,41 @@ class Blockchain:
                                 raise RuntimeError(result.get("error", "replay_tx_failed"))
                         self._apply_block_reward(block.miner, in_atomic=True)
 
-                replay_root = self._compute_state_root_from_db()
-                ancestor_blk = self.db.get_block(ancestor_height)
-                if ancestor_blk and ancestor_blk.get("state_root"):
-                    expected = ancestor_blk["state_root"]
-                    if expected and expected != replay_root:
-                        raise RuntimeError("reorg_state_root_mismatch")
+                    replay_root = self._compute_state_root_from_db()
+                    ancestor_row = self.db.conn.execute(
+                        "SELECT data FROM blocks WHERE height=?", (cut,)
+                    ).fetchone()
+                    if ancestor_row:
+                        expected = json.loads(ancestor_row["data"]).get("state_root", "")
+                        if expected and expected != replay_root:
+                            raise RuntimeError("reorg_state_root_mismatch")
+
                 print(f"[Blockchain] Reorg complete at height #{ancestor_height}")
                 return True
             except Exception as e:
                 print(f"[Blockchain] Reorg failed: {e}")
                 return False
+
+    def ensure_state_at_tip(self) -> bool:
+        """Replay canonical chain if live balances drifted from tip block state_root."""
+        with self.lock:
+            h = self.get_height()
+            if h <= 0:
+                return True
+            tip_blk = self.db.get_block(h)
+            if not tip_blk:
+                return True
+            expected = str(tip_blk.get("state_root") or "").strip()
+            if not expected:
+                return True
+            current = self._compute_state_root_from_db()
+            if current == expected:
+                return True
+            print(
+                f"[Blockchain] State drift at tip #{h} "
+                f"(live={current[:16]}… expected={expected[:16]}…) — replaying"
+            )
+            return self.reorg_to_ancestor(h)
 
     def _validate_block_structure(self, block: Block) -> Dict:
         """Height/parent/hash checks before state execution."""

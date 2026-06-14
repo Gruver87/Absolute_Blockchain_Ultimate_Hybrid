@@ -1,0 +1,180 @@
+# Three-node Absolute Devnet (Rust bridge on node1)
+# Usage:
+#   .\scripts\docker_devnet_3node.ps1
+#   curl http://localhost:8080/testnet/mesh
+#   curl http://localhost:8082/status
+
+services:
+  node1:
+    build:
+      context: .
+      dockerfile: Dockerfile.devnet-rust
+    hostname: node1
+    command: ["python", "main.py", "--config", "docker/node1.rust.json"]
+    ports:
+      - "8545:8545"
+      - "8080:8080"
+      - "5000:5000"
+      - "8766:8766"
+    environment:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+      NODE_ID: docker-node-1
+      DEPLOYMENT_MODE: dev
+      CHAIN_ID: "77777"
+      RATE_LIMIT_RPM: "0"
+    volumes:
+      - abs-3node-node1-data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 60s
+    networks:
+      - abs-devnet-3node
+
+  node2-db-seed:
+    image: alpine:3.20
+    profiles: ["seed"]
+    volumes:
+      - abs-3node-node1-data:/seed-from
+      - abs-3node-node2-data:/seed-to
+    environment:
+      SKIP_DB_SEED: ${SKIP_DB_SEED:-0}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        if [ "$$SKIP_DB_SEED" = "1" ]; then
+          echo "node2 DB seed skipped (SKIP_DB_SEED=1)"
+          exit 0
+        fi
+        if [ ! -f /seed-from/blockchain.db ]; then
+          echo "node1 DB not found — node2 starts fresh"
+          exit 0
+        fi
+        apk add --no-cache sqlite >/dev/null
+        sqlite3 /seed-from/blockchain.db "PRAGMA wal_checkpoint(TRUNCATE);"
+        rm -f /seed-to/blockchain.db /seed-to/blockchain.db-shm /seed-to/blockchain.db-wal
+        cp /seed-from/blockchain.db /seed-to/blockchain.db
+        if [ -f /seed-from/dev_signer.json ]; then
+          cp /seed-from/dev_signer.json /seed-to/dev_signer.json
+        fi
+        if [ -f /seed-from/wallet.json ]; then
+          cp /seed-from/wallet.json /seed-to/wallet.json
+        fi
+        echo "node2 DB seeded from node1 (checkpointed)"
+    restart: "no"
+    networks:
+      - abs-devnet-3node
+
+  node3-db-seed:
+    image: alpine:3.20
+    profiles: ["seed"]
+    volumes:
+      - abs-3node-node1-data:/seed-from
+      - abs-3node-node3-data:/seed-to
+    environment:
+      SKIP_DB_SEED: ${SKIP_DB_SEED:-0}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        if [ "$$SKIP_DB_SEED" = "1" ]; then
+          echo "node3 DB seed skipped (SKIP_DB_SEED=1)"
+          exit 0
+        fi
+        if [ ! -f /seed-from/blockchain.db ]; then
+          echo "node1 DB not found — node3 starts fresh"
+          exit 0
+        fi
+        apk add --no-cache sqlite >/dev/null
+        sqlite3 /seed-from/blockchain.db "PRAGMA wal_checkpoint(TRUNCATE);"
+        rm -f /seed-to/blockchain.db /seed-to/blockchain.db-shm /seed-to/blockchain.db-wal
+        cp /seed-from/blockchain.db /seed-to/blockchain.db
+        if [ -f /seed-from/dev_signer.json ]; then
+          cp /seed-from/dev_signer.json /seed-to/dev_signer.json
+        fi
+        if [ -f /seed-from/wallet.json ]; then
+          cp /seed-from/wallet.json /seed-to/wallet.json
+        fi
+        echo "node3 DB seeded from node1 (checkpointed)"
+    restart: "no"
+    networks:
+      - abs-devnet-3node
+
+  node2:
+    build:
+      context: .
+      dockerfile: Dockerfile.devnet-rust
+    hostname: node2
+    command: ["python", "main.py", "--config", "docker/node2.rust.json"]
+    ports:
+      - "8546:8545"
+      - "8081:8080"
+      - "5001:5000"
+      - "8767:8766"
+    environment:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+      NODE_ID: docker-node-2
+      DEPLOYMENT_MODE: dev
+      CHAIN_ID: "77777"
+      BOOTSTRAP_PEERS: node1:5000
+      RATE_LIMIT_RPM: "0"
+    volumes:
+      - abs-3node-node2-data:/app/data
+    depends_on:
+      node1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 60s
+    networks:
+      - abs-devnet-3node
+
+  node3:
+    build:
+      context: .
+      dockerfile: Dockerfile.devnet-rust
+    hostname: node3
+    command: ["python", "main.py", "--config", "docker/node3.rust.json"]
+    ports:
+      - "8547:8545"
+      - "8082:8080"
+      - "5002:5000"
+      - "8768:8766"
+    environment:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+      NODE_ID: docker-node-3
+      DEPLOYMENT_MODE: dev
+      CHAIN_ID: "77777"
+      BOOTSTRAP_PEERS: node1:5000,node2:5000
+      RATE_LIMIT_RPM: "0"
+    volumes:
+      - abs-3node-node3-data:/app/data
+    depends_on:
+      node1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 60s
+    networks:
+      - abs-devnet-3node
+
+volumes:
+  abs-3node-node1-data:
+  abs-3node-node2-data:
+  abs-3node-node3-data:
+
+networks:
+  abs-devnet-3node:
+    driver: bridge

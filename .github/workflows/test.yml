@@ -95,6 +95,12 @@ jobs:
         PYTHONUTF8: "1"
       run: python scripts/verify_p2p_ci.py --mode ci
 
+    - name: Three-node adversarial CI (fork + slashing)
+      if: runner.os == 'Linux' && matrix.python-version == '3.12'
+      env:
+        PYTHONUTF8: "1"
+      run: python scripts/verify_p2p_ci.py --mode ci3
+
     - name: Load test (health endpoint)
       run: python scripts/load_test.py --spawn-local --workers 6 --requests 20
 

@@ -14,7 +14,7 @@
 | Field | Value |
 |-------|-------|
 | **Version** | `1.2.0-industrial` |
-| **API Wave** | `51` → check `GET /status` → `api_wave` |
+| **API Wave** | `52` → check `GET /status` → `api_wave` |
 | **Entry point** | `python main.py` |
 | **Storage** | SQLite `data/blockchain.db` |
 | **Chain ID (dev)** | `77777` |
@@ -67,10 +67,20 @@ Honest one-screen view — no marketing claims beyond what is tested in-repo.
 | **48** | Address tx index | `GET /address/{addr}/activity`, `GET /address/{addr}/txs` |
 | **49** | Block proposer audit | `GET /chain/proposers/stats`, `GET /chain/proposer/{addr}` |
 | **50** | Strict `state_root` on P2P | `GET /chain/state-root/status` |
-| **51** | **Tx propagation trace** | `GET /tx/trace/{hash}`, `POST /tx/send` + P2P gossip |
+| **52** | **3-node testnet** | `GET /testnet/mesh`, `docker_devnet_3node.ps1` |
+| **53** | **Fork / slashing CI** | `GET /testnet/fork-status`, `GET /slashing/events`, `--mode ci3` |
 
 ```powershell
-(Invoke-RestMethod http://localhost:8080/status -UseBasicParsing).api_wave   # → 51
+(Invoke-RestMethod http://localhost:8080/status -UseBasicParsing).api_wave   # → 53
+Invoke-RestMethod http://localhost:8080/testnet/mesh -UseBasicParsing        # 3-node mesh
+Invoke-RestMethod http://localhost:8080/testnet/fork-status -UseBasicParsing # fork + slash summary
+
+# 3-node testnet (Wave 52):
+.\scripts\docker_devnet_3node.ps1
+python scripts/verify_p2p_ci.py --mode devnet3
+
+# Adversarial CI (Wave 53, no Docker):
+python scripts/verify_p2p_ci.py --mode ci3
 # Send tx (node1 wallet auto_sign), then trace:
 Invoke-RestMethod http://localhost:8080/tx/send -Method POST -ContentType application/json -Body '{"auto_sign":true,"to":"0x2222222222222222222222222222222222222222","value":0.01}'
 Invoke-RestMethod http://localhost:8081/mempool -UseBasicParsing   # same tx on node2
@@ -229,4 +239,4 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 
 ---
 
-*Last update: June 2026 — API Wave 50, 210 unit tests, Docker 2-node P2P + strict state_root verified.*
+*Last update: June 2026 — API Wave 53, 220+ unit tests, Docker 3-node P2P + adversarial CI verified.*

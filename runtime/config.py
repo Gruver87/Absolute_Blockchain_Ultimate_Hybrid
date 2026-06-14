@@ -72,6 +72,7 @@ class Config:
     # ── P2P ─────────────────────────────────────────────────────────────────
     bootstrap_peers: List[str] = field(default_factory=list)
     max_peers: int = 50
+    testnet_expected_peers: int = 1     # mesh health threshold (3-node devnet: 2 on hub)
     peer_timeout: int = 30              # секунд до отключения неактивного пира
     sync_batch_size: int = 100          # блоков за один запрос синхронизации
 
