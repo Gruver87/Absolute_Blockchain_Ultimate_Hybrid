@@ -1,6 +1,6 @@
 #!/bin/sh
-# Clone node1 blockchain.db into node2 volume before node2 starts (devnet parity with start_two_nodes.ps1)
-set -eu
+# Reference copy of node2-db-seed logic (compose uses inline command to avoid Windows CRLF mounts).
+set -e
 
 FROM="${SEED_FROM:-/seed-from}"
 TO="${SEED_TO:-/seed-to}"
@@ -17,9 +17,4 @@ fi
 
 rm -f "$TO/blockchain.db" "$TO/blockchain.db-shm" "$TO/blockchain.db-wal"
 cp "$FROM/blockchain.db" "$TO/blockchain.db"
-for suffix in -shm -wal; do
-  if [ -f "$FROM/blockchain.db$suffix" ]; then
-    cp "$FROM/blockchain.db$suffix" "$TO/blockchain.db$suffix"
-  fi
-done
-echo "node2 DB seeded from node1 ($(wc -c < "$TO/blockchain.db") bytes)"
+echo "node2 DB seeded from node1 (main file only, node1 stopped)"

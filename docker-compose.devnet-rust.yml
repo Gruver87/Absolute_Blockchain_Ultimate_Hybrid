@@ -36,16 +36,29 @@ services:
 
   node2-db-seed:
     image: alpine:3.20
+    profiles: ["seed"]
     volumes:
-      - abs-node1-rust-data:/seed-from:ro
+      - abs-node1-rust-data:/seed-from
       - abs-node2-rust-data:/seed-to
-      - ./scripts/docker_seed_node2_db.sh:/seed.sh:ro
     environment:
       SKIP_DB_SEED: ${SKIP_DB_SEED:-0}
-    depends_on:
-      node1:
-        condition: service_healthy
-    entrypoint: ["/bin/sh", "/seed.sh"]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        if [ "$$SKIP_DB_SEED" = "1" ]; then
+          echo "node2 DB seed skipped (SKIP_DB_SEED=1)"
+          exit 0
+        fi
+        if [ ! -f /seed-from/blockchain.db ]; then
+          echo "node1 DB not found — node2 starts fresh"
+          exit 0
+        fi
+        apk add --no-cache sqlite >/dev/null
+        sqlite3 /seed-from/blockchain.db "PRAGMA wal_checkpoint(TRUNCATE);"
+        rm -f /seed-to/blockchain.db /seed-to/blockchain.db-shm /seed-to/blockchain.db-wal
+        cp /seed-from/blockchain.db /seed-to/blockchain.db
+        echo "node2 DB seeded from node1 (checkpointed)"
     restart: "no"
     networks:
       - abs-devnet-rust
@@ -53,7 +66,7 @@ services:
   node2:
     build: .
     hostname: node2
-    command: ["python", "main.py", "--config", "docker/node2.json"]
+    command: ["python", "main.py", "--config", "docker/node2.rust.json"]
     ports:
       - "8546:8545"
       - "8081:8080"
@@ -70,8 +83,6 @@ services:
     volumes:
       - abs-node2-rust-data:/app/data
     depends_on:
-      node2-db-seed:
-        condition: service_completed_successfully
       node1:
         condition: service_healthy
     healthcheck:

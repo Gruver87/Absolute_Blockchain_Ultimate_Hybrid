@@ -149,9 +149,12 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 180) -> int:
     print(
         f"OK: peers n1={p1.get('count', 0)} n2={p2.get('count', 0)} "
         f"heights {s1.get('height')} / {s2.get('height')} "
+        f"nodes {s1.get('node_id', '?')} / {s2.get('node_id', '?')} "
         f"attestations={att1.get('count', 0)} "
         f"state_consistent={consistent} state_roots_match={roots_match}"
     )
+    if s1.get("node_id", "").startswith("node-") and not s1.get("node_id", "").startswith("docker-"):
+        print("WARN: :8080/:8081 answer local nodes — stop them: .\\scripts\\stop_node.ps1")
     if gap <= 5 and not roots_match:
         print("WARN: heights aligned but state_root differs — use DB seed or .\\scripts\\start_two_nodes.ps1")
     return 0
