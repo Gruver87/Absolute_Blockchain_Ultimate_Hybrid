@@ -66,3 +66,10 @@ def test_bridge_auto_confirm_when_configured(bridge_env):
     db.conn.commit()
     br._process_pending()
     assert db.get_bridge_locks()[0]["status"] == "confirmed"
+
+
+def test_bridge_accepts_eth_chain_alias(bridge_env):
+    br, db, cfg = bridge_env
+    res = br.lock_and_bridge("0xalice", "ETH", "0xrecipient", 10.0)
+    assert "tx_hash" in res, res
+    assert res["to_chain"] == "ethereum"

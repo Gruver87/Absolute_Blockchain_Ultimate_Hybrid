@@ -1288,8 +1288,15 @@
       <div class="card">
         <h3>Lock &amp; Bridge (ABS→Other)</h3>
         <div class="form-row"><label>From Address</label><input id="bridge-lock-addr" placeholder="0xabc..."/></div>
+        <div class="form-row"><label>To Address (on target chain)</label><input id="bridge-lock-to" placeholder="0xdef..."/></div>
         <div class="form-row"><label>Amount (ABS)</label><input id="bridge-lock-amount" type="number" value="10"/></div>
-        <div class="form-row"><label>Target Chain</label><input id="bridge-lock-chain" value="ETH"/></div>
+        <div class="form-row"><label>Target Chain</label>
+          <select id="bridge-lock-chain" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;width:100%">
+            <option value="ethereum">Ethereum</option>
+            <option value="bsc">BSC</option>
+            <option value="solana">Solana</option>
+          </select>
+        </div>
         <button class="btn btn-green" onclick="bridgeLock()" style="width:100%">Lock &amp; Bridge</button>
         <div id="bridge-lock-result" style="margin-top:8px;font-size:12px"></div>
       </div>
@@ -3720,24 +3727,31 @@ async function createZKTx() {
 
 // ── Bridge Extended ────────────────────────────────────────────────────────────
 async function bridgeLock() {
-  const from_address = document.getElementById('bridge-lock-addr').value;
+  const from_address = document.getElementById('bridge-lock-addr').value.trim();
+  const to_address = (document.getElementById('bridge-lock-to')?.value || '').trim() || '0x0000000000000000000000000000000000000001';
   const amount = parseFloat(document.getElementById('bridge-lock-amount').value)||10;
   const target_chain = document.getElementById('bridge-lock-chain').value;
-  const r = await post('/bridge/lock', {from_address, amount, target_chain});
+  if (!from_address) return alert('From address required');
+  const r = await post('/bridge/lock', {from_address, to_address, amount, target_chain});
   const txHash = r?.tx_hash || r?.tx_id || r?.transaction_id || '';
   const ok = !!txHash && !r?.error;
   document.getElementById('bridge-lock-result').innerHTML = ok
-    ? `<div class="badge badge-green">Locked!</div> TX: ${txHash}`
-    : `<span style="color:var(--red)">${r?.error||JSON.stringify(r)}</span>`;
-  if (ok) document.getElementById('bridge-confirm-txid').value = txHash;
+    ? `<div class="badge badge-green">Locked!</div> TX: <span class="hash">${txHash}</span><br><span style="color:var(--gray);font-size:11px">Use Confirm below (MANUAL mode)</span>`
+    : `<span style="color:var(--red)">${r?.error||'Lock failed'}${r?.error==='Insufficient balance'?' — fund wallet on Wallet tab first':''}</span>`;
+  if (ok) {
+    document.getElementById('bridge-confirm-txid').value = txHash;
+    loadBridge2Stats();
+  }
 }
 async function bridgeConfirm() {
   const tx_id = document.getElementById('bridge-confirm-txid').value;
   if (!tx_id) return alert('TX hash required');
   const r = await post('/bridge/confirm-lock', {tx_hash: tx_id, tx_id});
-  document.getElementById('bridge-confirm-result').innerHTML = r?.success
+  const ok = r?.confirmed || r?.success;
+  document.getElementById('bridge-confirm-result').innerHTML = ok
     ? `<div class="badge badge-green">Confirmed!</div>`
     : `<span style="color:var(--red)">${r?.error||JSON.stringify(r)}</span>`;
+  if (ok) loadBridge2Stats();
 }
 async function bridgeRefund() {
   const tx_id = document.getElementById('bridge-refund-txid').value;

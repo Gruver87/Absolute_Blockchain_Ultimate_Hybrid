@@ -55,6 +55,23 @@ class RustBridge:
 
     SUPPORTED_CHAINS = [c.value for c in Chain]
 
+    CHAIN_ALIASES = {
+        "eth": "ethereum",
+        "ether": "ethereum",
+        "ethereum": "ethereum",
+        "bnb": "bsc",
+        "bsc": "bsc",
+        "binance": "bsc",
+        "sol": "solana",
+        "solana": "solana",
+        "abs": "absolute",
+        "absolute": "absolute",
+    }
+
+    def _normalize_chain(self, chain: str) -> str:
+        key = (chain or "").strip().lower()
+        return self.CHAIN_ALIASES.get(key, key)
+
     # Тарифы моста (% от суммы)
     BRIDGE_FEES = {
         "ethereum": 0.01,   # 1%
@@ -113,7 +130,7 @@ class RustBridge:
 
         Возвращает: {"tx_hash": str, "fee": float, "net_amount": float, "status": str}
         """
-        to_chain = to_chain.lower()
+        to_chain = self._normalize_chain(to_chain)
         if to_chain not in self.SUPPORTED_CHAINS:
             return {"error": f"Unsupported chain: {to_chain}. "
                              f"Supported: {', '.join(self.SUPPORTED_CHAINS)}"}
