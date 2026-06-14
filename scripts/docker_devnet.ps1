@@ -43,7 +43,7 @@ if (-not $dockerOk) {
     Write-Host ""
     Write-Host "Without Docker, use local two-node devnet:" -ForegroundColor Cyan
     Write-Host "  .\scripts\stop_node.ps1" -ForegroundColor White
-    Write-Host "  .\scripts\start_two_nodes.ps1 -RustBridge" -ForegroundColor White
+    Write-Host "  .\scripts\start_two_nodes.ps1 -RustBridge -Fresh" -ForegroundColor White
     exit 1
 }
 

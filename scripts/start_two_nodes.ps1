@@ -1,7 +1,8 @@
 # Start two local ABS nodes for P2P testing (Windows PowerShell)
 param(
     [switch]$NoCloneDb,
-    [switch]$RustBridge
+    [switch]$RustBridge,
+    [switch]$Fresh
 )
 
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -84,11 +85,21 @@ Write-Host ""
 
 & (Join-Path $ProjectRoot "scripts\stop_node.ps1") 2>$null
 
+if ($Fresh) {
+    Write-Host "Fresh: removing local chain DBs..." -ForegroundColor Yellow
+    foreach ($base in @("data\blockchain.db", "data\node2\blockchain.db")) {
+        foreach ($suffix in @("", "-shm", "-wal")) {
+            $p = Join-Path $ProjectRoot ($base + $suffix)
+            if (Test-Path $p) { Remove-Item $p -Force -ErrorAction SilentlyContinue }
+        }
+    }
+}
+
 $node1Db = Join-Path $ProjectRoot "data\blockchain.db"
 $node2Db = Join-Path $ProjectRoot "data\node2\blockchain.db"
 if ($NoCloneDb) {
     Write-Host "Node2 fresh DB (-NoCloneDb: P2P catch-up sync test)" -ForegroundColor Yellow
-} else {
+} elseif (-not $Fresh) {
     foreach ($suffix in @("", "-shm", "-wal")) {
         $dst = "$node2Db$suffix"
         if (Test-Path $dst) { Remove-Item $dst -Force -ErrorAction SilentlyContinue }
@@ -102,8 +113,10 @@ if ($NoCloneDb) {
         }
         Write-Host "Node2 DB cloned from node1 (same chain snapshot)" -ForegroundColor Gray
     } else {
-        Write-Host "Node2 fresh DB (node1 chain not found yet)" -ForegroundColor Gray
+        Write-Host "Node2 will seed from node1 after genesis (node1 not started yet)" -ForegroundColor Gray
     }
+} else {
+    Write-Host "Node2 will seed from node1 after genesis (-Fresh)" -ForegroundColor Gray
 }
 
 foreach ($dir in @("data", "data\node2")) {
@@ -118,6 +131,23 @@ $node1 = Start-AbsNode -ConfigFile $node1Config `
 if (-not (Wait-NodeReady -Url "http://127.0.0.1:8080" -Name "node1" -MaxSec 90)) {
     Write-Host "Node 1 failed. Tail: Get-Content data\node_stderr.log -Tail 30" -ForegroundColor Red
     exit 1
+}
+
+# After node1 is up, seed node2 from node1 so genesis + tip match (required for -Fresh)
+if (-not $NoCloneDb) {
+    foreach ($suffix in @("", "-shm", "-wal")) {
+        $dst = "$node2Db$suffix"
+        if (Test-Path $dst) { Remove-Item $dst -Force -ErrorAction SilentlyContinue }
+    }
+    if (Test-Path $node1Db) {
+        foreach ($suffix in @("", "-shm", "-wal")) {
+            $src = "$node1Db$suffix"
+            if (Test-Path $src) {
+                Copy-Item $src "$node2Db$suffix" -Force
+            }
+        }
+        Write-Host "Node2 DB seeded from node1 (post-genesis snapshot)" -ForegroundColor Gray
+    }
 }
 
 $node2 = Start-AbsNode -ConfigFile "node2.example.json" `
@@ -162,7 +192,9 @@ if ($p2pOk) {
                 break
             }
             if ($i % 5 -eq 4 -and [int]$s2.height -lt [int]$s1.height) {
-                Invoke-RestMethod -Uri "http://127.0.0.1:8081/sync/fast-sync" -Method POST -Body '{}' -ContentType 'application/json' -TimeoutSec 10 | Out-Null
+                $body = @{ timeout = [Math]::Min(600, [Math]::Max(120, $gap * 8)) } | ConvertTo-Json
+                Invoke-RestMethod -Uri "http://127.0.0.1:8081/sync/fast-sync" -Method POST -Body $body -ContentType 'application/json' -TimeoutSec 620 | Out-Null
+                Invoke-RestMethod -Uri "http://127.0.0.1:8081/sync/reconcile" -Method POST -Body $body -ContentType 'application/json' -TimeoutSec 620 | Out-Null
             }
         }
         catch { }
