@@ -5,8 +5,8 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Educational%20Only-orange)]()
-[![API Wave](https://img.shields.io/badge/API%20Wave-58-blue)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/Unit%20Tests-301%20passed-brightgreen)](tests/unit/)
+[![API Wave](https://img.shields.io/badge/API%20Wave-59-blue)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/Unit%20Tests-241%20passed-brightgreen)](tests/unit/)
 [![Audit](https://img.shields.io/badge/Full%20Audit-passing-brightgreen)](scripts/full_audit.py)
 [![Release](https://img.shields.io/badge/Release-v1.2.0--industrial-blue)](https://github.com/Gruver87/absolute-blockchain-ultimate/releases)
 
@@ -15,7 +15,7 @@
 | Field | Value |
 |-------|-------|
 | **Version** | `1.2.0-industrial` |
-| **API Wave** | `58` → check `GET /status` → `api_wave` + `core_real` |
+| **API Wave** | `59` → check `GET /status` → `api_wave` + `core_real` |
 | **Entry point** | `python main.py` |
 | **Storage** | SQLite `data/blockchain.db` |
 | **Chain ID (dev)** | `77777` |
@@ -59,7 +59,7 @@
 | **EVM / L2 / Bridge** | 🟡 Educational | Working demos with SQLite persistence; not full Ethereum parity |
 | **Production mainnet** | 🔴 Out of scope | By design — see [DISCLAIMER.md](DISCLAIMER.md) |
 
-**Quality gate (Jun 2026):** `292 passed, 1 skipped` · **`python scripts/full_audit.py --live --p2p`** → 12/12 sections OK
+**Quality gate (Jun 2026):** `241 passed, 1 skipped` · **`python scripts/full_audit.py --live --p2p`** → 12/12 sections OK
 
 ---
 
@@ -95,6 +95,7 @@
 | **53** | **Fork / slashing CI** | `GET /testnet/fork-status`, `GET /slashing/events`, `--mode ci3` |
 | **54** | **State consistency harness** | `GET /chain/consistency/harness`, `POST /chain/consistency/repair` |
 | **58** | **Fork CI** | `POST /testnet/fork-exercise`, `--mode ci-fork` partition recovery |
+| **59** | **Bridge relayer e2e** | `POST /bridge2/transfer` → RustBridge, L1 queue, `--mode ci-bridge` |
 | **57** | **Real core** | deterministic proposer, finality quorum, reorg guard, mempool MEV |
 | **56** | **Multi-node proof** | `GET /testnet/multi-node-proof`, `POST /testnet/reorg-exercise`, 3-validator rotation |
 | **55** | **5-validator devnet** | `GET /testnet/validators`, `docker_devnet_5validator.ps1` |

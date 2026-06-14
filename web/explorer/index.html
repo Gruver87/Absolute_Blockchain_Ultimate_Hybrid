@@ -936,6 +936,14 @@
 
   <!-- REORG RISK -->
   <div id="sec-reorg" class="section">
+    <div class="card" style="margin-bottom:16px">
+      <h3>Testnet Fork Monitor <span style="font-size:11px;color:var(--gray)">(Wave 58 — live P2P)</span></h3>
+      <p style="color:var(--gray);font-size:12px;margin-bottom:10px">Real fork heads from <code>GET /testnet/fork-status</code> — not the reorg predictor below.</p>
+      <button class="btn btn-green" onclick="loadTestnetForkStatus()" style="margin-right:8px">Refresh Fork Status</button>
+      <button class="btn btn-blue" onclick="runForkExercise()">Run Fork Recovery Drill</button>
+      <div id="testnet-fork-status" style="margin-top:12px;font-family:monospace;font-size:11px"></div>
+      <div id="testnet-fork-exercise" style="margin-top:8px;font-size:11px"></div>
+    </div>
     <div class="grid2">
       <div class="card">
         <h3>Reorg Risk Prediction</h3>
@@ -947,7 +955,7 @@
         <div id="reorg-result"></div>
       </div>
       <div class="card">
-        <h3>Advanced Reorg Analysis</h3>
+        <h3>Advanced Reorg Analysis <span style="font-size:11px;color:var(--gray)">(predictor)</span></h3>
         <button class="btn btn-outline" onclick="loadReorgDepth()" style="width:100%;margin-bottom:8px">Predict Reorg Depth</button>
         <button class="btn btn-outline" onclick="loadForkAnalysis()" style="width:100%;margin-bottom:8px">Analyze Fork</button>
         <div id="reorg-depth-result" style="font-size:12px;margin-bottom:8px"></div>
@@ -1345,6 +1353,7 @@
         <div class="form-row"><label>From Address</label><input id="bridge-lock-addr" placeholder="0xabc..."/></div>
         <div class="form-row"><label>To Address (on target chain)</label><input id="bridge-lock-to" placeholder="0xdef..."/></div>
         <div class="form-row"><label>Amount (ABS)</label><input id="bridge-lock-amount" type="number" value="10"/></div>
+        <div class="form-row"><label>L1 TX Hash (optional — relayer watch)</label><input id="bridge-lock-l1tx" placeholder="0x..."/></div>
         <div class="form-row"><label>Target Chain</label>
           <select id="bridge-lock-chain" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;width:100%">
             <option value="ethereum">Ethereum</option>
@@ -1367,6 +1376,7 @@
           Rust mode: credits ABS after <code>abs_bridge_bin incoming</code> OK.
         </div>
         <div class="form-row"><label>TX ID</label><input id="bridge-incoming-txid" placeholder="external tx id..."/></div>
+        <div class="form-row"><label>L1 TX Hash (relayer)</label><input id="bridge-incoming-l1tx" placeholder="0x..."/></div>
         <div class="form-row"><label>Recipient (ABS)</label><input id="bridge-incoming-recipient" placeholder="0x..."/></div>
         <div class="form-row"><label>Amount (ABS)</label><input id="bridge-incoming-amount" type="number" value="99"/></div>
         <div class="form-row"><label>From Chain</label>
@@ -1780,7 +1790,7 @@ function show(tab) {
   if (tab === 'smartacc')   loadSmartAccounts();
   if (tab === 'ai')         loadAIValidators();
   if (tab === 'mev')        loadMEVStats();
-  if (tab === 'reorg')      checkReorgRisk(6);
+  if (tab === 'reorg')      { checkReorgRisk(6); loadTestnetForkStatus(); }
   if (tab === 'merkle')     { loadLightClient(); loadPoolLocks(); }
   if (tab === 'satoshi')    loadSatoshiState();
   if (tab === 'beacon')     loadBeaconStatus();
@@ -3420,9 +3430,17 @@ async function bridge2Transfer() {
     return;
   }
   const r = await post('/bridge2/transfer', {from_chain, to_chain, from_address, to_address, amount});
+  const path = r?.bridge_path || 'unknown';
+  const pending = r?.status === 'pending' || r?.direction === 'outbound';
   out.innerHTML =
-    r?.success ? `<div class="badge badge-green">Transferred!</div> TX: <span class="hash">${r.tx_hash}</span><br><span style="color:var(--gray);font-size:11px">Amount: ${r.amount} | Fee: ${r.fee}</span>`
-               : `<span style="color:var(--red)">${r?.error||'Failed'}</span>`;
+    r?.confirmed || r?.success
+      ? `<div class="badge badge-green">${path === 'rust' ? 'Rust bridge' : 'OK'}</div> ` +
+        `${r?.direction || ''} TX: <span class="hash">${r.tx_hash||r.tx_id||'?'}</span>` +
+        (r.amount != null ? `<br><span style="color:var(--gray);font-size:11px">Amount: ${r.amount}</span>` : '')
+      : pending
+        ? `<div class="badge badge-yellow">Pending (${path})</div> TX: <span class="hash">${r.tx_hash||'?'}</span>` +
+          `<br><span style="color:var(--gray);font-size:11px">${r.hint||'Run relayer or confirm lock'}</span>`
+        : `<span style="color:var(--red)">${r?.error||'Failed'}</span>`;
   loadBridge2Stats();
 }
 
@@ -4240,7 +4258,8 @@ async function bridgeLock() {
   const amount = parseFloat(document.getElementById('bridge-lock-amount').value)||10;
   const target_chain = document.getElementById('bridge-lock-chain').value;
   if (!from_address) return alert('From address required');
-  const r = await post('/bridge/lock', {from_address, to_address, amount, target_chain});
+  const l1_tx_hash = (document.getElementById('bridge-lock-l1tx')?.value || '').trim();
+  const r = await post('/bridge/lock', {from_address, to_address, amount, target_chain, l1_tx_hash});
   const txHash = r?.tx_hash || r?.tx_id || r?.transaction_id || '';
   const ok = !!txHash && !r?.error;
   document.getElementById('bridge-lock-result').innerHTML = ok
@@ -4273,8 +4292,9 @@ async function bridgeIncoming() {
   const el = document.getElementById('bridge-incoming-result');
   if (!tx_id || !recipient) return alert('TX ID and recipient required');
   if (amount <= 0) return alert('Amount must be > 0');
+  const l1_tx_hash = (document.getElementById('bridge-incoming-l1tx')?.value || '').trim();
   const r = await post('/bridge/confirm', {
-    tx_id, tx_hash: tx_id, recipient, to_address: recipient, amount, from_chain,
+    tx_id, tx_hash: tx_id, recipient, to_address: recipient, amount, from_chain, l1_tx_hash,
   });
   const ok = r?.confirmed || r?.success;
   if (el) {
@@ -4408,6 +4428,32 @@ async function loadReorgDepth() {
     ? `Predicted reorg depth: <b style="color:var(--${r.predicted_depth>3?'red':'green'})">${r.predicted_depth??0} blocks</b>`
     : '';
 }
+async function loadTestnetForkStatus() {
+  const el = document.getElementById('testnet-fork-status');
+  const r = await api('/testnet/fork-status');
+  if (!r) { el.innerHTML = '<span style="color:var(--red)">API unavailable</span>'; return; }
+  const healthy = r.consensus_healthy ? 'badge-green' : 'badge-red';
+  const fork = r.fork_detected ? 'badge-red' : 'badge-green';
+  const peers = (r.peers || []).map(p =>
+    `<tr><td>${(p.peer_id||'?').slice(0,12)}</td><td>${p.height}</td><td>${(p.head||'').slice(0,14)}…</td><td>${p.height_gap}</td></tr>`
+  ).join('');
+  el.innerHTML = `
+    <div><span class="badge ${healthy}">consensus_healthy=${r.consensus_healthy}</span>
+         <span class="badge ${fork}">fork_detected=${r.fork_detected}</span>
+         height=${r.local_height} gap=${r.max_peer_height_gap} divergent=${r.same_height_divergent_heads}</div>
+    <table style="margin-top:8px;width:100%"><thead><tr><th>Peer</th><th>H</th><th>Head</th><th>Gap</th></tr></thead><tbody>${peers||'<tr><td colspan=4>(solo)</td></tr>'}</tbody></table>`;
+}
+async function runForkExercise() {
+  const el = document.getElementById('testnet-fork-exercise');
+  const r = await post('/testnet/fork-exercise', {});
+  if (!r) { el.innerHTML = '<span style="color:var(--red)">Drill failed</span>'; return; }
+  const ok = r.fork_recovered ? 'badge-green' : 'badge-yellow';
+  el.innerHTML = `<span class="badge ${ok}">fork_recovered=${r.fork_recovered}</span>
+    before: healthy=${r.before?.consensus_healthy} fork=${r.before?.fork_detected}
+    → after: healthy=${r.after?.consensus_healthy} fork=${r.after?.fork_detected}`;
+  loadTestnetForkStatus();
+}
+
 async function loadForkAnalysis() {
   const r = await api('/reorg/fork');
   document.getElementById('reorg-fork-result').innerHTML = r

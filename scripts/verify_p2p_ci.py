@@ -28,6 +28,7 @@ import urllib.error
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
 
 DEVNET_URL1 = "http://127.0.0.1:8080"
 DEVNET_URL2 = "http://127.0.0.1:8081"
@@ -67,6 +68,144 @@ def _post_json(base_url: str, path: str, body: dict | None = None, timeout: floa
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode())
+
+
+def _oracle_post(base_url: str, path: str, body: dict, secret: str, timeout: float = 15) -> dict:
+    from bridge.oracle_auth import sign_payload
+
+    data = json.dumps(body).encode()
+    sig = sign_payload(secret, data)
+    req = urllib.request.Request(
+        f"{base_url.rstrip('/')}{path}",
+        data=data,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "X-Bridge-Oracle-Signature": sig,
+        },
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode())
+
+
+def verify_bridge(url1: str, status: dict, oracle_secret: str = "") -> int:
+    """Wave 59: RustBridge L1 queue + bridge2 rust path when bridge is enabled."""
+    wave = int(status.get("api_wave", 0) or 0)
+    if wave < 59:
+        return 0
+    if not status.get("bridge_enabled"):
+        print("SKIP: bridge checks (bridge_enabled=false)")
+        return 0
+
+    sender = "0x" + "b1" * 20
+    recipient = "0x" + "b2" * 20
+    l1_out = "0x" + "c1" * 32
+    l1_in = "0x" + "c2" * 32
+    secret = (oracle_secret or os.environ.get("BRIDGE_ORACLE_SECRET", "")).strip()
+
+    try:
+        _post_json(url1, "/devnet/faucet", {"address": sender, "amount": 50.0}, timeout=20)
+    except Exception as exc:
+        print(f"WARN: faucet for bridge test: {exc}")
+
+    try:
+        lock = _post_json(
+            url1,
+            "/bridge/lock",
+            {
+                "from_address": sender,
+                "to_address": recipient,
+                "target_chain": "ethereum",
+                "amount": 5.0,
+                "l1_tx_hash": l1_out,
+            },
+            timeout=30,
+        )
+        if not lock.get("success") and not lock.get("tx_hash"):
+            print(f"FAIL: bridge lock: {lock}")
+            return 19
+        q = _api(f"{url1}/bridge/l1-queue")
+        queue = q.get("queue", q)
+        outbound = queue.get("outbound", []) if isinstance(queue.get("outbound"), list) else []
+        if not outbound and not lock.get("l1_queued") and int(q.get("outbound", 0) or 0) <= 0:
+            print(f"FAIL: outbound L1 queue empty after lock: {q}")
+            return 19
+
+        reg_body = {
+            "l1_tx_hash": l1_in,
+            "recipient": recipient,
+            "amount": 3.0,
+            "from_chain": "ethereum",
+            "tx_id": "ci-bridge-in-1",
+        }
+        if status.get("bridge_oracle_enabled") and secret:
+            try:
+                reg = _oracle_post(url1, "/bridge/oracle/l1-register", reg_body, secret, timeout=20)
+            except urllib.error.HTTPError as exc:
+                if exc.code == 401:
+                    print("SKIP: l1-register (oracle secret mismatch — set BRIDGE_ORACLE_SECRET)")
+                    return 0
+                raise
+        else:
+            reg = _post_json(url1, "/bridge/oracle/l1-register", reg_body, timeout=20)
+        if not reg.get("success"):
+            print(f"FAIL: l1-register: {reg}")
+            return 19
+        q2 = _api(f"{url1}/bridge/l1-queue")
+        queue2 = q2.get("queue", q2)
+        incoming = queue2.get("incoming", []) if isinstance(queue2.get("incoming"), list) else []
+        if (
+            not incoming
+            and not reg.get("registered", {}).get("queued_incoming")
+            and int(q2.get("incoming", 0) or 0) <= 0
+        ):
+            print(f"FAIL: incoming L1 queue empty after register: {q2}")
+            return 19
+
+        if status.get("bridge_oracle_enabled") and secret:
+            cred = _oracle_post(
+                url1,
+                "/bridge/oracle/incoming",
+                {
+                    "tx_id": "ci-bridge-in-1",
+                    "tx_hash": l1_in,
+                    "recipient": recipient,
+                    "amount": 3.0,
+                    "from_chain": "ethereum",
+                },
+                secret,
+            )
+            if not cred.get("confirmed") and not cred.get("success"):
+                print(f"FAIL: oracle incoming credit: {cred}")
+                return 19
+
+        xfer = _post_json(
+            url1,
+            "/bridge2/transfer",
+            {
+                "from_chain": "ethereum",
+                "to_chain": "absolute",
+                "from_address": sender,
+                "to_address": recipient,
+                "amount": 1.5,
+                "l1_tx_hash": l1_in,
+            },
+            timeout=30,
+        )
+        if xfer.get("bridge_path") != "rust":
+            print(f"FAIL: bridge2/transfer expected rust path: {xfer}")
+            return 19
+
+        print(
+            f"OK: bridge L1 queue outbound={len(outbound) or int(q.get('outbound', 0) or 0)} "
+            f"incoming={len(incoming) or int(q2.get('incoming', 0) or 0)} "
+            f"bridge2_path={xfer.get('bridge_path')}"
+        )
+    except Exception as exc:
+        print(f"FAIL: bridge verification: {exc}")
+        return 19
+
+    return 0
 
 
 def _trigger_catchup(url1: str, url2: str, s1: dict, s2: dict) -> None:
@@ -765,7 +904,7 @@ def verify_adversarial(url1: str, status: dict) -> int:
         print(f"FAIL: slashing adversarial test: {exc}")
         return 11
 
-    return 0
+    return verify_bridge(url1, status)
 
 
 def run_ci_fork_spawn() -> int:
@@ -934,6 +1073,70 @@ def run_ci_fork_spawn() -> int:
         return verify_fork_recovery([url1, url2], status)
     finally:
         for proc in procs:
+            proc.terminate()
+            try:
+                proc.wait(timeout=12)
+            except Exception:
+                proc.kill()
+
+
+def run_ci_bridge_spawn() -> int:
+    """Isolated single-node bridge L1 queue + oracle incoming (Wave 59)."""
+    tmp = tempfile.mkdtemp(prefix="abs_p2p_bridge_")
+    secret = "ci-bridge-secret-wave59"
+    queue_path = os.path.join(tmp, "l1_queue.json")
+    cfg = {
+        "chain_id": 77777,
+        "node_id": "bridge-ci-node-1",
+        "p2p_port": 15300,
+        "http_port": 15380,
+        "rpc_port": 15345,
+        "ws_port": 15366,
+        "mining_enabled": True,
+        "require_signatures": False,
+        "monitor_enabled": False,
+        "bridge_enabled": True,
+        "bridge_mode": "simulator",
+        "bridge_oracle_secret": secret,
+        "bridge_l1_queue_path": queue_path,
+        "bootstrap_peers": [],
+        "db_path": os.path.join(tmp, "node.db"),
+        "log_file": os.path.join(tmp, "node.log"),
+        "block_time": 6,
+    }
+    cfg_path = os.path.join(tmp, "node.json")
+    with open(cfg_path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f)
+
+    env = os.environ.copy()
+    env.pop("TELEGRAM_BOT_TOKEN", None)
+    env["MINING_ENABLED"] = ""
+    env["BRIDGE_ORACLE_SECRET"] = secret
+    env["BRIDGE_L1_QUEUE_PATH"] = queue_path
+
+    url = "http://127.0.0.1:15380"
+    proc = None
+    try:
+        print(f"CI-BRIDGE mode: single node on :15380 (tmp={tmp})")
+        log = open(cfg["log_file"], "w", encoding="utf-8")
+        proc = subprocess.Popen(
+            [sys.executable, "main.py", "--config", cfg_path],
+            cwd=ROOT,
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+        )
+        if not _wait_health(url, max_sec=180):
+            print("FAIL: bridge node health timeout")
+            return 1
+
+        status = _api(f"{url}/status")
+        if int(status.get("api_wave", 0) or 0) < 59:
+            print(f"FAIL: api_wave={status.get('api_wave')} expected >=59")
+            return 19
+        return verify_bridge(url, status, oracle_secret=secret)
+    finally:
+        if proc:
             proc.terminate()
             try:
                 proc.wait(timeout=12)
@@ -1119,7 +1322,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="P2P verification (2-node or 3-node)")
     parser.add_argument(
         "--mode",
-        choices=("auto", "devnet", "devnet3", "devnet5", "ci", "ci3", "ci-fork", "ci-adversarial"),
+        choices=("auto", "devnet", "devnet3", "devnet5", "ci", "ci3", "ci-fork", "ci-bridge", "ci-adversarial"),
         default="auto",
         help="auto; devnet/devnet3/devnet5; ci/ci3",
     )
@@ -1175,6 +1378,9 @@ def main() -> int:
 
     if mode == "ci-fork":
         return run_ci_fork_spawn()
+
+    if mode == "ci-bridge":
+        return run_ci_bridge_spawn()
 
     if mode in ("ci3", "ci-adversarial"):
         return run_ci3_spawn()

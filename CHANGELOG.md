@@ -2,11 +2,21 @@
 
 Все значимые изменения документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/).
 
-**Текущая волна API:** `api_wave = 58` (проверка: `GET /status`)
+**Текущая волна API:** `api_wave = 59` (проверка: `GET /status`)
 
 ---
 
-## [1.2.0-industrial] — Wave 37–58 (июнь 2026)
+## [1.2.0-industrial] — Wave 37–59 (июнь 2026)
+
+### Wave 59 — Bridge relayer e2e + Explorer fork UI
+
+- `RustBridge.enqueue_l1_incoming()` — L1 incoming queue for relayer watch
+- `POST /bridge2/transfer` — routes through `RustBridge` when enabled (incoming/outbound)
+- `POST /bridge/oracle/l1-register` — enqueues incoming/outbound L1 queue entries
+- Explorer — Testnet Fork Monitor card, `l1_tx_hash` on bridge forms, `bridge2` rust vs simulator path
+- `verify_p2p_ci.py` — `verify_bridge()` after adversarial; `--mode ci-bridge` isolated test
+- `tests/unit/test_bridge_relayer_e2e.py` — lock → queue → relayer incoming e2e
+- **`api_wave` → 59**
 
 ### Wave 58 — Fork CI (partition + recovery)
 

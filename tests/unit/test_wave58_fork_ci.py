@@ -65,7 +65,7 @@ def test_fork_exercise_recovers():
     out = _build_testnet_fork_exercise(
         _FakeP2P(), _FakeBC(), _FakeCfg(), _FakeDB(), run_reconcile=True
     )
-    assert out["api_wave"] == 58
+    assert out["api_wave"] == 59
     assert out["fork_recovered"] is True
     assert out["after"]["consensus_healthy"] is True
 

@@ -224,6 +224,39 @@ class RustBridge:
         queue["outbound"] = outbound[-500:]
         save_l1_queue(path, queue)
 
+    def enqueue_l1_incoming(
+        self,
+        l1_tx_hash: str,
+        recipient: str,
+        amount: float,
+        from_chain: str,
+        tx_id: str = "",
+    ) -> None:
+        """Append incoming L1 proof watch entry for bridge relayer."""
+        from bridge.l1_rpc import load_l1_queue, save_l1_queue
+
+        if not l1_tx_hash or not recipient or amount <= 0:
+            return
+        path = getattr(self.config, "bridge_l1_queue_path", "data/bridge_l1_queue.json")
+        queue = load_l1_queue(path)
+        incoming = list(queue.get("incoming", []))
+        entry = {
+            "l1_tx_hash": l1_tx_hash,
+            "tx_hash": l1_tx_hash,
+            "tx_id": tx_id or l1_tx_hash,
+            "recipient": recipient,
+            "amount": float(amount),
+            "from_chain": self._normalize_chain(from_chain),
+            "queued_at": int(time.time()),
+        }
+        incoming = [
+            e for e in incoming
+            if e.get("l1_tx_hash") != l1_tx_hash and e.get("tx_id") != entry["tx_id"]
+        ]
+        incoming.append(entry)
+        queue["incoming"] = incoming[-500:]
+        save_l1_queue(path, queue)
+
     # ── Подтверждение входящего перевода ─────────────────────────────────────
 
     def confirm_incoming(self, tx_hash: str, recipient: str,
@@ -243,6 +276,11 @@ class RustBridge:
                 "amount": amount,
                 "mode": self._mode,
             }
+
+        if l1_tx_hash:
+            self.enqueue_l1_incoming(
+                l1_tx_hash, recipient, amount, from_chain, tx_id=tx_hash
+            )
 
         if self._mode == "rust":
             import os

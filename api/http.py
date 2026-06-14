@@ -86,6 +86,7 @@ except ImportError:
 _DEV_PUBLIC_POST = frozenset({
     "/transactions", "/tx/send", "/devnet/faucet", "/pools/dao/vote", "/devnet/pool-spend",
     "/bridge/confirm-lock", "/bridge/confirm-pending", "/bridge/dev-confirm-pending",
+    "/bridge/lock", "/bridge/confirm", "/bridge2/transfer",
     "/sync/fast-sync", "/sync/reconcile",
     "/chain/consistency/repair", "/chain/consistency/repair",
     "/testnet/reorg-exercise",
@@ -746,13 +747,15 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 58,
+                    "api_wave": 59,
                     "core_real": {
                         "deterministic_proposer": True,
                         "finality_quorum_live": True,
                         "reorg_finality_guard": True,
                         "mev_mempool_analysis": True,
                         "bridge_production_path": getattr(cfg, "bridge_mode", "simulator") == "rust",
+                        "bridge_l1_queue": True,
+                        "bridge2_rust_path": bool(getattr(self.__class__, "bridge", None)),
                     },
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,
@@ -2209,7 +2212,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 self._json({
                     "count": len(events),
                     "events": events,
-                    "api_wave": 58,
+                    "api_wave": 59,
                 })
 
             elif path == "/sync/status":
@@ -2844,6 +2847,7 @@ class RESTHandler(BaseHTTPRequestHandler):
         bc = self.__class__.blockchain
         mp = self.__class__.mempool
         cfg = self.__class__.config
+        db = self.__class__.db
         evm_adapter = self.__class__.evm
 
         try:
@@ -3749,22 +3753,57 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             # ── Cross-Chain Bridge ────────────────────────────────────────────
             elif path == "/bridge2/transfer":
+                rust_br = getattr(self.__class__, "bridge", None)
                 cb = self.__class__.cross_bridge
-                if not cb:
-                    self._error(503, "Cross-chain bridge not enabled"); return
                 from_chain = body.get("from_chain", "ethereum")
                 to_chain = body.get("to_chain", "absolute")
                 from_addr = body.get("from_address", "")
                 to_addr = body.get("to_address", "")
                 amount = float(body.get("amount", 0))
+                l1_tx = (body.get("l1_tx_hash") or "").strip()
                 if not from_addr or not to_addr or amount <= 0:
                     self._error(400, "from_address, to_address, amount required"); return
+                if rust_br and hasattr(rust_br, "lock_and_bridge"):
+                    if to_chain.lower() in ("absolute", "abs"):
+                        tx_id = body.get("tx_id") or l1_tx or (
+                            "0x" + hashlib.sha256(
+                                f"{from_chain}:{from_addr}:{to_addr}:{amount}".encode()
+                            ).hexdigest()
+                        )
+                        result = rust_br.confirm_incoming(
+                            tx_id, to_addr, amount, from_chain, l1_tx_hash=l1_tx
+                        )
+                        self._json({
+                            **(result if isinstance(result, dict) else {"success": bool(result)}),
+                            "bridge_path": "rust",
+                            "direction": "incoming",
+                        })
+                    else:
+                        result = rust_br.lock_and_bridge(
+                            from_addr, to_chain, to_addr, amount, l1_tx_hash=l1_tx
+                        )
+                        self._json({
+                            **(result if isinstance(result, dict) else {"success": bool(result)}),
+                            "bridge_path": "rust",
+                            "direction": "outbound",
+                            "hint": "Confirm via POST /bridge/confirm-lock or bridge relayer",
+                        })
+                    return
+                if not cb:
+                    self._error(503, "Cross-chain bridge not enabled"); return
                 tx_hash = cb.bridge(from_chain, to_chain, from_addr, to_addr, amount)
                 cb.confirm_transaction(tx_hash)
                 fee = cb.estimate_fee(from_chain, amount)
-                self._json({"success": True, "tx_hash": tx_hash,
-                            "from_chain": from_chain, "to_chain": to_chain,
-                            "amount": amount - fee, "fee": fee, "status": "confirmed"})
+                self._json({
+                    "success": True,
+                    "tx_hash": tx_hash,
+                    "from_chain": from_chain,
+                    "to_chain": to_chain,
+                    "amount": amount - fee,
+                    "fee": fee,
+                    "status": "confirmed",
+                    "bridge_path": "simulator",
+                })
 
             # ── Standalone Consensus Engine ───────────────────────────────────
             elif path == "/consensus/engine/attest":
@@ -3956,6 +3995,21 @@ class RESTHandler(BaseHTTPRequestHandler):
                 proofs = [p for p in proofs if p.get("l1_tx_hash") != l1_tx]
                 proofs.append(entry)
                 db.set_meta("bridge_l1_proofs", proofs[-500:])
+                br = getattr(self.__class__, "bridge", None)
+                recipient = (body.get("recipient") or body.get("to_address") or "").strip()
+                amount = float(body.get("amount", 0) or 0)
+                if br and hasattr(br, "enqueue_l1_incoming") and recipient and amount > 0:
+                    br.enqueue_l1_incoming(
+                        l1_tx,
+                        recipient,
+                        amount,
+                        chain,
+                        tx_id=body.get("tx_id", l1_tx),
+                    )
+                    entry["queued_incoming"] = True
+                elif br and abs_lock and hasattr(br, "_enqueue_l1_outbound"):
+                    br._enqueue_l1_outbound(abs_lock, l1_tx, chain)
+                    entry["queued_outbound"] = True
                 self._json({"success": True, "registered": entry, "count": len(proofs)})
 
             # ── Bridge: lock, confirm, refund ─────────────────────────────────
@@ -4284,7 +4338,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "reorg_safe": bool(
                         before_root == after_root and harness.get("harness_healthy")
                     ),
-                    "api_wave": 58,
+                    "api_wave": 59,
                 })
 
             elif path == "/testnet/fork-exercise":
@@ -4820,7 +4874,7 @@ def _build_testnet_mesh(p2p, bc, cfg) -> Dict:
         "bootstrap_peers": getattr(cfg, "bootstrap_peers", []),
         "peers": peers,
         "testnet_mode": "3-node" if expected_peers >= 2 else "multi",
-        "api_wave": 58,
+        "api_wave": 59,
     }
 
 
@@ -4881,7 +4935,7 @@ def _build_testnet_fork_status(p2p, bc, cfg, db=None) -> Dict:
         "slash_events_count": len(slash_events),
         "recent_slash_events": slash_events[:5],
         "peers": peers,
-        "api_wave": 58,
+        "api_wave": 59,
     }
 
 
@@ -4942,7 +4996,7 @@ def _build_testnet_fork_exercise(p2p, bc, cfg, db=None, run_reconcile: bool = Fa
         "harness_healthy": bool(harness.get("harness_healthy")),
         "fork_recovered": fork_recovered if run_reconcile else None,
         "needs_recovery": not before.get("consensus_healthy") or before.get("fork_detected"),
-        "api_wave": 58,
+        "api_wave": 59,
     }
 
 
@@ -5043,7 +5097,7 @@ def _build_state_consistency_harness(p2p, bc, cfg, db=None) -> Dict:
         "harness_healthy": harness_healthy,
         "failed_checks": [c["id"] for c in checks if not c["ok"]],
         "policy": policy,
-        "api_wave": 58,
+        "api_wave": 59,
     }
 
 
@@ -5079,7 +5133,7 @@ def _build_testnet_validators_status(db, cfg, bc) -> Dict:
         "validators": validators,
         "manifest": getattr(cfg, "testnet_validators_manifest", ""),
         "validator_index": int(getattr(cfg, "testnet_validator_index", 0) or 0),
-        "api_wave": 58,
+        "api_wave": 59,
     }
 
 
@@ -5163,7 +5217,7 @@ def _build_testnet_multi_node_proof(p2p, bc, cfg, db, consensus_adapter) -> Dict
         "checks": checks,
         "proof_ok": proof_ok,
         "failed_checks": [c["id"] for c in checks if not c["ok"]],
-        "api_wave": 58,
+        "api_wave": 59,
     }
 
 
@@ -5306,7 +5360,7 @@ def _build_l2_status(handler_cls) -> Dict:
         m.get("persisted") for m in modules.values() if isinstance(m, dict)
     )
     return {
-        "api_wave": 58,
+        "api_wave": 59,
         "l2_persisted": persisted,
         "nft_persisted": nft_persisted,
         "core": {
