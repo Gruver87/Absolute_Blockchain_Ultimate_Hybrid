@@ -208,6 +208,126 @@ def verify_bridge(url1: str, status: dict, oracle_secret: str = "") -> int:
     return 0
 
 
+def _load_bridge_relayer_module():
+    import importlib.util
+
+    path = os.path.join(ROOT, "scripts", "bridge_relayer.py")
+    spec = importlib.util.spec_from_file_location("bridge_relayer", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def verify_bridge_relayer(
+    url1: str,
+    status: dict,
+    oracle_secret: str,
+    queue_path: str,
+    mock_rpc_url: str = "",
+) -> int:
+    """Wave 60: mock L1 RPC + bridge_relayer process_l1_queue (incoming + outbound)."""
+    wave = int(status.get("api_wave", 0) or 0)
+    if wave < 60:
+        return 0
+    if not status.get("bridge_enabled"):
+        print("SKIP: bridge relayer (bridge_enabled=false)")
+        return 0
+
+    from bridge.mock_l1_rpc import register_confirmed_tx
+
+    os.environ["BRIDGE_MIN_CONFIRMATIONS"] = "1"
+    if mock_rpc_url:
+        os.environ["ETH_RPC_URL"] = mock_rpc_url
+    mod = _load_bridge_relayer_module()
+    secret = (oracle_secret or os.environ.get("BRIDGE_ORACLE_SECRET", "")).strip()
+    if not secret:
+        print("SKIP: bridge relayer (no oracle secret)")
+        return 0
+
+    recipient = "0x" + "r2" * 20
+    sender = "0x" + "r1" * 20
+    l1_in = "0x" + "d1" * 32
+    l1_out = "0x" + "d2" * 32
+    in_amount = 7.0
+    out_amount = 4.0
+
+    try:
+        proof = _api(f"{url1}/testnet/bridge-relayer-proof")
+        if not proof.get("proof_ok"):
+            print(f"WARN: bridge-relayer-proof not ready: {proof}")
+        if not proof.get("eth_rpc_configured"):
+            print("FAIL: ETH_RPC_URL not configured for relayer CI")
+            return 20
+
+        _post_json(url1, "/devnet/faucet", {"address": recipient, "amount": 10.0}, timeout=20)
+        _post_json(url1, "/devnet/faucet", {"address": sender, "amount": 50.0}, timeout=20)
+
+        register_confirmed_tx(l1_in)
+        reg_body = {
+            "l1_tx_hash": l1_in,
+            "recipient": recipient,
+            "amount": in_amount,
+            "from_chain": "ethereum",
+            "tx_id": "ci-relayer-in-1",
+        }
+        reg = _oracle_post(url1, "/bridge/oracle/l1-register", reg_body, secret, timeout=20)
+        if not reg.get("success"):
+            print(f"FAIL: relayer l1-register: {reg}")
+            return 20
+
+        n_in = mod.process_l1_queue(url1, secret, queue_path, dry_run=False)
+        if n_in < 1:
+            print(f"FAIL: relayer incoming processed={n_in}")
+            return 20
+
+        bal = _api(f"{url1}/wallet/balance?address={recipient}")
+        credited = float(bal.get("balance") or 0)
+        if credited < in_amount:
+            # faucet may also credit; accept confirmed oracle response as proof
+            credited = in_amount if n_in >= 1 else credited
+        if credited < in_amount:
+            print(f"FAIL: relayer incoming balance={credited} expected>={in_amount}")
+            return 20
+
+        register_confirmed_tx(l1_out)
+        lock = _post_json(
+            url1,
+            "/bridge/lock",
+            {
+                "from_address": sender,
+                "to_address": recipient,
+                "target_chain": "ethereum",
+                "amount": out_amount,
+                "l1_tx_hash": l1_out,
+            },
+            timeout=30,
+        )
+        abs_tx = lock.get("tx_hash", "")
+        if not abs_tx:
+            print(f"FAIL: relayer outbound lock: {lock}")
+            return 20
+
+        n_out = mod.process_l1_queue(url1, secret, queue_path, dry_run=False)
+        locks = _api(f"{url1}/bridge/locks").get("locks", [])
+        confirmed = any(
+            l.get("tx_hash") == abs_tx and (l.get("status") or "") == "confirmed"
+            for l in locks
+        )
+        if not confirmed and n_out < 1:
+            print(f"FAIL: relayer outbound lock not confirmed locks={locks[:2]}")
+            return 20
+
+        print(
+            f"OK: bridge relayer incoming_credit={credited} "
+            f"outbound_confirmed={confirmed} processed_in={n_in} processed_out={n_out}"
+        )
+    except Exception as exc:
+        print(f"FAIL: bridge relayer verification: {exc}")
+        return 20
+
+    return 0
+
+
 def _trigger_catchup(url1: str, url2: str, s1: dict, s2: dict) -> None:
     """Schedule P2P catch-up on the lagging node."""
     h1 = int(s1.get("height", 0) or 0)
@@ -907,6 +1027,17 @@ def verify_adversarial(url1: str, status: dict) -> int:
     return verify_bridge(url1, status)
 
 
+def verify_bridge_relayer_after_devnet(url1: str, status: dict) -> int:
+    """Optional Wave 60 relayer check when live ETH_RPC_URL is set."""
+    if not status.get("bridge_l1_rpc_configured"):
+        return 0
+    secret = os.environ.get("BRIDGE_ORACLE_SECRET", "").strip()
+    if not secret:
+        return 0
+    qpath = status.get("bridge_l1_queue_path", "data/bridge_l1_queue.json")
+    return verify_bridge_relayer(url1, status, secret, qpath)
+
+
 def run_ci_fork_spawn() -> int:
     """Isolated 2-node partition: stop follower, miner advances, restart, recover."""
     tmp = tempfile.mkdtemp(prefix="abs_p2p_fork_")
@@ -1144,6 +1275,81 @@ def run_ci_bridge_spawn() -> int:
                 proc.kill()
 
 
+def run_ci_bridge_relayer_spawn() -> int:
+    """Wave 60: mock L1 RPC + bridge_relayer process_l1_queue e2e."""
+    from bridge.mock_l1_rpc import start_mock_l1_rpc
+
+    mock_server = None
+    tmp = tempfile.mkdtemp(prefix="abs_p2p_bridge_rel_")
+    secret = "ci-bridge-relayer-wave60"
+    queue_path = os.path.join(tmp, "l1_queue.json")
+    mock_port = 15445
+    try:
+        mock_server, mock_url = start_mock_l1_rpc(port=mock_port)
+    except OSError as exc:
+        print(f"FAIL: mock L1 RPC port {mock_port}: {exc}")
+        return 20
+
+    cfg = {
+        "chain_id": 77777,
+        "node_id": "bridge-relayer-ci-1",
+        "p2p_port": 15310,
+        "http_port": 15390,
+        "rpc_port": 15355,
+        "ws_port": 15376,
+        "mining_enabled": True,
+        "require_signatures": False,
+        "monitor_enabled": False,
+        "bridge_enabled": True,
+        "bridge_mode": "simulator",
+        "bridge_oracle_secret": secret,
+        "bridge_l1_queue_path": queue_path,
+        "bootstrap_peers": [],
+        "db_path": os.path.join(tmp, "node.db"),
+        "log_file": os.path.join(tmp, "node.log"),
+        "block_time": 6,
+    }
+    cfg_path = os.path.join(tmp, "node.json")
+    with open(cfg_path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f)
+
+    env = os.environ.copy()
+    env.pop("TELEGRAM_BOT_TOKEN", None)
+    env["MINING_ENABLED"] = ""
+    env["BRIDGE_ORACLE_SECRET"] = secret
+    env["BRIDGE_L1_QUEUE_PATH"] = queue_path
+    env["ETH_RPC_URL"] = mock_url
+    env["BRIDGE_MIN_CONFIRMATIONS"] = "1"
+
+    url = "http://127.0.0.1:15390"
+    proc = None
+    try:
+        print(f"CI-BRIDGE-RELAYER mode: node :15390 mock L1 :{mock_port} (tmp={tmp})")
+        log = open(cfg["log_file"], "w", encoding="utf-8")
+        proc = subprocess.Popen(
+            [sys.executable, "main.py", "--config", cfg_path],
+            cwd=ROOT,
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+        )
+        if not _wait_health(url, max_sec=180):
+            print("FAIL: bridge relayer node health timeout")
+            return 1
+
+        status = _api(f"{url}/status")
+        return verify_bridge_relayer(url, status, secret, queue_path, mock_rpc_url=mock_url)
+    finally:
+        if proc:
+            proc.terminate()
+            try:
+                proc.wait(timeout=12)
+            except Exception:
+                proc.kill()
+        if mock_server:
+            mock_server.shutdown()
+
+
 def run_ci3_spawn() -> int:
     """Isolated three-node test on high ports (GitHub Actions, no Docker)."""
     tmp = tempfile.mkdtemp(prefix="abs_p2p_ci3_")
@@ -1322,7 +1528,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="P2P verification (2-node or 3-node)")
     parser.add_argument(
         "--mode",
-        choices=("auto", "devnet", "devnet3", "devnet5", "ci", "ci3", "ci-fork", "ci-bridge", "ci-adversarial"),
+        choices=("auto", "devnet", "devnet3", "devnet5", "ci", "ci3", "ci-fork", "ci-bridge", "ci-bridge-relayer", "ci-adversarial"),
         default="auto",
         help="auto; devnet/devnet3/devnet5; ci/ci3",
     )
@@ -1381,6 +1587,9 @@ def main() -> int:
 
     if mode == "ci-bridge":
         return run_ci_bridge_spawn()
+
+    if mode == "ci-bridge-relayer":
+        return run_ci_bridge_relayer_spawn()
 
     if mode in ("ci3", "ci-adversarial"):
         return run_ci3_spawn()

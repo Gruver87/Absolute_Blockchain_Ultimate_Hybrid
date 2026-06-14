@@ -56,7 +56,7 @@ def test_fork_status_healthy_mesh():
     fork = _build_testnet_fork_status(p2p, _FakeBC(), _FakeCfg(), _FakeDB())
     assert fork["consensus_healthy"] is True
     assert fork["fork_detected"] is False
-    assert fork["api_wave"] == 59
+    assert fork["api_wave"] == 60
 
 
 def test_fork_status_detects_same_height_divergence():

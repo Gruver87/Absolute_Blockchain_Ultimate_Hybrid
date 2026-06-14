@@ -2,11 +2,18 @@
 
 Все значимые изменения документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/).
 
-**Текущая волна API:** `api_wave = 59` (проверка: `GET /status`)
+**Текущая волна API:** `api_wave = 60` (проверка: `GET /status`)
 
 ---
 
-## [1.2.0-industrial] — Wave 37–59 (июнь 2026)
+## [1.2.0-industrial] — Wave 37–60 (июнь 2026)
+
+### Wave 60 — Mock L1 RPC + relayer live e2e
+
+- `bridge/mock_l1_rpc.py` — in-process Ethereum JSON-RPC mock for CI
+- `GET /testnet/bridge-relayer-proof` — relayer readiness dashboard
+- `verify_p2p_ci.py` — `verify_bridge_relayer()` + `--mode ci-bridge-relayer`
+- **`api_wave` → 60**
 
 ### Wave 59 — Bridge relayer e2e + Explorer fork UI
 

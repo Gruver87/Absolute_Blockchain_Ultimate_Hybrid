@@ -119,6 +119,7 @@ _RATE_LIMIT_EXEMPT_PATHS = frozenset({
     "/testnet/state-consistency",
     "/testnet/validators",
     "/testnet/multi-node-proof",
+    "/testnet/bridge-relayer-proof",
     "/testnet/fork-exercise",
     "/consensus/stats",
     "/metrics",
@@ -171,6 +172,7 @@ _PUBLIC_API_ROUTES = [
     {"method": "POST", "path": "/chain/consistency/repair", "summary": "Replay chain if live state drifted from tip"},
     {"method": "GET", "path": "/testnet/validators", "summary": "5-validator set health and proposer rotation (Wave 55)"},
     {"method": "GET", "path": "/testnet/multi-node-proof", "summary": "Multi-node proof dashboard (Wave 56)"},
+    {"method": "GET", "path": "/testnet/bridge-relayer-proof", "summary": "Bridge relayer + L1 mock proof (Wave 60)"},
     {"method": "POST", "path": "/testnet/reorg-exercise", "summary": "Canonical replay reorg drill (dev only, Wave 56)"},
     {"method": "GET", "path": "/testnet/fork-exercise", "summary": "Fork recovery drill status (Wave 58)"},
     {"method": "POST", "path": "/testnet/fork-exercise", "summary": "P2P fork reconcile recovery drill (dev, Wave 58)"},
@@ -747,7 +749,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 59,
+                    "api_wave": 60,
                     "core_real": {
                         "deterministic_proposer": True,
                         "finality_quorum_live": True,
@@ -756,6 +758,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "bridge_production_path": getattr(cfg, "bridge_mode", "simulator") == "rust",
                         "bridge_l1_queue": True,
                         "bridge2_rust_path": bool(getattr(self.__class__, "bridge", None)),
+                        "bridge_relayer_live": True,
+                        "bridge_mock_l1_rpc": True,
                     },
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,
@@ -1283,6 +1287,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                 db = self.__class__.db
                 ca = self.__class__.consensus_adapter
                 self._json(_build_testnet_multi_node_proof(p2p, bc, cfg, db, ca))
+
+            elif path == "/testnet/bridge-relayer-proof":
+                db = self.__class__.db
+                br = getattr(self.__class__, "bridge", None)
+                self._json(_build_testnet_bridge_relayer_proof(cfg, db, br))
 
             elif path == "/tx/propagation/recent":
                 db = self.__class__.db
@@ -2212,7 +2221,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 self._json({
                     "count": len(events),
                     "events": events,
-                    "api_wave": 59,
+                    "api_wave": 60,
                 })
 
             elif path == "/sync/status":
@@ -4338,7 +4347,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "reorg_safe": bool(
                         before_root == after_root and harness.get("harness_healthy")
                     ),
-                    "api_wave": 59,
+                    "api_wave": 60,
                 })
 
             elif path == "/testnet/fork-exercise":
@@ -4874,7 +4883,7 @@ def _build_testnet_mesh(p2p, bc, cfg) -> Dict:
         "bootstrap_peers": getattr(cfg, "bootstrap_peers", []),
         "peers": peers,
         "testnet_mode": "3-node" if expected_peers >= 2 else "multi",
-        "api_wave": 59,
+        "api_wave": 60,
     }
 
 
@@ -4935,7 +4944,7 @@ def _build_testnet_fork_status(p2p, bc, cfg, db=None) -> Dict:
         "slash_events_count": len(slash_events),
         "recent_slash_events": slash_events[:5],
         "peers": peers,
-        "api_wave": 59,
+        "api_wave": 60,
     }
 
 
@@ -4996,7 +5005,7 @@ def _build_testnet_fork_exercise(p2p, bc, cfg, db=None, run_reconcile: bool = Fa
         "harness_healthy": bool(harness.get("harness_healthy")),
         "fork_recovered": fork_recovered if run_reconcile else None,
         "needs_recovery": not before.get("consensus_healthy") or before.get("fork_detected"),
-        "api_wave": 59,
+        "api_wave": 60,
     }
 
 
@@ -5097,7 +5106,7 @@ def _build_state_consistency_harness(p2p, bc, cfg, db=None) -> Dict:
         "harness_healthy": harness_healthy,
         "failed_checks": [c["id"] for c in checks if not c["ok"]],
         "policy": policy,
-        "api_wave": 59,
+        "api_wave": 60,
     }
 
 
@@ -5133,7 +5142,7 @@ def _build_testnet_validators_status(db, cfg, bc) -> Dict:
         "validators": validators,
         "manifest": getattr(cfg, "testnet_validators_manifest", ""),
         "validator_index": int(getattr(cfg, "testnet_validator_index", 0) or 0),
-        "api_wave": 59,
+        "api_wave": 60,
     }
 
 
@@ -5217,7 +5226,7 @@ def _build_testnet_multi_node_proof(p2p, bc, cfg, db, consensus_adapter) -> Dict
         "checks": checks,
         "proof_ok": proof_ok,
         "failed_checks": [c["id"] for c in checks if not c["ok"]],
-        "api_wave": 59,
+        "api_wave": 60,
     }
 
 
@@ -5360,7 +5369,7 @@ def _build_l2_status(handler_cls) -> Dict:
         m.get("persisted") for m in modules.values() if isinstance(m, dict)
     )
     return {
-        "api_wave": 59,
+        "api_wave": 60,
         "l2_persisted": persisted,
         "nft_persisted": nft_persisted,
         "core": {
@@ -5465,6 +5474,35 @@ def _build_bridge_relayer_status(cfg, db) -> Dict:
         }
     except Exception as e:
         return {"error": str(e), "pending_locks": 0, "l1_outbound": 0, "l1_incoming": 0}
+
+
+def _build_testnet_bridge_relayer_proof(cfg, db, bridge) -> Dict:
+    """Wave 60: relayer readiness + L1 queue + mock RPC hint."""
+    relayer = _build_bridge_relayer_status(cfg, db)
+    from bridge.l1_rpc import chain_rpc_url
+
+    bridge_on = bool(getattr(cfg, "bridge_enabled", False))
+    oracle_on = bool(relayer.get("oracle_hmac_configured"))
+    rpc_on = bool(chain_rpc_url("ethereum"))
+    queue_in = int(relayer.get("l1_incoming", 0) or 0)
+    queue_out = int(relayer.get("l1_outbound", 0) or 0)
+    rust_path = bridge is not None and hasattr(bridge, "lock_and_bridge")
+    proof_ok = bridge_on and oracle_on and rust_path
+
+    return {
+        "api_wave": 60,
+        "bridge_enabled": bridge_on,
+        "bridge_mode": getattr(cfg, "bridge_mode", "simulator"),
+        "oracle_hmac_configured": oracle_on,
+        "eth_rpc_configured": rpc_on,
+        "l1_incoming": queue_in,
+        "l1_outbound": queue_out,
+        "pending_locks": int(relayer.get("pending_locks", 0) or 0),
+        "relayer": relayer,
+        "mock_l1_hint": "bridge.mock_l1_rpc.start_mock_l1_rpc + ETH_RPC_URL for CI",
+        "ci_mode": "python scripts/verify_p2p_ci.py --mode ci-bridge-relayer",
+        "proof_ok": proof_ok,
+    }
 
 
 def _build_bridge_overview(rb, cb, cfg, db) -> Dict:

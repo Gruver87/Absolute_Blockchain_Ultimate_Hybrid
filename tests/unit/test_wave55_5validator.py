@@ -55,7 +55,7 @@ def test_validators_api_healthy():
     out = _build_testnet_validators_status(_FakeDB(validators, stats), _FakeCfg(), _FakeBC())
     assert out["validators_healthy"] is True
     assert out["rotation_observed"] is True
-    assert out["api_wave"] == 59
+    assert out["api_wave"] == 60
 
 
 def test_validators_api_unhealthy_count():

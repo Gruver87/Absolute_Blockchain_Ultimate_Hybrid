@@ -132,7 +132,7 @@ def section_project_inventory() -> AuditResult:
     print(f"  REST route refs    : ~{ep_count}")
     print(f"  scripts/ files     : {len(scripts)}")
     print(f"  Entry point        : main.py ({'OK' if os.path.isfile(os.path.join(ROOT, 'main.py')) else 'MISSING'})")
-    print(f"  api_wave in code   : {'59' if 'bridge_l1_queue' in http_src and 'api_wave": 59' in http_src else 'check'}")
+    print(f"  api_wave in code   : {'60' if 'bridge_relayer_live' in http_src and 'api_wave": 60' in http_src else 'check'}")
 
     required_scripts = [
         "start_node.ps1", "start_two_nodes.ps1", "docker_devnet.ps1",
@@ -207,7 +207,10 @@ def section_waves_52_56() -> AuditResult:
         ("POST /testnet/reorg-exercise", '"/testnet/reorg-exercise"' in http_src),
         ("verify_p2p devnet3 mode", "devnet3" in _read("scripts/verify_p2p_ci.py")),
         ("POST /testnet/fork-exercise", '"/testnet/fork-exercise"' in http_src),
-        ("unit test wave59", os.path.isfile(os.path.join(ROOT, "tests/unit/test_wave59_bridge.py"))),
+        ("unit test wave60", os.path.isfile(os.path.join(ROOT, "tests/unit/test_wave60_bridge_relayer.py"))),
+        ("mock l1 rpc", os.path.isfile(os.path.join(ROOT, "bridge/mock_l1_rpc.py"))),
+        ("verify_p2p ci-bridge-relayer", "ci-bridge-relayer" in _read("scripts/verify_p2p_ci.py")),
+        ("GET /testnet/bridge-relayer-proof", '"/testnet/bridge-relayer-proof"' in http_src),
         ("verify_p2p ci-bridge mode", "ci-bridge" in _read("scripts/verify_p2p_ci.py")),
         ("verify_p2p verify_bridge", "verify_bridge" in _read("scripts/verify_p2p_ci.py")),
         ("bridge enqueue_l1_incoming", "enqueue_l1_incoming" in _read("bridge/abs_bridge.py")),
@@ -372,8 +375,8 @@ def section_live_endpoints(base: str) -> AuditResult:
             res.details.append(path)
 
     if api_wave:
-        print(f"  api_wave={api_wave} {'(>=59 OK)' if api_wave >= 59 else '(WARN: expected >=59)'}")
-        if api_wave < 59:
+        print(f"  api_wave={api_wave} {'(>=60 OK)' if api_wave >= 60 else '(WARN: expected >=60)'}")
+        if api_wave < 60:
             res.warnings += 1
     return res
 
