@@ -78,11 +78,19 @@ except Exception:
 
 # --- Real World Oracles ---
 try:
-    from real_world_oracles import OracleManager
     from features.oracle_registry import OracleFeedRegistry
-    _ORACLES_AVAILABLE = True
+    _ORACLE_REGISTRY_AVAILABLE = True
 except Exception:
-    _ORACLES_AVAILABLE = False
+    OracleFeedRegistry = None  # type: ignore
+    _ORACLE_REGISTRY_AVAILABLE = False
+
+try:
+    from real_world_oracles import OracleManager
+    _ORACLE_MANAGER_AVAILABLE = True
+except Exception:
+    _ORACLE_MANAGER_AVAILABLE = False
+
+_ORACLES_AVAILABLE = _ORACLE_REGISTRY_AVAILABLE or _ORACLE_MANAGER_AVAILABLE
 
 # --- Multisig Wallets ---
 try:
@@ -506,19 +514,23 @@ class NodeOrchestrator:
         else:
             self.sharding = None
 
-        # 12. Real World Oracles (crypto prices, weather)
-        if _ORACLES_AVAILABLE:
+        # 12. Real World Oracles (crypto prices, weather) + on-chain feed registry
+        self.oracle_registry = None
+        self.oracles = None
+        if _ORACLE_REGISTRY_AVAILABLE:
+            try:
+                self.oracle_registry = OracleFeedRegistry(self.db)
+                print("[Node] Oracle registry: SQLite feeds enabled")
+            except Exception as e:
+                self.oracle_registry = None
+                print(f"[Node] Oracle registry: unavailable ({e})")
+        if _ORACLE_MANAGER_AVAILABLE:
             try:
                 self.oracles = OracleManager()
-                self.oracle_registry = OracleFeedRegistry(self.db)
                 print("[Node] Oracles: price feeds active (BTC/ETH/ABS)")
             except Exception as e:
                 self.oracles = None
-                self.oracle_registry = None
-                print(f"[Node] Oracles: unavailable ({e})")
-        else:
-            self.oracles = None
-            self.oracle_registry = None
+                print(f"[Node] Oracles: live feeds unavailable ({e})")
 
         # 13. Multisig support
         if _MULTISIG_AVAILABLE:

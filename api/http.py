@@ -159,7 +159,12 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/consensus/attestations/by-block", "summary": "Attestation votes aggregated per block"},
     {"method": "GET", "path": "/bridge", "summary": "Bridge overview"},
     {"method": "GET", "path": "/bridge/locks", "summary": "Bridge lock records"},
+    {"method": "GET", "path": "/oracles/prices", "summary": "Crypto price feeds (registry or live)"},
+    {"method": "GET", "path": "/oracles/feeds", "summary": "Persisted oracle feed registry"},
+    {"method": "GET", "path": "/oracles/feeds/{symbol}", "summary": "Oracle feeds filtered by symbol"},
     {"method": "GET", "path": "/bridge/l1-queue", "summary": "L1 RPC watch queue (relayer)"},
+    {"method": "GET", "path": "/oracles/l1-queue", "summary": "Bridge L1 queue (alias)"},
+    {"method": "POST", "path": "/oracles/feeds/submit", "summary": "Submit signed oracle feed (HMAC)"},
     {"method": "GET", "path": "/bridge/l1-proofs", "summary": "Registered L1 proof metadata"},
     {"method": "POST", "path": "/sync/reconcile", "summary": "P2P fork reconcile + state sync"},
     {"method": "GET", "path": "/wallet/status", "summary": "Signing wallet status"},
@@ -709,6 +714,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                         or os.environ.get("BRIDGE_ORACLE_SECRET", "")
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
+                    "oracle_registry_enabled": self.__class__.oracle_registry is not None,
+                    "api_wave": 39,
                     "bridge_l1_rpc_configured": bool(
                         os.environ.get("ETH_RPC_URL", "")
                         or os.environ.get("ETHEREUM_RPC_URL", "")
@@ -1190,18 +1197,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                         symbol = part
                 feeds = registry.list_feeds(symbol=symbol, limit=100)
                 self._json({"count": len(feeds), "symbol": symbol or None, "feeds": feeds})
+                return
 
-            elif path == "/oracles/l1-queue":
-                from bridge.l1_rpc import load_l1_queue
-                cfg = self.__class__.config
-                path_q = getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json")
-                q = load_l1_queue(path_q)
-                self._json({
-                    "path": path_q,
-                    "outbound": len(q.get("outbound", [])),
-                    "incoming": len(q.get("incoming", [])),
-                    "queue": q,
-                })
+            elif path in ("/oracles/l1-queue", "/bridge/l1-queue"):
+                self._json(_build_l1_queue_payload(cfg))
+                return
 
             # ── Short URL aliases ─────────────────────────────────────────────
             elif path.startswith("/block/"):
@@ -2111,22 +2111,6 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if db and hasattr(db, "get_bridge_locks"):
                     locks = db.get_bridge_locks(limit=500)
                 self._json({"locks": locks, "count": len(locks)})
-
-            elif path == "/bridge/l1-queue":
-                try:
-                    from bridge.l1_rpc import load_l1_queue, chain_rpc_url, min_confirmations
-                    qpath = getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json")
-                    queue = load_l1_queue(qpath)
-                    self._json({
-                        "path": qpath,
-                        "min_confirmations": min_confirmations(),
-                        "eth_rpc_configured": bool(chain_rpc_url("ethereum")),
-                        "outbound": len(queue.get("outbound", [])),
-                        "incoming": len(queue.get("incoming", [])),
-                        "queue": queue,
-                    })
-                except Exception as e:
-                    self._json({"error": str(e), "outbound": 0, "incoming": 0, "queue": {}})
 
             elif path == "/bridge/l1-proofs":
                 proofs = []
@@ -4478,6 +4462,24 @@ def _collect_recent_activity(db, cross_bridge=None, limit: int = 30) -> List[Dic
     return items[:limit]
 
 
+def _build_l1_queue_payload(cfg) -> Dict:
+    """Shared JSON for GET /bridge/l1-queue and GET /oracles/l1-queue."""
+    try:
+        from bridge.l1_rpc import load_l1_queue, chain_rpc_url, min_confirmations
+        qpath = getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json")
+        queue = load_l1_queue(qpath)
+        return {
+            "path": qpath,
+            "min_confirmations": min_confirmations(),
+            "eth_rpc_configured": bool(chain_rpc_url("ethereum")),
+            "outbound": len(queue.get("outbound", [])),
+            "incoming": len(queue.get("incoming", [])),
+            "queue": queue,
+        }
+    except Exception as e:
+        return {"error": str(e), "outbound": 0, "incoming": 0, "queue": {}}
+
+
 def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
     """Unified GET /bridge summary (RustBridge + CrossChainBridge + DB locks)."""
     overview = {
@@ -4495,6 +4497,8 @@ def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
         "endpoints": {
             "locks": "GET /bridge/locks",
             "l1_queue": "GET /bridge/l1-queue",
+            "oracle_feeds": "GET /oracles/feeds",
+            "oracle_prices": "GET /oracles/prices",
             "lock": "POST /bridge/lock",
             "confirm": "POST /bridge/confirm",
             "confirm_lock": "POST /bridge/confirm-lock",

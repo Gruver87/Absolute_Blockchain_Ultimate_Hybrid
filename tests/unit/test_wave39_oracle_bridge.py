@@ -109,6 +109,14 @@ def test_bridge_lock_enqueues_l1_outbound():
     assert queue["outbound"][0]["abs_tx_hash"] == result["tx_hash"]
 
 
+def test_oracles_feeds_http_route():
+    """REST GET /oracles/feeds is registered (Wave 39)."""
+    import inspect
+    src = inspect.getsource(__import__("api.http", fromlist=["RESTHandler"]).RESTHandler.do_GET)
+    assert "/oracles/feeds" in src
+    assert "/oracles/l1-queue" in src
+
+
 def test_sync_from_manager_ingests_prices():
     from features.oracle_registry import OracleFeedRegistry
     from storage.database import Database

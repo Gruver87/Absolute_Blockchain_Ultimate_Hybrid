@@ -57,7 +57,8 @@
 #   EVM: BLOCKHASH, CALLCODE; логи контрактов в SQLite (GET /evm/logs)
 # Wave 39:
 #   Oracle registry: signed feeds в SQLite (GET /oracles/feeds, POST /oracles/feeds/submit)
-#   Bridge L1 queue: POST /bridge/lock с l1_tx_hash → data/bridge_l1_queue.json (GET /oracles/l1-queue)
+#   Bridge L1 queue: POST /bridge/lock с l1_tx_hash → data/bridge_l1_queue.json
+#        GET /bridge/l1-queue (или alias GET /oracles/l1-queue)
 #
 # --- Архитектура ---
 #
