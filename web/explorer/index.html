@@ -1803,9 +1803,12 @@ async function refreshStatus() {
       bridgeEl.textContent = 'off';
     } else {
       const mode = (data.bridge_mode || 'simulator').toLowerCase();
-      bridgeEl.innerHTML = mode === 'rust'
+      const pending = data.bridge_pending || 0;
+      const pendingBadge = pending > 0
+        ? ` <span class="badge badge-yellow">${pending} pending</span>` : '';
+      bridgeEl.innerHTML = (mode === 'rust'
         ? '<span class="badge badge-blue">rust</span>'
-        : '<span class="badge badge-green">sim</span>';
+        : '<span class="badge badge-green">sim</span>') + pendingBadge;
     }
   }
 
@@ -1825,7 +1828,8 @@ async function refreshStatus() {
     ['State Root', '<span class="hash">' + (data.state_root||'n/a').slice(0,32) + '…</span>'],
     ['EVM', data.evm_enabled ? '<span class="badge badge-green">ON</span>' : 'off'],
     ['Bridge', data.bridge_enabled
-      ? `<span class="badge badge-blue">ON</span> ${(data.bridge_mode||'simulator')}`
+      ? `<span class="badge badge-blue">ON</span> ${(data.bridge_mode||'simulator')}` +
+        ((data.bridge_pending||0) > 0 ? ` <span class="badge badge-yellow">${data.bridge_pending} pending</span>` : '')
       : 'off'],
   ];
   t.innerHTML = rows.map(([k,v]) => `<tr><td style="color:var(--gray)">${k}</td><td>${v||'—'}</td></tr>`).join('');

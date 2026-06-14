@@ -59,6 +59,18 @@ jobs:
         PYTHONUTF8: "1"
       run: pytest tests/ -q --tb=short
 
+    - name: Bridge + pool devnet API tests
+      if: matrix.python-version == '3.12'
+      env:
+        PYTHONUTF8: "1"
+      run: |
+        pytest tests/unit/test_bridge_incoming.py \
+          tests/unit/test_bridge_confirm_pending.py \
+          tests/unit/test_bridge_manual.py \
+          tests/unit/test_devnet_pool_spend.py \
+          tests/unit/test_pool_dao.py \
+          -q --tb=short
+
     - name: Build Rust bridge CLI
       if: runner.os == 'Linux' && matrix.python-version == '3.12'
       run: |

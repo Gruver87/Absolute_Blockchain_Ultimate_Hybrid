@@ -602,6 +602,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                 validators = db.get_validators() if db else []
                 total_burned = db.get_total_burned() if db else 0
                 total_supply = db.get_total_supply() if db and hasattr(db, "get_total_supply") else 0
+                bridge_locks = (
+                    db.get_bridge_locks(limit=1000)
+                    if db and hasattr(db, "get_bridge_locks")
+                    else []
+                )
+                bridge_pending = sum(1 for l in bridge_locks if l.get("status") == "pending")
                 self._json({
                     "status": "running",
                     "node_version": cfg.node_version,
@@ -628,6 +634,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "evm_enabled": cfg.evm_enabled,
                     "bridge_enabled": cfg.bridge_enabled,
                     "bridge_mode": getattr(cfg, "bridge_mode", "simulator"),
+                    "bridge_pending": bridge_pending,
+                    "bridge_locks_total": len(bridge_locks),
                     "deployment_mode": getattr(cfg, "deployment_mode", "dev"),
                     "node_id": getattr(cfg, "node_id", "node-1"),
                     "health": {

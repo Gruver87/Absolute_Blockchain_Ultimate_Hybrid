@@ -121,6 +121,20 @@ def test_status_has_health_links(api_server):
     assert data["health"]["live"] == "/health/live"
     assert data.get("api_docs") == "/docs"
     assert data.get("openapi") == "/openapi.json"
+    assert "bridge_pending" in data
+    assert "bridge_locks_total" in data
+    assert data["bridge_pending"] == 0
+
+
+def test_status_bridge_pending_counts(api_server, industrial_config):
+    base, cfg = api_server
+    db = Database(cfg.db_path, synchronous="NORMAL")
+    db.save_bridge_lock("0xfrom", "ethereum", "0xto", 5.0, "pending99")
+    status, body = _get(f"{base}/status")
+    data = json.loads(body)
+    assert status == 200
+    assert data["bridge_pending"] == 1
+    assert data["bridge_locks_total"] == 1
 
 
 def test_peers_alias(api_server):

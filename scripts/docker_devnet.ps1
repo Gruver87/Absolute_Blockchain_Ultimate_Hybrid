@@ -1,11 +1,21 @@
 # Start two-node devnet via Docker Compose
+param(
+    [switch]$RustBridge
+)
+
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $ProjectRoot
 
-Write-Host "=== Docker devnet (node1 :8080, node2 :8081) ===" -ForegroundColor Cyan
-Write-Host "Build + start: docker compose -f docker-compose.devnet.yml up --build -d" -ForegroundColor Gray
+$composeFile = "docker-compose.devnet.yml"
+if ($RustBridge) {
+    $composeFile = "docker-compose.devnet-rust.yml"
+    Write-Host "Docker devnet: node1 bridge_mode=rust ($composeFile)" -ForegroundColor Cyan
+}
 
-docker compose -f docker-compose.devnet.yml up --build -d
+Write-Host "=== Docker devnet (node1 :8080, node2 :8081) ===" -ForegroundColor Cyan
+Write-Host "Build + start: docker compose -f $composeFile up --build -d" -ForegroundColor Gray
+
+docker compose -f $composeFile up --build -d
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Docker compose failed" -ForegroundColor Red
     exit 1
@@ -36,5 +46,5 @@ if ($ok1 -and $ok2) {
     exit $LASTEXITCODE
 }
 
-Write-Host "Nodes not ready - check: docker compose -f docker-compose.devnet.yml logs" -ForegroundColor Yellow
+Write-Host "Nodes not ready - check: docker compose -f $composeFile logs" -ForegroundColor Yellow
 exit 1

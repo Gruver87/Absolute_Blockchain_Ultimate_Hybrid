@@ -225,6 +225,19 @@ Invoke-RestMethod http://localhost:8080/sync/status
 
 `-RustBridge` — node1 с `node.rust.example.json` (`bridge_mode=rust`), при отсутствии бинарника вызывает `scripts/build_bridge.ps1`.
 
+Docker devnet (два узла в контейнерах):
+
+```powershell
+.\scripts\docker_devnet.ps1
+.\scripts\docker_devnet.ps1 -RustBridge   # node1 rust, Dockerfile.devnet-rust
+```
+
+Telegram (при `TELEGRAM_BOT_TOKEN` в `.env`):
+
+```
+/bridge /bridgepending /bridgeconfirm /pools /recent
+```
+
 Скрипт:
 - клонирует `data/blockchain.db` в `data/node2/` (одинаковая высота, без replay 4000+ блоков);
 - поднимает node1 (`node.example.json` :8080) и node2 (`node2.example.json` :8081) в фоне;
@@ -416,6 +429,8 @@ python -c "from consensus.slashing import SlashingEngine; e=SlashingEngine(); pr
 
 ```powershell
 docker compose up --build
+docker compose -f docker-compose.devnet.yml up --build
+docker compose -f docker-compose.devnet-rust.yml up --build
 docker compose -f docker-compose.ha.yml up --build
 docker compose -f docker-compose.observability.yml up
 kubectl apply -k deploy/k8s/

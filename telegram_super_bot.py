@@ -53,6 +53,21 @@ class AbsoluteBot:
             print(f"[Telegram] API {path}: {e}")
         return None
 
+    def _api_post(self, path: str, data: dict | None = None, timeout: int = 10):
+        try:
+            r = requests.post(
+                f"{API_URL}{path}",
+                json=data or {},
+                headers={"Content-Type": "application/json"},
+                timeout=timeout,
+            )
+            if r.status_code == 200:
+                return r.json()
+            return {"error": r.text, "status": r.status_code}
+        except Exception as e:
+            print(f"[Telegram] API POST {path}: {e}")
+            return None
+
     def _resolve_address(self, address: str) -> str:
         low = (address or "").strip().lower()
         if low in ("foundation", "founder", "dup", "d.u.p."):
@@ -128,6 +143,21 @@ class AbsoluteBot:
             parts = text.split(maxsplit=1)
             city = parts[1] if len(parts) > 1 else "Grodno"
             self.show_weather(chat_id, city)
+
+        elif text == "/bridge":
+            self.show_bridge(chat_id)
+
+        elif text == "/bridgepending":
+            self.show_bridge_pending(chat_id)
+
+        elif text == "/bridgeconfirm":
+            self.confirm_bridge_pending(chat_id)
+
+        elif text == "/pools":
+            self.show_pools(chat_id)
+
+        elif text == "/recent":
+            self.show_recent(chat_id)
             
         # ========== ДРУГИЕ ==========
         elif text == "/about":
@@ -158,6 +188,13 @@ class AbsoluteBot:
 /price [символ] - цена (ABS, BTC, ETH...)
 /market - обзор рынка
 /weather [город] - погода (оракул)
+
+🌉 BRIDGE / POOLS (devnet)
+/bridge - статус моста
+/bridgepending - pending locks
+/bridgeconfirm - подтвердить все pending (dev)
+/pools - genesis pools + DAO locks
+/recent - последние транзакции
 
 ℹ️ ИНФО
 /about - о проекте
@@ -350,6 +387,96 @@ TPS: educational devnet
             f"🌡 {data.get('temperature')}°C — {data.get('condition')}\n"
             f"💧 {data.get('humidity')}% | source: {data.get('source', 'api')}",
         )
+
+    def show_bridge(self, chat_id):
+        br = self._api_get("/bridge")
+        if not br:
+            self.send_message(chat_id, "❌ /bridge недоступен")
+            return
+        if not br.get("enabled"):
+            self.send_message(chat_id, "🌉 Bridge выключен на этой ноде")
+            return
+        locks = br.get("locks", {})
+        mode = br.get("mode", "simulator")
+        manual = (br.get("auto_confirm_sec") or 0) <= 0
+        text = (
+            f"🌉 BRIDGE\n\n"
+            f"Mode: {mode}\n"
+            f"Locks: {locks.get('total', 0)} (pending: {locks.get('pending', 0)})\n"
+            f"Confirm: {'manual' if manual else 'auto'}\n"
+        )
+        if mode == "rust" and br.get("rust_binary"):
+            text += f"Rust bin: {br['rust_binary']}\n"
+        self.send_message(chat_id, text)
+
+    def show_bridge_pending(self, chat_id):
+        data = self._api_get("/bridge/locks")
+        if not data:
+            self.send_message(chat_id, "❌ /bridge/locks недоступен")
+            return
+        pending = [l for l in data.get("locks", []) if (l.get("status") or "pending") == "pending"]
+        if not pending:
+            self.send_message(chat_id, "✅ Нет pending bridge locks")
+            return
+        text = f"⏳ PENDING LOCKS ({len(pending)})\n\n"
+        for l in pending[:8]:
+            tx = l.get("tx_hash", "?")
+            text += (
+                f"• {tx[:14]}…\n"
+                f"  {l.get('amount', 0)} ABS → {l.get('to_chain', '?')}\n"
+            )
+        if len(pending) > 8:
+            text += f"\n…ещё {len(pending) - 8}"
+        self.send_message(chat_id, text)
+
+    def confirm_bridge_pending(self, chat_id):
+        r = self._api_post("/bridge/confirm-pending", {})
+        if not r:
+            self.send_message(chat_id, "❌ confirm-pending недоступен")
+            return
+        if r.get("error"):
+            self.send_message(chat_id, f"❌ {r['error']}")
+            return
+        count = r.get("count", 0)
+        if count:
+            self.send_message(chat_id, f"✅ Подтверждено {count} lock(s)")
+        else:
+            err = (r.get("errors") or [{}])[0].get("error", "Нет pending locks")
+            self.send_message(chat_id, f"ℹ️ {err}")
+
+    def show_pools(self, chat_id):
+        alloc = self._api_get("/allocation")
+        if not alloc:
+            self.send_message(chat_id, "❌ /allocation недоступен")
+            return
+        text = "🏦 GENESIS POOLS\n\n"
+        for p in alloc.get("allocations", [])[:8]:
+            name = p.get("name", p.get("id", "?"))
+            pct = p.get("percent", 0)
+            spendable = p.get("live_spendable")
+            unlocked = p.get("dao_unlocked", False)
+            locked = p.get("live_locked", p.get("locked", False))
+            status = "🔓" if unlocked else ("🔒" if locked else "•")
+            extra = f" spendable={spendable:,.0f}" if spendable is not None else ""
+            text += f"{status} {name} ({pct}%){extra}\n"
+        self.send_message(chat_id, text)
+
+    def show_recent(self, chat_id):
+        data = self._api_get("/transactions/recent?limit=8")
+        if not data:
+            self.send_message(chat_id, "❌ /transactions/recent недоступен")
+            return
+        txs = data.get("transactions", [])
+        if not txs:
+            self.send_message(chat_id, "📭 Нет недавних транзакций")
+            return
+        text = f"📜 RECENT ({len(txs)})\n\n"
+        for t in txs:
+            kind = t.get("kind", t.get("type", "tx"))
+            amt = t.get("amount", t.get("value", 0))
+            frm = str(t.get("from", t.get("from_address", "")))[:10]
+            text += f"• [{kind}] {amt} ABS {frm}…\n"
+        self.send_message(chat_id, text)
     
     def run(self):
         print("🤖 ABSOLUTE BLOCKCHAIN TELEGRAM BOT v2.0")

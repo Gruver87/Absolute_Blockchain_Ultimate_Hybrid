@@ -136,6 +136,11 @@ pytest tests/ -q
 
 Rust bridge на node1: `.\scripts\start_two_nodes.ps1 -RustBridge` (конфиг `node.rust.example.json`).
 
+Docker devnet (sim): `.\scripts\docker_devnet.ps1`  
+Docker devnet (rust node1): `.\scripts\docker_devnet.ps1 -RustBridge`
+
+Telegram bot (bridge/pools): `/bridge`, `/bridgepending`, `/bridgeconfirm`, `/pools`, `/recent`
+
 Devnet API (обучение):
 
 ```bash
