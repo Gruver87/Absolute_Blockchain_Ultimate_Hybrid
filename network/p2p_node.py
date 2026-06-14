@@ -493,7 +493,11 @@ class P2PNode:
         if not isinstance(data, dict):
             return
 
-        peer.height = data.get("height", peer.height)
+        block_h = int(data.get("height", data.get("number", 0)) or 0)
+        block_hash = data.get("hash", "")
+        peer.height = max(peer.height, block_h)
+        if block_hash:
+            peer.head = block_hash
 
         from core.blockchain import Block
         try:
@@ -502,8 +506,19 @@ class P2PNode:
             logger.debug(f"[P2P] Invalid block from {peer}: {e}")
             return
 
-        # Проверяем не знаем ли мы этот блок
-        if self.blockchain.get_block(block.height):
+        local_h = self.blockchain.get_height()
+        existing = self.blockchain.get_block(block.height)
+        if existing:
+            if existing.get("hash") == block.hash:
+                return
+            print(
+                f"[P2P] Fork block #{block.height} from {peer.peer_id[:8]} — reconciling"
+            )
+            await self._reconcile_fork_at_peer(peer)
+            return
+
+        if block.height > local_h + 1:
+            asyncio.create_task(self._sync_with_peer_safe(peer))
             return
 
         validation = self.blockchain.validate_block(block)
@@ -512,6 +527,10 @@ class P2PNode:
                 self.mempool.remove(tx.hash)
             if self.blockchain.import_block(data):
                 print(f"[P2P] Accepted block #{block.height} from {peer.peer_id[:8]}")
+                if self.sync_engine:
+                    loop = asyncio.get_running_loop()
+                    ok = await loop.run_in_executor(None, self.sync_engine.sync_state)
+                    self._state_consistent = bool(ok)
                 if self._consensus and self.validator_keys:
                     try:
                         self._consensus.attest(

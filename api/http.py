@@ -655,6 +655,20 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "pending_cross_shard_txs": sh_st.get("pending_cross_shard_txs", 0),
                         "total_cross_shard_txs": sh_st.get("total_cross_shard_txs", 0),
                     }
+                peer_heights = []
+                peer_gap = 0
+                if p2p and hasattr(p2p, "get_peers_info"):
+                    local_h = bc.get_height()
+                    for peer in p2p.get_peers_info():
+                        ph = int(peer.get("height", 0) or 0)
+                        peer_heights.append({
+                            "id": peer.get("id", "")[:12],
+                            "height": ph,
+                            "head": (peer.get("head") or "")[:16],
+                            "gap": abs(ph - local_h),
+                        })
+                    if peer_heights:
+                        peer_gap = max(p["gap"] for p in peer_heights)
                 self._json({
                     "status": "running",
                     "node_version": cfg.node_version,
@@ -698,6 +712,9 @@ class RESTHandler(BaseHTTPRequestHandler):
                         or os.environ.get("ETHEREUM_RPC_URL", "")
                     ),
                     "node_id": getattr(cfg, "node_id", "node-1"),
+                    "peer_sync_gap": peer_gap,
+                    "peer_heights": peer_heights,
+                    "state_consistent": getattr(p2p, "_state_consistent", True) if p2p else True,
                     "health": {
                         "live": "/health/live",
                         "ready": "/health/ready",

@@ -1863,6 +1863,14 @@ async function refreshStatus() {
   }
   document.getElementById('s-burned').textContent = parseFloat(data.total_burned ?? 0).toFixed(4);
   document.getElementById('s-peers').textContent = data.peers ?? '0';
+  const peersEl = document.getElementById('s-peers');
+  if (peersEl && (data.peers || 0) > 0) {
+    const gap = data.peer_sync_gap || 0;
+    const ok = data.state_consistent !== false && gap === 0;
+    peersEl.innerHTML = `${data.peers}` +
+      (ok ? ' <span class="badge badge-green">sync</span>'
+          : ` <span class="badge badge-yellow">gap ${gap}</span>`);
+  }
   const bridgeEl = document.getElementById('s-bridge');
   if (bridgeEl) {
     if (!data.bridge_enabled) {
@@ -1897,6 +1905,10 @@ async function refreshStatus() {
       : 'off'],
     ['Total Burned', parseFloat(data.total_burned||0).toFixed(6) + ' ABS'],
     ['Coin', data.coin_symbol || 'ABS'],
+    ['P2P Sync', (data.peers||0) === 0 ? 'solo'
+      : ((data.state_consistent !== false && (data.peer_sync_gap||0) === 0)
+          ? '<span class="badge badge-green">aligned</span>'
+          : `<span class="badge badge-yellow">gap ${data.peer_sync_gap||'?'} inconsistent</span>`)],
     ['State Root', '<span class="hash">' + (data.state_root||'n/a').slice(0,32) + '…</span>'],
     ['EVM', data.evm_enabled ? '<span class="badge badge-green">ON</span>' : 'off'],
     ['Bridge', data.bridge_enabled

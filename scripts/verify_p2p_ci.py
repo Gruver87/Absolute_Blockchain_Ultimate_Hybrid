@@ -87,7 +87,7 @@ def _trigger_reconcile(url1: str, url2: str) -> None:
             pass
 
 
-def verify_pair(url1: str, url2: str, wait_sync_sec: int = 180) -> int:
+def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
     """Check peers, height sync, attestations on two running nodes."""
     if not _probe_health(url1):
         print(f"FAIL: node1 not reachable at {url1}")
@@ -116,39 +116,11 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 180) -> int:
         print("  Always use --config node.example.json / node2.example.json")
         return 4
 
-    loops = max(1, wait_sync_sec // 3)
+    loops = max(20, wait_sync_sec // 3)
     p1 = p2 = {}
+    stable_ok = 0
+    STABLE_NEED = 3
     for i in range(loops):
-        try:
-            p1 = _api(f"{url1}/peers")
-            p2 = _api(f"{url2}/peers")
-            s1 = _api(f"{url1}/status")
-            s2 = _api(f"{url2}/status")
-            gap = abs(int(s1.get("height", 0)) - int(s2.get("height", 0)))
-            c1 = int(p1.get("count", 0) or 0)
-            c2 = int(p2.get("count", 0) or 0)
-            both_peered = c1 > 0 and c2 > 0
-            if (c1 > 0 or c2 > 0) and gap > 5 and i % 5 == 0:
-                _trigger_catchup(url1, url2, s1, s2)
-            if both_peered and gap == 0:
-                break
-            if (c1 > 0 or c2 > 0) and gap > 0:
-                _trigger_catchup(url1, url2, s1, s2)
-        except Exception:
-            pass
-        time.sleep(3)
-    else:
-        print(f"FAIL: no P2P sync after {wait_sync_sec}s")
-        print(f"  chain_id={cid1} node1 peers={p1.get('count', '?')} height={s1.get('height', '?')}")
-        print(f"  chain_id={cid2} node2 peers={p2.get('count', '?')} height={s2.get('height', '?')}")
-        if p1.get("count", 0) > 0 or p2.get("count", 0) > 0:
-            print("  Peers linked but heights diverged - try:")
-            print("    Invoke-RestMethod http://127.0.0.1:8081/sync/fast-sync -Method POST -Body '{}' -ContentType 'application/json'")
-        print("  Or: .\\scripts\\stop_node.ps1  then  .\\scripts\\start_two_nodes.ps1")
-        return 2
-
-    # Wait for bilateral P2P + state roots (Docker: node1 may reconnect after node2 starts)
-    for i in range(30):
         try:
             p1 = _api(f"{url1}/peers")
             p2 = _api(f"{url2}/peers")
@@ -162,15 +134,31 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 180) -> int:
             root1 = (sync1.get("state_root") or s1.get("state_root") or "").lower()
             root2 = (sync2.get("state_root") or s2.get("state_root") or "").lower()
             roots_match = bool(root1 and root2 and root1 == root2)
-            if c1 > 0 and c2 > 0 and gap == 0 and roots_match:
-                break
-            if gap > 0 or (gap == 0 and not roots_match and i % 3 == 0):
-                _trigger_catchup(url1, url2, s1, s2)
-            if c1 > 0 and c2 > 0 and gap == 0 and not roots_match and i % 2 == 0:
-                _trigger_reconcile(url1, url2)
+            both_peered = c1 > 0 and c2 > 0
+
+            if both_peered and gap == 0 and roots_match:
+                stable_ok += 1
+                if stable_ok >= STABLE_NEED:
+                    break
+            else:
+                stable_ok = 0
+                if both_peered or c1 > 0 or c2 > 0:
+                    _trigger_catchup(url1, url2, s1, s2)
+                    if gap > 0 or not roots_match:
+                        _trigger_reconcile(url1, url2)
         except Exception:
-            pass
+            stable_ok = 0
         time.sleep(3)
+    else:
+        print(f"FAIL: no stable P2P sync after {wait_sync_sec}s")
+        print(f"  chain_id={cid1} node1 peers={p1.get('count', '?')} height={s1.get('height', '?')}")
+        print(f"  chain_id={cid2} node2 peers={p2.get('count', '?')} height={s2.get('height', '?')}")
+        if p1.get("count", 0) > 0 or p2.get("count", 0) > 0:
+            print("  Peers linked but heights/state diverged - try:")
+            print("    Invoke-RestMethod http://127.0.0.1:8081/sync/reconcile -Method POST -Body '{}' -ContentType 'application/json'")
+            print("    Invoke-RestMethod http://127.0.0.1:8081/sync/fast-sync -Method POST -Body '{}' -ContentType 'application/json'")
+        print("  Or: .\\scripts\\stop_node.ps1  then  .\\scripts\\docker_devnet.ps1 -RustBridge")
+        return 2
 
     sync1 = _api(f"{url1}/sync/status")
     sync2 = _api(f"{url2}/sync/status")
@@ -195,7 +183,8 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 180) -> int:
     if s1.get("node_id", "").startswith("node-") and not s1.get("node_id", "").startswith("docker-"):
         print("WARN: :8080/:8081 answer local nodes — stop them: .\\scripts\\stop_node.ps1")
     if gap > 0:
-        print(f"WARN: height gap {gap} — node2 still catching up")
+        print(f"WARN: height gap {gap} — lagging node still catching up")
+        return 6
     if gap == 0 and not roots_match:
         print("WARN: same height but state_root differs — re-run docker_devnet or start_two_nodes.ps1")
         print("  Tip: Invoke-RestMethod http://127.0.0.1:8081/sync/reconcile -Method POST -Body '{}' -ContentType 'application/json'")
@@ -309,8 +298,8 @@ def main() -> int:
     parser.add_argument(
         "--wait",
         type=int,
-        default=180,
-        help="seconds to wait for P2P sync (devnet mode)",
+        default=240,
+        help="seconds to wait for stable P2P sync (devnet mode)",
     )
     args = parser.parse_args()
 
