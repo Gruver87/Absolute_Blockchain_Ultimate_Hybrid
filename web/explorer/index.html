@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>Absolute Blockchain — Dashboard</title>
 <style>
   :root {
@@ -15,7 +16,7 @@
   body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; }
   a { color: var(--blue); text-decoration: none; }
   /* Layout */
-  .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 200px; background: var(--bg2); border-right: 1px solid var(--border); padding: 20px 0; }
+  .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 200px; background: var(--bg2); border-right: 1px solid var(--border); padding: 20px 0; overflow-y: auto; overflow-x: hidden; }
   .sidebar h2 { color: var(--green); font-size: 16px; padding: 0 20px 20px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
   .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; cursor: pointer; color: var(--gray); transition: all .2s; border-left: 3px solid transparent; }
   .nav-item:hover, .nav-item.active { color: var(--text); background: var(--bg3); border-left-color: var(--green); }
@@ -174,6 +175,11 @@
         <div id="founder-info" style="font-size:12px"></div>
         <div id="allocation-chart" style="margin-top:10px"></div>
       </div>
+    </div>
+    <div class="card" id="bridge-dashboard-card" style="margin-bottom:16px;display:none;border:1px solid var(--blue)">
+      <h3>Cross-Chain Bridge</h3>
+      <div id="bridge-dashboard-summary" style="font-size:12px;margin-bottom:10px"></div>
+      <button class="btn btn-blue" onclick="openBridgeSection()" style="width:100%">Open Bridge &amp; Locks Table →</button>
     </div>
     <div class="card" style="margin-bottom:16px">
       <h3>Pool Locks (Ecosystem / Treasury / Staking)</h3>
@@ -1628,6 +1634,18 @@ async function configureEndpoints() {
 }
 
 // ── Navigation ──────────────────────────────────────────────────────────────
+function openBridgeSection() {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const sec = document.getElementById('sec-bridge2');
+  const nav = document.querySelector('.nav-item[onclick*="bridge2"]');
+  if (sec) sec.classList.add('active');
+  if (nav) nav.classList.add('active');
+  loadBridge2Stats();
+  prefillBridgeWallet();
+  sec?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function show(tab) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -3311,6 +3329,25 @@ async function loadDashboardStats() {
       <div style="color:var(--gray);font-size:11px;text-transform:uppercase">${k}</div>
       <div style="font-size:22px;color:var(--${c});font-family:monospace;margin:8px 0">${v}</div>
     </div>`).join('');
+  loadBridgeDashboardSummary();
+}
+async function loadBridgeDashboardSummary() {
+  const card = document.getElementById('bridge-dashboard-card');
+  const el = document.getElementById('bridge-dashboard-summary');
+  if (!card || !el) return;
+  const br = await api('/bridge');
+  if (!br || br.enabled === false) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'block';
+  const pending = br.locks?.pending ?? 0;
+  const total = br.locks?.total ?? 0;
+  const manual = (br.auto_confirm_sec ?? 0) <= 0;
+  el.innerHTML = `
+    <div>Mode: <b>${br.mode || 'simulator'}</b> ${manual ? '<span class="badge badge-yellow">MANUAL CONFIRM</span>' : ''}</div>
+    <div style="margin-top:6px">Locks: <b>${total}</b> (pending: <b>${pending}</b>)</div>
+    <div style="color:var(--gray);margin-top:4px">Scroll down on Cross-Chain page for <b>Bridge Locks</b> table</div>`;
 }
 async function loadTokenomics() {
   const r = await api('/tokenomics');
