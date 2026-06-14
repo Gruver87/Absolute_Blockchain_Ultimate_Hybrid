@@ -14,7 +14,7 @@ import json
 import sys
 import os
 import time
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
@@ -59,12 +59,61 @@ class EVMAdapter:
         self.db = db
         self.config = config
 
+    def _code_bytes(self, addr: str) -> bytes:
+        account = self.db.get_account(self._normalize_addr(addr))
+        if not account or not account.get("code"):
+            return b""
+        try:
+            return bytes.fromhex(account["code"].replace("0x", ""))
+        except ValueError:
+            return b""
+
+    def _selfdestruct_contract(self, contract_addr: str, beneficiary: str) -> None:
+        contract_addr = self._normalize_addr(contract_addr)
+        beneficiary = self._normalize_addr(beneficiary)
+        account = self.db.get_account(contract_addr) or {}
+        balance = float(account.get("balance", 0) or 0)
+        if balance > 0:
+            self.db.update_balance(beneficiary, balance)
+            self.db.update_balance(contract_addr, -balance)
+        self.db.save_account(
+            contract_addr,
+            balance=0.0,
+            nonce=int(account.get("nonce", 0) or 0),
+            code="",
+            storage="{}",
+        )
+
+    def _block_hash_word(self, height: int) -> int:
+        current = int(self.db.get_chain_tip() if hasattr(self.db, "get_chain_tip") else 0)
+        h = int(height)
+        if h < 0 or h >= current or h < current - 256:
+            return 0
+        blk = self.db.get_block(h)
+        if not blk:
+            return 0
+        raw = (blk.get("hash") or "").replace("0x", "")
+        if len(raw) < 64:
+            raw = raw.ljust(64, "0")
+        return int.from_bytes(bytes.fromhex(raw[:64]), "big")
+
+    def _persist_logs(
+        self,
+        contract_addr: str,
+        logs: List[Dict],
+        tx_hash: str = "",
+    ) -> None:
+        if not logs or not hasattr(self.db, "save_evm_logs"):
+            return
+        tip = int(self.db.get_chain_tip() if hasattr(self.db, "get_chain_tip") else 0)
+        self.db.save_evm_logs(contract_addr, logs, block_height=tip, tx_hash=tx_hash)
+
     def _make_context(self, caller: str, contract_addr: str = "",
                       calldata: bytes = b"", value: int = 0) -> EVMContext:
         tip = self.db.get_chain_tip() if hasattr(self.db, "get_chain_tip") else 0
         last = self.db.get_last_block() if hasattr(self.db, "get_last_block") else None
         ts = int(last.get("timestamp", 0)) if last else int(time.time())
-        return EVMContext(
+        ctx = EVMContext(
             caller=caller or "",
             origin=caller or "",
             address=contract_addr or "",
@@ -74,7 +123,14 @@ class EVMAdapter:
             timestamp=ts,
             chain_id=int(getattr(self.config, "chain_id", 77777)),
             balance_of=lambda addr: int(self.db.get_balance(addr) * 10**18),
+            code_size_of=lambda addr: len(self._code_bytes(addr)),
+            code_copy_of=lambda addr, off, size: self._code_bytes(addr)[off:off + size],
+            selfdestruct=lambda beneficiary: self._selfdestruct_contract(
+                contract_addr, beneficiary
+            ),
+            block_hash_of=self._block_hash_word,
         )
+        return ctx
 
     def _normalize_addr(self, word_or_addr: str) -> str:
         raw = str(word_or_addr).replace("0x", "").lower()
@@ -84,7 +140,8 @@ class EVMAdapter:
 
     def _contract_call_hook(self, target: str, calldata: bytes, value: int,
                             gas: int, delegate: bool, static: bool,
-                            caller_ctx: EVMContext) -> Dict[str, Any]:
+                            caller_ctx: EVMContext,
+                            callcode: bool = False) -> Dict[str, Any]:
         target = self._normalize_addr(target)
         account = self.db.get_account(target)
         if not account or not account.get("code"):
@@ -94,12 +151,12 @@ class EVMAdapter:
         except ValueError:
             return {"success": False, "reverted": True, "return_data": b""}
 
-        if delegate:
+        if delegate or callcode:
             storage_raw = self.db.get_account(caller_ctx.address)
             storage_src = (storage_raw or {}).get("storage") or "{}"
             exec_addr = caller_ctx.address
-            call_value = 0
-            caller = caller_ctx.caller
+            call_value = 0 if delegate else value
+            caller = caller_ctx.caller if delegate else caller_ctx.address
         else:
             storage_src = account.get("storage") or "{}"
             exec_addr = target
@@ -112,8 +169,8 @@ class EVMAdapter:
             storage = {}
 
         sub_ctx = self._make_context(caller, exec_addr, calldata, call_value)
-        sub_ctx.contract_call = lambda t, d, v, g, delg, st: self._contract_call_hook(
-            t, d, v, g, delg, st, sub_ctx
+        sub_ctx.contract_call = lambda t, d, v, g, delg, st, cc=False: self._contract_call_hook(
+            t, d, v, g, delg, st, sub_ctx, callcode=cc
         )
         sub_ctx.contract_create = lambda code, val, ctx, salt=None: self._contract_create_hook(
             code, val, ctx, salt
@@ -130,9 +187,16 @@ class EVMAdapter:
                 "gas_used": result.get("gas_used", 0),
             }
 
-        if delegate:
+        if delegate or callcode:
             new_storage = {str(k): v for k, v in result.get("storage", {}).items()}
             self.db.update_account_storage(caller_ctx.address, new_storage)
+            if callcode and call_value > 0 and not result.get("reverted"):
+                wei_to_abs = call_value / 10**18
+                self.db.update_balance(caller_ctx.address, -wei_to_abs)
+                self.db.update_balance(target, wei_to_abs)
+            sub_logs = result.get("logs") or []
+            if sub_logs:
+                self._persist_logs(caller_ctx.address, sub_logs)
         else:
             if not result.get("reverted"):
                 new_storage = {str(k): v for k, v in result.get("storage", {}).items()}
@@ -148,6 +212,7 @@ class EVMAdapter:
             "return_data": result.get("return_data", b"") or b"",
             "storage": result.get("storage", {}),
             "gas_used": result.get("gas_used", 0),
+            "logs": result.get("logs", []),
         }
 
     def _contract_create_hook(self, init_code: bytes, value: int,
@@ -205,15 +270,17 @@ class EVMAdapter:
                  caller: str = "", contract_addr: str = "",
                  calldata: bytes = b"", value: int = 0) -> Dict:
         ctx = self._make_context(caller, contract_addr, calldata, value)
-        ctx.contract_call = lambda t, d, v, g, delg, st: self._contract_call_hook(
-            t, d, v, g, delg, st, ctx
+        ctx.contract_call = lambda t, d, v, g, delg, st, cc=False: self._contract_call_hook(
+            t, d, v, g, delg, st, ctx, callcode=cc
         )
         ctx.contract_create = lambda code, val, c, salt=None: self._contract_create_hook(
             code, val, c, salt
         )
         evm = EVM(gas_limit=gas_limit, context=ctx)
         evm.storage = dict(storage)
-        return evm.execute_bytecode(bytecode)
+        result = evm.execute_bytecode(bytecode)
+        result["logs"] = evm.logs
+        return result
 
     def deploy_contract(self, deployer: str, bytecode_hex: str,
                         value: float = 0.0, gas_limit: int = 0,
@@ -232,6 +299,13 @@ class EVMAdapter:
 
         if not bytecode:
             return EVMResult(success=False, error="empty_bytecode")
+
+        from execution.evm_bytecode_validator import validate_bytecode_hex
+        v = validate_bytecode_hex(bytecode_hex)
+        if not v.get("valid"):
+            bad = v.get("unsupported") or []
+            detail = bad[0]["name"] if bad else v.get("error", "unsupported_bytecode")
+            return EVMResult(success=False, error=f"bytecode_invalid:{detail}")
 
         # Deterministic address when salt provided (block execution); else dev-only
         seed = salt if salt is not None else str(time.time())
@@ -262,6 +336,7 @@ class EVMAdapter:
             code=bytecode_hex,
             storage=json.dumps(result.get("storage", {})),
         )
+        self._persist_logs(contract_addr, result.get("logs", []))
 
         # Стоимость деплоя списывается с deployer
         if value > 0:
@@ -273,6 +348,7 @@ class EVMAdapter:
             return_value=contract_addr,
             gas_used=result["gas_used"],
             storage_changes=result.get("storage", {}),
+            logs=result.get("logs", []),
         )
 
     # ── Вызов контракта ──────────────────────────────────────────────────────
@@ -325,6 +401,7 @@ class EVMAdapter:
         # Сохраняем изменённое storage
         new_storage = {str(k): v for k, v in result.get("storage", {}).items()}
         self.db.update_account_storage(contract_addr, new_storage)
+        self._persist_logs(contract_addr, result.get("logs", []))
 
         # Перевод value от caller к контракту
         if value > 0:
@@ -344,6 +421,7 @@ class EVMAdapter:
             return_value=return_value,
             gas_used=result["gas_used"],
             storage_changes=new_storage,
+            logs=result.get("logs", []),
         )
 
     # ── Статический вызов (read-only) ────────────────────────────────────────

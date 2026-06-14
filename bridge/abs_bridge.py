@@ -203,7 +203,8 @@ class RustBridge:
     # ── Подтверждение входящего перевода ─────────────────────────────────────
 
     def confirm_incoming(self, tx_hash: str, recipient: str,
-                         amount: float, from_chain: str) -> Dict:
+                         amount: float, from_chain: str,
+                         l1_tx_hash: str = "") -> Dict:
         """
         Подтверждает входящий перевод с внешней цепи — начисляет ABS получателю.
         Вызывается оракулом / Rust-мостом при получении подтверждения.
@@ -220,12 +221,23 @@ class RustBridge:
             }
 
         if self._mode == "rust":
-            if not self._call_rust_ok("incoming", {
+            import os
+            chain_key = {
+                "ethereum": "ETH_RPC_URL",
+                "eth": "ETH_RPC_URL",
+                "bsc": "BSC_RPC_URL",
+            }.get(from_chain.lower(), "")
+            if chain_key and os.environ.get(chain_key) and not l1_tx_hash:
+                return {"confirmed": False, "error": "l1_tx_hash required when L1 RPC configured"}
+            rust_args = {
                 "tx_hash": tx_hash,
                 "recipient": recipient,
                 "amount": amount,
                 "from_chain": from_chain,
-            }):
+            }
+            if l1_tx_hash:
+                rust_args["l1_tx_hash"] = l1_tx_hash
+            if not self._call_rust_ok("incoming", rust_args):
                 return {"confirmed": False, "error": "rust incoming failed"}
 
         self.db.update_balance(recipient, amount)

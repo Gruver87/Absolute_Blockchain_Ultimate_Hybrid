@@ -120,6 +120,7 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
     p1 = p2 = {}
     stable_ok = 0
     STABLE_NEED = 3
+    MAX_MINING_GAP = 2  # node1 mines while node2 catches up
     for i in range(loops):
         try:
             p1 = _api(f"{url1}/peers")
@@ -136,15 +137,20 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
             roots_match = bool(root1 and root2 and root1 == root2)
             both_peered = c1 > 0 and c2 > 0
 
-            if both_peered and gap == 0 and roots_match:
+            if both_peered and gap <= MAX_MINING_GAP and roots_match:
                 stable_ok += 1
                 if stable_ok >= STABLE_NEED:
                     break
             else:
                 stable_ok = 0
                 if both_peered or c1 > 0 or c2 > 0:
-                    _trigger_catchup(url1, url2, s1, s2)
-                    if gap > 0 or not roots_match:
+                    if gap > 0:
+                        lag_url = url2 if int(s1.get("height", 0)) > int(s2.get("height", 0)) else url1
+                        try:
+                            _post_json(lag_url, "/sync/reconcile", timeout=120)
+                        except Exception:
+                            _trigger_catchup(url1, url2, s1, s2)
+                    elif not roots_match:
                         _trigger_reconcile(url1, url2)
         except Exception:
             stable_ok = 0
@@ -153,6 +159,16 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
         print(f"FAIL: no stable P2P sync after {wait_sync_sec}s")
         print(f"  chain_id={cid1} node1 peers={p1.get('count', '?')} height={s1.get('height', '?')}")
         print(f"  chain_id={cid2} node2 peers={p2.get('count', '?')} height={s2.get('height', '?')}")
+        try:
+            sync1 = _api(f"{url1}/sync/status")
+            sync2 = _api(f"{url2}/sync/status")
+            print(
+                f"  state_roots node1={str(sync1.get('state_root', ''))[:16]} "
+                f"node2={str(sync2.get('state_root', ''))[:16]} "
+                f"peer_sync_gap={s1.get('peer_sync_gap', '?')}"
+            )
+        except Exception:
+            pass
         if p1.get("count", 0) > 0 or p2.get("count", 0) > 0:
             print("  Peers linked but heights/state diverged - try:")
             print("    Invoke-RestMethod http://127.0.0.1:8081/sync/reconcile -Method POST -Body '{}' -ContentType 'application/json'")

@@ -52,8 +52,10 @@
 | **Ядро** | Блоки, транзакции, burn 2%, genesis, SQLite |
 | **Токеномика** | Max supply **221 000 000 ABS**, основатель **D.U.P.** (17.4%) |
 | **Консенсус** | PoS-адаптер, эпохи, slashing, beacon/Casper-модули |
-| **API** | **~100+** REST handlers в `api/http.py`; **16** документированы в `/openapi.json` и `/docs` |
-| **Web UI** | SPA-эксплорер **31 вкладка** — `http://localhost:8080` |
+| **API** | **256** REST handlers в `api/http.py`; OpenAPI в `/docs` |
+
+Полный честный список возможностей: **Часть 0** в [`docs/ALL_COMMANDS.txt`](docs/ALL_COMMANDS.txt) или раздел в [`docs/COMMANDS_REFERENCE.md`](docs/COMMANDS_REFERENCE.md).
+| **Web UI** | SPA-эксплорер **32 вкладки** — `http://localhost:8080` |
 | **Light Client** | SPV / Merkle proofs |
 | **Pool Locks** | Блокировка ecosystem/treasury, staking release по эпохам |
 | **Features** | NFT, ZK, Lightning, Plasma, WASM VM, bridge, oracles и др. |
@@ -172,7 +174,7 @@ docker compose -f docker-compose.observability.yml up -d
 absolute-blockchain-ultimate/
 ├── main.py                 # Единственная точка входа узла
 ├── api/http.py             # REST + RPC handlers (~100+ routes, см. /docs)
-├── web/explorer/index.html # Браузерный SPA (31 вкладка)
+├── web/explorer/index.html # Браузерный SPA (32 вкладки)
 ├── core/blockchain.py      # Блоки, транзакции, genesis
 ├── runtime/
 │   ├── config.py           # Конфигурация узла

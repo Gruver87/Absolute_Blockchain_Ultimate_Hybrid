@@ -15,11 +15,15 @@ def test_valid_simple_bytecode():
     assert v["size"] == 6
 
 
-def test_rejects_log_opcode():
-    # LOG0 = 0xA0
-    v = validate_bytecode_hex("0xA000")
+def test_accepts_log0_opcode():
+    # LOG0 = 0xA0 with stack setup: PUSH0 PUSH0 LOG0 STOP
+    v = validate_bytecode_hex("0x5f5fa000")
+    assert v["valid"] is True
+
+
+def test_rejects_difficulty_opcode():
+    v = validate_bytecode_hex("0x4400")
     assert v["valid"] is False
-    assert v["unsupported"][0]["opcode"] == 0xA0
 
 
 def test_supported_summary():

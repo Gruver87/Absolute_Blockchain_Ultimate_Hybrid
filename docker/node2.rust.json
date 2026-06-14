@@ -14,7 +14,7 @@
   "state_root_legacy_cutoff_height": 0,
   "bridge_enabled": true,
   "bridge_mode": "rust",
-  "rust_bridge_path": "bridge/abs_bridge_bin",
+  "rust_bridge_path": "/app/bridge/abs_bridge_bin",
   "bridge_auto_confirm_sec": 0,
   "rate_limit_rpm": 0,
   "db_path": "data/blockchain.db",

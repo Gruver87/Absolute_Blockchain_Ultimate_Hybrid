@@ -26,7 +26,10 @@ def _rust_bin():
 
 
 @pytest.fixture
-def rust_bridge_env():
+def rust_bridge_env(monkeypatch):
+    """Isolated rust bridge — no L1 RPC from host .env."""
+    for key in ("ETH_RPC_URL", "BSC_RPC_URL", "POLYGON_RPC_URL", "BRIDGE_MIN_CONFIRMATIONS"):
+        monkeypatch.delenv(key, raising=False)
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     exe = _rust_bin()
@@ -75,6 +78,15 @@ def test_confirm_incoming_uses_rust_subprocess(rust_bridge_env):
     db.save_bridge_lock("0xext", "ethereum", "0xrecipient", 3.0, tx_hash)
     db.set_balance("0xrecipient", 0.0)
     ok = br.confirm_incoming(tx_hash, "0xrecipient", 3.0, "ethereum")
-    assert ok["confirmed"] is True
+    assert ok["confirmed"] is True, ok
     assert ok.get("mode") == "rust"
     assert db.get_balance("0xrecipient") == 3.0
+
+
+def test_confirm_incoming_requires_l1_when_rpc_configured(rust_bridge_env, monkeypatch):
+    br, db, cfg = rust_bridge_env
+    monkeypatch.setenv("ETH_RPC_URL", "https://eth.example")
+    tx_hash = "0x" + "cd" * 32
+    ok = br.confirm_incoming(tx_hash, "0xrecipient", 1.0, "ethereum")
+    assert ok.get("confirmed") is False
+    assert "l1_tx_hash" in ok.get("error", "")

@@ -22,6 +22,25 @@ if ($NoCloneDb) {
 
 Write-Host "=== Docker devnet (node1 :8080, node2 :8081) ===" -ForegroundColor Cyan
 
+# Preflight: Docker Desktop must be running
+$dockerOk = $false
+try {
+    $null = docker info 2>&1
+    if ($LASTEXITCODE -eq 0) { $dockerOk = $true }
+} catch { }
+
+if (-not $dockerOk) {
+    Write-Host ""
+    Write-Host "Docker is not running." -ForegroundColor Red
+    Write-Host "  1. Start Docker Desktop and wait until it shows 'Running'" -ForegroundColor Yellow
+    Write-Host "  2. Retry: .\scripts\docker_devnet.ps1 -RustBridge" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Without Docker, use local two-node devnet:" -ForegroundColor Cyan
+    Write-Host "  .\scripts\stop_node.ps1" -ForegroundColor White
+    Write-Host "  .\scripts\start_two_nodes.ps1 -RustBridge" -ForegroundColor White
+    exit 1
+}
+
 # Free host ports from local start_two_nodes (do not kill Docker port forwards)
 Write-Host "Stopping local Python nodes..." -ForegroundColor Gray
 Get-CimInstance Win32_Process -Filter "Name = 'python.exe' OR Name = 'python3.exe'" -ErrorAction SilentlyContinue |
@@ -34,6 +53,8 @@ Write-Host "Starting node1..." -ForegroundColor Gray
 docker compose -f $composeFile up -d --build node1
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Docker compose failed (node1)" -ForegroundColor Red
+    Write-Host "If Docker was just started, wait 30s and retry." -ForegroundColor Yellow
+    Write-Host "Local alternative: .\scripts\start_two_nodes.ps1 -RustBridge" -ForegroundColor Yellow
     exit 1
 }
 
@@ -94,12 +115,25 @@ for ($i = 0; $i -lt 40; $i++) {
 if ($ok1 -and $ok2) {
     Write-Host "Waiting for P2P handshake (25s)..." -ForegroundColor Gray
     Start-Sleep -Seconds 25
-    try {
-        foreach ($url in @("http://127.0.0.1:8080", "http://127.0.0.1:8081")) {
-            Invoke-RestMethod "$url/sync/reconcile" -Method POST -Body '{}' -ContentType 'application/json' -TimeoutSec 10 | Out-Null
-        }
-        Start-Sleep -Seconds 15
-    } catch { }
+    Write-Host "Catching up node2 to node1..." -ForegroundColor Gray
+    for ($i = 0; $i -lt 24; $i++) {
+        try {
+            $s1 = Invoke-RestMethod "http://127.0.0.1:8080/status" -UseBasicParsing -TimeoutSec 5
+            $s2 = Invoke-RestMethod "http://127.0.0.1:8081/status" -UseBasicParsing -TimeoutSec 5
+            $gap = [Math]::Abs([int]$s1.height - [int]$s2.height)
+            if ($gap -le 1) {
+                Write-Host "Heights aligned: $($s1.height) / $($s2.height)" -ForegroundColor Green
+                break
+            }
+            if ([int]$s2.height -lt [int]$s1.height) {
+                Invoke-RestMethod "http://127.0.0.1:8081/sync/reconcile" -Method POST -Body '{}' -ContentType 'application/json' -TimeoutSec 120 | Out-Null
+            } else {
+                Invoke-RestMethod "http://127.0.0.1:8080/sync/reconcile" -Method POST -Body '{}' -ContentType 'application/json' -TimeoutSec 120 | Out-Null
+            }
+            Write-Host "  gap=$gap node1=$($s1.height) node2=$($s2.height)" -ForegroundColor Gray
+        } catch { }
+        Start-Sleep -Seconds 5
+    }
     try {
         $st = Invoke-RestMethod "http://127.0.0.1:8080/status" -UseBasicParsing
         Write-Host "node1 bridge_mode=$($st.bridge_mode) pending=$($st.bridge_pending)" -ForegroundColor Gray

@@ -19,6 +19,11 @@ class EVMContext:
     timestamp: int = 0
     chain_id: int = 77777
     balance_of: Optional[Callable[[str], int]] = None
+    code_size_of: Optional[Callable[[str], int]] = None
+    code_copy_of: Optional[Callable[[str, int, int], bytes]] = None
+    block_hash_of: Optional[Callable[[int], int]] = None
+    emit_log: Optional[Callable[[int, List[int], bytes], None]] = None
+    selfdestruct: Optional[Callable[[str], None]] = None
     contract_call: Optional[Callable[..., Dict[str, Any]]] = None
     contract_create: Optional[Callable[..., Dict[str, Any]]] = None
 
@@ -48,8 +53,11 @@ class EVM:
         "SHA3": 30, "RETURN": 0, "REVERT": 0, "JUMPDEST": 1,
         "AND": 3, "OR": 3, "XOR": 3, "NOT": 3, "LT": 3, "GT": 3,
         "EQ": 3, "ISZERO": 3, "BYTE": 3, "SHL": 3, "SHR": 3,
-        "CALL": 700, "DELEGATECALL": 700, "STATICCALL": 700,
+        "CALL": 700, "CALLCODE": 700, "DELEGATECALL": 700, "STATICCALL": 700,
+        "BLOCKHASH": 20,
         "CREATE": 32000, "CREATE2": 32000,
+        "EXTCODESIZE": 700, "EXTCODECOPY": 700,
+        "LOG": 375, "SELFDESTRUCT": 5000,
     }
 
     def __init__(self, gas_limit: int = 1_000_000, context: Optional[EVMContext] = None):
@@ -65,6 +73,7 @@ class EVM:
         self.trace: List[Dict] = []
         self.ctx = context or EVMContext()
         self.bytecode = b""
+        self.logs: List[Dict[str, Any]] = []
 
     def _consume_gas(self, op: str, extra: int = 0):
         cost = self.GAS_COSTS.get(op, 3) + extra
@@ -137,7 +146,7 @@ class EVM:
 
     def _execute_call(self, to_word: int, value: int, args_offset: int, args_size: int,
                       ret_offset: int, ret_size: int, gas: int,
-                      delegate: bool, static: bool) -> int:
+                      delegate: bool, static: bool, callcode: bool = False) -> int:
         if not self.ctx.contract_call:
             self.return_data = b""
             return 0
@@ -145,18 +154,23 @@ class EVM:
         call_data = bytes(self.memory[args_offset:args_offset + args_size])
         to_addr = self._word_to_addr(to_word)
         call_gas = self._call_gas_cap(gas)
-        if value > 0 and not static:
+        if value > 0 and not static and not delegate:
             call_gas = min(
                 max(0, self.gas_limit - self.gas_used),
                 call_gas + self.CALL_STIPEND,
             )
-        out = self.ctx.contract_call(
-            to_addr, call_data, value, call_gas, delegate, static
-        )
+        if callcode:
+            out = self.ctx.contract_call(
+                to_addr, call_data, value, call_gas, delegate, static, callcode
+            )
+        else:
+            out = self.ctx.contract_call(
+                to_addr, call_data, value, call_gas, delegate, static
+            )
         sub_gas = min(int(out.get("gas_used", 0) or 0), call_gas)
         self._charge_subcall_gas(sub_gas)
         self.return_data = out.get("return_data", b"") or b""
-        if delegate and isinstance(out.get("storage"), dict):
+        if (delegate or callcode) and isinstance(out.get("storage"), dict):
             self.storage = dict(out["storage"])
         self._write_return_to_memory(ret_offset, ret_size, self.return_data)
         return 1 if out.get("success") and not out.get("reverted") else 0
@@ -183,12 +197,14 @@ class EVM:
         self.reverted = False
         self.return_data = b""
         self.trace = []
+        self.logs = []
         self.bytecode = bytecode
 
         while self.pc < len(bytecode) and self.running:
             op_byte = bytecode[self.pc]
             op_name = self._opcode_name(op_byte)
-            self._consume_gas(op_name)
+            if not (0xA0 <= op_byte <= 0xA4):
+                self._consume_gas(op_name)
             self.trace.append({"pc": self.pc, "op": op_name, "stack_depth": len(self.stack)})
 
             if op_byte == 0x00:  # STOP
@@ -290,6 +306,45 @@ class EVM:
                 dest, offset, size = self._pop(), self._pop(), self._pop()
                 self._mem_extend(dest, size)
                 self.memory[dest:dest + size] = self.return_data[offset:offset + size]
+            elif op_byte == 0x3B:  # EXTCODESIZE
+                who = self._pop()
+                addr = self._word_to_addr(who)
+                size = 0
+                if self.ctx.code_size_of:
+                    size = int(self.ctx.code_size_of(addr))
+                self._push(size)
+            elif op_byte == 0x3C:  # EXTCODECOPY
+                code_offset = self._pop()
+                mem_offset = self._pop()
+                size = self._pop()
+                who = self._pop()
+                addr = self._word_to_addr(who)
+                chunk = b""
+                if self.ctx.code_copy_of:
+                    chunk = self.ctx.code_copy_of(addr, code_offset, size)
+                self._mem_extend(mem_offset, len(chunk))
+                self.memory[mem_offset:mem_offset + len(chunk)] = chunk
+            elif 0xA0 <= op_byte <= 0xA4:  # LOG0..LOG4
+                n_topics = op_byte - 0xA0
+                topics = [self._pop() for _ in range(n_topics)]
+                topics.reverse()
+                size = self._pop()
+                offset = self._pop()
+                self._consume_gas("LOG", extra=n_topics * 375 + size)
+                self._mem_extend(offset, size)
+                data = bytes(self.memory[offset:offset + size])
+                if self.ctx.emit_log:
+                    self.ctx.emit_log(n_topics, topics, data)
+                self.logs.append({
+                    "topics": [hex(t) for t in topics],
+                    "data": data.hex(),
+                })
+            elif op_byte == 0x40:  # BLOCKHASH
+                block_num = self._pop()
+                h = 0
+                if self.ctx.block_hash_of:
+                    h = int(self.ctx.block_hash_of(block_num))
+                self._push(h)
             elif op_byte == 0x42:  # TIMESTAMP
                 self._push(self.ctx.timestamp)
             elif op_byte == 0x43:  # NUMBER
@@ -362,6 +417,18 @@ class EVM:
                 offset = self._pop()
                 value = self._pop()
                 self._push(self._execute_create(value, offset, size, salt))
+            elif op_byte == 0xF2:  # CALLCODE
+                gas = self._pop()
+                to_word = self._pop()
+                value = self._pop()
+                args_offset = self._pop()
+                args_size = self._pop()
+                ret_offset = self._pop()
+                ret_size = self._pop()
+                self._push(self._execute_call(
+                    to_word, value, args_offset, args_size, ret_offset, ret_size,
+                    gas, False, False, True
+                ))
             elif op_byte == 0xF1:  # CALL
                 gas = self._pop()
                 to_word = self._pop()
@@ -411,6 +478,12 @@ class EVM:
                 break
             elif op_byte == 0xFE:  # INVALID
                 raise RuntimeError("invalid opcode")
+            elif op_byte == 0xFF:  # SELFDESTRUCT
+                beneficiary = self._pop()
+                if self.ctx.selfdestruct:
+                    self.ctx.selfdestruct(self._word_to_addr(beneficiary))
+                self.running = False
+                break
             else:
                 raise RuntimeError(f"unsupported opcode 0x{op_byte:02x}")
 
@@ -425,6 +498,7 @@ class EVM:
             "gas_used": self.gas_used,
             "return_data": self.return_data,
             "trace": self.trace,
+            "logs": self.logs.copy(),
         }
 
     @staticmethod
@@ -436,14 +510,17 @@ class EVM:
             0x1B: "SHL", 0x1C: "SHR", 0x20: "SHA3", 0x30: "ADDRESS",
             0x31: "BALANCE", 0x32: "ORIGIN", 0x33: "CALLER", 0x34: "CALLVALUE",
             0x35: "CALLDATALOAD", 0x36: "CALLDATASIZE", 0x37: "CALLDATACOPY",
-            0x38: "CODESIZE", 0x39: "CODECOPY", 0x3D: "RETURNDATASIZE", 0x3E: "RETURNDATACOPY",
+            0x38: "CODESIZE", 0x39: "CODECOPY", 0x3B: "EXTCODESIZE", 0x3C: "EXTCODECOPY",
+            0x40: "BLOCKHASH",
+            0x3D: "RETURNDATASIZE", 0x3E: "RETURNDATACOPY",
             0x42: "TIMESTAMP", 0x43: "NUMBER", 0x45: "GASLIMIT", 0x46: "CHAINID",
             0x50: "POP", 0x51: "MLOAD",
             0x52: "MSTORE", 0x53: "MSTORE8", 0x54: "SLOAD", 0x55: "SSTORE",
             0x56: "JUMP", 0x57: "JUMPI", 0x5A: "GAS", 0x5B: "JUMPDEST", 0x5F: "PUSH0",
+            0xA0: "LOG0", 0xFF: "SELFDESTRUCT",
             0xF0: "CREATE", 0xF5: "CREATE2",
-            0xF1: "CALL", 0xF4: "DELEGATECALL", 0xFA: "STATICCALL", 0xF3: "RETURN",
-            0xFD: "REVERT", 0xFE: "INVALID",
+            0xF1: "CALL", 0xF2: "CALLCODE", 0xF4: "DELEGATECALL", 0xFA: "STATICCALL",
+            0xF3: "RETURN", 0xFD: "REVERT", 0xFE: "INVALID",
         }
         if 0x60 <= op <= 0x7F:
             return f"PUSH{op - 0x5F}"

@@ -744,7 +744,32 @@ class Blockchain:
         if not sig_check["valid"]:
             return sig_check
 
+        deploy_check = self._validate_evm_deploy_bytecode(tx)
+        if not deploy_check["valid"]:
+            return deploy_check
+
         return {"valid": True}
+
+    def _is_evm_deploy_tx(self, tx: Transaction) -> bool:
+        if not tx.data or not getattr(self, "evm", None):
+            return False
+        target_acct = self.db.get_account(tx.to_addr)
+        if target_acct and target_acct.get("code"):
+            return False
+        deploy_data = (tx.data or "").strip()
+        hex_body = deploy_data.replace("0x", "")
+        return bool(deploy_data and len(hex_body) >= 4 and len(hex_body) % 2 == 0)
+
+    def _validate_evm_deploy_bytecode(self, tx: Transaction) -> Dict:
+        if not self._is_evm_deploy_tx(tx):
+            return {"valid": True}
+        from execution.evm_bytecode_validator import validate_bytecode_hex
+        v = validate_bytecode_hex(tx.data)
+        if v.get("valid"):
+            return {"valid": True}
+        bad = v.get("unsupported") or []
+        name = bad[0].get("name", "?") if bad else v.get("error", "invalid")
+        return {"valid": False, "error": f"unsupported_evm_bytecode:{name}"}
 
     def _verify_tx_signature(self, tx: Transaction) -> Dict:
         """Require and verify ECDSA when config.require_signatures is enabled."""

@@ -213,6 +213,18 @@ class Database:
                 timestamp  INTEGER NOT NULL DEFAULT 0
             );
 
+            CREATE TABLE IF NOT EXISTS evm_logs (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                contract_address TEXT NOT NULL,
+                block_height     INTEGER NOT NULL DEFAULT 0,
+                tx_hash          TEXT NOT NULL DEFAULT '',
+                log_index        INTEGER NOT NULL DEFAULT 0,
+                topics           TEXT NOT NULL DEFAULT '[]',
+                data             TEXT NOT NULL DEFAULT '',
+                timestamp        INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_evm_logs_contract ON evm_logs(contract_address);
+
             CREATE INDEX IF NOT EXISTS idx_tx_block ON transactions(block_height);
             CREATE INDEX IF NOT EXISTS idx_tx_from  ON transactions(from_addr);
             CREATE INDEX IF NOT EXISTS idx_tx_to    ON transactions(to_addr);
@@ -742,6 +754,77 @@ class Database:
                 "SELECT * FROM slash_events ORDER BY id DESC LIMIT ?", (limit,)
             ).fetchall()
             return [dict(r) for r in rows]
+
+    def save_evm_logs(
+        self,
+        contract_address: str,
+        logs: List[Dict],
+        block_height: int = 0,
+        tx_hash: str = "",
+        timestamp: int = 0,
+    ) -> int:
+        """Persist EVM event logs emitted during contract execution."""
+        if not logs:
+            return 0
+        import time as _time
+        ts = int(timestamp or _time.time())
+        saved = 0
+        with self.lock:
+            base_idx = self.conn.execute(
+                "SELECT COUNT(*) AS c FROM evm_logs WHERE contract_address=?",
+                (contract_address,),
+            ).fetchone()["c"]
+            for i, entry in enumerate(logs):
+                topics = entry.get("topics", [])
+                if isinstance(topics, list):
+                    topics_json = json.dumps(topics)
+                else:
+                    topics_json = "[]"
+                data = entry.get("data", "")
+                self.conn.execute(
+                    """INSERT INTO evm_logs
+                       (contract_address, block_height, tx_hash, log_index, topics, data, timestamp)
+                       VALUES (?,?,?,?,?,?,?)""",
+                    (
+                        contract_address,
+                        int(block_height),
+                        tx_hash or "",
+                        int(base_idx) + i,
+                        topics_json,
+                        str(data),
+                        ts,
+                    ),
+                )
+                saved += 1
+            self.conn.commit()
+        return saved
+
+    def get_evm_logs(
+        self,
+        contract_address: str = "",
+        limit: int = 100,
+    ) -> List[Dict]:
+        with self.lock:
+            if contract_address:
+                rows = self.conn.execute(
+                    """SELECT * FROM evm_logs WHERE contract_address=?
+                       ORDER BY id DESC LIMIT ?""",
+                    (contract_address, int(limit)),
+                ).fetchall()
+            else:
+                rows = self.conn.execute(
+                    "SELECT * FROM evm_logs ORDER BY id DESC LIMIT ?",
+                    (int(limit),),
+                ).fetchall()
+            out = []
+            for r in rows:
+                item = dict(r)
+                try:
+                    item["topics"] = json.loads(item.get("topics") or "[]")
+                except Exception:
+                    item["topics"] = []
+                out.append(item)
+            return out
 
     # ── Метаданные (токеномика, конфиг) ─────────────────────────────────────
 

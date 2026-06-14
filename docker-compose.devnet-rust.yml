@@ -64,7 +64,9 @@ services:
       - abs-devnet-rust
 
   node2:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.devnet-rust
     hostname: node2
     command: ["python", "main.py", "--config", "docker/node2.rust.json"]
     ports:

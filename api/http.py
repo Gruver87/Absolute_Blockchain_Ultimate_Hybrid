@@ -982,6 +982,20 @@ class RESTHandler(BaseHTTPRequestHandler):
                 except Exception as e:
                     self._json({"error": str(e)})
 
+            elif path == "/evm/logs" or path.startswith("/evm/logs/"):
+                db = self.__class__.db
+                if not db or not hasattr(db, "get_evm_logs"):
+                    self._error(503, "EVM logs not available"); return
+                contract = ""
+                if path.startswith("/evm/logs/"):
+                    contract = path.split("/evm/logs/", 1)[1].strip("/")
+                limit = 100
+                if contract:
+                    logs = db.get_evm_logs(contract_address=contract, limit=limit)
+                else:
+                    logs = db.get_evm_logs(limit=limit)
+                self._json({"count": len(logs), "logs": logs, "contract": contract or None})
+
             elif path == "/consensus/attestations/by-block":
                 ca = self.__class__.consensus_adapter
                 if ca and hasattr(ca, "get_attestations_by_block"):
@@ -3477,7 +3491,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                 amount = float(body.get("amount", 0))
                 from_chain = body.get("from_chain", body.get("source_chain", "ethereum"))
                 if hasattr(br, "confirm_incoming"):
-                    result = br.confirm_incoming(tx_id, recipient, amount, from_chain)
+                    l1_tx = body.get("l1_tx_hash", "").strip()
+                    result = br.confirm_incoming(
+                        tx_id, recipient, amount, from_chain, l1_tx_hash=l1_tx
+                    )
                     self._json(result if isinstance(result, dict) else {"success": bool(result)})
                 else:
                     self._json({"success": False, "error": "confirm not available"})
@@ -3533,7 +3550,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                 amount = float(body.get("amount", 0))
                 from_chain = body.get("from_chain", body.get("source_chain", "ethereum"))
                 if hasattr(br, "confirm_incoming"):
-                    result = br.confirm_incoming(tx_id, recipient, amount, from_chain)
+                    l1_tx = body.get("l1_tx_hash", "").strip()
+                    result = br.confirm_incoming(
+                        tx_id, recipient, amount, from_chain, l1_tx_hash=l1_tx
+                    )
                     self._json(result if isinstance(result, dict) else {"success": bool(result)})
                 else:
                     self._json({"success": False, "error": "confirm not available"})
@@ -3741,6 +3761,15 @@ class RESTHandler(BaseHTTPRequestHandler):
             # ── Sync: fast sync, add/remove peer ─────────────────────────────
             elif path == "/sync/fast-sync":
                 p2p = self.__class__.p2p
+                if p2p and hasattr(p2p, "catch_up_sync"):
+                    result = p2p.catch_up_sync(timeout=90)
+                    self._json({
+                        "success": bool(result.get("ok")),
+                        "local_height": self.__class__.blockchain.get_height(),
+                        "message": "P2P catch-up finished",
+                        "detail": result,
+                    })
+                    return
                 if p2p and hasattr(p2p, "trigger_catch_up"):
                     p2p.trigger_catch_up()
                     self._json({
@@ -3763,15 +3792,20 @@ class RESTHandler(BaseHTTPRequestHandler):
                 p2p = self.__class__.p2p
                 if not p2p or not hasattr(p2p, "trigger_reconcile"):
                     self._error(503, "P2P reconcile not available"); return
-                p2p.trigger_reconcile()
-                time.sleep(2)
+                if hasattr(p2p, "reconcile_peers_sync"):
+                    detail = p2p.reconcile_peers_sync(timeout=90)
+                else:
+                    p2p.trigger_reconcile()
+                    time.sleep(2)
+                    detail = {"ok": True, "message": "scheduled"}
                 sync = _build_sync_status(
                     self.__class__.sync_engine, p2p,
                     self.__class__.blockchain, cfg,
                 )
                 self._json({
-                    "success": True,
-                    "message": "P2P reconcile scheduled",
+                    "success": bool(detail.get("ok", True)),
+                    "message": "P2P reconcile finished",
+                    "detail": detail,
                     "sync": sync,
                 })
 

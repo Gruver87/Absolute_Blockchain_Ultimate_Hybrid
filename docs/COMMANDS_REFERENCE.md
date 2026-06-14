@@ -1,10 +1,77 @@
+# Локальный справочник команд (без секретов): `docs/ALL_COMMANDS.txt`  
+# Секреты **только** в `.env` (gitignore) — см. `secrets/README.md`
+
+---
+
 # Absolute Blockchain Ultimate — Справочник команд
 
 > **Версия:** `1.2.0-industrial` (unified node)  
 > **Автор:** Uladzimir Dabranski (Gruver87)  
-> **Обновлено:** 2026-06-12  
+> **Обновлено:** 2026-06-14  
 > **Статус:** учебный проект, не production mainnet  
 > **Заменяет:** справочник v57 (2026-06-08)
+
+---
+
+## Возможности блокчейна (честно)
+
+> Полная версия: **Часть 0** в [`docs/ALL_COMMANDS.txt`](ALL_COMMANDS.txt)
+
+**Это учебный проект** — не mainnet, не аудит, ABS не листинг. Проверено: **166+ pytest**, **256 REST**, **32 вкладки UI**, Docker devnet P2P sync OK.
+
+### Wave 38 (EVM)
+- **BLOCKHASH**, **CALLCODE** opcodes
+- Логи контрактов в SQLite: `GET /evm/logs`, `GET /evm/logs/{address}`
+
+### Архитектура
+
+| Сервис | Порт | Статус |
+|--------|------|--------|
+| REST + Explorer | :8080 | 🟢 единый `main.py` |
+| JSON-RPC | :8545 | 🟢 eth_* подмножество |
+| P2P | :5000 | 🟢 2 узла проверены |
+| WebSocket | :8766 | 🟢 live feed |
+| SQLite | `data/blockchain.db` | 🟢 |
+
+### Токеномика (в коде)
+
+- **221M ABS** max supply, founder **D.U.P. 17.4%**, burn **2%**
+- Pool locks: ecosystem / treasury / staking — `GET /pools/locks`
+- API: `/tokenomics`, `/founder`, `/allocation`
+
+### 🟢 Реально работает (L1 + проверено)
+
+- Блоки, TX, mempool, ECDSA-подпись, автомайнинг ~15с
+- StateEngine, state_root, fork reorg, P2P sync/reconcile
+- NFT, multisig, smart accounts (API + UI)
+- MiniVM deploy/call; Light client / Merkle proofs
+- Slashing (double-vote по slot), validators, attestations
+- Devnet: faucet, pool-spend, `start_two_nodes.ps1`, `docker_devnet.ps1`
+
+### 🟡 Упрощённо / demo (dev OK, prod блокируется)
+
+| Модуль | Реальность |
+|--------|------------|
+| **EVM** | Не полный Ethereum; ограниченные opcodes, `/evm/validate` |
+| **Bridge** | Simulator по умолчанию; rust — `-RustBridge` |
+| **Sharding** | 4 шарда как routing на одной DB, не отдельные ноды |
+| **Oracles** | Demo цены; погода — ключи в `.env` |
+| **ZK / PQ** | Educational, не audited crypto |
+| **Lightning / Plasma / WASM** | Demo in-memory |
+| **MEV / AI / Reorg / Will** | Симуляция и эвристики |
+
+Статус модулей: `GET /features` (tier: production / routing / offchain / demo / educational).
+
+### 🔴 Чего нет
+
+Production mainnet, полный EVM, крипто-аудит, листинг ABS, распределённая сеть как Ethereum.
+
+```powershell
+curl http://localhost:8080/features
+.\scripts\verify_endpoints.ps1
+python scripts/mega_audit.py
+python scripts/verify_p2p_ci.py --mode devnet --wait 240
+```
 
 ---
 

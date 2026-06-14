@@ -95,12 +95,19 @@ class ShardingManager:
             return from_shard, tx_id
 
     def process_cross_shard_transactions(self):
-        """Process pending cross-shard transactions"""
+        """Process pending cross-shard transactions with real L1 balance moves."""
         for tx_id in self.pending_cross_txs[:]:
             tx = self.cross_shard_txs[tx_id]
             if self._validate_cross_shard_tx(tx):
+                if self._db and hasattr(self._db, "update_balance"):
+                    amount = float(tx.amount)
+                    self._db.update_balance(tx.from_addr, -amount)
+                    self._db.update_balance(tx.to_addr, amount)
                 tx.status = "confirmed"
                 tx.confirmed_at = time.time()
+                self.pending_cross_txs.remove(tx_id)
+            else:
+                tx.status = "failed"
                 self.pending_cross_txs.remove(tx_id)
 
     def _validate_cross_shard_tx(self, tx: CrossShardTransaction) -> bool:

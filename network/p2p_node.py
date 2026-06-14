@@ -119,6 +119,7 @@ class P2PNode:
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         # Sync responses routed from _message_loop (avoid double recv on same socket)
         self._sync_waiters: Dict[str, tuple] = {}  # peer_id -> (expected_types, Future)
+        self._peer_sync_locks: Dict[str, asyncio.Lock] = {}
         self._consensus = None
         self.validator_keys = None
         self._state_consistent = True
@@ -603,12 +604,21 @@ class P2PNode:
 
     # ── Синхронизация ────────────────────────────────────────────────────────
 
+    def _peer_lock(self, peer_id: str) -> asyncio.Lock:
+        if peer_id not in self._peer_sync_locks:
+            self._peer_sync_locks[peer_id] = asyncio.Lock()
+        return self._peer_sync_locks[peer_id]
+
     async def _sync_with_peer_safe(self, peer: PeerConnection):
-        try:
-            await self._sync_with_peer(peer)
-        except Exception as e:
-            print(f"[P2P] Sync error via {peer.peer_id[:8]}: {e}")
-            logger.exception("[P2P] sync failed")
+        lock = self._peer_lock(peer.peer_id or f"{peer.host}:{peer.port}")
+        if lock.locked():
+            return
+        async with lock:
+            try:
+                await self._sync_with_peer(peer)
+            except Exception as e:
+                print(f"[P2P] Sync error via {peer.peer_id[:8]}: {e}")
+                logger.exception("[P2P] sync failed")
 
     async def _wait_peer_response(
         self,
@@ -748,7 +758,7 @@ class P2PNode:
         peer.height = block_h
         peer.head = peer_block.get("hash", peer_head)
         if peer.height > self.blockchain.get_height():
-            await self._sync_with_peer(peer)
+            await self._sync_with_peer_safe(peer)
         return True
 
     async def reconcile_peers(self) -> Dict:
@@ -758,7 +768,7 @@ class P2PNode:
             entry = {"peer": peer.peer_id[:12], "ok": False}
             try:
                 if peer.height > self.blockchain.get_height():
-                    await self._sync_with_peer(peer)
+                    await self._sync_with_peer_safe(peer)
                     entry["ok"] = True
                     entry["action"] = "catch_up"
                 elif peer.height == self.blockchain.get_height():
@@ -862,8 +872,38 @@ class P2PNode:
         if not self._loop or not self._running:
             return
         for peer in list(self.peers.values()):
-            if peer.height >= self.blockchain.get_height():
+            if peer.height > self.blockchain.get_height():
                 asyncio.run_coroutine_threadsafe(self._sync_with_peer_safe(peer), self._loop)
+
+    def catch_up_sync(self, timeout: float = 90) -> Dict:
+        """Block until lagging peers are synced (REST / devnet scripts)."""
+        if not self._loop or not self._running:
+            return {"ok": False, "error": "p2p not running"}
+        our_h = self.blockchain.get_height()
+        tasks = []
+        for peer in list(self.peers.values()):
+            if peer.height > our_h:
+                tasks.append(self._sync_with_peer_safe(peer))
+        if not tasks:
+            return {"ok": True, "height": our_h, "action": "already_synced"}
+        async def _run():
+            await asyncio.gather(*tasks, return_exceptions=True)
+            return {"ok": True, "height": self.blockchain.get_height()}
+        try:
+            return asyncio.run_coroutine_threadsafe(_run(), self._loop).result(timeout=timeout)
+        except Exception as exc:
+            return {"ok": False, "error": str(exc), "height": self.blockchain.get_height()}
+
+    def reconcile_peers_sync(self, timeout: float = 90) -> Dict:
+        """Block until peer reconcile completes (REST / devnet scripts)."""
+        if not self._loop or not self._running:
+            return {"ok": False, "error": "p2p not running"}
+        try:
+            return asyncio.run_coroutine_threadsafe(
+                self.reconcile_peers(), self._loop
+            ).result(timeout=timeout)
+        except Exception as exc:
+            return {"ok": False, "error": str(exc), "height": self.blockchain.get_height()}
 
     def fetch_block_from_peers_sync(self, block_hash: str, timeout: float = 15) -> Optional[Dict]:
         """Синхронная обёртка для SyncEngine (из другого потока)."""
@@ -880,11 +920,18 @@ class P2PNode:
     # ── Broadcast ────────────────────────────────────────────────────────────
 
     async def _broadcast_block(self, block_data: Dict, exclude_peer: str = ""):
-        """Рассылает блок всем пирам (кроме exclude_peer)."""
+        """Рассылает блок и актуальный status всем пирам (кроме exclude_peer)."""
         tasks = []
+        block_h = int(block_data.get("height", block_data.get("number", 0)) or 0)
+        block_hash = block_data.get("hash", "")
+        status = {
+            "height": block_h or self.blockchain.get_height(),
+            "head_hash": block_hash or self.head() or "",
+        }
         for pid, peer in list(self.peers.items()):
             if pid != exclude_peer:
                 tasks.append(peer.send(MSG_NEW_BLOCK, block_data))
+                tasks.append(peer.send(MSG_STATUS, status))
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -977,9 +1024,14 @@ class P2PNode:
     async def _catch_up_loop(self):
         """Периодически догоняем пиров с большей высотой."""
         while self._running:
-            await asyncio.sleep(15)
+            await asyncio.sleep(5)
             our_height = self.blockchain.get_height()
+            our_status = {
+                "height": our_height,
+                "head_hash": self.head() or "",
+            }
             for peer in list(self.peers.values()):
+                await peer.send(MSG_STATUS, our_status)
                 if peer.height > our_height:
                     asyncio.create_task(self._sync_with_peer_safe(peer))
 

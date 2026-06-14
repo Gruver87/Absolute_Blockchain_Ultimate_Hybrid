@@ -53,6 +53,7 @@ Secrets
 *secrets*.json
 *_backup_keys*
 COMMANDS_v57*.txt
+Absolute_Blockchain_All_Commands.txt
 start_all_services.bat
 !wallet.example.json
 

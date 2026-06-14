@@ -1,66 +1,44 @@
 #!/usr/bin/env python3
-"""Apply local secrets from Desktop commands file into .env and data/wallet.json."""
+"""Sync WALLET_PRIVATE_KEY from local .env into data/wallet.json (never reads .txt files)."""
 import json
 import os
-import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-COMMANDS = os.path.join(os.path.expanduser("~"), "Desktop", "Absolute_Blockchain_All_Commands_FIXED.txt")
 ENV_PATH = os.path.join(ROOT, ".env")
+ENV_EXAMPLE = os.path.join(ROOT, ".env.example")
 WALLET_PATH = os.path.join(ROOT, "data", "wallet.json")
 
 
-def _read_text(path: str) -> str:
-    if not os.path.isfile(path):
-        return ""
-    with open(path, encoding="utf-8", errors="ignore") as f:
-        return f.read()
-
-
-def _parse_commands(text: str) -> dict:
+def _load_env_file(path: str) -> dict:
     out = {}
-    patterns = {
-        "OPENWEATHER_API_KEY": r'OPENWEATHER_API_KEY:\s*"([^"]+)"',
-        "WEATHERAPI_KEY": r'WEATHERAPI_KEY:\s*"([^"]+)"',
-        "TELEGRAM_BOT_TOKEN": r'TELEGRAM_BOT_TOKEN:\s*"([^"]+)"',
-        "WALLET_PRIVATE_KEY": r"Private Key:\s*([0-9a-fA-F]{64})",
-    }
-    for key, pat in patterns.items():
-        m = re.search(pat, text)
-        if m:
-            out[key] = m.group(1).strip()
+    if not os.path.isfile(path):
+        return out
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            out[key.strip()] = val.strip()
     return out
 
 
-def _update_env(secrets: dict) -> None:
-    lines = []
+def _ensure_env_exists() -> bool:
     if os.path.isfile(ENV_PATH):
-        with open(ENV_PATH, encoding="utf-8") as f:
-            lines = f.read().splitlines()
-    keys = {k: v for k, v in secrets.items() if k != "WALLET_PRIVATE_KEY"}
-    if secrets.get("WALLET_PRIVATE_KEY"):
-        keys["WALLET_PRIVATE_KEY"] = secrets["WALLET_PRIVATE_KEY"]
-    present = set()
-    new_lines = []
-    for line in lines:
-        if "=" in line and not line.strip().startswith("#"):
-            k = line.split("=", 1)[0].strip()
-            if k in keys:
-                new_lines.append(f"{k}={keys[k]}")
-                present.add(k)
-                continue
-        new_lines.append(line)
-    for k, v in keys.items():
-        if k not in present:
-            new_lines.append(f"{k}={v}")
-    # Local-only dev helper: writes gitignored .env (never committed).
-    with open(ENV_PATH, "w", encoding="utf-8") as f:  # codeql[py/clear-text-storage-sensitive-data]
-        f.write("\n".join(new_lines) + "\n")
+        return True
+    if os.path.isfile(ENV_EXAMPLE):
+        with open(ENV_EXAMPLE, encoding="utf-8") as src, open(ENV_PATH, "w", encoding="utf-8") as dst:
+            dst.write(src.read())
+        print(f"Created {ENV_PATH} from .env.example — fill secrets locally, then re-run.")
+        return False
+    print("Missing .env and .env.example")
+    return False
 
 
 def _update_wallet(private_key_hex: str) -> bool:
     if not os.path.isfile(WALLET_PATH):
+        print(f"wallet.json not found: {WALLET_PATH}")
         return False
     sys.path.insert(0, ROOT)
     from crypto.wallet import Wallet
@@ -84,26 +62,25 @@ def _update_wallet(private_key_hex: str) -> bool:
 
 
 def main() -> int:
-    text = _read_text(COMMANDS)
-    if not text:
-        print(f"Commands file not found: {COMMANDS}")
+    if not _ensure_env_exists():
+        return 0
+    env = _load_env_file(ENV_PATH)
+    pk = (env.get("WALLET_PRIVATE_KEY") or "").strip()
+    if not pk:
+        print("WALLET_PRIVATE_KEY empty in .env — add your 64-hex key locally.")
+        print("Other secrets (Telegram, API) are read by main.py from .env at runtime.")
+        return 0
+    if len(pk) != 64:
+        print("WALLET_PRIVATE_KEY must be 64 hex characters")
         return 1
-    secrets = _parse_commands(text)
-    if not secrets:
-        print("No secrets parsed from commands file")
-        return 1
-    _update_env(secrets)
-    print(f"Updated: {ENV_PATH}")
-    pk = secrets.get("WALLET_PRIVATE_KEY", "")
-    if pk:
-        if _update_wallet(pk):
-            print(f"Updated: {WALLET_PATH} (private_key matched founder wallet)")
-        else:
-            print(
-                "wallet.json: private_key from commands file does NOT match "
-                "founder address/public_key — kept address-only; key stored in .env only"
-            )
-    print("Done. Restart node: .\\scripts\\stop_node.ps1 then .\\scripts\\start_node.ps1")
+    if _update_wallet(pk):
+        print("Synced wallet.json from .env (address verified)")
+    else:
+        print(
+            "OK: WALLET_PRIVATE_KEY is operational wallet (not founder in wallet.json). "
+            "main.py uses it for mining/signing; founder address stays watch-only in wallet.json."
+        )
+    print("Restart: .\\scripts\\stop_node.ps1 then .\\scripts\\start_node.ps1")
     return 0
 
 

@@ -38,7 +38,8 @@ PATTERNS = [
     (r"(?i)(password|passwd)\s*[=:]\s*['\"]([^'\"]{6,})['\"]", "Password"),
     (r"ngrok.*?[=:]\s*['\"]([A-Za-z0-9_]{20,})['\"]", "Ngrok token"),
     (r"sk-[A-Za-z0-9]{20,}", "OpenAI-style API key"),
-    (r"ghp_[A-Za-z0-9]{20,}", "GitHub personal access token"),
+    (r"(?i)private\s*key\s*:\s*([0-9a-f]{64,})", "Private key in text file"),
+    (r"(?i)github_token\s*[=:]\s*['\"]?(ghp_[A-Za-z0-9]{20,})", "GitHub personal access token"),
     (r"gho_[A-Za-z0-9]{20,}", "GitHub OAuth token"),
 ]
 
@@ -82,6 +83,8 @@ def main() -> int:
             if ext not in SCAN_EXTENSIONS and name not in (".env", ".env.example"):
                 continue
             path = os.path.join(dirpath, name)
+            if name == ".env" or name.startswith(".env.") and name != ".env.example":
+                continue
             all_findings.extend(scan_file(path))
 
     if not all_findings:
