@@ -8,13 +8,41 @@ $Ports = @(
     8082, 8083, 8092, 8093
 )
 
+$ProtectedProcessNames = @(
+    'com.docker.backend', 'docker', 'dockerd', 'wsl', 'wslhost', 'svchost', 'System'
+)
+
+function Test-SafeNodeProcess {
+    param([int]$ProcId)
+    if (-not $ProcId -or $ProcId -le 0) {
+        return $false
+    }
+    try {
+        $proc = Get-Process -Id $ProcId -ErrorAction Stop
+        if ($ProtectedProcessNames -contains $proc.ProcessName) {
+            return $false
+        }
+        $cim = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcId" -ErrorAction SilentlyContinue
+        if ($cim -and $cim.CommandLine -like '*main.py*') {
+            return $true
+        }
+        if ($proc.ProcessName -match '^(python|python3)$') {
+            return $true
+        }
+        return $false
+    }
+    catch {
+        return $false
+    }
+}
+
 function Get-ListenerPids {
     param([int[]]$PortList)
     $pids = @{}
     foreach ($port in $PortList) {
         $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
         foreach ($c in $conns) {
-            if ($c.OwningProcess -and $c.OwningProcess -ne 0) {
+            if ($c.OwningProcess -and (Test-SafeNodeProcess $c.OwningProcess)) {
                 $pids[$c.OwningProcess] = $true
             }
         }
