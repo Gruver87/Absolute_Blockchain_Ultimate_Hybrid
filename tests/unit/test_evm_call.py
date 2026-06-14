@@ -248,3 +248,27 @@ def test_adapter_create_deploys_child(evm_db):
     child_addr = "0x" + hashlib.sha256(child_seed.encode()).hexdigest()[:40]
     child = adapter.get_contract_info(child_addr)
     assert child.get("is_contract") is True
+
+
+def test_adapter_create2_deploys_child(evm_db):
+    adapter, db = evm_db
+    deployer = "0xdeployer000000000000000000000000000001"
+    db.save_account(deployer, balance=100.0, nonce=0)
+
+    salt = 0x42
+    init = bytes.fromhex("602a60005260206000f3")
+    init_len = len(init)
+    prefix = bytes([
+        0x60, init_len, 0x60, 17, 0x60, 0x00, 0x39,
+        0x60, 0x00, 0x60, 0x00, 0x60, init_len,
+        0x60, salt & 0xFF,
+        0xF5, 0x00,
+    ])
+    factory = adapter.deploy_contract(deployer, (prefix + init).hex(), salt="factory2")
+    assert factory.success, factory.error
+
+    factory_addr = factory.return_value
+    child_seed = f"create2:{factory_addr}:{salt}:{init.hex()}"
+    child_addr = "0x" + hashlib.sha256(child_seed.encode()).hexdigest()[:40]
+    child = adapter.get_contract_info(child_addr)
+    assert child.get("is_contract") is True

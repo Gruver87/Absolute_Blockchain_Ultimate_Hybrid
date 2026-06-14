@@ -1290,7 +1290,7 @@
       <div class="card">
         <h3>Confirm Incoming Transfer</h3>
         <div id="bridge-rust-hint" style="display:none;font-size:11px;color:var(--gray);margin-bottom:8px">
-          Rust bridge mode — confirm calls <code>abs_bridge_bin confirm</code> then updates lock in DB.
+          Rust bridge mode — outbound: <code>confirm</code>, incoming: <code>incoming</code> via abs_bridge_bin.
         </div>
         <div class="form-row"><label>TX ID</label><input id="bridge-confirm-txid" placeholder="bridge_tx_id..."/></div>
         <button class="btn btn-blue" onclick="bridgeConfirm()" style="width:100%">Confirm</button>
@@ -1302,6 +1302,10 @@
         <button class="btn btn-blue" onclick="bridgeRefund()" style="width:100%">Refund</button>
         <div id="bridge-refund-result" style="margin-top:8px;font-size:12px"></div>
       </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>Bridge Locks</h3>
+      <div id="bridge-locks-table" style="font-size:12px;overflow-x:auto"></div>
     </div>
   </div>
 
@@ -3007,11 +3011,52 @@ async function loadBridge2Stats() {
     <tr><td style="color:var(--gray)">Supported Chains</td><td>${(r.supported_chains||[]).join(', ')}</td></tr>
   </table>`;
   const locks = await api('/bridge/locks');
+  renderBridgeLocksTable(locks, isRust);
   if (locks?.locks?.length) {
-    el.innerHTML += `<div style="margin-top:10px;font-size:11px;color:var(--gray)">Recent locks: ${locks.locks.slice(0,3).map(l => (l.tx_hash||l.tx_id||'').slice(0,12)).join(', ')}</div>`;
+    el.innerHTML += `<div style="margin-top:10px;font-size:11px;color:var(--gray)">Recent: ${locks.locks.slice(0,3).map(l => (l.tx_hash||l.tx_id||'').slice(0,12)).join(', ')}</div>`;
   }
   const hint = document.getElementById('bridge-rust-hint');
   if (hint) hint.style.display = isRust ? 'block' : 'none';
+}
+
+function fillBridgeTx(hash, action) {
+  if (!hash) return;
+  if (action === 'confirm' || action === 'lock') {
+    const el = document.getElementById('bridge-confirm-txid');
+    if (el) el.value = hash;
+  }
+  if (action === 'refund') {
+    const el = document.getElementById('bridge-refund-txid');
+    if (el) el.value = hash;
+  }
+}
+
+function renderBridgeLocksTable(locksResp, isRust) {
+  const el = document.getElementById('bridge-locks-table');
+  if (!el) return;
+  const rows = (locksResp?.locks || []).slice(0, 25);
+  if (!rows.length) {
+    el.innerHTML = '<span style="color:var(--gray)">No bridge locks yet</span>';
+    return;
+  }
+  const statusBadge = (s) => {
+    const st = (s || 'pending').toLowerCase();
+    const cls = st === 'confirmed' ? 'badge-green' : st === 'refunded' ? 'badge-yellow' : 'badge-blue';
+    return `<span class="badge ${cls}">${st}</span>`;
+  };
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse">
+    <tr style="color:var(--gray)"><th align="left">TX</th><th>Status</th><th>Chain</th><th>Amount</th><th>Action</th></tr>
+    ${rows.map(l => {
+      const tx = l.tx_hash || l.tx_id || '';
+      const short = tx ? tx.slice(0, 14) + '…' : '—';
+      const pending = (l.status || 'pending') === 'pending';
+      const action = pending
+        ? `<button class="btn btn-blue" style="padding:2px 8px;font-size:11px" onclick="fillBridgeTx('${tx}','confirm')">Confirm</button>`
+        : '—';
+      return `<tr><td class="hash" title="${tx}">${short}</td><td>${statusBadge(l.status)}</td>
+        <td>${l.to_chain || '—'}</td><td>${l.amount ?? '—'}</td><td>${action}</td></tr>`;
+    }).join('')}
+  </table>${isRust ? '<div style="margin-top:6px;color:var(--gray);font-size:11px">Rust mode: confirm uses abs_bridge_bin subprocess</div>' : ''}`;
 }
 async function bridge2Transfer() {
   const from_chain = document.getElementById('bridge2-from').value;

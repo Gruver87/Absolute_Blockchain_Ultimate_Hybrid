@@ -67,3 +67,14 @@ def test_confirm_lock_uses_rust_subprocess(rust_bridge_env):
     assert ok["confirmed"] is True
     assert ok.get("mode") == "rust"
     assert db.get_bridge_locks()[0]["status"] == "confirmed"
+
+
+def test_confirm_incoming_uses_rust_subprocess(rust_bridge_env):
+    br, db, cfg = rust_bridge_env
+    tx_hash = "0x" + "ab" * 32
+    db.save_bridge_lock("0xext", "ethereum", "0xrecipient", 3.0, tx_hash)
+    db.set_balance("0xrecipient", 0.0)
+    ok = br.confirm_incoming(tx_hash, "0xrecipient", 3.0, "ethereum")
+    assert ok["confirmed"] is True
+    assert ok.get("mode") == "rust"
+    assert db.get_balance("0xrecipient") == 3.0

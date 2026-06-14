@@ -24,7 +24,7 @@ fn make_tx_hash(command: &str, args: &serde_json::Value) -> String {
 
 fn handle(req: Request) -> Response {
     match req.command.as_str() {
-        "bridge" | "lock" | "confirm" => Response {
+        "bridge" | "lock" | "confirm" | "incoming" => Response {
             tx_hash: make_tx_hash(&req.command, &req.args),
             status: "ok".into(),
             error: None,

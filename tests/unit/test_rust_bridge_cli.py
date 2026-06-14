@@ -31,3 +31,16 @@ def test_rust_bridge_cli_returns_tx_hash():
     out = json.loads(proc.stdout.decode())
     assert out["tx_hash"].startswith("0x")
     assert len(out["tx_hash"]) == 66
+
+
+def test_rust_bridge_cli_incoming_command():
+    exe = _bridge_bin()
+    payload = json.dumps({
+        "command": "incoming",
+        "args": {"tx_hash": "0xabc", "recipient": "0x1", "amount": 5, "from_chain": "ethereum"},
+    }).encode()
+    proc = subprocess.run([exe], input=payload, capture_output=True, timeout=10)
+    assert proc.returncode == 0, proc.stderr.decode()
+    out = json.loads(proc.stdout.decode())
+    assert out["status"] == "ok"
+    assert out["tx_hash"].startswith("0x")

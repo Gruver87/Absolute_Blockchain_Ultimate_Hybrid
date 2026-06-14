@@ -186,7 +186,15 @@ class RustBridge:
         Подтверждает входящий перевод с внешней цепи — начисляет ABS получателю.
         Вызывается оракулом / Rust-мостом при получении подтверждения.
         """
-        # Начисляем ABS
+        if self._mode == "rust":
+            if not self._call_rust_ok("incoming", {
+                "tx_hash": tx_hash,
+                "recipient": recipient,
+                "amount": amount,
+                "from_chain": from_chain,
+            }):
+                return {"confirmed": False, "error": "rust incoming failed"}
+
         self.db.update_balance(recipient, amount)
         self.db.confirm_bridge_lock(tx_hash)
         self._simulator.confirm_transaction(tx_hash)
@@ -199,8 +207,13 @@ class RustBridge:
                 "from_chain": from_chain,
             })
 
-        return {"confirmed": True, "tx_hash": tx_hash,
-                "recipient": recipient, "amount": amount}
+        return {
+            "confirmed": True,
+            "tx_hash": tx_hash,
+            "recipient": recipient,
+            "amount": amount,
+            "mode": self._mode,
+        }
 
     def refund(self, tx_hash: str) -> Dict:
         """Возвращает заблокированные средства при ошибке."""
