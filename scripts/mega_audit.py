@@ -251,8 +251,9 @@ feature_map = {
     "monitor.py": "Monitor",
     "telegram_super_bot.py": "Telegram",
     "node_persistent.py": "NodePersistent",
-    "extended_api_server.py": "ExtendedAPI",
-    "rpc_proxy.py": "RPCProxy",
+    "api/http.py": "HTTPServer",
+    "bridge/l1_rpc.py": "L1RPC",
+    "execution/evm_bytecode_validator.py": "EVMBytecodeValidator",
     "crypto/tx_signer.py": "TransactionSigner",
     "crypto/wallet.py": "Wallet",
     "crypto/hashing.py": "Hasher",
@@ -281,6 +282,8 @@ for path, tag in sorted(feature_map.items()):
 
 integrated_count = len(feature_map) - len(not_integrated) - sum(1 for p in feature_map if not os.path.exists(os.path.join(BASE, p)))
 print(f"  Integrated: {integrated_count}/{len(feature_map)}")
+merged_legacy = "Extended API + RPC proxy (standalone servers removed)"
+print(f"  [OK] Merged into main.py/api/http.py: {merged_legacy}")
 
 # ══ 7. NAV TABS vs SECTIONS ══════════════════════════════════════════════════
 print("\n[7] WEB NAV TABS")

@@ -4298,6 +4298,7 @@ def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
         "supported_chains": ["ethereum", "bsc", "solana", "absolute"],
         "endpoints": {
             "locks": "GET /bridge/locks",
+            "l1_queue": "GET /bridge/l1-queue",
             "lock": "POST /bridge/lock",
             "confirm": "POST /bridge/confirm",
             "confirm_lock": "POST /bridge/confirm-lock",
@@ -4311,6 +4312,15 @@ def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
         "pending": sum(1 for l in locks if l.get("status") == "pending"),
         "confirmed": sum(1 for l in locks if l.get("status") == "confirmed"),
     }
+    try:
+        from bridge.l1_rpc import chain_rpc_url, min_confirmations
+        overview["l1_rpc"] = {
+            "eth_configured": bool(chain_rpc_url("ethereum")),
+            "min_confirmations": min_confirmations(),
+            "queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
+        }
+    except Exception:
+        overview["l1_rpc"] = {"eth_configured": False}
     if rb and hasattr(rb, "get_stats"):
         overview["rust_bridge"] = rb.get_stats()
         overview["bridge_fees"] = overview["rust_bridge"].get("bridge_fees", {})
@@ -4319,6 +4329,7 @@ def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
             overview["rust_binary"] = resolve() if callable(resolve) else getattr(
                 cfg, "rust_bridge_path", ""
             )
+            overview["rust_version"] = overview["rust_bridge"].get("version", "v4")
     if cb and hasattr(cb, "get_bridge_stats"):
         overview["cross_chain"] = cb.get_bridge_stats()
     overview["status"] = "simulator" if overview.get("mode") == "simulator" else overview.get("mode")

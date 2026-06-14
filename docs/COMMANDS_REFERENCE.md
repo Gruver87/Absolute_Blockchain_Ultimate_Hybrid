@@ -266,8 +266,10 @@ python scripts/verify_p2p_ci.py --mode devnet
 ```powershell
 Invoke-RestMethod http://localhost:8080/bridge
 Invoke-RestMethod http://localhost:8080/bridge/locks
-Invoke-RestMethod http://localhost:8080/openapi.json
-# Браузер: http://localhost:8080/docs
+Invoke-RestMethod http://localhost:8080/bridge/l1-queue
+python scripts/bridge_relayer.py --once --watch-l1
+python scripts/mega_audit.py
+# Браузер: http://localhost:8080/docs  (Explorer → Cross-Chain → L1 Relayer Queue)
 ```
 
 ### Валидаторы и слэшинг (v57 Часть 15)

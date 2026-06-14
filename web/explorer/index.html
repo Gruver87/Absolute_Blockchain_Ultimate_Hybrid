@@ -185,6 +185,7 @@
       <h3>Cross-Chain Bridge</h3>
       <div id="bridge-dashboard-summary" style="font-size:12px;margin-bottom:10px"></div>
       <div id="bridge-dashboard-pending" style="font-size:12px;margin-bottom:10px"></div>
+      <div id="bridge-dashboard-l1" style="font-size:11px;margin-bottom:10px;display:none"></div>
       <button class="btn btn-blue" onclick="openBridgeSection()" style="width:100%;margin-bottom:8px">Open Bridge &amp; Locks Table →</button>
       <button class="btn btn-outline" id="bridge-confirm-all-btn" onclick="confirmAllBridgePending()" style="width:100%;display:none">Confirm All Pending Locks</button>
     </div>
@@ -1374,6 +1375,11 @@
       </div>
     </div>
     <div class="card" style="margin-top:16px">
+      <h3>L1 Relayer Queue</h3>
+      <button class="btn btn-outline" onclick="loadBridgeL1Queue()" style="margin-bottom:10px">Refresh L1 Queue</button>
+      <div id="bridge-l1-queue" style="font-size:12px;font-family:monospace"></div>
+    </div>
+    <div class="card" style="margin-top:16px">
       <h3>Bridge Locks</h3>
       <div id="bridge-locks-table" style="font-size:12px;overflow-x:auto"></div>
     </div>
@@ -1749,7 +1755,7 @@ function show(tab) {
   event.currentTarget.classList.add('active');
   if (tab === 'send')        prefillSendWallet();
   if (tab === 'wallet')      loadWalletPanel();
-  if (tab === 'bridge2')     { loadBridge2Stats(); prefillBridgeWallet(); }
+  if (tab === 'bridge2')     { loadBridge2Stats(); loadBridgeL1Queue(); prefillBridgeWallet(); }
   if (tab === 'nft')        { loadNFTs(); loadNFTMarketplace(); }
   if (tab === 'sharding')   loadSharding();
   if (tab === 'oracles')    loadOracles();
@@ -3311,7 +3317,29 @@ function renderBridgeLocksTable(locksResp, isRust) {
       return `<tr><td class="hash" title="${tx}">${short}</td><td>${statusBadge(l.status)}</td>
         <td>${l.to_chain || '—'}</td><td>${l.amount ?? '—'}</td><td>${action}</td></tr>`;
     }).join('')}
-  </table>${isRust ? '<div style="margin-top:6px;color:var(--gray);font-size:11px">Rust mode: confirm uses abs_bridge_bin subprocess</div>' : ''}`;
+  </table>${isRust ? '<div style="margin-top:6px;color:var(--gray);font-size:11px">Rust mode: confirm uses abs_bridge_bin subprocess (v4 — L1 proof via l1_tx_hash only)</div>' : ''}`;
+}
+
+async function loadBridgeL1Queue() {
+  const el = document.getElementById('bridge-l1-queue');
+  if (!el) return;
+  const q = await api('/bridge/l1-queue');
+  if (!q) {
+    el.innerHTML = '<span style="color:var(--gray)">L1 queue unavailable</span>';
+    return;
+  }
+  const outbound = (q.queue?.outbound || []).slice(0, 8);
+  const incoming = (q.queue?.incoming || []).slice(0, 8);
+  const rpcBadge = q.eth_rpc_configured
+    ? '<span class="badge badge-green">RPC OK</span>'
+    : '<span class="badge badge-yellow">ETH_RPC_URL unset</span>';
+  el.innerHTML = `
+    <div style="margin-bottom:8px">${rpcBadge} · min conf: ${q.min_confirmations || 12} · outbound: <b>${q.outbound || 0}</b> · incoming: <b>${q.incoming || 0}</b></div>
+    <div style="color:var(--gray);margin-bottom:4px">Outbound (ABS→L1)</div>
+    ${outbound.length ? outbound.map(i => `<div>· ${(i.tx_hash||i.lock_id||'?').slice(0,18)}… → ${i.chain||'?'}</div>`).join('') : '<div style="color:var(--gray)">(empty)</div>'}
+    <div style="color:var(--gray);margin:8px 0 4px">Incoming (L1→ABS)</div>
+    ${incoming.length ? incoming.map(i => `<div>· ${(i.l1_tx_hash||i.tx_hash||'?').slice(0,18)}… → ${i.recipient||'?'}</div>`).join('') : '<div style="color:var(--gray)">(empty)</div>'}
+    <div style="margin-top:8px;color:var(--gray);font-size:10px">Relayer: python scripts/bridge_relayer.py --watch-l1</div>`;
 }
 async function bridge2Transfer() {
   const from_chain = document.getElementById('bridge2-from').value;
@@ -3645,11 +3673,19 @@ async function loadBridgeDashboardSummary() {
   const total = br.locks?.total ?? 0;
   const manual = (br.auto_confirm_sec ?? 0) <= 0;
   const rustHint = br.mode === 'rust' && br.rust_binary
-    ? `<div style="color:var(--gray);font-size:10px;margin-top:4px">Rust: ${br.rust_binary}</div>` : '';
+    ? `<div style="color:var(--gray);font-size:10px;margin-top:4px">Rust ${br.rust_version || 'v4'}: ${br.rust_binary}</div>` : '';
   el.innerHTML = `
     <div>Mode: <b>${br.mode || 'simulator'}</b> ${manual ? '<span class="badge badge-yellow">MANUAL CONFIRM</span>' : ''}</div>
     <div style="margin-top:6px">Locks: <b>${total}</b> (pending: <b>${pending}</b>)</div>
     ${rustHint}`;
+  const l1El = document.getElementById('bridge-dashboard-l1');
+  if (l1El && br.l1_rpc) {
+    const l1 = br.l1_rpc;
+    l1El.style.display = 'block';
+    l1El.innerHTML = `L1 RPC: ${l1.eth_configured ? '<span class="badge badge-green">ETH configured</span>' : '<span class="badge badge-yellow">no ETH_RPC_URL</span>'} · min conf: ${l1.min_confirmations || 12}`;
+  } else if (l1El) {
+    l1El.style.display = 'none';
+  }
   const pendingRows = (locks?.locks || []).filter(l => (l.status || 'pending') === 'pending');
   if (pendingEl) {
     pendingEl.innerHTML = pendingRows.length

@@ -42,7 +42,24 @@ class SyncManager:
         return 0
 
     def _get_blocks_from_height(self, start: int, limit: int = 5) -> List[Dict]:
-        return [{"number": start + i, "hash": f"0x{start + i}"} for i in range(limit)]
+        """Fetch real blocks from node storage (legacy v50 tests only)."""
+        storage = getattr(self.node, "storage", None)
+        if not storage:
+            return []
+        get_block = getattr(storage, "get_block", None)
+        if not callable(get_block):
+            return []
+        blocks: List[Dict] = []
+        for i in range(limit):
+            height = start + i
+            blk = get_block(height)
+            if not blk:
+                break
+            blocks.append({
+                "number": height,
+                "hash": blk.get("hash") or blk.get("block_hash") or "",
+            })
+        return blocks
 
     def start_sync(self, peer_id: str) -> bool:
         self.syncing = True
