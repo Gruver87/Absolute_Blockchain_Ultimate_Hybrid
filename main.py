@@ -326,21 +326,16 @@ class NodeOrchestrator:
                 f"[Node] state_root legacy cutoff: #{config.state_root_legacy_cutoff_height} "
                 "(blocks above require strict match)"
             )
-        # Сохраняем токеномику и применяем genesis-аллокацию (миграция старых БД)
+        # Сохраняем метаданные токеномики (genesis-аллокация — после загрузки wallet)
         try:
-            from runtime.tokenomics import get_tokenomics_summary, genesis_balances, FOUNDER_AMOUNT_ABS
-            founder = getattr(config, "founder_address", "") or config.miner_address
+            from runtime.tokenomics import get_tokenomics_summary, resolve_founder_address
+            founder = resolve_founder_address(
+                getattr(config, "founder_address", ""),
+                config.miner_address,
+            )
             if not self.db.get_meta("tokenomics"):
                 self.db.set_meta("tokenomics", get_tokenomics_summary(founder or None))
                 print(f"[Node] Tokenomics saved: 221M ABS, founder D.U.P. 17.4%")
-            if founder and not self.db.get_meta("genesis_alloc_applied"):
-                alloc = genesis_balances(founder)
-                for addr, amount in alloc.items():
-                    cur = self.db.get_balance(addr)
-                    if cur < amount * 0.99:
-                        self.db.set_balance(addr, float(amount))
-                self.db.set_meta("genesis_alloc_applied", True)
-                print(f"[Node] Genesis allocation applied (founder {FOUNDER_AMOUNT_ABS:,.0f} ABS)")
         except Exception as _tok_err:
             print(f"[Node] Tokenomics migration note: {_tok_err}")
 
@@ -435,6 +430,8 @@ class NodeOrchestrator:
                 f"miner-{config.p2p_port}".encode()
             ).hexdigest()[:40]
             print(f"[Node] Auto-generated miner address: {config.miner_address}")
+
+        self._apply_genesis_allocation()
 
         # Если нет валидаторов в БД — регистрируем текущий узел как валидатор
         if not self.db.get_validators():
@@ -1121,6 +1118,40 @@ class NodeOrchestrator:
                     self._attestation_validator, self.config.min_stake
                 )
             await asyncio.sleep(60)
+
+    def _apply_genesis_allocation(self) -> None:
+        """Credit genesis pools after wallet/config founder address is known."""
+        try:
+            from runtime.tokenomics import (
+                FOUNDER_AMOUNT_ABS,
+                genesis_balances,
+                get_tokenomics_summary,
+                resolve_founder_address,
+            )
+            founder = resolve_founder_address(
+                getattr(self.config, "founder_address", ""),
+                self.config.miner_address,
+            )
+            if not self.db.get_meta("genesis_alloc_applied"):
+                alloc = genesis_balances(founder or None)
+                for addr, amount in alloc.items():
+                    cur = self.db.get_balance(addr)
+                    if cur < amount * 0.99:
+                        self.db.set_balance(addr, float(amount))
+                self.db.set_meta("genesis_alloc_applied", True)
+                self.db.set_meta("tokenomics", get_tokenomics_summary(founder or None))
+                print(
+                    f"[Node] Genesis allocation applied "
+                    f"(founder {FOUNDER_AMOUNT_ABS:,.0f} ABS -> {founder})"
+                )
+                return
+            expected = int(genesis_balances(founder or None).get(founder, FOUNDER_AMOUNT_ABS))
+            cur = self.db.get_balance(founder)
+            if cur < expected * 0.99:
+                self.db.set_balance(founder, float(expected))
+                print(f"[Node] Founder wallet synced: {expected:,.0f} ABS -> {founder}")
+        except Exception as exc:
+            print(f"[Node] Genesis allocation note: {exc}")
 
     # ── Остановка ────────────────────────────────────────────────────────────
 

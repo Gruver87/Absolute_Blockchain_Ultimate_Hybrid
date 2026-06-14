@@ -95,3 +95,50 @@ def test_founder_balance_matches_allocation_address():
         server.shutdown()
         db.close()
         os.remove(path)
+
+
+def test_founder_balance_fallback_to_miner_wallet():
+    from runtime.tokenomics import DEFAULT_FOUNDER_ADDRESS, founder_balance_lookup
+
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    miner = "0xminer000000000000000000000000000001"
+    db = Database(path)
+    db.initialize()
+    db.set_meta("genesis_alloc_applied", True)
+    db.set_balance(miner, 250_000.0)
+    try:
+        info = founder_balance_lookup(db, DEFAULT_FOUNDER_ADDRESS, miner)
+        assert info["address"] == DEFAULT_FOUNDER_ADDRESS
+        assert info["balance_abs"] == 250_000.0
+        assert info["balance_address"] == miner
+    finally:
+        db.close()
+        os.remove(path)
+
+
+def test_genesis_allocation_applies_founder_pool():
+    from runtime.tokenomics import DEFAULT_FOUNDER_ADDRESS, FOUNDER_AMOUNT_ABS
+
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    cfg = Config()
+    cfg.db_path = path
+    cfg.founder_address = DEFAULT_FOUNDER_ADDRESS
+    cfg.miner_address = "0xminer000000000000000000000000000001"
+    db = Database(path)
+    db.initialize()
+    bc = Blockchain(cfg, db)
+    from main import NodeOrchestrator
+
+    orch = object.__new__(NodeOrchestrator)
+    orch.config = cfg
+    orch.db = db
+    orch._apply_genesis_allocation()
+    try:
+        bal = db.get_balance(DEFAULT_FOUNDER_ADDRESS)
+        assert bal >= FOUNDER_AMOUNT_ABS * 0.99
+        assert db.get_meta("genesis_alloc_applied")
+    finally:
+        db.close()
+        os.remove(path)

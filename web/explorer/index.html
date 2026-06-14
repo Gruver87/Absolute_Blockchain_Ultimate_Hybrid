@@ -1729,6 +1729,11 @@ async function api(path, method = 'GET', body = null) {
   if (String(method).toUpperCase() === 'POST') return post(path, body || {});
   return get(path);
 }
+function fmtAbs(n, frac = 3) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return '0 ABS';
+  return x.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: frac }) + ' ABS';
+}
 async function rpc(method, params=[]) {
   try {
     const r = await fetch(RPC, {
@@ -1759,8 +1764,8 @@ async function refreshStatus() {
     ['Chain', data.chain_name || data.network_name || '—'],
     ['Height', data.height],
     ['Chain ID', data.chain_id],
-    ['Max Supply', (data.max_supply||221000000).toLocaleString() + ' ABS'],
-    ['Live Supply', parseFloat(data.total_supply||0).toLocaleString() + ' ABS'],
+    ['Max Supply', (data.max_supply||221000000).toLocaleString('en-US') + ' ABS'],
+    ['Live Supply', fmtAbs(data.total_supply||0)],
     ['Founder', (data.founder_initials||'D.U.P.') + ' ' + (data.founder_percent||17.4) + '%'],
     ['Validators', data.validator_count],
     ['Mempool', (data.mempool_size || 0) + ' txs'],
@@ -3370,7 +3375,7 @@ async function loadDashboardStats() {
   if (!el) return;
   const cards = [
     ['Max Supply', (tok?.max_supply_formatted||'221,000,000 ABS'), 'green'],
-    ['Live Supply', parseFloat(tok?.live_supply||st?.total_supply||0).toLocaleString()+' ABS', 'blue'],
+    ['Live Supply', fmtAbs(tok?.live_supply||st?.total_supply||0), 'blue'],
     ['Founder 17.4%', tok?.founder?.amount_formatted||'38,454,000 ABS', 'yellow'],
     ['Total Burned', parseFloat((bs||st)?.total_burned||0).toFixed(4)+' ABS', 'red'],
   ];
@@ -3405,9 +3410,9 @@ async function loadTokenomics() {
   if (!r) { el.innerHTML = '<span style="color:var(--gray)">Not available</span>'; return; }
   el.innerHTML = `
     <div><b>Max Supply:</b> ${r.max_supply_formatted||r.max_supply}</div>
-    <div><b>Genesis Minted:</b> ${parseFloat(r.genesis_minted||0).toLocaleString()} ABS (${r.genesis_percent||'?'}%)</div>
-    <div><b>Mining Reserve:</b> ${parseFloat(r.mining_reserve||0).toLocaleString()} ABS (${r.mining_percent||'?'}%)</div>
-    <div><b>Live Supply:</b> ${parseFloat(r.live_supply||0).toLocaleString()} ABS</div>
+    <div><b>Genesis Minted:</b> ${fmtAbs(r.genesis_minted||0).replace(' ABS','')} ABS (${r.genesis_percent||'?'}%)</div>
+    <div><b>Mining Reserve:</b> ${fmtAbs(r.mining_reserve||0).replace(' ABS','')} ABS (${r.mining_percent||'?'}%)</div>
+    <div><b>Live Supply:</b> ${fmtAbs(r.live_supply||0)}</div>
     <hr style="border-color:var(--border);margin:8px 0"/>
     <b>Conditions:</b>
     <ul style="margin:4px 0;padding-left:18px;color:var(--gray)">
@@ -3423,8 +3428,11 @@ async function loadFounderInfo() {
     <div><b>${f.initials}</b> — ${f.full_name} (@${f.alias})</div>
     <div style="color:var(--gray)">${f.city}, ${f.birthdate}</div>
     <div style="margin-top:8px"><b>Share:</b> <span style="color:var(--green);font-size:18px">${f.percent}%</span> = ${f.amount_formatted}</div>
-    <div><b>Balance:</b> ${parseFloat(f.balance_abs||0).toLocaleString()} ABS</div>
-    <div class="hash" style="font-size:10px;margin-top:4px">${f.address||''}</div>`;
+    <div><b>Balance:</b> ${fmtAbs(f.balance_abs||0).replace(' ABS','')} ABS</div>
+    <div class="hash" style="font-size:10px;margin-top:4px">${f.address||''}</div>
+    ${f.balance_address && f.balance_address !== f.address
+      ? `<div style="color:var(--gray);font-size:10px;margin-top:2px">On-chain balance at ${f.balance_address}</div>` : ''}
+  `;
   if (a?.allocations) {
     chart.innerHTML = '<b>Allocation:</b><br/>' + a.allocations.map(p=>
       `<div style="margin:4px 0">

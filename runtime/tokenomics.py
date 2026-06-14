@@ -117,6 +117,41 @@ def genesis_balances(founder_address: Optional[str] = None) -> Dict[str, int]:
     return result
 
 
+def resolve_founder_address(
+    founder_address: str = "",
+    miner_address: str = "",
+) -> str:
+    """Canonical founder address for tokenomics (config → miner → default)."""
+    return founder_address or miner_address or DEFAULT_FOUNDER_ADDRESS
+
+
+def founder_balance_lookup(
+    db,
+    founder_address: str = "",
+    miner_address: str = "",
+) -> dict:
+    """
+    Balance for founder allocation. Falls back to miner wallet when the
+    configured founder address has no on-chain balance (legacy devnet DBs).
+    """
+    addr = resolve_founder_address(founder_address, miner_address)
+    summary = get_tokenomics_summary(addr)
+    founder_addr = summary["founder"]["address"]
+    bal = float(db.get_balance(founder_addr)) if db and founder_addr else 0.0
+    balance_address = founder_addr
+    if bal <= 0 and db and miner_address and miner_address.lower() != founder_addr.lower():
+        miner_bal = float(db.get_balance(miner_address))
+        if miner_bal > 0:
+            bal = miner_bal
+            balance_address = miner_address
+    return {
+        "address": founder_addr,
+        "balance_abs": bal,
+        "balance_address": balance_address,
+        "summary": summary,
+    }
+
+
 def get_tokenomics_summary(founder_address: Optional[str] = None) -> dict:
     """Полная сводка токеномики для API и веб-интерфейса."""
     pools = build_allocations(founder_address)

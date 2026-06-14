@@ -641,8 +641,11 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             elif path == "/tokenomics":
                 try:
-                    from runtime.tokenomics import get_tokenomics_summary
-                    founder = getattr(cfg, "founder_address", "") or ""
+                    from runtime.tokenomics import get_tokenomics_summary, resolve_founder_address
+                    founder = resolve_founder_address(
+                        getattr(cfg, "founder_address", ""),
+                        getattr(cfg, "miner_address", ""),
+                    )
                     stored = db.get_meta("tokenomics") if db and hasattr(db, "get_meta") else None
                     summary = get_tokenomics_summary(founder or None)
                     if stored:
@@ -654,23 +657,29 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             elif path == "/founder":
                 try:
-                    from runtime.tokenomics import get_tokenomics_summary
-                    founder_cfg = (
-                        getattr(cfg, "founder_address", "")
-                        or getattr(cfg, "miner_address", "")
-                        or ""
+                    from runtime.tokenomics import founder_balance_lookup
+                    info = founder_balance_lookup(
+                        db,
+                        getattr(cfg, "founder_address", ""),
+                        getattr(cfg, "miner_address", ""),
                     )
-                    t = get_tokenomics_summary(founder_cfg or None)
-                    founder_addr = t["founder"]["address"]
-                    bal = db.get_balance(founder_addr) if db and founder_addr else 0
-                    self._json({**t["founder"], "balance_abs": bal, "conditions": t["conditions"]})
+                    founder = info["summary"]["founder"]
+                    self._json({
+                        **founder,
+                        "balance_abs": info["balance_abs"],
+                        "balance_address": info["balance_address"],
+                        "conditions": info["summary"]["conditions"],
+                    })
                 except Exception as e:
                     self._json({"error": str(e)})
 
             elif path == "/allocation":
                 try:
-                    from runtime.tokenomics import get_tokenomics_summary
-                    founder = getattr(cfg, "founder_address", "") or ""
+                    from runtime.tokenomics import get_tokenomics_summary, resolve_founder_address
+                    founder = resolve_founder_address(
+                        getattr(cfg, "founder_address", ""),
+                        getattr(cfg, "miner_address", ""),
+                    )
                     t = get_tokenomics_summary(founder or None)
                     self._json({
                         "max_supply": t["max_supply"],
