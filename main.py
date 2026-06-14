@@ -522,6 +522,33 @@ class NodeOrchestrator:
 
         self._apply_genesis_allocation()
 
+        _val_idx = int(getattr(config, "testnet_validator_index", 0) or 0)
+        if _val_idx >= 2 and config.mining_enabled and config.deployment_mode == "dev":
+            try:
+                from runtime.devnet_validators import install_validator_wallet
+                install_validator_wallet(self, _val_idx)
+            except Exception as _d5w:
+                print(f"[Node] Devnet5 validator wallet note: {_d5w}")
+
+        _manifest = (
+            getattr(config, "testnet_validators_manifest", "")
+            or (
+                os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)),
+                    "docker",
+                    "validators.devnet5.json",
+                )
+                if int(getattr(config, "testnet_expected_validators", 0) or 0) >= 5
+                else ""
+            )
+        )
+        if _manifest and os.path.isfile(_manifest):
+            try:
+                from runtime.devnet_validators import apply_manifest
+                apply_manifest(self, _manifest)
+            except Exception as _d5m:
+                print(f"[Node] Devnet5 manifest note: {_d5m}")
+
         # Если нет валидаторов в БД — регистрируем текущий узел как валидатор
         if not self.db.get_validators():
             self.consensus.add_validator(config.miner_address, config.min_stake)
@@ -1336,6 +1363,20 @@ class NodeOrchestrator:
                 proposer = self.consensus.select_proposer()
             if not proposer:
                 proposer = self.config.miner_address or "genesis"
+
+            if len(_active_vals) > 1:
+                _local = set()
+                for _a in (
+                    getattr(self.config, "signing_address", ""),
+                    self.config.miner_address,
+                    getattr(self, "_attestation_validator", "") or "",
+                ):
+                    if _a:
+                        _local.add(_a.lower())
+                if self.wallet and self.wallet.address:
+                    _local.add(self.wallet.address.lower())
+                if proposer.lower() not in _local:
+                    continue
 
             # ── PBS auction (MEV protection) ──────────────────────────────────
             pbs_tx_order = None

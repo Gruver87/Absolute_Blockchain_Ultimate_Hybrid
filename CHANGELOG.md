@@ -2,11 +2,19 @@
 
 Все значимые изменения документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/).
 
-**Текущая волна API:** `api_wave = 54` (проверка: `GET /status`)
+**Текущая волна API:** `api_wave = 55` (проверка: `GET /status`)
 
 ---
 
-## [1.2.0-industrial] — Wave 37–54 (июнь 2026)
+## [1.2.0-industrial] — Wave 37–55 (июнь 2026)
+
+### Wave 55 — 5-validator devnet
+
+- `docker-compose.devnet-5validator.yml` — 5 nodes `:8080`–`:8084`, 3 miners + 2 attesters
+- `docker/validators.devnet5.json` — manifest; addresses derived at runtime (no keys on disk)
+- `GET /testnet/validators` — validator set health, proposer rotation stats
+- Mining proposer gate — only selected validator forges when `active_validators > 1`
+- `verify_p2p_ci.py --mode devnet5`; `.\scripts\docker_devnet_5validator.ps1`
 
 ### Wave 54 — State consistency harness
 

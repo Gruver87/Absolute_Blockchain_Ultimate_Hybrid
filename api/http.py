@@ -114,6 +114,7 @@ _RATE_LIMIT_EXEMPT_PATHS = frozenset({
     "/slashing/events",
     "/chain/consistency/harness",
     "/testnet/state-consistency",
+    "/testnet/validators",
     "/consensus/stats",
     "/metrics",
     "/sync/fast-sync",
@@ -163,6 +164,7 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/slashing/events", "summary": "Persisted slash events from SQLite"},
     {"method": "GET", "path": "/chain/consistency/harness", "summary": "State consistency harness (Wave 54)"},
     {"method": "POST", "path": "/chain/consistency/repair", "summary": "Replay chain if live state drifted from tip"},
+    {"method": "GET", "path": "/testnet/validators", "summary": "5-validator set health and proposer rotation (Wave 55)"},
     {"method": "GET", "path": "/sync/status", "summary": "Chain sync status"},
     {"method": "GET", "path": "/features", "summary": "Feature flags and module availability"},
     {"method": "GET", "path": "/evm/supported-opcodes", "summary": "EVM opcode support matrix"},
@@ -736,7 +738,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 54,
+                    "api_wave": 55,
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,
                     "crypto_will_enabled": self.__class__.crypto_will is not None,
@@ -1063,7 +1065,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "lightning": self.__class__.lightning,
                 }
                 payload = flags.to_api_dict(instances, cfg)
-                payload["api_wave"] = 54
+                payload["api_wave"] = 55
                 rp = self.__class__.reorg_predictor
                 if rp and hasattr(rp, "get_stats"):
                     payload["reorg_predictor"] = rp.get_stats()
@@ -1254,6 +1256,10 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path in ("/chain/consistency/harness", "/testnet/state-consistency"):
                 db = self.__class__.db
                 self._json(_build_state_consistency_harness(p2p, bc, cfg, db))
+
+            elif path == "/testnet/validators":
+                db = self.__class__.db
+                self._json(_build_testnet_validators_status(db, cfg, bc))
 
             elif path == "/tx/propagation/recent":
                 db = self.__class__.db
@@ -2179,7 +2185,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 self._json({
                     "count": len(events),
                     "events": events,
-                    "api_wave": 54,
+                    "api_wave": 55,
                 })
 
             elif path == "/sync/status":
@@ -4757,7 +4763,7 @@ def _build_testnet_mesh(p2p, bc, cfg) -> Dict:
         "bootstrap_peers": getattr(cfg, "bootstrap_peers", []),
         "peers": peers,
         "testnet_mode": "3-node" if expected_peers >= 2 else "multi",
-        "api_wave": 54,
+        "api_wave": 55,
     }
 
 
@@ -4818,7 +4824,7 @@ def _build_testnet_fork_status(p2p, bc, cfg, db=None) -> Dict:
         "slash_events_count": len(slash_events),
         "recent_slash_events": slash_events[:5],
         "peers": peers,
-        "api_wave": 54,
+        "api_wave": 55,
     }
 
 
@@ -4919,7 +4925,41 @@ def _build_state_consistency_harness(p2p, bc, cfg, db=None) -> Dict:
         "harness_healthy": harness_healthy,
         "failed_checks": [c["id"] for c in checks if not c["ok"]],
         "policy": policy,
-        "api_wave": 54,
+        "api_wave": 55,
+    }
+
+
+def _build_testnet_validators_status(db, cfg, bc) -> Dict:
+    """Validator set + proposer rotation view (Wave 55)."""
+    validators = db.get_validators() if db and hasattr(db, "get_validators") else []
+    active = [
+        v for v in validators
+        if v.get("active", True) and not v.get("slashed")
+    ]
+    stats = (
+        db.get_proposer_stats(limit=15)
+        if db and hasattr(db, "get_proposer_stats")
+        else []
+    )
+    height = bc.get_height() if bc and hasattr(bc, "get_height") else 0
+    expected = max(1, int(getattr(cfg, "testnet_expected_validators", 5) or 5))
+    distinct_proposers = len({s.get("proposer", "") for s in stats if s.get("proposer")})
+    rotation_ok = distinct_proposers >= 2 or height < 8
+    return {
+        "node_id": getattr(cfg, "node_id", ""),
+        "chain_id": getattr(cfg, "chain_id", 0),
+        "height": height,
+        "expected_validators": expected,
+        "registered_count": len(validators),
+        "active_count": len(active),
+        "validators_healthy": len(active) >= expected,
+        "distinct_proposers": distinct_proposers,
+        "rotation_observed": rotation_ok,
+        "proposer_stats": stats,
+        "validators": validators,
+        "manifest": getattr(cfg, "testnet_validators_manifest", ""),
+        "validator_index": int(getattr(cfg, "testnet_validator_index", 0) or 0),
+        "api_wave": 55,
     }
 
 
@@ -5062,7 +5102,7 @@ def _build_l2_status(handler_cls) -> Dict:
         m.get("persisted") for m in modules.values() if isinstance(m, dict)
     )
     return {
-        "api_wave": 54,
+        "api_wave": 55,
         "l2_persisted": persisted,
         "nft_persisted": nft_persisted,
         "core": {

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "description": "5-validator Absolute devnet (addresses derived at runtime for index >= 2)",
+  "validators": [
+    {"index": 1, "node_id": "docker-node-1", "mines": true, "stake": 5000},
+    {"index": 2, "node_id": "docker-node-2", "mines": true, "stake": 2000},
+    {"index": 3, "node_id": "docker-node-3", "mines": true, "stake": 2000},
+    {"index": 4, "node_id": "docker-node-4", "mines": false, "stake": 1500},
+    {"index": 5, "node_id": "docker-node-5", "mines": false, "stake": 1500}
+  ]
+}

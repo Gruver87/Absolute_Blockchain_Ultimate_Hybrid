@@ -73,6 +73,9 @@ class Config:
     bootstrap_peers: List[str] = field(default_factory=list)
     max_peers: int = 50
     testnet_expected_peers: int = 1     # mesh health threshold (3-node devnet: 2 on hub)
+    testnet_expected_validators: int = 0  # Wave 55: 5-validator devnet
+    testnet_validator_index: int = 0      # this node's slot in manifest (1..5)
+    testnet_validators_manifest: str = "" # docker/validators.devnet5.json
     peer_timeout: int = 30              # секунд до отключения неактивного пира
     sync_batch_size: int = 100          # блоков за один запрос синхронизации
 

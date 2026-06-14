@@ -106,6 +106,12 @@
 #   POST /chain/consistency/repair — replay if live state drifted
 #   verify_p2p_ci devnet3/ci3 runs harness across all nodes
 #
+# Wave 55 (5-validator devnet):
+#   docker-compose.devnet-5validator.yml — :8080 .. :8084
+#   GET /testnet/validators — validators_healthy, proposer rotation
+#   .\scripts\docker_devnet_5validator.ps1
+#   python scripts/verify_p2p_ci.py --mode devnet5
+#
 # Wave 51 (P2P tx propagation):
 #   Full signed tx gossip + mempool pull sync (GET_MEMPOOL / MEMPOOL)
 #   SQLite tx_propagation_events — api_submit → mempool → P2P → block → receipt

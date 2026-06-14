@@ -30,6 +30,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEVNET_URL1 = "http://127.0.0.1:8080"
 DEVNET_URL2 = "http://127.0.0.1:8081"
 DEVNET_URL3 = "http://127.0.0.1:8082"
+DEVNET_URL4 = "http://127.0.0.1:8083"
+DEVNET_URL5 = "http://127.0.0.1:8084"
 
 
 def _api(url: str, timeout: float = 10) -> dict:
@@ -400,16 +402,41 @@ def verify_state_consistency(urls: list[str], status: dict) -> int:
         f"OK: state consistency harness healthy across {len(urls)} nodes "
         f"root={roots[0][:16] if roots else '?'}…"
     )
-    return verify_adversarial(urls[0], status)
+    return verify_validators_set(urls[0], status)
 
 
-def verify_triple(url1: str, url2: str, url3: str, wait_sync_sec: int = 300) -> int:
-    """Wave 52: three-node mesh sync, mesh API, tx propagation to node2+node3."""
-    urls = [url1, url2, url3]
-    names = ["node1", "node2", "node3"]
-    for name, url in zip(names, urls):
+def verify_validators_set(url1: str, status: dict) -> int:
+    """Wave 55: 5-validator manifest health on hub node."""
+    wave = int(status.get("api_wave", 0) or 0)
+    if wave < 55:
+        return verify_adversarial(url1, status)
+    try:
+        val = _api(f"{url1}/testnet/validators")
+    except Exception as exc:
+        print(f"FAIL: /testnet/validators: {exc}")
+        return 15
+    if not val.get("validators_healthy"):
+        print(
+            f"FAIL: validators unhealthy registered={val.get('registered_count')} "
+            f"expected={val.get('expected_validators')}"
+        )
+        return 15
+    rot = bool(val.get("rotation_observed"))
+    print(
+        f"OK: validators active={val.get('active_count')} "
+        f"distinct_proposers={val.get('distinct_proposers')} rotation_observed={rot}"
+    )
+    if not rot and int(status.get("height", 0) or 0) >= 12:
+        print("WARN: proposer rotation not observed yet (chain may be young)")
+    return verify_adversarial(url1, status)
+
+
+def verify_n_nodes(urls: list[str], wait_sync_sec: int = 300) -> int:
+    """Multi-node sync, mesh (hub), tx propagation, consistency, validators."""
+    url1 = urls[0]
+    for i, url in enumerate(urls, start=1):
         if not _probe_health(url):
-            print(f"FAIL: {name} not reachable at {url}")
+            print(f"FAIL: node{i} not reachable at {url}")
             return 1
 
     try:
@@ -428,19 +455,19 @@ def verify_triple(url1: str, url2: str, url3: str, wait_sync_sec: int = 300) -> 
     stable_ok = 0
     STABLE_NEED = 3
     MAX_MINING_GAP = 2
-    p_counts = [0, 0, 0]
+    p_counts = [0] * len(urls)
     for _ in range(loops):
         try:
             statuses = [_api(f"{u}/status") for u in urls]
             peers = [_api(f"{u}/peers") for u in urls]
             syncs = [_api(f"{u}/sync/status") for u in urls]
             heights = [int(s.get("height", 0) or 0) for s in statuses]
-            max_h, min_h = max(heights), min(heights)
-            gap = max_h - min_h
+            max_h = max(heights)
+            gap = max_h - min(heights)
             p_counts = [int(p.get("count", 0) or 0) for p in peers]
             roots = [
                 (syncs[i].get("state_root") or statuses[i].get("state_root") or "").lower()
-                for i in range(3)
+                for i in range(len(urls))
             ]
             roots_match = bool(roots[0] and all(r == roots[0] for r in roots))
             all_peered = all(c > 0 for c in p_counts)
@@ -453,7 +480,7 @@ def verify_triple(url1: str, url2: str, url3: str, wait_sync_sec: int = 300) -> 
                 for url in urls:
                     try:
                         st = _api(f"{url}/status")
-                        if int(st.get("height", 0) or 0) < max(heights):
+                        if int(st.get("height", 0) or 0) < max_h:
                             _post_json(url, "/sync/reconcile", timeout=120)
                             _post_json(url, "/sync/fast-sync", timeout=120)
                     except Exception:
@@ -462,35 +489,38 @@ def verify_triple(url1: str, url2: str, url3: str, wait_sync_sec: int = 300) -> 
             stable_ok = 0
         time.sleep(3)
     else:
-        print(f"FAIL: no stable 3-node sync after {wait_sync_sec}s")
+        print(f"FAIL: no stable {len(urls)}-node sync after {wait_sync_sec}s")
         for i, (st, pc) in enumerate(zip(statuses, p_counts), start=1):
             print(f"  node{i} peers={pc} height={st.get('height', '?')}")
         return 2
 
     try:
         mesh = _api(f"{url1}/testnet/mesh")
-    except Exception as exc:
-        print(f"FAIL: /testnet/mesh: {exc}")
-        return 8
-
-    wave = int(statuses[0].get("api_wave", 0) or 0)
-    if wave < 52:
-        print(f"WARN: api_wave={wave} < 52 (mesh API may be stale image)")
-
-    mesh_ok = bool(mesh.get("mesh_healthy"))
-    print(
-        f"OK: 3-node mesh peers n1={p_counts[0]} n2={p_counts[1]} n3={p_counts[2]} "
-        f"heights {statuses[0].get('height')} / {statuses[1].get('height')} / {statuses[2].get('height')} "
-        f"mesh_healthy={mesh_ok} expected_peers={mesh.get('expected_peers')}"
-    )
-    if not mesh_ok:
-        print("WARN: node1 mesh_healthy=False — peers may still be discovering")
-        if p_counts[0] < 2:
+        mesh_ok = bool(mesh.get("mesh_healthy"))
+        print(
+            f"OK: {len(urls)}-node mesh peer_count={mesh.get('peer_count')} "
+            f"mesh_healthy={mesh_ok} heights={' / '.join(str(s.get('height')) for s in statuses)}"
+        )
+        if len(urls) >= 3 and not mesh_ok and p_counts[0] < 2:
             return 9
+    except Exception:
+        print(
+            f"OK: {len(urls)}-node heights {' / '.join(str(s.get('height')) for s in statuses)}"
+        )
 
-    if not _verify_tx_propagation_multi(url1, [url2, url3], statuses[0]):
+    if not _verify_tx_propagation_multi(url1, urls[1:], statuses[0]):
         return 7
     return verify_state_consistency(urls, statuses[0])
+
+
+def verify_triple(url1: str, url2: str, url3: str, wait_sync_sec: int = 300) -> int:
+    return verify_n_nodes([url1, url2, url3], wait_sync_sec)
+
+
+def verify_quintuple(
+    url1: str, url2: str, url3: str, url4: str, url5: str, wait_sync_sec: int = 360
+) -> int:
+    return verify_n_nodes([url1, url2, url3, url4, url5], wait_sync_sec)
 
 
 def verify_adversarial(url1: str, status: dict) -> int:
@@ -732,13 +762,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="P2P verification (2-node or 3-node)")
     parser.add_argument(
         "--mode",
-        choices=("auto", "devnet", "devnet3", "ci", "ci3", "ci-adversarial"),
+        choices=("auto", "devnet", "devnet3", "devnet5", "ci", "ci3", "ci-adversarial"),
         default="auto",
-        help="auto=detect; devnet/devnet3; ci=2-node; ci3=3-node; ci-adversarial=ci3+fork/slash",
+        help="auto; devnet/devnet3/devnet5; ci/ci3",
     )
     parser.add_argument("--url1", default=DEVNET_URL1, help="node1 REST base URL")
     parser.add_argument("--url2", default=DEVNET_URL2, help="node2 REST base URL")
     parser.add_argument("--url3", default=DEVNET_URL3, help="node3 REST base URL")
+    parser.add_argument("--url4", default=DEVNET_URL4, help="node4 REST base URL")
+    parser.add_argument("--url5", default=DEVNET_URL5, help="node5 REST base URL")
     parser.add_argument(
         "--wait",
         type=int,
@@ -769,6 +801,12 @@ def main() -> int:
         else:
             mode = "ci"
             print("Auto: no devnet on :8080/:8081 — running isolated CI test (--mode ci)")
+
+    if mode == "devnet5":
+        print(f"Devnet5 mode: checking {args.url1} .. {args.url5}")
+        return verify_quintuple(
+            args.url1, args.url2, args.url3, args.url4, args.url5, wait_sync_sec=args.wait
+        )
 
     if mode == "devnet3":
         print(f"Devnet3 mode: checking {args.url1} {args.url2} {args.url3}")

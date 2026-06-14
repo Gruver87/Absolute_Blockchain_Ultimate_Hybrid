@@ -70,10 +70,16 @@ Honest one-screen view — no marketing claims beyond what is tested in-repo.
 | **52** | **3-node testnet** | `GET /testnet/mesh`, `docker_devnet_3node.ps1` |
 | **53** | **Fork / slashing CI** | `GET /testnet/fork-status`, `GET /slashing/events`, `--mode ci3` |
 | **54** | **State consistency harness** | `GET /chain/consistency/harness`, `POST /chain/consistency/repair` |
+| **55** | **5-validator devnet** | `GET /testnet/validators`, `docker_devnet_5validator.ps1` |
 
 ```powershell
-(Invoke-RestMethod http://localhost:8080/status -UseBasicParsing).api_wave   # → 54
+(Invoke-RestMethod http://localhost:8080/status -UseBasicParsing).api_wave   # → 55
+Invoke-RestMethod http://localhost:8080/testnet/validators -UseBasicParsing
 Invoke-RestMethod http://localhost:8080/chain/consistency/harness -UseBasicParsing
+
+# 5-validator devnet (Wave 55):
+.\scripts\docker_devnet_5validator.ps1
+python scripts/verify_p2p_ci.py --mode devnet5
 
 # 3-node testnet (Wave 52):
 .\scripts\docker_devnet_3node.ps1
@@ -239,4 +245,4 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 
 ---
 
-*Last update: June 2026 — API Wave 54, 223+ unit tests, 3-node P2P + state consistency harness.*
+*Last update: June 2026 — API Wave 55, 226+ unit tests, 5-validator devnet.*
