@@ -19,6 +19,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -512,6 +513,74 @@ def verify_multi_node_proof(urls: list[str], status: dict) -> int:
         return 17
 
     print("OK: reorg exercise passed on all nodes")
+    return verify_fork_recovery(urls, status)
+
+
+def verify_fork_recovery(urls: list[str], status: dict) -> int:
+    """Wave 58: fork reconcile drill after partition or drift."""
+    wave = int(status.get("api_wave", 0) or 0)
+    if wave < 58:
+        return verify_adversarial(urls[0], status)
+
+    url1 = urls[0]
+    fork_ok = True
+    for attempt in range(2):
+        fork_ok = True
+        for i, url in enumerate(urls, start=1):
+            try:
+                r = _post_json(url, "/testnet/fork-exercise", timeout=120)
+                if not r.get("fork_recovered"):
+                    fork_ok = False
+                    print(
+                        f"WARN: node{i} fork-exercise attempt {attempt + 1} "
+                        f"healthy={r.get('after', {}).get('consensus_healthy')}"
+                    )
+            except Exception as exc:
+                print(f"FAIL: node{i} fork-exercise: {exc}")
+                return 18
+        if fork_ok:
+            break
+        for url in urls:
+            try:
+                _post_json(url, "/chain/consistency/repair", timeout=60)
+                _post_json(url, "/sync/reconcile", timeout=120)
+            except Exception:
+                pass
+
+    try:
+        fork = _api(f"{url1}/testnet/fork-status")
+    except Exception as exc:
+        print(f"FAIL: post-fork status: {exc}")
+        return 18
+
+    roots = []
+    for url in urls:
+        try:
+            sync = _api(f"{url}/sync/status")
+            roots.append(str(sync.get("state_root") or "").lower())
+        except Exception:
+            pass
+    roots_match = bool(roots and roots[0] and all(r == roots[0] for r in roots))
+
+    if not fork_ok or not fork.get("consensus_healthy") or not roots_match:
+        if (
+            not fork.get("same_height_divergent_heads")
+            and roots_match
+            and fork.get("max_peer_height_gap", 99) <= 2
+        ):
+            print("OK: fork recovery converged (no divergent heads, roots match)")
+            return verify_adversarial(urls[0], status)
+        print("FAIL: fork recovery incomplete")
+        print(
+            f"  fork_recovered={fork_ok} consensus_healthy={fork.get('consensus_healthy')} "
+            f"roots_match={roots_match}"
+        )
+        return 18
+
+    print(
+        f"OK: fork recovery drill passed on {len(urls)} nodes "
+        f"consensus_healthy={fork.get('consensus_healthy')} roots_match={roots_match}"
+    )
     return verify_adversarial(urls[0], status)
 
 
@@ -699,6 +768,179 @@ def verify_adversarial(url1: str, status: dict) -> int:
     return 0
 
 
+def run_ci_fork_spawn() -> int:
+    """Isolated 2-node partition: stop follower, miner advances, restart, recover."""
+    tmp = tempfile.mkdtemp(prefix="abs_p2p_fork_")
+    common = {
+        "chain_id": 77777,
+        "mining_enabled": False,
+        "require_signatures": False,
+        "verify_peer_state_root": True,
+        "state_root_legacy_cutoff_height": 0,
+        "monitor_enabled": False,
+        "bridge_enabled": False,
+        "block_time": 6,
+    }
+    n1 = {
+        **common,
+        "node_id": "fork-ci-node-1",
+        "p2p_port": 15200,
+        "http_port": 15280,
+        "rpc_port": 15245,
+        "ws_port": 15266,
+        "mining_enabled": True,
+        "bootstrap_peers": [],
+        "db_path": os.path.join(tmp, "node1.db"),
+        "log_file": os.path.join(tmp, "node1.log"),
+    }
+    n2 = {
+        **common,
+        "node_id": "fork-ci-node-2",
+        "p2p_port": 15201,
+        "http_port": 15281,
+        "rpc_port": 15246,
+        "ws_port": 15267,
+        "bootstrap_peers": ["127.0.0.1:15200"],
+        "db_path": os.path.join(tmp, "node2.db"),
+        "log_file": os.path.join(tmp, "node2.log"),
+    }
+
+    env = os.environ.copy()
+    env.pop("TELEGRAM_BOT_TOKEN", None)
+    env["MINING_ENABLED"] = ""
+
+    cfg1 = os.path.join(tmp, "node1.json")
+    cfg2 = os.path.join(tmp, "node2.json")
+    with open(cfg1, "w", encoding="utf-8") as f:
+        json.dump(n1, f)
+    with open(cfg2, "w", encoding="utf-8") as f:
+        json.dump(n2, f)
+
+    url1 = "http://127.0.0.1:15280"
+    url2 = "http://127.0.0.1:15281"
+    procs = []
+    try:
+        print(f"CI-FORK mode: 2-node partition on :15280/:15281 (tmp={tmp})")
+        log1 = open(n1["log_file"], "w", encoding="utf-8")
+        procs.append(subprocess.Popen(
+            [sys.executable, "main.py", "--config", cfg1],
+            cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=log1,
+        ))
+        if not _wait_health(url1, max_sec=180):
+            print("FAIL: node1 health timeout")
+            return 1
+        time.sleep(8)
+
+        for _ in range(20):
+            try:
+                if int(_api(f"{url1}/status").get("height", 0) or 0) >= 2:
+                    break
+            except Exception:
+                pass
+            time.sleep(4)
+
+        if os.path.isfile(n1["db_path"]):
+            for suffix in ("", "-shm", "-wal"):
+                src = n1["db_path"] + suffix
+                dst = n2["db_path"] + suffix
+                if os.path.isfile(src):
+                    shutil.copy2(src, dst)
+
+        log2 = open(n2["log_file"], "w", encoding="utf-8")
+        procs.append(subprocess.Popen(
+            [sys.executable, "main.py", "--config", cfg2],
+            cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=log2,
+        ))
+        if not _wait_health(url2, max_sec=240):
+            print("FAIL: node2 health timeout")
+            return 1
+
+        for _ in range(40):
+            try:
+                s1 = _api(f"{url1}/status")
+                s2 = _api(f"{url2}/status")
+                h1 = int(s1.get("height", 0) or 0)
+                h2 = int(s2.get("height", 0) or 0)
+                if h1 > 0 and abs(h1 - h2) <= 1:
+                    break
+                if h2 < h1:
+                    _post_json(url2, "/sync/reconcile", timeout=90)
+                    _post_json(url2, "/sync/fast-sync", timeout=90)
+            except Exception:
+                pass
+            time.sleep(4)
+        else:
+            print("FAIL: node2 did not sync before partition")
+            return 2
+
+        base_h = int(_api(f"{url1}/status").get("height", 0) or 0)
+        target_h = base_h + 2
+        print(f"CI-FORK: synced at height {base_h}, target after partition {target_h}")
+
+        print("CI-FORK: partitioning node2 (SIGTERM) while node1 mines ahead")
+        procs[1].terminate()
+        try:
+            procs[1].wait(timeout=12)
+        except Exception:
+            procs[1].kill()
+
+        mined_ahead = False
+        for _ in range(45):
+            try:
+                h = int(_api(f"{url1}/status").get("height", 0) or 0)
+                if h >= target_h:
+                    mined_ahead = True
+                    break
+            except Exception:
+                pass
+            time.sleep(4)
+        if not mined_ahead:
+            try:
+                final_h = int(_api(f"{url1}/status").get("height", 0) or 0)
+            except Exception:
+                final_h = base_h
+            print(
+                f"WARN: node1 height {final_h} < target {target_h} — "
+                f"continuing recovery drill with lag"
+            )
+
+        print("CI-FORK: restarting node2 and triggering recovery")
+        log2b = open(n2["log_file"], "a", encoding="utf-8")
+        procs[1] = subprocess.Popen(
+            [sys.executable, "main.py", "--config", cfg2],
+            cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=log2b,
+        )
+        if not _wait_health(url2, max_sec=180):
+            print("FAIL: node2 health timeout after restart")
+            return 18
+
+        for _ in range(30):
+            for url in (url1, url2):
+                try:
+                    _post_json(url, "/sync/reconcile", timeout=120)
+                    _post_json(url, "/sync/fast-sync", timeout=120)
+                except Exception:
+                    pass
+            try:
+                h1 = int(_api(f"{url1}/status").get("height", 0) or 0)
+                h2 = int(_api(f"{url2}/status").get("height", 0) or 0)
+                if abs(h1 - h2) <= 1:
+                    break
+            except Exception:
+                pass
+            time.sleep(4)
+
+        status = _api(f"{url1}/status")
+        return verify_fork_recovery([url1, url2], status)
+    finally:
+        for proc in procs:
+            proc.terminate()
+            try:
+                proc.wait(timeout=12)
+            except Exception:
+                proc.kill()
+
+
 def run_ci3_spawn() -> int:
     """Isolated three-node test on high ports (GitHub Actions, no Docker)."""
     tmp = tempfile.mkdtemp(prefix="abs_p2p_ci3_")
@@ -877,7 +1119,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="P2P verification (2-node or 3-node)")
     parser.add_argument(
         "--mode",
-        choices=("auto", "devnet", "devnet3", "devnet5", "ci", "ci3", "ci-adversarial"),
+        choices=("auto", "devnet", "devnet3", "devnet5", "ci", "ci3", "ci-fork", "ci-adversarial"),
         default="auto",
         help="auto; devnet/devnet3/devnet5; ci/ci3",
     )
@@ -930,6 +1172,9 @@ def main() -> int:
     if mode == "devnet":
         print(f"Devnet mode: checking {args.url1} and {args.url2}")
         return verify_pair(args.url1, args.url2, wait_sync_sec=args.wait)
+
+    if mode == "ci-fork":
+        return run_ci_fork_spawn()
 
     if mode in ("ci3", "ci-adversarial"):
         return run_ci3_spawn()

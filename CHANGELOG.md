@@ -2,11 +2,18 @@
 
 Все значимые изменения документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/).
 
-**Текущая волна API:** `api_wave = 57` (проверка: `GET /status`)
+**Текущая волна API:** `api_wave = 58` (проверка: `GET /status`)
 
 ---
 
-## [1.2.0-industrial] — Wave 37–57 (июнь 2026)
+## [1.2.0-industrial] — Wave 37–58 (июнь 2026)
+
+### Wave 58 — Fork CI (partition + recovery)
+
+- `GET/POST /testnet/fork-exercise` — fork-status before/after + P2P reconcile drill
+- `verify_p2p_ci.py` — `verify_fork_recovery()` after multi-node proof
+- `--mode ci-fork` — real partition test: stop follower node, mine ahead, restart, reconcile
+- **`api_wave` → 58**
 
 ### Wave 57 — Real core (no random stubs in consensus path)
 

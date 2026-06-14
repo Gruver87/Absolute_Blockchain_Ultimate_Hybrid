@@ -5,8 +5,8 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Educational%20Only-orange)]()
-[![API Wave](https://img.shields.io/badge/API%20Wave-57-blue)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/Unit%20Tests-299%20passed-brightgreen)](tests/unit/)
+[![API Wave](https://img.shields.io/badge/API%20Wave-58-blue)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/Unit%20Tests-301%20passed-brightgreen)](tests/unit/)
 [![Audit](https://img.shields.io/badge/Full%20Audit-passing-brightgreen)](scripts/full_audit.py)
 [![Release](https://img.shields.io/badge/Release-v1.2.0--industrial-blue)](https://github.com/Gruver87/absolute-blockchain-ultimate/releases)
 
@@ -15,7 +15,7 @@
 | Field | Value |
 |-------|-------|
 | **Version** | `1.2.0-industrial` |
-| **API Wave** | `57` → check `GET /status` → `api_wave` + `core_real` |
+| **API Wave** | `58` → check `GET /status` → `api_wave` + `core_real` |
 | **Entry point** | `python main.py` |
 | **Storage** | SQLite `data/blockchain.db` |
 | **Chain ID (dev)** | `77777` |
@@ -94,6 +94,7 @@
 | **52** | **3-node testnet** | `GET /testnet/mesh`, `docker_devnet_3node.ps1` |
 | **53** | **Fork / slashing CI** | `GET /testnet/fork-status`, `GET /slashing/events`, `--mode ci3` |
 | **54** | **State consistency harness** | `GET /chain/consistency/harness`, `POST /chain/consistency/repair` |
+| **58** | **Fork CI** | `POST /testnet/fork-exercise`, `--mode ci-fork` partition recovery |
 | **57** | **Real core** | deterministic proposer, finality quorum, reorg guard, mempool MEV |
 | **56** | **Multi-node proof** | `GET /testnet/multi-node-proof`, `POST /testnet/reorg-exercise`, 3-validator rotation |
 | **55** | **5-validator devnet** | `GET /testnet/validators`, `docker_devnet_5validator.ps1` |
@@ -281,4 +282,4 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 
 ---
 
-*Last update: June 2026 — API Wave 57, real consensus core, 299+ tests.*
+*Last update: June 2026 — API Wave 58, fork CI partition, 301+ tests.*

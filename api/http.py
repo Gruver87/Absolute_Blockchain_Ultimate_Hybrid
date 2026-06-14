@@ -89,6 +89,7 @@ _DEV_PUBLIC_POST = frozenset({
     "/sync/fast-sync", "/sync/reconcile",
     "/chain/consistency/repair", "/chain/consistency/repair",
     "/testnet/reorg-exercise",
+    "/testnet/fork-exercise",
 })
 
 _BRIDGE_ORACLE_PATHS = frozenset({
@@ -117,6 +118,7 @@ _RATE_LIMIT_EXEMPT_PATHS = frozenset({
     "/testnet/state-consistency",
     "/testnet/validators",
     "/testnet/multi-node-proof",
+    "/testnet/fork-exercise",
     "/consensus/stats",
     "/metrics",
     "/sync/fast-sync",
@@ -169,6 +171,8 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/testnet/validators", "summary": "5-validator set health and proposer rotation (Wave 55)"},
     {"method": "GET", "path": "/testnet/multi-node-proof", "summary": "Multi-node proof dashboard (Wave 56)"},
     {"method": "POST", "path": "/testnet/reorg-exercise", "summary": "Canonical replay reorg drill (dev only, Wave 56)"},
+    {"method": "GET", "path": "/testnet/fork-exercise", "summary": "Fork recovery drill status (Wave 58)"},
+    {"method": "POST", "path": "/testnet/fork-exercise", "summary": "P2P fork reconcile recovery drill (dev, Wave 58)"},
     {"method": "GET", "path": "/sync/status", "summary": "Chain sync status"},
     {"method": "GET", "path": "/features", "summary": "Feature flags and module availability"},
     {"method": "GET", "path": "/evm/supported-opcodes", "summary": "EVM opcode support matrix"},
@@ -742,7 +746,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 57,
+                    "api_wave": 58,
                     "core_real": {
                         "deterministic_proposer": True,
                         "finality_quorum_live": True,
@@ -1076,7 +1080,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "lightning": self.__class__.lightning,
                 }
                 payload = flags.to_api_dict(instances, cfg)
-                payload["api_wave"] = 57
+                payload["api_wave"] = 58
                 rp = self.__class__.reorg_predictor
                 if rp and hasattr(rp, "get_stats"):
                     payload["reorg_predictor"] = rp.get_stats()
@@ -2190,6 +2194,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                 db = self.__class__.db
                 self._json(_build_testnet_fork_status(p2p, bc, cfg, db))
 
+            elif path == "/testnet/fork-exercise":
+                db = self.__class__.db
+                self._json(_build_testnet_fork_exercise(p2p, bc, cfg, db, run_reconcile=False))
+
             elif path == "/slashing/events":
                 db = self.__class__.db
                 limit = min(200, max(1, int(qs.get("limit", ["50"])[0] or 50)))
@@ -2201,7 +2209,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 self._json({
                     "count": len(events),
                     "events": events,
-                    "api_wave": 57,
+                    "api_wave": 58,
                 })
 
             elif path == "/sync/status":
@@ -4276,8 +4284,15 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "reorg_safe": bool(
                         before_root == after_root and harness.get("harness_healthy")
                     ),
-                    "api_wave": 57,
+                    "api_wave": 58,
                 })
+
+            elif path == "/testnet/fork-exercise":
+                if getattr(cfg, "deployment_mode", "dev") == "prod":
+                    self._error(403, "fork-exercise is dev-only"); return
+                p2p = self.__class__.p2p
+                db = self.__class__.db
+                self._json(_build_testnet_fork_exercise(p2p, bc, cfg, db, run_reconcile=True))
 
             elif path == "/sync/add-peer":
                 se = self.__class__.sync_engine
@@ -4805,7 +4820,7 @@ def _build_testnet_mesh(p2p, bc, cfg) -> Dict:
         "bootstrap_peers": getattr(cfg, "bootstrap_peers", []),
         "peers": peers,
         "testnet_mode": "3-node" if expected_peers >= 2 else "multi",
-        "api_wave": 57,
+        "api_wave": 58,
     }
 
 
@@ -4866,7 +4881,68 @@ def _build_testnet_fork_status(p2p, bc, cfg, db=None) -> Dict:
         "slash_events_count": len(slash_events),
         "recent_slash_events": slash_events[:5],
         "peers": peers,
-        "api_wave": 57,
+        "api_wave": 58,
+    }
+
+
+def _build_testnet_fork_exercise(p2p, bc, cfg, db=None, run_reconcile: bool = False) -> Dict:
+    """Fork recovery drill: reconcile peers + repair state (Wave 58)."""
+    before = _build_testnet_fork_status(p2p, bc, cfg, db)
+    reconcile_detail: Dict = {}
+    repaired = False
+
+    if run_reconcile:
+        if p2p and hasattr(p2p, "reconcile_peers_sync"):
+            try:
+                reconcile_detail = p2p.reconcile_peers_sync(timeout=90)
+            except Exception as exc:
+                reconcile_detail = {"ok": False, "error": str(exc)}
+        elif p2p and hasattr(p2p, "trigger_reconcile"):
+            p2p.trigger_reconcile()
+            time.sleep(3)
+            reconcile_detail = {"ok": True, "message": "scheduled"}
+
+        if bc and hasattr(bc, "ensure_state_at_tip"):
+            try:
+                repaired = bool(bc.ensure_state_at_tip())
+            except Exception:
+                repaired = False
+
+    after = _build_testnet_fork_status(p2p, bc, cfg, db)
+    harness = _build_state_consistency_harness(p2p, bc, cfg, db)
+    state_consistent = bool(
+        reconcile_detail.get("state_consistent", after.get("state_consistent", True))
+    )
+    fork_recovered = bool(
+        after.get("consensus_healthy")
+        and harness.get("harness_healthy")
+        and not after.get("same_height_divergent_heads")
+        and state_consistent
+    )
+
+    return {
+        "action": "fork_recovery_drill" if run_reconcile else "fork_recovery_status",
+        "run_reconcile": bool(run_reconcile),
+        "before": {
+            "consensus_healthy": before.get("consensus_healthy"),
+            "fork_detected": before.get("fork_detected"),
+            "max_peer_height_gap": before.get("max_peer_height_gap"),
+            "same_height_divergent_heads": before.get("same_height_divergent_heads"),
+        },
+        "after": {
+            "consensus_healthy": after.get("consensus_healthy"),
+            "fork_detected": after.get("fork_detected"),
+            "max_peer_height_gap": after.get("max_peer_height_gap"),
+            "same_height_divergent_heads": after.get("same_height_divergent_heads"),
+            "local_height": after.get("local_height"),
+            "local_state_root": after.get("local_state_root"),
+        },
+        "reconcile": reconcile_detail,
+        "state_repaired": repaired,
+        "harness_healthy": bool(harness.get("harness_healthy")),
+        "fork_recovered": fork_recovered if run_reconcile else None,
+        "needs_recovery": not before.get("consensus_healthy") or before.get("fork_detected"),
+        "api_wave": 58,
     }
 
 
@@ -4967,7 +5043,7 @@ def _build_state_consistency_harness(p2p, bc, cfg, db=None) -> Dict:
         "harness_healthy": harness_healthy,
         "failed_checks": [c["id"] for c in checks if not c["ok"]],
         "policy": policy,
-        "api_wave": 57,
+        "api_wave": 58,
     }
 
 
@@ -5003,7 +5079,7 @@ def _build_testnet_validators_status(db, cfg, bc) -> Dict:
         "validators": validators,
         "manifest": getattr(cfg, "testnet_validators_manifest", ""),
         "validator_index": int(getattr(cfg, "testnet_validator_index", 0) or 0),
-        "api_wave": 57,
+        "api_wave": 58,
     }
 
 
@@ -5087,7 +5163,7 @@ def _build_testnet_multi_node_proof(p2p, bc, cfg, db, consensus_adapter) -> Dict
         "checks": checks,
         "proof_ok": proof_ok,
         "failed_checks": [c["id"] for c in checks if not c["ok"]],
-        "api_wave": 57,
+        "api_wave": 58,
     }
 
 
@@ -5230,7 +5306,7 @@ def _build_l2_status(handler_cls) -> Dict:
         m.get("persisted") for m in modules.values() if isinstance(m, dict)
     )
     return {
-        "api_wave": 57,
+        "api_wave": 58,
         "l2_persisted": persisted,
         "nft_persisted": nft_persisted,
         "core": {

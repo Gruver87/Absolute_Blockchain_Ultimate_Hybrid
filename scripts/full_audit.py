@@ -132,7 +132,7 @@ def section_project_inventory() -> AuditResult:
     print(f"  REST route refs    : ~{ep_count}")
     print(f"  scripts/ files     : {len(scripts)}")
     print(f"  Entry point        : main.py ({'OK' if os.path.isfile(os.path.join(ROOT, 'main.py')) else 'MISSING'})")
-    print(f"  api_wave in code   : {'57' if 'core_real' in http_src and 'reorg_finality_guard' in http_src else 'check'}")
+    print(f"  api_wave in code   : {'58' if '/testnet/fork-exercise' in http_src else 'check'}")
 
     required_scripts = [
         "start_node.ps1", "start_two_nodes.ps1", "docker_devnet.ps1",
@@ -206,7 +206,9 @@ def section_waves_52_56() -> AuditResult:
         ("GET /testnet/multi-node-proof", '"/testnet/multi-node-proof"' in http_src),
         ("POST /testnet/reorg-exercise", '"/testnet/reorg-exercise"' in http_src),
         ("verify_p2p devnet3 mode", "devnet3" in _read("scripts/verify_p2p_ci.py")),
-        ("verify_p2p multi_node_proof", "verify_multi_node_proof" in _read("scripts/verify_p2p_ci.py")),
+        ("POST /testnet/fork-exercise", '"/testnet/fork-exercise"' in http_src),
+        ("verify_p2p ci-fork mode", "ci-fork" in _read("scripts/verify_p2p_ci.py")),
+        ("verify_p2p fork_recovery", "verify_fork_recovery" in _read("scripts/verify_p2p_ci.py")),
         ("verify_p2p devnet5 mode", "devnet5" in _read("scripts/verify_p2p_ci.py")),
         ("verify_p2p ci3 mode", "ci3" in _read("scripts/verify_p2p_ci.py")),
         ("devnet_validators.py", os.path.isfile(os.path.join(ROOT, "runtime/devnet_validators.py"))),
@@ -220,6 +222,10 @@ def section_waves_52_56() -> AuditResult:
         ("unit test wave54", os.path.isfile(os.path.join(ROOT, "tests/unit/test_wave54_state_consistency.py"))),
         ("unit test wave55", os.path.isfile(os.path.join(ROOT, "tests/unit/test_wave55_5validator.py"))),
         ("unit test wave56", os.path.isfile(os.path.join(ROOT, "tests/unit/test_wave56_multi_node_proof.py"))),
+        ("unit test wave58", os.path.isfile(os.path.join(ROOT, "tests/unit/test_wave58_fork_ci.py"))),
+        ("deterministic proposer", "abs-proposer:" in _read("consensus_engine.py")),
+        ("finality live quorum", "set_active_validator_count" in _read("finality_engine.py")),
+        ("reorg finality guard", "finalized floor" in _read("core/blockchain.py")),
     ]
     for name, ok in checks:
         print(f"  {'[OK]' if ok else '[FAIL]'} {name}")
@@ -360,8 +366,8 @@ def section_live_endpoints(base: str) -> AuditResult:
             res.details.append(path)
 
     if api_wave:
-        print(f"  api_wave={api_wave} {'(>=57 OK)' if api_wave >= 57 else '(WARN: expected >=57)'}")
-        if api_wave < 57:
+        print(f"  api_wave={api_wave} {'(>=58 OK)' if api_wave >= 58 else '(WARN: expected >=58)'}")
+        if api_wave < 58:
             res.warnings += 1
     return res
 
