@@ -2,11 +2,18 @@
 
 Все значимые изменения документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/).
 
-**Текущая волна API:** `api_wave = 46` (проверка: `GET /status`)
+**Текущая волна API:** `api_wave = 47` (проверка: `GET /status`)
 
 ---
 
-## [1.2.0-industrial] — Wave 37–46 (июнь 2026)
+## [1.2.0-industrial] — Wave 37–47 (июнь 2026)
+
+### Wave 47 — Core L1 receipts + chain metrics
+
+- `tx_receipts` SQLite table on every confirmed tx
+- `GET /chain/metrics` — avg block time, tx/receipt counts
+- `GET /tx/receipt/{hash}`, `GET /receipts/block/{height}`
+- Receipts pruned on reorg (`truncate_chain_state`)
 
 ### Wave 46 — NFT SQLite persistence
 
@@ -68,7 +75,7 @@
 |----------|-----------|
 | `pytest tests/unit` | 195 passed, 1 skipped |
 | Docker devnet 2 nodes | P2P sync, heights aligned, `state_roots_match=True` |
-| `api_wave` | 46 |
+| `api_wave` | 47 |
 | `mega_audit.py` | 256 REST routes |
 
 ---

@@ -725,7 +725,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 46,
+                    "api_wave": 47,
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,
                     "crypto_will_enabled": self.__class__.crypto_will is not None,
@@ -733,6 +733,9 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "ai_agents_enabled": self.__class__.ai_manager is not None,
                     "mev_enabled": self.__class__.mev_simulator is not None,
                     "reorg_predictor_enabled": self.__class__.reorg_predictor is not None,
+                    "core_receipts_enabled": bool(
+                        db and hasattr(db, "get_tx_receipt")
+                    ),
                     "l2_persisted": bool(
                         getattr(self.__class__.lightning, "db", None)
                         or getattr(self.__class__.plasma, "db", None)
@@ -1004,7 +1007,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "lightning": self.__class__.lightning,
                 }
                 payload = flags.to_api_dict(instances, cfg)
-                payload["api_wave"] = 46
+                payload["api_wave"] = 47
                 rp = self.__class__.reorg_predictor
                 if rp and hasattr(rp, "get_stats"):
                     payload["reorg_predictor"] = rp.get_stats()
@@ -1102,6 +1105,36 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             elif path == "/stats":
                 self._json(bc.get_stats())
+
+            elif path == "/chain/metrics":
+                db = self.__class__.db
+                if db and hasattr(db, "get_chain_metrics"):
+                    window = int(qs.get("window", ["32"])[0])
+                    self._json(db.get_chain_metrics(window=window))
+                else:
+                    self._json({"error": "chain metrics not available"})
+
+            elif path.startswith("/tx/receipt/") or path.startswith("/receipts/tx/"):
+                tx_hash = path.split("/")[-1]
+                db = self.__class__.db
+                if not db or not hasattr(db, "get_tx_receipt"):
+                    self._error(503, "receipts not available"); return
+                rcpt = db.get_tx_receipt(tx_hash)
+                if rcpt:
+                    self._json(rcpt)
+                else:
+                    self._error(404, "receipt not found")
+
+            elif path.startswith("/receipts/block/"):
+                try:
+                    height = int(path.split("/receipts/block/")[-1])
+                except ValueError:
+                    self._error(400, "invalid block height"); return
+                db = self.__class__.db
+                if not db or not hasattr(db, "get_receipts_by_block"):
+                    self._error(503, "receipts not available"); return
+                rows = db.get_receipts_by_block(height)
+                self._json({"block_height": height, "count": len(rows), "receipts": rows})
 
             # ── NFT ──────────────────────────────────────────────────────────
             elif path == "/nft":
@@ -4614,9 +4647,20 @@ def _build_l2_status(handler_cls) -> Dict:
         m.get("persisted") for m in modules.values() if isinstance(m, dict)
     )
     return {
-        "api_wave": 46,
+        "api_wave": 47,
         "l2_persisted": persisted,
         "nft_persisted": nft_persisted,
+        "core": {
+            "receipts_enabled": bool(
+                getattr(handler_cls, "db", None)
+                and hasattr(getattr(handler_cls, "db", None), "get_tx_receipt")
+            ),
+            "endpoints": {
+                "metrics": "GET /chain/metrics",
+                "receipt": "GET /tx/receipt/{hash}",
+                "block_receipts": "GET /receipts/block/{height}",
+            },
+        },
         "modules_enabled": list(modules.keys()),
         "modules": modules,
         "endpoints": {

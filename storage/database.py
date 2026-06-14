@@ -405,6 +405,21 @@ class Database:
             );
             CREATE INDEX IF NOT EXISTS idx_nft_sales_ts ON nft_sales(created_at);
 
+            CREATE TABLE IF NOT EXISTS tx_receipts (
+                tx_hash       TEXT PRIMARY KEY,
+                block_height  INTEGER NOT NULL,
+                block_hash    TEXT NOT NULL DEFAULT '',
+                from_addr     TEXT NOT NULL DEFAULT '',
+                to_addr       TEXT NOT NULL DEFAULT '',
+                value         REAL NOT NULL DEFAULT 0,
+                fee           REAL NOT NULL DEFAULT 0,
+                burned        REAL NOT NULL DEFAULT 0,
+                gas_used      INTEGER NOT NULL DEFAULT 0,
+                status        INTEGER NOT NULL DEFAULT 1,
+                created_at    INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_tx_receipt_block ON tx_receipts(block_height);
+
             CREATE INDEX IF NOT EXISTS idx_tx_block ON transactions(block_height);
             CREATE INDEX IF NOT EXISTS idx_tx_from  ON transactions(from_addr);
             CREATE INDEX IF NOT EXISTS idx_tx_to    ON transactions(to_addr);
@@ -481,8 +496,11 @@ class Database:
     ) -> None:
         """Persist block + txs inside an open transaction (caller holds BEGIN)."""
         self._insert_block(block)
+        block_hash = block.get("hash", block.get("block_hash", ""))
+        block_height = block.get("height", block.get("number", 0))
         for tx in transactions:
             self._insert_transaction(tx)
+            self._insert_tx_receipt(tx, block_hash, block_height)
         if burned_amount > 0:
             self._insert_burn_record(block.get("height", 0), burned_amount)
             if burn_address:
@@ -566,6 +584,9 @@ class Database:
                 "DELETE FROM transactions WHERE block_height > ?", (int(height),)
             )
             self.conn.execute(
+                "DELETE FROM tx_receipts WHERE block_height > ?", (int(height),)
+            )
+            self.conn.execute(
                 "DELETE FROM burn_stats WHERE block_height > ?", (int(height),)
             )
             cur = self.conn.execute(
@@ -621,6 +642,117 @@ class Database:
                 tx.get("timestamp", int(time.time())),
             ),
         )
+
+    def _insert_tx_receipt(self, tx: Dict, block_hash: str, block_height: int) -> None:
+        tx_hash = tx.get("hash", tx.get("tx_hash", ""))
+        if not tx_hash:
+            return
+        self.conn.execute(
+            """INSERT OR REPLACE INTO tx_receipts
+               (tx_hash, block_height, block_hash, from_addr, to_addr, value,
+                fee, burned, gas_used, status, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                tx_hash,
+                int(tx.get("block_height", block_height) or block_height),
+                block_hash,
+                tx.get("from_addr", tx.get("from", "")),
+                tx.get("to_addr", tx.get("to", "")),
+                float(tx.get("value", tx.get("amount", 0.0))),
+                float(tx.get("fee", 0.0)),
+                float(tx.get("burned", 0.0)),
+                int(tx.get("gas_used", tx.get("gas", 21000))),
+                int(tx.get("status", 1)),
+                int(tx.get("timestamp", time.time())),
+            ),
+        )
+
+    def get_tx_receipt(self, tx_hash: str) -> Optional[Dict]:
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT * FROM tx_receipts WHERE tx_hash = ?", (tx_hash,)
+            ).fetchone()
+            if not row:
+                return None
+            return {
+                "tx_hash": row["tx_hash"],
+                "block_height": row["block_height"],
+                "block_hash": row["block_hash"],
+                "from": row["from_addr"],
+                "to": row["to_addr"],
+                "value": row["value"],
+                "fee": row["fee"],
+                "burned": row["burned"],
+                "gas_used": row["gas_used"],
+                "status": row["status"],
+                "timestamp": row["created_at"],
+            }
+
+    def get_receipts_by_block(self, block_height: int) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT * FROM tx_receipts WHERE block_height = ? ORDER BY created_at",
+                (int(block_height),),
+            ).fetchall()
+            return [
+                {
+                    "tx_hash": r["tx_hash"],
+                    "block_height": r["block_height"],
+                    "block_hash": r["block_hash"],
+                    "from": r["from_addr"],
+                    "to": r["to_addr"],
+                    "value": r["value"],
+                    "fee": r["fee"],
+                    "burned": r["burned"],
+                    "gas_used": r["gas_used"],
+                    "status": r["status"],
+                    "timestamp": r["created_at"],
+                }
+                for r in rows
+            ]
+
+    def get_chain_metrics(self, window: int = 32) -> Dict:
+        """Core L1 metrics: block time, throughput hints."""
+        with self.lock:
+            tip = self.get_chain_tip()
+            tx_count = self.conn.execute(
+                "SELECT COUNT(*) as c FROM transactions"
+            ).fetchone()["c"]
+            receipt_count = 0
+            try:
+                receipt_count = self.conn.execute(
+                    "SELECT COUNT(*) as c FROM tx_receipts"
+                ).fetchone()["c"]
+            except Exception:
+                pass
+            rows = self.conn.execute(
+                "SELECT height, timestamp, tx_count, total_burned FROM blocks "
+                "ORDER BY height DESC LIMIT ?",
+                (int(window),),
+            ).fetchall()
+            avg_block_time = 0.0
+            if len(rows) >= 2:
+                intervals = []
+                ordered = sorted(rows, key=lambda r: r["height"])
+                for i in range(1, len(ordered)):
+                    dt = int(ordered[i]["timestamp"]) - int(ordered[i - 1]["timestamp"])
+                    if dt > 0:
+                        intervals.append(dt)
+                if intervals:
+                    avg_block_time = sum(intervals) / len(intervals)
+            target = 15.0
+            return {
+                "height": tip,
+                "tx_count": int(tx_count),
+                "receipt_count": int(receipt_count),
+                "receipts_enabled": True,
+                "avg_block_time_sec": round(avg_block_time, 2),
+                "target_block_time_sec": target,
+                "blocks_sampled": len(rows),
+                "burn_last_window": round(
+                    sum(float(r["total_burned"] or 0) for r in rows), 6
+                ),
+            }
 
     def save_transaction(self, tx: Dict) -> bool:
         with self.lock:

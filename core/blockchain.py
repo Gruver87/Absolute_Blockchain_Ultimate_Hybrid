@@ -960,9 +960,15 @@ class Blockchain:
     def get_stats(self) -> Dict:
         db_stats = self.db.get_stats()
         burn_stats = self.db.get_burn_stats()
+        chain_metrics = (
+            self.db.get_chain_metrics()
+            if hasattr(self.db, "get_chain_metrics")
+            else {}
+        )
         return {
             **db_stats,
             **burn_stats,
+            **chain_metrics,
             "coin_symbol": self.config.coin_symbol,
             "chain_id": self.config.chain_id,
             "network": self.config.network_name,
@@ -974,4 +980,5 @@ class Blockchain:
             "state_engine": self.state_engine is not None,
             "block_validator": self.block_validator is not None,
             "canonical_hash": _CANONICAL_AVAILABLE,
+            "require_signatures": getattr(self, "require_signatures", False),
         }

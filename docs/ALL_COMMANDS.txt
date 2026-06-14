@@ -37,7 +37,7 @@
 
 
 # =============================================================================
-# ЧАСТЬ 0: ВОЗМОЖНОСТИ БЛОКЧЕЙНА — ЧЕСТНО (v1.2.0, Wave 46)
+# ЧАСТЬ 0: ВОЗМОЖНОСТИ БЛОКЧЕЙНА — ЧЕСТНО (v1.2.0, Wave 47)
 # =============================================================================
 #
 # ⚠️  УЧЕБНЫЙ / ЭКСПЕРИМЕНТАЛЬНЫЙ ПРОЕКТ — НЕ PRODUCTION MAINNET
@@ -85,6 +85,10 @@
 #   NFT Marketplace: tokens/offers/auctions/sales в SQLite
 #   mint fee 1 ABS, buy/offer/auction — L1 balance + ownership persisted
 #   GET /nft/stats, GET /l2/status → nft_persisted
+# Wave 47 (ядро L1):
+#   TX receipts в SQLite при каждом блоке (fee, burned, gas_used)
+#   GET /tx/receipt/{hash}, GET /receipts/block/{height}, GET /chain/metrics
+#   avg_block_time_sec, receipt_count; очистка receipts при reorg
 #
 # --- Архитектура ---
 #
