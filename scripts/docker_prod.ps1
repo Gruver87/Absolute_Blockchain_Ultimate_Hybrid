@@ -10,5 +10,9 @@ if (-not $env:RPC_API_KEYS) {
 }
 
 docker compose -f docker-compose.prod.yml up --build -d
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Docker failed — start Docker Desktop and retry." -ForegroundColor Red
+    exit $LASTEXITCODE
+}
 Write-Host "Prod node: http://localhost:8080  RPC :8545" -ForegroundColor Green
 Write-Host "Logs: docker compose -f docker-compose.prod.yml logs -f" -ForegroundColor Gray

@@ -46,6 +46,8 @@ def test_rpc_auth_invalid_key():
 def test_config_prod_requires_rpc_keys(monkeypatch):
     monkeypatch.setenv("DEPLOYMENT_MODE", "prod")
     monkeypatch.setenv("DATA_DIR", "data")
+    monkeypatch.delenv("RPC_API_KEYS", raising=False)
+    monkeypatch.delenv("JWT_SECRET", raising=False)
     cfg = Config()
     cfg.apply_env()
     errors = cfg.validate()
