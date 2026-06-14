@@ -179,7 +179,9 @@
     <div class="card" id="bridge-dashboard-card" style="margin-bottom:16px;display:none;border:1px solid var(--blue)">
       <h3>Cross-Chain Bridge</h3>
       <div id="bridge-dashboard-summary" style="font-size:12px;margin-bottom:10px"></div>
-      <button class="btn btn-blue" onclick="openBridgeSection()" style="width:100%">Open Bridge &amp; Locks Table →</button>
+      <div id="bridge-dashboard-pending" style="font-size:12px;margin-bottom:10px"></div>
+      <button class="btn btn-blue" onclick="openBridgeSection()" style="width:100%;margin-bottom:8px">Open Bridge &amp; Locks Table →</button>
+      <button class="btn btn-outline" id="bridge-confirm-all-btn" onclick="confirmAllBridgePending()" style="width:100%;display:none">Confirm All Pending Locks</button>
     </div>
     <div class="card" style="margin-bottom:16px">
       <h3>Pool Locks (Ecosystem / Treasury / Staking)</h3>
@@ -194,6 +196,19 @@
       </div>
       <div id="dao-vote-dash-result" style="margin-top:8px;font-size:12px"></div>
       <p style="color:var(--gray);font-size:11px;margin-top:8px">Solo devnet: один голос валидатора (51%) разблокирует пул. Нажмите Refresh Locks после голосования.</p>
+      <hr style="border-color:var(--border);margin:12px 0">
+      <h3 style="font-size:12px;color:var(--gray);text-transform:uppercase">Pool Spend (devnet)</h3>
+      <div class="form-row"><label>Pool</label>
+        <select id="pool-spend-id">
+          <option value="ecosystem">Ecosystem &amp; Development</option>
+          <option value="treasury">Community Treasury</option>
+          <option value="staking">Staking Rewards</option>
+        </select>
+      </div>
+      <div class="form-row"><label>To Address</label><input id="pool-spend-to" placeholder="0x..." /></div>
+      <div class="form-row"><label>Amount (ABS)</label><input id="pool-spend-amount" type="number" value="100" step="1" /></div>
+      <button class="btn btn-green" onclick="devnetPoolSpend()" style="width:100%">Send from Pool</button>
+      <div id="pool-spend-result" style="margin-top:8px;font-size:12px"></div>
     </div>
     <div class="card">
       <h3>Recent Transactions</h3>
@@ -2777,6 +2792,7 @@ async function daoVotePool(poolId) {
     if (el) el.innerHTML = `<span style="color:${r.quorum_reached?'var(--green)':'var(--gray)'}">${msg}</span>`;
     toast(msg, !!r.quorum_reached);
     loadPoolLocks();
+    loadFounderInfo();
   } else if (el) {
     el.innerHTML = `<span style="color:var(--red)">${r?.error || 'Vote failed'}</span>`;
     toast(r?.error || 'Vote failed', false);
@@ -3466,8 +3482,10 @@ async function loadDashboardStats() {
 async function loadBridgeDashboardSummary() {
   const card = document.getElementById('bridge-dashboard-card');
   const el = document.getElementById('bridge-dashboard-summary');
+  const pendingEl = document.getElementById('bridge-dashboard-pending');
+  const allBtn = document.getElementById('bridge-confirm-all-btn');
   if (!card || !el) return;
-  const br = await api('/bridge');
+  const [br, locks] = await Promise.all([api('/bridge'), api('/bridge/locks')]);
   if (!br || br.enabled === false) {
     card.style.display = 'none';
     return;
@@ -3476,10 +3494,49 @@ async function loadBridgeDashboardSummary() {
   const pending = br.locks?.pending ?? 0;
   const total = br.locks?.total ?? 0;
   const manual = (br.auto_confirm_sec ?? 0) <= 0;
+  const rustHint = br.mode === 'rust' && br.rust_binary
+    ? `<div style="color:var(--gray);font-size:10px;margin-top:4px">Rust: ${br.rust_binary}</div>` : '';
   el.innerHTML = `
     <div>Mode: <b>${br.mode || 'simulator'}</b> ${manual ? '<span class="badge badge-yellow">MANUAL CONFIRM</span>' : ''}</div>
     <div style="margin-top:6px">Locks: <b>${total}</b> (pending: <b>${pending}</b>)</div>
-    <div style="color:var(--gray);margin-top:4px">Scroll down on Cross-Chain page for <b>Bridge Locks</b> table</div>`;
+    ${rustHint}`;
+  const pendingRows = (locks?.locks || []).filter(l => (l.status || 'pending') === 'pending');
+  if (pendingEl) {
+    pendingEl.innerHTML = pendingRows.length
+      ? `<div style="color:var(--gray);margin-bottom:6px">Pending locks:</div>` +
+        pendingRows.slice(0, 5).map(l => {
+          const tx = l.tx_hash || '';
+          const short = tx.slice(0, 12) + '…';
+          return `<div style="display:flex;align-items:center;gap:8px;margin:4px 0">
+            <span class="hash" title="${tx}">${short}</span>
+            <span style="color:var(--gray)">${l.amount} ABS → ${l.to_chain || '?'}</span>
+            <button class="btn btn-blue" style="padding:2px 8px;font-size:10px" onclick="quickConfirmBridgeLock('${tx}')">Confirm</button>
+          </div>`;
+        }).join('')
+      : '';
+  }
+  if (allBtn) allBtn.style.display = pendingRows.length ? 'block' : 'none';
+}
+
+async function quickConfirmBridgeLock(txHash) {
+  if (!txHash) return;
+  const r = await post('/bridge/confirm-lock', {tx_hash: txHash, tx_id: txHash});
+  const ok = r?.confirmed || r?.success;
+  toast(ok ? `Confirmed ${txHash.slice(0, 12)}…` : (r?.error || 'Confirm failed'), !!ok);
+  if (ok) {
+    loadBridgeDashboardSummary();
+    loadBridge2Stats();
+    loadRecentActivity();
+  }
+}
+
+async function confirmAllBridgePending() {
+  const r = await post('/bridge/confirm-pending', {});
+  const ok = r?.success && (r?.count || 0) > 0;
+  toast(ok ? `Confirmed ${r.count} lock(s)` : (r?.errors?.[0]?.error || r?.error || 'No pending locks'), !!ok);
+  loadBridgeDashboardSummary();
+  loadBridge2Stats();
+  loadRecentActivity();
 }
 async function loadTokenomics() {
   const r = await api('/tokenomics');
@@ -3511,12 +3568,44 @@ async function loadFounderInfo() {
       ? `<div style="color:var(--gray);font-size:10px;margin-top:2px">On-chain balance at ${f.balance_address}</div>` : ''}
   `;
   if (a?.allocations) {
-    chart.innerHTML = '<b>Allocation:</b><br/>' + a.allocations.map(p=>
-      `<div style="margin:4px 0">
-        <span class="badge badge-${p.id==='founder'?'green':p.locked?'yellow':'blue'}">${p.percent}%</span>
-        ${p.name}: ${p.amount_formatted}
-        ${p.locked?' 🔒':''}
-      </div>`).join('');
+    chart.innerHTML = '<b>Allocation (live):</b><br/>' + a.allocations.map(p => {
+      const unlocked = p.dao_unlocked || (p.live_spendable > 0 && !p.live_locked);
+      const isFounder = p.id === 'founder';
+      const badge = isFounder ? 'green' : (unlocked ? 'green' : (p.locked ? 'yellow' : 'blue'));
+      const icon = isFounder ? '' : (unlocked ? ' ✅' : (p.locked ? ' 🔒' : ''));
+      const live = p.live_spendable !== undefined
+        ? `<div style="color:var(--gray);font-size:10px">Spendable: ${fmtAbs(p.live_spendable).replace(' ABS','')} ABS</div>` : '';
+      return `<div style="margin:4px 0">
+        <span class="badge badge-${badge}">${p.percent}%</span>
+        ${p.name}: ${p.amount_formatted}${icon}
+        ${live}
+      </div>`;
+    }).join('');
+  }
+}
+
+async function devnetPoolSpend() {
+  const pool_id = document.getElementById('pool-spend-id')?.value || 'ecosystem';
+  let to = document.getElementById('pool-spend-to')?.value?.trim();
+  const amount = parseFloat(document.getElementById('pool-spend-amount')?.value) || 0;
+  if (!to) {
+    const w = await api('/wallet/status');
+    to = w?.address || w?.miner_address || '';
+    if (to) document.getElementById('pool-spend-to').value = to;
+  }
+  if (!to) return toast('Enter recipient address', false);
+  if (amount <= 0) return toast('Amount must be > 0', false);
+  const r = await api('/devnet/pool-spend', 'POST', {pool_id, to, amount});
+  const el = document.getElementById('pool-spend-result');
+  if (r?.success) {
+    el.innerHTML = `<span class="badge badge-green">Sent ${r.amount} ABS</span> TX: <span class="hash">${r.tx_hash}</span>`;
+    toast(`Pool spend OK: ${r.amount} ABS`, true);
+    loadPoolLocks();
+    loadFounderInfo();
+    loadRecentActivity();
+  } else {
+    el.innerHTML = `<span style="color:var(--red)">${r?.error || 'Pool spend failed'}</span>`;
+    toast(r?.error || 'Pool spend failed', false);
   }
 }
 

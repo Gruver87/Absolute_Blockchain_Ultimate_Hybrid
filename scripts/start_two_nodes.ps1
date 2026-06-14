@@ -1,6 +1,7 @@
 # Start two local ABS nodes for P2P testing (Windows PowerShell)
 param(
-    [switch]$NoCloneDb
+    [switch]$NoCloneDb,
+    [switch]$RustBridge
 )
 
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -9,6 +10,18 @@ Set-Location $ProjectRoot
 # UTF-8 for hidden node processes (avoids UnicodeEncodeError on emoji in logs)
 $env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"
+
+$node1Config = "node.example.json"
+if ($RustBridge) {
+    $bin = Join-Path $ProjectRoot "bridge\abs_bridge_bin.exe"
+    if (-not (Test-Path $bin)) {
+        Write-Host "Rust bridge binary missing - running build_bridge.ps1" -ForegroundColor Yellow
+        & (Join-Path $ProjectRoot "scripts\build_bridge.ps1")
+        if ($LASTEXITCODE -ne 0) { exit 1 }
+    }
+    $node1Config = "node.rust.example.json"
+    Write-Host "Node1 bridge_mode=rust ($node1Config)" -ForegroundColor Cyan
+}
 
 function Wait-NodeReady {
     param(
@@ -99,7 +112,7 @@ foreach ($dir in @("data", "data\node2")) {
     }
 }
 
-$node1 = Start-AbsNode -ConfigFile "node.example.json" `
+$node1 = Start-AbsNode -ConfigFile $node1Config `
     -StdoutLog "data\node_stdout.log" -StderrLog "data\node_stderr.log"
 
 if (-not (Wait-NodeReady -Url "http://127.0.0.1:8080" -Name "node1" -MaxSec 90)) {
@@ -162,7 +175,7 @@ if (-not $p2pOk) {
 }
 
 @{
-    node1 = @{ pid = $node1.Id; http = 8080; config = "node.example.json" }
+    node1 = @{ pid = $node1.Id; http = 8080; config = $node1Config }
     node2 = @{ pid = $node2.Id; http = 8081; config = "node2.example.json" }
     started_at = (Get-Date).ToString("o")
 } | ConvertTo-Json | Set-Content (Join-Path $ProjectRoot "data\node_pids.json") -Encoding UTF8

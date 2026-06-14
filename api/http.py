@@ -83,7 +83,10 @@ except ImportError:
     _JWT_AVAILABLE = False
 
 # POST без JWT даже в prod (публичные операции)
-_PUBLIC_POST_PATHS = frozenset({"/transactions", "/tx/send", "/devnet/faucet", "/pools/dao/vote"})
+_PUBLIC_POST_PATHS = frozenset({
+    "/transactions", "/tx/send", "/devnet/faucet", "/pools/dao/vote", "/devnet/pool-spend",
+    "/bridge/confirm-lock", "/bridge/confirm-pending",
+})
 
 # Devnet / probes: не считаем в rate limit (start_two_nodes, devnet_status, K8s)
 _RATE_LIMIT_EXEMPT_PATHS = frozenset({
@@ -624,6 +627,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "total_burned": total_burned,
                     "evm_enabled": cfg.evm_enabled,
                     "bridge_enabled": cfg.bridge_enabled,
+                    "bridge_mode": getattr(cfg, "bridge_mode", "simulator"),
                     "deployment_mode": getattr(cfg, "deployment_mode", "dev"),
                     "node_id": getattr(cfg, "node_id", "node-1"),
                     "health": {
@@ -682,9 +686,20 @@ class RESTHandler(BaseHTTPRequestHandler):
                         getattr(cfg, "miner_address", ""),
                     )
                     t = get_tokenomics_summary(founder or None)
+                    allocations = [dict(a) for a in t["allocations"]]
+                    pl = self.__class__.pool_locks
+                    if pl and hasattr(pl, "get_status"):
+                        live_map = {p["id"]: p for p in pl.get_status().get("pools", [])}
+                        for row in allocations:
+                            live = live_map.get(row["id"])
+                            if live:
+                                row["live_spendable"] = live.get("spendable", 0.0)
+                                row["live_locked"] = live.get("locked", row.get("locked", False))
+                                row["dao_unlocked"] = live.get("dao_unlocked", False)
+                                row["dao_votes"] = live.get("dao_votes", 0)
                     self._json({
                         "max_supply": t["max_supply"],
-                        "allocations": t["allocations"],
+                        "allocations": allocations,
                         "genesis_minted": t["genesis_minted"],
                         "mining_reserve": t["mining_reserve"],
                     })
@@ -3145,6 +3160,19 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "balance": db.get_balance(address),
                 })
 
+            elif path == "/devnet/pool-spend":
+                if getattr(cfg, "deployment_mode", "dev") == "prod":
+                    self._error(403, "pool-spend disabled in production"); return
+                pl = self.__class__.pool_locks
+                db = self.__class__.db
+                if not pl or not db or not bc:
+                    self._error(503, "pool locks or database unavailable"); return
+                try:
+                    result = _handle_devnet_pool_spend(body, bc, db, cfg, pl)
+                    self._json(result)
+                except ValueError as exc:
+                    self._error(400, str(exc))
+
             # ── Bridge: lock, confirm, refund ─────────────────────────────────
             elif path == "/bridge/lock":
                 br = getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge
@@ -3186,6 +3214,17 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json(br.confirm_lock(tx_hash))
                 else:
                     self._error(501, "confirm_lock not available")
+
+            elif path == "/bridge/confirm-pending":
+                if getattr(cfg, "deployment_mode", "dev") == "prod":
+                    self._error(403, "batch confirm disabled in production"); return
+                br = getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge
+                if not br:
+                    self._error(503, "Bridge not enabled"); return
+                if hasattr(br, "confirm_pending_locks"):
+                    self._json(br.confirm_pending_locks())
+                else:
+                    self._error(501, "confirm_pending not available")
 
             elif path == "/bridge/refund":
                 br = getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge
@@ -4104,6 +4143,69 @@ def _handle_call_tx(body: Dict, bc, mp, cfg, wallet=None) -> str:
         "public_key": tx_body.get("public_key", ""),
     }
     return _handle_send_tx_obj(tx_body, bc, mp, cfg)
+
+
+def _handle_devnet_pool_spend(body: Dict, bc, db, cfg, pool_locks) -> Dict:
+    """Devnet-only transfer from unlocked ecosystem/treasury/staking pool."""
+    import hashlib
+    import time as _time
+
+    pool_id = (body.get("pool_id", body.get("pool", "ecosystem")) or "").strip().lower()
+    to_addr = (body.get("to", body.get("recipient", "")) or "").strip()
+    amount = float(body.get("amount", 0))
+    if pool_id not in ("ecosystem", "treasury", "staking"):
+        raise ValueError("pool_id must be ecosystem, treasury, or staking")
+    if not to_addr:
+        raise ValueError("to address required")
+    if amount <= 0:
+        raise ValueError("amount must be positive")
+
+    from runtime.tokenomics import build_allocations, resolve_founder_address
+
+    founder = resolve_founder_address(
+        getattr(cfg, "founder_address", ""),
+        getattr(cfg, "miner_address", ""),
+    )
+    pool_addrs = {p.id: p.address_key for p in build_allocations(founder or None)}
+    from_addr = pool_addrs.get(pool_id)
+    if not from_addr:
+        raise ValueError("pool address not found")
+
+    balance = float(db.get_balance(from_addr))
+    allowed, reason = pool_locks.is_outgoing_allowed(from_addr, amount, balance)
+    if not allowed:
+        raise ValueError(reason)
+
+    db.update_balance(from_addr, -amount)
+    db.update_balance(to_addr, amount)
+    pool_locks.record_outgoing(from_addr, amount)
+
+    tx_hash = hashlib.sha256(
+        f"pool-spend|{from_addr}|{to_addr}|{amount}|{_time.time()}".encode()
+    ).hexdigest()[:16]
+    height = bc.get_height() if bc and hasattr(bc, "get_height") else 0
+    db.save_transaction({
+        "hash": tx_hash,
+        "from_addr": from_addr,
+        "to_addr": to_addr,
+        "value": amount,
+        "block_height": height,
+        "fee": 0.0,
+        "status": "confirmed",
+        "timestamp": int(_time.time()),
+    })
+
+    return {
+        "success": True,
+        "tx_hash": tx_hash,
+        "pool_id": pool_id,
+        "from": from_addr,
+        "to": to_addr,
+        "amount": amount,
+        "pool_balance": db.get_balance(from_addr),
+        "recipient_balance": db.get_balance(to_addr),
+        "spendable_remaining": pool_locks.spendable_balance(from_addr, db.get_balance(from_addr)),
+    }
 
 
 def _handle_send_tx_with_wallet(tx_obj: Dict, bc, mp, cfg, wallet=None) -> str:

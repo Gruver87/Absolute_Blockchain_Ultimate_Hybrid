@@ -309,6 +309,30 @@ class RustBridge:
                 }
         return {"confirmed": False, "error": "pending lock not found"}
 
+    def confirm_pending_locks(self) -> Dict:
+        """Confirm every pending outbound bridge lock (devnet / manual batch)."""
+        confirmed: List[str] = []
+        errors: List[Dict] = []
+        for lock in self.db.get_bridge_locks(limit=1000):
+            if lock.get("status") != "pending":
+                continue
+            tx_hash = lock.get("tx_hash", "")
+            result = self.confirm_lock(tx_hash)
+            if result.get("confirmed"):
+                confirmed.append(tx_hash)
+            else:
+                errors.append({"tx_hash": tx_hash, "error": result.get("error", "failed")})
+        return {
+            "success": len(confirmed) > 0,
+            "confirmed": confirmed,
+            "count": len(confirmed),
+            "pending_remaining": sum(
+                1 for l in self.db.get_bridge_locks(limit=1000) if l.get("status") == "pending"
+            ),
+            "errors": errors,
+            "mode": self._mode,
+        }
+
     def _process_pending(self):
         """
         Auto-confirm pending outbound locks when bridge_auto_confirm_sec > 0.
