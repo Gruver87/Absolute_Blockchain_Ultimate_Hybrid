@@ -725,7 +725,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 47,
+                    "api_wave": 50,
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,
                     "crypto_will_enabled": self.__class__.crypto_will is not None,
@@ -863,20 +863,65 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(404, "Transaction not found")
 
             elif path.startswith("/address/"):
-                addr = path.split("/address/")[1]
-                balance = bc.get_balance(addr)
-                nonce = db.get_nonce(addr)
-                txs = db.get_transactions_by_address(addr, limit=50)
-                account = db.get_account(addr)
-                self._json({
-                    "address": addr,
-                    "balance": balance,
-                    "balance_formatted": f"{balance:.6f} {cfg.coin_symbol}",
-                    "nonce": nonce,
-                    "is_contract": bool(account and account.get("code")),
-                    "tx_count": len(txs),
-                    "transactions": txs[:20],
-                })
+                remainder = path[len("/address/"):]
+                parts = remainder.split("/")
+                addr = parts[0]
+                sub = parts[1] if len(parts) > 1 else ""
+                if not addr:
+                    self._error(400, "address required"); return
+                limit = min(max(int(qs.get("limit", ["50"])[0]), 1), 200)
+                offset = max(int(qs.get("offset", ["0"])[0]), 0)
+                direction = qs.get("direction", ["all"])[0]
+                if direction not in ("all", "sent", "received"):
+                    self._error(400, "direction must be all, sent, or received"); return
+                if sub == "txs":
+                    if not hasattr(db, "count_address_transactions"):
+                        self._error(503, "address index not available"); return
+                    total = db.count_address_transactions(addr, direction=direction)
+                    txs = db.get_transactions_by_address(
+                        addr, limit=limit, offset=offset, direction=direction
+                    )
+                    self._json({
+                        "address": addr,
+                        "direction": direction,
+                        "limit": limit,
+                        "offset": offset,
+                        "total": total,
+                        "transactions": txs,
+                    })
+                elif sub == "activity":
+                    if not hasattr(db, "get_address_activity"):
+                        self._error(503, "address index not available"); return
+                    act = db.get_address_activity(addr)
+                    act["balance_formatted"] = (
+                        f"{act['balance']:.6f} {cfg.coin_symbol}"
+                    )
+                    self._json(act)
+                else:
+                    if hasattr(db, "get_address_activity"):
+                        act = db.get_address_activity(addr)
+                        txs = db.get_transactions_by_address(addr, limit=20, offset=0)
+                        self._json({
+                            **act,
+                            "balance_formatted": (
+                                f"{act['balance']:.6f} {cfg.coin_symbol}"
+                            ),
+                            "transactions": txs,
+                        })
+                    else:
+                        balance = bc.get_balance(addr)
+                        nonce = db.get_nonce(addr)
+                        txs = db.get_transactions_by_address(addr, limit=50)
+                        account = db.get_account(addr)
+                        self._json({
+                            "address": addr,
+                            "balance": balance,
+                            "balance_formatted": f"{balance:.6f} {cfg.coin_symbol}",
+                            "nonce": nonce,
+                            "is_contract": bool(account and account.get("code")),
+                            "tx_count": len(txs),
+                            "transactions": txs[:20],
+                        })
 
             elif path == "/mempool":
                 txs = mp.get(limit=50)
@@ -1007,7 +1052,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "lightning": self.__class__.lightning,
                 }
                 payload = flags.to_api_dict(instances, cfg)
-                payload["api_wave"] = 47
+                payload["api_wave"] = 50
                 rp = self.__class__.reorg_predictor
                 if rp and hasattr(rp, "get_stats"):
                     payload["reorg_predictor"] = rp.get_stats()
@@ -1113,6 +1158,87 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json(db.get_chain_metrics(window=window))
                 else:
                     self._json({"error": "chain metrics not available"})
+
+            elif path == "/chain/proposers/stats":
+                db = self.__class__.db
+                if not db or not hasattr(db, "get_proposer_stats"):
+                    self._error(503, "proposer audit not available"); return
+                limit = min(max(int(qs.get("limit", ["20"])[0]), 1), 100)
+                rows = db.get_proposer_stats(limit=limit)
+                self._json({
+                    "count": len(rows),
+                    "proposers": rows,
+                    "audit_total": db.count_proposer_audit(),
+                })
+
+            elif path == "/chain/proposers/history":
+                db = self.__class__.db
+                if not db or not hasattr(db, "get_proposer_audit_log"):
+                    self._error(503, "proposer audit not available"); return
+                limit = min(max(int(qs.get("limit", ["50"])[0]), 1), 200)
+                offset = max(int(qs.get("offset", ["0"])[0]), 0)
+                proposer = qs.get("proposer", [""])[0]
+                total = db.count_proposer_audit(proposer=proposer)
+                rows = db.get_proposer_audit_log(
+                    limit=limit, offset=offset, proposer=proposer
+                )
+                self._json({
+                    "limit": limit,
+                    "offset": offset,
+                    "total": total,
+                    "proposer": proposer or None,
+                    "entries": rows,
+                })
+
+            elif path.startswith("/chain/proposer/"):
+                addr = path[len("/chain/proposer/"):].split("/")[0]
+                if not addr:
+                    self._error(400, "proposer address required"); return
+                db = self.__class__.db
+                if not db or not hasattr(db, "get_proposer_detail"):
+                    self._error(503, "proposer audit not available"); return
+                recent = min(max(int(qs.get("recent", ["10"])[0]), 1), 50)
+                detail = db.get_proposer_detail(addr, recent_limit=recent)
+                if detail["blocks_proposed"] == 0:
+                    self._error(404, "proposer not found in audit log"); return
+                self._json(detail)
+
+            elif path == "/chain/state-root/status":
+                p2p = self.__class__.p2p
+                db = self.__class__.db
+                local_root = bc.get_state_root() if hasattr(bc, "get_state_root") else ""
+                height = bc.get_height() if hasattr(bc, "get_height") else 0
+                policy = (
+                    bc.get_state_root_policy()
+                    if hasattr(bc, "get_state_root_policy")
+                    else {}
+                )
+                peers = []
+                if p2p and hasattr(p2p, "request_peer_state_roots_sync"):
+                    try:
+                        for entry in p2p.request_peer_state_roots_sync(timeout=8):
+                            pr = entry.get("state_root", "")
+                            peers.append({
+                                "peer_id": entry.get("peer_id", ""),
+                                "height": entry.get("height", 0),
+                                "state_root": pr,
+                                "match": (pr == local_root) if pr else None,
+                            })
+                    except Exception:
+                        pass
+                mismatches = []
+                if db and hasattr(db, "get_state_root_mismatches"):
+                    mismatches = db.get_state_root_mismatches(limit=10)
+                self._json({
+                    "height": height,
+                    "state_root": local_root,
+                    "state_consistent": (
+                        getattr(p2p, "_state_consistent", True) if p2p else True
+                    ),
+                    "peers": peers,
+                    "recent_mismatches": mismatches,
+                    **policy,
+                })
 
             elif path.startswith("/tx/receipt/") or path.startswith("/receipts/tx/"):
                 tx_hash = path.split("/")[-1]
@@ -4522,7 +4648,13 @@ def _build_sync_status(se, p2p, bc, cfg) -> Dict:
     peers_info = p2p.get_peers_info() if p2p else []
     best_peer_height = max((p.get("height", 0) for p in peers_info), default=local_h)
     state_consistent = getattr(p2p, "_state_consistent", True) if p2p else True
-    root_fields = {"state_root": state_root, "state_consistent": state_consistent}
+    root_fields = {
+        "state_root": state_root,
+        "state_consistent": state_consistent,
+        "state_root_strict_p2p": getattr(cfg, "state_root_strict_p2p", True),
+    }
+    if bc and hasattr(bc, "get_state_root_policy"):
+        root_fields.update(bc.get_state_root_policy())
 
     if se and hasattr(se, "get_status"):
         status = dict(se.get_status())
@@ -4647,7 +4779,7 @@ def _build_l2_status(handler_cls) -> Dict:
         m.get("persisted") for m in modules.values() if isinstance(m, dict)
     )
     return {
-        "api_wave": 47,
+        "api_wave": 50,
         "l2_persisted": persisted,
         "nft_persisted": nft_persisted,
         "core": {
@@ -4655,10 +4787,37 @@ def _build_l2_status(handler_cls) -> Dict:
                 getattr(handler_cls, "db", None)
                 and hasattr(getattr(handler_cls, "db", None), "get_tx_receipt")
             ),
+            "address_index_enabled": bool(
+                getattr(handler_cls, "db", None)
+                and hasattr(getattr(handler_cls, "db", None), "get_address_activity")
+            ),
+            "proposer_audit_enabled": bool(
+                getattr(handler_cls, "db", None)
+                and hasattr(getattr(handler_cls, "db", None), "get_proposer_audit_log")
+            ),
+            "state_root_strict_p2p": bool(
+                getattr(handler_cls, "blockchain", None)
+                and getattr(
+                    getattr(handler_cls, "blockchain", None),
+                    "config",
+                    None,
+                )
+                and getattr(
+                    getattr(handler_cls, "blockchain", None).config,
+                    "state_root_strict_p2p",
+                    True,
+                )
+            ),
             "endpoints": {
                 "metrics": "GET /chain/metrics",
                 "receipt": "GET /tx/receipt/{hash}",
                 "block_receipts": "GET /receipts/block/{height}",
+                "address_activity": "GET /address/{addr}/activity",
+                "address_txs": "GET /address/{addr}/txs?limit=&offset=&direction=",
+                "proposer_stats": "GET /chain/proposers/stats",
+                "proposer_history": "GET /chain/proposers/history?limit=&offset=&proposer=",
+                "proposer_detail": "GET /chain/proposer/{addr}",
+                "state_root_status": "GET /chain/state-root/status",
             },
         },
         "modules_enabled": list(modules.keys()),
@@ -4955,7 +5114,7 @@ def _handle_devnet_pool_spend(body: Dict, bc, db, cfg, pool_locks) -> Dict:
         "value": amount,
         "block_height": height,
         "fee": 0.0,
-        "status": "confirmed",
+        "status": 1,
         "timestamp": int(_time.time()),
     })
 

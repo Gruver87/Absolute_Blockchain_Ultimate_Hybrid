@@ -117,6 +117,52 @@ class Database:
         except Exception as e:
             print(f"[DB] Migration backfill warning: {e}")
 
+        self._backfill_tx_receipts_v48()
+        self._backfill_proposer_audit_v49()
+
+    def _backfill_proposer_audit_v49(self) -> None:
+        """Build proposer audit rows from historical blocks (Wave 49, idempotent)."""
+        try:
+            missing = self.conn.execute(
+                """SELECT height, hash, miner, tx_count, total_burned, timestamp
+                   FROM blocks
+                   WHERE height NOT IN (SELECT height FROM block_proposer_audit)"""
+            ).fetchall()
+            for r in missing:
+                self._insert_proposer_audit({
+                    "height": r["height"],
+                    "hash": r["hash"],
+                    "miner": r["miner"],
+                    "tx_count": r["tx_count"],
+                    "total_burned": r["total_burned"],
+                    "timestamp": r["timestamp"],
+                })
+            if missing:
+                print(f"[DB] Wave 49: backfilled {len(missing)} proposer audit row(s)")
+        except Exception as e:
+            print(f"[DB] proposer audit backfill warning: {e}")
+
+    def _backfill_tx_receipts_v48(self) -> None:
+        """Build tx_receipts for transactions missing receipts (Wave 48, idempotent)."""
+        try:
+            missing = self.conn.execute(
+                """SELECT t.*, b.hash AS block_hash
+                   FROM transactions t
+                   LEFT JOIN blocks b ON b.height = t.block_height
+                   WHERE t.hash NOT IN (SELECT tx_hash FROM tx_receipts)"""
+            ).fetchall()
+            for r in missing:
+                d = dict(r)
+                self._insert_tx_receipt(
+                    d,
+                    d.get("block_hash") or "",
+                    int(d.get("block_height") or 0),
+                )
+            if missing:
+                print(f"[DB] Wave 48: backfilled {len(missing)} tx receipt(s)")
+        except Exception as e:
+            print(f"[DB] tx_receipts backfill warning: {e}")
+
     def _create_tables(self):
         self.conn.executescript("""
             CREATE TABLE IF NOT EXISTS blocks (
@@ -420,6 +466,29 @@ class Database:
             );
             CREATE INDEX IF NOT EXISTS idx_tx_receipt_block ON tx_receipts(block_height);
 
+            CREATE TABLE IF NOT EXISTS block_proposer_audit (
+                height        INTEGER PRIMARY KEY,
+                block_hash    TEXT NOT NULL DEFAULT '',
+                proposer      TEXT NOT NULL DEFAULT '',
+                tx_count      INTEGER NOT NULL DEFAULT 0,
+                total_burned  REAL NOT NULL DEFAULT 0.0,
+                block_ts      INTEGER NOT NULL DEFAULT 0,
+                recorded_at   INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_proposer_audit_addr ON block_proposer_audit(proposer);
+            CREATE INDEX IF NOT EXISTS idx_proposer_audit_ts ON block_proposer_audit(block_ts);
+
+            CREATE TABLE IF NOT EXISTS state_root_mismatches (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                height        INTEGER NOT NULL,
+                expected_root TEXT NOT NULL DEFAULT '',
+                computed_root TEXT NOT NULL DEFAULT '',
+                source        TEXT NOT NULL DEFAULT 'p2p',
+                proposer      TEXT NOT NULL DEFAULT '',
+                created_at    INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_state_root_mm_height ON state_root_mismatches(height);
+
             CREATE INDEX IF NOT EXISTS idx_tx_block ON transactions(block_height);
             CREATE INDEX IF NOT EXISTS idx_tx_from  ON transactions(from_addr);
             CREATE INDEX IF NOT EXISTS idx_tx_to    ON transactions(to_addr);
@@ -465,6 +534,28 @@ class Database:
                 block.get("total_burned", 0.0),
                 block.get("extra_data", ""),
                 json.dumps(block),
+            ),
+        )
+        self._insert_proposer_audit(block)
+
+    def _insert_proposer_audit(self, block: Dict) -> None:
+        height = int(block.get("height", block.get("number", 0)) or 0)
+        block_hash = block.get("hash", block.get("block_hash", "")) or ""
+        proposer = self._normalize_address(
+            block.get("miner", block.get("proposer", "genesis")) or "genesis"
+        )
+        self.conn.execute(
+            """INSERT OR REPLACE INTO block_proposer_audit
+               (height, block_hash, proposer, tx_count, total_burned, block_ts, recorded_at)
+               VALUES (?,?,?,?,?,?,?)""",
+            (
+                height,
+                block_hash,
+                proposer,
+                int(block.get("tx_count", len(block.get("transactions", []))) or 0),
+                float(block.get("total_burned", 0.0) or 0.0),
+                int(block.get("timestamp", int(time.time())) or 0),
+                int(time.time()),
             ),
         )
 
@@ -587,6 +678,12 @@ class Database:
                 "DELETE FROM tx_receipts WHERE block_height > ?", (int(height),)
             )
             self.conn.execute(
+                "DELETE FROM block_proposer_audit WHERE height > ?", (int(height),)
+            )
+            self.conn.execute(
+                "DELETE FROM state_root_mismatches WHERE height > ?", (int(height),)
+            )
+            self.conn.execute(
                 "DELETE FROM burn_stats WHERE block_height > ?", (int(height),)
             )
             cur = self.conn.execute(
@@ -620,6 +717,24 @@ class Database:
 
     # ── Транзакции ───────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _normalize_tx_status(status: Any) -> int:
+        if status is None:
+            return 1
+        if isinstance(status, bool):
+            return 1 if status else 0
+        if isinstance(status, (int, float)):
+            return 1 if int(status) != 0 else 0
+        s = str(status).strip().lower()
+        if s in ("1", "true", "ok", "success", "confirmed", "mined"):
+            return 1
+        if s in ("0", "false", "failed", "reverted", "pending"):
+            return 0
+        try:
+            return 1 if int(s) != 0 else 0
+        except ValueError:
+            return 1
+
     def _insert_transaction(self, tx: Dict) -> None:
         self.conn.execute(
             """INSERT OR REPLACE INTO transactions
@@ -629,8 +744,8 @@ class Database:
             (
                 tx.get("hash", tx.get("tx_hash", "")),
                 tx.get("block_height", 0),
-                tx.get("from_addr", tx.get("from", "")),
-                tx.get("to_addr", tx.get("to", "")),
+                self._normalize_address(tx.get("from_addr", tx.get("from", ""))),
+                self._normalize_address(tx.get("to_addr", tx.get("to", ""))),
                 tx.get("value", tx.get("amount", 0.0)),
                 tx.get("gas", 21000),
                 tx.get("gas_used", tx.get("gas", 21000)),
@@ -638,7 +753,7 @@ class Database:
                 tx.get("burned", 0.0),
                 tx.get("nonce", 0),
                 tx.get("data", tx.get("tx_data", "")),
-                tx.get("status", 1),
+                self._normalize_tx_status(tx.get("status", 1)),
                 tx.get("timestamp", int(time.time())),
             ),
         )
@@ -656,13 +771,13 @@ class Database:
                 tx_hash,
                 int(tx.get("block_height", block_height) or block_height),
                 block_hash,
-                tx.get("from_addr", tx.get("from", "")),
-                tx.get("to_addr", tx.get("to", "")),
+                self._normalize_address(tx.get("from_addr", tx.get("from", ""))),
+                self._normalize_address(tx.get("to_addr", tx.get("to", ""))),
                 float(tx.get("value", tx.get("amount", 0.0))),
                 float(tx.get("fee", 0.0)),
                 float(tx.get("burned", 0.0)),
                 int(tx.get("gas_used", tx.get("gas", 21000))),
-                int(tx.get("status", 1)),
+                self._normalize_tx_status(tx.get("status", 1)),
                 int(tx.get("timestamp", time.time())),
             ),
         )
@@ -719,9 +834,13 @@ class Database:
                 "SELECT COUNT(*) as c FROM transactions"
             ).fetchone()["c"]
             receipt_count = 0
+            proposer_audit_count = 0
             try:
                 receipt_count = self.conn.execute(
                     "SELECT COUNT(*) as c FROM tx_receipts"
+                ).fetchone()["c"]
+                proposer_audit_count = self.conn.execute(
+                    "SELECT COUNT(*) as c FROM block_proposer_audit"
                 ).fetchone()["c"]
             except Exception:
                 pass
@@ -745,7 +864,10 @@ class Database:
                 "height": tip,
                 "tx_count": int(tx_count),
                 "receipt_count": int(receipt_count),
+                "proposer_audit_count": int(proposer_audit_count),
                 "receipts_enabled": True,
+                "proposer_audit_enabled": True,
+                "state_root_strict_p2p": True,
                 "avg_block_time_sec": round(avg_block_time, 2),
                 "target_block_time_sec": target,
                 "blocks_sampled": len(rows),
@@ -753,6 +875,135 @@ class Database:
                     sum(float(r["total_burned"] or 0) for r in rows), 6
                 ),
             }
+
+    def get_proposer_audit_log(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        proposer: str = "",
+    ) -> List[Dict]:
+        limit = max(1, min(int(limit), 200))
+        offset = max(0, int(offset))
+        with self.lock:
+            if proposer:
+                addr = self._normalize_address(proposer)
+                rows = self.conn.execute(
+                    """SELECT * FROM block_proposer_audit
+                       WHERE proposer=?
+                       ORDER BY height DESC LIMIT ? OFFSET ?""",
+                    (addr, limit, offset),
+                ).fetchall()
+            else:
+                rows = self.conn.execute(
+                    """SELECT * FROM block_proposer_audit
+                       ORDER BY height DESC LIMIT ? OFFSET ?""",
+                    (limit, offset),
+                ).fetchall()
+            return [
+                {
+                    "height": r["height"],
+                    "block_hash": r["block_hash"],
+                    "proposer": r["proposer"],
+                    "tx_count": r["tx_count"],
+                    "total_burned": r["total_burned"],
+                    "timestamp": r["block_ts"],
+                    "recorded_at": r["recorded_at"],
+                }
+                for r in rows
+            ]
+
+    def count_proposer_audit(
+        self, proposer: str = ""
+    ) -> int:
+        with self.lock:
+            if proposer:
+                addr = self._normalize_address(proposer)
+                return int(self.conn.execute(
+                    "SELECT COUNT(*) as c FROM block_proposer_audit WHERE proposer=?",
+                    (addr,),
+                ).fetchone()["c"])
+            return int(self.conn.execute(
+                "SELECT COUNT(*) as c FROM block_proposer_audit"
+            ).fetchone()["c"])
+
+    def get_proposer_stats(self, limit: int = 20) -> List[Dict]:
+        """Top proposers by blocks proposed."""
+        limit = max(1, min(int(limit), 100))
+        with self.lock:
+            rows = self.conn.execute(
+                """SELECT proposer,
+                          COUNT(*) as blocks_proposed,
+                          SUM(tx_count) as total_txs,
+                          SUM(total_burned) as total_burned,
+                          MAX(height) as last_height,
+                          MIN(height) as first_height
+                   FROM block_proposer_audit
+                   GROUP BY proposer
+                   ORDER BY blocks_proposed DESC
+                   LIMIT ?""",
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_proposer_detail(self, address: str, recent_limit: int = 10) -> Dict:
+        addr = self._normalize_address(address)
+        with self.lock:
+            row = self.conn.execute(
+                """SELECT COUNT(*) as blocks_proposed,
+                          SUM(tx_count) as total_txs,
+                          SUM(total_burned) as total_burned,
+                          MAX(height) as last_height,
+                          MIN(height) as first_height
+                   FROM block_proposer_audit WHERE proposer=?""",
+                (addr,),
+            ).fetchone()
+            recent = self.get_proposer_audit_log(
+                limit=recent_limit, offset=0, proposer=addr
+            )
+            return {
+                "proposer": addr,
+                "blocks_proposed": int(row["blocks_proposed"] or 0),
+                "total_txs": int(row["total_txs"] or 0),
+                "total_burned": float(row["total_burned"] or 0.0),
+                "first_height": row["first_height"],
+                "last_height": row["last_height"],
+                "recent_blocks": recent,
+            }
+
+    def record_state_root_mismatch(
+        self,
+        height: int,
+        expected_root: str,
+        computed_root: str,
+        source: str = "p2p",
+        proposer: str = "",
+    ) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT INTO state_root_mismatches
+                   (height, expected_root, computed_root, source, proposer, created_at)
+                   VALUES (?,?,?,?,?,?)""",
+                (
+                    int(height),
+                    str(expected_root or ""),
+                    str(computed_root or ""),
+                    str(source or "p2p"),
+                    self._normalize_address(proposer),
+                    int(time.time()),
+                ),
+            )
+            self.conn.commit()
+
+    def get_state_root_mismatches(self, limit: int = 20) -> List[Dict]:
+        limit = max(1, min(int(limit), 100))
+        with self.lock:
+            rows = self.conn.execute(
+                """SELECT height, expected_root, computed_root, source, proposer, created_at
+                   FROM state_root_mismatches
+                   ORDER BY id DESC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
 
     def save_transaction(self, tx: Dict) -> bool:
         with self.lock:
@@ -772,15 +1023,132 @@ class Database:
             ).fetchone()
             return dict(row) if row else None
 
-    def get_transactions_by_address(self, address: str, limit: int = 50) -> List[Dict]:
+    @staticmethod
+    def _normalize_address(address: str) -> str:
+        return (address or "").strip().lower()
+
+    def _serialize_tx_row(self, row: Dict, viewer_addr: str = "") -> Dict:
+        viewer = self._normalize_address(viewer_addr)
+        from_addr = self._normalize_address(row.get("from_addr", ""))
+        to_addr = self._normalize_address(row.get("to_addr", ""))
+        direction = "unknown"
+        if viewer:
+            if from_addr == viewer and to_addr == viewer:
+                direction = "self"
+            elif from_addr == viewer:
+                direction = "sent"
+            elif to_addr == viewer:
+                direction = "received"
+        return {
+            "hash": row.get("hash", ""),
+            "block_height": row.get("block_height", 0),
+            "from": from_addr,
+            "to": to_addr,
+            "value": float(row.get("value", 0.0)),
+            "fee": float(row.get("fee", 0.0)),
+            "burned": float(row.get("burned", 0.0)),
+            "gas_used": int(row.get("gas_used", row.get("gas", 21000))),
+            "status": self._normalize_tx_status(row.get("status", 1)),
+            "timestamp": int(row.get("timestamp", 0)),
+            "direction": direction,
+        }
+
+    def count_address_transactions(
+        self, address: str, direction: str = "all"
+    ) -> int:
+        addr = self._normalize_address(address)
+        if not addr:
+            return 0
         with self.lock:
+            if direction == "sent":
+                q = "SELECT COUNT(*) as c FROM transactions WHERE LOWER(from_addr)=?"
+                params: tuple = (addr,)
+            elif direction == "received":
+                q = "SELECT COUNT(*) as c FROM transactions WHERE LOWER(to_addr)=?"
+                params = (addr,)
+            else:
+                q = (
+                    "SELECT COUNT(*) as c FROM transactions "
+                    "WHERE LOWER(from_addr)=? OR LOWER(to_addr)=?"
+                )
+                params = (addr, addr)
+            return int(self.conn.execute(q, params).fetchone()["c"])
+
+    def get_transactions_by_address(
+        self,
+        address: str,
+        limit: int = 50,
+        offset: int = 0,
+        direction: str = "all",
+    ) -> List[Dict]:
+        addr = self._normalize_address(address)
+        limit = max(1, min(int(limit), 200))
+        offset = max(0, int(offset))
+        with self.lock:
+            if direction == "sent":
+                where = "LOWER(from_addr)=?"
+                params: List = [addr]
+            elif direction == "received":
+                where = "LOWER(to_addr)=?"
+                params = [addr]
+            else:
+                where = "(LOWER(from_addr)=? OR LOWER(to_addr)=?)"
+                params = [addr, addr]
             rows = self.conn.execute(
-                """SELECT * FROM transactions
-                   WHERE from_addr=? OR to_addr=?
-                   ORDER BY block_height DESC LIMIT ?""",
-                (address, address, limit),
+                f"""SELECT * FROM transactions
+                    WHERE {where}
+                    ORDER BY block_height DESC, rowid DESC
+                    LIMIT ? OFFSET ?""",
+                (*params, limit, offset),
             ).fetchall()
-            return [dict(r) for r in rows]
+            return [self._serialize_tx_row(dict(r), addr) for r in rows]
+
+    def get_address_activity(self, address: str) -> Dict:
+        addr = self._normalize_address(address)
+        with self.lock:
+            sent = int(self.conn.execute(
+                "SELECT COUNT(*) as c FROM transactions WHERE LOWER(from_addr)=?",
+                (addr,),
+            ).fetchone()["c"])
+            received = int(self.conn.execute(
+                "SELECT COUNT(*) as c FROM transactions WHERE LOWER(to_addr)=?",
+                (addr,),
+            ).fetchone()["c"])
+            total = int(self.conn.execute(
+                "SELECT COUNT(*) as c FROM transactions "
+                "WHERE LOWER(from_addr)=? OR LOWER(to_addr)=?",
+                (addr, addr),
+            ).fetchone()["c"])
+            blocks_proposed = int(self.conn.execute(
+                "SELECT COUNT(*) as c FROM blocks WHERE LOWER(miner)=?",
+                (addr,),
+            ).fetchone()["c"])
+            row = self.conn.execute(
+                """SELECT MAX(block_height) as h FROM transactions
+                   WHERE LOWER(from_addr)=? OR LOWER(to_addr)=?""",
+                (addr, addr),
+            ).fetchone()
+            last_h = int(row["h"]) if row and row["h"] is not None else None
+            bal_row = self.conn.execute(
+                "SELECT balance FROM accounts WHERE address=?", (addr,)
+            ).fetchone()
+            nonce_row = self.conn.execute(
+                "SELECT nonce FROM accounts WHERE address=?", (addr,)
+            ).fetchone()
+            code_row = self.conn.execute(
+                "SELECT code FROM accounts WHERE address=?", (addr,)
+            ).fetchone()
+            return {
+                "address": addr,
+                "balance": float(bal_row["balance"]) if bal_row else 0.0,
+                "nonce": int(nonce_row["nonce"]) if nonce_row else 0,
+                "sent_count": sent,
+                "received_count": received,
+                "tx_count": total,
+                "blocks_proposed": blocks_proposed,
+                "last_tx_height": last_h,
+                "is_contract": bool(code_row and code_row["code"]),
+            }
 
     def get_recent_transactions(self, limit: int = 30) -> List[Dict]:
         """Последние транзакции по всей цепи (для dashboard/explorer)."""

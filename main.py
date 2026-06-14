@@ -331,9 +331,13 @@ class NodeOrchestrator:
             and self.blockchain.get_height() > 0
         ):
             config.state_root_legacy_cutoff_height = self.blockchain.get_height()
+        if config.verify_peer_state_root:
+            self.blockchain.set_state_root_baseline(
+                config.state_root_legacy_cutoff_height or self.blockchain.get_height()
+            )
             print(
-                f"[Node] state_root legacy cutoff: #{config.state_root_legacy_cutoff_height} "
-                "(blocks above require strict match)"
+                f"[Node] state_root policy: strict_p2p={config.state_root_strict_p2p} "
+                f"baseline=#{self.blockchain._state_root_baseline}"
             )
         # Сохраняем метаданные токеномики (genesis-аллокация — после загрузки wallet)
         try:

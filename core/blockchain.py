@@ -356,11 +356,33 @@ class Blockchain:
         if len(peer_root) < 64:
             return "legacy_warn"
         if preserve_peer:
-            # P2P import: replay tolerates drift; strict applies only to locally mined blocks
+            if getattr(self.config, "state_root_strict_p2p", True):
+                if block_height <= self._state_root_baseline:
+                    return "legacy_warn"
+                return "strict"
             return "legacy_warn"
         if block_height <= self._state_root_baseline:
             return "legacy_warn"
         return "strict"
+
+    def get_state_root_policy(self) -> Dict:
+        return {
+            "verify_peer_state_root": bool(
+                getattr(self.config, "verify_peer_state_root", True)
+            ),
+            "state_root_strict_p2p": bool(
+                getattr(self.config, "state_root_strict_p2p", True)
+            ),
+            "legacy_cutoff_height": int(
+                getattr(self.config, "state_root_legacy_cutoff_height", 0) or 0
+            ),
+            "baseline_height": int(self._state_root_baseline),
+            "policy": (
+                "strict_p2p"
+                if getattr(self.config, "state_root_strict_p2p", True)
+                else "legacy_warn"
+            ),
+        }
 
     # ── Создание блока ───────────────────────────────────────────────────────
 
@@ -413,6 +435,8 @@ class Blockchain:
 
             peer_state_root = block.state_root if preserve_peer_hash and block.state_root else None
             slashing = self._resolve_slashing_core()
+            computed_root = None
+            peer_root_for_audit = None
 
             try:
                 with self.db.atomic():
@@ -435,6 +459,7 @@ class Blockchain:
                         peer_root = str(peer_state_root).strip()
                         if mode != "skip" and peer_root != computed_root:
                             if mode == "strict":
+                                peer_root_for_audit = peer_root
                                 raise RuntimeError(
                                     f"state_root_mismatch expected={peer_root[:16]} "
                                     f"computed={computed_root[:16]}"
@@ -462,6 +487,21 @@ class Blockchain:
                         burn_address=self.config.burn_address if block.total_burned > 0 else "",
                     )
             except Exception as e:
+                if (
+                    peer_root_for_audit
+                    and computed_root
+                    and hasattr(self.db, "record_state_root_mismatch")
+                ):
+                    try:
+                        self.db.record_state_root_mismatch(
+                            block.height,
+                            peer_root_for_audit,
+                            computed_root,
+                            source="p2p" if preserve_peer_hash else "local",
+                            proposer=block.miner,
+                        )
+                    except Exception:
+                        pass
                 print(f"[Blockchain] Block execution failed #{block.height}: {e}")
                 return False
 

@@ -63,6 +63,7 @@ class Config:
     require_signatures: bool = False    # prod / node.json: true — reject unsigned txs
     enforce_proposer: bool = True       # reject blocks from unknown/slashed proposers
     verify_peer_state_root: bool = True # compare state_root on P2P import
+    state_root_strict_p2p: bool = True  # strict state_root on P2P import above baseline
     state_root_legacy_cutoff_height: int = 0  # blocks <= cutoff: warn on drift; above: strict
     monitor_port: int = 0               # 0 = http_port + 12 (8092 for :8080)
     rpc_proxy_port: int = 0             # 0 = http_port + 2 (8082 for :8080)
@@ -185,6 +186,9 @@ class Config:
         self.enforce_proposer = env_bool("ENFORCE_PROPOSER", self.enforce_proposer)
         self.verify_peer_state_root = env_bool(
             "VERIFY_PEER_STATE_ROOT", self.verify_peer_state_root
+        )
+        self.state_root_strict_p2p = env_bool(
+            "STATE_ROOT_STRICT_P2P", self.state_root_strict_p2p
         )
         self.state_root_legacy_cutoff_height = env_int(
             "STATE_ROOT_LEGACY_CUTOFF_HEIGHT",

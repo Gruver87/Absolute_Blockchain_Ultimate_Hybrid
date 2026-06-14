@@ -66,7 +66,7 @@ for ($i = 0; $i -lt 40; $i++) {
             if ($st.node_id -like "docker-node-*") {
             $ok1 = $true
             Write-Host "node1 ready ($($st.node_id)) api_wave=$($st.api_wave)" -ForegroundColor Green
-            if ($null -eq $st.api_wave -or [int]$st.api_wave -lt 47) {
+            if ($null -eq $st.api_wave -or [int]$st.api_wave -lt 50) {
                 Write-Host "WARN: Docker image is older than Wave 47 — rebuild: docker compose -f $composeFile build --no-cache node1" -ForegroundColor Yellow
             }
             try {

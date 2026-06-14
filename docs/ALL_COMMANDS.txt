@@ -88,7 +88,18 @@
 # Wave 47 (ядро L1):
 #   TX receipts в SQLite при каждом блоке (fee, burned, gas_used)
 #   GET /tx/receipt/{hash}, GET /receipts/block/{height}, GET /chain/metrics
-#   avg_block_time_sec, receipt_count; очистка receipts при reorg
+# Wave 50 (ядро L1):
+#   STATE_ROOT_STRICT_P2P=true — строгая сверка state_root при P2P import выше baseline
+#   GET /chain/state-root/status — peers, policy, recent_mismatches
+#   SQLite state_root_mismatches; baseline фиксируется при старте ноды
+#
+#   block_proposer_audit SQLite — кто предложил каждый блок
+#   GET /chain/proposers/stats, GET /chain/proposers/history, GET /chain/proposer/{addr}
+#   proposer_audit_count в GET /chain/metrics; очистка при reorg
+#
+#   GET /address/{addr}/activity — sent/received counts, last_tx_height
+#   GET /address/{addr}/txs?limit=&offset=&direction=all|sent|received
+#   Backfill tx_receipts из старых transactions при старте ноды
 #
 # --- Архитектура ---
 #

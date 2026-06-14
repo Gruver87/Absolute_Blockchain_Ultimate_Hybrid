@@ -2,11 +2,33 @@
 
 Все значимые изменения документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/).
 
-**Текущая волна API:** `api_wave = 47` (проверка: `GET /status`)
+**Текущая волна API:** `api_wave = 50` (проверка: `GET /status`)
 
 ---
 
-## [1.2.0-industrial] — Wave 37–47 (июнь 2026)
+## [1.2.0-industrial] — Wave 37–50 (июнь 2026)
+
+### Wave 50 — Strict state_root on all nodes
+
+- `state_root_strict_p2p` (default `true`) — P2P import rejects `state_root` mismatch above baseline
+- `GET /chain/state-root/status` — local root, peer comparison, policy, recent mismatches
+- SQLite `state_root_mismatches` audit log; pruned on reorg
+- `/sync/status` includes `state_root_strict_p2p` and policy fields
+
+### Wave 49 — Block proposer audit log
+
+- `block_proposer_audit` SQLite table on every confirmed block
+- Backfill from historical `blocks` on node start
+- `GET /chain/proposers/stats` — top proposers by block count
+- `GET /chain/proposers/history` — paginated audit log (`proposer` filter)
+- `GET /chain/proposer/{addr}` — proposer detail + recent blocks
+- Pruned on reorg; `proposer_audit_count` in `/chain/metrics`
+
+### Wave 48 — Address tx index + receipt backfill
+
+- `GET /address/{addr}/activity` — balance, sent/received counts, last tx height
+- `GET /address/{addr}/txs` — paginated history (`limit`, `offset`, `direction=sent|received|all`)
+- Idempotent backfill: historical `transactions` → `tx_receipts` on each node start
 
 ### Wave 47 — Core L1 receipts + chain metrics
 
@@ -73,9 +95,9 @@
 
 | Проверка | Результат |
 |----------|-----------|
-| `pytest tests/unit` | 195 passed, 1 skipped |
+| `pytest tests/unit` | 210 passed, 1 skipped |
 | Docker devnet 2 nodes | P2P sync, heights aligned, `state_roots_match=True` |
-| `api_wave` | 47 |
+| `api_wave` | 50 |
 | `mega_audit.py` | 256 REST routes |
 
 ---

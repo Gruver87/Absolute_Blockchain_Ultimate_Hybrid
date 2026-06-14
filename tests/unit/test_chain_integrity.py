@@ -78,12 +78,15 @@ def test_signed_tx_accepted(chain_env):
 
 def test_state_root_mismatch_rejects_import(chain_env):
     cfg, db, bc = chain_env
-    block = bc.create_block([], cfg.miner_address)
-    ok = bc.add_block(block)
-    assert ok
+    cfg.state_root_strict_p2p = True
+    for _ in range(2):
+        assert bc.add_block(bc.create_block([], cfg.miner_address))
+    bc.set_state_root_baseline(bc.get_height())
 
-    peer_block = block.to_dict()
+    nxt = bc.create_block([], cfg.miner_address)
+    peer_block = nxt.to_dict()
     peer_block["state_root"] = "f" * 64
+    peer_block["hash"] = "d" * 64
     assert bc.import_block(peer_block) is False
 
 
