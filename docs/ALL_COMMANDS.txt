@@ -88,7 +88,12 @@
 # Wave 47 (ядро L1):
 #   TX receipts в SQLite при каждом блоке (fee, burned, gas_used)
 #   GET /tx/receipt/{hash}, GET /receipts/block/{height}, GET /chain/metrics
-# Wave 50 (ядро L1):
+# Wave 51 (P2P tx propagation):
+#   Full signed tx gossip + mempool pull sync (GET_MEMPOOL / MEMPOOL)
+#   SQLite tx_propagation_events — api_submit → mempool → P2P → block → receipt
+#   GET /tx/trace/{hash}, GET /tx/propagation/recent
+#   Explorer: Tx Propagation Trace card on dashboard
+#
 #   STATE_ROOT_STRICT_P2P=true — строгая сверка state_root при P2P import выше baseline
 #   GET /chain/state-root/status — peers, policy, recent_mismatches
 #   SQLite state_root_mismatches; baseline фиксируется при старте ноды

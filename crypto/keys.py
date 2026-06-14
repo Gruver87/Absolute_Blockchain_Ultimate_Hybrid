@@ -6,7 +6,6 @@ secp256k1 curve (same as Bitcoin/Ethereum)
 
 import hashlib
 import secrets
-import base58
 from typing import Tuple, Optional
 from dataclasses import dataclass
 

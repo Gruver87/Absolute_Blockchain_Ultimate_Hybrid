@@ -41,6 +41,8 @@ MSG_BLOCK      = "block"
 MSG_GET_BLOCKS = "get_blocks"   # диапазон блоков
 MSG_BLOCKS     = "blocks"
 MSG_NEW_TX     = "new_tx"
+MSG_GET_MEMPOOL = "get_mempool"
+MSG_MEMPOOL    = "mempool"
 MSG_GET_PEERS  = "get_peers"
 MSG_PEERS      = "peers"
 MSG_STATUS     = "status"       # height + head hash
@@ -299,7 +301,7 @@ class P2PNode:
             "version": self.config.node_version,
             "height": our_height,
             "head_hash": self.head() or "",
-            "node_id": f"abs-{self.config.p2p_port}",
+            "node_id": getattr(self.config, "node_id", f"abs-{self.config.p2p_port}"),
         }
 
         if initiator:
@@ -385,7 +387,13 @@ class P2PNode:
             await self._handle_get_blocks(peer, data)
 
         elif msg_type == MSG_NEW_TX:
-            await self._handle_new_tx(data)
+            await self._handle_new_tx(peer, data)
+
+        elif msg_type == MSG_GET_MEMPOOL:
+            await self._handle_get_mempool(peer)
+
+        elif msg_type == MSG_MEMPOOL:
+            await self._handle_mempool_batch(peer, data)
 
         elif msg_type == MSG_GET_PEERS:
             peer_list = [f"{p.host}:{p.port}" for p in self.peers.values()
@@ -554,10 +562,38 @@ class P2PNode:
                 blocks.append(blk)
         await peer.send(MSG_BLOCKS, blocks)
 
-    async def _handle_new_tx(self, data: Dict):
-        """Принимаем транзакцию из сети — с полной валидацией как в RPC."""
-        if not isinstance(data, dict):
+    def _record_tx_propagation(
+        self,
+        tx_hash: str,
+        stage: str,
+        peer_id: str = "",
+        block_height: int = 0,
+        detail: Optional[Dict] = None,
+    ) -> None:
+        db = getattr(self.blockchain, "db", None)
+        if not db or not hasattr(db, "record_tx_propagation_event"):
             return
+        try:
+            db.record_tx_propagation_event(
+                tx_hash,
+                stage,
+                node_id=getattr(self.config, "node_id", ""),
+                peer_id=peer_id,
+                block_height=block_height,
+                detail=detail or {},
+            )
+        except Exception:
+            pass
+
+    async def _ingest_peer_tx(
+        self,
+        data: Dict,
+        source: str = "p2p_gossip",
+        peer_id: str = "",
+    ) -> bool:
+        """Validate and add a wire-format tx to mempool; record propagation stages."""
+        if not isinstance(data, dict):
+            return False
         from core.blockchain import Transaction
         from blockchain.mempool import MempoolTransaction
 
@@ -569,6 +605,7 @@ class P2PNode:
         signature = data.get("signature", "")
         public_key = data.get("public_key", "")
         calldata = data.get("data", data.get("input", ""))
+        tx_hash = data.get("hash", data.get("tx_hash", ""))
 
         tx = Transaction(
             from_addr=from_addr,
@@ -579,12 +616,12 @@ class P2PNode:
             data=calldata,
             signature=signature,
             public_key=public_key,
-            tx_hash=data.get("hash", data.get("tx_hash", "")),
+            tx_hash=tx_hash,
         )
         validation = self.blockchain.validate_transaction(tx)
         if not validation["valid"]:
             logger.debug(f"[P2P] Tx rejected: {validation.get('error')}")
-            return
+            return False
 
         fee = float(data.get("fee", gas * getattr(self.config, "gas_price_wei", 0.001)))
         mp_tx = MempoolTransaction(
@@ -599,8 +636,64 @@ class P2PNode:
             data=calldata,
             gas=gas,
         )
-        if self.mempool.add(mp_tx):
-            logger.debug(f"[P2P] Accepted tx {tx.hash[:12]}… from network")
+        if not self.mempool.add(mp_tx):
+            return False
+
+        stage_recv = "mempool_sync" if source == "mempool_sync" else "p2p_received"
+        self._record_tx_propagation(
+            tx.hash,
+            stage_recv,
+            peer_id=peer_id,
+            detail={"source": source},
+        )
+        self._record_tx_propagation(
+            tx.hash,
+            "mempool_remote",
+            peer_id=peer_id,
+            detail={"mempool_size": self.mempool.get_size()},
+        )
+        logger.debug(f"[P2P] Accepted tx {tx.hash[:12]}… ({source})")
+        return True
+
+    async def _handle_new_tx(self, peer: PeerConnection, data: Dict):
+        """Принимаем транзакцию из gossip."""
+        peer_id = getattr(peer, "peer_id", "") if peer else ""
+        await self._ingest_peer_tx(data, source="p2p_gossip", peer_id=peer_id)
+
+    async def _handle_get_mempool(self, peer: PeerConnection):
+        from blockchain.mempool_wire import mempool_tx_to_wire
+        pending = self.mempool.get(limit=200)
+        wire = [mempool_tx_to_wire(t) for t in pending]
+        await peer.send(MSG_MEMPOOL, {"transactions": wire, "count": len(wire)})
+
+    async def _handle_mempool_batch(self, peer: PeerConnection, data: Dict):
+        if not isinstance(data, dict):
+            return
+        txs = data.get("transactions", [])
+        if not isinstance(txs, list):
+            return
+        peer_id = getattr(peer, "peer_id", "") if peer else ""
+        accepted = 0
+        for tx_data in txs:
+            if await self._ingest_peer_tx(
+                tx_data, source="mempool_sync", peer_id=peer_id
+            ):
+                accepted += 1
+        if accepted:
+            print(f"[P2P] Mempool sync from {peer_id[:8]}: +{accepted} tx(s)")
+
+    async def _sync_mempool_with_peer(self, peer: PeerConnection):
+        """Pull peer mempool when chain tips are aligned (real pending tx relay)."""
+        if abs(peer.height - self.blockchain.get_height()) > 2:
+            return
+        msg = await self._wait_peer_response(
+            peer,
+            (MSG_MEMPOOL,),
+            timeout=12,
+            presend=lambda: peer.send(MSG_GET_MEMPOOL, {}),
+        )
+        if msg and msg.get("type") == MSG_MEMPOOL:
+            await self._handle_mempool_batch(peer, msg.get("data") or {})
 
     # ── Синхронизация ────────────────────────────────────────────────────────
 
@@ -653,6 +746,7 @@ class P2PNode:
                 loop = asyncio.get_running_loop()
                 ok = await loop.run_in_executor(None, self.sync_engine.sync_state)
                 self._state_consistent = bool(ok)
+            await self._sync_mempool_with_peer(peer)
             return
 
         if self.sync_engine:
@@ -724,6 +818,8 @@ class P2PNode:
         if hasattr(self.blockchain, "set_state_root_baseline"):
             self.blockchain.set_state_root_baseline(new_h)
             print(f"[P2P] State-root baseline set to #{new_h} (strict above)")
+
+        await self._sync_mempool_with_peer(peer)
 
     async def _reconcile_fork_at_peer(self, peer: PeerConnection) -> bool:
         """Same height, different head — reorg to peer canonical block."""
@@ -936,7 +1032,20 @@ class P2PNode:
             await asyncio.gather(*tasks, return_exceptions=True)
 
     async def broadcast_tx(self, tx_data: Dict):
-        """Рассылает транзакцию всем пирам."""
+        """Рассылает транзакцию всем пирам (full signed wire payload)."""
+        from blockchain.mempool_wire import mempool_tx_to_wire
+
+        tx_hash = tx_data.get("hash", tx_data.get("tx_hash", ""))
+        if tx_hash and hasattr(self.mempool, "get_transaction"):
+            mp_tx = self.mempool.get_transaction(tx_hash)
+            if mp_tx:
+                tx_data = mempool_tx_to_wire(mp_tx)
+        if tx_hash:
+            self._record_tx_propagation(
+                tx_hash,
+                "p2p_broadcast",
+                detail={"peer_count": len(self.peers)},
+            )
         tasks = [peer.send(MSG_NEW_TX, tx_data) for peer in self.peers.values()]
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)

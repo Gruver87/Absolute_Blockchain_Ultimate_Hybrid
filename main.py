@@ -386,12 +386,24 @@ class NodeOrchestrator:
                                 _w = Wallet.from_private_key(_pk_env)
                                 self.wallet = _w
                                 config.signing_address = _w.address
-                                config.miner_address = _w.address
-                                print(
-                                    f"[Node] Operational wallet from WALLET_PRIVATE_KEY: "
-                                    f"{_w.address} (mining + signing)"
+                                _founder_mining = (
+                                    _waddr
+                                    and config.miner_address
+                                    and config.miner_address.lower() == _waddr.lower()
                                 )
-                                if _waddr and _w.address.lower() != _waddr.lower():
+                                if _founder_mining and _w.address.lower() != _waddr.lower():
+                                    self._dev_signer_only = True
+                                    print(
+                                        f"[Node] Signing wallet from WALLET_PRIVATE_KEY: "
+                                        f"{_w.address} (founder mines: {_waddr})"
+                                    )
+                                else:
+                                    config.miner_address = _w.address
+                                    print(
+                                        f"[Node] Operational wallet from WALLET_PRIVATE_KEY: "
+                                        f"{_w.address} (mining + signing)"
+                                    )
+                                if _waddr and _w.address.lower() != _waddr.lower() and not _founder_mining:
                                     print(
                                         f"[Node] Founder in wallet.json is watch-only "
                                         f"(tokenomics): {_waddr}"
@@ -417,10 +429,38 @@ class NodeOrchestrator:
             )
         if _WALLET_AVAILABLE and self.wallet is None and not config.require_wallet_file:
             if config.miner_address and os.path.exists(_wallet_path):
-                print(
-                    f"[Node] Wallet address loaded (no private_key in file — "
-                    f"signing disabled): {config.miner_address}"
-                )
+                _dev_loaded = False
+                if config.deployment_mode == "dev":
+                    _dev_signer_path = os.path.join(_data_dir, "dev_signer.json")
+                    try:
+                        if os.path.exists(_dev_signer_path):
+                            self.wallet = Wallet.import_wallet(_dev_signer_path)
+                        else:
+                            self.wallet = Wallet.create_new()
+                            os.makedirs(_data_dir, exist_ok=True)
+                            self.wallet.export(_dev_signer_path)
+                            self.db.update_balance(self.wallet.address, 10_000.0)
+                            print(
+                                f"[Node] Dev signer created + funded (10k ABS): "
+                                f"{self.wallet.address}"
+                            )
+                        if self.wallet:
+                            config.signing_address = self.wallet.address
+                            self._dev_signer_only = True
+                            _dev_loaded = True
+                            if self.db.get_balance(self.wallet.address) < 1.0:
+                                self.db.update_balance(self.wallet.address, 10_000.0)
+                            print(
+                                f"[Node] Dev signing wallet ready: {self.wallet.address} "
+                                f"(miner unchanged: {config.miner_address})"
+                            )
+                    except Exception as _dse:
+                        print(f"[Node] Dev signer warning: {_dse}")
+                if not _dev_loaded:
+                    print(
+                        f"[Node] Wallet address loaded (no private_key in file — "
+                        f"signing disabled): {config.miner_address}"
+                    )
             else:
                 try:
                     self.wallet = Wallet.create_new()
@@ -453,7 +493,7 @@ class NodeOrchestrator:
 
         # Operational wallet (WALLET_PRIVATE_KEY) must mine + sign on solo devnet
         _op = getattr(config, "signing_address", "") or ""
-        if _op and self.wallet:
+        if _op and self.wallet and not getattr(self, "_dev_signer_only", False):
             _vals = self.db.get_validators(active_only=True) or []
             if not any(v["address"].lower() == _op.lower() for v in _vals):
                 self.consensus.add_validator(_op, config.min_stake)

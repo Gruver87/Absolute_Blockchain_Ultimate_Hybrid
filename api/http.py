@@ -725,7 +725,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 50,
+                    "api_wave": 51,
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,
                     "crypto_will_enabled": self.__class__.crypto_will is not None,
@@ -1052,7 +1052,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "lightning": self.__class__.lightning,
                 }
                 payload = flags.to_api_dict(instances, cfg)
-                payload["api_wave"] = 50
+                payload["api_wave"] = 51
                 rp = self.__class__.reorg_predictor
                 if rp and hasattr(rp, "get_stats"):
                     payload["reorg_predictor"] = rp.get_stats()
@@ -1239,6 +1239,30 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "recent_mismatches": mismatches,
                     **policy,
                 })
+
+            elif path == "/tx/propagation/recent":
+                db = self.__class__.db
+                if not db or not hasattr(db, "get_recent_tx_propagation"):
+                    self._error(503, "tx propagation trace not available"); return
+                limit = min(max(int(qs.get("limit", ["20"])[0]), 1), 50)
+                rows = db.get_recent_tx_propagation(limit=limit)
+                self._json({"count": len(rows), "traces": rows})
+
+            elif path.startswith("/tx/trace/"):
+                tx_hash = path[len("/tx/trace/"):].split("/")[0]
+                if not tx_hash:
+                    self._error(400, "tx hash required"); return
+                db = self.__class__.db
+                if not db or not hasattr(db, "get_tx_propagation_trace"):
+                    self._error(503, "tx propagation trace not available"); return
+                trace = db.get_tx_propagation_trace(tx_hash)
+                if not trace.get("events") and not trace.get("receipt"):
+                    mp = self.__class__.mempool
+                    if mp and hasattr(mp, "has_transaction") and mp.has_transaction(tx_hash):
+                        trace["status"] = "mempool_local_only"
+                    else:
+                        self._error(404, "tx trace not found"); return
+                self._json(trace)
 
             elif path.startswith("/tx/receipt/") or path.startswith("/receipts/tx/"):
                 tx_hash = path.split("/")[-1]
@@ -2760,7 +2784,11 @@ class RESTHandler(BaseHTTPRequestHandler):
             if path in ("/transactions", "/tx/send"):
                 wallet = self.__class__.wallet
                 result = _handle_send_tx_with_wallet(body, bc, mp, cfg, wallet)
-                resp = {"tx_hash": result, "status": "pending"}
+                resp = {
+                    "tx_hash": result,
+                    "status": "pending",
+                    "trace_url": f"/tx/trace/{result}",
+                }
                 sh = self.__class__.sharding
                 if sh and hasattr(sh, "add_transaction"):
                     from_addr = body.get("from", body.get("from_addr", ""))
@@ -4779,7 +4807,7 @@ def _build_l2_status(handler_cls) -> Dict:
         m.get("persisted") for m in modules.values() if isinstance(m, dict)
     )
     return {
-        "api_wave": 50,
+        "api_wave": 51,
         "l2_persisted": persisted,
         "nft_persisted": nft_persisted,
         "core": {
@@ -4818,6 +4846,8 @@ def _build_l2_status(handler_cls) -> Dict:
                 "proposer_history": "GET /chain/proposers/history?limit=&offset=&proposer=",
                 "proposer_detail": "GET /chain/proposer/{addr}",
                 "state_root_status": "GET /chain/state-root/status",
+                "tx_trace": "GET /tx/trace/{hash}",
+                "tx_propagation": "GET /tx/propagation/recent",
             },
         },
         "modules_enabled": list(modules.keys()),
@@ -5134,7 +5164,12 @@ def _handle_devnet_pool_spend(body: Dict, bc, db, cfg, pool_locks) -> Dict:
 def _handle_send_tx_with_wallet(tx_obj: Dict, bc, mp, cfg, wallet=None) -> str:
     """Submit tx; optional auto_sign fills from/nonce/signature from operational wallet."""
     body = dict(tx_obj or {})
-    if wallet and body.get("auto_sign"):
+    if body.get("auto_sign"):
+        if not wallet:
+            raise ValueError(
+                "auto_sign requires signing wallet "
+                "(WALLET_PRIVATE_KEY, private_key in wallet.json, or dev_signer.json)"
+            )
         to_addr = body.get("to", body.get("to_addr", ""))
         if not to_addr:
             raise ValueError("auto_sign requires 'to' address")
@@ -5155,6 +5190,8 @@ def _handle_send_tx_with_wallet(tx_obj: Dict, bc, mp, cfg, wallet=None) -> str:
             gas_limit=int(body.get("gas", body.get("gas_limit", 21000))),
         )
         body.update(signed)
+        if "gas_limit" in body and "gas" not in body:
+            body["gas"] = body["gas_limit"]
     return _handle_send_tx_obj(body, bc, mp, cfg)
 
 
@@ -5219,6 +5256,8 @@ def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
             "public_key": tx_obj.get("public_key", ""),
             "hash": tx.hash,
             "data": tx_obj.get("data", tx_obj.get("input", "")),
+            "gas": gas,
+            "gas_limit": tx_obj.get("gas_limit", gas),
         }
         ok, reason = TransactionValidator.validate(
             tx_dict, adapter, mempool=mp, chain_id=getattr(cfg, "chain_id", 1),
@@ -5249,17 +5288,22 @@ def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
     if not mp.add(mp_tx):
         raise ValueError("mempool_rejected")
 
+    db = getattr(bc, "db", None)
+    node_id = getattr(cfg, "node_id", "")
+    if db and hasattr(db, "record_tx_propagation_event"):
+        db.record_tx_propagation_event(
+            tx.hash, "api_submit", node_id=node_id,
+            detail={"from": from_addr, "to": to_addr, "value": value},
+        )
+        db.record_tx_propagation_event(
+            tx.hash, "mempool_local", node_id=node_id,
+            detail={"mempool_size": mp.get_size()},
+        )
+
     bus = getattr(RESTHandler, "bus", None)
     if bus:
-        bus.emit("tx.new", {
-            "hash": tx.hash,
-            "from_addr": from_addr,
-            "to_addr": to_addr,
-            "value": value,
-            "nonce": nonce,
-            "data": tx_obj.get("data", tx_obj.get("input", "")),
-            "gas": gas,
-        })
+        from blockchain.mempool_wire import mempool_tx_to_wire
+        bus.emit("tx.new", mempool_tx_to_wire(mp_tx))
 
     return tx.hash
 

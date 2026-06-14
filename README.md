@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Educational%20Only-orange)]()
-[![API Wave](https://img.shields.io/badge/API%20Wave-50-blue)](CHANGELOG.md)
+[![API Wave](https://img.shields.io/badge/API%20Wave-51-blue)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/Unit%20Tests-210%20passed-brightgreen)](tests/unit/)
 [![Release](https://img.shields.io/badge/Release-v1.2.0--industrial-blue)](https://github.com/Gruver87/absolute-blockchain-ultimate/releases)
 
@@ -14,7 +14,7 @@
 | Field | Value |
 |-------|-------|
 | **Version** | `1.2.0-industrial` |
-| **API Wave** | `50` → check `GET /status` → `api_wave` |
+| **API Wave** | `51` → check `GET /status` → `api_wave` |
 | **Entry point** | `python main.py` |
 | **Storage** | SQLite `data/blockchain.db` |
 | **Chain ID (dev)** | `77777` |
@@ -59,21 +59,22 @@ Honest one-screen view — no marketing claims beyond what is tested in-repo.
 
 ---
 
-## Core L1 (Waves 47–50)
-
-Latest **core hardening** — persisted in SQLite, covered by unit tests, visible in API.
+## Core L1 + P2P (Waves 47–51)
 
 | Wave | Feature | Key endpoints |
 |------|---------|---------------|
 | **47** | TX receipts + chain metrics | `GET /chain/metrics`, `GET /tx/receipt/{hash}` |
-| **48** | Address tx index + receipt backfill | `GET /address/{addr}/activity`, `GET /address/{addr}/txs` |
-| **49** | Block proposer audit log | `GET /chain/proposers/stats`, `GET /chain/proposer/{addr}` |
-| **50** | Strict `state_root` on P2P | `GET /chain/state-root/status`, `STATE_ROOT_STRICT_P2P=true` |
+| **48** | Address tx index | `GET /address/{addr}/activity`, `GET /address/{addr}/txs` |
+| **49** | Block proposer audit | `GET /chain/proposers/stats`, `GET /chain/proposer/{addr}` |
+| **50** | Strict `state_root` on P2P | `GET /chain/state-root/status` |
+| **51** | **Tx propagation trace** | `GET /tx/trace/{hash}`, `POST /tx/send` + P2P gossip |
 
 ```powershell
-(Invoke-RestMethod http://localhost:8080/status -UseBasicParsing).api_wave   # → 50
-Invoke-RestMethod http://localhost:8080/chain/metrics -UseBasicParsing
-Invoke-RestMethod http://localhost:8080/chain/state-root/status -UseBasicParsing
+(Invoke-RestMethod http://localhost:8080/status -UseBasicParsing).api_wave   # → 51
+# Send tx (node1 wallet auto_sign), then trace:
+Invoke-RestMethod http://localhost:8080/tx/send -Method POST -ContentType application/json -Body '{"auto_sign":true,"to":"0x2222222222222222222222222222222222222222","value":0.01}'
+Invoke-RestMethod http://localhost:8081/mempool -UseBasicParsing   # same tx on node2
+Invoke-RestMethod http://localhost:8080/tx/trace/{hash} -UseBasicParsing
 ```
 
 Full wave history (37–50): [CHANGELOG.md](CHANGELOG.md)

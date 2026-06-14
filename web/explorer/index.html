@@ -195,6 +195,16 @@
       <div id="mempool-pending-list" style="font-size:11px;max-height:120px;overflow-y:auto"></div>
       <button class="btn btn-outline" onclick="show('sharding')" style="width:100%;margin-top:8px">Open Sharding Panel →</button>
     </div>
+    <div class="card" id="tx-trace-card" style="margin-bottom:16px;border:1px solid var(--cyan)">
+      <h3>Tx Propagation Trace</h3>
+      <p style="font-size:11px;color:var(--gray);margin-bottom:8px">Wallet → mempool → P2P → block → receipt (Wave 51)</p>
+      <div class="form-row">
+        <label>Tx hash</label>
+        <input id="tx-trace-hash" placeholder="0x… or hash from /tx/send" />
+      </div>
+      <button class="btn btn-blue" onclick="loadTxTrace()" style="width:100%;margin-top:8px">Load Trace</button>
+      <div id="tx-trace-result" style="font-size:11px;margin-top:10px;max-height:200px;overflow-y:auto"></div>
+    </div>
     <div class="card" style="margin-bottom:16px">
       <h3>Pool Locks (Ecosystem / Treasury / Staking)</h3>
       <button class="btn btn-blue" onclick="loadPoolLocks()" style="margin-bottom:10px">Refresh Locks</button>
@@ -3657,6 +3667,30 @@ async function loadNFTSales() {
 }
 
 // ── Dashboard Stats ──────────────────────────────────────────────────────────
+async function loadTxTrace() {
+  const el = document.getElementById('tx-trace-result');
+  const hash = (document.getElementById('tx-trace-hash')?.value || '').trim();
+  if (!el || !hash) {
+    if (el) el.innerHTML = '<span class="badge badge-red">Enter tx hash</span>';
+    return;
+  }
+  el.textContent = 'Loading…';
+  const trace = await api('/tx/trace/' + encodeURIComponent(hash));
+  if (!trace || trace.error) {
+    el.innerHTML = '<span class="badge badge-red">Not found</span>';
+    return;
+  }
+  const stages = (trace.events || []).map(e =>
+    `<div style="margin:4px 0;padding:4px 6px;background:var(--bg2);border-radius:4px">
+      <b>${e.stage}</b> @ ${e.node_id || 'node'}${e.peer_id ? ' ← ' + e.peer_id.slice(0,8) : ''}
+      ${e.block_height ? ' #'+e.block_height : ''}
+    </div>`
+  ).join('');
+  el.innerHTML = `
+    <div>Status: <span class="badge badge-${trace.status==='confirmed'?'green':trace.status==='mempool'?'yellow':'blue'}">${trace.status}</span></div>
+    <div style="margin-top:8px">${stages || '<i>No events yet</i>'}</div>`;
+}
+
 async function loadDashboardStats() {
   const [st, bs, tok] = await Promise.all([api('/stats'), api('/burn-stats'), api('/tokenomics')]);
   const el = document.getElementById('stats-cards');

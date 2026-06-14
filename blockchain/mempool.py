@@ -227,6 +227,10 @@ class Mempool:
         with self.lock:
             return tx_hash in self.transactions
 
+    def get_transaction(self, tx_hash: str) -> Optional[MempoolTransaction]:
+        with self.lock:
+            return self.transactions.get(tx_hash)
+
     def get_size(self) -> int:
         with self.lock:
             return len(self.transactions)

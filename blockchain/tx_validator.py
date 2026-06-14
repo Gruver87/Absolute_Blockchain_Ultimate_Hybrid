@@ -100,14 +100,22 @@ class TransactionValidator:
     def _verify_signature(cls, tx: dict, signature: str, chain_id: int) -> bool:
         try:
             from crypto.wallet import verify_transaction_signature
+            raw_value = tx.get("value", tx.get("amount", 0))
+            value = (
+                int(raw_value)
+                if float(raw_value) == int(float(raw_value))
+                else float(raw_value)
+            )
             tx_dict = {
                 "from": tx.get("from", tx.get("from_addr", "")),
                 "to": tx.get("to", tx.get("to_addr", "")),
-                "value": int(tx.get("value", tx.get("amount", 0))),
+                "value": value,
                 "nonce": int(tx.get("nonce", 0)),
                 "chain_id": chain_id,
                 "signature": signature,
                 "public_key": tx.get("public_key", ""),
+                "data": tx.get("data", tx.get("input", "")),
+                "gas_limit": tx.get("gas_limit") or tx.get("gas", 21000),
             }
             return verify_transaction_signature(tx_dict)
         except Exception:

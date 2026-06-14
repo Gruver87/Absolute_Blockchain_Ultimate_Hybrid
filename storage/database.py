@@ -489,6 +489,19 @@ class Database:
             );
             CREATE INDEX IF NOT EXISTS idx_state_root_mm_height ON state_root_mismatches(height);
 
+            CREATE TABLE IF NOT EXISTS tx_propagation_events (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                tx_hash       TEXT NOT NULL,
+                stage         TEXT NOT NULL,
+                node_id       TEXT NOT NULL DEFAULT '',
+                peer_id       TEXT NOT NULL DEFAULT '',
+                block_height  INTEGER NOT NULL DEFAULT 0,
+                detail        TEXT NOT NULL DEFAULT '{}',
+                created_at    INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_tx_prop_stage ON tx_propagation_events(tx_hash);
+            CREATE INDEX IF NOT EXISTS idx_tx_prop_ts ON tx_propagation_events(created_at);
+
             CREATE INDEX IF NOT EXISTS idx_tx_block ON transactions(block_height);
             CREATE INDEX IF NOT EXISTS idx_tx_from  ON transactions(from_addr);
             CREATE INDEX IF NOT EXISTS idx_tx_to    ON transactions(to_addr);
@@ -588,10 +601,29 @@ class Database:
         """Persist block + txs inside an open transaction (caller holds BEGIN)."""
         self._insert_block(block)
         block_hash = block.get("hash", block.get("block_hash", ""))
-        block_height = block.get("height", block.get("number", 0))
+        block_height = int(block.get("height", block.get("number", 0)) or 0)
         for tx in transactions:
             self._insert_transaction(tx)
             self._insert_tx_receipt(tx, block_hash, block_height)
+            tx_hash = tx.get("hash", tx.get("tx_hash", ""))
+            if tx_hash:
+                proposer = self._normalize_address(
+                    block.get("miner", block.get("proposer", ""))
+                )
+                self.record_tx_propagation_event(
+                    tx_hash,
+                    "block_included",
+                    block_height=block_height,
+                    detail={"proposer": proposer, "block_hash": block_hash},
+                    _no_commit=True,
+                )
+                self.record_tx_propagation_event(
+                    tx_hash,
+                    "block_confirmed",
+                    block_height=block_height,
+                    detail={"receipt": True},
+                    _no_commit=True,
+                )
         if burned_amount > 0:
             self._insert_burn_record(block.get("height", 0), burned_amount)
             if burn_address:
@@ -1004,6 +1036,96 @@ class Database:
                 (limit,),
             ).fetchall()
             return [dict(r) for r in rows]
+
+    def record_tx_propagation_event(
+        self,
+        tx_hash: str,
+        stage: str,
+        node_id: str = "",
+        peer_id: str = "",
+        block_height: int = 0,
+        detail: Any = None,
+        _no_commit: bool = False,
+    ) -> None:
+        if not tx_hash or not stage:
+            return
+        payload = detail if isinstance(detail, dict) else {}
+        with self.lock:
+            self.conn.execute(
+                """INSERT INTO tx_propagation_events
+                   (tx_hash, stage, node_id, peer_id, block_height, detail, created_at)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (
+                    str(tx_hash),
+                    str(stage),
+                    str(node_id or ""),
+                    str(peer_id or ""),
+                    int(block_height or 0),
+                    json.dumps(payload, ensure_ascii=False),
+                    int(time.time()),
+                ),
+            )
+            if not _no_commit:
+                self.conn.commit()
+
+    def get_tx_propagation_trace(self, tx_hash: str) -> Dict:
+        with self.lock:
+            rows = self.conn.execute(
+                """SELECT stage, node_id, peer_id, block_height, detail, created_at
+                   FROM tx_propagation_events
+                   WHERE tx_hash=?
+                   ORDER BY id ASC""",
+                (str(tx_hash),),
+            ).fetchall()
+            events = []
+            for r in rows:
+                try:
+                    detail = json.loads(r["detail"] or "{}")
+                except Exception:
+                    detail = {}
+                events.append({
+                    "stage": r["stage"],
+                    "node_id": r["node_id"],
+                    "peer_id": r["peer_id"],
+                    "block_height": r["block_height"],
+                    "detail": detail,
+                    "timestamp": r["created_at"],
+                })
+            receipt = self.get_tx_receipt(tx_hash)
+            tx_row = self.get_transaction(tx_hash)
+            stages = [e["stage"] for e in events]
+            status = "unknown"
+            if receipt or tx_row:
+                status = "confirmed"
+            elif "block_included" in stages:
+                status = "included"
+            elif "mempool_local" in stages or "mempool_remote" in stages:
+                status = "mempool"
+            elif events:
+                status = "propagating"
+            return {
+                "tx_hash": tx_hash,
+                "status": status,
+                "events": events,
+                "receipt": receipt,
+                "transaction": tx_row,
+            }
+
+    def get_recent_tx_propagation(self, limit: int = 20) -> List[Dict]:
+        limit = max(1, min(int(limit), 100))
+        with self.lock:
+            rows = self.conn.execute(
+                """SELECT tx_hash, MAX(created_at) as last_ts
+                   FROM tx_propagation_events
+                   GROUP BY tx_hash
+                   ORDER BY last_ts DESC
+                   LIMIT ?""",
+                (limit,),
+            ).fetchall()
+            return [
+                self.get_tx_propagation_trace(r["tx_hash"])
+                for r in rows
+            ]
 
     def save_transaction(self, tx: Dict) -> bool:
         with self.lock:

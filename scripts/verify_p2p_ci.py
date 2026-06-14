@@ -87,6 +87,68 @@ def _trigger_reconcile(url1: str, url2: str) -> None:
             pass
 
 
+def _mempool_has_tx(base_url: str, tx_hash: str) -> bool:
+    try:
+        mp = _api(f"{base_url}/mempool")
+        txs = mp.get("transactions") or []
+        for row in txs:
+            h = row.get("hash") or row.get("tx_hash") or ""
+            if h == tx_hash:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _verify_tx_propagation(url1: str, url2: str, s1: dict) -> bool:
+    """Wave 51: signed tx on node1 must appear in node2 mempool."""
+    wave = int(s1.get("api_wave", 0) or 0)
+    if wave < 51:
+        print("SKIP: tx propagation (api_wave < 51)")
+        return True
+
+    recipient = "0x" + "2" * 40
+    try:
+        body = {"auto_sign": True, "to": recipient, "value": 0.01, "gas": 21000}
+        resp = _post_json(url1, "/tx/send", body, timeout=20)
+    except Exception as exc:
+        print(f"WARN: tx propagation send failed: {exc}")
+        return False
+
+    tx_hash = resp.get("tx_hash")
+    if not tx_hash:
+        print("FAIL: /tx/send returned no tx_hash")
+        return False
+
+    on_n2 = False
+    for _ in range(20):
+        if _mempool_has_tx(url2, tx_hash):
+            on_n2 = True
+            break
+        time.sleep(2)
+
+    confirmed = False
+    for _ in range(30):
+        try:
+            trace = _api(f"{url1}/tx/trace/{tx_hash}")
+            if trace.get("status") == "confirmed":
+                confirmed = True
+                break
+            stages = [e.get("stage") for e in trace.get("events", [])]
+            if "block_included" in stages:
+                confirmed = True
+                break
+        except Exception:
+            pass
+        time.sleep(3)
+
+    print(
+        f"{'OK' if on_n2 else 'FAIL'}: tx propagation hash={tx_hash[:16]}… "
+        f"node2_mempool={on_n2} confirmed={confirmed}"
+    )
+    return on_n2
+
+
 def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
     """Check peers, height sync, attestations on two running nodes."""
     if not _probe_health(url1):
@@ -205,6 +267,8 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
         print("WARN: same height but state_root differs — re-run docker_devnet or start_two_nodes.ps1")
         print("  Tip: Invoke-RestMethod http://127.0.0.1:8081/sync/reconcile -Method POST -Body '{}' -ContentType 'application/json'")
         return 5
+    if not _verify_tx_propagation(url1, url2, s1):
+        return 7
     return 0
 
 

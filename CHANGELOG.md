@@ -2,11 +2,19 @@
 
 Все значимые изменения документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/).
 
-**Текущая волна API:** `api_wave = 50` (проверка: `GET /status`)
+**Текущая волна API:** `api_wave = 51` (проверка: `GET /status`)
 
 ---
 
-## [1.2.0-industrial] — Wave 37–50 (июнь 2026)
+## [1.2.0-industrial] — Wave 37–51 (июнь 2026)
+
+### Wave 51 — Transaction propagation (P2P)
+
+- Full signed tx gossip + mempool pull sync (`get_mempool` / `mempool` P2P messages)
+- SQLite `tx_propagation_events` — lifecycle: submit → mempool → P2P → block → receipt
+- `GET /tx/trace/{hash}`, `GET /tx/propagation/recent`
+- Explorer dashboard: Tx Propagation Trace
+- `verify_p2p_ci.py` checks node2 mempool after `/tx/send` on node1
 
 ### Wave 50 — Strict state_root on all nodes
 
@@ -95,9 +103,9 @@
 
 | Проверка | Результат |
 |----------|-----------|
-| `pytest tests/unit` | 210 passed, 1 skipped |
+| `pytest tests/unit` | 214 passed, 1 skipped |
 | Docker devnet 2 nodes | P2P sync, heights aligned, `state_roots_match=True` |
-| `api_wave` | 50 |
+| `api_wave` | 51 |
 | `mega_audit.py` | 256 REST routes |
 
 ---
