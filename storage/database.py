@@ -341,6 +341,15 @@ class Database:
             );
             CREATE INDEX IF NOT EXISTS idx_ai_agents_owner ON ai_agents(owner);
 
+            CREATE TABLE IF NOT EXISTS mev_simulations (
+                sim_id     TEXT PRIMARY KEY,
+                sim_type   TEXT NOT NULL,
+                profit     REAL NOT NULL DEFAULT 0,
+                payload    TEXT NOT NULL DEFAULT '{}',
+                created_at INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_mev_sim_ts ON mev_simulations(created_at);
+
             CREATE INDEX IF NOT EXISTS idx_tx_block ON transactions(block_height);
             CREATE INDEX IF NOT EXISTS idx_tx_from  ON transactions(from_addr);
             CREATE INDEX IF NOT EXISTS idx_tx_to    ON transactions(to_addr);
@@ -1405,6 +1414,45 @@ class Database:
             if r["agent_id"] == agent_id:
                 return r
         return None
+
+    # ── MEV simulations (Wave 44 persistence) ───────────────────────────────
+
+    def save_mev_simulation(self, sim: Dict) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO mev_simulations
+                   (sim_id, sim_type, profit, payload, created_at)
+                   VALUES (?,?,?,?,?)""",
+                (
+                    sim["sim_id"],
+                    sim.get("sim_type", sim.get("type", "")),
+                    float(sim.get("profit", 0)),
+                    json.dumps(sim.get("payload", sim)),
+                    int(sim.get("created_at", 0)),
+                ),
+            )
+            self.conn.commit()
+
+    def get_mev_simulations(self, limit: int = 100) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT * FROM mev_simulations ORDER BY created_at DESC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+            out = []
+            for r in rows:
+                try:
+                    payload = json.loads(r["payload"] or "{}")
+                except Exception:
+                    payload = {}
+                out.append({
+                    "sim_id": r["sim_id"],
+                    "sim_type": r["sim_type"],
+                    "profit": r["profit"],
+                    "payload": payload,
+                    "created_at": r["created_at"],
+                })
+            return out
 
     # ── Метаданные (токеномика, конфиг) ─────────────────────────────────────
 

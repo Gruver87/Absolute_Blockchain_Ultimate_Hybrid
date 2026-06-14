@@ -37,7 +37,7 @@
 
 
 # =============================================================================
-# ЧАСТЬ 0: ВОЗМОЖНОСТИ БЛОКЧЕЙНА — ЧЕСТНО (v1.2.0, Wave 43)
+# ЧАСТЬ 0: ВОЗМОЖНОСТИ БЛОКЧЕЙНА — ЧЕСТНО (v1.2.0, Wave 44)
 # =============================================================================
 #
 # ⚠️  УЧЕБНЫЙ / ЭКСПЕРИМЕНТАЛЬНЫЙ ПРОЕКТ — НЕ PRODUCTION MAINNET
@@ -72,6 +72,9 @@
 # Wave 43:
 #   AI Agents: агенты/trades в SQLite, create fee 0.01 ABS
 #   Plasma submit-block: подсказка если pending пуст (нужен новый deposit/tx)
+# Wave 44:
+#   GET /l2/status — единый дашборд Lightning/Plasma/Will/WASM/AI
+#   MEV simulator: история симуляций в SQLite (GET /mev/history)
 #
 # --- Архитектура ---
 #
@@ -178,7 +181,7 @@
 # |--------|------|-------------|
 # | ZK Proofs | educational | Учебные proof-структуры, не audited SNARK |
 # | Post-Quantum | educational | SPHINCS+/Kyber/Dilithium demo, не NIST prod |
-# | MEV Simulator | demo | Анализ sandwich/arbitrage/frontrun в памяти |
+# | MEV Simulator | demo | SQLite history (Wave 44), GET /mev/history |
 # | Lightning | demo | Payment channels в SQLite (Wave 40); open/close двигают L1 баланс |
 # | Plasma L2 | demo | Sidechain deposits/blocks в SQLite; deposit/exit двигают L1 |
 # | WASM VM | demo | SQLite persistence (Wave 42), deploy fee 0.01 ABS |

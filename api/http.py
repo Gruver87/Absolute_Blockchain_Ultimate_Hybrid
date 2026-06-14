@@ -172,6 +172,8 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/wasm/stats", "summary": "WASM VM stats (SQLite)"},
     {"method": "GET", "path": "/bridge/relayer/status", "summary": "Bridge relayer queue + pending locks"},
     {"method": "GET", "path": "/ai-agent/stats", "summary": "AI trading agents stats (SQLite)"},
+    {"method": "GET", "path": "/l2/status", "summary": "Unified L2 modules dashboard"},
+    {"method": "GET", "path": "/mev/history", "summary": "MEV simulation history (SQLite)"},
     {"method": "POST", "path": "/oracles/feeds/submit", "summary": "Submit signed oracle feed (HMAC)"},
     {"method": "GET", "path": "/bridge/l1-proofs", "summary": "Registered L1 proof metadata"},
     {"method": "POST", "path": "/sync/reconcile", "summary": "P2P fork reconcile + state sync"},
@@ -723,12 +725,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 43,
+                    "api_wave": 44,
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,
                     "crypto_will_enabled": self.__class__.crypto_will is not None,
                     "wasm_enabled": self.__class__.wasm_vm is not None,
                     "ai_agents_enabled": self.__class__.ai_manager is not None,
+                    "mev_enabled": self.__class__.mev_simulator is not None,
                     "l2_persisted": bool(
                         getattr(self.__class__.lightning, "db", None)
                         or getattr(self.__class__.plasma, "db", None)
@@ -1522,6 +1525,15 @@ class RESTHandler(BaseHTTPRequestHandler):
                 else:
                     self._json({"enabled": False})
 
+            elif path == "/mev/history":
+                mev = self.__class__.mev_simulator
+                limit = int(qs.get("limit", ["50"])[0])
+                if mev and hasattr(mev, "get_history"):
+                    hist = mev.get_history(limit)
+                    self._json({"count": len(hist), "history": hist})
+                else:
+                    self._json({"count": 0, "history": [], "enabled": False})
+
             # ── Merkle proofs / Light client SPV ─────────────────────────────
             elif path.startswith("/merkle/root/"):
                 block_n = path.split("/")[-1]
@@ -1743,6 +1755,9 @@ class RESTHandler(BaseHTTPRequestHandler):
                             "active_offers": len(offers), "total_auctions": len(auctions)})
 
             # ── Lightning Network ─────────────────────────────────────────────
+            elif path == "/l2/status":
+                self._json(_build_l2_status(self.__class__))
+
             elif path == "/lightning/stats":
                 ln = self.__class__.lightning
                 self._json(ln.get_stats() if ln else {"enabled": False})
@@ -4512,6 +4527,43 @@ def _collect_recent_activity(db, cross_bridge=None, limit: int = 30) -> List[Dic
         reverse=True,
     )
     return items[:limit]
+
+
+def _build_l2_status(handler_cls) -> Dict:
+    """Unified dashboard for Waves 40-43 L2/demo modules."""
+    modules = {}
+    ln = handler_cls.lightning
+    pl = handler_cls.plasma
+    cw = handler_cls.crypto_will
+    wasm = handler_cls.wasm_vm
+    ai = handler_cls.ai_manager
+    if ln and hasattr(ln, "get_stats"):
+        modules["lightning"] = ln.get_stats()
+    if pl and hasattr(pl, "get_stats"):
+        modules["plasma"] = pl.get_stats()
+    if cw and hasattr(cw, "get_stats"):
+        modules["crypto_will"] = cw.get_stats()
+    if wasm and hasattr(wasm, "get_stats"):
+        modules["wasm"] = wasm.get_stats()
+    if ai and hasattr(ai, "get_stats"):
+        modules["ai_agents"] = ai.get_stats()
+    persisted = any(
+        m.get("persisted") for m in modules.values() if isinstance(m, dict)
+    )
+    return {
+        "api_wave": 44,
+        "l2_persisted": persisted,
+        "modules_enabled": list(modules.keys()),
+        "modules": modules,
+        "endpoints": {
+            "lightning": "GET /lightning/stats",
+            "plasma": "GET /plasma/stats",
+            "will": "GET /will/stats",
+            "wasm": "GET /wasm/stats",
+            "ai": "GET /ai-agent/stats",
+            "mev": "GET /mev/stats",
+        },
+    }
 
 
 def _build_l1_queue_payload(cfg) -> Dict:

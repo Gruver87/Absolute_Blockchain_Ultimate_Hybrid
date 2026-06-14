@@ -619,7 +619,7 @@ class NodeOrchestrator:
 
         # 24. MEV Simulator
         if _MEV_SIMULATOR_AVAILABLE:
-            self.mev_simulator = MEVSimulator()
+            self.mev_simulator = MEVSimulator(db=self.db)
             print("[Node] MEVSimulator: enabled (sandwich/arbitrage/frontrun analysis)")
         else:
             self.mev_simulator = None
