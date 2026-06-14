@@ -91,6 +91,7 @@ class Config:
     bridge_auto_confirm_sec: int = 0    # 0 = manual POST /bridge/confirm-lock only
     rust_bridge_path: str = "bridge/abs_bridge_bin"
     bridge_oracle_secret: str = ""      # HMAC secret for /bridge/oracle/* relayer
+    bridge_l1_queue_path: str = "data/bridge_l1_queue.json"
 
     # ── Логирование ─────────────────────────────────────────────────────────
     log_level: str = "INFO"
@@ -218,6 +219,9 @@ class Config:
         oracle_secret = env_str("BRIDGE_ORACLE_SECRET", "")
         if oracle_secret:
             self.bridge_oracle_secret = oracle_secret
+        l1_queue = env_str("BRIDGE_L1_QUEUE_PATH", "")
+        if l1_queue:
+            self.bridge_l1_queue_path = l1_queue
 
         origins = env_list("CORS_ORIGINS")
         if origins:

@@ -28,3 +28,24 @@ def test_relayer_module_imports():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     assert hasattr(mod, "process_pending")
+    assert hasattr(mod, "process_l1_queue")
+
+
+def test_relayer_l1_queue_dry_run(tmp_path, monkeypatch):
+    import importlib.util
+    path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "scripts",
+        "bridge_relayer.py",
+    )
+    spec = importlib.util.spec_from_file_location("bridge_relayer", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    queue_path = str(tmp_path / "q.json")
+    with open(queue_path, "w", encoding="utf-8") as f:
+        json.dump({"outbound": [], "incoming": []}, f)
+
+    monkeypatch.setattr(mod, "process_pending", lambda *a, **k: 0)
+    n = mod.process_l1_queue("http://127.0.0.1:8080", "secret", queue_path, dry_run=True)
+    assert n == 0

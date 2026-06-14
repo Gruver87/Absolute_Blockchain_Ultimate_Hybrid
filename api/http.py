@@ -154,6 +154,7 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/consensus/attestations/by-block", "summary": "Attestation votes aggregated per block"},
     {"method": "GET", "path": "/bridge", "summary": "Bridge overview"},
     {"method": "GET", "path": "/bridge/locks", "summary": "Bridge lock records"},
+    {"method": "GET", "path": "/bridge/l1-queue", "summary": "L1 RPC watch queue (relayer)"},
     {"method": "GET", "path": "/wallet/status", "summary": "Signing wallet status"},
     {"method": "POST", "path": "/transactions", "summary": "Submit transaction"},
     {"method": "POST", "path": "/tx/send", "summary": "Submit transaction (alias, optional auto_sign)"},
@@ -684,6 +685,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "bridge_oracle_enabled": bool(
                         getattr(cfg, "bridge_oracle_secret", "")
                         or os.environ.get("BRIDGE_ORACLE_SECRET", "")
+                    ),
+                    "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
+                    "bridge_l1_rpc_configured": bool(
+                        os.environ.get("ETH_RPC_URL", "")
+                        or os.environ.get("ETHEREUM_RPC_URL", "")
                     ),
                     "node_id": getattr(cfg, "node_id", "node-1"),
                     "health": {
@@ -1990,6 +1996,22 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if db and hasattr(db, "get_bridge_locks"):
                     locks = db.get_bridge_locks(limit=500)
                 self._json({"locks": locks, "count": len(locks)})
+
+            elif path == "/bridge/l1-queue":
+                try:
+                    from bridge.l1_rpc import load_l1_queue, chain_rpc_url, min_confirmations
+                    qpath = getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json")
+                    queue = load_l1_queue(qpath)
+                    self._json({
+                        "path": qpath,
+                        "min_confirmations": min_confirmations(),
+                        "eth_rpc_configured": bool(chain_rpc_url("ethereum")),
+                        "outbound": len(queue.get("outbound", [])),
+                        "incoming": len(queue.get("incoming", [])),
+                        "queue": queue,
+                    })
+                except Exception as e:
+                    self._json({"error": str(e), "outbound": 0, "incoming": 0, "queue": {}})
 
             # ── ZK verify range ───────────────────────────────────────────────
             elif path == "/zk/verify/range":

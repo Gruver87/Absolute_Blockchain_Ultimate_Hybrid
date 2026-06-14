@@ -1,0 +1,18 @@
+{
+  "outbound": [
+    {
+      "abs_tx_hash": "0xabs_lock_hash_from_bridge_lock",
+      "l1_tx_hash": "0xethereum_destination_tx",
+      "chain": "ethereum"
+    }
+  ],
+  "incoming": [
+    {
+      "tx_id": "0xl1_deposit_tx",
+      "l1_tx_hash": "0xl1_deposit_tx",
+      "recipient": "0xabs_recipient_address",
+      "amount": 10.0,
+      "from_chain": "ethereum"
+    }
+  ]
+}
