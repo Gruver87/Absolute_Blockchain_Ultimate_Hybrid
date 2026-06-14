@@ -2,11 +2,21 @@
 
 Все значимые изменения документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/).
 
-**Текущая волна API:** `api_wave = 56` (проверка: `GET /status`)
+**Текущая волна API:** `api_wave = 57` (проверка: `GET /status`)
 
 ---
 
-## [1.2.0-industrial] — Wave 37–56 (июнь 2026)
+## [1.2.0-industrial] — Wave 37–57 (июнь 2026)
+
+### Wave 57 — Real core (no random stubs in consensus path)
+
+- **Deterministic proposer** — `ConsensusEngine` + `ValidatorSelection.select_proposer_weighted`; removed `random` fallbacks and AI-validator mining shortcut
+- **Finality quorum** — `FinalityEngine` uses live validator count (not hardcoded 32)
+- **Reorg finality guard** — `Blockchain.reorg_to_ancestor()` refuses rollback below finalized checkpoint
+- **P2P reorg** — `ReorgPredictor.analyze_live_peers()` wired into fork reconcile
+- **MEV** — fee-ordering analysis from mempool (no `random.uniform` profits)
+- **Bridge honesty** — `CrossChainBridge` demo only when `bridge_enabled=false`; Docker uses `RustBridge`
+- `GET /status` → `core_real` flags; **`api_wave` → 57**
 
 ### Wave 56 — Multi-node proof (3-validator devnet)
 

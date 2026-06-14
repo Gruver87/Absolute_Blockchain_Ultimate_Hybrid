@@ -28,6 +28,11 @@ class FinalityEngine:
         self.justified_checkpoints: List[int] = []
         self.finalized_checkpoints: List[int] = []
         self.current_epoch = 0
+        self.active_validator_count = 1
+
+    def set_active_validator_count(self, count: int) -> None:
+        """Live validator set size for 2/3 quorum (not a hardcoded constant)."""
+        self.active_validator_count = max(1, int(count or 1))
     
     def get_epoch(self, block_number: int) -> int:
         """Получение эпохи для блока"""
@@ -53,8 +58,8 @@ class FinalityEngine:
             self.votes[target_epoch].append(validator)
             checkpoint.votes += 1
         
-        # Проверяем justification (2/3 голосов)
-        total_validators = 32  # из вашей системы
+        # Проверяем justification (2/3 голосов от активного набора валидаторов)
+        total_validators = max(1, self.active_validator_count)
         if checkpoint.votes >= total_validators * 2 / 3:
             if not checkpoint.is_justified:
                 checkpoint.is_justified = True

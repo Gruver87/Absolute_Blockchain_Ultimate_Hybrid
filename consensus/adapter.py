@@ -108,6 +108,7 @@ class ConsensusAdapter:
 
         self._last_block_time: float = 0.0
         self._load_validators_from_db()
+        self._sync_finality_validator_count()
 
         if self.bus:
             self.bus.on("block.new", self._on_new_block)
@@ -142,6 +143,24 @@ class ConsensusAdapter:
         if self.validator_registry:
             self.validator_registry.register_validator(address, int(stake))
 
+    def _sync_finality_validator_count(self):
+        """Keep Casper FFG quorum aligned with live validator registry."""
+        count = 0
+        if self.db and hasattr(self.db, "get_validators"):
+            count = len(self.db.get_validators(active_only=True) or [])
+        if count <= 0:
+            count = len(self.engine.validators)
+        self.finality.set_active_validator_count(max(1, count))
+
+    def get_finalized_floor_height(self) -> int:
+        """Highest block height protected from rollback (0 if none finalized)."""
+        floor = 0
+        for epoch in self.finality.finalized_checkpoints:
+            cp = self.finality.checkpoints.get(epoch)
+            if cp and int(cp.block_number) > floor:
+                floor = int(cp.block_number)
+        return floor
+
     # ── Управление валидаторами ──────────────────────────────────────────────
 
     def add_validator(self, address: str, stake: float) -> bool:
@@ -153,6 +172,7 @@ class ConsensusAdapter:
                 self.slashing_engine.add_validator(address, int(stake))
             if self.validator_registry:
                 self.validator_registry.register_validator(address, int(stake))
+            self._sync_finality_validator_count()
             print(f"[Consensus] New validator: {address[:12]}... stake={stake}")
         return ok
 
@@ -182,15 +202,9 @@ class ConsensusAdapter:
     # ── Выбор proposer ───────────────────────────────────────────────────────
 
     def select_proposer(self) -> Optional[str]:
-        """Возвращает адрес валидатора для форжинга следующего блока."""
+        """Deterministic stake-weighted proposer — all nodes agree on same slot."""
         if not self.engine.validators:
             return self.config.miner_address or "genesis"
-
-        # Используем ValidatorRegistry для выбора лучшего валидатора
-        if self.validator_registry:
-            top = self.validator_registry.get_top_validators(limit=1)
-            if top and not top[0].slashed:
-                return top[0].address
 
         validator = self.engine.select_proposer()
         return validator.address if validator else self.config.miner_address or "genesis"

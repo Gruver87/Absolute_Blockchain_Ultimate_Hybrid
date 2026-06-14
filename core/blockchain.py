@@ -890,6 +890,17 @@ class Blockchain:
 
     def reorg_to_ancestor(self, ancestor_height: int) -> bool:
         """Rollback blocks above ancestor and replay state from genesis allocation."""
+        floor = 0
+        adapter = self.consensus_adapter
+        if adapter and hasattr(adapter, "get_finalized_floor_height"):
+            floor = int(adapter.get_finalized_floor_height() or 0)
+        if floor > 0 and int(ancestor_height) < floor:
+            print(
+                f"[Blockchain] Reorg denied: height #{ancestor_height} "
+                f"is below finalized floor #{floor}"
+            )
+            return False
+
         from runtime.tokenomics import genesis_balances
 
         with self.lock:

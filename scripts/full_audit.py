@@ -132,7 +132,7 @@ def section_project_inventory() -> AuditResult:
     print(f"  REST route refs    : ~{ep_count}")
     print(f"  scripts/ files     : {len(scripts)}")
     print(f"  Entry point        : main.py ({'OK' if os.path.isfile(os.path.join(ROOT, 'main.py')) else 'MISSING'})")
-    print(f"  api_wave in code   : {'56' if 'api_wave' in http_src and '/testnet/multi-node-proof' in http_src else 'check'}")
+    print(f"  api_wave in code   : {'57' if 'core_real' in http_src and 'reorg_finality_guard' in http_src else 'check'}")
 
     required_scripts = [
         "start_node.ps1", "start_two_nodes.ps1", "docker_devnet.ps1",
@@ -360,8 +360,8 @@ def section_live_endpoints(base: str) -> AuditResult:
             res.details.append(path)
 
     if api_wave:
-        print(f"  api_wave={api_wave} {'(>=56 OK)' if api_wave >= 56 else '(WARN: expected >=56)'}")
-        if api_wave < 56:
+        print(f"  api_wave={api_wave} {'(>=57 OK)' if api_wave >= 57 else '(WARN: expected >=57)'}")
+        if api_wave < 57:
             res.warnings += 1
     return res
 

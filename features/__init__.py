@@ -17,7 +17,9 @@ MODULE_TIERS: Dict[str, str] = {
     "lightning": "demo",
     "zk": "educational",
     "pq": "educational",
-    "mev": "demo",
+    "mev": "analysis",
+    "reorg_predictor": "production",
+    "cross_bridge": "demo",
 }
 
 
@@ -61,5 +63,6 @@ class FeatureFlags:
                 "loaded": live is not None,
                 "tier": tier,
                 "demo": tier in ("demo", "educational", "offchain"),
+                "analysis": tier == "analysis",
             }
         return out

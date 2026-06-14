@@ -45,7 +45,7 @@ def test_mesh_healthy_hub_node():
     assert mesh["peer_count"] == 2
     assert mesh["mesh_healthy"] is True
     assert mesh["testnet_mode"] == "3-node"
-    assert mesh["api_wave"] == 56
+    assert mesh["api_wave"] == 57
 
 
 def test_mesh_unhealthy_low_peers():

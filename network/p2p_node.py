@@ -845,6 +845,18 @@ class P2PNode:
             return False
 
         rollback_to = min(ancestor, block_h - 1)
+        predictor = getattr(self, "reorg_predictor", None)
+        if predictor and hasattr(predictor, "analyze_live_peers"):
+            peer_heights = [int(p.height) for p in self.peers.values()]
+            risk = predictor.analyze_live_peers(
+                self.blockchain.get_height(), peer_heights
+            )
+            if risk.get("risk", 0) > 0.5:
+                print(
+                    f"[P2P] High reorg risk ({risk.get('risk'):.2f}) — "
+                    f"proceeding with finality guard"
+                )
+
         if not self.blockchain.reorg_to_ancestor(rollback_to):
             return False
         if not self.blockchain.import_block(peer_block):

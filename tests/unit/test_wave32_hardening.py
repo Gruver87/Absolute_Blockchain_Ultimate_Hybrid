@@ -62,7 +62,7 @@ def test_bridge_credit_idempotency(db):
 
 
 def test_feature_tiers_mark_demo_modules():
-    assert MODULE_TIERS["mev"] == "demo"
+    assert MODULE_TIERS["mev"] == "analysis"
     assert MODULE_TIERS["sharding"] == "routing"
     flags = FeatureFlags()
     out = flags.to_api_dict(

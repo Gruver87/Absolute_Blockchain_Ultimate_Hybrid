@@ -742,7 +742,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 56,
+                    "api_wave": 57,
+                    "core_real": {
+                        "deterministic_proposer": True,
+                        "finality_quorum_live": True,
+                        "reorg_finality_guard": True,
+                        "mev_mempool_analysis": True,
+                        "bridge_production_path": getattr(cfg, "bridge_mode", "simulator") == "rust",
+                    },
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,
                     "crypto_will_enabled": self.__class__.crypto_will is not None,
@@ -1069,7 +1076,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "lightning": self.__class__.lightning,
                 }
                 payload = flags.to_api_dict(instances, cfg)
-                payload["api_wave"] = 56
+                payload["api_wave"] = 57
                 rp = self.__class__.reorg_predictor
                 if rp and hasattr(rp, "get_stats"):
                     payload["reorg_predictor"] = rp.get_stats()
@@ -2194,7 +2201,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 self._json({
                     "count": len(events),
                     "events": events,
-                    "api_wave": 56,
+                    "api_wave": 57,
                 })
 
             elif path == "/sync/status":
@@ -4269,7 +4276,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "reorg_safe": bool(
                         before_root == after_root and harness.get("harness_healthy")
                     ),
-                    "api_wave": 56,
+                    "api_wave": 57,
                 })
 
             elif path == "/sync/add-peer":
@@ -4798,7 +4805,7 @@ def _build_testnet_mesh(p2p, bc, cfg) -> Dict:
         "bootstrap_peers": getattr(cfg, "bootstrap_peers", []),
         "peers": peers,
         "testnet_mode": "3-node" if expected_peers >= 2 else "multi",
-        "api_wave": 56,
+        "api_wave": 57,
     }
 
 
@@ -4859,7 +4866,7 @@ def _build_testnet_fork_status(p2p, bc, cfg, db=None) -> Dict:
         "slash_events_count": len(slash_events),
         "recent_slash_events": slash_events[:5],
         "peers": peers,
-        "api_wave": 56,
+        "api_wave": 57,
     }
 
 
@@ -4960,7 +4967,7 @@ def _build_state_consistency_harness(p2p, bc, cfg, db=None) -> Dict:
         "harness_healthy": harness_healthy,
         "failed_checks": [c["id"] for c in checks if not c["ok"]],
         "policy": policy,
-        "api_wave": 56,
+        "api_wave": 57,
     }
 
 
@@ -4996,7 +5003,7 @@ def _build_testnet_validators_status(db, cfg, bc) -> Dict:
         "validators": validators,
         "manifest": getattr(cfg, "testnet_validators_manifest", ""),
         "validator_index": int(getattr(cfg, "testnet_validator_index", 0) or 0),
-        "api_wave": 56,
+        "api_wave": 57,
     }
 
 
@@ -5080,7 +5087,7 @@ def _build_testnet_multi_node_proof(p2p, bc, cfg, db, consensus_adapter) -> Dict
         "checks": checks,
         "proof_ok": proof_ok,
         "failed_checks": [c["id"] for c in checks if not c["ok"]],
-        "api_wave": 56,
+        "api_wave": 57,
     }
 
 
@@ -5223,7 +5230,7 @@ def _build_l2_status(handler_cls) -> Dict:
         m.get("persisted") for m in modules.values() if isinstance(m, dict)
     )
     return {
-        "api_wave": 56,
+        "api_wave": 57,
         "l2_persisted": persisted,
         "nft_persisted": nft_persisted,
         "core": {

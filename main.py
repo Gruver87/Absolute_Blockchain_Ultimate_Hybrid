@@ -733,6 +733,8 @@ class NodeOrchestrator:
         if _REORG_PREDICTOR_AVAILABLE:
             self.reorg_predictor = ReorgPredictor(db=self.db)
             print("[Node] ReorgPredictor: enabled (SQLite assessments + fork risk)")
+            if self.p2p:
+                self.p2p.reorg_predictor = self.reorg_predictor
         else:
             self.reorg_predictor = None
 
@@ -867,16 +869,18 @@ class NodeOrchestrator:
         else:
             self.ai_manager = None
 
-        # 33. Cross-Chain Bridge Simulator (ETH/BSC/Solana/ABS)
-        if _CROSS_BRIDGE_AVAILABLE:
+        # 33. Cross-Chain Bridge Simulator (demo API — production path is RustBridge)
+        if _CROSS_BRIDGE_AVAILABLE and not config.bridge_enabled:
             try:
                 self.cross_bridge = CrossChainBridge()
-                print("[Node] Cross-Chain Bridge: ETH/BSC/Solana/ABS ready")
+                print("[Node] Cross-Chain Bridge simulator: demo API only (bridge disabled)")
             except Exception as e:
                 self.cross_bridge = None
-                print(f"[Node] Cross-Bridge: unavailable ({e})")
+                print(f"[Node] Cross-Bridge simulator: unavailable ({e})")
         else:
             self.cross_bridge = None
+            if config.bridge_enabled:
+                print("[Node] Cross-Chain Bridge: using RustBridge (production path)")
 
         # 34. Standalone Consensus Engine (PoS slots/epochs/attestations)
         if _CONSENSUS_ENGINE_AVAILABLE:
@@ -1373,18 +1377,13 @@ class NodeOrchestrator:
                     if validators_dict:
                         slot = getattr(self.consensus, "engine", None)
                         slot_n = getattr(slot, "current_slot", 0) if slot else 0
-                        proposer = self.validator_selection.select_proposer(validators_dict, slot_n)
+                        proposer = self.validator_selection.select_proposer_weighted(
+                            validators_dict, slot_n
+                        )
                 except Exception:
                     pass
 
-            # 2) AI-weighted selection fallback
-            if not proposer and self.ai_validator and self.ai_validator.validators:
-                try:
-                    proposer = self.ai_validator.select_proposer()
-                except Exception:
-                    pass
-
-            # 3) Consensus adapter fallback
+            # 2) Consensus adapter fallback (deterministic stake-weighted)
             if not proposer:
                 proposer = self.consensus.select_proposer()
             if not proposer:

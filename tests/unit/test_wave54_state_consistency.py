@@ -61,7 +61,7 @@ def test_harness_healthy_aligned():
     )
     assert h["harness_healthy"] is True
     assert h["tip_state_aligned"] is True
-    assert h["api_wave"] == 56
+    assert h["api_wave"] == 57
     assert h["failed_checks"] == []
 
 

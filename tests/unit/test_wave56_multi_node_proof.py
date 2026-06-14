@@ -107,7 +107,7 @@ def test_multi_node_proof_healthy():
         _FakeDB(validators, stats),
         _FakeCA(),
     )
-    assert out["api_wave"] == 56
+    assert out["api_wave"] == 57
     assert out["proof_ok"] is True
     assert out["validators"]["distinct_proposers"] == 3
     assert out["attestations"]["count"] == 1
@@ -125,4 +125,4 @@ def test_validators_rotation_needs_three_for_devnet3():
         _FakeDB(validators, stats), _FakeCfg3(), _FakeBC(20)
     )
     assert out["rotation_observed"] is False
-    assert out["api_wave"] == 56
+    assert out["api_wave"] == 57
