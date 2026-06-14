@@ -894,41 +894,38 @@ class Blockchain:
 
         with self.lock:
             tip = self.get_height()
-            if ancestor_height >= tip:
+            if ancestor_height > tip:
                 return True
 
             founder = (
                 getattr(self.config, "founder_address", "")
-                or self.config.miner_address
                 or ""
             )
             alloc = genesis_balances(founder or None)
-            if self.config.miner_address and self.config.miner_address not in alloc:
-                alloc[self.config.miner_address] = int(
-                    getattr(self.config, "min_stake", 1000)
-                )
 
             try:
                 with self.db.atomic():
                     cut = int(ancestor_height)
-                    self.db.conn.execute(
-                        "DELETE FROM transactions WHERE block_height > ?", (cut,)
-                    )
-                    self.db.conn.execute(
-                        "DELETE FROM tx_receipts WHERE block_height > ?", (cut,)
-                    )
-                    self.db.conn.execute(
-                        "DELETE FROM block_proposer_audit WHERE height > ?", (cut,)
-                    )
-                    self.db.conn.execute(
-                        "DELETE FROM state_root_mismatches WHERE height > ?", (cut,)
-                    )
-                    self.db.conn.execute(
-                        "DELETE FROM burn_stats WHERE block_height > ?", (cut,)
-                    )
-                    self.db.conn.execute(
-                        "DELETE FROM blocks WHERE height > ?", (cut,)
-                    )
+                    replay_only = cut >= tip
+                    if not replay_only:
+                        self.db.conn.execute(
+                            "DELETE FROM transactions WHERE block_height > ?", (cut,)
+                        )
+                        self.db.conn.execute(
+                            "DELETE FROM tx_receipts WHERE block_height > ?", (cut,)
+                        )
+                        self.db.conn.execute(
+                            "DELETE FROM block_proposer_audit WHERE height > ?", (cut,)
+                        )
+                        self.db.conn.execute(
+                            "DELETE FROM state_root_mismatches WHERE height > ?", (cut,)
+                        )
+                        self.db.conn.execute(
+                            "DELETE FROM burn_stats WHERE block_height > ?", (cut,)
+                        )
+                        self.db.conn.execute(
+                            "DELETE FROM blocks WHERE height > ?", (cut,)
+                        )
 
                     self.db.conn.execute("DELETE FROM accounts")
                     for addr, amount in alloc.items():
@@ -961,7 +958,8 @@ class Blockchain:
                         if expected and expected != replay_root:
                             raise RuntimeError("reorg_state_root_mismatch")
 
-                print(f"[Blockchain] Reorg complete at height #{ancestor_height}")
+                action = "State replay" if replay_only else "Reorg"
+                print(f"[Blockchain] {action} complete at height #{ancestor_height}")
                 return True
             except Exception as e:
                 print(f"[Blockchain] Reorg failed: {e}")

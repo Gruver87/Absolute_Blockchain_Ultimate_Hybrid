@@ -464,7 +464,11 @@ class NodeOrchestrator:
                     _dev_signer_path = os.path.join(_data_dir, "dev_signer.json")
                     _chain_h = self.blockchain.get_height() if self.blockchain else 0
                     try:
-                        if _chain_h > 1 and not os.path.exists(_dev_signer_path):
+                        _seeded_chain = (
+                            _chain_h >= 1
+                            or bool(self.db.get_meta("genesis_alloc_applied"))
+                        )
+                        if _seeded_chain and not os.path.exists(_dev_signer_path):
                             print(
                                 f"[Node] Seeded chain (height={_chain_h}) — "
                                 "dev_signer skipped (state integrity)"
@@ -556,7 +560,15 @@ class NodeOrchestrator:
 
         # Operational wallet (WALLET_PRIVATE_KEY) must mine + sign on solo devnet
         _op = getattr(config, "signing_address", "") or ""
-        if _op and self.wallet and not getattr(self, "_dev_signer_only", False):
+        _multi_validator_devnet = int(
+            getattr(config, "testnet_expected_validators", 0) or 0
+        ) >= 5
+        if (
+            _op
+            and self.wallet
+            and not getattr(self, "_dev_signer_only", False)
+            and not _multi_validator_devnet
+        ):
             _vals = self.db.get_validators(active_only=True) or []
             if not any(v["address"].lower() == _op.lower() for v in _vals):
                 self.consensus.add_validator(_op, config.min_stake)
@@ -791,7 +803,9 @@ class NodeOrchestrator:
         if self.validator_keys and self.wallet:
             _vaddr = self.validator_keys.get_address()
             _vals = self.db.get_validators(active_only=False) or []
-            if not any(v["address"].lower() == _vaddr.lower() for v in _vals):
+            if not _multi_validator_devnet and not any(
+                v["address"].lower() == _vaddr.lower() for v in _vals
+            ):
                 self.consensus.add_validator(_vaddr, config.min_stake)
                 print(f"[Node] Registered attestation validator: {_vaddr[:16]}…")
             self._attestation_validator = _vaddr
@@ -1336,6 +1350,9 @@ class NodeOrchestrator:
             proposer = None
             _signing = getattr(self.config, "signing_address", "")
             _active_vals = self.db.get_validators(active_only=True) if self.db else []
+            _multi_validator_devnet = int(
+                getattr(self.config, "testnet_expected_validators", 0) or 0
+            ) >= 5
             if _signing and self.wallet and len(_active_vals) <= 1:
                 proposer = _signing
 
@@ -1344,6 +1361,20 @@ class NodeOrchestrator:
                 try:
                     validators_dict = {v["address"]: v.get("stake", 100)
                                        for v in (self.db.get_validators() or [])}
+                    if validators_dict and _multi_validator_devnet:
+                        from runtime.devnet_validators import (
+                            mining_validator_addresses,
+                            resolve_manifest_path,
+                        )
+                        _mf = resolve_manifest_path(self.config)
+                        _founder = getattr(self.config, "founder_address", "") or ""
+                        _mine_only = mining_validator_addresses(_mf, _founder)
+                        if _mine_only:
+                            validators_dict = {
+                                k: v
+                                for k, v in validators_dict.items()
+                                if k.lower() in _mine_only
+                            }
                     if validators_dict:
                         slot = getattr(self.consensus, "engine", None)
                         slot_n = getattr(slot, "current_slot", 0) if slot else 0
@@ -1363,6 +1394,25 @@ class NodeOrchestrator:
                 proposer = self.consensus.select_proposer()
             if not proposer:
                 proposer = self.config.miner_address or "genesis"
+
+            if _multi_validator_devnet:
+                from runtime.devnet_validators import (
+                    mining_validator_addresses,
+                    resolve_manifest_path,
+                )
+                _mf = resolve_manifest_path(self.config)
+                _founder = getattr(self.config, "founder_address", "") or ""
+                _mine_only = mining_validator_addresses(_mf, _founder)
+                if _mine_only and proposer.lower() not in _mine_only:
+                    _eligible = [
+                        v["address"]
+                        for v in (_active_vals or [])
+                        if v["address"].lower() in _mine_only
+                    ]
+                    if _eligible:
+                        slot = getattr(self.consensus, "engine", None)
+                        slot_n = getattr(slot, "current_slot", 0) if slot else 0
+                        proposer = _eligible[slot_n % len(_eligible)]
 
             if len(_active_vals) > 1:
                 _local = set()

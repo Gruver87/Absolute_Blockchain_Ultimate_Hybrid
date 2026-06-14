@@ -41,6 +41,33 @@ def manifest_entries(manifest: Dict[str, Any], founder_address: str = "") -> Lis
     return rows
 
 
+def mining_validator_addresses(manifest_path: str, founder_address: str = "") -> set:
+    """Addresses allowed to propose blocks (manifest mines=true only)."""
+    if not manifest_path or not os.path.isfile(manifest_path):
+        return set()
+    manifest = load_manifest(manifest_path)
+    addrs = set()
+    for row in manifest_entries(manifest, founder_address):
+        if row.get("mines", True):
+            addr = row.get("address", "")
+            if addr:
+                addrs.add(addr.lower())
+    return addrs
+
+
+def resolve_manifest_path(config) -> str:
+    path = getattr(config, "testnet_validators_manifest", "") or ""
+    if path:
+        return path
+    if int(getattr(config, "testnet_expected_validators", 0) or 0) >= 5:
+        return os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "docker",
+            "validators.devnet5.json",
+        )
+    return ""
+
+
 def apply_manifest(node, manifest_path: str) -> int:
     """Register all manifest validators; returns count newly registered."""
     if not os.path.isfile(manifest_path):

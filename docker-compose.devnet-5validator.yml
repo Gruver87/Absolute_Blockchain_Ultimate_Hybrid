@@ -53,17 +53,17 @@ services:
   node3-db-seed:
     <<: *seed
     volumes: [abs-5v-node1-data:/seed-from, abs-5v-node3-data:/seed-to]
-    command: ["set -e; [ \"$$SKIP_DB_SEED\" = \"1\" ] && exit 0; [ -f /seed-from/blockchain.db ] || exit 0; apk add --no-cache sqlite >/dev/null; sqlite3 /seed-from/blockchain.db 'PRAGMA wal_checkpoint(TRUNCATE);'; rm -f /seed-to/blockchain.db*; cp /seed-from/blockchain.db /seed-to/; cp /seed-from/wallet.json /seed-to/ 2>/dev/null || true; echo node3 seeded"]
+    command: ["set -e; [ \"$$SKIP_DB_SEED\" = \"1\" ] && exit 0; [ -f /seed-from/blockchain.db ] || exit 0; apk add --no-cache sqlite >/dev/null; sqlite3 /seed-from/blockchain.db 'PRAGMA wal_checkpoint(TRUNCATE);'; rm -f /seed-to/blockchain.db*; cp /seed-from/blockchain.db /seed-to/; cp /seed-from/wallet.json /seed-to/ 2>/dev/null || true; cp /seed-from/dev_signer.json /seed-to/ 2>/dev/null || true; echo node3 seeded"]
 
   node4-db-seed:
     <<: *seed
     volumes: [abs-5v-node1-data:/seed-from, abs-5v-node4-data:/seed-to]
-    command: ["set -e; [ \"$$SKIP_DB_SEED\" = \"1\" ] && exit 0; [ -f /seed-from/blockchain.db ] || exit 0; apk add --no-cache sqlite >/dev/null; sqlite3 /seed-from/blockchain.db 'PRAGMA wal_checkpoint(TRUNCATE);'; rm -f /seed-to/blockchain.db*; cp /seed-from/blockchain.db /seed-to/; echo node4 seeded"]
+    command: ["set -e; [ \"$$SKIP_DB_SEED\" = \"1\" ] && exit 0; [ -f /seed-from/blockchain.db ] || exit 0; apk add --no-cache sqlite >/dev/null; sqlite3 /seed-from/blockchain.db 'PRAGMA wal_checkpoint(TRUNCATE);'; rm -f /seed-to/blockchain.db*; cp /seed-from/blockchain.db /seed-to/; cp /seed-from/wallet.json /seed-to/ 2>/dev/null || true; cp /seed-from/dev_signer.json /seed-to/ 2>/dev/null || true; echo node4 seeded"]
 
   node5-db-seed:
     <<: *seed
     volumes: [abs-5v-node1-data:/seed-from, abs-5v-node5-data:/seed-to]
-    command: ["set -e; [ \"$$SKIP_DB_SEED\" = \"1\" ] && exit 0; [ -f /seed-from/blockchain.db ] || exit 0; apk add --no-cache sqlite >/dev/null; sqlite3 /seed-from/blockchain.db 'PRAGMA wal_checkpoint(TRUNCATE);'; rm -f /seed-to/blockchain.db*; cp /seed-from/blockchain.db /seed-to/; echo node5 seeded"]
+    command: ["set -e; [ \"$$SKIP_DB_SEED\" = \"1\" ] && exit 0; [ -f /seed-from/blockchain.db ] || exit 0; apk add --no-cache sqlite >/dev/null; sqlite3 /seed-from/blockchain.db 'PRAGMA wal_checkpoint(TRUNCATE);'; rm -f /seed-to/blockchain.db*; cp /seed-from/blockchain.db /seed-to/; cp /seed-from/wallet.json /seed-to/ 2>/dev/null || true; cp /seed-from/dev_signer.json /seed-to/ 2>/dev/null || true; echo node5 seeded"]
 
   node2:
     <<: *node
