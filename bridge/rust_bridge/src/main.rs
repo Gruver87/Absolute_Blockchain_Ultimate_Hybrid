@@ -120,7 +120,7 @@ fn make_proof_id(command: &str, args: &serde_json::Value) -> String {
     format!("prf_{}", &hex::encode(digest)[..24])
 }
 
-fn verify_l1_if_present(command: &str, chain: &Option<String>, args: &serde_json::Value) -> Result<u32, String> {
+fn verify_l1_if_present(_command: &str, chain: &Option<String>, args: &serde_json::Value) -> Result<u32, String> {
     let need = min_confirmations();
     let l1_tx = match l1_tx_from_args(args) {
         Some(t) => t,
