@@ -384,7 +384,13 @@ class RustBridge:
 
     def _call_rust_ok(self, command: str, args: Dict) -> bool:
         out = self._call_rust_raw(command, args)
-        return bool(out and out.get("status") == "ok" and out.get("tx_hash"))
+        if not out:
+            return False
+        if out.get("status") != "ok":
+            return False
+        if command in ("confirm", "incoming", "status"):
+            return True
+        return bool(out.get("tx_hash"))
 
     def _call_rust_raw(self, command: str, args: Dict) -> Optional[Dict]:
         """Вызывает Rust-бинарник и возвращает полный JSON-ответ."""

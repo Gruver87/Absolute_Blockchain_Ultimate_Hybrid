@@ -307,7 +307,7 @@ critical = [
     "runtime/config.py", "runtime/tokenomics.py",
     "core/blockchain.py", "storage/database.py",
     "blockchain/mempool.py", "consensus/adapter.py",
-    "execution/evm_adapter.py", "network/p2p.py",
+    "execution/evm_adapter.py", "network/p2p_node.py",
     "network/websocket.py", "bridge/abs_bridge.py",
     "compiler/assembler.py", "execution/block_builder.py",
     "data/wallet.json", "requirements.txt", ".env.example",

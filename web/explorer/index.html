@@ -2493,9 +2493,24 @@ async function applyFeatureGates() {
     const key = item.getAttribute('data-feature');
     if (key === 'core') return;
     const f = feats[key];
-    if (f && !f.enabled) {
+    if (!f) return;
+    if (!f.enabled) {
       item.style.display = 'none';
       item.title = `${key} module not loaded on this node`;
+      return;
+    }
+    if (f.demo || f.tier === 'demo' || f.tier === 'educational') {
+      const label = item.querySelector('span:last-child') || item;
+      if (!item.dataset.demoBadge) {
+        item.dataset.demoBadge = '1';
+        const badge = document.createElement('span');
+        badge.className = 'badge badge-yellow';
+        badge.style.fontSize = '9px';
+        badge.style.marginLeft = '4px';
+        badge.textContent = f.tier === 'educational' ? 'EDU' : 'DEMO';
+        item.appendChild(badge);
+      }
+      item.title = `${key} tier=${f.tier || 'demo'}`;
     }
   });
 }

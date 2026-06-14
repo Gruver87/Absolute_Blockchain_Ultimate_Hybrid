@@ -99,7 +99,7 @@ fn get_tx_confirmations(rpc_url: &str, tx_hash: &str) -> Option<u32> {
 }
 
 fn l1_tx_from_args(args: &serde_json::Value) -> Option<String> {
-    for key in ["l1_tx_hash", "tx_hash", "proof_tx"] {
+    for key in ["l1_tx_hash", "proof_tx"] {
         if let Some(v) = args.get(key).and_then(|x| x.as_str()) {
             if v.starts_with("0x") && v.len() >= 10 {
                 return Some(v.to_string());
@@ -154,7 +154,7 @@ fn handle(req: Request) -> Response {
         (_, Err(e)) => Response {
             tx_hash: String::new(),
             status: "error".into(),
-            source: "abs_bridge_bin_v3".into(),
+            source: "abs_bridge_bin_v4".into(),
             chain,
             proof_id: None,
             confirmations: Some(min_confirmations()),
@@ -164,7 +164,7 @@ fn handle(req: Request) -> Response {
         ("bridge" | "lock" | "confirm" | "incoming", Ok(conf)) => Response {
             tx_hash: make_tx_hash(&req.command, &req.args),
             status: "ok".into(),
-            source: "abs_bridge_bin_v3".into(),
+            source: "abs_bridge_bin_v4".into(),
             chain: chain.clone(),
             proof_id: Some(make_proof_id(&req.command, &req.args)),
             confirmations: Some(conf),
@@ -174,7 +174,7 @@ fn handle(req: Request) -> Response {
         ("status", _) => Response {
             tx_hash: String::new(),
             status: "ready".into(),
-            source: "abs_bridge_bin_v3".into(),
+            source: "abs_bridge_bin_v4".into(),
             chain,
             proof_id: None,
             confirmations: Some(min_confirmations()),
@@ -184,7 +184,7 @@ fn handle(req: Request) -> Response {
         (other, _) => Response {
             tx_hash: String::new(),
             status: "error".into(),
-            source: "abs_bridge_bin_v3".into(),
+            source: "abs_bridge_bin_v4".into(),
             chain: None,
             proof_id: None,
             confirmations: None,

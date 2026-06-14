@@ -150,6 +150,7 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/network/peers", "summary": "Connected P2P peers"},
     {"method": "GET", "path": "/sync/status", "summary": "Chain sync status"},
     {"method": "GET", "path": "/features", "summary": "Feature flags and module availability"},
+    {"method": "GET", "path": "/evm/supported-opcodes", "summary": "EVM opcode support matrix"},
     {"method": "GET", "path": "/consensus/attestations", "summary": "Latest validator attestations (LMD)"},
     {"method": "GET", "path": "/consensus/attestations/by-block", "summary": "Attestation votes aggregated per block"},
     {"method": "GET", "path": "/bridge", "summary": "Bridge overview"},
@@ -951,6 +952,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "lightning": self.__class__.lightning,
                 }
                 self._json(flags.to_api_dict(instances, cfg))
+
+            elif path == "/evm/supported-opcodes":
+                try:
+                    from execution.evm_bytecode_validator import supported_opcodes_summary
+                    self._json(supported_opcodes_summary())
+                except Exception as e:
+                    self._json({"error": str(e)})
 
             elif path == "/consensus/attestations/by-block":
                 ca = self.__class__.consensus_adapter
@@ -2415,9 +2423,23 @@ class RESTHandler(BaseHTTPRequestHandler):
                         resp["cross_shard_tx_id"] = cross_id
                 self._json(resp)
 
+            elif path == "/evm/validate-bytecode":
+                raw = body.get("bytecode", body.get("data", ""))
+                try:
+                    from execution.evm_bytecode_validator import validate_bytecode_hex
+                    self._json(validate_bytecode_hex(str(raw)))
+                except Exception as e:
+                    self._json({"valid": False, "error": str(e)})
+
             elif path == "/contract/deploy":
                 if not evm_adapter:
                     self._error(503, "EVM not enabled")
+                    return
+                bc_hex = body.get("bytecode", body.get("data", ""))
+                from execution.evm_bytecode_validator import validate_bytecode_hex
+                v = validate_bytecode_hex(str(bc_hex))
+                if not v.get("valid"):
+                    self._error(400, f"unsupported EVM bytecode: {(v.get('unsupported') or [{}])[0].get('name', v.get('error'))}")
                     return
                 if body.get("via_mempool", body.get("mempool", False)):
                     tx_hash = _handle_deploy_tx(body, bc, mp, cfg, self.__class__.wallet, evm_adapter)
@@ -4332,6 +4354,12 @@ def _handle_deploy_tx(body: Dict, bc, mp, cfg, wallet=None, evm=None) -> str:
         raise ValueError("bytecode required")
     if not str(bytecode).replace("0x", "").strip():
         raise ValueError("empty_bytecode")
+    from execution.evm_bytecode_validator import validate_bytecode_hex
+    v = validate_bytecode_hex(str(bytecode))
+    if not v.get("valid"):
+        unsup = v.get("unsupported") or []
+        detail = unsup[0]["name"] if unsup else v.get("error", "invalid_bytecode")
+        raise ValueError(f"unsupported_evm_bytecode: {detail}")
 
     zero_addr = "0x0000000000000000000000000000000000000000"
     from_addr = body.get("from", body.get("from_address", ""))
