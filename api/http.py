@@ -83,7 +83,7 @@ except ImportError:
     _JWT_AVAILABLE = False
 
 # POST без JWT даже в prod (публичные операции)
-_PUBLIC_POST_PATHS = frozenset({"/transactions", "/tx/send"})
+_PUBLIC_POST_PATHS = frozenset({"/transactions", "/tx/send", "/devnet/faucet"})
 
 # Devnet / probes: не считаем в rate limit (start_two_nodes, devnet_status, K8s)
 _RATE_LIMIT_EXEMPT_PATHS = frozenset({
@@ -655,9 +655,14 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/founder":
                 try:
                     from runtime.tokenomics import get_tokenomics_summary
-                    founder = getattr(cfg, "founder_address", "") or ""
-                    t = get_tokenomics_summary(founder or None)
-                    bal = db.get_balance(founder) if db and founder else 0
+                    founder_cfg = (
+                        getattr(cfg, "founder_address", "")
+                        or getattr(cfg, "miner_address", "")
+                        or ""
+                    )
+                    t = get_tokenomics_summary(founder_cfg or None)
+                    founder_addr = t["founder"]["address"]
+                    bal = db.get_balance(founder_addr) if db and founder_addr else 0
                     self._json({**t["founder"], "balance_abs": bal, "conditions": t["conditions"]})
                 except Exception as e:
                     self._json({"error": str(e)})
@@ -3099,6 +3104,27 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json(result if isinstance(result, dict) else {"success": bool(result)})
                 else:
                     self._json({"success": False, "error": "finalize_exit not available"})
+
+            # ── Devnet faucet (ABS credit for testing) ───────────────────────
+            elif path == "/devnet/faucet":
+                if getattr(cfg, "deployment_mode", "dev") == "prod":
+                    self._error(403, "faucet disabled in production"); return
+                db = self.__class__.db
+                if not db:
+                    self._error(503, "database unavailable"); return
+                address = (body.get("address", "") or "").strip()
+                amount = float(body.get("amount", 100))
+                if not address:
+                    self._error(400, "address required"); return
+                if amount <= 0 or amount > 1000:
+                    self._error(400, "amount must be 0 < amount <= 1000"); return
+                db.update_balance(address, amount)
+                self._json({
+                    "success": True,
+                    "address": address,
+                    "credited": amount,
+                    "balance": db.get_balance(address),
+                })
 
             # ── Bridge: lock, confirm, refund ─────────────────────────────────
             elif path == "/bridge/lock":

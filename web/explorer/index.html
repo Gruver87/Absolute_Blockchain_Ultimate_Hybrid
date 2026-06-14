@@ -237,6 +237,11 @@
           — ABS
         </div>
         <div id="wallet-info" style="color:var(--gray);font-size:12px;font-family:monospace"></div>
+        <div id="devnet-faucet-panel" style="margin-top:16px;display:none">
+          <div style="font-size:11px;color:var(--gray);margin-bottom:8px">Devnet faucet — free ABS for testing bridge / txs</div>
+          <button class="btn btn-green" onclick="devnetFaucet()" style="width:100%">Get 100 ABS</button>
+          <div id="faucet-result" style="margin-top:8px;font-size:12px"></div>
+        </div>
       </div>
     </div>
     <div class="grid2">
@@ -1856,15 +1861,40 @@ async function loadWalletPanel() {
         </tr>`).join('') : '<tr><td colspan="4" style="color:var(--gray)">No transactions yet</td></tr>';
     }
   }
+  const st = await api('/status');
+  const faucetPanel = document.getElementById('devnet-faucet-panel');
+  if (faucetPanel) {
+    const dev = (st?.deployment_mode || 'dev') !== 'prod';
+    faucetPanel.style.display = dev ? 'block' : 'none';
+  }
+}
+
+async function devnetFaucet() {
+  const addr = document.getElementById('w-address')?.value?.trim();
+  if (!addr) return alert('Generate or enter wallet address first');
+  const r = await post('/devnet/faucet', {address: addr, amount: 100});
+  const el = document.getElementById('faucet-result');
+  if (r?.success) {
+    el.innerHTML = `<span class="badge badge-green">+${r.credited} ABS</span> Balance: ${parseFloat(r.balance).toFixed(4)} ABS`;
+    loadWalletPanel();
+    prefillBridgeWallet();
+  } else {
+    el.innerHTML = `<span style="color:var(--red)">${r?.error || 'Faucet failed'}</span>`;
+  }
 }
 
 async function prefillBridgeWallet() {
   const w = await get('/wallet/status');
   if (!w?.address) return;
   const fields = ['bridge2-from-addr', 'bridge-lock-addr'];
+  const defaultTo = '0x0000000000000000000000000000000000000001';
   fields.forEach(id => {
     const el = document.getElementById(id);
     if (el && !el.value) el.value = w.address;
+  });
+  ['bridge2-to-addr', 'bridge-lock-to'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && (!el.value || el.value.includes('...'))) el.value = defaultTo;
   });
 }
 
@@ -3086,11 +3116,24 @@ function renderBridgeLocksTable(locksResp, isRust) {
 async function bridge2Transfer() {
   const from_chain = document.getElementById('bridge2-from').value;
   const to_chain = document.getElementById('bridge2-to').value;
-  const from_address = document.getElementById('bridge2-from-addr').value;
-  const to_address = document.getElementById('bridge2-to-addr').value;
+  const from_address = document.getElementById('bridge2-from-addr').value.trim();
+  const to_address = document.getElementById('bridge2-to-addr').value.trim();
   const amount = parseFloat(document.getElementById('bridge2-amount').value)||100;
+  const out = document.getElementById('bridge2-result');
+  if (!from_address) {
+    out.innerHTML = '<span style="color:var(--red)">From address required</span>';
+    return;
+  }
+  if (!to_address || to_address.includes('...') || to_address.length < 42) {
+    out.innerHTML = '<span style="color:var(--red)">Enter full To Address (0x + 40 hex chars)</span>';
+    return;
+  }
+  if (amount <= 0) {
+    out.innerHTML = '<span style="color:var(--red)">Amount must be &gt; 0</span>';
+    return;
+  }
   const r = await post('/bridge2/transfer', {from_chain, to_chain, from_address, to_address, amount});
-  document.getElementById('bridge2-result').innerHTML =
+  out.innerHTML =
     r?.success ? `<div class="badge badge-green">Transferred!</div> TX: <span class="hash">${r.tx_hash}</span><br><span style="color:var(--gray);font-size:11px">Amount: ${r.amount} | Fee: ${r.fee}</span>`
                : `<span style="color:var(--red)">${r?.error||'Failed'}</span>`;
   loadBridge2Stats();
