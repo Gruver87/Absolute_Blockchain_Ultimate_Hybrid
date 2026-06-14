@@ -260,6 +260,9 @@ class RustBridge:
         locks = self.db.get_bridge_locks(limit=1000)
         for lock in locks:
             if lock["tx_hash"] == tx_hash and lock["status"] == "pending":
+                if self._mode == "rust":
+                    if not self._call_rust_ok("confirm", {"tx_hash": tx_hash}):
+                        return {"confirmed": False, "error": "rust confirm failed"}
                 self._simulator.confirm_transaction(tx_hash)
                 self.db.confirm_bridge_lock(tx_hash)
                 if self.bus:
@@ -268,7 +271,12 @@ class RustBridge:
                         "direction": "outbound",
                         "to_chain": lock.get("to_chain", ""),
                     })
-                return {"confirmed": True, "tx_hash": tx_hash, "direction": "outbound"}
+                return {
+                    "confirmed": True,
+                    "tx_hash": tx_hash,
+                    "direction": "outbound",
+                    "mode": self._mode,
+                }
         return {"confirmed": False, "error": "pending lock not found"}
 
     def _process_pending(self):
@@ -300,6 +308,15 @@ class RustBridge:
 
     def _call_rust(self, command: str, args: Dict) -> Optional[str]:
         """Вызывает Rust-бинарник через subprocess и возвращает tx_hash."""
+        out = self._call_rust_raw(command, args)
+        return out.get("tx_hash") if out else None
+
+    def _call_rust_ok(self, command: str, args: Dict) -> bool:
+        out = self._call_rust_raw(command, args)
+        return bool(out and out.get("status") == "ok" and out.get("tx_hash"))
+
+    def _call_rust_raw(self, command: str, args: Dict) -> Optional[Dict]:
+        """Вызывает Rust-бинарник и возвращает полный JSON-ответ."""
         exe = self._rust_bin or self._resolve_rust_bin()
         if not exe:
             return None
@@ -312,8 +329,7 @@ class RustBridge:
                 timeout=10,
             )
             if result.returncode == 0:
-                out = json.loads(result.stdout.decode())
-                return out.get("tx_hash")
+                return json.loads(result.stdout.decode())
         except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError) as e:
             print(f"[Bridge] Rust call failed: {e}. Falling back to simulator.")
         return None

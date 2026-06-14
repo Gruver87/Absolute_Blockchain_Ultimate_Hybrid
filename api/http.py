@@ -3873,6 +3873,11 @@ def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
     if rb and hasattr(rb, "get_stats"):
         overview["rust_bridge"] = rb.get_stats()
         overview["bridge_fees"] = overview["rust_bridge"].get("bridge_fees", {})
+        if overview.get("mode") == "rust":
+            resolve = getattr(cfg, "resolve_rust_bridge_path", None)
+            overview["rust_binary"] = resolve() if callable(resolve) else getattr(
+                cfg, "rust_bridge_path", ""
+            )
     if cb and hasattr(cb, "get_bridge_stats"):
         overview["cross_chain"] = cb.get_bridge_stats()
     overview["status"] = "simulator" if overview.get("mode") == "simulator" else overview.get("mode")

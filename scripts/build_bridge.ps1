@@ -16,4 +16,8 @@ if (-not (Test-Path $bin)) {
 }
 $out = Join-Path $ProjectRoot "bridge\abs_bridge_bin.exe"
 Copy-Item $bin $out -Force
+Set-Location $ProjectRoot
 Write-Host "Built: $out" -ForegroundColor Green
+Write-Host "Next (from project root):" -ForegroundColor Cyan
+Write-Host "  python -m pytest tests/ -q" -ForegroundColor Gray
+Write-Host "  .\scripts\start_two_nodes.ps1" -ForegroundColor Gray

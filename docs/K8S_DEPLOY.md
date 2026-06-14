@@ -68,6 +68,31 @@ volumeMounts:
     subPath: wallet.json
 ```
 
+## Prod secrets checklist (K8s / Docker)
+
+| Secret / Env | Обязательно в prod | Где задать |
+|--------------|-------------------|------------|
+| `JWT_SECRET` | Да | K8s Secret `abs-secrets`, `.env`, Docker `environment` |
+| `RPC_API_KEYS` | Да (если `rpc_api_key_required`) | K8s Secret, `.env` |
+| `data/wallet.json` | Да (если `require_wallet_file`) | K8s Secret volume, host mount |
+| `BRIDGE_MODE=rust` | Рекомендуется | ConfigMap / `node.prod.json` |
+| `RUST_BRIDGE_PATH` | Да для rust | `bridge/abs_bridge_bin` в образе (`Dockerfile.prod`) |
+| `CORS_ORIGINS` | Да (не `*`) | ConfigMap — URL Explorer |
+| `REQUIRE_SIGNATURES` | Да | `node.prod.example.json` |
+| `OPENWEATHER_API_KEY` | Нет | `.env` (оракулы demo без ключа) |
+| `TELEGRAM_BOT_TOKEN` | Нет | `.env` |
+
+Docker prod (локальный smoke):
+
+```powershell
+$env:JWT_SECRET = "your-secret"
+$env:RPC_API_KEYS = "your-rpc-key"
+.\scripts\docker_prod.ps1
+curl http://localhost:8080/bridge
+```
+
+Файлы: `docker-compose.prod.yml`, `Dockerfile.prod`, `docker/node.prod.json`.
+
 ## ASGI note
 
 Текущий API — `http.server` (stdlib). ASGI-миграция (uvicorn/starlette) — опциональный будущий шаг; для HA достаточно K8s replicas + health probes.

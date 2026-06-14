@@ -1,0 +1,50 @@
+# Single-node prod profile (Docker) — Rust bridge + prod config
+# Usage:
+#   $env:JWT_SECRET="your-secret"; $env:RPC_API_KEYS="your-key"
+#   docker compose -f docker-compose.prod.yml up --build
+#   curl http://localhost:8080/bridge
+
+services:
+  node:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    hostname: abs-prod
+    ports:
+      - "8545:8545"
+      - "8080:8080"
+      - "5000:5000"
+      - "8766:8766"
+    environment:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+      NODE_ID: docker-prod-1
+      DEPLOYMENT_MODE: prod
+      CHAIN_ID: "77777"
+      BRIDGE_MODE: rust
+      RUST_BRIDGE_PATH: bridge/abs_bridge_bin
+      BRIDGE_AUTO_CONFIRM_SEC: "0"
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      RPC_API_KEYS: ${RPC_API_KEYS:-docker-dev-rpc-key}
+      RPC_API_KEY_REQUIRED: "true"
+      JWT_ENFORCE_ADMIN: "true"
+      REQUIRE_WALLET_FILE: "false"
+      CORS_ORIGINS: http://localhost:8080
+      RATE_LIMIT_RPM: "120"
+    volumes:
+      - abs-prod-data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+    networks:
+      - abs-prod
+
+volumes:
+  abs-prod-data:
+
+networks:
+  abs-prod:
+    driver: bridge

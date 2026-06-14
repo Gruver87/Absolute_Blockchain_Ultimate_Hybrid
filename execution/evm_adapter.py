@@ -115,8 +115,8 @@ class EVMAdapter:
         sub_ctx.contract_call = lambda t, d, v, g, delg, st: self._contract_call_hook(
             t, d, v, g, delg, st, sub_ctx
         )
-        sub_ctx.contract_create = lambda code, val, ctx: self._contract_create_hook(
-            code, val, ctx
+        sub_ctx.contract_create = lambda code, val, ctx, salt=None: self._contract_create_hook(
+            code, val, ctx, salt
         )
         evm = EVM(gas_limit=gas or self.config.evm_gas_limit, context=sub_ctx)
         evm.storage = dict(storage)
@@ -151,11 +151,15 @@ class EVMAdapter:
         }
 
     def _contract_create_hook(self, init_code: bytes, value: int,
-                              caller_ctx: EVMContext) -> Dict[str, Any]:
+                              caller_ctx: EVMContext,
+                              salt: Optional[int] = None) -> Dict[str, Any]:
         deployer = caller_ctx.address or caller_ctx.caller
         if not deployer:
             return {"success": False, "reverted": True, "gas_used": 0}
-        seed = f"{deployer}{caller_ctx.block_number}{len(init_code)}"
+        if salt is not None:
+            seed = f"create2:{deployer}:{salt}:{init_code.hex()}"
+        else:
+            seed = f"{deployer}{caller_ctx.block_number}{len(init_code)}"
         contract_addr = "0x" + hashlib.sha256(seed.encode()).hexdigest()[:40]
         try:
             result = self._run_evm(
@@ -204,7 +208,9 @@ class EVMAdapter:
         ctx.contract_call = lambda t, d, v, g, delg, st: self._contract_call_hook(
             t, d, v, g, delg, st, ctx
         )
-        ctx.contract_create = lambda code, val, c: self._contract_create_hook(code, val, c)
+        ctx.contract_create = lambda code, val, c, salt=None: self._contract_create_hook(
+            code, val, c, salt
+        )
         evm = EVM(gas_limit=gas_limit, context=ctx)
         evm.storage = dict(storage)
         return evm.execute_bytecode(bytecode)

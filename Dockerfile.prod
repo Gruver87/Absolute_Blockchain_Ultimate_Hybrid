@@ -1,0 +1,29 @@
+# syntax=docker/dockerfile:1
+# Prod image with Rust bridge binary (educational / staging-prod profile)
+FROM rust:1-bookworm AS rust-build
+WORKDIR /build
+COPY bridge/rust_bridge/Cargo.toml bridge/rust_bridge/Cargo.lock ./
+COPY bridge/rust_bridge/src ./src
+RUN cargo build --release && cp target/release/abs_bridge_bin /abs_bridge_bin
+
+FROM python:3.13-slim
+
+WORKDIR /app
+
+ENV PYTHONUTF8=1
+ENV PYTHONIOENCODING=utf-8
+ENV PYTHONUNBUFFERED=1
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+COPY --from=rust-build /abs_bridge_bin /app/bridge/abs_bridge_bin
+RUN chmod +x /app/bridge/abs_bridge_bin
+
+EXPOSE 8545 8080 5000 8766
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live', timeout=3)"
+
+CMD ["python", "main.py", "--config", "docker/node.prod.json"]

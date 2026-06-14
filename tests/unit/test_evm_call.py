@@ -59,7 +59,7 @@ def test_call_opcode_with_hook():
     evm = EVM(gas_limit=500_000, context=ctx)
     result = evm.execute_bytecode(_build_call_bytecode(callee))
     assert result["stack"][-1] == 42
-    assert result["gas_used"] >= 2500 + 700  # subcall + CALL base
+    assert result["gas_used"] >= 700 + min(2500, 100)  # CALL + capped subcall gas
 
 
 def test_staticcall_readonly():
@@ -92,7 +92,7 @@ def test_staticcall_readonly():
 def test_create_opcode_with_hook():
     created = "0x" + "dd" * 20
 
-    def create_hook(init_code, value, ctx):
+    def create_hook(init_code, value, ctx, salt=None):
         assert value == 0
         assert len(init_code) > 0
         return {"success": True, "address": created, "gas_used": 8000}
@@ -110,6 +110,57 @@ def test_create_opcode_with_hook():
     ])
     result = evm.execute_bytecode(bytecode)
     assert result["stack"][-1] == ctx.addr_int(created)
+
+
+def test_create2_opcode_with_salt():
+    salt = 0x42
+    seen = []
+
+    def hook(init_code, value, ctx, salt_arg=None):
+        seen.append(salt_arg)
+        return {"success": True, "address": "0x" + "aa" * 20, "gas_used": 9000}
+
+    init = bytes.fromhex("60006000f3")
+    bytecode = bytes([
+        0x60, 0x00,
+        0x60, 0x00,
+        0x60, len(init),
+        0x60, salt & 0xFF,
+        0xF5,
+        0x00,
+    ])
+    evm1 = EVM(context=EVMContext(contract_create=hook))
+    evm1.memory = bytearray(init)
+    r1 = evm1.execute_bytecode(bytecode)
+    evm2 = EVM(context=EVMContext(contract_create=hook))
+    evm2.memory = bytearray(init)
+    r2 = evm2.execute_bytecode(bytecode)
+    assert r1["stack"][-1] == r2["stack"][-1]
+    assert seen == [salt, salt]
+
+
+def test_call_stipend_forwarded_with_value():
+    seen = {}
+
+    def hook(target, calldata, value, gas, delegate, static=False):
+        seen["value"] = value
+        seen["gas"] = gas
+        return {"success": True, "reverted": False, "return_data": b"", "gas_used": 500}
+
+    ctx = EVMContext(contract_call=hook)
+    evm = EVM(gas_limit=500_000, context=ctx)
+    callee = "0x" + "ee" * 20
+    bytecode = bytes([
+        0x60, 0x00, 0x60, 0x00, 0x60, 0x00, 0x60, 0x00,
+        0x60, 0x01,
+        0x73, *bytes.fromhex(callee.replace("0x", "")),
+        0x60, 0x64,
+        0xF1,
+        0x00,
+    ])
+    evm.execute_bytecode(bytecode)
+    assert seen["value"] == 1
+    assert seen["gas"] >= EVM.CALL_STIPEND
 
 
 def test_delegatecall_merges_storage():

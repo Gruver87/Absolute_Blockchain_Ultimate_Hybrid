@@ -57,3 +57,13 @@ def test_lock_and_bridge_uses_rust_subprocess(rust_bridge_env):
     assert len(res["tx_hash"]) == 66
     assert res["status"] == "pending"
     assert db.get_bridge_locks()[0]["status"] == "pending"
+
+
+def test_confirm_lock_uses_rust_subprocess(rust_bridge_env):
+    br, db, cfg = rust_bridge_env
+    res = br.lock_and_bridge("0xalice", "bsc", "0xrecipient", 5.0)
+    assert res["status"] == "pending"
+    ok = br.confirm_lock(res["tx_hash"])
+    assert ok["confirmed"] is True
+    assert ok.get("mode") == "rust"
+    assert db.get_bridge_locks()[0]["status"] == "confirmed"

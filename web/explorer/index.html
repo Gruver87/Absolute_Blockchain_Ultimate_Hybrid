@@ -1289,6 +1289,9 @@
       </div>
       <div class="card">
         <h3>Confirm Incoming Transfer</h3>
+        <div id="bridge-rust-hint" style="display:none;font-size:11px;color:var(--gray);margin-bottom:8px">
+          Rust bridge mode — confirm calls <code>abs_bridge_bin confirm</code> then updates lock in DB.
+        </div>
         <div class="form-row"><label>TX ID</label><input id="bridge-confirm-txid" placeholder="bridge_tx_id..."/></div>
         <button class="btn btn-blue" onclick="bridgeConfirm()" style="width:100%">Confirm</button>
         <div id="bridge-confirm-result" style="margin-top:8px;font-size:12px"></div>
@@ -2993,9 +2996,10 @@ async function loadBridge2Stats() {
   if (!el) return;
   if (!r) { el.innerHTML='<span style="color:var(--gray)">Bridge not available</span>'; return; }
   const manual = (r.auto_confirm_sec ?? 0) <= 0;
+  const isRust = (r.mode || '') === 'rust';
   el.innerHTML = `<table>
-    <tr><td style="color:var(--gray)">Mode</td><td>${r.mode||'simulator'}</td></tr>
-    <tr><td style="color:var(--gray)">Confirm</td><td>${manual ? '<span class="badge badge-yellow">MANUAL</span>' : 'auto'}</td></tr>
+    <tr><td style="color:var(--gray)">Mode</td><td>${r.mode||'simulator'} ${isRust ? '<span class="badge badge-blue">RUST CLI</span>' : ''}</td></tr>
+    <tr><td style="color:var(--gray)">Confirm</td><td>${manual ? '<span class="badge badge-yellow">MANUAL</span>' : 'auto'}${isRust && manual ? ' <span style="font-size:11px;color:var(--gray)">(oracle via Rust)</span>' : ''}</td></tr>
     <tr><td style="color:var(--gray)">Total Transfers</td><td>${r.total_transactions||0}</td></tr>
     <tr><td style="color:var(--gray)">Confirmed</td><td>${r.confirmed||0}</td></tr>
     <tr><td style="color:var(--gray)">Pending</td><td>${r.pending||0}</td></tr>
@@ -3006,6 +3010,8 @@ async function loadBridge2Stats() {
   if (locks?.locks?.length) {
     el.innerHTML += `<div style="margin-top:10px;font-size:11px;color:var(--gray)">Recent locks: ${locks.locks.slice(0,3).map(l => (l.tx_hash||l.tx_id||'').slice(0,12)).join(', ')}</div>`;
   }
+  const hint = document.getElementById('bridge-rust-hint');
+  if (hint) hint.style.display = isRust ? 'block' : 'none';
 }
 async function bridge2Transfer() {
   const from_chain = document.getElementById('bridge2-from').value;

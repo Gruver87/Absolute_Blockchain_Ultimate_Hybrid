@@ -20,7 +20,7 @@ class EVMContext:
     chain_id: int = 77777
     balance_of: Optional[Callable[[str], int]] = None
     contract_call: Optional[Callable[..., Dict[str, Any]]] = None
-    contract_create: Optional[Callable[[bytes, int, "EVMContext"], Dict[str, Any]]] = None
+    contract_create: Optional[Callable[..., Dict[str, Any]]] = None
 
     def addr_int(self, who: str) -> int:
         raw = (who or "").replace("0x", "").lower()
@@ -35,6 +35,8 @@ class EVMContext:
 class EVM:
     """Stack-machine EVM with storage, memory, calldata and environment opcodes."""
 
+    CALL_STIPEND = 2300
+
     GAS_COSTS = {
         "STOP": 0, "ADD": 3, "MUL": 5, "SUB": 3, "DIV": 5, "MOD": 5,
         "POP": 2, "MLOAD": 3, "MSTORE": 3, "MSTORE8": 3,
@@ -46,7 +48,8 @@ class EVM:
         "SHA3": 30, "RETURN": 0, "REVERT": 0, "JUMPDEST": 1,
         "AND": 3, "OR": 3, "XOR": 3, "NOT": 3, "LT": 3, "GT": 3,
         "EQ": 3, "ISZERO": 3, "BYTE": 3, "SHL": 3, "SHR": 3,
-        "CALL": 700, "DELEGATECALL": 700, "STATICCALL": 700, "CREATE": 32000,
+        "CALL": 700, "DELEGATECALL": 700, "STATICCALL": 700,
+        "CREATE": 32000, "CREATE2": 32000,
     }
 
     def __init__(self, gas_limit: int = 1_000_000, context: Optional[EVMContext] = None):
@@ -116,6 +119,14 @@ class EVM:
             return remaining
         return requested
 
+    def _call_gas_cap(self, requested: int) -> int:
+        """EIP-150: at most 63/64 of remaining gas may be forwarded."""
+        remaining = max(0, self.gas_limit - self.gas_used)
+        cap = remaining * 63 // 64
+        if requested <= 0:
+            return cap
+        return min(requested, cap)
+
     def _charge_subcall_gas(self, sub_gas: int) -> None:
         if sub_gas > 0:
             self.gas_used += sub_gas
@@ -133,24 +144,32 @@ class EVM:
         self._mem_extend(args_offset, args_size)
         call_data = bytes(self.memory[args_offset:args_offset + args_size])
         to_addr = self._word_to_addr(to_word)
-        call_gas = self._available_gas(gas)
+        call_gas = self._call_gas_cap(gas)
+        if value > 0 and not static:
+            call_gas = min(
+                max(0, self.gas_limit - self.gas_used),
+                call_gas + self.CALL_STIPEND,
+            )
         out = self.ctx.contract_call(
             to_addr, call_data, value, call_gas, delegate, static
         )
-        self._charge_subcall_gas(int(out.get("gas_used", 0) or 0))
+        sub_gas = min(int(out.get("gas_used", 0) or 0), call_gas)
+        self._charge_subcall_gas(sub_gas)
         self.return_data = out.get("return_data", b"") or b""
         if delegate and isinstance(out.get("storage"), dict):
             self.storage = dict(out["storage"])
         self._write_return_to_memory(ret_offset, ret_size, self.return_data)
         return 1 if out.get("success") and not out.get("reverted") else 0
 
-    def _execute_create(self, value: int, offset: int, size: int) -> int:
+    def _execute_create(self, value: int, offset: int, size: int,
+                      salt: Optional[int] = None) -> int:
         if not self.ctx.contract_create:
             return 0
         self._mem_extend(offset, size)
         init_code = bytes(self.memory[offset:offset + size])
-        out = self.ctx.contract_create(init_code, value, self.ctx)
-        self._charge_subcall_gas(int(out.get("gas_used", 0) or 0))
+        out = self.ctx.contract_create(init_code, value, self.ctx, salt)
+        sub_gas = int(out.get("gas_used", 0) or 0)
+        self._charge_subcall_gas(sub_gas)
         if not out.get("success") or out.get("reverted"):
             return 0
         addr = out.get("address") or ""
@@ -337,6 +356,12 @@ class EVM:
                 offset = self._pop()
                 value = self._pop()
                 self._push(self._execute_create(value, offset, size))
+            elif op_byte == 0xF5:  # CREATE2
+                salt = self._pop()
+                size = self._pop()
+                offset = self._pop()
+                value = self._pop()
+                self._push(self._execute_create(value, offset, size, salt))
             elif op_byte == 0xF1:  # CALL
                 gas = self._pop()
                 to_word = self._pop()
@@ -416,7 +441,8 @@ class EVM:
             0x50: "POP", 0x51: "MLOAD",
             0x52: "MSTORE", 0x53: "MSTORE8", 0x54: "SLOAD", 0x55: "SSTORE",
             0x56: "JUMP", 0x57: "JUMPI", 0x5A: "GAS", 0x5B: "JUMPDEST", 0x5F: "PUSH0",
-            0xF0: "CREATE", 0xF1: "CALL", 0xF4: "DELEGATECALL", 0xFA: "STATICCALL", 0xF3: "RETURN",
+            0xF0: "CREATE", 0xF5: "CREATE2",
+            0xF1: "CALL", 0xF4: "DELEGATECALL", 0xFA: "STATICCALL", 0xF3: "RETURN",
             0xFD: "REVERT", 0xFE: "INVALID",
         }
         if 0x60 <= op <= 0x7F:
