@@ -37,7 +37,7 @@
 
 
 # =============================================================================
-# ЧАСТЬ 0: ВОЗМОЖНОСТИ БЛОКЧЕЙНА — ЧЕСТНО (v1.2.0, Wave 45)
+# ЧАСТЬ 0: ВОЗМОЖНОСТИ БЛОКЧЕЙНА — ЧЕСТНО (v1.2.0, Wave 46)
 # =============================================================================
 #
 # ⚠️  УЧЕБНЫЙ / ЭКСПЕРИМЕНТАЛЬНЫЙ ПРОЕКТ — НЕ PRODUCTION MAINNET
@@ -81,6 +81,10 @@
 #        GET /reorg/fork (live P2P gaps или ?main_chain=&fork_chain= JSON)
 #   GET /features — api_wave, l2_modules persisted, bridge_dev_confirm hint
 #   Dev bridge: POST /bridge/confirm-pending (alias /bridge/dev-confirm-pending)
+# Wave 46:
+#   NFT Marketplace: tokens/offers/auctions/sales в SQLite
+#   mint fee 1 ABS, buy/offer/auction — L1 balance + ownership persisted
+#   GET /nft/stats, GET /l2/status → nft_persisted
 #
 # --- Архитектура ---
 #

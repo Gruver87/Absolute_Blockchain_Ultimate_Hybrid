@@ -500,7 +500,7 @@ class NodeOrchestrator:
 
         # 9. NFT маркетплейс
         self.nft = NFTMarketplace(db=self.db, bus=self.bus)
-        print(f"[Node] NFT Marketplace: {len(self.nft.tokens)} genesis tokens loaded")
+        print(f"[Node] NFT Marketplace: {len(self.nft.tokens)} tokens (persisted={self.nft.get_stats().get('persisted', False)})")
 
         # 10. ZK Proof System
         self.zk = ZKProofSystem()

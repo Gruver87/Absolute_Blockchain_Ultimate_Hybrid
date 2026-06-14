@@ -358,6 +358,53 @@ class Database:
             );
             CREATE INDEX IF NOT EXISTS idx_reorg_assess_ts ON reorg_assessments(created_at);
 
+            CREATE TABLE IF NOT EXISTS nft_tokens (
+                token_id    TEXT PRIMARY KEY,
+                name        TEXT NOT NULL DEFAULT '',
+                description TEXT NOT NULL DEFAULT '',
+                image_url   TEXT NOT NULL DEFAULT '',
+                owner       TEXT NOT NULL DEFAULT '',
+                creator     TEXT NOT NULL DEFAULT '',
+                price       REAL NOT NULL DEFAULT 0,
+                for_sale    INTEGER NOT NULL DEFAULT 0,
+                created_at  INTEGER NOT NULL DEFAULT 0,
+                metadata    TEXT NOT NULL DEFAULT '{}'
+            );
+            CREATE INDEX IF NOT EXISTS idx_nft_owner ON nft_tokens(owner);
+
+            CREATE TABLE IF NOT EXISTS nft_offers (
+                offer_id    TEXT PRIMARY KEY,
+                token_id    TEXT NOT NULL,
+                bidder      TEXT NOT NULL DEFAULT '',
+                price       REAL NOT NULL DEFAULT 0,
+                expires_at  INTEGER NOT NULL DEFAULT 0,
+                status      TEXT NOT NULL DEFAULT 'pending',
+                created_at  INTEGER NOT NULL DEFAULT 0,
+                payload     TEXT NOT NULL DEFAULT '{}'
+            );
+            CREATE INDEX IF NOT EXISTS idx_nft_offer_token ON nft_offers(token_id);
+
+            CREATE TABLE IF NOT EXISTS nft_auctions (
+                auction_id  TEXT PRIMARY KEY,
+                token_id    TEXT NOT NULL,
+                seller      TEXT NOT NULL DEFAULT '',
+                status      TEXT NOT NULL DEFAULT 'active',
+                ends_at     INTEGER NOT NULL DEFAULT 0,
+                payload     TEXT NOT NULL DEFAULT '{}',
+                created_at  INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS nft_sales (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                token_id    TEXT NOT NULL,
+                from_addr   TEXT NOT NULL DEFAULT '',
+                to_addr     TEXT NOT NULL DEFAULT '',
+                price       REAL NOT NULL DEFAULT 0,
+                sale_type   TEXT NOT NULL DEFAULT 'buy',
+                created_at  INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_nft_sales_ts ON nft_sales(created_at);
+
             CREATE INDEX IF NOT EXISTS idx_tx_block ON transactions(block_height);
             CREATE INDEX IF NOT EXISTS idx_tx_from  ON transactions(from_addr);
             CREATE INDEX IF NOT EXISTS idx_tx_to    ON transactions(to_addr);
@@ -1498,6 +1545,152 @@ class Database:
                     **payload,
                 })
             return out
+
+    # ── NFT marketplace (Wave 46 persistence) ─────────────────────────────────
+
+    def save_nft_token(self, token: Dict) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO nft_tokens
+                   (token_id, name, description, image_url, owner, creator,
+                    price, for_sale, created_at, metadata)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    token["token_id"],
+                    token.get("name", ""),
+                    token.get("description", ""),
+                    token.get("image_url", ""),
+                    token.get("owner", ""),
+                    token.get("creator", ""),
+                    float(token.get("price", 0)),
+                    1 if token.get("for_sale") else 0,
+                    int(token.get("created_at", 0)),
+                    json.dumps(token.get("metadata") or {}),
+                ),
+            )
+            self.conn.commit()
+
+    def get_nft_tokens(self) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute("SELECT * FROM nft_tokens ORDER BY created_at").fetchall()
+            out = []
+            for r in rows:
+                try:
+                    meta = json.loads(r["metadata"] or "{}")
+                except Exception:
+                    meta = {}
+                out.append({
+                    "token_id": r["token_id"],
+                    "name": r["name"],
+                    "description": r["description"],
+                    "image_url": r["image_url"],
+                    "owner": r["owner"],
+                    "creator": r["creator"],
+                    "price": r["price"],
+                    "for_sale": bool(r["for_sale"]),
+                    "created_at": r["created_at"],
+                    "metadata": meta,
+                })
+            return out
+
+    def save_nft_offer(self, offer: Dict) -> None:
+        with self.lock:
+            payload = {k: v for k, v in offer.items() if k != "offer_id"}
+            self.conn.execute(
+                """INSERT OR REPLACE INTO nft_offers
+                   (offer_id, token_id, bidder, price, expires_at, status, created_at, payload)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (
+                    offer["offer_id"],
+                    offer.get("token_id", ""),
+                    offer.get("bidder", ""),
+                    float(offer.get("price", 0)),
+                    int(offer.get("expires_at", 0)),
+                    offer.get("status", "pending"),
+                    int(offer.get("created_at", 0)),
+                    json.dumps(payload),
+                ),
+            )
+            self.conn.commit()
+
+    def get_nft_offers(self) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute("SELECT * FROM nft_offers ORDER BY created_at DESC").fetchall()
+            out = []
+            for r in rows:
+                try:
+                    payload = json.loads(r["payload"] or "{}")
+                except Exception:
+                    payload = {}
+                out.append({"offer_id": r["offer_id"], **payload})
+            return out
+
+    def save_nft_auction(self, auction: Dict) -> None:
+        with self.lock:
+            aid = auction["auction_id"]
+            payload = {k: v for k, v in auction.items() if k != "auction_id"}
+            self.conn.execute(
+                """INSERT OR REPLACE INTO nft_auctions
+                   (auction_id, token_id, seller, status, ends_at, payload, created_at)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (
+                    aid,
+                    auction.get("token_id", ""),
+                    auction.get("seller", ""),
+                    auction.get("status", "active"),
+                    int(auction.get("ends_at", 0)),
+                    json.dumps(payload),
+                    int(auction.get("created_at", 0)),
+                ),
+            )
+            self.conn.commit()
+
+    def get_nft_auctions(self) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute("SELECT * FROM nft_auctions ORDER BY created_at DESC").fetchall()
+            out = []
+            for r in rows:
+                try:
+                    payload = json.loads(r["payload"] or "{}")
+                except Exception:
+                    payload = {}
+                out.append({"auction_id": r["auction_id"], **payload})
+            return out
+
+    def save_nft_sale(self, sale: Dict) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT INTO nft_sales
+                   (token_id, from_addr, to_addr, price, sale_type, created_at)
+                   VALUES (?,?,?,?,?,?)""",
+                (
+                    sale.get("token_id", ""),
+                    sale.get("from", sale.get("from_addr", "")),
+                    sale.get("to", sale.get("to_addr", "")),
+                    float(sale.get("price", 0)),
+                    sale.get("type", sale.get("sale_type", "buy")),
+                    int(sale.get("timestamp", sale.get("created_at", 0))),
+                ),
+            )
+            self.conn.commit()
+
+    def get_nft_sales(self, limit: int = 100) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT * FROM nft_sales ORDER BY created_at DESC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+            return [
+                {
+                    "token_id": r["token_id"],
+                    "from": r["from_addr"],
+                    "to": r["to_addr"],
+                    "price": r["price"],
+                    "type": r["sale_type"],
+                    "timestamp": r["created_at"],
+                }
+                for r in rows
+            ]
 
     # ── Метаданные (токеномика, конфиг) ─────────────────────────────────────
 

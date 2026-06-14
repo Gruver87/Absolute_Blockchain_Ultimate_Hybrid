@@ -2,11 +2,17 @@
 
 Все значимые изменения документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/).
 
-**Текущая волна API:** `api_wave = 45` (проверка: `GET /status`)
+**Текущая волна API:** `api_wave = 46` (проверка: `GET /status`)
 
 ---
 
-## [1.2.0-industrial] — Wave 37–45 (июнь 2026)
+## [1.2.0-industrial] — Wave 37–46 (июнь 2026)
+
+### Wave 46 — NFT SQLite persistence
+
+- NFT tokens, offers, auctions, sales history в SQLite
+- Genesis collection seed при пустой БД; mint/buy/transfer сохраняются
+- `GET /nft/stats`, `nft_persisted` в `/l2/status`
 
 ### Wave 45 — Reorg predictor + dev bridge
 
@@ -62,7 +68,7 @@
 |----------|-----------|
 | `pytest tests/unit` | 195 passed, 1 skipped |
 | Docker devnet 2 nodes | P2P sync, heights aligned, `state_roots_match=True` |
-| `api_wave` | 45 |
+| `api_wave` | 46 |
 | `mega_audit.py` | 256 REST routes |
 
 ---

@@ -50,14 +50,85 @@ class NFTMarketplace:
     ROYALTY = 0.05   # 5% роялти создателю при каждой продаже
 
     def __init__(self, db=None, bus=None):
-        self.db = db      # Database (может быть None в standalone-режиме)
-        self.bus = bus    # EventBus
+        self.db = db
+        self.bus = bus
         self.tokens: Dict[str, NFTToken] = {}
         self.offers: Dict[str, Dict] = {}
         self.auctions: Dict[str, Dict] = {}
         self.sales_history: List[Dict] = []
         self.lock = threading.RLock()
-        self._load_genesis_collection()
+        self._load_from_db()
+        if not self.tokens:
+            self._load_genesis_collection()
+            self._persist_all()
+        print(f"[NFT] Marketplace initialized ({len(self.tokens)} tokens, "
+              f"persisted={bool(self.db and hasattr(self.db, 'get_nft_tokens'))})")
+
+    def _token_from_dict(self, d: Dict) -> NFTToken:
+        return NFTToken(
+            token_id=d["token_id"],
+            name=d.get("name", ""),
+            description=d.get("description", ""),
+            image_url=d.get("image_url", ""),
+            owner=d.get("owner", ""),
+            creator=d.get("creator", ""),
+            price=float(d.get("price", 0)),
+            for_sale=bool(d.get("for_sale")),
+            created_at=float(d.get("created_at", time.time())),
+            metadata=d.get("metadata") or {},
+        )
+
+    def _load_from_db(self) -> None:
+        if not self.db or not hasattr(self.db, "get_nft_tokens"):
+            return
+        for row in self.db.get_nft_tokens():
+            self.tokens[row["token_id"]] = self._token_from_dict(row)
+        if hasattr(self.db, "get_nft_offers"):
+            for o in self.db.get_nft_offers():
+                oid = o.get("offer_id")
+                if oid:
+                    self.offers[oid] = o
+        if hasattr(self.db, "get_nft_auctions"):
+            for a in self.db.get_nft_auctions():
+                aid = a.get("auction_id")
+                if aid:
+                    self.auctions[aid] = a
+        if hasattr(self.db, "get_nft_sales"):
+            self.sales_history = self.db.get_nft_sales(limit=500)
+
+    def _persist_token(self, token_id: str) -> None:
+        if not self.db or not hasattr(self.db, "save_nft_token"):
+            return
+        t = self.tokens.get(token_id)
+        if t:
+            self.db.save_nft_token(t.to_dict())
+
+    def _persist_offer(self, offer_id: str) -> None:
+        if not self.db or not hasattr(self.db, "save_nft_offer"):
+            return
+        o = self.offers.get(offer_id)
+        if o:
+            self.db.save_nft_offer(o)
+
+    def _persist_auction(self, auction_id: str) -> None:
+        if not self.db or not hasattr(self.db, "save_nft_auction"):
+            return
+        a = self.auctions.get(auction_id)
+        if a:
+            self.db.save_nft_auction(a)
+
+    def _record_sale(self, sale: Dict) -> None:
+        self.sales_history.append(sale)
+        if self.db and hasattr(self.db, "save_nft_sale"):
+            self.db.save_nft_sale(sale)
+
+    def _persist_all(self) -> None:
+        for tid in list(self.tokens.keys()):
+            self._persist_token(tid)
+        for oid in list(self.offers.keys()):
+            self._persist_offer(oid)
+        for aid in list(self.auctions.keys()):
+            self._persist_auction(aid)
 
     def _load_genesis_collection(self):
         """Начальная коллекция Genesis."""
@@ -99,6 +170,7 @@ class NFTMarketplace:
                 image_url=image_url, owner=creator, creator=creator,
                 price=price, for_sale=(price > 0),
             )
+            self._persist_token(token_id)
 
             if self.bus:
                 self.bus.emit("nft.minted", {"token_id": token_id, "creator": creator})
@@ -116,6 +188,7 @@ class NFTMarketplace:
                 return {"success": False, "error": "not owner"}
             t.price = price
             t.for_sale = True
+            self._persist_token(token_id)
             return {"success": True, "token_id": token_id, "price": price}
 
     def buy(self, token_id: str, buyer: str) -> Dict:
@@ -144,6 +217,12 @@ class NFTMarketplace:
             old_owner = t.owner
             t.owner = buyer
             t.for_sale = False
+            self._persist_token(token_id)
+            self._record_sale({
+                "token_id": token_id, "from": old_owner,
+                "to": buyer, "price": price,
+                "type": "buy", "timestamp": int(time.time()),
+            })
 
             if self.bus:
                 self.bus.emit("nft.sold", {
@@ -163,6 +242,7 @@ class NFTMarketplace:
                 return {"success": False, "error": "not owner"}
             t.owner = to_addr
             t.for_sale = False
+            self._persist_token(token_id)
             return {"success": True}
 
     # ── Геттеры ──────────────────────────────────────────────────────────────
@@ -196,6 +276,7 @@ class NFTMarketplace:
                 "total_sales": len(self.sales_history),
                 "total_offers": len(self.offers),
                 "active_auctions": sum(1 for a in self.auctions.values() if a.get("status") == "active"),
+                "persisted": bool(self.db and hasattr(self.db, "get_nft_tokens")),
             }
 
     # ── Offers ────────────────────────────────────────────────────────────────
@@ -219,6 +300,7 @@ class NFTMarketplace:
                 "status": "pending",
                 "created_at": int(time.time()),
             }
+            self._persist_offer(offer_id)
             return offer_id
 
     def accept_offer(self, offer_id: str, seller: str) -> Dict:
@@ -244,8 +326,10 @@ class NFTMarketplace:
             old_owner = t.owner
             t.owner = offer["bidder"]
             t.for_sale = False
+            self._persist_token(token_id)
             offer["status"] = "accepted"
-            self.sales_history.append({
+            self._persist_offer(offer_id)
+            self._record_sale({
                 "token_id": token_id, "from": old_owner,
                 "to": offer["bidder"], "price": price,
                 "type": "offer", "timestamp": int(time.time()),
@@ -290,6 +374,7 @@ class NFTMarketplace:
                 "bids": [],
                 "created_at": int(time.time()),
             }
+            self._persist_auction(auction_id)
             return auction_id
 
     def place_bid(self, auction_id: str, bidder: str, amount: float) -> Dict:
@@ -299,12 +384,14 @@ class NFTMarketplace:
                 return {"success": False, "error": "Auction not found or ended"}
             if int(time.time()) > auction["ends_at"]:
                 auction["status"] = "ended"
+                self._persist_auction(auction_id)
                 return {"success": False, "error": "Auction has ended"}
             if amount <= auction["current_bid"]:
                 return {"success": False, "error": f"Bid must be > {auction['current_bid']}"}
             auction["bids"].append({"bidder": bidder, "amount": amount, "ts": int(time.time())})
             auction["current_bid"] = amount
             auction["current_bidder"] = bidder
+            self._persist_auction(auction_id)
             return {"success": True, "auction_id": auction_id,
                     "current_bid": amount, "bidder": bidder}
 
@@ -316,6 +403,7 @@ class NFTMarketplace:
             if auction["status"] != "active":
                 return {"success": False, "error": "Auction already finalized"}
             auction["status"] = "finalized"
+            self._persist_auction(auction_id)
             winner = auction["current_bidder"]
             price = auction["current_bid"]
             if winner and price >= auction.get("reserve_price", 0):
@@ -331,7 +419,8 @@ class NFTMarketplace:
                             self.db.update_balance(t.creator, royalty)
                     t.owner = winner
                     t.for_sale = False
-                    self.sales_history.append({
+                    self._persist_token(token_id)
+                    self._record_sale({
                         "token_id": token_id, "from": old_owner, "to": winner,
                         "price": price, "type": "auction", "timestamp": int(time.time()),
                     })

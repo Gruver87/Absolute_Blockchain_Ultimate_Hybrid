@@ -725,7 +725,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 45,
+                    "api_wave": 46,
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,
                     "crypto_will_enabled": self.__class__.crypto_will is not None,
@@ -1004,7 +1004,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "lightning": self.__class__.lightning,
                 }
                 payload = flags.to_api_dict(instances, cfg)
-                payload["api_wave"] = 45
+                payload["api_wave"] = 46
                 rp = self.__class__.reorg_predictor
                 if rp and hasattr(rp, "get_stats"):
                     payload["reorg_predictor"] = rp.get_stats()
@@ -1014,6 +1014,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ("crypto_will", self.__class__.crypto_will),
                     ("wasm", self.__class__.wasm_vm),
                     ("ai_agents", self.__class__.ai_manager),
+                    ("nft", self.__class__.nft),
                     ("mev", self.__class__.mev_simulator),
                 ):
                     if mod and hasattr(mod, "get_stats"):
@@ -1774,6 +1775,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                 offers = list(getattr(nft, "offers", {}).values())[:20] if nft else []
                 self._json({"stats": stats, "active_auctions": len([a for a in auctions if a.get("status")=="active"]),
                             "active_offers": len(offers), "total_auctions": len(auctions)})
+
+            elif path == "/nft/stats":
+                nft = self.__class__.nft
+                if not nft:
+                    self._json({"enabled": False}); return
+                self._json(nft.get_stats())
 
             # ── Lightning Network ─────────────────────────────────────────────
             elif path == "/l2/status":
@@ -4588,6 +4595,7 @@ def _build_l2_status(handler_cls) -> Dict:
     cw = handler_cls.crypto_will
     wasm = handler_cls.wasm_vm
     ai = handler_cls.ai_manager
+    nft = getattr(handler_cls, "nft", None)
     if ln and hasattr(ln, "get_stats"):
         modules["lightning"] = ln.get_stats()
     if pl and hasattr(pl, "get_stats"):
@@ -4598,12 +4606,17 @@ def _build_l2_status(handler_cls) -> Dict:
         modules["wasm"] = wasm.get_stats()
     if ai and hasattr(ai, "get_stats"):
         modules["ai_agents"] = ai.get_stats()
+    nft_persisted = False
+    if nft and hasattr(nft, "get_stats"):
+        modules["nft"] = nft.get_stats()
+        nft_persisted = bool(modules["nft"].get("persisted"))
     persisted = any(
         m.get("persisted") for m in modules.values() if isinstance(m, dict)
     )
     return {
-        "api_wave": 45,
+        "api_wave": 46,
         "l2_persisted": persisted,
+        "nft_persisted": nft_persisted,
         "modules_enabled": list(modules.keys()),
         "modules": modules,
         "endpoints": {
@@ -4613,6 +4626,7 @@ def _build_l2_status(handler_cls) -> Dict:
             "wasm": "GET /wasm/stats",
             "ai": "GET /ai-agent/stats",
             "mev": "GET /mev/stats",
+            "nft": "GET /nft/stats",
         },
     }
 
