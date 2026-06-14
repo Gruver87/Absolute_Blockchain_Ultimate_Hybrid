@@ -306,6 +306,25 @@ class Database:
             CREATE INDEX IF NOT EXISTS idx_crypto_wills_owner ON crypto_wills(owner);
             CREATE INDEX IF NOT EXISTS idx_crypto_wills_status ON crypto_wills(status);
 
+            CREATE TABLE IF NOT EXISTS wasm_contracts (
+                address     TEXT PRIMARY KEY,
+                code        TEXT NOT NULL,
+                owner       TEXT NOT NULL,
+                name        TEXT NOT NULL DEFAULT '',
+                created_at  INTEGER NOT NULL DEFAULT 0,
+                call_count  INTEGER NOT NULL DEFAULT 0,
+                storage_json TEXT NOT NULL DEFAULT '{}'
+            );
+
+            CREATE TABLE IF NOT EXISTS wasm_events (
+                event_id      TEXT PRIMARY KEY,
+                contract_addr TEXT NOT NULL DEFAULT '',
+                event_type    TEXT NOT NULL DEFAULT '',
+                payload       TEXT NOT NULL DEFAULT '{}',
+                timestamp     INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_wasm_events_ts ON wasm_events(timestamp);
+
             CREATE INDEX IF NOT EXISTS idx_tx_block ON transactions(block_height);
             CREATE INDEX IF NOT EXISTS idx_tx_from  ON transactions(from_addr);
             CREATE INDEX IF NOT EXISTS idx_tx_to    ON transactions(to_addr);
@@ -1197,6 +1216,107 @@ class Database:
         with self.lock:
             self.conn.execute("DELETE FROM crypto_wills WHERE will_id=?", (will_id,))
             self.conn.commit()
+
+    # ── WASM VM (Wave 42 persistence) ─────────────────────────────────────────
+
+    def save_wasm_contract(self, contract: Dict) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO wasm_contracts
+                   (address, code, owner, name, created_at, call_count, storage_json)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (
+                    contract["address"],
+                    contract.get("code", ""),
+                    contract["owner"],
+                    contract.get("name", ""),
+                    int(contract.get("created_at", 0)),
+                    int(contract.get("call_count", 0)),
+                    json.dumps(contract.get("storage", {})),
+                ),
+            )
+            self.conn.commit()
+
+    def get_wasm_contracts(self, limit: int = 200) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT * FROM wasm_contracts ORDER BY created_at DESC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+            out = []
+            for r in rows:
+                try:
+                    storage = json.loads(r["storage_json"] or "{}")
+                except Exception:
+                    storage = {}
+                out.append({
+                    "address": r["address"],
+                    "code": r["code"],
+                    "owner": r["owner"],
+                    "name": r["name"],
+                    "created_at": r["created_at"],
+                    "call_count": r["call_count"],
+                    "storage": storage,
+                })
+            return out
+
+    def get_wasm_contract(self, address: str) -> Optional[Dict]:
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT * FROM wasm_contracts WHERE address=?", (address,)
+            ).fetchone()
+            if not row:
+                return None
+            try:
+                storage = json.loads(row["storage_json"] or "{}")
+            except Exception:
+                storage = {}
+            return {
+                "address": row["address"],
+                "code": row["code"],
+                "owner": row["owner"],
+                "name": row["name"],
+                "created_at": row["created_at"],
+                "call_count": row["call_count"],
+                "storage": storage,
+            }
+
+    def save_wasm_event(self, event: Dict) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO wasm_events
+                   (event_id, contract_addr, event_type, payload, timestamp)
+                   VALUES (?,?,?,?,?)""",
+                (
+                    event["event_id"],
+                    event.get("contract_addr", ""),
+                    event.get("event_type", event.get("type", "")),
+                    json.dumps(event.get("payload", event)),
+                    int(event.get("timestamp", 0)),
+                ),
+            )
+            self.conn.commit()
+
+    def get_wasm_events(self, limit: int = 100) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT * FROM wasm_events ORDER BY timestamp DESC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+            out = []
+            for r in rows:
+                try:
+                    payload = json.loads(r["payload"] or "{}")
+                except Exception:
+                    payload = {}
+                out.append({
+                    "event_id": r["event_id"],
+                    "contract_addr": r["contract_addr"],
+                    "event_type": r["event_type"],
+                    "payload": payload,
+                    "timestamp": r["timestamp"],
+                })
+            return out
 
     # ── Метаданные (токеномика, конфиг) ─────────────────────────────────────
 

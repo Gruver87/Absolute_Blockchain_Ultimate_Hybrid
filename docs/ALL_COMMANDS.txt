@@ -37,7 +37,7 @@
 
 
 # =============================================================================
-# ЧАСТЬ 0: ВОЗМОЖНОСТИ БЛОКЧЕЙНА — ЧЕСТНО (v1.2.0, Wave 41)
+# ЧАСТЬ 0: ВОЗМОЖНОСТИ БЛОКЧЕЙНА — ЧЕСТНО (v1.2.0, Wave 42)
 # =============================================================================
 #
 # ⚠️  УЧЕБНЫЙ / ЭКСПЕРИМЕНТАЛЬНЫЙ ПРОЕКТ — НЕ PRODUCTION MAINNET
@@ -66,6 +66,9 @@
 # Wave 41:
 #   Crypto Will: завещания в SQLite, create блокирует L1 ABS, execute переводит heir
 #        POST /will/execute (force=true в dev), cancel возвращает owner
+# Wave 42:
+#   WASM VM: контракты/storage/events в SQLite, deploy fee 0.01 ABS
+#   Bridge relayer: GET /bridge/relayer/status (очередь L1 + pending locks)
 #
 # --- Архитектура ---
 #
@@ -131,7 +134,7 @@
 # 🟡 EVM — упрощённый адаптер (НЕ полный Ethereum VM)
 #        Wave 37-38: +LOG/EXTCODE/SELFDESTRUCT/BLOCKHASH/CALLCODE; логи в DB
 #        GET /evm/logs, GET /evm/logs/{address}
-# 🟡 WASM VM — demo-интерпретатор (features/wasm_vm.py), tier=demo
+# 🟡 WASM VM — demo-интерпретатор (Wave 42: SQLite + deploy fee 0.01 ABS)
 #
 # --- NFT, Multisig, Smart Accounts ---
 #
@@ -144,6 +147,7 @@
 #
 # 🟢 Bridge locks + pending — /bridge, /bridge/locks, /bridge2/stats
 # 🟢 L1 relayer queue (Wave 39) — lock с l1_tx_hash → bridge_l1_queue.json; GET /oracles/l1-queue
+# 🟢 Relayer status (Wave 42) — GET /bridge/relayer/status + scripts/bridge_relayer.py
 # 🟢 Simulator mode (по умолчанию) — учебная симуляция ETH/BSC/Solana/ABS
 # 🟡 Rust bridge — bridge/abs_bridge_bin; -RustBridge в start_two_nodes
 #        В Docker может остаться simulator если бинарник не в образе
@@ -174,7 +178,7 @@
 # | MEV Simulator | demo | Анализ sandwich/arbitrage/frontrun в памяти |
 # | Lightning | demo | Payment channels в SQLite (Wave 40); open/close двигают L1 баланс |
 # | Plasma L2 | demo | Sidechain deposits/blocks в SQLite; deposit/exit двигают L1 |
-# | WASM VM | demo | Упрощённый WASM-стиль |
+# | WASM VM | demo | SQLite persistence (Wave 42), deploy fee 0.01 ABS |
 # | AI Validator | demo | Эвристики выбора proposer, не ML-модель |
 # | AI Agents | demo | Trading agents stub |
 # | Reorg Predictor | demo | Оценка риска по глубине подтверждений |

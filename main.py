@@ -727,7 +727,7 @@ class NodeOrchestrator:
         # 31. WASM VM (WebAssembly-style contracts)
         if _WASM_VM_AVAILABLE:
             try:
-                self.wasm_vm = WASMVirtualMachine()
+                self.wasm_vm = WASMVirtualMachine(db=self.db)
                 print("[Node] WASM VM: WebAssembly-style VM ready")
             except Exception as e:
                 self.wasm_vm = None

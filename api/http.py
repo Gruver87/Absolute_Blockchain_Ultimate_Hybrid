@@ -169,6 +169,8 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/plasma/deposits", "summary": "Plasma L2 deposits"},
     {"method": "GET", "path": "/will/stats", "summary": "Crypto will stats (SQLite)"},
     {"method": "POST", "path": "/will/execute", "summary": "Execute crypto will (force in dev)"},
+    {"method": "GET", "path": "/wasm/stats", "summary": "WASM VM stats (SQLite)"},
+    {"method": "GET", "path": "/bridge/relayer/status", "summary": "Bridge relayer queue + pending locks"},
     {"method": "POST", "path": "/oracles/feeds/submit", "summary": "Submit signed oracle feed (HMAC)"},
     {"method": "GET", "path": "/bridge/l1-proofs", "summary": "Registered L1 proof metadata"},
     {"method": "POST", "path": "/sync/reconcile", "summary": "P2P fork reconcile + state sync"},
@@ -720,10 +722,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 41,
+                    "api_wave": 42,
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,
                     "crypto_will_enabled": self.__class__.crypto_will is not None,
+                    "wasm_enabled": self.__class__.wasm_vm is not None,
                     "l2_persisted": bool(
                         getattr(self.__class__.lightning, "db", None)
                         or getattr(self.__class__.plasma, "db", None)
@@ -1213,6 +1216,10 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             elif path in ("/oracles/l1-queue", "/bridge/l1-queue"):
                 self._json(_build_l1_queue_payload(cfg))
+                return
+
+            elif path == "/bridge/relayer/status":
+                self._json(_build_bridge_relayer_status(cfg, db))
                 return
 
             # ── Short URL aliases ─────────────────────────────────────────────
@@ -3337,6 +3344,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not code or not owner:
                     self._error(400, "code and owner required"); return
                 addr = vm.deploy(code, owner, name, init_params)
+                if not addr:
+                    self._error(400, "Deploy failed (insufficient balance for deploy fee?)"); return
                 self._json({"success": True, "contract_address": addr, "name": name or f"Contract_{addr[:8]}"})
 
             elif path == "/wasm/call":
@@ -4512,6 +4521,38 @@ def _build_l1_queue_payload(cfg) -> Dict:
         return {"error": str(e), "outbound": 0, "incoming": 0, "queue": {}}
 
 
+def _build_bridge_relayer_status(cfg, db) -> Dict:
+    """Summary for scripts/bridge_relayer.py operators."""
+    try:
+        from bridge.l1_rpc import load_l1_queue, chain_rpc_url, min_confirmations
+        qpath = getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json")
+        queue = load_l1_queue(qpath)
+        locks = db.get_bridge_locks(limit=1000) if db and hasattr(db, "get_bridge_locks") else []
+        pending_locks = [l for l in locks if (l.get("status") or "pending") == "pending"]
+        oracle_on = bool(
+            getattr(cfg, "bridge_oracle_secret", "")
+            or __import__("os").environ.get("BRIDGE_ORACLE_SECRET", "")
+        )
+        return {
+            "relayer_script": "python scripts/bridge_relayer.py --once --watch-l1",
+            "oracle_hmac_configured": oracle_on,
+            "eth_rpc_configured": bool(chain_rpc_url("ethereum")),
+            "min_confirmations": min_confirmations(),
+            "queue_path": qpath,
+            "l1_outbound": len(queue.get("outbound", [])),
+            "l1_incoming": len(queue.get("incoming", [])),
+            "pending_locks": len(pending_locks),
+            "pending_lock_txs": [l.get("tx_hash", "")[:24] for l in pending_locks[:10]],
+            "endpoints": {
+                "confirm_lock": "POST /bridge/oracle/confirm-lock",
+                "incoming": "POST /bridge/oracle/incoming",
+                "l1_queue": "GET /bridge/l1-queue",
+            },
+        }
+    except Exception as e:
+        return {"error": str(e), "pending_locks": 0, "l1_outbound": 0, "l1_incoming": 0}
+
+
 def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
     """Unified GET /bridge summary (RustBridge + CrossChainBridge + DB locks)."""
     overview = {
@@ -4530,6 +4571,7 @@ def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
             "locks": "GET /bridge/locks",
             "l1_queue": "GET /bridge/l1-queue",
             "oracle_feeds": "GET /oracles/feeds",
+            "relayer_status": "GET /bridge/relayer/status",
             "oracle_prices": "GET /oracles/prices",
             "lock": "POST /bridge/lock",
             "confirm": "POST /bridge/confirm",
