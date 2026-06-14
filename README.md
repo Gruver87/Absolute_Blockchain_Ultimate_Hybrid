@@ -5,17 +5,20 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Educational%20Only-orange.svg)]()
-[![Industrial](https://img.shields.io/badge/Profile-Industrial%20Educational-blue.svg)](docs/INDUSTRIAL_ROADMAP.md)
+[![API Wave](https://img.shields.io/badge/API%20Wave-45-blue.svg)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/Unit%20Tests-195%20passed-brightgreen.svg)](tests/unit/)
 [![Release](https://img.shields.io/badge/Release-v1.2.0--industrial-blue.svg)](https://github.com/Gruver87/absolute-blockchain-ultimate/releases/tag/v1.2.0-industrial)
 
 **Репозиторий:** [github.com/Gruver87/absolute-blockchain-ultimate](https://github.com/Gruver87/absolute-blockchain-ultimate)
 
-**Версия:** 1.2.0-industrial
+**Версия:** `1.2.0-industrial` · **API Wave:** `45` · **Проверка:** `GET /status` → поле `api_wave`
 
 | Документация | Ссылка |
 |--------------|--------|
+| Changelog (Wave 37–45) | [CHANGELOG.md](CHANGELOG.md) |
+| Все команды (честно) | [docs/ALL_COMMANDS.txt](docs/ALL_COMMANDS.txt) |
 | Roadmap | [docs/INDUSTRIAL_ROADMAP.md](docs/INDUSTRIAL_ROADMAP.md) |
-| Команды | [docs/COMMANDS_REFERENCE.md](docs/COMMANDS_REFERENCE.md) |
+| Команды (кратко) | [docs/COMMANDS_REFERENCE.md](docs/COMMANDS_REFERENCE.md) |
 | Observability | [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) |
 
 ---
@@ -38,9 +41,6 @@
 
 Подробнее: [DISCLAIMER.md](DISCLAIMER.md)
 
-**Если проект полезен для обучения — поставьте ⭐, форкните и продвигайте дальше.**  
-Любой может развивать код: улучшать консенсус, безопасность, P2P, документацию, тесты.
-
 ---
 
 ## О проекте
@@ -49,18 +49,41 @@
 
 | Компонент | Описание |
 |-----------|----------|
-| **Ядро** | Блоки, транзакции, burn 2%, genesis, SQLite |
+| **Ядро L1** | Блоки, транзакции, burn 2%, genesis, SQLite persistence |
 | **Токеномика** | Max supply **221 000 000 ABS**, основатель **D.U.P.** (17.4%) |
 | **Консенсус** | PoS-адаптер, эпохи, slashing, beacon/Casper-модули |
 | **API** | **256** REST handlers в `api/http.py`; OpenAPI в `/docs` |
-
-Полный честный список возможностей: **Часть 0** в [`docs/ALL_COMMANDS.txt`](docs/ALL_COMMANDS.txt) или раздел в [`docs/COMMANDS_REFERENCE.md`](docs/COMMANDS_REFERENCE.md).
 | **Web UI** | SPA-эксплорер **32 вкладки** — `http://localhost:8080` |
-| **Light Client** | SPV / Merkle proofs |
-| **Pool Locks** | Блокировка ecosystem/treasury, staking release по эпохам |
-| **Features** | NFT, ZK, Lightning, Plasma, WASM VM, bridge, oracles и др. |
+| **P2P** | TCP gossip, fast-sync, reorg, state_root verify |
+| **L2 / demo** | Lightning, Plasma, WASM, Crypto Will, AI agents, MEV — с SQLite где указано |
+
+Полный честный список возможностей — **Часть 0** в [`docs/ALL_COMMANDS.txt`](docs/ALL_COMMANDS.txt).
 
 Это **Mini-Ethereum-стиль** для обучения, а не конкурент Ethereum или Bitcoin.
+
+---
+
+## Что нового (Wave 37–45)
+
+Краткая сводка последних волн разработки. Подробности — в [CHANGELOG.md](CHANGELOG.md).
+
+| Wave | Суть |
+|------|------|
+| **37–38** | EVM hardening (LOG, EXTCODE, SELFDESTRUCT…), bytecode validator, EVM logs в SQLite |
+| **39** | Oracle feed registry (HMAC), bridge L1 queue, `GET /oracles/feeds` |
+| **40** | Lightning + Plasma: SQLite persistence, open/deposit/exit влияют на L1 ABS |
+| **41** | Crypto Will: завещания в SQLite, execute/cancel с L1-эффектами |
+| **42** | WASM VM persistence, deploy fee, `GET /bridge/relayer/status` |
+| **43** | AI agents в SQLite, plasma submit hints |
+| **44** | `GET /l2/status` (единый дашборд), MEV history в SQLite |
+| **45** | Reorg predictor в SQLite, исправлены `/reorg/*`, dev bridge confirm |
+
+Проверка версии после старта узла:
+
+```powershell
+(Invoke-RestMethod http://localhost:8080/status -UseBasicParsing).api_wave
+# ожидается: 45
+```
 
 ---
 
@@ -87,6 +110,7 @@
 
 - Python **3.10+** (проверено на 3.11–3.13)
 - Windows / Linux / macOS
+- **Docker Desktop** — только для `docker_devnet.ps1` (опционально)
 
 ### Установка
 
@@ -94,11 +118,11 @@
 git clone https://github.com/Gruver87/absolute-blockchain-ultimate.git
 cd absolute-blockchain-ultimate
 pip install -r requirements.txt
-cp .env.example .env   # опционально
-cp wallet.example.json data/wallet.json   # опционально, локальный кошелёк (не коммитить ключи)
+cp .env.example .env          # секреты только здесь, не в git
+cp wallet.example.json data/wallet.json   # локальный кошелёк (не коммитить ключи)
 ```
 
-### Запуск (одна команда)
+### Запуск одного узла
 
 ```bash
 python main.py
@@ -118,53 +142,93 @@ python main.py --config node.json # свой конфиг
 |--------|-----|
 | **Web Explorer** | http://localhost:8080 |
 | **REST API** | http://localhost:8080/status |
+| **L2 dashboard** | http://localhost:8080/l2/status |
 | **JSON-RPC** | http://localhost:8545 |
 | **WebSocket** | ws://localhost:8766 |
 | **P2P** | `:5000` |
 
-### Проверка
+### Два узла (рекомендуется для P2P)
 
-```bash
-curl http://localhost:8080/health/live
-curl http://localhost:8080/status
-curl http://localhost:8080/tokenomics
-curl http://localhost:8080/peers
-curl http://localhost:8080/bridge
-curl http://localhost:8080/docs
-pytest tests/ -q
+**Локально (без Docker):**
+
+```powershell
+.\scripts\stop_node.ps1
+.\scripts\start_two_nodes.ps1 -RustBridge   # node1 :8080, node2 :8081, rust bridge на node1
 ```
 
-Два узла локально (P2P): `.\scripts\start_two_nodes.ps1` — см. `node.example.json` / `node2.example.json`.
+**Docker devnet (2 контейнера):**
 
-Rust bridge на node1: `.\scripts\start_two_nodes.ps1 -RustBridge` (конфиг `node.rust.example.json`).
-
-Docker devnet (sim): `.\scripts\docker_devnet.ps1`  
-Docker devnet (rust node1): `.\scripts\docker_devnet.ps1 -RustBridge`
-
-**Production (Wave 28):** JWT on admin POSTs, `BRIDGE_ORACLE_SECRET` for relayer HMAC (`/bridge/oracle/*`), Explorer saves JWT + RPC key in localStorage.
-
-Telegram bot (bridge/pools): `/bridge`, `/bridgepending`, `/bridgeconfirm`, `/pools`, `/recent`
-
-Devnet API (обучение):
-
-```bash
-curl -X POST http://localhost:8080/devnet/faucet -H "Content-Type: application/json" -d "{\"address\":\"0x...\",\"amount\":100}"
-curl -X POST http://localhost:8080/devnet/pool-spend -H "Content-Type: application/json" -d "{\"pool_id\":\"ecosystem\",\"to\":\"0x...\",\"amount\":10}"
-curl -X POST http://localhost:8080/pools/dao/vote -H "Content-Type: application/json" -d "{\"pool_id\":\"ecosystem\",\"voter\":\"0x...\"}"
-curl -X POST http://localhost:8080/bridge/confirm-pending -H "Content-Type: application/json" -d "{}"
-curl http://localhost:8080/transactions/recent
+```powershell
+# 1. Запустите Docker Desktop и дождитесь статуса "Running"
+.\scripts\docker_devnet.ps1 -RustBridge
 ```
 
-Prod config check: `.\scripts\prod_check.ps1`
+| Режим | Команда | `bridge_mode` на node1 |
+|-------|---------|------------------------|
+| Simulator | `.\scripts\docker_devnet.ps1` | `simulator` |
+| Rust bridge | `.\scripts\docker_devnet.ps1 -RustBridge` | `rust` |
 
-### Мониторинг (Grafana + Prometheus)
+После успешного старта скрипт выводит:
 
-```bash
-docker compose -f docker-compose.observability.yml up -d
-# Grafana: http://localhost:3000 (admin/admin)
+```
+OK: peers n1=1 n2=1 heights ... / ... state_roots_match=True
 ```
 
-См. [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md)
+> **Важно:** сразу после `docker compose up` API может быть недоступен 10–30 с.  
+> Скрипт `docker_devnet.ps1` ждёт готовности; при ручных запросах сначала проверьте `/health/live`.
+
+### Проверка API
+
+```powershell
+curl.exe http://localhost:8080/health/live
+curl.exe http://localhost:8080/status
+curl.exe http://localhost:8080/l2/status
+curl.exe http://localhost:8080/oracles/feeds
+curl.exe "http://localhost:8080/reorg/depth?network_hashrate=100&attacker_hashrate=10"
+```
+
+```bash
+pytest tests/unit -q    # 195 passed, 1 skipped (июнь 2026)
+```
+
+### Devnet helpers
+
+```powershell
+# Faucet
+Invoke-RestMethod -Method POST http://localhost:8080/devnet/faucet `
+  -ContentType "application/json" `
+  -Body '{"address":"0x...","amount":100}'
+
+# Подтвердить pending bridge locks без HMAC (только dev)
+Invoke-RestMethod -Method POST http://localhost:8080/bridge/dev-confirm-pending -UseBasicParsing
+```
+
+Секреты (`BRIDGE_ORACLE_SECRET`, `TELEGRAM_BOT_TOKEN`, RPC keys) — **только в `.env`**, см. `.env.example`.
+
+---
+
+## Что реально работает (проверено локально, июнь 2026)
+
+| Компонент | Статус | Примечание |
+|-----------|--------|------------|
+| Core blockchain + SQLite | 🟢 | Блоки, балансы, validators |
+| Mining (~15s) + эмиссия ABS | 🟢 | До cap 221M |
+| REST API `:8080` | 🟢 | 256 routes, `/docs` |
+| JSON-RPC `:8545` | 🟢 | eth_* подмножество |
+| WebSocket + Explorer | 🟢 | Live feed |
+| P2P 2-node sync | 🟢 | `start_two_nodes.ps1` или Docker |
+| Fork reorg + state_root verify | 🟢 | |
+| Oracle registry (Wave 39) | 🟢 | SQLite feeds |
+| Lightning / Plasma L2 (Wave 40) | 🟡 | Demo + SQLite + L1 effects |
+| Crypto Will (Wave 41) | 🟡 | SQLite + L1 lock/transfer |
+| WASM VM (Wave 42) | 🟡 | SQLite, deploy fee |
+| AI agents (Wave 43) | 🟡 | SQLite |
+| MEV simulator (Wave 44) | 🟡 | SQLite history |
+| Reorg predictor (Wave 45) | 🟡 | SQLite assessments |
+| Bridge rust mode | 🟡 | `-RustBridge`; L1 RPC опционален |
+| Production mainnet | 🔴 | Не цель проекта |
+
+🟡 = учебный / demo-модуль с реальным поведением там, где описано в docs; не аудирован для prod.
 
 ---
 
@@ -173,148 +237,92 @@ docker compose -f docker-compose.observability.yml up -d
 ```
 absolute-blockchain-ultimate/
 ├── main.py                 # Единственная точка входа узла
-├── api/http.py             # REST + RPC handlers (~100+ routes, см. /docs)
+├── api/http.py             # REST + RPC (256 handlers)
 ├── web/explorer/index.html # Браузерный SPA (32 вкладки)
 ├── core/blockchain.py      # Блоки, транзакции, genesis
-├── runtime/
-│   ├── config.py           # Конфигурация узла
-│   ├── tokenomics.py       # 221M ABS, D.U.P. 17.4%
-│   └── pool_locks.py       # Блокировки пулов
-├── light/light_client.py   # SPV light client
+├── runtime/                # config, tokenomics, pool_locks
 ├── consensus/              # PoS, эпохи, slashing, finality
 ├── execution/              # VM, state engine, contracts
-├── features/               # NFT, ZK, Lightning, AI и др.
-├── storage/database.py     # SQLite + meta
-├── bridge/                 # Cross-chain (simulator)
-├── scripts/                # start/stop node, audits, release
-├── tests/                  # pytest (unit + integration)
-│   ├── smoke/              # merkle_light.py
-│   └── legacy/             # старые test_v*.py (не CI)
-├── requirements.txt
-└── README.md
+├── features/               # L2, NFT, ZK, oracles, reorg, MEV…
+├── storage/database.py     # SQLite (L1 + L2 tables)
+├── bridge/                 # Cross-chain (sim + rust binary)
+├── scripts/                # docker_devnet, start_two_nodes, audits
+├── tests/unit/             # pytest (195 tests)
+├── docs/ALL_COMMANDS.txt   # Честный справочник (Часть 0)
+└── CHANGELOG.md            # Wave 37–45
 ```
 
-Подробная архитектура: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)  
-**Справочник команд (PowerShell/curl):** [docs/COMMANDS_REFERENCE.md](docs/COMMANDS_REFERENCE.md)
-
-**Старые версии (локально):** папка на рабочем столе `Desktop/Начало блокчейна/` — архив скриптов v54–v57 и legacy API. Не входит в GitHub-релиз.
+Подробная архитектура: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ---
 
-## Что реально работает (локально)
+## API (ключевые эндпоинты)
 
-| Компонент | Статус |
-|-----------|--------|
-| Core blockchain + SQLite | 🟢 |
-| Mining (15s) + эмиссия ABS | 🟢 |
-| REST API `:8080` | 🟢 (~100+ handlers, `/docs` + `verify_endpoints.ps1`) |
-| JSON-RPC `:8545` | 🟢 |
-| WebSocket `:8766` + Explorer live feed | 🟢 |
-| Wallet + auto-sign TX | 🟢 |
-| Signed TX enforcement (`require_signatures`) | 🟢 |
-| State root verify on P2P import | 🟢 |
-| Fork reorg (common ancestor + replay) | 🟢 |
-| Proposer slashing (`double_proposal`) | 🟢 |
-| Validators + PoS-модули | 🟢 |
-| NFT, Oracles, State Engine | 🟢 |
-| P2P (интернет) | 🟡 solo по умолчанию; 2 узла — `start_two_nodes.ps1` |
-| Bridge / Sharding / Lightning / Plasma | 🟡 demo / simulator |
-| Production mainnet | 🔴 не цель проекта |
-
-Проверка ключевых маршрутов:
-
-```powershell
-.\scripts\verify_endpoints.ps1   # /tokenomics, /bridge, /founder, /allocation, …
+```bash
+GET  /status              # api_wave, peers, bridge_mode, l2 flags
+GET  /l2/status           # Lightning, Plasma, Will, WASM, AI
+GET  /features            # feature flags + persisted modules
+GET  /oracles/feeds       # signed oracle registry
+GET  /bridge/relayer/status
+GET  /reorg/depth         # ?network_hashrate=&attacker_hashrate=
+GET  /reorg/fork          # live P2P gaps или chain JSON в query
+GET  /reorg/history
+GET  /mev/history
+GET  /tokenomics
+POST /bridge/dev-confirm-pending   # dev only
 ```
+
+Полный список — `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`.
+
+---
 
 ## Устранение проблем
 
-### Monitor «API сервер не отвечает» на node2
+### Docker is not running
 
-Monitor смотрит на **свой** REST-порт (`http_port`). Node2: API `:8081`, monitor `:8093`.
-Node1: API `:8080`, monitor `:8092`. RPC proxy: `:8082` (node1), `:8083` (node2).
+Запустите **Docker Desktop**, дождитесь **Running**, затем:
 
-### Два узла / порты заняты
-
-```
-[P2P] Could not bind port 5000
-[WebSocket] port 8766 already in use
+```powershell
+.\scripts\docker_devnet.ps1 -RustBridge
 ```
 
-Остановите старый процесс:
+### Соединение закрыто сразу после `docker compose up`
+
+Узел ещё инициализируется. Подождите 10–30 с или используйте `docker_devnet.ps1`.
+
+### `api_wave` меньше 45 в Docker
+
+Образ устарел — пересоберите:
+
+```powershell
+docker compose -f docker-compose.devnet-rust.yml build --no-cache node1
+docker compose -f docker-compose.devnet-rust.yml up -d --force-recreate node1
+```
+
+### Порты заняты
 
 ```powershell
 .\scripts\stop_node.ps1
-# или вручную:
-netstat -ano | findstr :5000
-taskkill /PID <pid> /F
 ```
-
-`start_node.ps1` теперь **автоматически** останавливает предыдущий узел (флаг `-NoAutoStop` — отключить).
-
-### Ложный slashing `double_vote`
-
-Исправлено: slashing считает конфликт **по slot**, а не по epoch (32 блока). Solo-валидатор при майнинге больше не режется за каждый новый блок.
-
-## Честные ограничения
-
-| Ограничение | Пояснение |
-|-------------|-----------|
-| Production | ❌ Не готов |
-| Реальная сеть / mainnet | ❌ Это локальный учебный узел |
-| Полный EVM | ⚠️ Упрощённый / частичный |
-| P2P в интернете | ⚠️ Требует настройки, не «боевая» сеть |
-| Крипто-аудит | ❌ Не проводился |
-
----
-
-## API (примеры)
-
-```bash
-# Статус узла
-GET /status
-
-# Токеномика
-GET /tokenomics
-GET /founder
-GET /allocation
-
-# Pool locks
-GET /pools/locks
-POST /pools/dao/vote  {"pool_id":"ecosystem","voter":"0x..."}
-
-# Light client
-GET /light/stats
-GET /merkle/root/1
-POST /light/spv/verify
-```
-
-Полный список — в `api/http.py` и вкладках веб-эксплорера.
 
 ---
 
 ## Тестирование
 
 ```bash
-pytest tests/ -q
-python tests/smoke/merkle_light.py
-python scripts/mega_audit.py      # интеграционный аудит
-python scripts/final_audit.py     # финальная проверка
+pytest tests/unit -q
+python scripts/mega_audit.py
+.\scripts\verify_endpoints.ps1
 ```
-
-Старые скрипты `test_v*.py` перенесены в `tests/legacy/` (не CI).
 
 ---
 
-## Как помочь и продвинуть проект
+## Как помочь проекту
 
-Мы **приветствуем** любое развитие:
-
-1. ⭐ **Star** на GitHub — помогает другим найти проект  
-2. 🍴 **Fork** — экспериментируйте в своей ветке  
+1. ⭐ **Star** на GitHub  
+2. 🍴 **Fork** и эксперименты в своей ветке  
 3. 🐛 **Issues** — баги и идеи  
 4. 🔧 **Pull Requests** — код, тесты, документация  
-5. 📢 **Расскажите** — блог, курс, видео, портфолио  
 
 См. [CONTRIBUTING.md](CONTRIBUTING.md)
 
@@ -322,10 +330,11 @@ python scripts/final_audit.py     # финальная проверка
 
 ## Автор
 
-**Uladzimir Dabranski** (инициалы **D.U.P.**)  
-- GitHub: [@Gruver87](https://github.com/Gruver87)  
-- Репозиторий: [absolute-blockchain-ultimate](https://github.com/Gruver87/absolute-blockchain-ultimate)  
-- Email: gruverpetrov@gmail.com  
+**Uladzimir Dabranski** (инициалы **D.U.P.**)
+
+- GitHub: [@Gruver87](https://github.com/Gruver87)
+- Репозиторий: [absolute-blockchain-ultimate](https://github.com/Gruver87/absolute-blockchain-ultimate)
+- Email: gruverpetrov@gmail.com
 
 ---
 
@@ -336,4 +345,4 @@ python scripts/final_audit.py     # финальная проверка
 
 ---
 
-*Последнее обновление документации: июнь 2026 — chain integrity (signatures, state_root, reorg), ~100+ API, токеномика 221M ABS.*
+*Последнее обновление: июнь 2026 — API Wave 45, Docker 2-node P2P verified, 195 unit tests, честная документация Wave 37–45.*

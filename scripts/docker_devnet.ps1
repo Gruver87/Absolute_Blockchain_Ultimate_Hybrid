@@ -82,7 +82,7 @@ for ($i = 0; $i -lt 40; $i++) {
                 Write-Host "ai-agent/stats OK (persisted=$($ai.persisted))" -ForegroundColor Green
                 $l2 = Invoke-RestMethod "http://127.0.0.1:8080/l2/status" -UseBasicParsing -TimeoutSec 5
                 Write-Host "l2/status OK (modules=$($l2.modules_enabled -join ','))" -ForegroundColor Green
-                $reorg = Invoke-RestMethod "http://127.0.0.1:8080/reorg/depth?network_hashrate=100&attacker_hashrate=10" -UseBasicParsing -TimeoutSec 5
+                $reorg = Invoke-RestMethod 'http://127.0.0.1:8080/reorg/depth?network_hashrate=100&attacker_hashrate=10' -UseBasicParsing -TimeoutSec 5
                 Write-Host "reorg/depth OK (depth=$($reorg.predicted_depth))" -ForegroundColor Green
             } catch {
                 Write-Host "oracles/feeds missing — rebuild Docker image (Wave 39+)" -ForegroundColor Red
