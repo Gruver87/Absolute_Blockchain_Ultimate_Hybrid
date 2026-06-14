@@ -66,8 +66,8 @@ for ($i = 0; $i -lt 40; $i++) {
             if ($st.node_id -like "docker-node-*") {
             $ok1 = $true
             Write-Host "node1 ready ($($st.node_id)) api_wave=$($st.api_wave)" -ForegroundColor Green
-            if ($null -eq $st.api_wave -or [int]$st.api_wave -lt 42) {
-                Write-Host "WARN: Docker image is older than Wave 42 — rebuild: docker compose -f $composeFile build --no-cache node1" -ForegroundColor Yellow
+            if ($null -eq $st.api_wave -or [int]$st.api_wave -lt 43) {
+                Write-Host "WARN: Docker image is older than Wave 43 — rebuild: docker compose -f $composeFile build --no-cache node1" -ForegroundColor Yellow
             }
             try {
                 $feeds = Invoke-RestMethod "http://127.0.0.1:8080/oracles/feeds" -UseBasicParsing -TimeoutSec 5
@@ -78,6 +78,8 @@ for ($i = 0; $i -lt 40; $i++) {
                 Write-Host "will/stats OK (persisted=$($will.persisted))" -ForegroundColor Green
                 $wasm = Invoke-RestMethod "http://127.0.0.1:8080/wasm/stats" -UseBasicParsing -TimeoutSec 5
                 Write-Host "wasm/stats OK (persisted=$($wasm.persisted))" -ForegroundColor Green
+                $ai = Invoke-RestMethod "http://127.0.0.1:8080/ai-agent/stats" -UseBasicParsing -TimeoutSec 5
+                Write-Host "ai-agent/stats OK (persisted=$($ai.persisted))" -ForegroundColor Green
             } catch {
                 Write-Host "oracles/feeds missing — rebuild Docker image (Wave 39+)" -ForegroundColor Red
             }

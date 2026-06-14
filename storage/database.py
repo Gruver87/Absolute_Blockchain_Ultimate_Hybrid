@@ -325,6 +325,22 @@ class Database:
             );
             CREATE INDEX IF NOT EXISTS idx_wasm_events_ts ON wasm_events(timestamp);
 
+            CREATE TABLE IF NOT EXISTS ai_agents (
+                agent_id          TEXT PRIMARY KEY,
+                name              TEXT NOT NULL,
+                owner             TEXT NOT NULL,
+                agent_type        TEXT NOT NULL DEFAULT 'transformer',
+                status            TEXT NOT NULL DEFAULT 'active',
+                created_at        INTEGER NOT NULL DEFAULT 0,
+                last_action       INTEGER NOT NULL DEFAULT 0,
+                performance_score REAL NOT NULL DEFAULT 0,
+                total_profit      REAL NOT NULL DEFAULT 0,
+                actions_count     INTEGER NOT NULL DEFAULT 0,
+                strategy_json     TEXT NOT NULL DEFAULT '{}',
+                memory_json       TEXT NOT NULL DEFAULT '[]'
+            );
+            CREATE INDEX IF NOT EXISTS idx_ai_agents_owner ON ai_agents(owner);
+
             CREATE INDEX IF NOT EXISTS idx_tx_block ON transactions(block_height);
             CREATE INDEX IF NOT EXISTS idx_tx_from  ON transactions(from_addr);
             CREATE INDEX IF NOT EXISTS idx_tx_to    ON transactions(to_addr);
@@ -1317,6 +1333,78 @@ class Database:
                     "timestamp": r["timestamp"],
                 })
             return out
+
+    # ── AI Agents (Wave 43 persistence) ─────────────────────────────────────
+
+    def save_ai_agent(self, agent: Dict) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO ai_agents
+                   (agent_id, name, owner, agent_type, status, created_at,
+                    last_action, performance_score, total_profit, actions_count,
+                    strategy_json, memory_json)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    agent["agent_id"],
+                    agent["name"],
+                    agent["owner"],
+                    agent.get("agent_type", "transformer"),
+                    agent.get("status", "active"),
+                    int(agent.get("created_at", 0)),
+                    int(agent.get("last_action", 0)),
+                    float(agent.get("performance_score", 0)),
+                    float(agent.get("total_profit", 0)),
+                    int(agent.get("actions_count", 0)),
+                    json.dumps(agent.get("strategy", {})),
+                    json.dumps(agent.get("memory", [])),
+                ),
+            )
+            self.conn.commit()
+
+    def get_ai_agents(self, owner: str = "", limit: int = 200) -> List[Dict]:
+        with self.lock:
+            if owner:
+                rows = self.conn.execute(
+                    "SELECT * FROM ai_agents WHERE owner=? ORDER BY created_at DESC LIMIT ?",
+                    (owner, int(limit)),
+                ).fetchall()
+            else:
+                rows = self.conn.execute(
+                    "SELECT * FROM ai_agents ORDER BY created_at DESC LIMIT ?",
+                    (int(limit),),
+                ).fetchall()
+            out = []
+            for r in rows:
+                try:
+                    strategy = json.loads(r["strategy_json"] or "{}")
+                except Exception:
+                    strategy = {}
+                try:
+                    memory = json.loads(r["memory_json"] or "[]")
+                except Exception:
+                    memory = []
+                out.append({
+                    "agent_id": r["agent_id"],
+                    "name": r["name"],
+                    "owner": r["owner"],
+                    "agent_type": r["agent_type"],
+                    "status": r["status"],
+                    "created_at": r["created_at"],
+                    "last_action": r["last_action"],
+                    "performance_score": r["performance_score"],
+                    "total_profit": r["total_profit"],
+                    "actions_count": r["actions_count"],
+                    "strategy": strategy,
+                    "memory": memory,
+                })
+            return out
+
+    def get_ai_agent(self, agent_id: str) -> Optional[Dict]:
+        rows = self.get_ai_agents(limit=500)
+        for r in rows:
+            if r["agent_id"] == agent_id:
+                return r
+        return None
 
     # ── Метаданные (токеномика, конфиг) ─────────────────────────────────────
 

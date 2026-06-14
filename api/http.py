@@ -171,6 +171,7 @@ _PUBLIC_API_ROUTES = [
     {"method": "POST", "path": "/will/execute", "summary": "Execute crypto will (force in dev)"},
     {"method": "GET", "path": "/wasm/stats", "summary": "WASM VM stats (SQLite)"},
     {"method": "GET", "path": "/bridge/relayer/status", "summary": "Bridge relayer queue + pending locks"},
+    {"method": "GET", "path": "/ai-agent/stats", "summary": "AI trading agents stats (SQLite)"},
     {"method": "POST", "path": "/oracles/feeds/submit", "summary": "Submit signed oracle feed (HMAC)"},
     {"method": "GET", "path": "/bridge/l1-proofs", "summary": "Registered L1 proof metadata"},
     {"method": "POST", "path": "/sync/reconcile", "summary": "P2P fork reconcile + state sync"},
@@ -722,11 +723,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 42,
+                    "api_wave": 43,
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,
                     "crypto_will_enabled": self.__class__.crypto_will is not None,
                     "wasm_enabled": self.__class__.wasm_vm is not None,
+                    "ai_agents_enabled": self.__class__.ai_manager is not None,
                     "l2_persisted": bool(
                         getattr(self.__class__.lightning, "db", None)
                         or getattr(self.__class__.plasma, "db", None)
@@ -3315,7 +3317,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if result:
                     self._json({"success": True, "block": result})
                 else:
-                    self._json({"success": False, "message": "No pending transactions"})
+                    st = pl.get_stats() if hasattr(pl, "get_stats") else {}
+                    self._json({
+                        "success": False,
+                        "message": "No pending transactions",
+                        "pending_transactions": st.get("pending_transactions", 0),
+                        "blocks": st.get("blocks", 0),
+                        "hint": "POST /plasma/deposit or /plasma/tx first",
+                    })
 
             elif path == "/plasma/exit":
                 pl = self.__class__.plasma
@@ -3373,6 +3382,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not name or not owner:
                     self._error(400, "name and owner required"); return
                 aid = am.create_agent(name, owner, agent_type)
+                if not aid:
+                    self._error(400, "Could not create agent (insufficient balance for create fee?)"); return
                 self._json({"success": True, "agent_id": aid, "name": name, "type": agent_type})
 
             elif path == "/ai-agent/predict":

@@ -738,7 +738,7 @@ class NodeOrchestrator:
         # 32. AI Agent Manager (trading agents)
         if _AI_MANAGER_AVAILABLE:
             try:
-                self.ai_manager = AIAgentManager()
+                self.ai_manager = AIAgentManager(db=self.db)
                 print("[Node] AI Agent Manager: trading agents ready")
             except Exception as e:
                 self.ai_manager = None

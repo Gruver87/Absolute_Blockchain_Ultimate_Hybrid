@@ -1,29 +1,38 @@
-"""AI Agent Manager — autonomous trading agents with market analysis."""
+"""AI Agent Manager — trading agents with SQLite persistence (Wave 43)."""
 
 import hashlib
+import json
 import time
 from typing import Dict, List, Optional
 
 
 class AIAgent:
     def __init__(self, agent_id: str, name: str, owner: str,
-                 agent_type: str = "transformer"):
+                 agent_type: str = "transformer",
+                 status: str = "active",
+                 created_at: int = None,
+                 last_action: int = None,
+                 performance_score: float = 0.0,
+                 total_profit: float = 0.0,
+                 actions_count: int = 0,
+                 strategy: Dict = None,
+                 memory: List[Dict] = None):
         self.agent_id = agent_id
         self.name = name
         self.owner = owner
         self.agent_type = agent_type
-        self.status = "active"
-        self.created_at = int(time.time())
-        self.last_action = self.created_at
-        self.performance_score = 0.0
-        self.total_profit = 0.0
-        self.actions_count = 0
-        self.strategy = {
+        self.status = status
+        self.created_at = created_at if created_at is not None else int(time.time())
+        self.last_action = last_action if last_action is not None else self.created_at
+        self.performance_score = performance_score
+        self.total_profit = total_profit
+        self.actions_count = actions_count
+        self.strategy = strategy or {
             "type": "arbitrage",
             "risk_level": "medium",
             "max_position": 1000,
         }
-        self.memory: List[Dict] = []
+        self.memory: List[Dict] = list(memory or [])
 
     def predict(self, market_data: Dict) -> Dict:
         features = market_data.get("features") or market_data.get("prices", [])
@@ -85,7 +94,7 @@ class AIAgent:
         return {
             "agent_id": self.agent_id,
             "name": self.name,
-            "owner": self.owner[:16] + "...",
+            "owner": self.owner[:16] + "..." if len(self.owner) > 20 else self.owner,
             "agent_type": self.agent_type,
             "status": self.status,
             "performance_score": round(self.performance_score, 4),
@@ -94,21 +103,79 @@ class AIAgent:
             "created_at": self.created_at,
         }
 
+    def to_db(self) -> Dict:
+        return {
+            "agent_id": self.agent_id,
+            "name": self.name,
+            "owner": self.owner,
+            "agent_type": self.agent_type,
+            "status": self.status,
+            "created_at": self.created_at,
+            "last_action": self.last_action,
+            "performance_score": self.performance_score,
+            "total_profit": self.total_profit,
+            "actions_count": self.actions_count,
+            "strategy": self.strategy,
+            "memory": self.memory,
+        }
+
 
 class AIAgentManager:
-    """Manages AI trading agents: create, predict, trade, analyze."""
+    """Manages AI trading agents — persisted in SQLite."""
 
-    def __init__(self):
+    CREATE_FEE = 0.01
+
+    def __init__(self, db=None):
+        self.db = db
         self.agents: Dict[str, AIAgent] = {}
-        print("[AIAgentManager] Initialized")
+        self._load_from_db()
+        print(f"[AIAgentManager] Initialized ({len(self.agents)} agents, "
+              f"persisted={bool(db)})")
+
+    def _load_from_db(self) -> None:
+        if not self.db or not hasattr(self.db, "get_ai_agents"):
+            return
+        for row in self.db.get_ai_agents(limit=500):
+            agent = AIAgent(
+                agent_id=row["agent_id"],
+                name=row["name"],
+                owner=row["owner"],
+                agent_type=row.get("agent_type", "transformer"),
+                status=row.get("status", "active"),
+                created_at=row.get("created_at"),
+                last_action=row.get("last_action"),
+                performance_score=row.get("performance_score", 0),
+                total_profit=row.get("total_profit", 0),
+                actions_count=row.get("actions_count", 0),
+                strategy=row.get("strategy"),
+                memory=row.get("memory"),
+            )
+            self.agents[agent.agent_id] = agent
+
+    def _persist(self, agent: AIAgent) -> None:
+        if self.db and hasattr(self.db, "save_ai_agent"):
+            self.db.save_ai_agent(agent.to_db())
+
+    def _charge_create_fee(self, owner: str) -> bool:
+        if not self.db or not hasattr(self.db, "update_balance"):
+            return True
+        if self.db.get_balance(owner) < self.CREATE_FEE:
+            return False
+        self.db.update_balance(owner, -self.CREATE_FEE)
+        return True
 
     def create_agent(self, name: str, owner: str,
-                     agent_type: str = "transformer") -> str:
+                     agent_type: str = "transformer") -> Optional[str]:
+        if not name or not owner:
+            return None
+        if not self._charge_create_fee(owner):
+            return None
         agent_id = hashlib.sha256(
             f"{name}{owner}{time.time()}".encode()
         ).hexdigest()[:16]
         agent = AIAgent(agent_id, name, owner, agent_type)
         self.agents[agent_id] = agent
+        self._persist(agent)
         print(f"[AIAgentManager] Created agent '{name}' ({agent_id}) for {owner[:12]}...")
         return agent_id
 
@@ -119,8 +186,7 @@ class AIAgentManager:
         return [a.to_dict() for a in self.agents.values()]
 
     def get_user_agents(self, owner: str) -> List[Dict]:
-        return [a.to_dict() for a in self.agents.values()
-                if a.owner == owner or owner in a.owner]
+        return [a.to_dict() for a in self.agents.values() if a.owner == owner]
 
     def predict(self, agent_id: str, market_data: Dict) -> Dict:
         agent = self.agents.get(agent_id)
@@ -139,13 +205,17 @@ class AIAgentManager:
         agent = self.agents.get(agent_id)
         if not agent:
             return {"success": False, "error": "Agent not found"}
-        return agent.execute_trade(trade_type, amount, price)
+        result = agent.execute_trade(trade_type, amount, price)
+        if result.get("success"):
+            self._persist(agent)
+        return result
 
     def deactivate(self, agent_id: str) -> bool:
         agent = self.agents.get(agent_id)
         if not agent:
             return False
         agent.status = "inactive"
+        self._persist(agent)
         return True
 
     def get_stats(self) -> Dict:
@@ -156,4 +226,6 @@ class AIAgentManager:
             "active_agents": active,
             "total_profit": round(total_profit, 4),
             "total_trades": sum(a.actions_count for a in self.agents.values()),
+            "persisted": bool(self.db),
+            "create_fee": self.CREATE_FEE,
         }
