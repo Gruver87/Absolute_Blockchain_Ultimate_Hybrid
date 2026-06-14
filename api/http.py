@@ -164,6 +164,9 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/oracles/feeds/{symbol}", "summary": "Oracle feeds filtered by symbol"},
     {"method": "GET", "path": "/bridge/l1-queue", "summary": "L1 RPC watch queue (relayer)"},
     {"method": "GET", "path": "/oracles/l1-queue", "summary": "Bridge L1 queue (alias)"},
+    {"method": "GET", "path": "/lightning/stats", "summary": "Lightning channel stats (SQLite)"},
+    {"method": "GET", "path": "/plasma/stats", "summary": "Plasma L2 stats (SQLite)"},
+    {"method": "GET", "path": "/plasma/deposits", "summary": "Plasma L2 deposits"},
     {"method": "POST", "path": "/oracles/feeds/submit", "summary": "Submit signed oracle feed (HMAC)"},
     {"method": "GET", "path": "/bridge/l1-proofs", "summary": "Registered L1 proof metadata"},
     {"method": "POST", "path": "/sync/reconcile", "summary": "P2P fork reconcile + state sync"},
@@ -715,7 +718,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 39,
+                    "api_wave": 40,
+                    "lightning_enabled": self.__class__.lightning is not None,
+                    "plasma_enabled": self.__class__.plasma is not None,
+                    "l2_persisted": bool(
+                        getattr(self.__class__.lightning, "db", None)
+                        or getattr(self.__class__.plasma, "db", None)
+                    ),
                     "bridge_l1_rpc_configured": bool(
                         os.environ.get("ETH_RPC_URL", "")
                         or os.environ.get("ETHEREUM_RPC_URL", "")
@@ -1759,6 +1768,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                 pl = self.__class__.plasma
                 limit = int(qs.get("limit", ["20"])[0])
                 self._json({"blocks": pl.get_blocks(limit) if pl else []})
+
+            elif path == "/plasma/deposits":
+                pl = self.__class__.plasma
+                limit = int(qs.get("limit", ["50"])[0])
+                if pl and hasattr(pl, "get_deposits"):
+                    self._json({"count": len(pl.get_deposits(limit)), "deposits": pl.get_deposits(limit)})
+                else:
+                    self._json({"deposits": [], "enabled": False})
 
             # ── WASM VM ───────────────────────────────────────────────────────
             elif path == "/wasm/stats":
@@ -3452,10 +3469,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                 plasma = self.__class__.plasma
                 if not plasma:
                     self._error(503, "Plasma not enabled"); return
-                tx_id = body.get("tx_id", "")
+                exit_id = body.get("exit_id", body.get("tx_id", ""))
+                force = bool(body.get("force", False))
                 if hasattr(plasma, "finalize_exit"):
-                    result = plasma.finalize_exit(tx_id)
-                    self._json(result if isinstance(result, dict) else {"success": bool(result)})
+                    ok = plasma.finalize_exit(exit_id, force=force)
+                    self._json({"success": bool(ok), "exit_id": exit_id, "forced": force})
                 else:
                     self._json({"success": False, "error": "finalize_exit not available"})
 

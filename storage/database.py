@@ -239,6 +239,59 @@ class Database:
             CREATE INDEX IF NOT EXISTS idx_oracle_feeds_symbol ON oracle_feeds(symbol);
             CREATE INDEX IF NOT EXISTS idx_oracle_feeds_ts ON oracle_feeds(submitted_at);
 
+            CREATE TABLE IF NOT EXISTS lightning_channels (
+                channel_id   TEXT PRIMARY KEY,
+                node1        TEXT NOT NULL,
+                node2        TEXT NOT NULL,
+                capacity     REAL NOT NULL,
+                balance1     REAL NOT NULL,
+                balance2     REAL NOT NULL,
+                status       TEXT NOT NULL DEFAULT 'open',
+                fee_rate     REAL NOT NULL DEFAULT 0.00001,
+                created_at   INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS lightning_payments (
+                payment_id   TEXT PRIMARY KEY,
+                channel_id   TEXT NOT NULL,
+                from_node    TEXT NOT NULL,
+                to_node      TEXT NOT NULL,
+                amount       REAL NOT NULL,
+                fee          REAL NOT NULL DEFAULT 0,
+                status       TEXT NOT NULL DEFAULT 'completed',
+                payment_hash TEXT NOT NULL DEFAULT '',
+                timestamp    INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_ln_payments_channel ON lightning_payments(channel_id);
+
+            CREATE TABLE IF NOT EXISTS plasma_deposits (
+                deposit_id    TEXT PRIMARY KEY,
+                from_addr     TEXT NOT NULL,
+                amount        REAL NOT NULL,
+                main_tx_hash  TEXT NOT NULL DEFAULT '',
+                created_at    INTEGER NOT NULL DEFAULT 0,
+                status        TEXT NOT NULL DEFAULT 'confirmed'
+            );
+
+            CREATE TABLE IF NOT EXISTS plasma_blocks (
+                block_id      INTEGER PRIMARY KEY,
+                block_hash    TEXT NOT NULL,
+                parent_hash   TEXT NOT NULL,
+                transactions  TEXT NOT NULL DEFAULT '[]',
+                total_amount  REAL NOT NULL DEFAULT 0,
+                tx_count      INTEGER NOT NULL DEFAULT 0,
+                created_at    INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS plasma_exits (
+                exit_id     TEXT PRIMARY KEY,
+                deposit_id  TEXT NOT NULL,
+                user_addr   TEXT NOT NULL,
+                amount      REAL NOT NULL,
+                created_at  INTEGER NOT NULL DEFAULT 0,
+                status      TEXT NOT NULL DEFAULT 'pending'
+            );
+
             CREATE INDEX IF NOT EXISTS idx_tx_block ON transactions(block_height);
             CREATE INDEX IF NOT EXISTS idx_tx_from  ON transactions(from_addr);
             CREATE INDEX IF NOT EXISTS idx_tx_to    ON transactions(to_addr);
@@ -887,6 +940,185 @@ class Database:
                     (int(limit),),
                 ).fetchall()
             return [dict(r) for r in rows]
+
+    # ── Lightning Network (Wave 40 persistence) ─────────────────────────────
+
+    def save_lightning_channel(self, ch: Dict) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO lightning_channels
+                   (channel_id, node1, node2, capacity, balance1, balance2,
+                    status, fee_rate, created_at)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                (
+                    ch["channel_id"],
+                    ch["node1"],
+                    ch["node2"],
+                    float(ch["capacity"]),
+                    float(ch["balance1"]),
+                    float(ch["balance2"]),
+                    ch.get("status", "open"),
+                    float(ch.get("fee_rate", 0.00001)),
+                    int(ch.get("created_at", 0)),
+                ),
+            )
+            self.conn.commit()
+
+    def get_lightning_channels(self, status: str = "") -> List[Dict]:
+        with self.lock:
+            if status:
+                rows = self.conn.execute(
+                    "SELECT * FROM lightning_channels WHERE status=? ORDER BY created_at DESC",
+                    (status,),
+                ).fetchall()
+            else:
+                rows = self.conn.execute(
+                    "SELECT * FROM lightning_channels ORDER BY created_at DESC"
+                ).fetchall()
+            return [dict(r) for r in rows]
+
+    def save_lightning_payment(self, p: Dict) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO lightning_payments
+                   (payment_id, channel_id, from_node, to_node, amount, fee,
+                    status, payment_hash, timestamp)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                (
+                    p["payment_id"],
+                    p["channel_id"],
+                    p["from_node"],
+                    p["to_node"],
+                    float(p["amount"]),
+                    float(p.get("fee", 0)),
+                    p.get("status", "completed"),
+                    p.get("payment_hash", ""),
+                    int(p.get("timestamp", 0)),
+                ),
+            )
+            self.conn.commit()
+
+    def get_lightning_payments(self, limit: int = 50) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT * FROM lightning_payments ORDER BY timestamp DESC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    # ── Plasma L2 (Wave 40 persistence) ─────────────────────────────────────
+
+    def save_plasma_deposit(self, dep: Dict) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO plasma_deposits
+                   (deposit_id, from_addr, amount, main_tx_hash, created_at, status)
+                   VALUES (?,?,?,?,?,?)""",
+                (
+                    dep["id"],
+                    dep["from"],
+                    float(dep["amount"]),
+                    dep.get("main_tx_hash", ""),
+                    int(dep.get("created_at", 0)),
+                    dep.get("status", "confirmed"),
+                ),
+            )
+            self.conn.commit()
+
+    def get_plasma_deposits(self, limit: int = 200) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT * FROM plasma_deposits ORDER BY created_at DESC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+            out = []
+            for r in rows:
+                out.append({
+                    "id": r["deposit_id"],
+                    "from": r["from_addr"],
+                    "amount": r["amount"],
+                    "main_tx_hash": r["main_tx_hash"],
+                    "created_at": r["created_at"],
+                    "status": r["status"],
+                })
+            return out
+
+    def save_plasma_block(self, block: Dict) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO plasma_blocks
+                   (block_id, block_hash, parent_hash, transactions,
+                    total_amount, tx_count, created_at)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (
+                    int(block["block_id"]),
+                    block["block_hash"],
+                    block["parent_hash"],
+                    json.dumps(block.get("transactions", [])),
+                    float(block.get("total_amount", 0)),
+                    int(block.get("transaction_count", block.get("tx_count", 0))),
+                    int(block.get("created_at", 0)),
+                ),
+            )
+            self.conn.commit()
+
+    def get_plasma_blocks(self, limit: int = 20) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT * FROM plasma_blocks ORDER BY block_id DESC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+            out = []
+            for r in rows:
+                try:
+                    txs = json.loads(r["transactions"] or "[]")
+                except Exception:
+                    txs = []
+                out.append({
+                    "block_id": r["block_id"],
+                    "block_hash": r["block_hash"],
+                    "parent_hash": r["parent_hash"],
+                    "transactions": txs,
+                    "total_amount": r["total_amount"],
+                    "transaction_count": r["tx_count"],
+                    "created_at": r["created_at"],
+                })
+            return sorted(out, key=lambda b: b["block_id"])
+
+    def save_plasma_exit(self, ex: Dict) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO plasma_exits
+                   (exit_id, deposit_id, user_addr, amount, created_at, status)
+                   VALUES (?,?,?,?,?,?)""",
+                (
+                    ex["id"],
+                    ex["deposit_id"],
+                    ex["user"],
+                    float(ex["amount"]),
+                    int(ex.get("created_at", 0)),
+                    ex.get("status", "pending"),
+                ),
+            )
+            self.conn.commit()
+
+    def get_plasma_exits(self, limit: int = 100) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT * FROM plasma_exits ORDER BY created_at DESC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+            out = []
+            for r in rows:
+                out.append({
+                    "id": r["exit_id"],
+                    "deposit_id": r["deposit_id"],
+                    "user": r["user_addr"],
+                    "amount": r["amount"],
+                    "created_at": r["created_at"],
+                    "status": r["status"],
+                })
+            return out
 
     # ── Метаданные (токеномика, конфиг) ─────────────────────────────────────
 

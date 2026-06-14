@@ -687,7 +687,10 @@ class NodeOrchestrator:
         # 28. Lightning Network (payment channels)
         if _LIGHTNING_AVAILABLE:
             try:
-                self.lightning = LightningNetwork(node_address=config.miner_address or "genesis")
+                self.lightning = LightningNetwork(
+                    node_address=config.miner_address or "genesis",
+                    db=self.db,
+                )
                 print("[Node] Lightning Network: payment channels ready")
             except Exception as e:
                 self.lightning = None
@@ -709,7 +712,11 @@ class NodeOrchestrator:
         # 30. Plasma Chain (L2 sidechain)
         if _PLASMA_AVAILABLE:
             try:
-                self.plasma = PlasmaChain(chain_id="plasma_abs", root_chain=self.blockchain)
+                self.plasma = PlasmaChain(
+                    chain_id="plasma_abs",
+                    root_chain=self.blockchain,
+                    db=self.db,
+                )
                 print("[Node] Plasma Chain: L2 sidechain ready")
             except Exception as e:
                 self.plasma = None

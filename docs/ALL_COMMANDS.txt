@@ -37,7 +37,7 @@
 
 
 # =============================================================================
-# ЧАСТЬ 0: ВОЗМОЖНОСТИ БЛОКЧЕЙНА — ЧЕСТНО (v1.2.0, Wave 39)
+# ЧАСТЬ 0: ВОЗМОЖНОСТИ БЛОКЧЕЙНА — ЧЕСТНО (v1.2.0, Wave 40)
 # =============================================================================
 #
 # ⚠️  УЧЕБНЫЙ / ЭКСПЕРИМЕНТАЛЬНЫЙ ПРОЕКТ — НЕ PRODUCTION MAINNET
@@ -59,6 +59,10 @@
 #   Oracle registry: signed feeds в SQLite (GET /oracles/feeds, POST /oracles/feeds/submit)
 #   Bridge L1 queue: POST /bridge/lock с l1_tx_hash → data/bridge_l1_queue.json
 #        GET /bridge/l1-queue (или alias GET /oracles/l1-queue)
+# Wave 40:
+#   Lightning: каналы в SQLite, open списывает L1 ABS, close возвращает балансы
+#   Plasma L2: deposits/blocks/exits в SQLite, deposit списывает L1, exit возвращает
+#        GET /plasma/deposits, POST /plasma/finalize-exit (force=true в dev)
 #
 # --- Архитектура ---
 #
@@ -165,8 +169,8 @@
 # | ZK Proofs | educational | Учебные proof-структуры, не audited SNARK |
 # | Post-Quantum | educational | SPHINCS+/Kyber/Dilithium demo, не NIST prod |
 # | MEV Simulator | demo | Анализ sandwich/arbitrage/frontrun в памяти |
-# | Lightning | demo | Payment channels в памяти, не Bitcoin LN |
-# | Plasma L2 | demo | Sidechain-объект, не deployed L2 |
+# | Lightning | demo | Payment channels в SQLite (Wave 40); open/close двигают L1 баланс |
+# | Plasma L2 | demo | Sidechain deposits/blocks в SQLite; deposit/exit двигают L1 |
 # | WASM VM | demo | Упрощённый WASM-стиль |
 # | AI Validator | demo | Эвристики выбора proposer, не ML-модель |
 # | AI Agents | demo | Trading agents stub |
