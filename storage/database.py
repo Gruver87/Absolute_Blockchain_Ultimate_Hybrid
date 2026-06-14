@@ -225,6 +225,20 @@ class Database:
             );
             CREATE INDEX IF NOT EXISTS idx_evm_logs_contract ON evm_logs(contract_address);
 
+            CREATE TABLE IF NOT EXISTS oracle_feeds (
+                feed_id       TEXT PRIMARY KEY,
+                symbol        TEXT NOT NULL,
+                value         REAL NOT NULL,
+                source        TEXT NOT NULL DEFAULT '',
+                reporter      TEXT NOT NULL DEFAULT '',
+                signature     TEXT NOT NULL DEFAULT '',
+                payload       TEXT NOT NULL DEFAULT '{}',
+                block_height  INTEGER NOT NULL DEFAULT 0,
+                submitted_at  INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_oracle_feeds_symbol ON oracle_feeds(symbol);
+            CREATE INDEX IF NOT EXISTS idx_oracle_feeds_ts ON oracle_feeds(submitted_at);
+
             CREATE INDEX IF NOT EXISTS idx_tx_block ON transactions(block_height);
             CREATE INDEX IF NOT EXISTS idx_tx_from  ON transactions(from_addr);
             CREATE INDEX IF NOT EXISTS idx_tx_to    ON transactions(to_addr);
@@ -825,6 +839,54 @@ class Database:
                     item["topics"] = []
                 out.append(item)
             return out
+
+    def save_oracle_feed(
+        self,
+        feed_id: str,
+        symbol: str,
+        value: float,
+        source: str = "",
+        reporter: str = "",
+        signature: str = "",
+        payload: str = "{}",
+        block_height: int = 0,
+        submitted_at: int = 0,
+    ) -> None:
+        import time as _time
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO oracle_feeds
+                   (feed_id, symbol, value, source, reporter, signature,
+                    payload, block_height, submitted_at)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                (
+                    feed_id,
+                    symbol,
+                    float(value),
+                    source,
+                    reporter,
+                    signature,
+                    payload,
+                    int(block_height),
+                    int(submitted_at or _time.time()),
+                ),
+            )
+            self.conn.commit()
+
+    def get_oracle_feeds(self, symbol: str = "", limit: int = 50) -> List[Dict]:
+        with self.lock:
+            if symbol:
+                rows = self.conn.execute(
+                    """SELECT * FROM oracle_feeds WHERE symbol=?
+                       ORDER BY submitted_at DESC LIMIT ?""",
+                    (symbol.lower(), int(limit)),
+                ).fetchall()
+            else:
+                rows = self.conn.execute(
+                    "SELECT * FROM oracle_feeds ORDER BY submitted_at DESC LIMIT ?",
+                    (int(limit),),
+                ).fetchall()
+            return [dict(r) for r in rows]
 
     # ── Метаданные (токеномика, конфиг) ─────────────────────────────────────
 

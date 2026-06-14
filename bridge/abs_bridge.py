@@ -127,7 +127,8 @@ class RustBridge:
     # ── Отправка ─────────────────────────────────────────────────────────────
 
     def lock_and_bridge(self, from_addr: str, to_chain: str,
-                        to_addr: str, amount: float) -> Dict:
+                        to_addr: str, amount: float,
+                        l1_tx_hash: str = "") -> Dict:
         """
         Блокирует ABS на нашей цепи и инициирует перевод на to_chain.
 
@@ -179,6 +180,9 @@ class RustBridge:
         # Сохраняем lock в БД
         self.db.save_bridge_lock(from_addr, to_chain, to_addr, net_amount, tx_hash)
 
+        if l1_tx_hash:
+            self._enqueue_l1_outbound(tx_hash, l1_tx_hash, to_chain)
+
         if self.bus:
             self.bus.emit("bridge.locked", {
                 "tx_hash": tx_hash,
@@ -198,7 +202,27 @@ class RustBridge:
             "fee": fee,
             "net_amount": net_amount,
             "status": "pending",
+            "l1_queued": bool(l1_tx_hash),
         }
+
+    def _enqueue_l1_outbound(self, abs_tx_hash: str, l1_tx_hash: str, chain: str) -> None:
+        """Append outbound L1 proof watch entry for bridge relayer."""
+        from bridge.l1_rpc import load_l1_queue, save_l1_queue
+
+        path = getattr(self.config, "bridge_l1_queue_path", "data/bridge_l1_queue.json")
+        queue = load_l1_queue(path)
+        outbound = list(queue.get("outbound", []))
+        entry = {
+            "abs_tx_hash": abs_tx_hash,
+            "tx_hash": abs_tx_hash,
+            "l1_tx_hash": l1_tx_hash,
+            "chain": self._normalize_chain(chain),
+            "queued_at": int(time.time()),
+        }
+        outbound = [e for e in outbound if e.get("abs_tx_hash") != abs_tx_hash]
+        outbound.append(entry)
+        queue["outbound"] = outbound[-500:]
+        save_l1_queue(path, queue)
 
     # ── Подтверждение входящего перевода ─────────────────────────────────────
 

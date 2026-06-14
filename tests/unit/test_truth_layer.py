@@ -66,7 +66,7 @@ def test_bridge_lock_arity():
     import inspect
     sig = inspect.signature(RustBridge.lock_and_bridge)
     params = list(sig.parameters.keys())
-    assert params == ["self", "from_addr", "to_chain", "to_addr", "amount"]
+    assert params == ["self", "from_addr", "to_chain", "to_addr", "amount", "l1_tx_hash"]
 
 
 def test_state_root_strict_above_baseline():

@@ -37,7 +37,7 @@
 
 
 # =============================================================================
-# ЧАСТЬ 0: ВОЗМОЖНОСТИ БЛОКЧЕЙНА — ЧЕСТНО (v1.2.0, Wave 38)
+# ЧАСТЬ 0: ВОЗМОЖНОСТИ БЛОКЧЕЙНА — ЧЕСТНО (v1.2.0, Wave 39)
 # =============================================================================
 #
 # ⚠️  УЧЕБНЫЙ / ЭКСПЕРИМЕНТАЛЬНЫЙ ПРОЕКТ — НЕ PRODUCTION MAINNET
@@ -55,6 +55,9 @@
 #   Bridge: l1_tx_hash обязателен при ETH_RPC_URL (rust + Python)
 # Wave 38:
 #   EVM: BLOCKHASH, CALLCODE; логи контрактов в SQLite (GET /evm/logs)
+# Wave 39:
+#   Oracle registry: signed feeds в SQLite (GET /oracles/feeds, POST /oracles/feeds/submit)
+#   Bridge L1 queue: POST /bridge/lock с l1_tx_hash → data/bridge_l1_queue.json (GET /oracles/l1-queue)
 #
 # --- Архитектура ---
 #
@@ -132,6 +135,7 @@
 # --- Cross-chain Bridge ---
 #
 # 🟢 Bridge locks + pending — /bridge, /bridge/locks, /bridge2/stats
+# 🟢 L1 relayer queue (Wave 39) — lock с l1_tx_hash → bridge_l1_queue.json; GET /oracles/l1-queue
 # 🟢 Simulator mode (по умолчанию) — учебная симуляция ETH/BSC/Solana/ABS
 # 🟡 Rust bridge — bridge/abs_bridge_bin; -RustBridge в start_two_nodes
 #        В Docker может остаться simulator если бинарник не в образе
@@ -146,6 +150,8 @@
 # --- Oracles ---
 #
 # 🟢 Цены BTC/ETH/ABS — встроенные demo feeds
+# 🟢 Oracle registry (Wave 39) — GET /oracles/feeds, /oracles/feeds/{symbol}
+#        POST /oracles/feeds/submit (HMAC: BRIDGE_ORACLE_SECRET + X-Bridge-Oracle-Signature)
 # 🟡 Погода — OPENWEATHER_API_KEY / WEATHERAPI_KEY в .env (иначе demo)
 # 🟡 Tier=offchain | Данные не консенсус-валидируются как в Chainlink
 #

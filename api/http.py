@@ -93,6 +93,7 @@ _BRIDGE_ORACLE_PATHS = frozenset({
     "/bridge/oracle/confirm-lock",
     "/bridge/oracle/incoming",
     "/bridge/oracle/l1-register",
+    "/oracles/feeds/submit",
 })
 
 
@@ -422,6 +423,7 @@ class RESTHandler(BaseHTTPRequestHandler):
     zk = None                        # ZKProofSystem
     sharding = None                  # ShardingManager
     oracles = None                   # OracleManager
+    oracle_registry = None           # OracleFeedRegistry
     contract_manager = None          # MiniVM ContractManager
     assembler = None                 # MiniVM Assembler
     pq_manager = None                # PostQuantumManager
@@ -1128,6 +1130,30 @@ class RESTHandler(BaseHTTPRequestHandler):
             # ── Oracles ───────────────────────────────────────────────────────
             elif path in ("/oracles/prices", "/oracles"):
                 oracles = self.__class__.oracles
+                registry = self.__class__.oracle_registry
+                if registry and oracles and hasattr(registry, "sync_from_manager"):
+                    try:
+                        registry.sync_from_manager(oracles)
+                    except Exception:
+                        pass
+                if registry and hasattr(registry, "list_feeds"):
+                    feeds = registry.list_feeds(limit=20)
+                    if feeds:
+                        self._json({
+                            "prices": [
+                                {
+                                    "symbol": f["symbol"],
+                                    "price": f["value"],
+                                    "source": f["source"],
+                                    "submitted_at": f.get("submitted_at"),
+                                    "feed_id": f.get("feed_id"),
+                                }
+                                for f in feeds
+                            ],
+                            "count": len(feeds),
+                            "registry": True,
+                        })
+                        return
                 if not oracles:
                     self._json({"error": "oracles not enabled", "prices": []})
                     return
@@ -1151,6 +1177,31 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json({"prices": result, "count": len(result)})
                 except Exception as e:
                     self._json({"prices": [], "error": str(e)})
+
+            elif path == "/oracles/feeds" or path.startswith("/oracles/feeds/"):
+                registry = self.__class__.oracle_registry
+                if not registry:
+                    self._json({"feeds": [], "error": "oracle registry not enabled"})
+                    return
+                symbol = ""
+                if path.startswith("/oracles/feeds/"):
+                    part = path.split("/oracles/feeds/", 1)[1].strip("/")
+                    if part and part != "submit":
+                        symbol = part
+                feeds = registry.list_feeds(symbol=symbol, limit=100)
+                self._json({"count": len(feeds), "symbol": symbol or None, "feeds": feeds})
+
+            elif path == "/oracles/l1-queue":
+                from bridge.l1_rpc import load_l1_queue
+                cfg = self.__class__.config
+                path_q = getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json")
+                q = load_l1_queue(path_q)
+                self._json({
+                    "path": path_q,
+                    "outbound": len(q.get("outbound", [])),
+                    "incoming": len(q.get("incoming", [])),
+                    "queue": q,
+                })
 
             # ── Short URL aliases ─────────────────────────────────────────────
             elif path.startswith("/block/"):
@@ -3472,6 +3523,28 @@ class RESTHandler(BaseHTTPRequestHandler):
                 else:
                     self._error(403, "use /devnet/pool-spend in dev mode")
 
+            elif path == "/oracles/feeds/submit":
+                registry = self.__class__.oracle_registry
+                if not registry:
+                    self._error(503, "Oracle registry not enabled"); return
+                symbol = body.get("symbol", "")
+                value = float(body.get("value", 0))
+                source = body.get("source", "reporter")
+                reporter = body.get("reporter", body.get("from", ""))
+                sig = self.headers.get("X-Bridge-Oracle-Signature", body.get("signature", ""))
+                result = registry.submit_feed(
+                    symbol=symbol,
+                    value=value,
+                    source=source,
+                    reporter=reporter,
+                    signature=sig,
+                    payload=body if isinstance(body, dict) else None,
+                    require_signature=True,
+                )
+                if not result.get("ok"):
+                    self._error(400, result.get("error", "submit failed")); return
+                self._json(result)
+
             elif path == "/bridge/oracle/confirm-lock":
                 br = getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge
                 if not br:
@@ -3532,8 +3605,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                 from_addr = body.get("from_address", body.get("from", ""))
                 to_addr = body.get("to_address", body.get("to", ""))
                 target_chain = body.get("target_chain", body.get("to_chain", "ethereum"))
+                l1_tx = (body.get("l1_tx_hash") or "").strip()
                 if hasattr(br, "lock_and_bridge"):
-                    result = br.lock_and_bridge(from_addr, target_chain, to_addr, amount)
+                    result = br.lock_and_bridge(
+                        from_addr, target_chain, to_addr, amount, l1_tx_hash=l1_tx
+                    )
                     self._json(result if isinstance(result, dict) else {"success": bool(result)})
                 elif hasattr(br, "transfer"):
                     result = br.transfer(from_addr, body.get("to_address",""), amount, target_chain)
@@ -4806,7 +4882,7 @@ def create_rpc_server(blockchain, mempool, config, evm=None, p2p=None, wallet=No
 
 def create_http_server(blockchain, mempool, db, config,
                        p2p=None, evm=None, nft=None, zk=None,
-                       sharding=None, oracles=None,
+                       sharding=None, oracles=None, oracle_registry=None,
                        contract_manager=None, assembler=None,
                        pq_manager=None, smart_accounts=None,
                        multisig=None,
@@ -4844,6 +4920,7 @@ def create_http_server(blockchain, mempool, db, config,
     RESTHandler.zk = zk
     RESTHandler.sharding = sharding
     RESTHandler.oracles = oracles
+    RESTHandler.oracle_registry = oracle_registry
     RESTHandler.contract_manager = contract_manager
     RESTHandler.assembler = assembler
     RESTHandler.pq_manager = pq_manager
@@ -4912,7 +4989,7 @@ def start_rpc_server_thread(blockchain, mempool, config, evm=None, p2p=None, wal
 
 def start_http_server_thread(blockchain, mempool, db, config,
                               p2p=None, evm=None, nft=None, zk=None,
-                              sharding=None, oracles=None,
+                              sharding=None, oracles=None, oracle_registry=None,
                               contract_manager=None, assembler=None,
                               pq_manager=None, smart_accounts=None,
                               multisig=None,
@@ -4941,7 +5018,7 @@ def start_http_server_thread(blockchain, mempool, db, config,
     """Запускает REST API в отдельном потоке. Возвращает (thread, server)."""
     server = create_http_server(
         blockchain, mempool, db, config, p2p, evm, nft, zk,
-        sharding=sharding, oracles=oracles,
+        sharding=sharding, oracles=oracles, oracle_registry=oracle_registry,
         contract_manager=contract_manager, assembler=assembler,
         pq_manager=pq_manager, smart_accounts=smart_accounts,
         multisig=multisig,

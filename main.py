@@ -79,6 +79,7 @@ except Exception:
 # --- Real World Oracles ---
 try:
     from real_world_oracles import OracleManager
+    from features.oracle_registry import OracleFeedRegistry
     _ORACLES_AVAILABLE = True
 except Exception:
     _ORACLES_AVAILABLE = False
@@ -509,12 +510,15 @@ class NodeOrchestrator:
         if _ORACLES_AVAILABLE:
             try:
                 self.oracles = OracleManager()
+                self.oracle_registry = OracleFeedRegistry(self.db)
                 print("[Node] Oracles: price feeds active (BTC/ETH/ABS)")
             except Exception as e:
                 self.oracles = None
+                self.oracle_registry = None
                 print(f"[Node] Oracles: unavailable ({e})")
         else:
             self.oracles = None
+            self.oracle_registry = None
 
         # 13. Multisig support
         if _MULTISIG_AVAILABLE:
@@ -954,6 +958,7 @@ class NodeOrchestrator:
             self.blockchain, self.mempool, self.db, self.config,
             self.p2p, self.evm, self.nft, self.zk,
             sharding=self.sharding, oracles=self.oracles,
+            oracle_registry=self.oracle_registry,
             contract_manager=self.contract_manager,
             assembler=self.assembler,
             pq_manager=self.pq_manager,
