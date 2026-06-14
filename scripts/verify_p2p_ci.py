@@ -372,16 +372,34 @@ def _mempool_has_tx(base_url: str, tx_hash: str) -> bool:
     return False
 
 
-def _ensure_signer_funded(url1: str) -> None:
-    """Top up dev signer via faucet when balance too low for propagation test."""
+def _ensure_signer_funded(primary_url: str, peer_urls: list[str] | None = None) -> None:
+    """Top up dev signer via faucet on every node (balances must match for P2P block import)."""
     try:
-        ws = _api(f"{url1}/wallet/status")
+        ws = _api(f"{primary_url}/wallet/status")
         addr = ws.get("signing_address") or ws.get("address") or ""
         bal = float(ws.get("balance", 0) or 0)
-        if addr and bal < 1.0:
-            _post_json(url1, "/devnet/faucet", {"address": addr, "amount": 100})
+        if not addr or bal >= 1.0:
+            return
+        targets = [primary_url]
+        for url in peer_urls or []:
+            if url and url not in targets:
+                targets.append(url)
+        for url in targets:
+            try:
+                _post_json(url, "/devnet/faucet", {"address": addr, "amount": 100})
+            except Exception:
+                pass
     except Exception:
         pass
+
+
+def _pull_peer_mempools(peer_urls: list[str]) -> None:
+    """Ask followers to reconcile + pull mempool when tips are aligned."""
+    for url in peer_urls:
+        try:
+            _post_json(url, "/sync/reconcile", {"timeout": 45}, timeout=60)
+        except Exception:
+            pass
 
 
 def _block_has_tx(base_url: str, tx_hash: str, height: int) -> bool:
@@ -421,9 +439,9 @@ def _unique_recipient(salt: str = "") -> str:
     return "0x" + hashlib.sha256(seed.encode()).hexdigest()[:40]
 
 
-def _send_propagation_tx(url1: str, attempt: int = 0) -> dict:
+def _send_propagation_tx(url1: str, attempt: int = 0, peer_urls: list[str] | None = None) -> dict:
     """POST /tx/send with auto_sign; retries with fresh recipient on duplicate mempool."""
-    _ensure_signer_funded(url1)
+    _ensure_signer_funded(url1, peer_urls)
     last_exc: Exception | None = None
     for i in range(4):
         recipient = _unique_recipient(f"{attempt}-{i}")
@@ -450,7 +468,7 @@ def _verify_tx_propagation_multi(url1: str, target_urls: list[str], s1: dict) ->
         return True
 
     try:
-        resp = _send_propagation_tx(url1)
+        resp = _send_propagation_tx(url1, peer_urls=target_urls)
     except Exception as exc:
         print(f"WARN: tx propagation send failed: {exc}")
         return False
@@ -460,9 +478,12 @@ def _verify_tx_propagation_multi(url1: str, target_urls: list[str], s1: dict) ->
         print("FAIL: /tx/send returned no tx_hash")
         return False
 
+    _pull_peer_mempools(target_urls)
     height_hint = int(s1.get("height", 0) or 0)
     reached = {url: False for url in target_urls}
-    for _ in range(30):
+    for i in range(30):
+        if i > 0 and i % 3 == 0:
+            _pull_peer_mempools(target_urls)
         for url in target_urls:
             if not reached[url] and _peer_saw_tx(url, tx_hash, height_hint):
                 reached[url] = True

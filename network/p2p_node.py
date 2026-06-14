@@ -993,10 +993,17 @@ class P2PNode:
             if peer.height > our_h:
                 tasks.append(self._sync_with_peer_safe(peer))
         if not tasks:
-            return {"ok": True, "height": our_h, "action": "already_synced"}
+            peer_max = max((p.height for p in self.peers.values()), default=our_h)
+            return {"ok": True, "height": our_h, "peer_height": peer_max, "action": "already_synced"}
         async def _run():
             await asyncio.gather(*tasks, return_exceptions=True)
-            return {"ok": True, "height": self.blockchain.get_height()}
+            new_h = self.blockchain.get_height()
+            peer_max = max((p.height for p in self.peers.values()), default=new_h)
+            return {
+                "ok": new_h >= peer_max,
+                "height": new_h,
+                "peer_height": peer_max,
+            }
         try:
             return asyncio.run_coroutine_threadsafe(_run(), self._loop).result(timeout=timeout)
         except Exception as exc:
