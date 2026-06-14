@@ -85,7 +85,7 @@ for ($i = 0; $i -lt 40; $i++) {
                 $reorg = Invoke-RestMethod 'http://127.0.0.1:8080/reorg/depth?network_hashrate=100&attacker_hashrate=10' -UseBasicParsing -TimeoutSec 5
                 Write-Host "reorg/depth OK (depth=$($reorg.predicted_depth))" -ForegroundColor Green
                 $nft = Invoke-RestMethod 'http://127.0.0.1:8080/nft/stats' -UseBasicParsing -TimeoutSec 5
-                Write-Host "nft/stats OK (persisted=$($nft.persisted), tokens=$($nft.total_tokens))" -ForegroundColor Green
+                Write-Host ("nft/stats OK (persisted=$($nft.persisted) tokens=$($nft.total_tokens))") -ForegroundColor Green
             } catch {
                 Write-Host "oracles/feeds missing — rebuild Docker image (Wave 39+)" -ForegroundColor Red
             }
