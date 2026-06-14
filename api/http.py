@@ -4262,8 +4262,9 @@ class RESTHandler(BaseHTTPRequestHandler):
             # ── Sync: fast sync, add/remove peer ─────────────────────────────
             elif path == "/sync/fast-sync":
                 p2p = self.__class__.p2p
+                sync_timeout = max(30.0, min(600.0, float(body.get("timeout", 90) or 90)))
                 if p2p and hasattr(p2p, "catch_up_sync"):
-                    result = p2p.catch_up_sync(timeout=90)
+                    result = p2p.catch_up_sync(timeout=sync_timeout)
                     self._json({
                         "success": bool(result.get("ok")),
                         "local_height": self.__class__.blockchain.get_height(),
@@ -4293,8 +4294,9 @@ class RESTHandler(BaseHTTPRequestHandler):
                 p2p = self.__class__.p2p
                 if not p2p or not hasattr(p2p, "trigger_reconcile"):
                     self._error(503, "P2P reconcile not available"); return
+                sync_timeout = max(30.0, min(600.0, float(body.get("timeout", 90) or 90)))
                 if hasattr(p2p, "reconcile_peers_sync"):
-                    detail = p2p.reconcile_peers_sync(timeout=90)
+                    detail = p2p.reconcile_peers_sync(timeout=sync_timeout)
                 else:
                     p2p.trigger_reconcile()
                     time.sleep(2)

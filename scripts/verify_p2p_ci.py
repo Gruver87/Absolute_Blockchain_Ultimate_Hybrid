@@ -515,6 +515,31 @@ def _verify_tx_propagation(url1: str, url2: str, s1: dict) -> bool:
     return _verify_tx_propagation_multi(url1, [url2], s1)
 
 
+def _sync_timeout_for_gap(gap: int) -> float:
+    """Scale P2P catch-up timeout for long chains (Docker devnet at height 4k+)."""
+    g = max(0, int(gap or 0))
+    return max(90.0, min(600.0, g * 8.0))
+
+
+def _catchup_lagging_node(url1: str, url2: str, s1: dict, s2: dict) -> None:
+    """Fast-sync + reconcile on the node behind peer height."""
+    h1 = int(s1.get("height", 0) or 0)
+    h2 = int(s2.get("height", 0) or 0)
+    if h1 == h2:
+        _trigger_reconcile(url1, url2)
+        return
+    lag_url = url2 if h1 > h2 else url1
+    timeout = _sync_timeout_for_gap(abs(h1 - h2))
+    try:
+        _post_json(lag_url, "/sync/fast-sync", {"timeout": timeout}, timeout=timeout + 15)
+    except Exception:
+        pass
+    try:
+        _post_json(lag_url, "/sync/reconcile", {"timeout": timeout}, timeout=timeout + 15)
+    except Exception:
+        _trigger_catchup(url1, url2, s1, s2)
+
+
 def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
     """Check peers, height sync, attestations on two running nodes."""
     if not _probe_health(url1):
@@ -543,6 +568,14 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
         print("    .\\scripts\\start_two_nodes.ps1")
         print("  Always use --config node.example.json / node2.example.json")
         return 4
+
+    initial_gap = abs(int(s1.get("height", 0) or 0) - int(s2.get("height", 0) or 0))
+    if initial_gap > 20:
+        wait_sync_sec = max(wait_sync_sec, min(900, initial_gap * 12))
+        print(
+            f"WARN: large height gap {initial_gap} — extended wait to {wait_sync_sec}s "
+            f"(or reset: .\\scripts\\docker_devnet.ps1 -RustBridge -Reset)"
+        )
 
     loops = max(20, wait_sync_sec // 3)
     p1 = p2 = {}
@@ -573,11 +606,7 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
                 stable_ok = 0
                 if both_peered or c1 > 0 or c2 > 0:
                     if gap > 0:
-                        lag_url = url2 if int(s1.get("height", 0)) > int(s2.get("height", 0)) else url1
-                        try:
-                            _post_json(lag_url, "/sync/reconcile", timeout=120)
-                        except Exception:
-                            _trigger_catchup(url1, url2, s1, s2)
+                        _catchup_lagging_node(url1, url2, s1, s2)
                     elif not roots_match:
                         _trigger_reconcile(url1, url2)
         except Exception:
@@ -599,8 +628,9 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
             pass
         if p1.get("count", 0) > 0 or p2.get("count", 0) > 0:
             print("  Peers linked but heights/state diverged - try:")
-            print("    Invoke-RestMethod http://127.0.0.1:8081/sync/reconcile -Method POST -Body '{}' -ContentType 'application/json'")
-            print("    Invoke-RestMethod http://127.0.0.1:8081/sync/fast-sync -Method POST -Body '{}' -ContentType 'application/json'")
+            print('    Invoke-RestMethod http://127.0.0.1:8081/sync/fast-sync -Method POST -Body ''{"timeout":300}'' -ContentType ''application/json''')
+            print('    Invoke-RestMethod http://127.0.0.1:8081/sync/reconcile -Method POST -Body ''{"timeout":300}'' -ContentType ''application/json''')
+        print("  Or reset chain: .\\scripts\\docker_devnet.ps1 -RustBridge -Reset")
         print("  Or: .\\scripts\\stop_node.ps1  then  .\\scripts\\docker_devnet.ps1 -RustBridge")
         return 2
 
@@ -924,8 +954,9 @@ def verify_n_nodes(urls: list[str], wait_sync_sec: int = 300) -> int:
                     try:
                         st = _api(f"{url}/status")
                         if int(st.get("height", 0) or 0) < max_h:
-                            _post_json(url, "/sync/reconcile", timeout=120)
-                            _post_json(url, "/sync/fast-sync", timeout=120)
+                            timeout = _sync_timeout_for_gap(max_h - int(st.get("height", 0) or 0))
+                            _post_json(url, "/sync/fast-sync", {"timeout": timeout}, timeout=timeout + 15)
+                            _post_json(url, "/sync/reconcile", {"timeout": timeout}, timeout=timeout + 15)
                     except Exception:
                         pass
         except Exception:

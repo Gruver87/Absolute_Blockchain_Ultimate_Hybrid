@@ -1,7 +1,8 @@
 # Start two-node devnet via Docker Compose
 param(
     [switch]$RustBridge,
-    [switch]$NoCloneDb
+    [switch]$NoCloneDb,
+    [switch]$Reset
 )
 
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -21,6 +22,11 @@ if ($NoCloneDb) {
 }
 
 Write-Host "=== Docker devnet (node1 :8080, node2 :8081) ===" -ForegroundColor Cyan
+
+if ($Reset) {
+    Write-Host "Reset: removing Docker volumes (fresh chain)..." -ForegroundColor Yellow
+    docker compose -f $composeFile down -v 2>&1 | Out-Null
+}
 
 # Preflight: Docker Desktop must be running
 $dockerOk = $false
@@ -66,8 +72,8 @@ for ($i = 0; $i -lt 40; $i++) {
             if ($st.node_id -like "docker-node-*") {
             $ok1 = $true
             Write-Host "node1 ready ($($st.node_id)) api_wave=$($st.api_wave)" -ForegroundColor Green
-            if ($null -eq $st.api_wave -or [int]$st.api_wave -lt 51) {
-                Write-Host "WARN: Docker image is older than Wave 47 — rebuild: docker compose -f $composeFile build --no-cache node1" -ForegroundColor Yellow
+            if ($null -eq $st.api_wave -or [int]$st.api_wave -lt 60) {
+                Write-Host "WARN: Docker image is older than Wave 60 — rebuild: docker compose -f $composeFile build --no-cache node1 node2" -ForegroundColor Yellow
             }
             try {
                 $feeds = Invoke-RestMethod "http://127.0.0.1:8080/oracles/feeds" -UseBasicParsing -TimeoutSec 5
@@ -155,9 +161,13 @@ if ($ok1 -and $ok2) {
                 break
             }
             if ([int]$s2.height -lt [int]$s1.height) {
-                Invoke-RestMethod "http://127.0.0.1:8081/sync/reconcile" -Method POST -Body '{}' -ContentType 'application/json' -TimeoutSec 120 | Out-Null
+                $body = @{ timeout = [Math]::Min(600, [Math]::Max(120, $gap * 8)) } | ConvertTo-Json
+                Invoke-RestMethod "http://127.0.0.1:8081/sync/fast-sync" -Method POST -Body $body -ContentType 'application/json' -TimeoutSec 620 | Out-Null
+                Invoke-RestMethod "http://127.0.0.1:8081/sync/reconcile" -Method POST -Body $body -ContentType 'application/json' -TimeoutSec 620 | Out-Null
             } else {
-                Invoke-RestMethod "http://127.0.0.1:8080/sync/reconcile" -Method POST -Body '{}' -ContentType 'application/json' -TimeoutSec 120 | Out-Null
+                $body = @{ timeout = [Math]::Min(600, [Math]::Max(120, $gap * 8)) } | ConvertTo-Json
+                Invoke-RestMethod "http://127.0.0.1:8080/sync/fast-sync" -Method POST -Body $body -ContentType 'application/json' -TimeoutSec 620 | Out-Null
+                Invoke-RestMethod "http://127.0.0.1:8080/sync/reconcile" -Method POST -Body $body -ContentType 'application/json' -TimeoutSec 620 | Out-Null
             }
             Write-Host "  gap=$gap node1=$($s1.height) node2=$($s2.height)" -ForegroundColor Gray
         } catch { }
