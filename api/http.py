@@ -144,6 +144,8 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/founder", "summary": "Founder allocation"},
     {"method": "GET", "path": "/allocation", "summary": "Genesis allocation"},
     {"method": "GET", "path": "/mempool", "summary": "Pending transactions"},
+    {"method": "GET", "path": "/mempool/audit", "summary": "Mempool fee stats and validation flags"},
+    {"method": "GET", "path": "/sharding/pending", "summary": "Pending cross-shard transactions"},
     {"method": "GET", "path": "/peers", "summary": "Connected P2P peers (alias)"},
     {"method": "GET", "path": "/network/peers", "summary": "Connected P2P peers"},
     {"method": "GET", "path": "/sync/status", "summary": "Chain sync status"},
@@ -635,6 +637,17 @@ class RESTHandler(BaseHTTPRequestHandler):
                     else []
                 )
                 bridge_pending = sum(1 for l in bridge_locks if l.get("status") == "pending")
+                mp_stats = mp.get_stats()
+                sh = self.__class__.sharding
+                sharding_info = {"enabled": False}
+                if sh and hasattr(sh, "get_stats"):
+                    sh_st = sh.get_stats()
+                    sharding_info = {
+                        "enabled": True,
+                        "total_shards": sh_st.get("total_shards", 0),
+                        "pending_cross_shard_txs": sh_st.get("pending_cross_shard_txs", 0),
+                        "total_cross_shard_txs": sh_st.get("total_cross_shard_txs", 0),
+                    }
                 self._json({
                     "status": "running",
                     "node_version": cfg.node_version,
@@ -644,6 +657,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "height": bc.get_height(),
                     "peers": p2p.peer_count() if p2p else 0,
                     "mempool_size": mp.get_size(),
+                    "mempool_stats": mp_stats,
+                    "sharding": sharding_info,
                     "coin": cfg.coin_symbol,
                     "coin_symbol": cfg.coin_symbol,
                     "max_supply": getattr(cfg, "max_supply", 221_000_000),
@@ -804,19 +819,49 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/mempool":
                 txs = mp.get(limit=50)
                 stats = mp.get_stats()
+                sh = self.__class__.sharding
+                tx_rows = []
+                for tx in txs:
+                    row = {
+                        "hash": tx.tx_hash,
+                        "from": tx.from_addr,
+                        "to": tx.to_addr,
+                        "value": tx.amount,
+                        "fee": tx.fee,
+                        "nonce": tx.nonce,
+                    }
+                    if sh and hasattr(sh, "get_shard_for_address"):
+                        row["from_shard"] = sh.get_shard_for_address(tx.from_addr)
+                        row["to_shard"] = sh.get_shard_for_address(tx.to_addr)
+                        row["cross_shard"] = row["from_shard"] != row["to_shard"]
+                    tx_rows.append(row)
+                payload = {
+                    "stats": stats,
+                    "transactions": tx_rows,
+                    "min_fee": getattr(mp, "min_fee", 0),
+                    "require_signatures": getattr(mp, "require_signatures", False),
+                }
+                if sh and hasattr(sh, "get_stats"):
+                    sh_st = sh.get_stats()
+                    payload["sharding"] = {
+                        "enabled": True,
+                        "pending_cross_shard_txs": sh_st.get("pending_cross_shard_txs", 0),
+                        "total_shards": sh_st.get("total_shards", 0),
+                    }
+                self._json(payload)
+
+            elif path == "/mempool/audit":
+                stats = mp.get_stats()
+                top = mp.get(limit=10)
                 self._json({
                     "stats": stats,
-                    "transactions": [
-                        {
-                            "hash": tx.tx_hash,
-                            "from": tx.from_addr,
-                            "to": tx.to_addr,
-                            "value": tx.amount,
-                            "fee": tx.fee,
-                            "nonce": tx.nonce,
-                        }
-                        for tx in txs
+                    "top_fees": [
+                        {"hash": t.tx_hash, "fee": t.fee, "from": t.from_addr, "to": t.to_addr}
+                        for t in top
                     ],
+                    "min_fee": getattr(mp, "min_fee", 0),
+                    "max_size": getattr(mp, "max_size", 0),
+                    "require_signatures": getattr(mp, "require_signatures", False),
                 })
 
             elif path == "/burn-stats":
@@ -1000,9 +1045,35 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path in ("/sharding/stats", "/sharding"):
                 sharding = self.__class__.sharding
                 if sharding:
-                    self._json(sharding.get_stats())
+                    st = sharding.get_stats()
+                    st["enabled"] = True
+                    self._json(st)
                 else:
                     self._json({"error": "sharding not enabled", "enabled": False})
+
+            elif path == "/sharding/pending":
+                sharding = self.__class__.sharding
+                if not sharding:
+                    self._json({"enabled": False, "pending": []})
+                    return
+                pending = []
+                for tx_id in getattr(sharding, "pending_cross_txs", []):
+                    tx = sharding.cross_shard_txs.get(tx_id)
+                    if tx:
+                        pending.append({
+                            "tx_id": tx.tx_id,
+                            "from_shard": tx.from_shard,
+                            "to_shard": tx.to_shard,
+                            "from_addr": tx.from_addr,
+                            "to_addr": tx.to_addr,
+                            "amount": tx.amount,
+                            "status": tx.status,
+                        })
+                self._json({
+                    "enabled": True,
+                    "count": len(pending),
+                    "pending": pending,
+                })
 
             # ── Oracles ───────────────────────────────────────────────────────
             elif path in ("/oracles/prices", "/oracles"):
@@ -2272,7 +2343,24 @@ class RESTHandler(BaseHTTPRequestHandler):
             if path in ("/transactions", "/tx/send"):
                 wallet = self.__class__.wallet
                 result = _handle_send_tx_with_wallet(body, bc, mp, cfg, wallet)
-                self._json({"tx_hash": result, "status": "pending"})
+                resp = {"tx_hash": result, "status": "pending"}
+                sh = self.__class__.sharding
+                if sh and hasattr(sh, "add_transaction"):
+                    from_addr = body.get("from", body.get("from_addr", ""))
+                    to_addr = body.get("to", body.get("to_addr", ""))
+                    value = body.get("value", body.get("amount", 0))
+                    shard_from, cross_id = sh.add_transaction({
+                        "from": from_addr,
+                        "to": to_addr,
+                        "value": value,
+                        "hash": result,
+                    })
+                    resp["from_shard"] = shard_from
+                    resp["to_shard"] = sh.get_shard_for_address(to_addr) if hasattr(sh, "get_shard_for_address") else None
+                    resp["cross_shard"] = bool(cross_id)
+                    if cross_id:
+                        resp["cross_shard_tx_id"] = cross_id
+                self._json(resp)
 
             elif path == "/contract/deploy":
                 if not evm_adapter:

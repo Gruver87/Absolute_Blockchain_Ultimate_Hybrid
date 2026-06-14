@@ -120,8 +120,10 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 180) -> int:
             both_peered = c1 > 0 and c2 > 0
             if (c1 > 0 or c2 > 0) and gap > 5 and i % 5 == 0:
                 _trigger_catchup(url1, url2, s1, s2)
-            if both_peered and gap <= 5:
+            if both_peered and gap == 0:
                 break
+            if (c1 > 0 or c2 > 0) and gap > 0:
+                _trigger_catchup(url1, url2, s1, s2)
         except Exception:
             pass
         time.sleep(3)
@@ -150,9 +152,9 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 180) -> int:
             root1 = (sync1.get("state_root") or s1.get("state_root") or "").lower()
             root2 = (sync2.get("state_root") or s2.get("state_root") or "").lower()
             roots_match = bool(root1 and root2 and root1 == root2)
-            if c1 > 0 and c2 > 0 and gap <= 5 and roots_match:
+            if c1 > 0 and c2 > 0 and gap == 0 and roots_match:
                 break
-            if i % 4 == 3 and gap > 0:
+            if gap > 0:
                 _trigger_catchup(url1, url2, s1, s2)
         except Exception:
             pass
@@ -180,8 +182,10 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 180) -> int:
     )
     if s1.get("node_id", "").startswith("node-") and not s1.get("node_id", "").startswith("docker-"):
         print("WARN: :8080/:8081 answer local nodes — stop them: .\\scripts\\stop_node.ps1")
-    if gap <= 5 and not roots_match:
-        print("WARN: heights aligned but state_root differs — use DB seed or .\\scripts\\start_two_nodes.ps1")
+    if gap > 0:
+        print(f"WARN: height gap {gap} — node2 still catching up")
+    if gap == 0 and not roots_match:
+        print("WARN: same height but state_root differs — re-run docker_devnet or start_two_nodes.ps1")
     return 0
 
 

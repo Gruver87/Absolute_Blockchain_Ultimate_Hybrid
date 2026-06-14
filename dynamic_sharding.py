@@ -167,6 +167,7 @@ class ShardingManager:
     def get_stats(self) -> dict:
         """Get sharding statistics"""
         return {
+            "enabled": True,
             "total_shards": self.num_shards,
             "total_transactions": sum(len(s.transactions) for s in self.shards.values()),
             "total_cross_shard_txs": len(self.cross_shard_txs),

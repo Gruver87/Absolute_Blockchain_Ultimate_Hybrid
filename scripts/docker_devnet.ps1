@@ -92,8 +92,8 @@ for ($i = 0; $i -lt 40; $i++) {
 }
 
 if ($ok1 -and $ok2) {
-    Write-Host "Waiting for P2P handshake (15s)..." -ForegroundColor Gray
-    Start-Sleep -Seconds 15
+    Write-Host "Waiting for P2P handshake (25s)..." -ForegroundColor Gray
+    Start-Sleep -Seconds 25
     try {
         $st = Invoke-RestMethod "http://127.0.0.1:8080/status" -UseBasicParsing
         Write-Host "node1 bridge_mode=$($st.bridge_mode) pending=$($st.bridge_pending)" -ForegroundColor Gray

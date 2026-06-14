@@ -146,6 +146,7 @@
     <div class="stat-item"><span class="stat-label">Chain ID</span><span class="stat-value" id="s-chainid">—</span></div>
     <div class="stat-item"><span class="stat-label">Validators</span><span class="stat-value" id="s-validators">—</span></div>
     <div class="stat-item"><span class="stat-label">Mempool</span><span class="stat-value" id="s-mempool">—</span></div>
+    <div class="stat-item"><span class="stat-label">Shards</span><span class="stat-value" id="s-shards">—</span></div>
     <div class="stat-item"><span class="stat-label">Burned ABS</span><span class="stat-value" id="s-burned">—</span></div>
     <div class="stat-item"><span class="stat-label">Peers</span><span class="stat-value" id="s-peers">—</span></div>
     <div class="stat-item"><span class="stat-label">Bridge</span><span class="stat-value" id="s-bridge">—</span></div>
@@ -186,6 +187,12 @@
       <div id="bridge-dashboard-pending" style="font-size:12px;margin-bottom:10px"></div>
       <button class="btn btn-blue" onclick="openBridgeSection()" style="width:100%;margin-bottom:8px">Open Bridge &amp; Locks Table →</button>
       <button class="btn btn-outline" id="bridge-confirm-all-btn" onclick="confirmAllBridgePending()" style="width:100%;display:none">Confirm All Pending Locks</button>
+    </div>
+    <div class="card" id="mempool-dashboard-card" style="margin-bottom:16px;border:1px solid var(--purple)">
+      <h3>Mempool &amp; Sharding</h3>
+      <div id="mempool-dashboard-summary" style="font-size:12px;margin-bottom:10px">Loading…</div>
+      <div id="mempool-pending-list" style="font-size:11px;max-height:120px;overflow-y:auto"></div>
+      <button class="btn btn-outline" onclick="show('sharding')" style="width:100%;margin-top:8px">Open Sharding Panel →</button>
     </div>
     <div class="card" style="margin-bottom:16px">
       <h3>Pool Locks (Ecosystem / Treasury / Staking)</h3>
@@ -1834,6 +1841,17 @@ async function refreshStatus() {
   document.getElementById('s-chainid').textContent = data.chain_id ?? '—';
   document.getElementById('s-validators').textContent = data.validator_count ?? '—';
   document.getElementById('s-mempool').textContent = data.mempool_size ?? '—';
+  const shardsEl = document.getElementById('s-shards');
+  if (shardsEl) {
+    const sh = data.sharding || {};
+    if (!sh.enabled) {
+      shardsEl.textContent = 'off';
+    } else {
+      const pending = sh.pending_cross_shard_txs || 0;
+      shardsEl.innerHTML = `${sh.total_shards || 0}` +
+        (pending > 0 ? ` <span class="badge badge-yellow">${pending} cross</span>` : '');
+    }
+  }
   document.getElementById('s-burned').textContent = parseFloat(data.total_burned ?? 0).toFixed(4);
   document.getElementById('s-peers').textContent = data.peers ?? '0';
   const bridgeEl = document.getElementById('s-bridge');
@@ -1863,7 +1881,11 @@ async function refreshStatus() {
     ['Live Supply', fmtAbs(data.total_supply||0)],
     ['Founder', (data.founder_initials||'D.U.P.') + ' ' + (data.founder_percent||17.4) + '%'],
     ['Validators', data.validator_count],
-    ['Mempool', (data.mempool_size || 0) + ' txs'],
+    ['Mempool', (data.mempool_size || 0) + ' txs' +
+      (data.mempool_stats?.avg_fee ? ` (avg fee ${parseFloat(data.mempool_stats.avg_fee).toFixed(6)})` : '')],
+    ['Sharding', data.sharding?.enabled
+      ? `${data.sharding.total_shards} shards, ${data.sharding.pending_cross_shard_txs||0} cross pending`
+      : 'off'],
     ['Total Burned', parseFloat(data.total_burned||0).toFixed(6) + ' ABS'],
     ['Coin', data.coin_symbol || 'ABS'],
     ['State Root', '<span class="hash">' + (data.state_root||'n/a').slice(0,32) + '…</span>'],
@@ -2256,7 +2278,14 @@ async function loadSharding() {
     </div>`).join('');
 
   const tbody = document.getElementById('cross-shard-table');
-  tbody.innerHTML = `<tr>
+  const pending = await get('/sharding/pending');
+  const rows = (pending?.pending || []).map(p => `
+    <tr>
+      <td>#${p.from_shard}</td>
+      <td>#${p.to_shard}</td>
+      <td colspan="2"><span class="hash">${p.tx_id}</span> ${p.amount} ABS <span class="badge badge-yellow">${p.status}</span></td>
+    </tr>`).join('');
+  tbody.innerHTML = rows || `<tr>
     <td colspan="2" style="color:var(--gray)">Cross-shard</td>
     <td>${data.total_cross_shard_txs||data.total_cross_txs||0}</td>
     <td>${data.pending_cross_shard_txs||data.pending_cross_txs||0}</td>
@@ -3552,6 +3581,38 @@ async function loadDashboardStats() {
       <div style="font-size:22px;color:var(--${c});font-family:monospace;margin:8px 0">${v}</div>
     </div>`).join('');
   loadBridgeDashboardSummary();
+  loadMempoolDashboard();
+}
+async function loadMempoolDashboard() {
+  const summary = document.getElementById('mempool-dashboard-summary');
+  const list = document.getElementById('mempool-pending-list');
+  if (!summary) return;
+  const [mp, sh] = await Promise.all([api('/mempool'), api('/sharding/stats')]);
+  if (!mp) {
+    summary.textContent = 'Mempool unavailable';
+    return;
+  }
+  const stats = mp.stats || {};
+  const shInfo = mp.sharding || sh || {};
+  const crossPending = shInfo.pending_cross_shard_txs || 0;
+  summary.innerHTML = `
+    <div>Pending: <b>${stats.size ?? mp.transactions?.length ?? 0}</b> txs</div>
+    <div style="margin-top:4px">Avg fee: <b>${parseFloat(stats.avg_fee||0).toFixed(6)}</b> ABS</div>
+    <div style="margin-top:4px">Sharding: <b>${shInfo.enabled !== false ? (shInfo.total_shards||sh?.total_shards||4) + ' shards' : 'off'}</b>
+      ${crossPending > 0 ? `<span class="badge badge-yellow">${crossPending} cross-shard</span>` : ''}</div>`;
+  const txs = mp.transactions || [];
+  if (list) {
+    list.innerHTML = txs.length
+      ? txs.slice(0, 8).map(t => {
+          const cross = t.cross_shard ? ' <span class="badge badge-yellow">cross</span>' : '';
+          return `<div style="display:flex;gap:6px;margin:3px 0;align-items:center">
+            <span class="hash" title="${t.hash}">${String(t.hash||'').slice(0,10)}…</span>
+            <span style="color:var(--gray)">${parseFloat(t.value||0).toFixed(2)} ABS</span>
+            ${cross}
+          </div>`;
+        }).join('')
+      : '<span style="color:var(--gray)">No pending transactions</span>';
+  }
 }
 async function loadBridgeDashboardSummary() {
   const card = document.getElementById('bridge-dashboard-card');
