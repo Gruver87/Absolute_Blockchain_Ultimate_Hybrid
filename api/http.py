@@ -86,11 +86,13 @@ except ImportError:
 _DEV_PUBLIC_POST = frozenset({
     "/transactions", "/tx/send", "/devnet/faucet", "/pools/dao/vote", "/devnet/pool-spend",
     "/bridge/confirm-lock", "/bridge/confirm-pending",
+    "/sync/fast-sync", "/sync/reconcile",
 })
 
 _BRIDGE_ORACLE_PATHS = frozenset({
     "/bridge/oracle/confirm-lock",
     "/bridge/oracle/incoming",
+    "/bridge/oracle/l1-register",
 })
 
 
@@ -108,6 +110,7 @@ _RATE_LIMIT_EXEMPT_PATHS = frozenset({
     "/consensus/stats",
     "/metrics",
     "/sync/fast-sync",
+    "/sync/reconcile",
 })
 
 
@@ -156,6 +159,8 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/bridge", "summary": "Bridge overview"},
     {"method": "GET", "path": "/bridge/locks", "summary": "Bridge lock records"},
     {"method": "GET", "path": "/bridge/l1-queue", "summary": "L1 RPC watch queue (relayer)"},
+    {"method": "GET", "path": "/bridge/l1-proofs", "summary": "Registered L1 proof metadata"},
+    {"method": "POST", "path": "/sync/reconcile", "summary": "P2P fork reconcile + state sync"},
     {"method": "GET", "path": "/wallet/status", "summary": "Signing wallet status"},
     {"method": "POST", "path": "/transactions", "summary": "Submit transaction"},
     {"method": "POST", "path": "/tx/send", "summary": "Submit transaction (alias, optional auto_sign)"},
@@ -1762,8 +1767,24 @@ class RESTHandler(BaseHTTPRequestHandler):
                 self._json(_build_openapi_spec(cfg))
 
             elif path == "/bridge2/stats":
+                rb = getattr(self.__class__, "bridge", None)
                 cb = self.__class__.cross_bridge
-                self._json(cb.get_bridge_stats() if cb else {"enabled": False})
+                overview = _build_bridge_overview(rb, cb, cfg, db)
+                stats = cb.get_bridge_stats() if cb else {}
+                locks = overview.get("locks") or {}
+                stats.update({
+                    "enabled": overview.get("enabled", False),
+                    "mode": overview.get("mode", "simulator"),
+                    "tier": overview.get("tier", "simulator"),
+                    "auto_confirm_sec": overview.get("auto_confirm_sec", 0),
+                    "supported_chains": overview.get("supported_chains", stats.get("supported_chains", [])),
+                    "total_transactions": locks.get("total", stats.get("total_transactions", 0)),
+                    "confirmed": locks.get("confirmed", stats.get("confirmed", 0)),
+                    "pending": locks.get("pending", stats.get("pending", 0)),
+                    "rust_version": overview.get("rust_version"),
+                    "l1_rpc": overview.get("l1_rpc"),
+                })
+                self._json(stats)
 
             elif path == "/bridge2/fee":
                 cb = self.__class__.cross_bridge
@@ -2024,6 +2045,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                     })
                 except Exception as e:
                     self._json({"error": str(e), "outbound": 0, "incoming": 0, "queue": {}})
+
+            elif path == "/bridge/l1-proofs":
+                proofs = []
+                if db and hasattr(db, "get_meta"):
+                    raw = db.get_meta("bridge_l1_proofs", [])
+                    if isinstance(raw, list):
+                        proofs = raw[-100:]
+                self._json({"count": len(proofs), "proofs": proofs})
 
             # ── ZK verify range ───────────────────────────────────────────────
             elif path == "/zk/verify/range":
@@ -3436,6 +3465,30 @@ class RESTHandler(BaseHTTPRequestHandler):
                 else:
                     self._json({"success": False, "error": "confirm not available"})
 
+            elif path == "/bridge/oracle/l1-register":
+                l1_tx = body.get("l1_tx_hash", body.get("tx_hash", "")).strip()
+                abs_lock = body.get("abs_lock_tx", body.get("lock_tx_hash", "")).strip()
+                chain = body.get("chain", body.get("from_chain", "ethereum"))
+                if not l1_tx:
+                    self._error(400, "l1_tx_hash required"); return
+                if not db or not hasattr(db, "get_meta"):
+                    self._error(503, "Database not available"); return
+                proofs = db.get_meta("bridge_l1_proofs", [])
+                if not isinstance(proofs, list):
+                    proofs = []
+                entry = {
+                    "l1_tx_hash": l1_tx,
+                    "abs_lock_tx": abs_lock,
+                    "chain": chain,
+                    "contract": body.get("contract", body.get("l1_contract", "")),
+                    "amount": body.get("amount"),
+                    "registered_at": int(time.time()),
+                }
+                proofs = [p for p in proofs if p.get("l1_tx_hash") != l1_tx]
+                proofs.append(entry)
+                db.set_meta("bridge_l1_proofs", proofs[-500:])
+                self._json({"success": True, "registered": entry, "count": len(proofs)})
+
             # ── Bridge: lock, confirm, refund ─────────────────────────────────
             elif path == "/bridge/lock":
                 br = getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge
@@ -3688,6 +3741,22 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json({"success": bool(result), "target_block": target_block})
                 else:
                     self._json({"success": False, "error": "fast_sync not available"})
+
+            elif path == "/sync/reconcile":
+                p2p = self.__class__.p2p
+                if not p2p or not hasattr(p2p, "trigger_reconcile"):
+                    self._error(503, "P2P reconcile not available"); return
+                p2p.trigger_reconcile()
+                time.sleep(2)
+                sync = _build_sync_status(
+                    self.__class__.sync_engine, p2p,
+                    self.__class__.blockchain, cfg,
+                )
+                self._json({
+                    "success": True,
+                    "message": "P2P reconcile scheduled",
+                    "sync": sync,
+                })
 
             elif path == "/sync/add-peer":
                 se = self.__class__.sync_engine

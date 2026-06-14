@@ -77,6 +77,16 @@ def _trigger_catchup(url1: str, url2: str, s1: dict, s2: dict) -> None:
         pass
 
 
+def _trigger_reconcile(url1: str, url2: str) -> None:
+    """Ask both nodes to align forks and state roots."""
+    for url in (url1, url2):
+        try:
+            _post_json(url, "/sync/reconcile")
+            _post_json(url, "/sync/fast-sync")
+        except Exception:
+            pass
+
+
 def verify_pair(url1: str, url2: str, wait_sync_sec: int = 180) -> int:
     """Check peers, height sync, attestations on two running nodes."""
     if not _probe_health(url1):
@@ -154,8 +164,10 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 180) -> int:
             roots_match = bool(root1 and root2 and root1 == root2)
             if c1 > 0 and c2 > 0 and gap == 0 and roots_match:
                 break
-            if gap > 0:
+            if gap > 0 or (gap == 0 and not roots_match and i % 3 == 0):
                 _trigger_catchup(url1, url2, s1, s2)
+            if c1 > 0 and c2 > 0 and gap == 0 and not roots_match and i % 2 == 0:
+                _trigger_reconcile(url1, url2)
         except Exception:
             pass
         time.sleep(3)
@@ -186,6 +198,8 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 180) -> int:
         print(f"WARN: height gap {gap} — node2 still catching up")
     if gap == 0 and not roots_match:
         print("WARN: same height but state_root differs — re-run docker_devnet or start_two_nodes.ps1")
+        print("  Tip: Invoke-RestMethod http://127.0.0.1:8081/sync/reconcile -Method POST -Body '{}' -ContentType 'application/json'")
+        return 5
     return 0
 
 

@@ -95,6 +95,12 @@ if ($ok1 -and $ok2) {
     Write-Host "Waiting for P2P handshake (25s)..." -ForegroundColor Gray
     Start-Sleep -Seconds 25
     try {
+        foreach ($url in @("http://127.0.0.1:8080", "http://127.0.0.1:8081")) {
+            Invoke-RestMethod "$url/sync/reconcile" -Method POST -Body '{}' -ContentType 'application/json' -TimeoutSec 10 | Out-Null
+        }
+        Start-Sleep -Seconds 8
+    } catch { }
+    try {
         $st = Invoke-RestMethod "http://127.0.0.1:8080/status" -UseBasicParsing
         Write-Host "node1 bridge_mode=$($st.bridge_mode) pending=$($st.bridge_pending)" -ForegroundColor Gray
     } catch { }

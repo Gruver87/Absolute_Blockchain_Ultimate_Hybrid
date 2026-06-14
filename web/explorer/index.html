@@ -593,6 +593,8 @@
         <div class="form-row"><label>Bytecode (hex)</label>
           <textarea id="evm-bytecode" rows="4" placeholder="600160005260206000f3">600160005260206000f3</textarea>
         </div>
+        <div id="evm-bytecode-validation" style="font-size:11px;margin-bottom:8px"></div>
+        <button class="btn btn-outline" onclick="validateEVMBytecode()" style="width:100%;margin-bottom:8px">Validate Bytecode</button>
         <div class="form-row"><label>Value (ABS)</label><input id="evm-value" type="number" value="0" step="0.01"/></div>
         <div class="form-row"><label>Gas</label><input id="evm-gas" type="number" value="500000"/></div>
         <button class="btn btn-green" onclick="deployEVMOnChain()" style="width:100%;margin-bottom:8px">Deploy via Mempool</button>
@@ -1378,6 +1380,7 @@
       <h3>L1 Relayer Queue</h3>
       <button class="btn btn-outline" onclick="loadBridgeL1Queue()" style="margin-bottom:10px">Refresh L1 Queue</button>
       <div id="bridge-l1-queue" style="font-size:12px;font-family:monospace"></div>
+      <div id="bridge-l1-proofs" style="font-size:11px;margin-top:10px"></div>
     </div>
     <div class="card" style="margin-top:16px">
       <h3>Bridge Locks</h3>
@@ -2406,6 +2409,26 @@ async function loadEVMPanel() {
       ? `<span style="color:var(--green)">Signer ready</span> <span class="addr">${(w.address||'').slice(0,16)}…</span>`
       : `<span style="color:var(--yellow)">No signing wallet — set WALLET_PRIVATE_KEY or wallet.json</span>`;
   }
+  const ops = await api('/evm/supported-opcodes');
+  const valEl = document.getElementById('evm-bytecode-validation');
+  if (valEl && ops) {
+    valEl.innerHTML = `<span style="color:var(--gray)">Supported opcodes: ${ops.count||ops.supported||'?'} — validate before deploy</span>`;
+  }
+}
+
+async function validateEVMBytecode() {
+  const bytecode = document.getElementById('evm-bytecode').value.trim();
+  const el = document.getElementById('evm-bytecode-validation');
+  if (!bytecode) return alert('Bytecode required');
+  const r = await post('/evm/validate-bytecode', { bytecode });
+  if (!el) return;
+  if (r?.valid) {
+    el.innerHTML = `<span class="badge badge-green">VALID</span> ${r.size||'?'} bytes — ready for mempool deploy`;
+  } else {
+    const bad = (r?.unsupported||[]).slice(0,5).map(u => `${u.name||u.opcode}@pc${u.pc}`).join(', ');
+    el.innerHTML = `<span class="badge badge-red">INVALID</span> ${r?.error||''} ${bad ? '· '+bad : ''}`;
+  }
+  return r?.valid;
 }
 
 async function deployEVMOnChain() {
@@ -2413,6 +2436,11 @@ async function deployEVMOnChain() {
   const value = parseFloat(document.getElementById('evm-value').value) || 0;
   const gas = parseInt(document.getElementById('evm-gas').value, 10) || 500000;
   if (!bytecode) return alert('Bytecode required');
+  const ok = await validateEVMBytecode();
+  if (!ok) {
+    toast('Fix bytecode validation errors before deploy', false);
+    return;
+  }
   const r = await post('/tx/deploy', { bytecode, value, gas, auto_sign: true });
   const el = document.getElementById('evm-deploy-result');
   if (r?.tx_hash) {
@@ -3340,6 +3368,15 @@ async function loadBridgeL1Queue() {
     <div style="color:var(--gray);margin:8px 0 4px">Incoming (L1→ABS)</div>
     ${incoming.length ? incoming.map(i => `<div>· ${(i.l1_tx_hash||i.tx_hash||'?').slice(0,18)}… → ${i.recipient||'?'}</div>`).join('') : '<div style="color:var(--gray)">(empty)</div>'}
     <div style="margin-top:8px;color:var(--gray);font-size:10px">Relayer: python scripts/bridge_relayer.py --watch-l1</div>`;
+  const proofsEl = document.getElementById('bridge-l1-proofs');
+  if (proofsEl) {
+    const proofs = await api('/bridge/l1-proofs');
+    const rows = (proofs?.proofs || []).slice(-5);
+    proofsEl.innerHTML = rows.length
+      ? `<div style="color:var(--gray);margin-top:6px">L1 proofs (${proofs.count||rows.length}):</div>` +
+        rows.map(p => `<div>· ${(p.l1_tx_hash||'?').slice(0,18)}… → ${p.abs_lock_tx ? p.abs_lock_tx.slice(0,12)+'…' : '—'}</div>`).join('')
+      : '<div style="color:var(--gray);margin-top:6px">No L1 proofs registered (oracle POST /bridge/oracle/l1-register)</div>';
+  }
 }
 async function bridge2Transfer() {
   const from_chain = document.getElementById('bridge2-from').value;

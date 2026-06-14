@@ -611,9 +611,19 @@ class P2PNode:
             self._sync_waiters.pop(peer.peer_id, None)
 
     async def _sync_with_peer(self, peer: PeerConnection):
-        """Догоняем пира если он выше нас."""
+        """Догоняем пира если он выше нас, или выравниваем форк на той же высоте."""
         our_height = self.blockchain.get_height()
-        if peer.height <= our_height:
+        if peer.height < our_height:
+            return
+        if peer.height == our_height:
+            local_head = self.head() or ""
+            peer_head = peer.head or ""
+            if peer_head and local_head != peer_head:
+                await self._reconcile_fork_at_peer(peer)
+            elif self.sync_engine:
+                loop = asyncio.get_running_loop()
+                ok = await loop.run_in_executor(None, self.sync_engine.sync_state)
+                self._state_consistent = bool(ok)
             return
 
         if self.sync_engine:
@@ -686,6 +696,85 @@ class P2PNode:
             self.blockchain.set_state_root_baseline(new_h)
             print(f"[P2P] State-root baseline set to #{new_h} (strict above)")
 
+    async def _reconcile_fork_at_peer(self, peer: PeerConnection) -> bool:
+        """Same height, different head — reorg to peer canonical block."""
+        peer_head = peer.head or ""
+        local_head = self.head() or ""
+        if not peer_head or peer_head == local_head:
+            return True
+
+        print(
+            f"[P2P] Fork at #{peer.height}: "
+            f"local={local_head[:12]} peer={peer_head[:12]}"
+        )
+        peer_block = await self._request_block_by_hash(peer, peer_head)
+        if not peer_block:
+            print("[P2P] Could not fetch peer head block for reconcile")
+            return False
+
+        block_h = int(peer_block.get("height", peer_block.get("number", peer.height)))
+        parent_hash = peer_block.get("parent_hash", "")
+        ancestor = self.blockchain.find_ancestor_height(parent_hash)
+        if ancestor is None:
+            print("[P2P] No common ancestor for peer head")
+            return False
+
+        rollback_to = min(ancestor, block_h - 1)
+        if not self.blockchain.reorg_to_ancestor(rollback_to):
+            return False
+        if not self.blockchain.import_block(peer_block):
+            print("[P2P] Failed to import peer head after reorg")
+            return False
+
+        peer.height = block_h
+        peer.head = peer_block.get("hash", peer_head)
+        if peer.height > self.blockchain.get_height():
+            await self._sync_with_peer(peer)
+        return True
+
+    async def reconcile_peers(self) -> Dict:
+        """Align chain tips with connected peers (height + head + state_root)."""
+        results = []
+        for peer in list(self.peers.values()):
+            entry = {"peer": peer.peer_id[:12], "ok": False}
+            try:
+                if peer.height > self.blockchain.get_height():
+                    await self._sync_with_peer(peer)
+                    entry["ok"] = True
+                    entry["action"] = "catch_up"
+                elif peer.height == self.blockchain.get_height():
+                    if (peer.head or "") != (self.head() or ""):
+                        entry["ok"] = await self._reconcile_fork_at_peer(peer)
+                        entry["action"] = "fork_reorg"
+                    else:
+                        entry["ok"] = True
+                        entry["action"] = "already_aligned"
+                else:
+                    entry["ok"] = True
+                    entry["action"] = "ahead_of_peer"
+            except Exception as exc:
+                entry["error"] = str(exc)
+            results.append(entry)
+
+        if self.sync_engine:
+            loop = asyncio.get_running_loop()
+            ok = await loop.run_in_executor(None, self.sync_engine.sync_state)
+            self._state_consistent = bool(ok)
+
+        return {
+            "reconciled": results,
+            "state_consistent": self._state_consistent,
+            "height": self.blockchain.get_height(),
+            "head": self.head() or "",
+            "state_root": self.blockchain.get_state_root() if self.blockchain else "",
+        }
+
+    def trigger_reconcile(self) -> None:
+        """Schedule peer reconcile from REST thread."""
+        if not self._loop or not self._running:
+            return
+        asyncio.run_coroutine_threadsafe(self.reconcile_peers(), self._loop)
+
     async def request_peer_state_root(self, peer: PeerConnection, height: int = None) -> Optional[Dict]:
         """Request state_root at height from a single peer."""
         h = height if height is not None else self.blockchain.get_height()
@@ -754,7 +843,7 @@ class P2PNode:
         if not self._loop or not self._running:
             return
         for peer in list(self.peers.values()):
-            if peer.height > self.blockchain.get_height():
+            if peer.height >= self.blockchain.get_height():
                 asyncio.run_coroutine_threadsafe(self._sync_with_peer_safe(peer), self._loop)
 
     def fetch_block_from_peers_sync(self, block_hash: str, timeout: float = 15) -> Optional[Dict]:
@@ -903,6 +992,7 @@ class P2PNode:
                 "host": p.host,
                 "port": p.port,
                 "height": p.height,
+                "head": p.head or "",
                 "connected_for": int(time.time() - p.connected_at),
             }
             for p in self.peers.values()
