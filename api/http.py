@@ -87,6 +87,7 @@ _DEV_PUBLIC_POST = frozenset({
     "/transactions", "/tx/send", "/devnet/faucet", "/pools/dao/vote", "/devnet/pool-spend",
     "/bridge/confirm-lock", "/bridge/confirm-pending", "/bridge/dev-confirm-pending",
     "/sync/fast-sync", "/sync/reconcile",
+    "/chain/consistency/repair", "/chain/consistency/repair",
 })
 
 _BRIDGE_ORACLE_PATHS = frozenset({
@@ -111,6 +112,8 @@ _RATE_LIMIT_EXEMPT_PATHS = frozenset({
     "/testnet/mesh",
     "/testnet/fork-status",
     "/slashing/events",
+    "/chain/consistency/harness",
+    "/testnet/state-consistency",
     "/consensus/stats",
     "/metrics",
     "/sync/fast-sync",
@@ -158,6 +161,8 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/testnet/mesh", "summary": "P2P mesh health (3-node testnet)"},
     {"method": "GET", "path": "/testnet/fork-status", "summary": "Fork heads, gaps, slashing summary (Wave 53)"},
     {"method": "GET", "path": "/slashing/events", "summary": "Persisted slash events from SQLite"},
+    {"method": "GET", "path": "/chain/consistency/harness", "summary": "State consistency harness (Wave 54)"},
+    {"method": "POST", "path": "/chain/consistency/repair", "summary": "Replay chain if live state drifted from tip"},
     {"method": "GET", "path": "/sync/status", "summary": "Chain sync status"},
     {"method": "GET", "path": "/features", "summary": "Feature flags and module availability"},
     {"method": "GET", "path": "/evm/supported-opcodes", "summary": "EVM opcode support matrix"},
@@ -731,7 +736,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 53,
+                    "api_wave": 54,
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,
                     "crypto_will_enabled": self.__class__.crypto_will is not None,
@@ -1058,7 +1063,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "lightning": self.__class__.lightning,
                 }
                 payload = flags.to_api_dict(instances, cfg)
-                payload["api_wave"] = 53
+                payload["api_wave"] = 54
                 rp = self.__class__.reorg_predictor
                 if rp and hasattr(rp, "get_stats"):
                     payload["reorg_predictor"] = rp.get_stats()
@@ -1245,6 +1250,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "recent_mismatches": mismatches,
                     **policy,
                 })
+
+            elif path in ("/chain/consistency/harness", "/testnet/state-consistency"):
+                db = self.__class__.db
+                self._json(_build_state_consistency_harness(p2p, bc, cfg, db))
 
             elif path == "/tx/propagation/recent":
                 db = self.__class__.db
@@ -2170,7 +2179,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 self._json({
                     "count": len(events),
                     "events": events,
-                    "api_wave": 53,
+                    "api_wave": 54,
                 })
 
             elif path == "/sync/status":
@@ -4208,6 +4217,20 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "sync": sync,
                 })
 
+            elif path == "/chain/consistency/repair":
+                if not bc or not hasattr(bc, "ensure_state_at_tip"):
+                    self._error(503, "state repair not available"); return
+                repaired = bc.ensure_state_at_tip()
+                harness = _build_state_consistency_harness(
+                    self.__class__.p2p, bc, cfg, self.__class__.db
+                )
+                self._json({
+                    "success": bool(repaired),
+                    "repaired": bool(repaired),
+                    "height": bc.get_height() if hasattr(bc, "get_height") else 0,
+                    "harness": harness,
+                })
+
             elif path == "/sync/add-peer":
                 se = self.__class__.sync_engine
                 if not se:
@@ -4734,7 +4757,7 @@ def _build_testnet_mesh(p2p, bc, cfg) -> Dict:
         "bootstrap_peers": getattr(cfg, "bootstrap_peers", []),
         "peers": peers,
         "testnet_mode": "3-node" if expected_peers >= 2 else "multi",
-        "api_wave": 53,
+        "api_wave": 54,
     }
 
 
@@ -4795,7 +4818,108 @@ def _build_testnet_fork_status(p2p, bc, cfg, db=None) -> Dict:
         "slash_events_count": len(slash_events),
         "recent_slash_events": slash_events[:5],
         "peers": peers,
-        "api_wave": 53,
+        "api_wave": 54,
+    }
+
+
+def _build_state_consistency_harness(p2p, bc, cfg, db=None) -> Dict:
+    """Multi-check state integrity harness for testnet CI (Wave 54)."""
+    height = bc.get_height() if bc and hasattr(bc, "get_height") else 0
+    live_root = bc.get_state_root() if bc and hasattr(bc, "get_state_root") else ""
+    tip_blk = bc.get_last_block() if bc and hasattr(bc, "get_last_block") else None
+    tip_root = str((tip_blk or {}).get("state_root") or "")
+    tip_aligned = (live_root == tip_root) if tip_root and live_root else True
+
+    peers = []
+    peer_roots_aligned = True
+    if p2p and hasattr(p2p, "request_peer_state_roots_sync"):
+        try:
+            for entry in p2p.request_peer_state_roots_sync(timeout=8):
+                pr = str(entry.get("state_root") or "")
+                match = (pr == live_root) if pr and live_root else None
+                if match is False:
+                    peer_roots_aligned = False
+                peers.append({
+                    "peer_id": entry.get("peer_id", ""),
+                    "height": int(entry.get("height", 0) or 0),
+                    "state_root": pr,
+                    "match": match,
+                })
+        except Exception:
+            peer_roots_aligned = False
+
+    mismatches = (
+        db.get_state_root_mismatches(limit=20)
+        if db and hasattr(db, "get_state_root_mismatches")
+        else []
+    )
+    account_count = (
+        len(db.get_all_accounts())
+        if db and hasattr(db, "get_all_accounts")
+        else 0
+    )
+    total_supply = (
+        float(db.get_total_supply())
+        if db and hasattr(db, "get_total_supply")
+        else 0.0
+    )
+    max_supply = float(getattr(cfg, "max_supply", 221_000_000) or 221_000_000)
+    state_consistent = getattr(p2p, "_state_consistent", True) if p2p else True
+
+    checks = [
+        {
+            "id": "tip_state_aligned",
+            "ok": tip_aligned,
+            "detail": "live state_root matches canonical tip block",
+        },
+        {
+            "id": "peer_state_roots",
+            "ok": peer_roots_aligned or not peers,
+            "detail": "P2P peer state_roots match local",
+        },
+        {
+            "id": "p2p_state_consistent",
+            "ok": bool(state_consistent),
+            "detail": "P2P wire state consistency flag",
+        },
+        {
+            "id": "no_recent_mismatches",
+            "ok": len(mismatches) == 0,
+            "detail": "no state_root_mismatches in SQLite audit",
+        },
+        {
+            "id": "accounts_present",
+            "ok": account_count > 0 or height <= 0,
+            "detail": "SQLite accounts table populated",
+        },
+        {
+            "id": "supply_within_cap",
+            "ok": total_supply <= max_supply * 1.001,
+            "detail": f"total_supply {total_supply:,.0f} <= max {max_supply:,.0f}",
+        },
+    ]
+    harness_healthy = all(c["ok"] for c in checks)
+    policy = bc.get_state_root_policy() if bc and hasattr(bc, "get_state_root_policy") else {}
+
+    return {
+        "node_id": getattr(cfg, "node_id", ""),
+        "chain_id": getattr(cfg, "chain_id", 0),
+        "height": height,
+        "live_state_root": live_root,
+        "tip_block_state_root": tip_root,
+        "tip_state_aligned": tip_aligned,
+        "account_count": account_count,
+        "total_supply_abs": total_supply,
+        "max_supply_abs": max_supply,
+        "peer_count": len(peers),
+        "peers": peers,
+        "recent_mismatch_count": len(mismatches),
+        "recent_mismatches": mismatches[:5],
+        "checks": checks,
+        "harness_healthy": harness_healthy,
+        "failed_checks": [c["id"] for c in checks if not c["ok"]],
+        "policy": policy,
+        "api_wave": 54,
     }
 
 
@@ -4938,7 +5062,7 @@ def _build_l2_status(handler_cls) -> Dict:
         m.get("persisted") for m in modules.values() if isinstance(m, dict)
     )
     return {
-        "api_wave": 53,
+        "api_wave": 54,
         "l2_persisted": persisted,
         "nft_persisted": nft_persisted,
         "core": {

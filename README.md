@@ -69,11 +69,11 @@ Honest one-screen view — no marketing claims beyond what is tested in-repo.
 | **50** | Strict `state_root` on P2P | `GET /chain/state-root/status` |
 | **52** | **3-node testnet** | `GET /testnet/mesh`, `docker_devnet_3node.ps1` |
 | **53** | **Fork / slashing CI** | `GET /testnet/fork-status`, `GET /slashing/events`, `--mode ci3` |
+| **54** | **State consistency harness** | `GET /chain/consistency/harness`, `POST /chain/consistency/repair` |
 
 ```powershell
-(Invoke-RestMethod http://localhost:8080/status -UseBasicParsing).api_wave   # → 53
-Invoke-RestMethod http://localhost:8080/testnet/mesh -UseBasicParsing        # 3-node mesh
-Invoke-RestMethod http://localhost:8080/testnet/fork-status -UseBasicParsing # fork + slash summary
+(Invoke-RestMethod http://localhost:8080/status -UseBasicParsing).api_wave   # → 54
+Invoke-RestMethod http://localhost:8080/chain/consistency/harness -UseBasicParsing
 
 # 3-node testnet (Wave 52):
 .\scripts\docker_devnet_3node.ps1
@@ -239,4 +239,4 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 
 ---
 
-*Last update: June 2026 — API Wave 53, 220+ unit tests, Docker 3-node P2P + adversarial CI verified.*
+*Last update: June 2026 — API Wave 54, 223+ unit tests, 3-node P2P + state consistency harness.*

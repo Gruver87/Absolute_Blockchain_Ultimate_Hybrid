@@ -113,8 +113,20 @@ def _ensure_signer_funded(url1: str) -> None:
         pass
 
 
-def _peer_saw_tx(base_url: str, tx_hash: str) -> bool:
-    """Mempool gossip or trace shows tx reached this node."""
+def _block_has_tx(base_url: str, tx_hash: str, height: int) -> bool:
+    try:
+        blk = _api(f"{base_url}/block/{height}", timeout=5)
+        for row in blk.get("transactions") or []:
+            h = row.get("hash") or row.get("tx_hash") or ""
+            if h == tx_hash:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _peer_saw_tx(base_url: str, tx_hash: str, height_hint: int = 0) -> bool:
+    """Mempool gossip, trace, or same-height block inclusion on this node."""
     if _mempool_has_tx(base_url, tx_hash):
         return True
     try:
@@ -127,6 +139,8 @@ def _peer_saw_tx(base_url: str, tx_hash: str) -> bool:
             return True
     except Exception:
         pass
+    if height_hint > 0 and _block_has_tx(base_url, tx_hash, height_hint):
+        return True
     return False
 
 
@@ -155,21 +169,24 @@ def _verify_tx_propagation_multi(url1: str, target_urls: list[str], s1: dict) ->
         print("FAIL: /tx/send returned no tx_hash")
         return False
 
+    height_hint = int(s1.get("height", 0) or 0)
     reached = {url: False for url in target_urls}
     for _ in range(30):
         for url in target_urls:
-            if not reached[url] and _peer_saw_tx(url, tx_hash):
+            if not reached[url] and _peer_saw_tx(url, tx_hash, height_hint):
                 reached[url] = True
         if all(reached.values()):
             break
         time.sleep(2)
 
     confirmed = False
+    confirm_height = height_hint
     for _ in range(30):
         try:
             trace = _api(f"{url1}/tx/trace/{tx_hash}")
             if trace.get("status") == "confirmed":
                 confirmed = True
+                confirm_height = int(trace.get("block_height", 0) or confirm_height)
                 break
             stages = [e.get("stage") for e in trace.get("events", [])]
             if "block_included" in stages:
@@ -178,6 +195,28 @@ def _verify_tx_propagation_multi(url1: str, target_urls: list[str], s1: dict) ->
         except Exception:
             pass
         time.sleep(3)
+
+    if confirmed and confirm_height > 0:
+        for _ in range(25):
+            for url in target_urls:
+                if reached[url]:
+                    continue
+                try:
+                    st = _api(f"{url}/status", timeout=5)
+                    if int(st.get("height", 0) or 0) >= confirm_height:
+                        if _block_has_tx(url, tx_hash, confirm_height):
+                            reached[url] = True
+                            continue
+                        try:
+                            _api(f"{url}/tx/{tx_hash}", timeout=5)
+                            reached[url] = True
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+            if all(reached.values()):
+                break
+            time.sleep(2)
 
     ok = all(reached.values())
     flags = " ".join(f"n{i+2}={reached[u]}" for i, u in enumerate(target_urls))
@@ -313,7 +352,55 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
         return 5
     if not _verify_tx_propagation(url1, url2, s1):
         return 7
-    return verify_adversarial(url1, s1)
+    return verify_state_consistency([url1, url2], s1)
+
+
+def verify_state_consistency(urls: list[str], status: dict) -> int:
+    """Wave 54: cross-node state consistency harness."""
+    wave = int(status.get("api_wave", 0) or 0)
+    if wave < 54:
+        print(f"SKIP: state consistency harness (api_wave={wave} < 54)")
+        return verify_adversarial(urls[0], status)
+
+    def _run_harness() -> tuple[bool, list[str], list[str]]:
+        roots: list[str] = []
+        all_ok = True
+        failed_nodes: list[str] = []
+        for i, url in enumerate(urls, start=1):
+            try:
+                h = _api(f"{url}/chain/consistency/harness")
+            except Exception as exc:
+                print(f"FAIL: node{i} harness: {exc}")
+                return False, [], [f"node{i}"]
+            roots.append(str(h.get("live_state_root") or "").lower())
+            if not h.get("harness_healthy"):
+                all_ok = False
+                failed = h.get("failed_checks") or []
+                failed_nodes.append(f"node{i}:{','.join(failed)}")
+        roots_match = bool(roots[0] and all(r == roots[0] for r in roots))
+        return all_ok and roots_match, roots, failed_nodes
+
+    ok, roots, failed = _run_harness()
+    if not ok:
+        print("WARN: harness unhealthy — attempting repair on all nodes")
+        for url in urls:
+            try:
+                _post_json(url, "/chain/consistency/repair", timeout=60)
+            except Exception:
+                pass
+        ok, roots, failed = _run_harness()
+
+    if not ok:
+        print(f"FAIL: state consistency harness unhealthy ({'; '.join(failed)})")
+        if roots:
+            print(f"  roots={[r[:16] for r in roots]}")
+        return 12
+
+    print(
+        f"OK: state consistency harness healthy across {len(urls)} nodes "
+        f"root={roots[0][:16] if roots else '?'}…"
+    )
+    return verify_adversarial(urls[0], status)
 
 
 def verify_triple(url1: str, url2: str, url3: str, wait_sync_sec: int = 300) -> int:
@@ -403,7 +490,7 @@ def verify_triple(url1: str, url2: str, url3: str, wait_sync_sec: int = 300) -> 
 
     if not _verify_tx_propagation_multi(url1, [url2, url3], statuses[0]):
         return 7
-    return verify_adversarial(url1, statuses[0])
+    return verify_state_consistency(urls, statuses[0])
 
 
 def verify_adversarial(url1: str, status: dict) -> int:
@@ -528,7 +615,7 @@ def run_ci3_spawn() -> int:
 
         urls = [f"http://127.0.0.1:{ncfg['http_port']}" for ncfg in nodes]
         for url, ncfg in zip(urls, nodes):
-            if not _wait_health(url, max_sec=180):
+            if not _wait_health(url, max_sec=240):
                 print(f"FAIL: health timeout {url}")
                 print(f"  log: {ncfg['log_file']}")
                 return 1

@@ -2,11 +2,18 @@
 
 Все значимые изменения документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/).
 
-**Текущая волна API:** `api_wave = 53` (проверка: `GET /status`)
+**Текущая волна API:** `api_wave = 54` (проверка: `GET /status`)
 
 ---
 
-## [1.2.0-industrial] — Wave 37–53 (июнь 2026)
+## [1.2.0-industrial] — Wave 37–54 (июнь 2026)
+
+### Wave 54 — State consistency harness
+
+- `GET /chain/consistency/harness` — tip alignment, peer roots, supply cap, mismatch audit
+- `GET /testnet/state-consistency` — alias for harness on multi-node devnet
+- `POST /chain/consistency/repair` — replay chain when live state drifted from tip
+- `verify_p2p_ci.py` — cross-node harness check + auto-repair in devnet/ci3 modes
 
 ### Wave 53 — Fork / slashing / partition CI
 

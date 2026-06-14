@@ -100,6 +100,12 @@
 #   python scripts/verify_p2p_ci.py --mode ci3
 #   python scripts/verify_p2p_ci.py --mode ci-adversarial
 #
+# Wave 54 (state consistency harness):
+#   GET /chain/consistency/harness — tip_state_aligned, peer roots, supply cap
+#   GET /testnet/state-consistency — alias (multi-node devnet)
+#   POST /chain/consistency/repair — replay if live state drifted
+#   verify_p2p_ci devnet3/ci3 runs harness across all nodes
+#
 # Wave 51 (P2P tx propagation):
 #   Full signed tx gossip + mempool pull sync (GET_MEMPOOL / MEMPOOL)
 #   SQLite tx_propagation_events — api_submit → mempool → P2P → block → receipt
