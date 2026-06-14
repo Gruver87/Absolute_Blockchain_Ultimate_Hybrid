@@ -85,7 +85,7 @@ except ImportError:
 # POST без JWT в dev (публичные операции); prod — только tx send + oracle HMAC
 _DEV_PUBLIC_POST = frozenset({
     "/transactions", "/tx/send", "/devnet/faucet", "/pools/dao/vote", "/devnet/pool-spend",
-    "/bridge/confirm-lock", "/bridge/confirm-pending",
+    "/bridge/confirm-lock", "/bridge/confirm-pending", "/bridge/dev-confirm-pending",
     "/sync/fast-sync", "/sync/reconcile",
 })
 
@@ -725,13 +725,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 44,
+                    "api_wave": 45,
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,
                     "crypto_will_enabled": self.__class__.crypto_will is not None,
                     "wasm_enabled": self.__class__.wasm_vm is not None,
                     "ai_agents_enabled": self.__class__.ai_manager is not None,
                     "mev_enabled": self.__class__.mev_simulator is not None,
+                    "reorg_predictor_enabled": self.__class__.reorg_predictor is not None,
                     "l2_persisted": bool(
                         getattr(self.__class__.lightning, "db", None)
                         or getattr(self.__class__.plasma, "db", None)
@@ -1002,7 +1003,27 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "plasma": self.__class__.plasma,
                     "lightning": self.__class__.lightning,
                 }
-                self._json(flags.to_api_dict(instances, cfg))
+                payload = flags.to_api_dict(instances, cfg)
+                payload["api_wave"] = 45
+                rp = self.__class__.reorg_predictor
+                if rp and hasattr(rp, "get_stats"):
+                    payload["reorg_predictor"] = rp.get_stats()
+                for name, mod in (
+                    ("lightning", self.__class__.lightning),
+                    ("plasma", self.__class__.plasma),
+                    ("crypto_will", self.__class__.crypto_will),
+                    ("wasm", self.__class__.wasm_vm),
+                    ("ai_agents", self.__class__.ai_manager),
+                    ("mev", self.__class__.mev_simulator),
+                ):
+                    if mod and hasattr(mod, "get_stats"):
+                        payload.setdefault("l2_modules", {})[name] = mod.get_stats()
+                payload["bridge_dev_confirm"] = (
+                    "POST /bridge/confirm-pending"
+                    if getattr(cfg, "deployment_mode", "dev") != "prod"
+                    else None
+                )
+                self._json(payload)
 
             elif path == "/evm/supported-opcodes":
                 try:
@@ -2426,18 +2447,48 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/reorg/depth":
                 rp = self.__class__.reorg_predictor
                 if rp and hasattr(rp, "predict_reorg_depth"):
-                    depth = rp.predict_reorg_depth()
-                    self._json({"predicted_depth": depth})
+                    network_hr = float(qs.get("network_hashrate", ["100"])[0])
+                    attacker_hr = float(qs.get("attacker_hashrate", ["10"])[0])
+                    depth = rp.predict_reorg_depth(network_hr, attacker_hr)
+                    self._json({
+                        "predicted_depth": depth,
+                        "network_hashrate": network_hr,
+                        "attacker_hashrate": attacker_hr,
+                        "enabled": True,
+                    })
                 else:
                     self._json({"predicted_depth": 0, "enabled": bool(rp)})
 
             elif path == "/reorg/fork":
                 rp = self.__class__.reorg_predictor
-                if rp and hasattr(rp, "analyze_fork"):
-                    analysis = rp.analyze_fork()
+                if not rp:
+                    self._json({"fork_detected": False, "enabled": False}); return
+                main_raw = qs.get("main_chain", [""])[0]
+                fork_raw = qs.get("fork_chain", [""])[0]
+                if main_raw and fork_raw:
+                    try:
+                        main_chain = json.loads(main_raw)
+                        fork_chain = json.loads(fork_raw)
+                    except Exception as e:
+                        self._error(400, f"invalid chain JSON: {e}"); return
+                    analysis = rp.analyze_fork(main_chain, fork_chain)
                     self._json(analysis if isinstance(analysis, dict) else {"analysis": str(analysis)})
                 else:
-                    self._json({"fork_detected": False, "enabled": bool(rp)})
+                    local_h = bc.get_height() if bc else 0
+                    heights = []
+                    if p2p and hasattr(p2p, "get_peers_info"):
+                        for peer in p2p.get_peers_info():
+                            heights.append(int(peer.get("height", 0) or 0))
+                    self._json(rp.analyze_live_peers(local_h, heights))
+
+            elif path == "/reorg/history":
+                rp = self.__class__.reorg_predictor
+                if not rp:
+                    self._json({"count": 0, "assessments": [], "enabled": False}); return
+                limit = int(qs.get("limit", ["50"])[0])
+                hist = rp.get_history(limit) if hasattr(rp, "get_history") else []
+                stats = rp.get_stats() if hasattr(rp, "get_stats") else {}
+                self._json({"count": len(hist), "assessments": hist, "stats": stats, "enabled": True})
 
             # ── Immutable state ABS balance ───────────────────────────────────
             elif path.startswith("/state/abs-balance/"):
@@ -3695,7 +3746,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 else:
                     self._error(501, "confirm_lock not available")
 
-            elif path == "/bridge/confirm-pending":
+            elif path == "/bridge/confirm-pending" or path == "/bridge/dev-confirm-pending":
                 if getattr(cfg, "deployment_mode", "dev") == "prod":
                     self._error(403, "batch confirm disabled in production"); return
                 br = getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge
@@ -4551,7 +4602,7 @@ def _build_l2_status(handler_cls) -> Dict:
         m.get("persisted") for m in modules.values() if isinstance(m, dict)
     )
     return {
-        "api_wave": 44,
+        "api_wave": 45,
         "l2_persisted": persisted,
         "modules_enabled": list(modules.keys()),
         "modules": modules,

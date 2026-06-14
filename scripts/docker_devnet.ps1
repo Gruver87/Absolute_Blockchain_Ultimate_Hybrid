@@ -66,8 +66,8 @@ for ($i = 0; $i -lt 40; $i++) {
             if ($st.node_id -like "docker-node-*") {
             $ok1 = $true
             Write-Host "node1 ready ($($st.node_id)) api_wave=$($st.api_wave)" -ForegroundColor Green
-            if ($null -eq $st.api_wave -or [int]$st.api_wave -lt 44) {
-                Write-Host "WARN: Docker image is older than Wave 44 — rebuild: docker compose -f $composeFile build --no-cache node1" -ForegroundColor Yellow
+            if ($null -eq $st.api_wave -or [int]$st.api_wave -lt 45) {
+                Write-Host "WARN: Docker image is older than Wave 45 — rebuild: docker compose -f $composeFile build --no-cache node1" -ForegroundColor Yellow
             }
             try {
                 $feeds = Invoke-RestMethod "http://127.0.0.1:8080/oracles/feeds" -UseBasicParsing -TimeoutSec 5
@@ -82,6 +82,8 @@ for ($i = 0; $i -lt 40; $i++) {
                 Write-Host "ai-agent/stats OK (persisted=$($ai.persisted))" -ForegroundColor Green
                 $l2 = Invoke-RestMethod "http://127.0.0.1:8080/l2/status" -UseBasicParsing -TimeoutSec 5
                 Write-Host "l2/status OK (modules=$($l2.modules_enabled -join ','))" -ForegroundColor Green
+                $reorg = Invoke-RestMethod "http://127.0.0.1:8080/reorg/depth?network_hashrate=100&attacker_hashrate=10" -UseBasicParsing -TimeoutSec 5
+                Write-Host "reorg/depth OK (depth=$($reorg.predicted_depth))" -ForegroundColor Green
             } catch {
                 Write-Host "oracles/feeds missing — rebuild Docker image (Wave 39+)" -ForegroundColor Red
             }

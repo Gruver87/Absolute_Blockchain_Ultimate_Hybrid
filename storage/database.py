@@ -350,6 +350,14 @@ class Database:
             );
             CREATE INDEX IF NOT EXISTS idx_mev_sim_ts ON mev_simulations(created_at);
 
+            CREATE TABLE IF NOT EXISTS reorg_assessments (
+                assess_id  TEXT PRIMARY KEY,
+                kind       TEXT NOT NULL,
+                payload    TEXT NOT NULL DEFAULT '{}',
+                created_at INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_reorg_assess_ts ON reorg_assessments(created_at);
+
             CREATE INDEX IF NOT EXISTS idx_tx_block ON transactions(block_height);
             CREATE INDEX IF NOT EXISTS idx_tx_from  ON transactions(from_addr);
             CREATE INDEX IF NOT EXISTS idx_tx_to    ON transactions(to_addr);
@@ -1451,6 +1459,43 @@ class Database:
                     "profit": r["profit"],
                     "payload": payload,
                     "created_at": r["created_at"],
+                })
+            return out
+
+    # ── Reorg assessments (Wave 45 persistence) ─────────────────────────────
+
+    def save_reorg_assessment(self, assess: Dict) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO reorg_assessments
+                   (assess_id, kind, payload, created_at)
+                   VALUES (?,?,?,?)""",
+                (
+                    assess["assess_id"],
+                    assess.get("kind", ""),
+                    json.dumps({k: v for k, v in assess.items() if k != "assess_id"}),
+                    int(assess.get("timestamp", assess.get("created_at", 0))),
+                ),
+            )
+            self.conn.commit()
+
+    def get_reorg_assessments(self, limit: int = 100) -> List[Dict]:
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT * FROM reorg_assessments ORDER BY created_at DESC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+            out = []
+            for r in rows:
+                try:
+                    payload = json.loads(r["payload"] or "{}")
+                except Exception:
+                    payload = {}
+                out.append({
+                    "assess_id": r["assess_id"],
+                    "kind": r["kind"],
+                    "timestamp": r["created_at"],
+                    **payload,
                 })
             return out
 

@@ -612,8 +612,8 @@ class NodeOrchestrator:
 
         # 23. Reorg Predictor
         if _REORG_PREDICTOR_AVAILABLE:
-            self.reorg_predictor = ReorgPredictor()
-            print("[Node] ReorgPredictor: enabled (confirmation-depth risk)")
+            self.reorg_predictor = ReorgPredictor(db=self.db)
+            print("[Node] ReorgPredictor: enabled (SQLite assessments + fork risk)")
         else:
             self.reorg_predictor = None
 

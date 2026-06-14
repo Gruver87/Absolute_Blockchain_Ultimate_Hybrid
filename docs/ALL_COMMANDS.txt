@@ -37,7 +37,7 @@
 
 
 # =============================================================================
-# ЧАСТЬ 0: ВОЗМОЖНОСТИ БЛОКЧЕЙНА — ЧЕСТНО (v1.2.0, Wave 44)
+# ЧАСТЬ 0: ВОЗМОЖНОСТИ БЛОКЧЕЙНА — ЧЕСТНО (v1.2.0, Wave 45)
 # =============================================================================
 #
 # ⚠️  УЧЕБНЫЙ / ЭКСПЕРИМЕНТАЛЬНЫЙ ПРОЕКТ — НЕ PRODUCTION MAINNET
@@ -75,6 +75,12 @@
 # Wave 44:
 #   GET /l2/status — единый дашборд Lightning/Plasma/Will/WASM/AI
 #   MEV simulator: история симуляций в SQLite (GET /mev/history)
+# Wave 45:
+#   Reorg predictor: assessments в SQLite (GET /reorg/history)
+#   Исправлены GET /reorg/depth (?network_hashrate=&attacker_hashrate=)
+#        GET /reorg/fork (live P2P gaps или ?main_chain=&fork_chain= JSON)
+#   GET /features — api_wave, l2_modules persisted, bridge_dev_confirm hint
+#   Dev bridge: POST /bridge/confirm-pending (alias /bridge/dev-confirm-pending)
 #
 # --- Архитектура ---
 #
