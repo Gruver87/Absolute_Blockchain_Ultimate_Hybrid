@@ -69,6 +69,9 @@ jobs:
           tests/unit/test_bridge_manual.py \
           tests/unit/test_devnet_pool_spend.py \
           tests/unit/test_pool_dao.py \
+          tests/unit/test_telegram_bot_bridge.py \
+          tests/unit/test_api_prod_auth.py \
+          tests/unit/test_bridge_relayer.py \
           -q --tb=short
 
     - name: Build Rust bridge CLI

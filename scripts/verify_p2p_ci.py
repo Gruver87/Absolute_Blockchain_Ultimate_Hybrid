@@ -115,10 +115,12 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 180) -> int:
             s1 = _api(f"{url1}/status")
             s2 = _api(f"{url2}/status")
             gap = abs(int(s1.get("height", 0)) - int(s2.get("height", 0)))
-            peered = p1.get("count", 0) > 0 or p2.get("count", 0) > 0
-            if peered and gap > 5 and i % 5 == 0:
+            c1 = int(p1.get("count", 0) or 0)
+            c2 = int(p2.get("count", 0) or 0)
+            both_peered = c1 > 0 and c2 > 0
+            if (c1 > 0 or c2 > 0) and gap > 5 and i % 5 == 0:
                 _trigger_catchup(url1, url2, s1, s2)
-            if peered and gap <= 5:
+            if both_peered and gap <= 5:
                 break
         except Exception:
             pass
@@ -132,6 +134,29 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 180) -> int:
             print("    Invoke-RestMethod http://127.0.0.1:8081/sync/fast-sync -Method POST -Body '{}' -ContentType 'application/json'")
         print("  Or: .\\scripts\\stop_node.ps1  then  .\\scripts\\start_two_nodes.ps1")
         return 2
+
+    # Wait for bilateral P2P + state roots (Docker: node1 may reconnect after node2 starts)
+    for i in range(30):
+        try:
+            p1 = _api(f"{url1}/peers")
+            p2 = _api(f"{url2}/peers")
+            s1 = _api(f"{url1}/status")
+            s2 = _api(f"{url2}/status")
+            sync1 = _api(f"{url1}/sync/status")
+            sync2 = _api(f"{url2}/sync/status")
+            gap = abs(int(s1.get("height", 0)) - int(s2.get("height", 0)))
+            c1 = int(p1.get("count", 0) or 0)
+            c2 = int(p2.get("count", 0) or 0)
+            root1 = (sync1.get("state_root") or s1.get("state_root") or "").lower()
+            root2 = (sync2.get("state_root") or s2.get("state_root") or "").lower()
+            roots_match = bool(root1 and root2 and root1 == root2)
+            if c1 > 0 and c2 > 0 and gap <= 5 and roots_match:
+                break
+            if i % 4 == 3 and gap > 0:
+                _trigger_catchup(url1, url2, s1, s2)
+        except Exception:
+            pass
+        time.sleep(3)
 
     sync1 = _api(f"{url1}/sync/status")
     sync2 = _api(f"{url2}/sync/status")

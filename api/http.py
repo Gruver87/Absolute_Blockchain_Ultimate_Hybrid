@@ -82,11 +82,22 @@ except ImportError:
     jwt_auth = None
     _JWT_AVAILABLE = False
 
-# POST без JWT даже в prod (публичные операции)
-_PUBLIC_POST_PATHS = frozenset({
+# POST без JWT в dev (публичные операции); prod — только tx send + oracle HMAC
+_DEV_PUBLIC_POST = frozenset({
     "/transactions", "/tx/send", "/devnet/faucet", "/pools/dao/vote", "/devnet/pool-spend",
     "/bridge/confirm-lock", "/bridge/confirm-pending",
 })
+
+_BRIDGE_ORACLE_PATHS = frozenset({
+    "/bridge/oracle/confirm-lock",
+    "/bridge/oracle/incoming",
+})
+
+
+def _public_post_paths(cfg) -> frozenset:
+    if getattr(cfg, "deployment_mode", "dev") == "prod":
+        return frozenset({"/transactions", "/tx/send"})
+    return _DEV_PUBLIC_POST
 
 # Devnet / probes: не считаем в rate limit (start_two_nodes, devnet_status, K8s)
 _RATE_LIMIT_EXEMPT_PATHS = frozenset({
@@ -472,7 +483,7 @@ class RESTHandler(BaseHTTPRequestHandler):
         cfg = self.__class__.config
         if not cfg or not getattr(cfg, "jwt_enforce_admin", False):
             return True
-        if path in _PUBLIC_POST_PATHS:
+        if path in _public_post_paths(cfg):
             return True
         auth = self.headers.get("Authorization", "")
         if not auth.startswith("Bearer "):
@@ -486,6 +497,22 @@ class RESTHandler(BaseHTTPRequestHandler):
             self._error(401, "Invalid or expired JWT")
             return False
         return True
+
+    def _verify_bridge_oracle(self, path: str, raw_body: bytes) -> bool:
+        cfg = self.__class__.config
+        secret = getattr(cfg, "bridge_oracle_secret", "") or os.environ.get("BRIDGE_ORACLE_SECRET", "")
+        if not secret:
+            self._error(503, "BRIDGE_ORACLE_SECRET not configured")
+            return False
+        sig = self.headers.get("X-Bridge-Oracle-Signature", "")
+        try:
+            from bridge.oracle_auth import verify_signature
+            if verify_signature(secret, raw_body, sig):
+                return True
+        except Exception:
+            pass
+        self._error(401, "Invalid bridge oracle signature")
+        return False
 
     def do_OPTIONS(self):
         self._cors()
@@ -637,6 +664,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "bridge_pending": bridge_pending,
                     "bridge_locks_total": len(bridge_locks),
                     "deployment_mode": getattr(cfg, "deployment_mode", "dev"),
+                    "jwt_enforce_admin": getattr(cfg, "jwt_enforce_admin", False),
+                    "rpc_api_key_required": getattr(cfg, "rpc_api_key_required", False),
+                    "bridge_oracle_enabled": bool(
+                        getattr(cfg, "bridge_oracle_secret", "")
+                        or os.environ.get("BRIDGE_ORACLE_SECRET", "")
+                    ),
                     "node_id": getattr(cfg, "node_id", "node-1"),
                     "health": {
                         "live": "/health/live",
@@ -902,7 +935,9 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json({"count": 0, "attestations": [], "enabled": False})
 
             elif path == "/auth/token":
-                # JWT token generation endpoint
+                if getattr(cfg, "deployment_mode", "dev") == "prod":
+                    self._error(403, "GET /auth/token disabled in production")
+                    return
                 addr = qs.get("address", [""])[0]
                 if _JWT_AVAILABLE and jwt_auth and addr:
                     token = jwt_auth.generate_token(addr)
@@ -2212,13 +2247,17 @@ class RESTHandler(BaseHTTPRequestHandler):
             return
 
         self._track_request()
-        if not self._require_jwt_admin(path):
-            return
         length = int(self.headers.get("Content-Length", 0))
+        raw_bytes = self.rfile.read(length) if length else b""
+        if path in _BRIDGE_ORACLE_PATHS:
+            if not self._verify_bridge_oracle(path, raw_bytes):
+                return
+        elif not self._require_jwt_admin(path):
+            return
         body = {}
-        if length:
+        if raw_bytes:
             try:
-                raw_body = json.loads(self.rfile.read(length))
+                raw_body = json.loads(raw_bytes.decode("utf-8"))
                 body = sanitize_input(raw_body) if _INPUT_VALIDATORS_AVAILABLE else raw_body
             except json.JSONDecodeError:
                 self._error(400, "Invalid JSON")
@@ -3180,6 +3219,44 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json(result)
                 except ValueError as exc:
                     self._error(400, str(exc))
+
+            elif path == "/pools/spend":
+                if getattr(cfg, "deployment_mode", "dev") == "prod":
+                    pl = self.__class__.pool_locks
+                    db = self.__class__.db
+                    if not pl or not db or not bc:
+                        self._error(503, "pool locks or database unavailable"); return
+                    try:
+                        result = _handle_devnet_pool_spend(body, bc, db, cfg, pl)
+                        self._json(result)
+                    except ValueError as exc:
+                        self._error(400, str(exc))
+                else:
+                    self._error(403, "use /devnet/pool-spend in dev mode")
+
+            elif path == "/bridge/oracle/confirm-lock":
+                br = getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge
+                if not br:
+                    self._error(503, "Bridge not enabled"); return
+                tx_hash = body.get("tx_hash", body.get("tx_id", ""))
+                if hasattr(br, "confirm_lock"):
+                    self._json(br.confirm_lock(tx_hash))
+                else:
+                    self._error(501, "confirm_lock not available")
+
+            elif path == "/bridge/oracle/incoming":
+                br = getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge
+                if not br:
+                    self._error(503, "Bridge not enabled"); return
+                tx_id = body.get("tx_id", body.get("tx_hash", ""))
+                recipient = body.get("recipient", body.get("to_address", ""))
+                amount = float(body.get("amount", 0))
+                from_chain = body.get("from_chain", body.get("source_chain", "ethereum"))
+                if hasattr(br, "confirm_incoming"):
+                    result = br.confirm_incoming(tx_id, recipient, amount, from_chain)
+                    self._json(result if isinstance(result, dict) else {"success": bool(result)})
+                else:
+                    self._json({"success": False, "error": "confirm not available"})
 
             # ── Bridge: lock, confirm, refund ─────────────────────────────────
             elif path == "/bridge/lock":

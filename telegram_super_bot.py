@@ -12,14 +12,28 @@ import time
 import threading
 from datetime import datetime
 
-API_URL = "http://localhost:8080"
+API_URL = os.getenv("ABS_API_URL", "http://localhost:8080")
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+ABS_JWT = os.getenv("ABS_JWT", "")
+ADMIN_CHAT_IDS = {
+    int(x.strip())
+    for x in os.getenv("TELEGRAM_ADMIN_CHAT_IDS", "").split(",")
+    if x.strip().isdigit()
+}
 
 class AbsoluteBot:
     def __init__(self):
         self.base_url = f"https://api.telegram.org/bot{BOT_TOKEN}"
         self.last_update = 0
-        
+
+    def _is_admin(self, chat_id) -> bool:
+        return not ADMIN_CHAT_IDS or int(chat_id) in ADMIN_CHAT_IDS
+
+    def _auth_headers(self) -> dict:
+        headers = {"Content-Type": "application/json"}
+        if ABS_JWT:
+            headers["Authorization"] = f"Bearer {ABS_JWT}"
+        return headers
     def send_message(self, chat_id, text, parse_mode=None):
         try:
             url = f"{self.base_url}/sendMessage"
@@ -58,7 +72,7 @@ class AbsoluteBot:
             r = requests.post(
                 f"{API_URL}{path}",
                 json=data or {},
-                headers={"Content-Type": "application/json"},
+                headers=self._auth_headers(),
                 timeout=timeout,
             )
             if r.status_code == 200:
@@ -151,6 +165,9 @@ class AbsoluteBot:
             self.show_bridge_pending(chat_id)
 
         elif text == "/bridgeconfirm":
+            if not self._is_admin(chat_id):
+                self.send_message(chat_id, "⛔ Admin only")
+                return
             self.confirm_bridge_pending(chat_id)
 
         elif text == "/pools":
@@ -430,6 +447,20 @@ TPS: educational devnet
         self.send_message(chat_id, text)
 
     def confirm_bridge_pending(self, chat_id):
+        st = self._api_get("/status")
+        if st and st.get("deployment_mode") == "prod":
+            pending = self._api_get("/bridge/locks")
+            locks = [l for l in (pending or {}).get("locks", []) if (l.get("status") or "pending") == "pending"]
+            if not locks:
+                self.send_message(chat_id, "✅ Нет pending locks")
+                return
+            tx = locks[0].get("tx_hash", "")
+            r = self._api_post("/bridge/confirm-lock", {"tx_hash": tx})
+            if r and r.get("confirmed"):
+                self.send_message(chat_id, f"✅ Confirmed {tx[:14]}…")
+            else:
+                self.send_message(chat_id, f"❌ {r.get('error', 'confirm failed') if r else 'API error'}")
+            return
         r = self._api_post("/bridge/confirm-pending", {})
         if not r:
             self.send_message(chat_id, "❌ confirm-pending недоступен")

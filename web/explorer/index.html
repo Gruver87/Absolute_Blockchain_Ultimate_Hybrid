@@ -150,6 +150,9 @@
     <div class="stat-item"><span class="stat-label">Peers</span><span class="stat-value" id="s-peers">—</span></div>
     <div class="stat-item"><span class="stat-label">Bridge</span><span class="stat-value" id="s-bridge">—</span></div>
   </div>
+  <div id="prod-auth-banner" style="display:none;margin-bottom:12px;padding:10px 14px;border:1px solid var(--yellow);border-radius:8px;font-size:12px;background:rgba(255,200,0,0.08)">
+    <b>Production mode</b> — admin POSTs need JWT. Settings → Get JWT Token. RPC may require API key.
+  </div>
 
   <!-- DASHBOARD -->
   <div id="sec-dashboard" class="section active">
@@ -198,6 +201,7 @@
       <div id="dao-vote-dash-result" style="margin-top:8px;font-size:12px"></div>
       <p style="color:var(--gray);font-size:11px;margin-top:8px">Solo devnet: один голос валидатора (51%) разблокирует пул. Нажмите Refresh Locks после голосования.</p>
       <hr style="border-color:var(--border);margin:12px 0">
+      <div id="pool-spend-panel">
       <h3 style="font-size:12px;color:var(--gray);text-transform:uppercase">Pool Spend (devnet)</h3>
       <div class="form-row"><label>Pool</label>
         <select id="pool-spend-id">
@@ -210,6 +214,7 @@
       <div class="form-row"><label>Amount (ABS)</label><input id="pool-spend-amount" type="number" value="100" step="1" /></div>
       <button class="btn btn-green" onclick="devnetPoolSpend()" style="width:100%">Send from Pool</button>
       <div id="pool-spend-result" style="margin-top:8px;font-size:12px"></div>
+      </div>
     </div>
     <div class="card">
       <h3>Recent Transactions</h3>
@@ -1655,6 +1660,8 @@
       <div class="card">
         <h3>JWT Auth Token</h3>
         <div class="form-row"><label>Address</label><input id="jwt-address" placeholder="0xabc..."/></div>
+        <div class="form-row"><label>RPC API Key (prod)</label><input id="rpc-api-key" placeholder="optional" type="password"/></div>
+        <button class="btn btn-outline" onclick="saveRpcKey()" style="width:100%;margin-bottom:6px">Save RPC Key</button>
         <button class="btn btn-outline" onclick="getAuthToken()" style="width:100%">Get JWT Token</button>
         <div id="jwt-result" style="margin-top:10px;font-family:monospace;font-size:11px;word-break:break-all"></div>
       </div>
@@ -1671,6 +1678,35 @@ let API = (location.protocol === 'http:' || location.protocol === 'https:')
   : 'http://localhost:8080';
 let RPC = 'http://localhost:8545';
 let WS  = 'ws://localhost:8766';
+let DEPLOYMENT_MODE = 'dev';
+
+const AUTH = {
+  get jwt() { return localStorage.getItem('abs_jwt') || ''; },
+  set jwt(v) { v ? localStorage.setItem('abs_jwt', v) : localStorage.removeItem('abs_jwt'); },
+  get rpcKey() { return localStorage.getItem('abs_rpc_key') || ''; },
+  set rpcKey(v) { v ? localStorage.setItem('abs_rpc_key', v) : localStorage.removeItem('abs_rpc_key'); },
+};
+
+function authHeaders(extra = {}) {
+  const h = { ...extra };
+  if (AUTH.jwt) h.Authorization = `Bearer ${AUTH.jwt}`;
+  return h;
+}
+
+function applyDeploymentMode(st) {
+  DEPLOYMENT_MODE = st?.deployment_mode || 'dev';
+  const prod = DEPLOYMENT_MODE === 'prod';
+  const banner = document.getElementById('prod-auth-banner');
+  if (banner) banner.style.display = prod ? 'block' : 'none';
+  const faucetPanel = document.getElementById('devnet-faucet-panel');
+  if (faucetPanel) faucetPanel.style.display = prod ? 'none' : 'block';
+  const poolPanel = document.getElementById('pool-spend-panel');
+  if (poolPanel) {
+    poolPanel.querySelector('h3').textContent = prod ? 'Pool Spend (prod JWT)' : 'Pool Spend (devnet)';
+  }
+  const rpcKeyEl = document.getElementById('rpc-api-key');
+  if (rpcKeyEl && AUTH.rpcKey) rpcKeyEl.value = AUTH.rpcKey;
+}
 
 async function configureEndpoints() {
   const probe = (location.protocol === 'http:' || location.protocol === 'https:')
@@ -1682,6 +1718,7 @@ async function configureEndpoints() {
     if (st.http_port) API = `http://${host}:${st.http_port}`;
     if (st.rpc_port) RPC = `http://${host}:${st.rpc_port}`;
     if (st.ws_port) WS = `ws://${host}:${st.ws_port}`;
+    applyDeploymentMode(st);
   } catch (_) {}
 }
 
@@ -1755,7 +1792,7 @@ async function post(path, body) {
   try {
     const r = await fetch(API + path, {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: authHeaders({'Content-Type': 'application/json'}),
       body: JSON.stringify(body)
     });
     const data = await r.json().catch(() => ({}));
@@ -1776,9 +1813,11 @@ function fmtAbs(n, frac = 3) {
 }
 async function rpc(method, params=[]) {
   try {
+    const headers = {'Content-Type': 'application/json'};
+    if (AUTH.rpcKey) headers['X-API-Key'] = AUTH.rpcKey;
     const r = await fetch(RPC, {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers,
       body: JSON.stringify({jsonrpc:'2.0', method, params, id:1})
     });
     const d = await r.json();
@@ -1811,6 +1850,8 @@ async function refreshStatus() {
         : '<span class="badge badge-green">sim</span>') + pendingBadge;
     }
   }
+
+  applyDeploymentMode(data);
 
   // Node info table
   const t = document.getElementById('node-info-table');
@@ -3564,6 +3605,10 @@ async function quickConfirmBridgeLock(txHash) {
 }
 
 async function confirmAllBridgePending() {
+  if (DEPLOYMENT_MODE === 'prod') {
+    toast('Batch confirm disabled in prod — confirm locks individually', false);
+    return;
+  }
   const r = await post('/bridge/confirm-pending', {});
   const ok = r?.success && (r?.count || 0) > 0;
   toast(ok ? `Confirmed ${r.count} lock(s)` : (r?.errors?.[0]?.error || r?.error || 'No pending locks'), !!ok);
@@ -3628,7 +3673,8 @@ async function devnetPoolSpend() {
   }
   if (!to) return toast('Enter recipient address', false);
   if (amount <= 0) return toast('Amount must be > 0', false);
-  const r = await api('/devnet/pool-spend', 'POST', {pool_id, to, amount});
+  const path = DEPLOYMENT_MODE === 'prod' ? '/pools/spend' : '/devnet/pool-spend';
+  const r = await api(path, 'POST', {pool_id, to, amount});
   const el = document.getElementById('pool-spend-result');
   if (r?.success) {
     el.innerHTML = `<span class="badge badge-green">Sent ${r.amount} ABS</span> TX: <span class="hash">${r.tx_hash}</span>`;
@@ -3747,12 +3793,29 @@ async function genEthAddress() {
 }
 
 // ── JWT Auth Token ────────────────────────────────────────────────────────────
+function saveRpcKey() {
+  const key = document.getElementById('rpc-api-key')?.value?.trim() || '';
+  AUTH.rpcKey = key;
+  toast(key ? 'RPC API key saved' : 'RPC API key cleared', true);
+}
+
 async function getAuthToken() {
   const address = document.getElementById('jwt-address').value;
-  const r = await post('/auth/token', {address: address||'0xdefault', password: 'admin'});
-  document.getElementById('jwt-result').innerHTML = r?.token
-    ? `<div class="badge badge-green">Token received</div><div style="color:var(--yellow);word-break:break-all">${r.token}</div>`
-    : `<span style="color:var(--gray)">${r?.error||JSON.stringify(r)}</span>`;
+  try {
+    const r = await fetch(`${API}/auth/token?address=${encodeURIComponent(address || '0xdefault')}`);
+    const data = await r.json();
+    if (data?.token) {
+      AUTH.jwt = data.token;
+      document.getElementById('jwt-result').innerHTML =
+        `<div class="badge badge-green">Token saved</div><div style="color:var(--yellow);word-break:break-all">${data.token.slice(0,48)}…</div>`;
+      toast('JWT saved for admin POSTs', true);
+      return;
+    }
+    document.getElementById('jwt-result').innerHTML =
+      `<span style="color:var(--gray)">${data?.error || JSON.stringify(data)}</span>`;
+  } catch (e) {
+    document.getElementById('jwt-result').innerHTML = `<span style="color:var(--red)">${e}</span>`;
+  }
 }
 
 // ── Slashing Engine ───────────────────────────────────────────────────────────

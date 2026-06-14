@@ -241,6 +241,8 @@ Telegram (при `TELEGRAM_BOT_TOKEN` в `.env`):
 /bridge /bridgepending /bridgeconfirm /pools /recent
 ```
 
+Prod (Wave 28): `JWT_ENFORCE_ADMIN=true`, `BRIDGE_ORACLE_SECRET` для relayer (`POST /bridge/oracle/confirm-lock`, `/bridge/oracle/incoming` с заголовком `X-Bridge-Oracle-Signature`). Explorer: Settings → JWT + RPC API key.
+
 Скрипт:
 - клонирует `data/blockchain.db` в `data/node2/` (одинаковая высота, без replay 4000+ блоков);
 - поднимает node1 (`node.example.json` :8080) и node2 (`node2.example.json` :8081) в фоне;

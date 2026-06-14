@@ -98,8 +98,11 @@ class RustBridge:
         self._rust_bin = self._resolve_rust_bin()
         if config.bridge_mode == "rust":
             if not self._rust_bin:
-                print(f"[Bridge] WARNING: Rust bridge binary not found at "
-                      f"'{config.rust_bridge_path}'. Falling back to simulator.")
+                msg = "Rust bridge binary not found"
+                print(f"[Bridge] ERROR: {msg} at '{config.rust_bridge_path}'")
+                if getattr(config, "deployment_mode", "dev") == "prod":
+                    raise RuntimeError(msg)
+                print("[Bridge] Falling back to simulator (dev only).")
                 self._mode = "simulator"
             else:
                 self._mode = "rust"
@@ -157,6 +160,8 @@ class RustBridge:
                 "amount": net_amount,
             })
             if not tx_hash:
+                if getattr(self.config, "deployment_mode", "dev") == "prod":
+                    return {"error": "rust bridge call failed"}
                 tx_hash = self._simulator.bridge(
                     "absolute", to_chain, from_addr, to_addr, net_amount
                 )

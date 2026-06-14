@@ -34,6 +34,7 @@ def test_prod_requires_jwt_secret():
     cfg.rust_bridge_path = __file__  # exists for this test only
     cfg.require_wallet_file = False
     cfg.rpc_api_key_required = False
+    cfg.bridge_oracle_secret = "test-oracle"
     old = os.environ.pop("JWT_SECRET", None)
     try:
         errs = cfg.validate()
@@ -41,6 +42,22 @@ def test_prod_requires_jwt_secret():
     finally:
         if old:
             os.environ["JWT_SECRET"] = old
+
+
+def test_prod_requires_bridge_oracle_secret():
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.bridge_enabled = True
+    cfg.bridge_mode = "rust"
+    cfg.rust_bridge_path = __file__
+    cfg.require_wallet_file = False
+    cfg.rpc_api_key_required = False
+    os.environ["JWT_SECRET"] = "x" * 32
+    try:
+        errs = cfg.validate()
+        assert any("BRIDGE_ORACLE_SECRET" in e for e in errs)
+    finally:
+        os.environ.pop("JWT_SECRET", None)
 
 
 def test_prod_example_json_structure():

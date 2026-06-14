@@ -90,6 +90,7 @@ class Config:
     bridge_mode: str = "simulator"      # "simulator" | "rust"
     bridge_auto_confirm_sec: int = 0    # 0 = manual POST /bridge/confirm-lock only
     rust_bridge_path: str = "bridge/abs_bridge_bin"
+    bridge_oracle_secret: str = ""      # HMAC secret for /bridge/oracle/* relayer
 
     # ── Логирование ─────────────────────────────────────────────────────────
     log_level: str = "INFO"
@@ -214,6 +215,9 @@ class Config:
         rust_path = env_str("RUST_BRIDGE_PATH", "")
         if rust_path:
             self.rust_bridge_path = rust_path
+        oracle_secret = env_str("BRIDGE_ORACLE_SECRET", "")
+        if oracle_secret:
+            self.bridge_oracle_secret = oracle_secret
 
         origins = env_list("CORS_ORIGINS")
         if origins:
@@ -265,6 +269,8 @@ class Config:
             errors.append("prod deployment should use bridge_mode=rust (or disable bridge)")
         if self.is_production and not os.environ.get("JWT_SECRET") and not getattr(self, "jwt_secret", ""):
             errors.append("prod mode requires JWT_SECRET")
+        if self.is_production and self.bridge_enabled and not self.bridge_oracle_secret:
+            errors.append("prod bridge requires BRIDGE_ORACLE_SECRET for relayer callbacks")
         return errors
 
     def __repr__(self) -> str:

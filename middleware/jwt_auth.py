@@ -6,8 +6,17 @@ import os
 from typing import Dict, Optional, Tuple
 from functools import wraps
 
-# Секретный ключ из переменных окружения
-SECRET_KEY = os.getenv("JWT_SECRET", secrets.token_hex(32))
+# Секретный ключ из переменных окружения (prod: обязателен, без random fallback)
+def _resolve_jwt_secret() -> str:
+    secret = os.getenv("JWT_SECRET", "").strip()
+    if secret:
+        return secret
+    if os.getenv("DEPLOYMENT_MODE", "dev").lower() == "prod":
+        return ""
+    return secrets.token_hex(32)
+
+
+SECRET_KEY = _resolve_jwt_secret()
 ALGORITHM = "HS256"
 
 class JWTAuth:

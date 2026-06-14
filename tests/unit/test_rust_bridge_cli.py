@@ -44,3 +44,7 @@ def test_rust_bridge_cli_incoming_command():
     out = json.loads(proc.stdout.decode())
     assert out["status"] == "ok"
     assert out["tx_hash"].startswith("0x")
+    if "source" in out:
+        assert "abs_bridge_bin" in out["source"]
+    if "proof_id" in out:
+        assert out["proof_id"].startswith("prf_")
