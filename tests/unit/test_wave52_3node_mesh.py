@@ -4,6 +4,8 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.dirname(__file__))
+from wave_expect import EXPECTED_API_WAVE
 
 
 class _FakeP2P:
@@ -45,7 +47,7 @@ def test_mesh_healthy_hub_node():
     assert mesh["peer_count"] == 2
     assert mesh["mesh_healthy"] is True
     assert mesh["testnet_mode"] == "3-node"
-    assert mesh["api_wave"] == 60
+    assert mesh["api_wave"] == EXPECTED_API_WAVE
 
 
 def test_mesh_unhealthy_low_peers():

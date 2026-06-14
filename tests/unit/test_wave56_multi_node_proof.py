@@ -4,6 +4,8 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.dirname(__file__))
+from wave_expect import EXPECTED_API_WAVE
 
 
 class _FakeP2P:
@@ -107,7 +109,7 @@ def test_multi_node_proof_healthy():
         _FakeDB(validators, stats),
         _FakeCA(),
     )
-    assert out["api_wave"] == 60
+    assert out["api_wave"] == EXPECTED_API_WAVE
     assert out["proof_ok"] is True
     assert out["validators"]["distinct_proposers"] == 3
     assert out["attestations"]["count"] == 1
@@ -125,4 +127,4 @@ def test_validators_rotation_needs_three_for_devnet3():
         _FakeDB(validators, stats), _FakeCfg3(), _FakeBC(20)
     )
     assert out["rotation_observed"] is False
-    assert out["api_wave"] == 60
+    assert out["api_wave"] == EXPECTED_API_WAVE

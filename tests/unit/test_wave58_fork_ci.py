@@ -4,6 +4,8 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.dirname(__file__))
+from wave_expect import EXPECTED_API_WAVE
 
 
 class _FakeP2P:
@@ -65,7 +67,7 @@ def test_fork_exercise_recovers():
     out = _build_testnet_fork_exercise(
         _FakeP2P(), _FakeBC(), _FakeCfg(), _FakeDB(), run_reconcile=True
     )
-    assert out["api_wave"] == 60
+    assert out["api_wave"] == EXPECTED_API_WAVE
     assert out["fork_recovered"] is True
     assert out["after"]["consensus_healthy"] is True
 

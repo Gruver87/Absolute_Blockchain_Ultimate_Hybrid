@@ -4,6 +4,8 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.dirname(__file__))
+from wave_expect import EXPECTED_API_WAVE
 
 
 class _FakeDB:
@@ -55,7 +57,7 @@ def test_validators_api_healthy():
     out = _build_testnet_validators_status(_FakeDB(validators, stats), _FakeCfg(), _FakeBC())
     assert out["validators_healthy"] is True
     assert out["rotation_observed"] is True
-    assert out["api_wave"] == 60
+    assert out["api_wave"] == EXPECTED_API_WAVE
 
 
 def test_validators_api_unhealthy_count():

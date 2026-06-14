@@ -4,6 +4,8 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.dirname(__file__))
+from wave_expect import EXPECTED_API_WAVE
 
 
 class _FakeCfg:
@@ -28,7 +30,7 @@ def test_bridge_relayer_proof_api(monkeypatch):
 
     monkeypatch.setenv("ETH_RPC_URL", "http://127.0.0.1:19445")
     out = _build_testnet_bridge_relayer_proof(_FakeCfg(), _FakeDB(), _FakeBridge())
-    assert out["api_wave"] == 60
+    assert out["api_wave"] == EXPECTED_API_WAVE
     assert out["proof_ok"] is True
     assert out["eth_rpc_configured"] is True
     assert out["oracle_hmac_configured"] is True

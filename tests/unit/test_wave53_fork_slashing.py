@@ -5,6 +5,8 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.dirname(__file__))
+from wave_expect import EXPECTED_API_WAVE
 
 
 class _FakeP2P:
@@ -56,7 +58,7 @@ def test_fork_status_healthy_mesh():
     fork = _build_testnet_fork_status(p2p, _FakeBC(), _FakeCfg(), _FakeDB())
     assert fork["consensus_healthy"] is True
     assert fork["fork_detected"] is False
-    assert fork["api_wave"] == 60
+    assert fork["api_wave"] == EXPECTED_API_WAVE
 
 
 def test_fork_status_detects_same_height_divergence():

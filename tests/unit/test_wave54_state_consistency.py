@@ -4,6 +4,8 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.dirname(__file__))
+from wave_expect import EXPECTED_API_WAVE
 
 
 class _FakeP2P:
@@ -61,7 +63,7 @@ def test_harness_healthy_aligned():
     )
     assert h["harness_healthy"] is True
     assert h["tip_state_aligned"] is True
-    assert h["api_wave"] == 60
+    assert h["api_wave"] == EXPECTED_API_WAVE
     assert h["failed_checks"] == []
 
 
