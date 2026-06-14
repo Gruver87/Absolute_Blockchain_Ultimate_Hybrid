@@ -1,6 +1,7 @@
 # Start two-node devnet via Docker Compose
 param(
-    [switch]$RustBridge
+    [switch]$RustBridge,
+    [switch]$NoCloneDb
 )
 
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -10,6 +11,13 @@ $composeFile = "docker-compose.devnet.yml"
 if ($RustBridge) {
     $composeFile = "docker-compose.devnet-rust.yml"
     Write-Host "Docker devnet: node1 bridge_mode=rust ($composeFile)" -ForegroundColor Cyan
+}
+
+if ($NoCloneDb) {
+    $env:SKIP_DB_SEED = "1"
+    Write-Host "Node2 fresh DB (-NoCloneDb: P2P catch-up test)" -ForegroundColor Yellow
+} else {
+    Remove-Item Env:SKIP_DB_SEED -ErrorAction SilentlyContinue
 }
 
 Write-Host "=== Docker devnet (node1 :8080, node2 :8081) ===" -ForegroundColor Cyan
@@ -42,6 +50,10 @@ for ($i = 0; $i -lt 40; $i++) {
 }
 
 if ($ok1 -and $ok2) {
+    try {
+        $st = Invoke-RestMethod "http://127.0.0.1:8080/status" -UseBasicParsing
+        Write-Host "node1 bridge_mode=$($st.bridge_mode) pending=$($st.bridge_pending)" -ForegroundColor Gray
+    } catch { }
     python scripts/verify_p2p_ci.py --mode devnet
     exit $LASTEXITCODE
 }

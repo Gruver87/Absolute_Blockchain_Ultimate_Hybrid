@@ -34,6 +34,22 @@ services:
     networks:
       - abs-devnet-rust
 
+  node2-db-seed:
+    image: alpine:3.20
+    volumes:
+      - abs-node1-rust-data:/seed-from:ro
+      - abs-node2-rust-data:/seed-to
+      - ./scripts/docker_seed_node2_db.sh:/seed.sh:ro
+    environment:
+      SKIP_DB_SEED: ${SKIP_DB_SEED:-0}
+    depends_on:
+      node1:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/seed.sh"]
+    restart: "no"
+    networks:
+      - abs-devnet-rust
+
   node2:
     build: .
     hostname: node2
@@ -54,6 +70,8 @@ services:
     volumes:
       - abs-node2-rust-data:/app/data
     depends_on:
+      node2-db-seed:
+        condition: service_completed_successfully
       node1:
         condition: service_healthy
     healthcheck:

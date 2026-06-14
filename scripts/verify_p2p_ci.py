@@ -133,6 +133,7 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 180) -> int:
         print("  Or: .\\scripts\\stop_node.ps1  then  .\\scripts\\start_two_nodes.ps1")
         return 2
 
+    sync1 = _api(f"{url1}/sync/status")
     sync2 = _api(f"{url2}/sync/status")
     att1 = _api(f"{url1}/consensus/attestations")
     gap = abs(int(s1.get("height", 0)) - int(s2.get("height", 0)))
@@ -140,12 +141,19 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 180) -> int:
         print(f"FAIL: height gap too large ({gap})")
         return 3
 
+    root1 = (sync1.get("state_root") or s1.get("state_root") or "").lower()
+    root2 = (sync2.get("state_root") or s2.get("state_root") or "").lower()
+    consistent = sync1.get("state_consistent", True) and sync2.get("state_consistent", True)
+    roots_match = bool(root1 and root2 and root1 == root2)
+
     print(
         f"OK: peers n1={p1.get('count', 0)} n2={p2.get('count', 0)} "
         f"heights {s1.get('height')} / {s2.get('height')} "
         f"attestations={att1.get('count', 0)} "
-        f"state_consistent={sync2.get('state_consistent', True)}"
+        f"state_consistent={consistent} state_roots_match={roots_match}"
     )
+    if gap <= 5 and not roots_match:
+        print("WARN: heights aligned but state_root differs — use DB seed or .\\scripts\\start_two_nodes.ps1")
     return 0
 
 

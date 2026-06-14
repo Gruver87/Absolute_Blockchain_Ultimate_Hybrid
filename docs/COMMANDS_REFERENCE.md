@@ -230,7 +230,10 @@ Docker devnet (два узла в контейнерах):
 ```powershell
 .\scripts\docker_devnet.ps1
 .\scripts\docker_devnet.ps1 -RustBridge   # node1 rust, Dockerfile.devnet-rust
+.\scripts\docker_devnet.ps1 -NoCloneDb      # node2 fresh DB (P2P catch-up test)
 ```
+
+Перед стартом node2 сервис `node2-db-seed` клонирует `blockchain.db` с node1 (как `start_two_nodes.ps1`).
 
 Telegram (при `TELEGRAM_BOT_TOKEN` в `.env`):
 
