@@ -292,6 +292,20 @@ class Database:
                 status      TEXT NOT NULL DEFAULT 'pending'
             );
 
+            CREATE TABLE IF NOT EXISTS crypto_wills (
+                will_id         TEXT PRIMARY KEY,
+                owner           TEXT NOT NULL,
+                heir            TEXT NOT NULL,
+                amount          REAL NOT NULL,
+                assets          TEXT NOT NULL DEFAULT '{}',
+                execution_time  INTEGER NOT NULL DEFAULT 0,
+                created_at      INTEGER NOT NULL DEFAULT 0,
+                status          TEXT NOT NULL DEFAULT 'pending',
+                witnesses       TEXT NOT NULL DEFAULT '[]'
+            );
+            CREATE INDEX IF NOT EXISTS idx_crypto_wills_owner ON crypto_wills(owner);
+            CREATE INDEX IF NOT EXISTS idx_crypto_wills_status ON crypto_wills(status);
+
             CREATE INDEX IF NOT EXISTS idx_tx_block ON transactions(block_height);
             CREATE INDEX IF NOT EXISTS idx_tx_from  ON transactions(from_addr);
             CREATE INDEX IF NOT EXISTS idx_tx_to    ON transactions(to_addr);
@@ -1119,6 +1133,70 @@ class Database:
                     "status": r["status"],
                 })
             return out
+
+    # ── Crypto Will (Wave 41 persistence) ───────────────────────────────────
+
+    def save_crypto_will(self, will: Dict) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO crypto_wills
+                   (will_id, owner, heir, amount, assets, execution_time,
+                    created_at, status, witnesses)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                (
+                    will["will_id"],
+                    will["owner"],
+                    will["heir"],
+                    float(will["amount"]),
+                    json.dumps(will.get("assets", {})),
+                    int(will.get("execution_time", 0)),
+                    int(will.get("created_at", 0)),
+                    will.get("status", "pending"),
+                    json.dumps(will.get("witnesses", [])),
+                ),
+            )
+            self.conn.commit()
+
+    def get_crypto_wills(self, owner: str = "", status: str = "", limit: int = 100) -> List[Dict]:
+        with self.lock:
+            q = "SELECT * FROM crypto_wills WHERE 1=1"
+            params: list = []
+            if owner:
+                q += " AND (owner=? OR heir=?)"
+                params.extend([owner, owner])
+            if status:
+                q += " AND status=?"
+                params.append(status)
+            q += " ORDER BY created_at DESC LIMIT ?"
+            params.append(int(limit))
+            rows = self.conn.execute(q, params).fetchall()
+            out = []
+            for r in rows:
+                try:
+                    assets = json.loads(r["assets"] or "{}")
+                except Exception:
+                    assets = {}
+                try:
+                    witnesses = json.loads(r["witnesses"] or "[]")
+                except Exception:
+                    witnesses = []
+                out.append({
+                    "will_id": r["will_id"],
+                    "owner": r["owner"],
+                    "heir": r["heir"],
+                    "amount": r["amount"],
+                    "assets": assets,
+                    "execution_time": r["execution_time"],
+                    "created_at": r["created_at"],
+                    "status": r["status"],
+                    "witnesses": witnesses,
+                })
+            return out
+
+    def delete_crypto_will(self, will_id: str) -> None:
+        with self.lock:
+            self.conn.execute("DELETE FROM crypto_wills WHERE will_id=?", (will_id,))
+            self.conn.commit()
 
     # ── Метаданные (токеномика, конфиг) ─────────────────────────────────────
 

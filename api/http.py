@@ -167,6 +167,8 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/lightning/stats", "summary": "Lightning channel stats (SQLite)"},
     {"method": "GET", "path": "/plasma/stats", "summary": "Plasma L2 stats (SQLite)"},
     {"method": "GET", "path": "/plasma/deposits", "summary": "Plasma L2 deposits"},
+    {"method": "GET", "path": "/will/stats", "summary": "Crypto will stats (SQLite)"},
+    {"method": "POST", "path": "/will/execute", "summary": "Execute crypto will (force in dev)"},
     {"method": "POST", "path": "/oracles/feeds/submit", "summary": "Submit signed oracle feed (HMAC)"},
     {"method": "GET", "path": "/bridge/l1-proofs", "summary": "Registered L1 proof metadata"},
     {"method": "POST", "path": "/sync/reconcile", "summary": "P2P fork reconcile + state sync"},
@@ -718,9 +720,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 40,
+                    "api_wave": 41,
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,
+                    "crypto_will_enabled": self.__class__.crypto_will is not None,
                     "l2_persisted": bool(
                         getattr(self.__class__.lightning, "db", None)
                         or getattr(self.__class__.plasma, "db", None)
@@ -3257,6 +3260,17 @@ class RESTHandler(BaseHTTPRequestHandler):
                 owner = body.get("owner", "")
                 ok = cw.cancel_will(wid, owner) if wid and owner else False
                 self._json({"success": ok})
+
+            elif path == "/will/execute":
+                cw = self.__class__.crypto_will
+                if not cw:
+                    self._error(503, "CryptoWill not enabled"); return
+                wid = body.get("will_id", "")
+                force = bool(body.get("force", False))
+                if not wid:
+                    self._error(400, "will_id required"); return
+                ok = cw.execute_will(wid, force=force) if hasattr(cw, "execute_will") else False
+                self._json({"success": bool(ok), "will_id": wid, "forced": force})
 
             # ── Plasma Chain ──────────────────────────────────────────────────
             elif path == "/plasma/deposit":

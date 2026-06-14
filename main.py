@@ -701,7 +701,7 @@ class NodeOrchestrator:
         # 29. Crypto Will (blockchain inheritance system)
         if _CRYPTO_WILL_AVAILABLE:
             try:
-                self.crypto_will = CryptoWillManager(blockchain=self.blockchain)
+                self.crypto_will = CryptoWillManager(blockchain=self.blockchain, db=self.db)
                 print("[Node] CryptoWill: inheritance system ready")
             except Exception as e:
                 self.crypto_will = None

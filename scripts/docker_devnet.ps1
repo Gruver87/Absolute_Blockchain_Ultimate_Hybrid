@@ -66,14 +66,16 @@ for ($i = 0; $i -lt 40; $i++) {
             if ($st.node_id -like "docker-node-*") {
             $ok1 = $true
             Write-Host "node1 ready ($($st.node_id)) api_wave=$($st.api_wave)" -ForegroundColor Green
-            if ($null -eq $st.api_wave -or [int]$st.api_wave -lt 40) {
-                Write-Host "WARN: Docker image is older than Wave 40 — rebuild: docker compose -f $composeFile build --no-cache node1" -ForegroundColor Yellow
+            if ($null -eq $st.api_wave -or [int]$st.api_wave -lt 41) {
+                Write-Host "WARN: Docker image is older than Wave 41 — rebuild: docker compose -f $composeFile build --no-cache node1" -ForegroundColor Yellow
             }
             try {
                 $feeds = Invoke-RestMethod "http://127.0.0.1:8080/oracles/feeds" -UseBasicParsing -TimeoutSec 5
                 Write-Host "oracles/feeds OK (count=$($feeds.count))" -ForegroundColor Green
                 $ln = Invoke-RestMethod "http://127.0.0.1:8080/lightning/stats" -UseBasicParsing -TimeoutSec 5
                 Write-Host "lightning/stats OK (persisted=$($ln.persisted))" -ForegroundColor Green
+                $will = Invoke-RestMethod "http://127.0.0.1:8080/will/stats" -UseBasicParsing -TimeoutSec 5
+                Write-Host "will/stats OK (persisted=$($will.persisted))" -ForegroundColor Green
             } catch {
                 Write-Host "oracles/feeds missing — rebuild Docker image (Wave 39+)" -ForegroundColor Red
             }

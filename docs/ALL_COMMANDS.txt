@@ -37,7 +37,7 @@
 
 
 # =============================================================================
-# ЧАСТЬ 0: ВОЗМОЖНОСТИ БЛОКЧЕЙНА — ЧЕСТНО (v1.2.0, Wave 40)
+# ЧАСТЬ 0: ВОЗМОЖНОСТИ БЛОКЧЕЙНА — ЧЕСТНО (v1.2.0, Wave 41)
 # =============================================================================
 #
 # ⚠️  УЧЕБНЫЙ / ЭКСПЕРИМЕНТАЛЬНЫЙ ПРОЕКТ — НЕ PRODUCTION MAINNET
@@ -63,6 +63,9 @@
 #   Lightning: каналы в SQLite, open списывает L1 ABS, close возвращает балансы
 #   Plasma L2: deposits/blocks/exits в SQLite, deposit списывает L1, exit возвращает
 #        GET /plasma/deposits, POST /plasma/finalize-exit (force=true в dev)
+# Wave 41:
+#   Crypto Will: завещания в SQLite, create блокирует L1 ABS, execute переводит heir
+#        POST /will/execute (force=true в dev), cancel возвращает owner
 #
 # --- Архитектура ---
 #
@@ -175,7 +178,7 @@
 # | AI Validator | demo | Эвристики выбора proposer, не ML-модель |
 # | AI Agents | demo | Trading agents stub |
 # | Reorg Predictor | demo | Оценка риска по глубине подтверждений |
-# | Crypto Will | demo | Наследование через API, учебная логика |
+# | Crypto Will | demo | Завещания в SQLite (Wave 41); create/execute/cancel двигают L1 |
 #
 # --- API и Web UI ---
 #

@@ -1,0 +1,83 @@
+"""Wave 41 — Crypto Will SQLite persistence + L1 lock/transfer."""
+import os
+import sys
+import tempfile
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+sys.path.insert(0, ROOT)
+
+
+def test_will_create_locks_l1_and_persists():
+    from features.crypto_will import CryptoWillManager
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "w.db"))
+    db.initialize()
+    owner = "0x" + "a" * 40
+    heir = "0x" + "b" * 40
+    db.set_balance(owner, 100.0)
+    db.set_balance(heir, 0.0)
+
+    cw1 = CryptoWillManager(db=db)
+    wid = cw1.create_will(owner, heir, 25.0, {"note": "test"}, execution_delay=86400)
+    assert wid
+    assert db.get_balance(owner) == 75.0
+
+    cw2 = CryptoWillManager(db=db)
+    assert wid in cw2.wills
+    assert cw2.get_stats()["persisted"] is True
+    assert cw2.get_stats()["total_locked_amount"] == 25.0
+
+
+def test_will_execute_transfers_to_heir():
+    from features.crypto_will import CryptoWillManager
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "we.db"))
+    db.initialize()
+    owner = "0x" + "c" * 40
+    heir = "0x" + "d" * 40
+    db.set_balance(owner, 50.0)
+    db.set_balance(heir, 0.0)
+
+    cw = CryptoWillManager(db=db)
+    wid = cw.create_will(owner, heir, 20.0, {}, execution_delay=86400)
+    assert db.get_balance(owner) == 30.0
+    assert cw.execute_will(wid, force=True)
+    assert db.get_balance(heir) == 20.0
+    assert wid not in cw.wills
+
+
+def test_will_cancel_refunds_owner():
+    from features.crypto_will import CryptoWillManager
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "wc.db"))
+    db.initialize()
+    owner = "0x" + "e" * 40
+    heir = "0x" + "f" * 40
+    db.set_balance(owner, 80.0)
+
+    cw = CryptoWillManager(db=db)
+    wid = cw.create_will(owner, heir, 15.0, {}, execution_delay=86400)
+    assert db.get_balance(owner) == 65.0
+    assert cw.cancel_will(wid, owner)
+    assert db.get_balance(owner) == 80.0
+    assert wid not in cw.wills
+
+
+def test_will_insufficient_balance_rejected():
+    from features.crypto_will import CryptoWillManager
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "wi.db"))
+    db.initialize()
+    owner = "0x" + "1" * 40
+    db.set_balance(owner, 1.0)
+
+    cw = CryptoWillManager(db=db)
+    assert cw.create_will(owner, "0x" + "2" * 40, 10.0, {}, execution_delay=86400) is None
