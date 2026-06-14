@@ -432,6 +432,16 @@ class Database:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    def get_recent_transactions(self, limit: int = 30) -> List[Dict]:
+        """Последние транзакции по всей цепи (для dashboard/explorer)."""
+        with self.lock:
+            rows = self.conn.execute(
+                """SELECT * FROM transactions
+                   ORDER BY block_height DESC, rowid DESC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
     def get_transactions_in_block(self, height: int) -> List[Dict]:
         with self.lock:
             rows = self.conn.execute(

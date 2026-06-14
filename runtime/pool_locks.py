@@ -148,7 +148,14 @@ class PoolLockManager:
 
         if validator_registry:
             if hasattr(validator_registry, "get_validator"):
-                if not validator_registry.get_validator(voter):
+                v = validator_registry.get_validator(voter)
+                if not v:
+                    for addr in getattr(validator_registry, "validators", {}):
+                        if str(addr).lower() == voter.lower():
+                            v = validator_registry.get_validator(addr)
+                            voter = addr
+                            break
+                if not v:
                     return {"success": False, "error": "not_a_validator"}
             elif hasattr(validator_registry, "validators"):
                 if voter not in validator_registry.validators:

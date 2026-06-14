@@ -185,6 +185,15 @@
       <h3>Pool Locks (Ecosystem / Treasury / Staking)</h3>
       <button class="btn btn-blue" onclick="loadPoolLocks()" style="margin-bottom:10px">Refresh Locks</button>
       <div id="pool-locks-info" style="font-size:12px"></div>
+      <hr style="border-color:var(--border);margin:12px 0">
+      <h3 style="font-size:12px;color:var(--gray);text-transform:uppercase">DAO Unlock (devnet)</h3>
+      <div class="form-row"><label>Validator</label><input id="dao-voter-dash" placeholder="auto from node" /></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn btn-outline" onclick="daoVotePool('ecosystem')">Unlock Ecosystem</button>
+        <button class="btn btn-outline" onclick="daoVotePool('treasury')">Unlock Treasury</button>
+      </div>
+      <div id="dao-vote-dash-result" style="margin-top:8px;font-size:12px"></div>
+      <p style="color:var(--gray);font-size:11px;margin-top:8px">Solo devnet: один голос валидатора (51%) разблокирует пул. Нажмите Refresh Locks после голосования.</p>
     </div>
     <div class="card">
       <h3>Recent Transactions</h3>
@@ -1800,6 +1809,22 @@ function addBlockToFeed(b) {
 }
 
 async function loadRecentActivity() {
+  const recent = await get('/transactions/recent?limit=25');
+  if (recent?.transactions?.length) {
+    feedTxs = [];
+    for (const tx of recent.transactions) {
+      addTxToFeed({
+        hash: tx.hash || tx.tx_hash,
+        from: tx.from || tx.from_addr,
+        to: tx.to || tx.to_addr,
+        value: tx.value ?? tx.amount,
+        block: tx.block_height ?? tx.height ?? '—',
+        type: tx.type,
+        status: tx.status,
+      });
+    }
+    return;
+  }
   const data = await get('/blocks?limit=12');
   if (!data?.blocks?.length) return;
   feedBlocks = [];
@@ -1845,25 +1870,34 @@ async function loadWalletPanel() {
   if (!w) return;
   const addrEl = document.getElementById('w-address');
   const signFrom = document.getElementById('tx-sign-from');
+  const displayAddr = (addrEl?.value?.trim()) || w.address || '';
+  if (addrEl && !addrEl.value && w.address) addrEl.value = w.address;
   if (w.address) {
-    if (addrEl && !addrEl.value) addrEl.value = w.address;
     if (signFrom && !signFrom.value) signFrom.value = w.address;
-    document.getElementById('balance-display').textContent =
-      w.balance_formatted || `${parseFloat(w.balance||0).toFixed(6)} ABS`;
     document.getElementById('wallet-info').innerHTML =
       `<div>Signer: <span class="addr">${w.address}</span></div>` +
+      (displayAddr && displayAddr.toLowerCase() !== (w.address||'').toLowerCase()
+        ? `<div style="margin-top:4px;color:var(--gray)">Viewing: <span class="addr">${displayAddr}</span></div>` : '') +
       `<div style="margin-top:4px">${w.signing_enabled ? '<span class="badge badge-green">AUTO-SIGN ON</span>' : '<span class="badge badge-yellow">VIEW ONLY</span>'}</div>`;
-    const acct = await get('/address/' + encodeURIComponent(w.address));
+  }
+  if (displayAddr) {
+    const acct = await get('/address/' + encodeURIComponent(displayAddr));
+    document.getElementById('balance-display').textContent =
+      acct?.balance_formatted || fmtAbs(acct?.balance || 0).replace(' ABS', '') + ' ABS';
     const txs = acct?.transactions || [];
     const tbody = document.getElementById('wallet-txs');
+    const watch = displayAddr.toLowerCase();
     if (tbody) {
-      tbody.innerHTML = txs.length ? txs.slice(0, 15).map(tx => `
-        <tr>
+      tbody.innerHTML = txs.length ? txs.slice(0, 15).map(tx => {
+        const from = tx.from_addr || tx.from || '';
+        const dir = from.toLowerCase() === watch ? 'OUT' : 'IN';
+        return `<tr>
           <td class="hash">${String(tx.hash||tx.tx_hash||'').slice(0,14)}…</td>
-          <td>${tx.from_addr === w.address || tx.from === w.address ? 'OUT' : 'IN'}</td>
+          <td>${dir}</td>
           <td>${tx.value ?? tx.amount ?? 0}</td>
           <td>${tx.block_height ?? tx.height ?? '—'}</td>
-        </tr>`).join('') : '<tr><td colspan="4" style="color:var(--gray)">No transactions yet</td></tr>';
+        </tr>`;
+      }).join('') : '<tr><td colspan="4" style="color:var(--gray)">No transactions yet</td></tr>';
     }
   }
   const st = await api('/status');
@@ -1908,14 +1942,20 @@ function addTxToFeed(tx) {
   feedTxs.unshift(tx);
   if (feedTxs.length > 20) feedTxs.pop();
   const feed = document.getElementById('tx-feed');
-  feed.innerHTML = feedTxs.map(t => `
-    <tr>
-      <td class="hash">${String(t.hash||'').slice(0,16)}…</td>
+  feed.innerHTML = feedTxs.map(t => {
+    const tag = t.type === 'bridge_lock'
+      ? `<span class="badge badge-blue">LOCK</span>`
+      : (t.type === 'bridge_transfer' ? `<span class="badge badge-purple">BRIDGE</span>` : '');
+    const status = t.status && t.status !== 'confirmed'
+      ? ` <span class="badge badge-yellow">${t.status}</span>` : '';
+    return `<tr>
+      <td class="hash">${String(t.hash||'').slice(0,16)}…${tag}${status}</td>
       <td class="addr">${String(t.from||'').slice(0,14)}…</td>
-      <td class="addr">${String(t.to||'').slice(0,14)}…</td>
+      <td class="addr">${String(t.to||'').slice(0,18)}</td>
       <td>${t.value||0}</td>
-      <td>${t.block||'pending'}</td>
-    </tr>`).join('');
+      <td>${t.block ?? t.block_height ?? '—'}</td>
+    </tr>`;
+  }).join('');
 }
 
 // ── WebSocket ────────────────────────────────────────────────────────────────
@@ -2696,7 +2736,10 @@ async function syncLightClient() {
 }
 
 async function loadPoolLocks() {
-  const r = await api('/pools/locks');
+  const [r, st, w] = await Promise.all([api('/pools/locks'), api('/status'), api('/wallet/status')]);
+  const voterEl = document.getElementById('dao-voter-dash') || document.getElementById('dao-voter');
+  const voter = st?.miner_address || w?.miner_address || w?.address || '';
+  if (voterEl && voter && !voterEl.value) voterEl.value = voter;
   const el = document.getElementById('pool-locks-info');
   if (!el) return;
   if (r && r.pools) {
@@ -2704,12 +2747,39 @@ async function loadPoolLocks() {
       <div style="padding:8px 0;border-bottom:1px solid var(--border)">
         <b>${p.name}</b> ${p.locked?'🔒':'✅'}
         <span class="badge badge-${p.id==='staking'?'blue':'yellow'}">${p.id}</span>
-        <div style="color:var(--gray)">Spendable: <b>${(p.spendable||0).toLocaleString()}</b> / ${(p.total||0).toLocaleString()} ABS</div>
+        <div style="color:var(--gray)">Spendable: <b>${fmtAbs(p.spendable||0).replace(' ABS','')}</b> / ${fmtAbs(p.total||0).replace(' ABS','')} ABS</div>
         ${p.id==='staking'?`<div style="color:var(--gray)">Epochs: ${r.staking_epochs_done||0}/${r.staking_epochs_total||100}</div>`:''}
-        ${p.dao_votes!==undefined?`<div style="color:var(--gray)">DAO votes: ${p.dao_votes}</div>`:''}
+        ${p.dao_votes!==undefined?`<div style="color:var(--gray)">DAO votes: ${p.dao_votes}${p.dao_unlocked?' · unlocked':''}</div>`:''}
       </div>`).join('');
   } else {
     el.innerHTML = `<span style="color:var(--gray)">Pool locks not enabled</span>`;
+  }
+}
+
+async function daoVotePool(poolId) {
+  const dashEl = document.getElementById('dao-voter-dash');
+  const merkleEl = document.getElementById('dao-voter');
+  let voter = (dashEl?.value || merkleEl?.value || '').trim();
+  if (!voter) {
+    const w = await api('/wallet/status');
+    const st = await api('/status');
+    voter = st?.miner_address || w?.miner_address || w?.address || '';
+    if (dashEl) dashEl.value = voter;
+    if (merkleEl) merkleEl.value = voter;
+  }
+  if (!voter) return toast('Validator address not found — enter miner address');
+  const r = await api('/pools/dao/vote', 'POST', {pool_id: poolId, voter});
+  const el = document.getElementById('dao-vote-dash-result') || document.getElementById('dao-vote-result');
+  if (r?.success) {
+    const msg = r.quorum_reached
+      ? `✅ ${poolId} UNLOCKED (${r.votes}/${r.validators} votes)`
+      : `Vote: ${r.votes}/${r.validators} (need 51%)`;
+    if (el) el.innerHTML = `<span style="color:${r.quorum_reached?'var(--green)':'var(--gray)'}">${msg}</span>`;
+    toast(msg, !!r.quorum_reached);
+    loadPoolLocks();
+  } else if (el) {
+    el.innerHTML = `<span style="color:var(--red)">${r?.error || 'Vote failed'}</span>`;
+    toast(r?.error || 'Vote failed', false);
   }
 }
 
@@ -2728,16 +2798,7 @@ async function verifySPV() {
 
 async function daoVote() {
   const pool = document.getElementById('dao-pool').value;
-  const voter = document.getElementById('dao-voter').value;
-  if (!voter) return toast('Enter validator address');
-  const r = await api('/pools/dao/vote', 'POST', {pool_id: pool, voter});
-  const el = document.getElementById('dao-vote-result');
-  if (r) {
-    el.innerHTML = r.quorum_reached
-      ? `<span style="color:var(--green)">✅ ${pool} UNLOCKED (${r.votes}/${r.validators} votes)</span>`
-      : `<span style="color:var(--gray)">Vote recorded: ${r.votes}/${r.validators} (need 51%)</span>`;
-    loadPoolLocks();
-  }
+  await daoVotePool(pool);
 }
 
 // ── Satoshi State ─────────────────────────────────────────────────────────────
@@ -3260,12 +3321,28 @@ async function loadSyncStatus() {
 
 // ── Wallet Balance Lookup ─────────────────────────────────────────────────────
 async function lookupWalletBalance() {
-  const addr = document.getElementById('w-address').value;
+  const addr = document.getElementById('w-address').value?.trim();
   if (!addr) return alert('Enter an address first');
   const r = await api('/wallet/balance?address=' + encodeURIComponent(addr));
   if (r && r.balance !== undefined) {
-    document.getElementById('balance-display').textContent = r.balance.toFixed(6) + ' ' + (r.symbol || 'ABS');
-    document.getElementById('wallet-info').textContent = 'Address: ' + r.address;
+    document.getElementById('balance-display').textContent = fmtAbs(r.balance);
+    document.getElementById('wallet-info').innerHTML =
+      `<div>Address: <span class="addr">${r.address}</span></div>`;
+    const acct = await get('/address/' + encodeURIComponent(addr));
+    const txs = acct?.transactions || [];
+    const tbody = document.getElementById('wallet-txs');
+    const watch = addr.toLowerCase();
+    if (tbody) {
+      tbody.innerHTML = txs.length ? txs.slice(0, 15).map(tx => {
+        const from = tx.from_addr || tx.from || '';
+        return `<tr>
+          <td class="hash">${String(tx.hash||tx.tx_hash||'').slice(0,14)}…</td>
+          <td>${from.toLowerCase() === watch ? 'OUT' : 'IN'}</td>
+          <td>${tx.value ?? tx.amount ?? 0}</td>
+          <td>${tx.block_height ?? tx.height ?? '—'}</td>
+        </tr>`;
+      }).join('') : '<tr><td colspan="4" style="color:var(--gray)">No transactions yet</td></tr>';
+    }
   }
 }
 

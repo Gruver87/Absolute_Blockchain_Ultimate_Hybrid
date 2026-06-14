@@ -19,7 +19,7 @@ import logging
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 from urllib.parse import urlparse, parse_qs
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 import threading
 
 
@@ -83,7 +83,7 @@ except ImportError:
     _JWT_AVAILABLE = False
 
 # POST без JWT даже в prod (публичные операции)
-_PUBLIC_POST_PATHS = frozenset({"/transactions", "/tx/send", "/devnet/faucet"})
+_PUBLIC_POST_PATHS = frozenset({"/transactions", "/tx/send", "/devnet/faucet", "/pools/dao/vote"})
 
 # Devnet / probes: не считаем в rate limit (start_two_nodes, devnet_status, K8s)
 _RATE_LIMIT_EXEMPT_PATHS = frozenset({
@@ -615,6 +615,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "founder_initials": getattr(cfg, "founder_initials", "D.U.P."),
                     "founder_percent": getattr(cfg, "founder_percent", 17.4),
                     "founder_address": getattr(cfg, "founder_address", ""),
+                    "miner_address": getattr(cfg, "miner_address", ""),
                     "rpc_port": cfg.rpc_port,
                     "http_port": cfg.http_port,
                     "ws_port": getattr(cfg, "ws_port", 8766),
@@ -713,6 +714,15 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             elif path.startswith("/transactions/"):
                 tx_hash = path.split("/transactions/")[1]
+                if tx_hash == "recent":
+                    limit = int(qs.get("limit", ["30"])[0])
+                    txs = _collect_recent_activity(
+                        db,
+                        cross_bridge=self.__class__.cross_bridge,
+                        limit=min(limit, 100),
+                    )
+                    self._json({"transactions": txs, "count": len(txs)})
+                    return
                 tx = bc.get_transaction(tx_hash)
                 if tx:
                     self._json(tx)
@@ -3878,6 +3888,60 @@ def _build_sync_status(se, p2p, bc, cfg) -> Dict:
             if peer_count == 0 else None
         ),
     }
+
+
+def _collect_recent_activity(db, cross_bridge=None, limit: int = 30) -> List[Dict]:
+    """Chain txs + bridge locks + in-memory cross-chain transfers for dashboard feed."""
+    items: List[Dict] = []
+    if db and hasattr(db, "get_recent_transactions"):
+        for t in db.get_recent_transactions(limit):
+            items.append({
+                "hash": t.get("hash", t.get("tx_hash", "")),
+                "from": t.get("from_addr", t.get("from", "")),
+                "to": t.get("to_addr", t.get("to", "")),
+                "value": t.get("value", t.get("amount", 0)),
+                "block_height": t.get("block_height", t.get("height")),
+                "fee": t.get("fee", 0),
+                "type": "transfer",
+                "status": t.get("status", "confirmed"),
+                "timestamp": int(t.get("timestamp", 0) or 0),
+            })
+    if db and hasattr(db, "get_bridge_locks"):
+        for lock in db.get_bridge_locks(limit):
+            items.append({
+                "hash": lock.get("tx_hash", ""),
+                "from": lock.get("from_addr", ""),
+                "to": f"lock:{lock.get('to_chain', '?')}",
+                "to_addr": lock.get("to_addr", ""),
+                "value": lock.get("amount", 0),
+                "block_height": None,
+                "fee": 0,
+                "type": "bridge_lock",
+                "status": lock.get("status", "pending"),
+                "timestamp": int(lock.get("created_at", 0) or 0),
+            })
+    if cross_bridge and hasattr(cross_bridge, "transactions"):
+        for tx in cross_bridge.transactions.values():
+            items.append({
+                "hash": tx.tx_hash,
+                "from": tx.from_addr,
+                "to": f"{tx.from_chain}→{tx.to_chain}",
+                "to_addr": tx.to_addr,
+                "value": tx.amount,
+                "block_height": None,
+                "fee": 0,
+                "type": "bridge_transfer",
+                "status": tx.status,
+                "timestamp": int(tx.timestamp or 0),
+            })
+    items.sort(
+        key=lambda x: (
+            x.get("timestamp") or 0,
+            x.get("block_height") or 0,
+        ),
+        reverse=True,
+    )
+    return items[:limit]
 
 
 def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
