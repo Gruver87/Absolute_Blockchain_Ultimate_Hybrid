@@ -220,7 +220,10 @@ Invoke-RestMethod http://localhost:8080/sync/status
 ```powershell
 .\scripts\stop_node.ps1
 .\scripts\start_two_nodes.ps1
+.\scripts\start_two_nodes.ps1 -RustBridge
 ```
+
+`-RustBridge` — node1 с `node.rust.example.json` (`bridge_mode=rust`), при отсутствии бинарника вызывает `scripts/build_bridge.ps1`.
 
 Скрипт:
 - клонирует `data/blockchain.db` в `data/node2/` (одинаковая высота, без replay 4000+ блоков);

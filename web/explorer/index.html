@@ -148,6 +148,7 @@
     <div class="stat-item"><span class="stat-label">Mempool</span><span class="stat-value" id="s-mempool">—</span></div>
     <div class="stat-item"><span class="stat-label">Burned ABS</span><span class="stat-value" id="s-burned">—</span></div>
     <div class="stat-item"><span class="stat-label">Peers</span><span class="stat-value" id="s-peers">—</span></div>
+    <div class="stat-item"><span class="stat-label">Bridge</span><span class="stat-value" id="s-bridge">—</span></div>
   </div>
 
   <!-- DASHBOARD -->
@@ -1330,13 +1331,28 @@
         <div id="bridge-lock-result" style="margin-top:8px;font-size:12px"></div>
       </div>
       <div class="card">
-        <h3>Confirm Incoming Transfer</h3>
-        <div id="bridge-rust-hint" style="display:none;font-size:11px;color:var(--gray);margin-bottom:8px">
-          Rust bridge mode — outbound: <code>confirm</code>, incoming: <code>incoming</code> via abs_bridge_bin.
-        </div>
-        <div class="form-row"><label>TX ID</label><input id="bridge-confirm-txid" placeholder="bridge_tx_id..."/></div>
-        <button class="btn btn-blue" onclick="bridgeConfirm()" style="width:100%">Confirm</button>
+        <h3>Confirm Outbound Lock</h3>
+        <div class="form-row"><label>TX ID</label><input id="bridge-confirm-txid" placeholder="lock tx hash..."/></div>
+        <button class="btn btn-blue" onclick="bridgeConfirm()" style="width:100%">Confirm Lock</button>
         <div id="bridge-confirm-result" style="margin-top:8px;font-size:12px"></div>
+      </div>
+      <div class="card">
+        <h3>Credit Incoming (Other→ABS)</h3>
+        <div id="bridge-rust-hint" style="display:none;font-size:11px;color:var(--gray);margin-bottom:8px">
+          Rust mode: credits ABS after <code>abs_bridge_bin incoming</code> OK.
+        </div>
+        <div class="form-row"><label>TX ID</label><input id="bridge-incoming-txid" placeholder="external tx id..."/></div>
+        <div class="form-row"><label>Recipient (ABS)</label><input id="bridge-incoming-recipient" placeholder="0x..."/></div>
+        <div class="form-row"><label>Amount (ABS)</label><input id="bridge-incoming-amount" type="number" value="99"/></div>
+        <div class="form-row"><label>From Chain</label>
+          <select id="bridge-incoming-chain" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;width:100%">
+            <option value="ethereum">Ethereum</option>
+            <option value="bsc">BSC</option>
+            <option value="solana">Solana</option>
+          </select>
+        </div>
+        <button class="btn btn-green" onclick="bridgeIncoming()" style="width:100%">Credit Incoming</button>
+        <div id="bridge-incoming-result" style="margin-top:8px;font-size:12px"></div>
       </div>
       <div class="card">
         <h3>Refund Failed Bridge</h3>
@@ -1781,6 +1797,17 @@ async function refreshStatus() {
   document.getElementById('s-mempool').textContent = data.mempool_size ?? '—';
   document.getElementById('s-burned').textContent = parseFloat(data.total_burned ?? 0).toFixed(4);
   document.getElementById('s-peers').textContent = data.peers ?? '0';
+  const bridgeEl = document.getElementById('s-bridge');
+  if (bridgeEl) {
+    if (!data.bridge_enabled) {
+      bridgeEl.textContent = 'off';
+    } else {
+      const mode = (data.bridge_mode || 'simulator').toLowerCase();
+      bridgeEl.innerHTML = mode === 'rust'
+        ? '<span class="badge badge-blue">rust</span>'
+        : '<span class="badge badge-green">sim</span>';
+    }
+  }
 
   // Node info table
   const t = document.getElementById('node-info-table');
@@ -1797,7 +1824,9 @@ async function refreshStatus() {
     ['Coin', data.coin_symbol || 'ABS'],
     ['State Root', '<span class="hash">' + (data.state_root||'n/a').slice(0,32) + '…</span>'],
     ['EVM', data.evm_enabled ? '<span class="badge badge-green">ON</span>' : 'off'],
-    ['Bridge', data.bridge_enabled ? '<span class="badge badge-blue">ON</span>' : 'off'],
+    ['Bridge', data.bridge_enabled
+      ? `<span class="badge badge-blue">ON</span> ${(data.bridge_mode||'simulator')}`
+      : 'off'],
   ];
   t.innerHTML = rows.map(([k,v]) => `<tr><td style="color:var(--gray)">${k}</td><td>${v||'—'}</td></tr>`).join('');
 }
@@ -1940,7 +1969,7 @@ async function devnetFaucet() {
 async function prefillBridgeWallet() {
   const w = await get('/wallet/status');
   if (!w?.address) return;
-  const fields = ['bridge2-from-addr', 'bridge-lock-addr'];
+  const fields = ['bridge2-from-addr', 'bridge-lock-addr', 'bridge-incoming-recipient'];
   const defaultTo = '0x0000000000000000000000000000000000000001';
   fields.forEach(id => {
     const el = document.getElementById(id);
@@ -3966,9 +3995,40 @@ async function bridgeConfirm() {
   const r = await post('/bridge/confirm-lock', {tx_hash: tx_id, tx_id});
   const ok = r?.confirmed || r?.success;
   document.getElementById('bridge-confirm-result').innerHTML = ok
-    ? `<div class="badge badge-green">Confirmed!</div>`
+    ? `<div class="badge badge-green">Lock confirmed!${r?.mode ? ' ('+r.mode+')' : ''}</div>`
     : `<span style="color:var(--red)">${r?.error||JSON.stringify(r)}</span>`;
-  if (ok) loadBridge2Stats();
+  if (ok) {
+    loadBridge2Stats();
+    loadBridgeDashboardSummary();
+    loadRecentActivity();
+  }
+}
+async function bridgeIncoming() {
+  const tx_id = document.getElementById('bridge-incoming-txid')?.value?.trim();
+  const recipient = document.getElementById('bridge-incoming-recipient')?.value?.trim();
+  const amount = parseFloat(document.getElementById('bridge-incoming-amount')?.value) || 0;
+  const from_chain = document.getElementById('bridge-incoming-chain')?.value || 'ethereum';
+  const el = document.getElementById('bridge-incoming-result');
+  if (!tx_id || !recipient) return alert('TX ID and recipient required');
+  if (amount <= 0) return alert('Amount must be > 0');
+  const r = await post('/bridge/confirm', {
+    tx_id, tx_hash: tx_id, recipient, to_address: recipient, amount, from_chain,
+  });
+  const ok = r?.confirmed || r?.success;
+  if (el) {
+    el.innerHTML = ok
+      ? `<div class="badge badge-green">Credited ${amount} ABS → ${recipient.slice(0,14)}…</div>`
+      : `<span style="color:var(--red)">${r?.error||JSON.stringify(r)}</span>`;
+  }
+  if (ok) {
+    toast('Incoming bridge credited', true);
+    loadBridge2Stats();
+    loadBridgeDashboardSummary();
+    loadRecentActivity();
+    prefillSendWallet();
+  } else {
+    toast(r?.error || 'Incoming failed', false);
+  }
 }
 async function bridgeRefund() {
   const tx_id = document.getElementById('bridge-refund-txid').value;
@@ -4336,6 +4396,10 @@ async function boot() {
   prefillSendWallet();
   setInterval(refreshStatus, 10000);
   setInterval(loadDashboardStats, 30000);
+  setInterval(() => {
+    loadBridgeDashboardSummary();
+    loadRecentActivity();
+  }, 20000);
 }
 boot();
 </script>

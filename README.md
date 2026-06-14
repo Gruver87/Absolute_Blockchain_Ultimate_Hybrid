@@ -134,6 +134,20 @@ pytest tests/ -q
 
 Два узла локально (P2P): `.\scripts\start_two_nodes.ps1` — см. `node.example.json` / `node2.example.json`.
 
+Rust bridge на node1: `.\scripts\start_two_nodes.ps1 -RustBridge` (конфиг `node.rust.example.json`).
+
+Devnet API (обучение):
+
+```bash
+curl -X POST http://localhost:8080/devnet/faucet -H "Content-Type: application/json" -d "{\"address\":\"0x...\",\"amount\":100}"
+curl -X POST http://localhost:8080/devnet/pool-spend -H "Content-Type: application/json" -d "{\"pool_id\":\"ecosystem\",\"to\":\"0x...\",\"amount\":10}"
+curl -X POST http://localhost:8080/pools/dao/vote -H "Content-Type: application/json" -d "{\"pool_id\":\"ecosystem\",\"voter\":\"0x...\"}"
+curl -X POST http://localhost:8080/bridge/confirm-pending -H "Content-Type: application/json" -d "{}"
+curl http://localhost:8080/transactions/recent
+```
+
+Prod config check: `.\scripts\prod_check.ps1`
+
 ### Мониторинг (Grafana + Prometheus)
 
 ```bash
