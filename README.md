@@ -328,6 +328,42 @@ python scripts/mega_audit.py
 
 ---
 
+## Автопост для комьюнити (каждые 3 дня + при обновлениях)
+
+GitHub Actions публикует посты о проекте в **Telegram-канал** (и опционально Discord).
+
+| Когда | Что публикуется |
+|-------|-----------------|
+| **Каждые 3 дня** (cron) | Ротация постов: devnet, Wave 45, токеномика, призыв star/fork |
+| **Push в `master`** | Пост «обновление» с последними коммитами |
+| **Вручную** | Actions → Community Autopost → Run workflow |
+
+### Настройка (один раз)
+
+1. Создайте **Telegram-канал** (или группу) для комьюнити.
+2. Добавьте вашего бота **администратором** канала (права на публикацию).
+3. Узнайте `chat_id` канала (например через `@userinfobot` или `getUpdates` после сообщения в канал).
+4. В GitHub: **Settings → Secrets and variables → Actions** добавьте:
+
+| Secret | Значение |
+|--------|----------|
+| `TELEGRAM_BOT_TOKEN` | Токен от @BotFather |
+| `TELEGRAM_CHANNEL_ID` | ID канала, напр. `-1001234567890` |
+| `DISCORD_WEBHOOK_URL` | *(опционально)* webhook Discord |
+
+5. Workflow: [`.github/workflows/community-autopost.yml`](.github/workflows/community-autopost.yml)
+
+Пропустить пост при коммите: добавьте `[skip community]` в сообщение коммита.
+
+### Локальный тест (без отправки)
+
+```powershell
+.\scripts\run_community_autopost.ps1 -Mode scheduled
+.\scripts\run_community_autopost.ps1 -Mode release -Send   # реальная отправка
+```
+
+---
+
 ## Автор
 
 **Uladzimir Dabranski** (инициалы **D.U.P.**)

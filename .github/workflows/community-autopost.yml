@@ -1,0 +1,56 @@
+name: Community Autopost
+
+# Посты в Telegram/Discord для комьюнити:
+#   • каждые 3 дня — ротация постов о проекте
+#   • при push в master — пост об обновлении (новые коммиты)
+
+on:
+  schedule:
+    # 12:00 UTC каждые 3 дня (1-е, 4-е, 7-е … число месяца)
+    - cron: "0 12 1,4,7,10,13,16,19,22,25,28 * *"
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "scheduled | release | both"
+        required: false
+        default: "both"
+
+permissions:
+  contents: read
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 30
+
+      - name: Restore autopost state
+        uses: actions/cache@v4
+        with:
+          path: data/community_autopost_state.json
+          key: community-autopost-state-v1-${{ github.repository }}
+
+      - name: Determine mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "value=scheduled" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "value=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=release" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Community autopost
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          AUTOPOST_REPO_URL: https://github.com/${{ github.repository }}
+          GITHUB_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          python scripts/community_autopost.py --mode "${{ steps.mode.outputs.value }}"
