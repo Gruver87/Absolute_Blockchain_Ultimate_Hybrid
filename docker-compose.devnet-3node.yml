@@ -10,7 +10,7 @@ services:
       context: .
       dockerfile: Dockerfile.devnet-rust
     hostname: node1
-    command: ["python", "main.py", "--config", "docker/node1.rust.json"]
+    command: ["python", "main.py", "--config", "docker/node1.devnet3.rust.json"]
     ports:
       - "8545:8545"
       - "8080:8080"
@@ -109,7 +109,7 @@ services:
       context: .
       dockerfile: Dockerfile.devnet-rust
     hostname: node2
-    command: ["python", "main.py", "--config", "docker/node2.rust.json"]
+    command: ["python", "main.py", "--config", "docker/node2.devnet3.rust.json"]
     ports:
       - "8546:8545"
       - "8081:8080"
@@ -142,7 +142,7 @@ services:
       context: .
       dockerfile: Dockerfile.devnet-rust
     hostname: node3
-    command: ["python", "main.py", "--config", "docker/node3.rust.json"]
+    command: ["python", "main.py", "--config", "docker/node3.devnet3.rust.json"]
     ports:
       - "8547:8545"
       - "8082:8080"

@@ -50,11 +50,12 @@ def test_validators_api_healthy():
     stats = [
         {"proposer": validators[0]["address"], "blocks_proposed": 5},
         {"proposer": validators[1]["address"], "blocks_proposed": 3},
+        {"proposer": validators[2]["address"], "blocks_proposed": 2},
     ]
     out = _build_testnet_validators_status(_FakeDB(validators, stats), _FakeCfg(), _FakeBC())
     assert out["validators_healthy"] is True
     assert out["rotation_observed"] is True
-    assert out["api_wave"] == 55
+    assert out["api_wave"] == 56
 
 
 def test_validators_api_unhealthy_count():

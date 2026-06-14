@@ -59,12 +59,15 @@ def resolve_manifest_path(config) -> str:
     path = getattr(config, "testnet_validators_manifest", "") or ""
     if path:
         return path
-    if int(getattr(config, "testnet_expected_validators", 0) or 0) >= 5:
-        return os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "docker",
-            "validators.devnet5.json",
-        )
+    ev = int(getattr(config, "testnet_expected_validators", 0) or 0)
+    base = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "docker",
+    )
+    if ev >= 5:
+        return os.path.join(base, "validators.devnet5.json")
+    if ev >= 3:
+        return os.path.join(base, "validators.devnet3.json")
     return ""
 
 

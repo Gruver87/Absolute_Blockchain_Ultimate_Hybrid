@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "description": "3-validator Absolute devnet (Wave 56) — all nodes mine + attest",
+  "validators": [
+    {"index": 1, "node_id": "docker-node-1", "mines": true, "stake": 5000},
+    {"index": 2, "node_id": "docker-node-2", "mines": true, "stake": 2000},
+    {"index": 3, "node_id": "docker-node-3", "mines": true, "stake": 2000}
+  ]
+}

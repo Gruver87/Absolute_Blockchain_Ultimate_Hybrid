@@ -534,18 +534,13 @@ class NodeOrchestrator:
             except Exception as _d5w:
                 print(f"[Node] Devnet5 validator wallet note: {_d5w}")
 
-        _manifest = (
-            getattr(config, "testnet_validators_manifest", "")
-            or (
-                os.path.join(
-                    os.path.dirname(os.path.abspath(__file__)),
-                    "docker",
-                    "validators.devnet5.json",
-                )
-                if int(getattr(config, "testnet_expected_validators", 0) or 0) >= 5
-                else ""
-            )
-        )
+        _manifest = getattr(config, "testnet_validators_manifest", "") or ""
+        if not _manifest and int(getattr(config, "testnet_expected_validators", 0) or 0) >= 3:
+            try:
+                from runtime.devnet_validators import resolve_manifest_path
+                _manifest = resolve_manifest_path(config)
+            except Exception:
+                _manifest = ""
         if _manifest and os.path.isfile(_manifest):
             try:
                 from runtime.devnet_validators import apply_manifest
@@ -562,7 +557,7 @@ class NodeOrchestrator:
         _op = getattr(config, "signing_address", "") or ""
         _multi_validator_devnet = int(
             getattr(config, "testnet_expected_validators", 0) or 0
-        ) >= 5
+        ) >= 3
         if (
             _op
             and self.wallet
@@ -1352,7 +1347,7 @@ class NodeOrchestrator:
             _active_vals = self.db.get_validators(active_only=True) if self.db else []
             _multi_validator_devnet = int(
                 getattr(self.config, "testnet_expected_validators", 0) or 0
-            ) >= 5
+            ) >= 3
             if _signing and self.wallet and len(_active_vals) <= 1:
                 proposer = _signing
 

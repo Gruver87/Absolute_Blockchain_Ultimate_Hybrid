@@ -5,8 +5,8 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Educational%20Only-orange)]()
-[![API Wave](https://img.shields.io/badge/API%20Wave-55-blue)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/Unit%20Tests-292%20passed-brightgreen)](tests/unit/)
+[![API Wave](https://img.shields.io/badge/API%20Wave-56-blue)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/Unit%20Tests-295%20passed-brightgreen)](tests/unit/)
 [![Audit](https://img.shields.io/badge/Full%20Audit-passing-brightgreen)](scripts/full_audit.py)
 [![Release](https://img.shields.io/badge/Release-v1.2.0--industrial-blue)](https://github.com/Gruver87/absolute-blockchain-ultimate/releases)
 
@@ -15,7 +15,7 @@
 | Field | Value |
 |-------|-------|
 | **Version** | `1.2.0-industrial` |
-| **API Wave** | `55` → check `GET /status` → `api_wave` |
+| **API Wave** | `56` → check `GET /status` → `api_wave` |
 | **Entry point** | `python main.py` |
 | **Storage** | SQLite `data/blockchain.db` |
 | **Chain ID (dev)** | `77777` |
@@ -47,7 +47,7 @@
 | Area | Level | What is verified in-repo |
 |------|-------|--------------------------|
 | **L1 core** | 🟢 Production-quality demo | Blocks, balances, 2% burn, genesis, ECDSA txs, auto-mining ~12–15s |
-| **REST API** | 🟢 | **283** route handlers, OpenAPI `/docs`, `api_wave=55` |
+| **REST API** | 🟢 | **283** route handlers, OpenAPI `/docs`, `api_wave=56` |
 | **Web Explorer** | 🟢 | SPA at `:8080` — **32** functional tabs |
 | **P2P networking** | 🟢 Verified | 2 / 3 / 5-node Docker meshes; strict `state_root` on import |
 | **TX propagation** | 🟢 | Signed gossip + mempool pull + `/tx/trace/{hash}` |
@@ -94,10 +94,11 @@
 | **52** | **3-node testnet** | `GET /testnet/mesh`, `docker_devnet_3node.ps1` |
 | **53** | **Fork / slashing CI** | `GET /testnet/fork-status`, `GET /slashing/events`, `--mode ci3` |
 | **54** | **State consistency harness** | `GET /chain/consistency/harness`, `POST /chain/consistency/repair` |
+| **56** | **Multi-node proof** | `GET /testnet/multi-node-proof`, `POST /testnet/reorg-exercise`, 3-validator rotation |
 | **55** | **5-validator devnet** | `GET /testnet/validators`, `docker_devnet_5validator.ps1` |
 
 ```powershell
-(Invoke-RestMethod http://localhost:8080/status -UseBasicParsing).api_wave   # → 55
+(Invoke-RestMethod http://localhost:8080/status -UseBasicParsing).api_wave   # → 56
 Invoke-RestMethod http://localhost:8080/testnet/validators -UseBasicParsing
 Invoke-RestMethod http://localhost:8080/chain/consistency/harness -UseBasicParsing
 
@@ -184,7 +185,7 @@ Expected when healthy:
 
 ```
 OK: peers n1=1 n2=1 heights X / X state_consistent=True state_roots_match=True
-api_wave=55
+api_wave=56
 ```
 
 ### Full audit (recommended before release)
@@ -279,4 +280,4 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 
 ---
 
-*Last update: June 2026 — API Wave 55, 226+ unit tests, 5-validator devnet.*
+*Last update: June 2026 — API Wave 56, 295+ unit tests, multi-node proof devnet.*

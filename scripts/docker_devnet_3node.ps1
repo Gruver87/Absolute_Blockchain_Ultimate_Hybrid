@@ -53,8 +53,8 @@ for ($i = 0; $i -lt 40; $i++) {
         if ($st.node_id -like "docker-node-*") {
             $ok1 = $true
             Write-Host "node1 ready ($($st.node_id)) api_wave=$($st.api_wave)" -ForegroundColor Green
-            if ($null -eq $st.api_wave -or [int]$st.api_wave -lt 52) {
-                Write-Host "WARN: rebuild for Wave 52: docker compose -f $composeFile build --no-cache" -ForegroundColor Yellow
+            if ($null -eq $st.api_wave -or [int]$st.api_wave -lt 56) {
+                Write-Host "WARN: rebuild for Wave 56: docker compose -f $composeFile build --no-cache" -ForegroundColor Yellow
             }
             break
         }

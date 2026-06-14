@@ -88,6 +88,7 @@ _DEV_PUBLIC_POST = frozenset({
     "/bridge/confirm-lock", "/bridge/confirm-pending", "/bridge/dev-confirm-pending",
     "/sync/fast-sync", "/sync/reconcile",
     "/chain/consistency/repair", "/chain/consistency/repair",
+    "/testnet/reorg-exercise",
 })
 
 _BRIDGE_ORACLE_PATHS = frozenset({
@@ -115,6 +116,7 @@ _RATE_LIMIT_EXEMPT_PATHS = frozenset({
     "/chain/consistency/harness",
     "/testnet/state-consistency",
     "/testnet/validators",
+    "/testnet/multi-node-proof",
     "/consensus/stats",
     "/metrics",
     "/sync/fast-sync",
@@ -165,6 +167,8 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/chain/consistency/harness", "summary": "State consistency harness (Wave 54)"},
     {"method": "POST", "path": "/chain/consistency/repair", "summary": "Replay chain if live state drifted from tip"},
     {"method": "GET", "path": "/testnet/validators", "summary": "5-validator set health and proposer rotation (Wave 55)"},
+    {"method": "GET", "path": "/testnet/multi-node-proof", "summary": "Multi-node proof dashboard (Wave 56)"},
+    {"method": "POST", "path": "/testnet/reorg-exercise", "summary": "Canonical replay reorg drill (dev only, Wave 56)"},
     {"method": "GET", "path": "/sync/status", "summary": "Chain sync status"},
     {"method": "GET", "path": "/features", "summary": "Feature flags and module availability"},
     {"method": "GET", "path": "/evm/supported-opcodes", "summary": "EVM opcode support matrix"},
@@ -738,7 +742,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 55,
+                    "api_wave": 56,
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,
                     "crypto_will_enabled": self.__class__.crypto_will is not None,
@@ -1065,7 +1069,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "lightning": self.__class__.lightning,
                 }
                 payload = flags.to_api_dict(instances, cfg)
-                payload["api_wave"] = 55
+                payload["api_wave"] = 56
                 rp = self.__class__.reorg_predictor
                 if rp and hasattr(rp, "get_stats"):
                     payload["reorg_predictor"] = rp.get_stats()
@@ -1260,6 +1264,11 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/testnet/validators":
                 db = self.__class__.db
                 self._json(_build_testnet_validators_status(db, cfg, bc))
+
+            elif path == "/testnet/multi-node-proof":
+                db = self.__class__.db
+                ca = self.__class__.consensus_adapter
+                self._json(_build_testnet_multi_node_proof(p2p, bc, cfg, db, ca))
 
             elif path == "/tx/propagation/recent":
                 db = self.__class__.db
@@ -2185,7 +2194,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 self._json({
                     "count": len(events),
                     "events": events,
-                    "api_wave": 55,
+                    "api_wave": 56,
                 })
 
             elif path == "/sync/status":
@@ -4237,6 +4246,32 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "harness": harness,
                 })
 
+            elif path == "/testnet/reorg-exercise":
+                if getattr(cfg, "deployment_mode", "dev") == "prod":
+                    self._error(403, "reorg-exercise is dev-only"); return
+                if not bc or not hasattr(bc, "ensure_state_at_tip"):
+                    self._error(503, "blockchain not available"); return
+                before_root = bc.get_state_root() if hasattr(bc, "get_state_root") else ""
+                before_h = bc.get_height() if hasattr(bc, "get_height") else 0
+                replay_ok = bc.ensure_state_at_tip()
+                after_root = bc.get_state_root() if hasattr(bc, "get_state_root") else ""
+                harness = _build_state_consistency_harness(
+                    self.__class__.p2p, bc, cfg, self.__class__.db
+                )
+                self._json({
+                    "action": "canonical_replay_drill",
+                    "height": before_h,
+                    "state_root_before": before_root,
+                    "state_root_after": after_root,
+                    "roots_match": bool(before_root and before_root == after_root),
+                    "replay_ok": bool(replay_ok),
+                    "harness_healthy": bool(harness.get("harness_healthy")),
+                    "reorg_safe": bool(
+                        before_root == after_root and harness.get("harness_healthy")
+                    ),
+                    "api_wave": 56,
+                })
+
             elif path == "/sync/add-peer":
                 se = self.__class__.sync_engine
                 if not se:
@@ -4763,7 +4798,7 @@ def _build_testnet_mesh(p2p, bc, cfg) -> Dict:
         "bootstrap_peers": getattr(cfg, "bootstrap_peers", []),
         "peers": peers,
         "testnet_mode": "3-node" if expected_peers >= 2 else "multi",
-        "api_wave": 55,
+        "api_wave": 56,
     }
 
 
@@ -4824,7 +4859,7 @@ def _build_testnet_fork_status(p2p, bc, cfg, db=None) -> Dict:
         "slash_events_count": len(slash_events),
         "recent_slash_events": slash_events[:5],
         "peers": peers,
-        "api_wave": 55,
+        "api_wave": 56,
     }
 
 
@@ -4925,7 +4960,7 @@ def _build_state_consistency_harness(p2p, bc, cfg, db=None) -> Dict:
         "harness_healthy": harness_healthy,
         "failed_checks": [c["id"] for c in checks if not c["ok"]],
         "policy": policy,
-        "api_wave": 55,
+        "api_wave": 56,
     }
 
 
@@ -4944,7 +4979,9 @@ def _build_testnet_validators_status(db, cfg, bc) -> Dict:
     height = bc.get_height() if bc and hasattr(bc, "get_height") else 0
     expected = max(1, int(getattr(cfg, "testnet_expected_validators", 5) or 5))
     distinct_proposers = len({s.get("proposer", "") for s in stats if s.get("proposer")})
-    rotation_ok = distinct_proposers >= 2 or height < 8
+    min_height = 12 if expected >= 3 else 8
+    rotation_needed = min(3, expected) if expected >= 3 else 2
+    rotation_ok = distinct_proposers >= rotation_needed or height < min_height
     return {
         "node_id": getattr(cfg, "node_id", ""),
         "chain_id": getattr(cfg, "chain_id", 0),
@@ -4959,7 +4996,91 @@ def _build_testnet_validators_status(db, cfg, bc) -> Dict:
         "validators": validators,
         "manifest": getattr(cfg, "testnet_validators_manifest", ""),
         "validator_index": int(getattr(cfg, "testnet_validator_index", 0) or 0),
-        "api_wave": 55,
+        "api_wave": 56,
+    }
+
+
+def _build_testnet_multi_node_proof(p2p, bc, cfg, db, consensus_adapter) -> Dict:
+    """Unified multi-node proof dashboard (Wave 56)."""
+    mesh = _build_testnet_mesh(p2p, bc, cfg)
+    harness = _build_state_consistency_harness(p2p, bc, cfg, db)
+    validators = _build_testnet_validators_status(db, cfg, bc)
+    fork = _build_testnet_fork_status(p2p, bc, cfg, db)
+
+    attestations: List[Dict] = []
+    att_count = 0
+    att_enabled = False
+    if consensus_adapter and hasattr(consensus_adapter, "get_attestations"):
+        attestations = consensus_adapter.get_attestations() or []
+        att_count = len(attestations)
+        att_enabled = True
+
+    att_by_block: List[Dict] = []
+    if consensus_adapter and hasattr(consensus_adapter, "get_attestations_by_block"):
+        att_by_block = consensus_adapter.get_attestations_by_block() or []
+
+    height = int(mesh.get("local_height", 0) or 0)
+    expected_val = int(validators.get("expected_validators", 3) or 3)
+    expected_peers = int(mesh.get("expected_peers", 2) or 2)
+    min_height = 12 if expected_val >= 3 else 8
+    rotation_needed = min(3, expected_val) if expected_val >= 3 else 2
+    distinct = int(validators.get("distinct_proposers", 0) or 0)
+    rotation_ok = distinct >= rotation_needed or height < min_height
+    attestations_ok = att_count > 0 or height < 4
+
+    checks = [
+        {"id": "mesh_healthy", "ok": bool(mesh.get("mesh_healthy"))},
+        {"id": "harness_healthy", "ok": bool(harness.get("harness_healthy"))},
+        {"id": "validators_healthy", "ok": bool(validators.get("validators_healthy"))},
+        {"id": "rotation_observed", "ok": bool(rotation_ok)},
+        {"id": "attestations_present", "ok": bool(attestations_ok)},
+        {"id": "consensus_healthy", "ok": bool(fork.get("consensus_healthy"))},
+        {"id": "height_sufficient", "ok": height >= min_height},
+    ]
+    if height < min_height:
+        proof_ok = all(
+            c["ok"] for c in checks
+            if c["id"] not in ("rotation_observed", "height_sufficient")
+        )
+    else:
+        proof_ok = all(c["ok"] for c in checks)
+
+    return {
+        "node_id": getattr(cfg, "node_id", ""),
+        "chain_id": getattr(cfg, "chain_id", 0),
+        "height": height,
+        "min_proof_height": min_height,
+        "expected_validators": expected_val,
+        "expected_peers": expected_peers,
+        "mesh": mesh,
+        "harness": {
+            "harness_healthy": harness.get("harness_healthy"),
+            "live_state_root": harness.get("live_state_root"),
+            "failed_checks": harness.get("failed_checks"),
+            "checks": harness.get("checks"),
+        },
+        "validators": {
+            "validators_healthy": validators.get("validators_healthy"),
+            "active_count": validators.get("active_count"),
+            "distinct_proposers": distinct,
+            "rotation_observed": rotation_ok,
+            "rotation_needed": rotation_needed,
+        },
+        "fork": {
+            "consensus_healthy": fork.get("consensus_healthy"),
+            "fork_detected": fork.get("fork_detected"),
+            "max_peer_height_gap": fork.get("max_peer_height_gap"),
+        },
+        "attestations": {
+            "enabled": att_enabled,
+            "count": att_count,
+            "by_block_count": len(att_by_block),
+            "recent": attestations[:5],
+        },
+        "checks": checks,
+        "proof_ok": proof_ok,
+        "failed_checks": [c["id"] for c in checks if not c["ok"]],
+        "api_wave": 56,
     }
 
 
@@ -5102,7 +5223,7 @@ def _build_l2_status(handler_cls) -> Dict:
         m.get("persisted") for m in modules.values() if isinstance(m, dict)
     )
     return {
-        "api_wave": 55,
+        "api_wave": 56,
         "l2_persisted": persisted,
         "nft_persisted": nft_persisted,
         "core": {

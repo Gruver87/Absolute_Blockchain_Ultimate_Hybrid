@@ -132,7 +132,7 @@ def section_project_inventory() -> AuditResult:
     print(f"  REST route refs    : ~{ep_count}")
     print(f"  scripts/ files     : {len(scripts)}")
     print(f"  Entry point        : main.py ({'OK' if os.path.isfile(os.path.join(ROOT, 'main.py')) else 'MISSING'})")
-    print(f"  api_wave in code   : {'55' if 'api_wave' in http_src and '/testnet/validators' in http_src else 'check'}")
+    print(f"  api_wave in code   : {'56' if 'api_wave' in http_src and '/testnet/multi-node-proof' in http_src else 'check'}")
 
     required_scripts = [
         "start_node.ps1", "start_two_nodes.ps1", "docker_devnet.ps1",
@@ -156,6 +156,7 @@ def section_project_inventory() -> AuditResult:
         "docker-compose.devnet-5validator.yml",
         "docker/founder.wallet.json",
         "docker/validators.devnet5.json",
+        "docker/validators.devnet3.json",
     ]
     for df in docker_files:
         ex = os.path.isfile(os.path.join(ROOT, df))
@@ -190,9 +191,9 @@ def section_syntax() -> AuditResult:
     return res
 
 
-def section_waves_52_55() -> AuditResult:
-    _banner("[C] WAVES 52–55 (TESTNET / CONSISTENCY / VALIDATORS)")
-    res = AuditResult(name="waves_52_55", ok=True)
+def section_waves_52_56() -> AuditResult:
+    _banner("[C] WAVES 52–56 (TESTNET / CONSISTENCY / VALIDATORS / PROOF)")
+    res = AuditResult(name="waves_52_56", ok=True)
     http_src = _read("api/http.py")
     main_src = _read("main.py")
     checks: List[Tuple[str, bool]] = [
@@ -202,10 +203,14 @@ def section_waves_52_55() -> AuditResult:
         ("GET /chain/consistency/harness", '"/chain/consistency/harness"' in http_src),
         ("POST /chain/consistency/repair", '"/chain/consistency/repair"' in http_src),
         ("GET /testnet/validators", '"/testnet/validators"' in http_src),
+        ("GET /testnet/multi-node-proof", '"/testnet/multi-node-proof"' in http_src),
+        ("POST /testnet/reorg-exercise", '"/testnet/reorg-exercise"' in http_src),
         ("verify_p2p devnet3 mode", "devnet3" in _read("scripts/verify_p2p_ci.py")),
+        ("verify_p2p multi_node_proof", "verify_multi_node_proof" in _read("scripts/verify_p2p_ci.py")),
         ("verify_p2p devnet5 mode", "devnet5" in _read("scripts/verify_p2p_ci.py")),
         ("verify_p2p ci3 mode", "ci3" in _read("scripts/verify_p2p_ci.py")),
         ("devnet_validators.py", os.path.isfile(os.path.join(ROOT, "runtime/devnet_validators.py"))),
+        ("validators.devnet3.json", os.path.isfile(os.path.join(ROOT, "docker/validators.devnet3.json"))),
         ("mining_validator_addresses", "mining_validator_addresses" in _read("runtime/devnet_validators.py")),
         ("ensure_state_at_tip replay fix", "replay_only" in _read("core/blockchain.py")),
         ("seeded dev_signer skip", "Seeded chain" in main_src and "dev_signer skipped" in main_src),
@@ -214,6 +219,7 @@ def section_waves_52_55() -> AuditResult:
         ("unit test wave53", os.path.isfile(os.path.join(ROOT, "tests/unit/test_wave53_fork_slashing.py"))),
         ("unit test wave54", os.path.isfile(os.path.join(ROOT, "tests/unit/test_wave54_state_consistency.py"))),
         ("unit test wave55", os.path.isfile(os.path.join(ROOT, "tests/unit/test_wave55_5validator.py"))),
+        ("unit test wave56", os.path.isfile(os.path.join(ROOT, "tests/unit/test_wave56_multi_node_proof.py"))),
     ]
     for name, ok in checks:
         print(f"  {'[OK]' if ok else '[FAIL]'} {name}")
@@ -354,8 +360,8 @@ def section_live_endpoints(base: str) -> AuditResult:
             res.details.append(path)
 
     if api_wave:
-        print(f"  api_wave={api_wave} {'(>=55 OK)' if api_wave >= 55 else '(WARN: expected >=55)'}")
-        if api_wave < 55:
+        print(f"  api_wave={api_wave} {'(>=56 OK)' if api_wave >= 56 else '(WARN: expected >=56)'}")
+        if api_wave < 56:
             res.warnings += 1
     return res
 
@@ -453,7 +459,7 @@ def main() -> int:
 
     sections.append(section_project_inventory())
     sections.append(section_syntax())
-    sections.append(section_waves_52_55())
+    sections.append(section_waves_52_56())
     sections.append(section_tokenomics())
     sections.append(section_node_smoke())
     sections.append(section_git_hygiene())

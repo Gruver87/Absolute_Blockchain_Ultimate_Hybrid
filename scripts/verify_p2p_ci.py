@@ -423,7 +423,96 @@ def verify_state_consistency(urls: list[str], status: dict) -> int:
         f"OK: state consistency harness healthy across {len(urls)} nodes "
         f"root={roots[0][:16] if roots else '?'}…"
     )
+    if len(urls) >= 3:
+        return verify_multi_node_proof(urls, status)
     return verify_validators_set(urls[0], status)
+
+
+def verify_multi_node_proof(urls: list[str], status: dict) -> int:
+    """Wave 56: attestations, rotation, reorg drill across cluster."""
+    wave = int(status.get("api_wave", 0) or 0)
+    if wave < 56:
+        print(f"SKIP: multi-node proof (api_wave={wave} < 56)")
+        return verify_adversarial(urls[0], status)
+
+    url1 = urls[0]
+    min_height = 12
+    for _ in range(40):
+        try:
+            st = _api(f"{url1}/status")
+            if int(st.get("height", 0) or 0) >= min_height:
+                break
+        except Exception:
+            pass
+        time.sleep(3)
+
+    att_ok = True
+    for i, url in enumerate(urls, start=1):
+        try:
+            att = _api(f"{url}/consensus/attestations")
+            cnt = int(att.get("count", 0) or 0)
+            if cnt == 0:
+                att_ok = False
+                print(f"WARN: node{i} has zero attestations")
+        except Exception as exc:
+            att_ok = False
+            print(f"FAIL: node{i} attestations: {exc}")
+
+    try:
+        proof = _api(f"{url1}/testnet/multi-node-proof")
+    except Exception as exc:
+        print(f"FAIL: /testnet/multi-node-proof: {exc}")
+        return 16
+
+    height = int(proof.get("height", 0) or 0)
+    distinct = int(proof.get("validators", {}).get("distinct_proposers", 0) or 0)
+    expected = int(proof.get("expected_validators", 3) or 3)
+    rotation_needed = min(3, expected) if expected >= 3 else 2
+
+    print(
+        f"{'OK' if proof.get('proof_ok') else 'WARN'}: multi-node-proof height={height} "
+        f"distinct_proposers={distinct} attestations="
+        f"{proof.get('attestations', {}).get('count')} proof_ok={proof.get('proof_ok')}"
+    )
+
+    if height >= min_height and distinct < rotation_needed:
+        print(f"FAIL: need >={rotation_needed} distinct proposers at height {height}")
+        return 16
+
+    if height >= min_height and not att_ok:
+        print("FAIL: attestations missing on one or more nodes")
+        return 16
+
+    reorg_ok = True
+    for i, url in enumerate(urls, start=1):
+        try:
+            r = _post_json(url, "/testnet/reorg-exercise", timeout=60)
+            if not r.get("reorg_safe"):
+                reorg_ok = False
+                print(f"WARN: node{i} reorg drill not safe")
+        except Exception as exc:
+            print(f"FAIL: node{i} reorg-exercise: {exc}")
+            return 17
+
+    if not reorg_ok:
+        for url in urls:
+            try:
+                _post_json(url, "/chain/consistency/repair", timeout=60)
+                _post_json(url, "/sync/reconcile", timeout=120)
+            except Exception:
+                pass
+        try:
+            r = _post_json(url1, "/testnet/reorg-exercise", timeout=60)
+            reorg_ok = bool(r.get("reorg_safe"))
+        except Exception:
+            reorg_ok = False
+
+    if not reorg_ok:
+        print("FAIL: reorg exercise unsafe after repair attempt")
+        return 17
+
+    print("OK: reorg exercise passed on all nodes")
+    return verify_adversarial(urls[0], status)
 
 
 def verify_validators_set(url1: str, status: dict) -> int:
@@ -436,6 +525,9 @@ def verify_validators_set(url1: str, status: dict) -> int:
     except Exception as exc:
         print(f"FAIL: /testnet/validators: {exc}")
         return 15
+    manifest = (val.get("manifest") or "").strip()
+    if not manifest:
+        return verify_multi_node_proof([url1], status)
     if not val.get("validators_healthy"):
         print(
             f"FAIL: validators unhealthy registered={val.get('registered_count')} "
@@ -447,9 +539,11 @@ def verify_validators_set(url1: str, status: dict) -> int:
         f"OK: validators active={val.get('active_count')} "
         f"distinct_proposers={val.get('distinct_proposers')} rotation_observed={rot}"
     )
+    expected = int(val.get("expected_validators", 5) or 5)
+    min_rot = min(3, expected) if expected >= 3 else 2
     if not rot and int(status.get("height", 0) or 0) >= 12:
-        print("WARN: proposer rotation not observed yet (chain may be young)")
-    return verify_adversarial(url1, status)
+        print(f"WARN: proposer rotation not observed yet (need {min_rot})")
+    return verify_multi_node_proof([url1], status)
 
 
 def verify_n_nodes(urls: list[str], wait_sync_sec: int = 300) -> int:

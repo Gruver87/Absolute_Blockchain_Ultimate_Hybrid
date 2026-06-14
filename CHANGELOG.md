@@ -2,11 +2,20 @@
 
 Все значимые изменения документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/).
 
-**Текущая волна API:** `api_wave = 55` (проверка: `GET /status`)
+**Текущая волна API:** `api_wave = 56` (проверка: `GET /status`)
 
 ---
 
-## [1.2.0-industrial] — Wave 37–55 (июнь 2026)
+## [1.2.0-industrial] — Wave 37–56 (июнь 2026)
+
+### Wave 56 — Multi-node proof (3-validator devnet)
+
+- `docker/validators.devnet3.json` — 3 miners + attesters; `node*.devnet3.rust.json` configs
+- `GET /testnet/multi-node-proof` — mesh + harness + validators + attestations + `proof_ok`
+- `POST /testnet/reorg-exercise` — canonical replay drill (`reorg_safe` flag)
+- Proposer rotation threshold: `distinct_proposers >= 3` when `expected_validators >= 3` and height ≥ 12
+- `verify_p2p_ci.py` — `verify_multi_node_proof()` after state harness (attestations, rotation, reorg drill)
+- **`api_wave` → 56**
 
 ### Wave 55 — 5-validator devnet
 
