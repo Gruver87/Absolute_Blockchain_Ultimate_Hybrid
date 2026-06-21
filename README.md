@@ -47,7 +47,7 @@
 | Area | Level | What is verified in-repo |
 |------|-------|--------------------------|
 | **L1 core** | 🟢 Production-quality demo | Blocks, balances, 2% burn, genesis, ECDSA txs, auto-mining ~12–15s |
-| **REST API** | 🟢 | **283** route handlers, OpenAPI `/docs`, `api_wave=56` |
+| **REST API** | 🟢 | **283+** route handlers, OpenAPI `/docs`, `api_wave=60` |
 | **Web Explorer** | 🟢 | SPA at `:8080` — **32** functional tabs |
 | **P2P networking** | 🟢 Verified | 2 / 3 / 5-node Docker meshes; strict `state_root` on import |
 | **TX propagation** | 🟢 | Signed gossip + mempool pull + `/tx/trace/{hash}` |
@@ -83,7 +83,7 @@
 
 ---
 
-## Core L1 + P2P (Waves 47–51)
+## Core L1 + P2P (Waves 47–60)
 
 | Wave | Feature | Key endpoints |
 |------|---------|---------------|
@@ -102,7 +102,7 @@
 | **55** | **5-validator devnet** | `GET /testnet/validators`, `docker_devnet_5validator.ps1` |
 
 ```powershell
-(Invoke-RestMethod http://localhost:8080/status -UseBasicParsing).api_wave   # → 56
+(Invoke-RestMethod http://localhost:8080/status -UseBasicParsing).api_wave   # → 60
 Invoke-RestMethod http://localhost:8080/testnet/validators -UseBasicParsing
 Invoke-RestMethod http://localhost:8080/chain/consistency/harness -UseBasicParsing
 
@@ -110,19 +110,22 @@ Invoke-RestMethod http://localhost:8080/chain/consistency/harness -UseBasicParsi
 .\scripts\docker_devnet_5validator.ps1
 python scripts/verify_p2p_ci.py --mode devnet5
 
-# 3-node testnet (Wave 52):
+# 3-node testnet (Wave 60 verified):
 .\scripts\docker_devnet_3node.ps1
-python scripts/verify_p2p_ci.py --mode devnet3
+python scripts/verify_p2p_ci.py --mode devnet3 --wait 300
 
-# Adversarial CI (Wave 53, no Docker):
+# Adversarial / bridge CI (no Docker):
 python scripts/verify_p2p_ci.py --mode ci3
+python scripts/verify_p2p_ci.py --mode ci-fork
+python scripts/verify_p2p_ci.py --mode ci-bridge
+python scripts/verify_p2p_ci.py --mode ci-bridge-relayer
 # Send tx (node1 wallet auto_sign), then trace:
 Invoke-RestMethod http://localhost:8080/tx/send -Method POST -ContentType application/json -Body '{"auto_sign":true,"to":"0x2222222222222222222222222222222222222222","value":0.01}'
 Invoke-RestMethod http://localhost:8081/mempool -UseBasicParsing   # same tx on node2
 Invoke-RestMethod http://localhost:8080/tx/trace/{hash} -UseBasicParsing
 ```
 
-Full wave history (37–50): [CHANGELOG.md](CHANGELOG.md)
+Full wave history (37–60): [CHANGELOG.md](CHANGELOG.md)
 
 ---
 
@@ -179,7 +182,7 @@ python main.py
 
 ```powershell
 .\scripts\stop_node.ps1
-.\scripts\start_two_nodes.ps1 -RustBridge    # :8080 + :8081
+.\scripts\start_two_nodes.ps1 -RustBridge -Fresh    # :8080 + :8081
 
 # or Docker:
 .\scripts\docker_devnet.ps1 -RustBridge
@@ -189,12 +192,12 @@ Expected when healthy:
 
 ```
 OK: peers n1=1 n2=1 heights X / X state_consistent=True state_roots_match=True
-api_wave=56
+api_wave=60
 ```
 
 ### Full audit (recommended before release)
 
-Single script — syntax, tokenomics, Waves 52–55, secrets scan, mega/final audit, pytest, live API, P2P mesh:
+Single script — syntax, tokenomics, Waves 52–60, secrets scan, mega/final audit, pytest, live API, P2P mesh:
 
 ```powershell
 python scripts/full_audit.py --live --p2p
@@ -205,8 +208,10 @@ python scripts/full_audit.py --live --p2p
 
 ```powershell
 pytest tests/ -q
-python scripts/verify_p2p_ci.py --mode devnet3    # 3-node mesh
+pytest tests/unit/ -q                              # 244 passed, 1 skipped
+python scripts/verify_p2p_ci.py --mode devnet3 --wait 300    # 3-node mesh
 python scripts/verify_p2p_ci.py --mode devnet5    # 5-validator mesh
+python scripts/verify_p2p_ci.py --mode ci-bridge-relayer
 curl.exe http://localhost:8080/health/live
 curl.exe http://localhost:8080/status
 curl.exe http://localhost:8080/testnet/validators
@@ -257,8 +262,9 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 | Issue | Fix |
 |-------|-----|
 | Connection closed right after Docker up | Wait for `/status` or run `docker_devnet.ps1` |
-| `api_wave` &lt; 50 in Docker | `docker compose -f docker-compose.devnet-rust.yml build --no-cache node1` + recreate |
+| `api_wave` &lt; 60 in Docker | `docker compose -f docker-compose.devnet-rust.yml build --no-cache node1` + recreate |
 | Ports busy | `.\scripts\stop_node.ps1` |
+| Docker `:8080/:8082` shows `node-1` or `501` | A local `python main.py` is intercepting host ports; stop it before Docker devnet |
 | Docker not running | Start Docker Desktop |
 
 ---
@@ -284,4 +290,4 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 
 ---
 
-*Last update: June 2026 — API Wave 58, fork CI partition, 301+ tests.*
+*Last update: June 2026 — API Wave 60, Docker 3-node devnet, bridge relayer CI, 244 unit tests.*

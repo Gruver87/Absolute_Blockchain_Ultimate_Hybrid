@@ -7,9 +7,10 @@
 
 > **Версия:** `1.2.0-industrial` (unified node)  
 > **Автор:** Uladzimir Dabranski (Gruver87)  
-> **Обновлено:** 2026-06-14  
+> **Обновлено:** 2026-06-21  
+> **API Wave:** `60`  
 > **Статус:** учебный проект, не production mainnet  
-> **Заменяет:** справочник v57 (2026-06-08)
+> **Тесты:** `244 passed, 1 skipped` (`pytest tests/unit/ -q`)
 
 ---
 
@@ -17,7 +18,7 @@
 
 > Полная версия: **Часть 0** в [`docs/ALL_COMMANDS.txt`](ALL_COMMANDS.txt)
 
-**Это учебный проект** — не mainnet, не аудит, ABS не листинг. Проверено: **166+ pytest**, **256 REST**, **32 вкладки UI**, Docker devnet P2P sync OK.
+**Это учебный проект** — не mainnet, не аудит, ABS не листинг. Проверено: **244 unit tests**, **API Wave 60**, **32 вкладки UI**, Docker 2/3/5-node devnet P2P sync OK.
 
 ### Wave 38 (EVM)
 - **BLOCKHASH**, **CALLCODE** opcodes
@@ -29,7 +30,7 @@
 |--------|------|--------|
 | REST + Explorer | :8080 | 🟢 единый `main.py` |
 | JSON-RPC | :8545 | 🟢 eth_* подмножество |
-| P2P | :5000 | 🟢 2 узла проверены |
+| P2P | :5000 | 🟢 2/3/5-node devnet проверен |
 | WebSocket | :8766 | 🟢 live feed |
 | SQLite | `data/blockchain.db` | 🟢 |
 
@@ -46,7 +47,7 @@
 - NFT, multisig, smart accounts (API + UI)
 - MiniVM deploy/call; Light client / Merkle proofs
 - Slashing (double-vote по slot), validators, attestations
-- Devnet: faucet, pool-spend, `start_two_nodes.ps1`, `docker_devnet.ps1`
+- Devnet: faucet, pool-spend, `start_two_nodes.ps1 -RustBridge -Fresh`, `docker_devnet_3node.ps1`
 
 ### 🟡 Упрощённо / demo (dev OK, prod блокируется)
 
@@ -71,6 +72,8 @@ curl http://localhost:8080/features
 .\scripts\verify_endpoints.ps1
 python scripts/mega_audit.py
 python scripts/verify_p2p_ci.py --mode devnet --wait 240
+python scripts/verify_p2p_ci.py --mode devnet3 --wait 300
+python scripts/verify_p2p_ci.py --mode ci-bridge-relayer
 ```
 
 ---
