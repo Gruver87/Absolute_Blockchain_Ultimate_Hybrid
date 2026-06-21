@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Educational%20Only-orange)]()
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/Unit%20Tests-244%20passed-brightgreen)](tests/unit/)
+[![Tests](https://img.shields.io/badge/Unit%20Tests-246%20passed-brightgreen)](tests/unit/)
 [![Audit](https://img.shields.io/badge/Full%20Audit-passing-brightgreen)](scripts/full_audit.py)
 [![Release](https://img.shields.io/badge/Release-v1.2.0--industrial-blue)](https://github.com/Gruver87/absolute-blockchain-ultimate/releases)
 
@@ -59,7 +59,7 @@
 | **EVM / L2 / Bridge** | 🟡 Educational | Working demos with SQLite persistence; not full Ethereum parity |
 | **Production mainnet** | 🔴 Out of scope | By design — see [DISCLAIMER.md](DISCLAIMER.md) |
 
-**Quality gate (Jun 2026):** `244 passed, 1 skipped` · **`python scripts/full_audit.py --live --p2p`** → 12/12 sections OK
+**Quality gate (Jun 2026):** `246 passed, 1 skipped` · **`python scripts/full_audit.py --live --p2p`** → 12/12 sections OK
 
 ---
 
@@ -83,7 +83,7 @@
 
 ---
 
-## Core L1 + P2P (Waves 47–61)
+## Core L1 + P2P (Waves 47–63)
 
 | Wave | Feature | Key endpoints |
 |------|---------|---------------|
@@ -98,6 +98,8 @@
 | **59** | **Bridge relayer e2e** | `POST /bridge2/transfer` → RustBridge, L1 queue, `--mode ci-bridge` |
 | **60** | **Mock L1 + relayer CI** | `GET /testnet/bridge-relayer-proof`, `--mode ci-bridge-relayer` |
 | **61** | **Network hygiene + peer rejoin** | `GET /p2p/topology`, `POST /p2p/reconnect`, stable advertised peer ports |
+| **62** | **Live Docker recovery gate** | `--mode devnet3-recovery`, `docker_devnet_3node.ps1 -Recovery`, restart/rejoin `state_root` convergence |
+| **63** | **Admin repair endpoint lockdown** | `JWT_ENFORCE_ADMIN=true`, protected sync/reconnect/repair/fork drill POSTs |
 | **57** | **Real core** | deterministic proposer, finality quorum, reorg guard, mempool MEV |
 | **56** | **Multi-node proof** | `GET /testnet/multi-node-proof`, `POST /testnet/reorg-exercise`, 3-validator rotation |
 | **55** | **5-validator devnet** | `GET /testnet/validators`, `docker_devnet_5validator.ps1` |
@@ -116,6 +118,10 @@ python scripts/verify_p2p_ci.py --mode devnet5
 .\scripts\docker_devnet_3node.ps1
 python scripts/verify_p2p_ci.py --mode devnet3 --wait 300
 
+# Industrial recovery gate (Wave 62):
+.\scripts\docker_devnet_3node.ps1 -Recovery
+python scripts/verify_p2p_ci.py --mode devnet3-recovery --wait 300
+
 # Adversarial / bridge CI (no Docker):
 python scripts/verify_p2p_ci.py --mode ci3
 python scripts/verify_p2p_ci.py --mode ci-fork
@@ -127,7 +133,7 @@ Invoke-RestMethod http://localhost:8081/mempool -UseBasicParsing   # same tx on 
 Invoke-RestMethod http://localhost:8080/tx/trace/{hash} -UseBasicParsing
 ```
 
-Full wave history (37–61): [CHANGELOG.md](CHANGELOG.md)
+Full wave history (37–63): [CHANGELOG.md](CHANGELOG.md)
 
 ---
 
@@ -210,8 +216,9 @@ python scripts/full_audit.py --live --p2p
 
 ```powershell
 pytest tests/ -q
-pytest tests/unit/ -q                              # 244 passed, 1 skipped
+pytest tests/unit/ -q                              # 246 passed, 1 skipped
 python scripts/verify_p2p_ci.py --mode devnet3 --wait 300    # 3-node mesh
+python scripts/verify_p2p_ci.py --mode devnet3-recovery --wait 300    # node restart/rejoin
 python scripts/verify_p2p_ci.py --mode devnet5    # 5-validator mesh
 python scripts/verify_p2p_ci.py --mode ci-bridge-relayer
 curl.exe http://localhost:8080/health/live
@@ -293,4 +300,4 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 
 ---
 
-*Last update: June 2026 — API Wave 61, real P2P topology/rejoin, Docker 3-node devnet, 244 unit tests.*
+*Last update: June 2026 — API Wave 61, real P2P topology/rejoin, Docker 3-node devnet, admin repair lockdown, 246 unit tests.*

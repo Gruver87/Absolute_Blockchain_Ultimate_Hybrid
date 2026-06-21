@@ -6,7 +6,23 @@
 
 ---
 
-## [1.2.0-industrial] — Wave 37–61 (июнь 2026)
+## [1.2.0-industrial] — Wave 37–63 (июнь 2026)
+
+### Wave 63 — Admin lockdown for node repair endpoints
+
+- Node-admin POST endpoints (`/p2p/reconnect`, `/sync/fast-sync`, `/sync/reconcile`, `/chain/consistency/repair`, `/testnet/reorg-exercise`, `/testnet/fork-exercise`) are no longer dev-public when JWT admin enforcement is enabled
+- Docker 3-node devnet now runs with `JWT_ENFORCE_ADMIN=true` and a devnet-only `JWT_SECRET`, so recovery/sync tests exercise the real admin boundary
+- `verify_p2p_ci.py` automatically obtains a dev JWT from `/auth/token` and retries protected repair/recovery POSTs with `Authorization: Bearer ...`
+- Unit coverage now asserts dev-admin `/sync/reconcile` rejects unauthenticated requests and accepts authenticated calls through the auth boundary
+- Multi-node proof now reports manifest/evidence-backed effective validator counts and separates low-height pending checks from real failed checks
+- **`api_wave` remains 61** — Wave 63 hardens access policy, not the REST API surface
+
+### Wave 62 — Live Docker recovery gate
+
+- `verify_p2p_ci.py --mode devnet3-recovery` — live 3-node Docker recovery drill that stops `node2`, keeps `node1/node3` consistent, restarts `node2`, and requires mesh rejoin plus matching `state_root`
+- `scripts/docker_devnet_3node.ps1 -Recovery` — optional industrial gate after normal 3-node verification
+- Recovery assertions verify persistent heights, root convergence, peer rejoin, and `topology_healthy=true` after restart
+- **`api_wave` remains 61** — Wave 62 hardens live verification, not the REST API surface
 
 ### Wave 61 — Network hygiene + real peer rejoin
 

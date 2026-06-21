@@ -82,16 +82,12 @@ except ImportError:
     jwt_auth = None
     _JWT_AVAILABLE = False
 
-# POST без JWT в dev (публичные операции); prod — только tx send + oracle HMAC
+# POST without JWT in dev. Node-admin repair/sync/recovery endpoints are
+# intentionally excluded so dev/staging can exercise the same admin boundary.
 _DEV_PUBLIC_POST = frozenset({
     "/transactions", "/tx/send", "/devnet/faucet", "/pools/dao/vote", "/devnet/pool-spend",
     "/bridge/confirm-lock", "/bridge/confirm-pending", "/bridge/dev-confirm-pending",
     "/bridge/lock", "/bridge/confirm", "/bridge2/transfer",
-    "/p2p/reconnect",
-    "/sync/fast-sync", "/sync/reconcile",
-    "/chain/consistency/repair", "/chain/consistency/repair",
-    "/testnet/reorg-exercise",
-    "/testnet/fork-exercise",
 })
 
 _BRIDGE_ORACLE_PATHS = frozenset({
@@ -5177,6 +5173,42 @@ def _build_testnet_validators_status(db, cfg, bc) -> Dict:
     min_height = 12 if expected >= 3 else 8
     rotation_needed = min(3, expected) if expected >= 3 else 2
     rotation_ok = distinct_proposers >= rotation_needed or height < min_height
+    manifest_path = getattr(cfg, "testnet_validators_manifest", "") or ""
+    slashed = {str(v.get("address", "")).lower() for v in validators if v.get("slashed")}
+    observed = {
+        str(v.get("address", "")).lower()
+        for v in active
+        if str(v.get("address", "")).startswith("0x")
+    }
+    observed.update(
+        str(s.get("proposer", "")).lower()
+        for s in stats
+        if str(s.get("proposer", "")).startswith("0x")
+    )
+    observed = {addr for addr in observed if addr and addr not in slashed}
+    manifest_count = 0
+    if manifest_path:
+        try:
+            from runtime.devnet_validators import load_manifest, manifest_entries
+            resolved_manifest = manifest_path
+            if not os.path.isabs(resolved_manifest):
+                resolved_manifest = os.path.join(
+                    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                    resolved_manifest,
+                )
+            founder = getattr(cfg, "founder_address", "") or getattr(cfg, "miner_address", "") or ""
+            manifest = load_manifest(resolved_manifest)
+            manifest_rows = [
+                row for row in manifest_entries(manifest, founder)
+                if row.get("mines", True) and row.get("address")
+            ]
+            manifest_count = len(manifest_rows)
+        except Exception:
+            manifest_count = 0
+    effective_active = max(len(active), len(observed))
+    validators_healthy = len(active) >= expected
+    if manifest_count >= expected:
+        validators_healthy = effective_active >= expected
     return {
         "node_id": getattr(cfg, "node_id", ""),
         "chain_id": getattr(cfg, "chain_id", 0),
@@ -5184,12 +5216,15 @@ def _build_testnet_validators_status(db, cfg, bc) -> Dict:
         "expected_validators": expected,
         "registered_count": len(validators),
         "active_count": len(active),
-        "validators_healthy": len(active) >= expected,
+        "observed_validator_count": len(observed),
+        "effective_active_count": effective_active,
+        "validators_healthy": validators_healthy,
         "distinct_proposers": distinct_proposers,
         "rotation_observed": rotation_ok,
         "proposer_stats": stats,
         "validators": validators,
-        "manifest": getattr(cfg, "testnet_validators_manifest", ""),
+        "manifest": manifest_path,
+        "manifest_validator_count": manifest_count,
         "validator_index": int(getattr(cfg, "testnet_validator_index", 0) or 0),
         "api_wave": 61,
     }
@@ -5232,13 +5267,22 @@ def _build_testnet_multi_node_proof(p2p, bc, cfg, db, consensus_adapter) -> Dict
         {"id": "consensus_healthy", "ok": bool(fork.get("consensus_healthy"))},
         {"id": "height_sufficient", "ok": height >= min_height},
     ]
+    ignored_low_height_checks = ("rotation_observed", "height_sufficient")
     if height < min_height:
         proof_ok = all(
             c["ok"] for c in checks
-            if c["id"] not in ("rotation_observed", "height_sufficient")
+            if c["id"] not in ignored_low_height_checks
         )
     else:
         proof_ok = all(c["ok"] for c in checks)
+    failed_checks = [
+        c["id"] for c in checks
+        if not c["ok"] and not (height < min_height and c["id"] in ignored_low_height_checks)
+    ]
+    pending_checks = [
+        c["id"] for c in checks
+        if not c["ok"] and height < min_height and c["id"] in ignored_low_height_checks
+    ]
 
     return {
         "node_id": getattr(cfg, "node_id", ""),
@@ -5257,6 +5301,8 @@ def _build_testnet_multi_node_proof(p2p, bc, cfg, db, consensus_adapter) -> Dict
         "validators": {
             "validators_healthy": validators.get("validators_healthy"),
             "active_count": validators.get("active_count"),
+            "observed_validator_count": validators.get("observed_validator_count"),
+            "effective_active_count": validators.get("effective_active_count"),
             "distinct_proposers": distinct,
             "rotation_observed": rotation_ok,
             "rotation_needed": rotation_needed,
@@ -5274,7 +5320,8 @@ def _build_testnet_multi_node_proof(p2p, bc, cfg, db, consensus_adapter) -> Dict
         },
         "checks": checks,
         "proof_ok": proof_ok,
-        "failed_checks": [c["id"] for c in checks if not c["ok"]],
+        "failed_checks": failed_checks,
+        "pending_checks": pending_checks,
         "api_wave": 61,
     }
 

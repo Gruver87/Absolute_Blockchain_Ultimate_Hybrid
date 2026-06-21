@@ -29,6 +29,17 @@ class _FakeCA:
         return [{"block_hash": "0x" + "aa" * 32, "votes": 2}]
 
 
+class _FakeCAObserved:
+    def __init__(self, validator):
+        self.validator = validator
+
+    def get_attestations(self):
+        return [{"validator": self.validator, "target_height": 5}]
+
+    def get_attestations_by_block(self):
+        return [{"block_hash": "0x" + "aa" * 32, "votes": 2}]
+
+
 class _FakeDB:
     def __init__(self, validators=None, stats=None):
         self._validators = validators or []
@@ -73,6 +84,8 @@ class _FakeBC:
 class _FakeCfg3:
     node_id = "docker-node-1"
     chain_id = 77777
+    miner_address = "0x" + "1".zfill(40)
+    founder_address = ""
     testnet_expected_peers = 2
     testnet_expected_validators = 3
     testnet_validators_manifest = "docker/validators.devnet3.json"
@@ -113,6 +126,31 @@ def test_multi_node_proof_healthy():
     assert out["proof_ok"] is True
     assert out["validators"]["distinct_proposers"] == 3
     assert out["attestations"]["count"] == 1
+
+
+def test_multi_node_proof_counts_manifest_observed_validators():
+    from api.http import _build_testnet_multi_node_proof
+
+    validators = [
+        {"address": "0x" + "1".zfill(40), "active": True, "slashed": False},
+        {"address": "0x" + "2".zfill(40), "active": True, "slashed": False},
+    ]
+    observed = "0x" + "3".zfill(40)
+    stats = [
+        {"proposer": validators[0]["address"], "blocks_proposed": 3},
+        {"proposer": validators[1]["address"], "blocks_proposed": 2},
+        {"proposer": observed, "blocks_proposed": 1},
+    ]
+    out = _build_testnet_multi_node_proof(
+        _FakeP2P(),
+        _FakeBC(20),
+        _FakeCfg3(),
+        _FakeDB(validators, stats),
+        _FakeCAObserved(observed),
+    )
+    assert out["validators"]["active_count"] == 2
+    assert out["validators"]["effective_active_count"] == 3
+    assert out["proof_ok"] is True
 
 
 def test_validators_rotation_needs_three_for_devnet3():

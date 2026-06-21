@@ -1,6 +1,7 @@
 # Start three-node testnet via Docker Compose (Wave 52)
 param(
-    [switch]$NoCloneDb
+    [switch]$NoCloneDb,
+    [switch]$Recovery
 )
 
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -183,6 +184,11 @@ if ($ok1 -and $ok2 -and $ok3) {
     }
     python scripts/verify_p2p_ci.py --mode devnet3 --wait 300
     $verifyExit = $LASTEXITCODE
+    if ($verifyExit -eq 0 -and $Recovery) {
+        Write-Host "Running live node restart/rejoin recovery verification..." -ForegroundColor Gray
+        python scripts/verify_p2p_ci.py --mode devnet3-recovery --wait 300
+        $verifyExit = $LASTEXITCODE
+    }
     if ($verifyExit -eq 0) {
         Write-Host "Restoring P2P mesh after verification..." -ForegroundColor Gray
         Invoke-P2PReconnect

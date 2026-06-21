@@ -35,6 +35,7 @@ DEVNET_URL2 = "http://127.0.0.1:8081"
 DEVNET_URL3 = "http://127.0.0.1:8082"
 DEVNET_URL4 = "http://127.0.0.1:8083"
 DEVNET_URL5 = "http://127.0.0.1:8084"
+_ADMIN_TOKENS: dict[str, str] = {}
 
 
 def _api(url: str, timeout: float = 10) -> dict:
@@ -58,16 +59,48 @@ def _wait_health(base_url: str, max_sec: int = 120) -> bool:
     return False
 
 
+def _admin_token(base_url: str, timeout: float = 10) -> str:
+    base = base_url.rstrip("/")
+    cached = _ADMIN_TOKENS.get(base)
+    if cached:
+        return cached
+    token_resp = _api(f"{base}/auth/token?address=verifier-admin", timeout=timeout)
+    token = str(token_resp.get("token") or "")
+    if not token:
+        raise RuntimeError("admin JWT token unavailable")
+    _ADMIN_TOKENS[base] = token
+    return token
+
+
 def _post_json(base_url: str, path: str, body: dict | None = None, timeout: float = 15) -> dict:
     data = json.dumps(body or {}).encode()
+    base = base_url.rstrip("/")
+    headers = {"Content-Type": "application/json"}
+    token = _ADMIN_TOKENS.get(base)
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(
-        f"{base_url.rstrip('/')}{path}",
+        f"{base}{path}",
         data=data,
         method="POST",
-        headers={"Content-Type": "application/json"},
+        headers=headers,
     )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode())
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode(errors="replace")
+        if exc.code != 401 or "JWT" not in raw:
+            raise
+        token = _admin_token(base, timeout=min(timeout, 10))
+        req = urllib.request.Request(
+            f"{base}{path}",
+            data=data,
+            method="POST",
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode())
 
 
 def _oracle_post(base_url: str, path: str, body: dict, secret: str, timeout: float = 15) -> dict:
@@ -436,6 +469,174 @@ def _restore_p2p_mesh(urls: list[str], expected_peers: int = 2) -> None:
         )
     except Exception:
         print("WARN: post-verify mesh restore status unavailable")
+
+
+def _read_cluster_state(urls: list[str]) -> tuple[list[dict], list[str]]:
+    """Return node statuses and normalized live state roots for recovery assertions."""
+    statuses = [_api(f"{url}/status", timeout=8) for url in urls]
+    roots: list[str] = []
+    for i, url in enumerate(urls):
+        sync = _api(f"{url}/sync/status", timeout=8)
+        root = (sync.get("state_root") or statuses[i].get("state_root") or "").lower()
+        roots.append(root)
+    return statuses, roots
+
+
+def _roots_match(roots: list[str]) -> bool:
+    return bool(roots and roots[0] and all(root == roots[0] for root in roots))
+
+
+def _docker_compose_3node(*args: str, timeout: int = 90) -> bool:
+    cmd = ["docker", "compose", "-f", "docker-compose.devnet-3node.yml", *args]
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=timeout,
+        )
+    except Exception as exc:
+        print(f"FAIL: docker compose {' '.join(args)}: {exc}")
+        return False
+    if proc.returncode != 0:
+        print(f"FAIL: docker compose {' '.join(args)} exited {proc.returncode}")
+        if proc.stdout:
+            print(proc.stdout[-2000:])
+        return False
+    return True
+
+
+def verify_devnet3_recovery(
+    url1: str,
+    url2: str,
+    url3: str,
+    wait_sync_sec: int = 300,
+) -> int:
+    """Wave 62: live Docker node restart/rejoin with persistent unified state."""
+    urls = [url1, url2, url3]
+    for i, url in enumerate(urls, start=1):
+        if not _probe_health(url, timeout=5):
+            print(f"FAIL: node{i} not reachable before recovery drill at {url}")
+            return 1
+
+    print("RECOVERY: stabilizing initial 3-node mesh")
+    _restore_p2p_mesh(urls, expected_peers=2)
+    if not _wait_topology_healthy(url1, expected_peers=2, timeout=90):
+        print("FAIL: initial topology not healthy before recovery drill")
+        return 30
+
+    try:
+        before_statuses, before_roots = _read_cluster_state(urls)
+    except Exception as exc:
+        print(f"FAIL: cannot read initial cluster state: {exc}")
+        return 31
+    if not _roots_match(before_roots):
+        print(f"FAIL: initial state roots differ: {[r[:16] for r in before_roots]}")
+        return 32
+
+    before_heights = [int(st.get("height", 0) or 0) for st in before_statuses]
+    print(
+        "RECOVERY: baseline "
+        f"heights={' / '.join(str(h) for h in before_heights)} "
+        f"root={before_roots[0][:16]}..."
+    )
+
+    print("RECOVERY: stopping node2 container")
+    if not _docker_compose_3node("stop", "node2", timeout=120):
+        return 33
+
+    try:
+        if _wait_health(url2, max_sec=12):
+            print("FAIL: node2 still responds after docker stop")
+            return 34
+
+        print("RECOVERY: checking node1/node3 stay alive while node2 is down")
+        live_ok = False
+        for _ in range(20):
+            try:
+                s1, s3 = [_api(f"{u}/status", timeout=8) for u in (url1, url3)]
+                sync1, sync3 = [_api(f"{u}/sync/status", timeout=8) for u in (url1, url3)]
+                h1 = int(s1.get("height", 0) or 0)
+                h3 = int(s3.get("height", 0) or 0)
+                r1 = (sync1.get("state_root") or s1.get("state_root") or "").lower()
+                r3 = (sync3.get("state_root") or s3.get("state_root") or "").lower()
+                if h1 > 0 and h3 > 0 and abs(h1 - h3) <= 2 and r1 and r1 == r3:
+                    live_ok = True
+                    break
+            except Exception:
+                pass
+            try:
+                _post_json(url1, "/p2p/reconnect", {"timeout": 10}, timeout=15)
+                _post_json(url3, "/p2p/reconnect", {"timeout": 10}, timeout=15)
+            except Exception:
+                pass
+            time.sleep(3)
+        if not live_ok:
+            print("FAIL: node1/node3 did not remain consistent while node2 was down")
+            return 35
+
+        print("RECOVERY: starting node2 container")
+        if not _docker_compose_3node("start", "node2", timeout=120):
+            return 36
+        if not _wait_health(url2, max_sec=180):
+            print("FAIL: node2 did not become healthy after restart")
+            return 37
+
+        print("RECOVERY: waiting for node2 rejoin, catch-up, and root convergence")
+        deadline = time.time() + max(120, wait_sync_sec)
+        final_statuses: list[dict] = []
+        final_roots: list[str] = []
+        while time.time() < deadline:
+            for url in urls:
+                try:
+                    _post_json(url, "/p2p/reconnect", {"timeout": 20}, timeout=30)
+                except Exception:
+                    pass
+            for url in urls[1:]:
+                try:
+                    _post_json(url, "/sync/fast-sync", {"timeout": 120}, timeout=135)
+                    _post_json(url, "/sync/reconcile", {"timeout": 120}, timeout=135)
+                except Exception:
+                    pass
+            try:
+                final_statuses, final_roots = _read_cluster_state(urls)
+                heights = [int(st.get("height", 0) or 0) for st in final_statuses]
+                topo = _api(f"{url1}/p2p/topology", timeout=8)
+                if (
+                    max(heights) - min(heights) <= 2
+                    and min(heights) >= min(before_heights)
+                    and _roots_match(final_roots)
+                    and int(topo.get("peer_count", 0) or 0) >= 2
+                    and bool(topo.get("topology_healthy"))
+                ):
+                    print(
+                        "OK: devnet3 recovery "
+                        f"heights={' / '.join(str(h) for h in heights)} "
+                        f"root={final_roots[0][:16]}... "
+                        f"peer_count={topo.get('peer_count')} topology_healthy={topo.get('topology_healthy')}"
+                    )
+                    return 0
+            except Exception:
+                pass
+            time.sleep(5)
+
+        print("FAIL: node2 did not fully rejoin before timeout")
+        if final_statuses:
+            print(
+                "  heights="
+                + " / ".join(str(st.get("height", "?")) for st in final_statuses)
+            )
+        if final_roots:
+            print(f"  roots={[r[:16] for r in final_roots]}")
+        return 38
+    finally:
+        if not _probe_health(url2, timeout=5):
+            print("RECOVERY: cleanup start node2")
+            _docker_compose_3node("start", "node2", timeout=120)
+            _wait_health(url2, max_sec=120)
+        _restore_p2p_mesh(urls, expected_peers=2)
 
 
 def _wait_topology_healthy(url: str, expected_peers: int, timeout: int = 45) -> bool:
@@ -1721,7 +1922,19 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="P2P verification (2-node or 3-node)")
     parser.add_argument(
         "--mode",
-        choices=("auto", "devnet", "devnet3", "devnet5", "ci", "ci3", "ci-fork", "ci-bridge", "ci-bridge-relayer", "ci-adversarial"),
+        choices=(
+            "auto",
+            "devnet",
+            "devnet3",
+            "devnet3-recovery",
+            "devnet5",
+            "ci",
+            "ci3",
+            "ci-fork",
+            "ci-bridge",
+            "ci-bridge-relayer",
+            "ci-adversarial",
+        ),
         default="auto",
         help="auto; devnet/devnet3/devnet5; ci/ci3",
     )
@@ -1770,6 +1983,10 @@ def main() -> int:
     if mode == "devnet3":
         print(f"Devnet3 mode: checking {args.url1} {args.url2} {args.url3}")
         return verify_triple(args.url1, args.url2, args.url3, wait_sync_sec=args.wait)
+
+    if mode == "devnet3-recovery":
+        print(f"Devnet3 recovery mode: checking {args.url1} {args.url2} {args.url3}")
+        return verify_devnet3_recovery(args.url1, args.url2, args.url3, wait_sync_sec=args.wait)
 
     if mode == "devnet":
         print(f"Devnet mode: checking {args.url1} and {args.url2}")

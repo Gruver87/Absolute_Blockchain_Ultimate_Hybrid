@@ -86,12 +86,65 @@ def _start_prod_server(tmp_path, monkeypatch):
     return base, server, db, path
 
 
+def _start_dev_admin_server(tmp_path, monkeypatch):
+    monkeypatch.setenv("JWT_SECRET", "test-jwt-secret-dev-admin")
+    fd, path = tempfile.mkstemp(suffix=".db", dir=tmp_path)
+    os.close(fd)
+    cfg = Config()
+    cfg.db_path = path
+    cfg.http_port = _free_port()
+    cfg.deployment_mode = "dev"
+    cfg.jwt_enforce_admin = True
+    cfg.bridge_enabled = False
+    cfg.rate_limit_rpm = 0
+    db = Database(path)
+    db.initialize()
+    bc = Blockchain(cfg, db)
+    mp = Mempool(cfg, db)
+    RESTHandler.blockchain = bc
+    RESTHandler.mempool = mp
+    RESTHandler.db = db
+    RESTHandler.config = cfg
+    RESTHandler.wallet = None
+    RESTHandler.bridge = None
+    RESTHandler.p2p = None
+    configure_rate_limiter(cfg)
+    server = ThreadedHTTPServer(("127.0.0.1", cfg.http_port), RESTHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    time.sleep(0.25)
+    base = f"http://127.0.0.1:{cfg.http_port}"
+    return base, server, db, path
+
+
 def test_prod_bridge_confirm_lock_requires_jwt(tmp_path, monkeypatch):
     base, server, db, path = _start_prod_server(tmp_path, monkeypatch)
     try:
         st, body = _post(f"{base}/bridge/confirm-lock", {"tx_hash": "0xabc"})
         assert st == 401
         assert "JWT" in body.get("error", "")
+    finally:
+        server.shutdown()
+        db.close()
+        os.remove(path)
+
+
+def test_dev_admin_sync_reconcile_requires_jwt(tmp_path, monkeypatch):
+    base, server, db, path = _start_dev_admin_server(tmp_path, monkeypatch)
+    try:
+        st, body = _post(f"{base}/sync/reconcile", {"timeout": 30})
+        assert st == 401
+        assert "JWT" in body.get("error", "")
+
+        st, token_body = _get(f"{base}/auth/token?address=verifier-admin")
+        assert st == 200
+        token = token_body["token"]
+        st, _body = _post(
+            f"{base}/sync/reconcile",
+            {"timeout": 30},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert st != 401
     finally:
         server.shutdown()
         db.close()
