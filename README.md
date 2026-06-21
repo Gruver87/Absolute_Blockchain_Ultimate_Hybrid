@@ -15,7 +15,7 @@
 | Field | Value |
 |-------|-------|
 | **Version** | `1.2.0-industrial` |
-| **API Wave** | `60` → check `GET /status` → `api_wave` + `core_real` |
+| **API Wave** | `61` → check `GET /status` → `api_wave` + `core_real` |
 | **Entry point** | `python main.py` |
 | **Storage** | SQLite `data/blockchain.db` |
 | **Chain ID (dev)** | `77777` |
@@ -47,9 +47,9 @@
 | Area | Level | What is verified in-repo |
 |------|-------|--------------------------|
 | **L1 core** | 🟢 Production-quality demo | Blocks, balances, 2% burn, genesis, ECDSA txs, auto-mining ~12–15s |
-| **REST API** | 🟢 | **283+** route handlers, OpenAPI `/docs`, `api_wave=60` |
+| **REST API** | 🟢 | **283+** route handlers, OpenAPI `/docs`, `api_wave=61` |
 | **Web Explorer** | 🟢 | SPA at `:8080` — **32** functional tabs |
-| **P2P networking** | 🟢 Verified | 2 / 3 / 5-node Docker meshes; strict `state_root` on import |
+| **P2P networking** | 🟢 Verified | 2 / 3 / 5-node Docker meshes; strict `state_root`, topology, and rejoin APIs |
 | **TX propagation** | 🟢 | Signed gossip + mempool pull + `/tx/trace/{hash}` |
 | **Multi-validator devnet** | 🟢 | 5 validators, proposer rotation, 3 miners + 2 attesters |
 | **State consistency** | 🟢 | Cross-node harness + auto-repair (`/chain/consistency/*`) |
@@ -83,7 +83,7 @@
 
 ---
 
-## Core L1 + P2P (Waves 47–60)
+## Core L1 + P2P (Waves 47–61)
 
 | Wave | Feature | Key endpoints |
 |------|---------|---------------|
@@ -97,12 +97,14 @@
 | **58** | **Fork CI** | `POST /testnet/fork-exercise`, `--mode ci-fork` partition recovery |
 | **59** | **Bridge relayer e2e** | `POST /bridge2/transfer` → RustBridge, L1 queue, `--mode ci-bridge` |
 | **60** | **Mock L1 + relayer CI** | `GET /testnet/bridge-relayer-proof`, `--mode ci-bridge-relayer` |
+| **61** | **Network hygiene + peer rejoin** | `GET /p2p/topology`, `POST /p2p/reconnect`, stable advertised peer ports |
 | **57** | **Real core** | deterministic proposer, finality quorum, reorg guard, mempool MEV |
 | **56** | **Multi-node proof** | `GET /testnet/multi-node-proof`, `POST /testnet/reorg-exercise`, 3-validator rotation |
 | **55** | **5-validator devnet** | `GET /testnet/validators`, `docker_devnet_5validator.ps1` |
 
 ```powershell
-(Invoke-RestMethod http://localhost:8080/status -UseBasicParsing).api_wave   # → 60
+(Invoke-RestMethod http://localhost:8080/status -UseBasicParsing).api_wave   # → 61
+Invoke-RestMethod http://localhost:8080/p2p/topology -UseBasicParsing
 Invoke-RestMethod http://localhost:8080/testnet/validators -UseBasicParsing
 Invoke-RestMethod http://localhost:8080/chain/consistency/harness -UseBasicParsing
 
@@ -125,7 +127,7 @@ Invoke-RestMethod http://localhost:8081/mempool -UseBasicParsing   # same tx on 
 Invoke-RestMethod http://localhost:8080/tx/trace/{hash} -UseBasicParsing
 ```
 
-Full wave history (37–60): [CHANGELOG.md](CHANGELOG.md)
+Full wave history (37–61): [CHANGELOG.md](CHANGELOG.md)
 
 ---
 
@@ -192,12 +194,12 @@ Expected when healthy:
 
 ```
 OK: peers n1=1 n2=1 heights X / X state_consistent=True state_roots_match=True
-api_wave=60
+api_wave=61
 ```
 
 ### Full audit (recommended before release)
 
-Single script — syntax, tokenomics, Waves 52–60, secrets scan, mega/final audit, pytest, live API, P2P mesh:
+Single script — syntax, tokenomics, Waves 52–61, secrets scan, mega/final audit, pytest, live API, P2P mesh:
 
 ```powershell
 python scripts/full_audit.py --live --p2p
@@ -214,6 +216,7 @@ python scripts/verify_p2p_ci.py --mode devnet5    # 5-validator mesh
 python scripts/verify_p2p_ci.py --mode ci-bridge-relayer
 curl.exe http://localhost:8080/health/live
 curl.exe http://localhost:8080/status
+curl.exe http://localhost:8080/p2p/topology
 curl.exe http://localhost:8080/testnet/validators
 curl.exe http://localhost:8080/chain/consistency/harness
 ```
@@ -290,4 +293,4 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 
 ---
 
-*Last update: June 2026 — API Wave 60, Docker 3-node devnet, bridge relayer CI, 244 unit tests.*
+*Last update: June 2026 — API Wave 61, real P2P topology/rejoin, Docker 3-node devnet, 244 unit tests.*

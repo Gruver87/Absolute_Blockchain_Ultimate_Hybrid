@@ -34,6 +34,7 @@ MSG_HANDSHAKE  = "handshake"
 MSG_HANDSHAKE_ACK = "handshake_ack"
 MSG_PING       = "ping"
 MSG_PONG       = "pong"
+MSG_IDLE       = "__idle__"
 MSG_NEW_BLOCK  = "new_block"
 MSG_GET_BLOCK  = "get_block"
 MSG_GET_BLOCK_BY_HASH = "get_block_by_hash"
@@ -63,6 +64,7 @@ class PeerConnection:
         self.peer_id = peer_id
         self.host = writer.get_extra_info("peername", ("?", 0))[0]
         self.port = 0
+        self.listen_port = 0
         self.chain_id: int = 0
         self.height: int = 0
         self.head: Optional[str] = None  # head block hash (for SyncEngine/GHOST)
@@ -89,7 +91,9 @@ class PeerConnection:
             if not line:
                 return None
             return json.loads(line.decode().strip())
-        except (asyncio.TimeoutError, json.JSONDecodeError, Exception):
+        except asyncio.TimeoutError:
+            return {"type": MSG_IDLE, "data": None}
+        except (json.JSONDecodeError, Exception):
             return None
 
     def close(self):
@@ -116,6 +120,8 @@ class P2PNode:
 
         self.peers: Dict[str, PeerConnection] = {}  # peer_id → PeerConnection
         self._known_addrs: List[str] = []            # host:port для переподключения
+        for peer_addr in getattr(config, "bootstrap_peers", []) or []:
+            self._remember_addr(peer_addr)
         self._server: Optional[asyncio.Server] = None
         self._running = False
         self._loop: Optional[asyncio.AbstractEventLoop] = None
@@ -245,12 +251,18 @@ class P2PNode:
             peer.close()
             return
 
+        old = self.peers.get(peer.peer_id)
+        if old and old is not peer:
+            stale_after = max(15.0, float(getattr(self.config, "peer_timeout", 30) or 30))
+            if time.time() - old.last_seen <= stale_after:
+                peer.close()
+                return
+            old.close()
         self.peers[peer.peer_id] = peer
         print(f"[P2P] Connected: {peer}")
 
         asyncio.create_task(self._sync_with_peer_safe(peer))
         await self._message_loop(peer)
-        self._remove_peer(peer.peer_id)
 
     # ── Исходящие соединения ─────────────────────────────────────────────────
 
@@ -260,8 +272,12 @@ class P2PNode:
         # Не подключаться к самому себе
         if port == self.config.p2p_port and host in ("127.0.0.1", "localhost", "0.0.0.0"):
             return False
+        self._prune_stale_peers()
         # Не дублировать соединения
-        if any(p.host == host and p.port == port for p in self.peers.values()):
+        if any(
+            p.host == host and (p.port == port or p.listen_port == port)
+            for p in self.peers.values()
+        ):
             return False
 
         try:
@@ -277,9 +293,13 @@ class P2PNode:
                 peer.close()
                 return False
 
+            if peer.peer_id in self.peers:
+                self._remember_addr(addr)
+                peer.close()
+                return True
+
             self.peers[peer.peer_id] = peer
-            if addr not in self._known_addrs:
-                self._known_addrs.append(addr)
+            self._remember_addr(addr)
 
             print(f"[P2P] Connected to {peer}")
 
@@ -302,6 +322,7 @@ class P2PNode:
             "height": our_height,
             "head_hash": self.head() or "",
             "node_id": getattr(self.config, "node_id", f"abs-{self.config.p2p_port}"),
+            "p2p_port": int(getattr(self.config, "p2p_port", 0) or 0),
         }
 
         if initiator:
@@ -330,6 +351,9 @@ class P2PNode:
         peer.chain_id = ack.get("chain_id", 0)
         peer.height = ack.get("height", 0)
         peer.head = ack.get("head_hash") or peer.head
+        peer.listen_port = int(ack.get("p2p_port", 0) or peer.port or 0)
+        if peer.host and peer.listen_port:
+            self._remember_addr(f"{peer.host}:{peer.listen_port}")
         await peer.send(MSG_STATUS, {
             "height": our_height,
             "head_hash": self.head() or "",
@@ -340,12 +364,17 @@ class P2PNode:
 
     async def _message_loop(self, peer: PeerConnection):
         """Основной цикл чтения сообщений от пира."""
-        while self._running and peer.peer_id in self.peers:
-            msg = await peer.recv()
-            if msg is None:
-                break
-            peer.touch()
-            await self._handle_message(peer, msg)
+        try:
+            while self._running and self.peers.get(peer.peer_id) is peer:
+                msg = await peer.recv()
+                if msg is None:
+                    break
+                if msg.get("type") == MSG_IDLE:
+                    continue
+                peer.touch()
+                await self._handle_message(peer, msg)
+        finally:
+            self._remove_peer(peer.peer_id, peer)
 
     async def _handle_message(self, peer: PeerConnection, msg: Dict):
         msg_type = msg.get("type")
@@ -396,16 +425,22 @@ class P2PNode:
             await self._handle_mempool_batch(peer, data)
 
         elif msg_type == MSG_GET_PEERS:
-            peer_list = [f"{p.host}:{p.port}" for p in self.peers.values()
-                         if p.peer_id != peer.peer_id]
+            peer_list = [
+                f"{p.host}:{p.listen_port or p.port}" for p in self.peers.values()
+                if p.peer_id != peer.peer_id and (p.listen_port or p.port)
+            ]
             await peer.send(MSG_PEERS, peer_list)
 
         elif msg_type == MSG_PEERS:
             if isinstance(data, list):
                 for addr in data[:10]:  # не больше 10 за раз
-                    parts = addr.split(":")
+                    self._remember_addr(str(addr))
+                    parts = str(addr).rsplit(":", 1)
                     if len(parts) == 2:
-                        asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
+                        try:
+                            asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
+                        except Exception:
+                            pass
 
         elif msg_type == MSG_STATUS:
             if isinstance(data, dict):
@@ -914,6 +949,93 @@ class P2PNode:
             return
         asyncio.run_coroutine_threadsafe(self.reconcile_peers(), self._loop)
 
+    def _remember_addr(self, addr: str) -> None:
+        """Remember a reconnect candidate as host:port."""
+        if not addr or ":" not in addr:
+            return
+        host, port_s = str(addr).rsplit(":", 1)
+        try:
+            port = int(port_s)
+        except Exception:
+            return
+        if not host or port <= 0:
+            return
+        norm = f"{host}:{port}"
+        if norm not in self._known_addrs:
+            self._known_addrs.append(norm)
+
+    def _prune_stale_peers(self, max_age: Optional[float] = None) -> int:
+        """Drop stale peer objects before reconnect/dedup decisions."""
+        now = time.time()
+        if max_age is None:
+            max_age = max(30.0, float(getattr(self.config, "peer_timeout", 30) or 30) * 2)
+        removed = 0
+        for pid, peer in list(self.peers.items()):
+            if now - peer.last_seen > max_age:
+                self._remove_peer(pid, peer)
+                removed += 1
+        return removed
+
+    async def reconnect_known_peers(self) -> Dict:
+        """Actively reconnect bootstrap/known peers and report the result."""
+        pruned = self._prune_stale_peers()
+        candidates = []
+        for addr in list(getattr(self.config, "bootstrap_peers", []) or []) + list(self._known_addrs):
+            if addr not in candidates:
+                candidates.append(addr)
+
+        before = self.peer_count()
+        if not candidates:
+            return {
+                "ok": before > 0,
+                "before": before,
+                "after": before,
+                "attempts": [],
+                "known_addresses": list(self._known_addrs),
+                "message": "no known peer addresses",
+            }
+        attempts = []
+        for addr in candidates:
+            parts = str(addr).rsplit(":", 1)
+            if len(parts) != 2:
+                continue
+            host, port_s = parts
+            try:
+                port = int(port_s)
+            except Exception:
+                attempts.append({"address": addr, "ok": False, "error": "bad_port"})
+                continue
+            already = any(
+                p.host == host and (p.port == port or p.listen_port == port)
+                for p in self.peers.values()
+            )
+            if already:
+                attempts.append({"address": addr, "ok": True, "action": "already_connected"})
+                continue
+            ok = await self.connect_peer(host, port)
+            attempts.append({"address": addr, "ok": bool(ok), "action": "connect"})
+
+        await asyncio.sleep(0.5)
+        return {
+            "ok": self.peer_count() >= before,
+            "before": before,
+            "after": self.peer_count(),
+            "attempts": attempts,
+            "known_addresses": list(self._known_addrs),
+            "pruned_stale": pruned,
+        }
+
+    def reconnect_known_peers_sync(self, timeout: float = 20) -> Dict:
+        """Thread-safe reconnect entrypoint for REST/scripts."""
+        if not self._loop or not self._running:
+            return {"ok": False, "error": "p2p not running"}
+        try:
+            return asyncio.run_coroutine_threadsafe(
+                self.reconnect_known_peers(), self._loop
+            ).result(timeout=timeout)
+        except Exception as exc:
+            return {"ok": False, "error": str(exc), "after": self.peer_count()}
+
     async def request_peer_state_root(self, peer: PeerConnection, height: int = None) -> Optional[Dict]:
         """Request state_root at height from a single peer."""
         h = height if height is not None else self.blockchain.get_height()
@@ -1126,6 +1248,15 @@ class P2PNode:
                     await peer.send(MSG_PING, {"ts": now})
             for pid in dead:
                 self._remove_peer(pid)
+            target_peers = max(1, int(getattr(self.config, "testnet_expected_peers", 1) or 1))
+            if dead and len(self.peers) < target_peers:
+                for addr in self._known_addrs:
+                    parts = addr.rsplit(":", 1)
+                    if len(parts) == 2:
+                        try:
+                            asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
+                        except Exception:
+                            pass
 
     async def _discovery_loop(self):
         """Периодически запрашиваем список пиров у уже подключённых."""
@@ -1134,7 +1265,8 @@ class P2PNode:
             for peer in list(self.peers.values()):
                 await peer.send(MSG_GET_PEERS)
             # Переподключаемся к известным адресам если пиров мало
-            if len(self.peers) < 3:
+            target_peers = max(1, int(getattr(self.config, "testnet_expected_peers", 1) or 1))
+            if len(self.peers) < target_peers:
                 for addr in self._known_addrs:
                     parts = addr.split(":")
                     if len(parts) == 2:
@@ -1164,6 +1296,15 @@ class P2PNode:
                 await peer.send(MSG_STATUS, our_status)
                 if peer.height > our_height:
                     asyncio.create_task(self._sync_with_peer_safe(peer))
+            target_peers = max(1, int(getattr(self.config, "testnet_expected_peers", 1) or 1))
+            if len(self.peers) < target_peers:
+                for addr in list(self._known_addrs):
+                    parts = addr.rsplit(":", 1)
+                    if len(parts) == 2:
+                        try:
+                            asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
+                        except Exception:
+                            pass
 
     async def _solo_node_hint(self):
         """One-time hint when running without peers (normal for solo dev)."""
@@ -1178,7 +1319,9 @@ class P2PNode:
                 f"python main.py --port 5001 --peers 127.0.0.1:{self.config.p2p_port}"
             )
 
-    def _remove_peer(self, peer_id: str):
+    def _remove_peer(self, peer_id: str, expected: Optional[PeerConnection] = None):
+        if expected is not None and self.peers.get(peer_id) is not expected:
+            return
         peer = self.peers.pop(peer_id, None)
         if peer:
             peer.close()
@@ -1192,9 +1335,11 @@ class P2PNode:
                 "id": p.peer_id,
                 "host": p.host,
                 "port": p.port,
+                "listen_port": p.listen_port,
                 "height": p.height,
                 "head": p.head or "",
                 "connected_for": int(time.time() - p.connected_at),
+                "last_seen_age": round(max(0.0, time.time() - p.last_seen), 3),
             }
             for p in self.peers.values()
         ]
@@ -1215,3 +1360,45 @@ class P2PNode:
         if self.sync_engine:
             stats["sync_status"] = self.sync_engine.get_status()
         return stats
+
+    def get_topology(self) -> Dict:
+        """Operational P2P topology for real multi-node devnet diagnostics."""
+        local_height = self.blockchain.get_height() if self.blockchain else 0
+        peers = []
+        now = time.time()
+        for p in self.peers.values():
+            gap = abs(int(p.height or 0) - int(local_height or 0))
+            last_seen_age = max(0.0, now - p.last_seen)
+            health_timeout = max(
+                30.0,
+                float(getattr(self.config, "peer_timeout", 30) or 30) * 2,
+            )
+            peers.append({
+                "peer_id": p.peer_id,
+                "address": f"{p.host}:{p.listen_port or p.port}",
+                "socket_address": f"{p.host}:{p.port}",
+                "listen_port": p.listen_port,
+                "height": p.height,
+                "height_gap": gap,
+                "head": p.head or "",
+                "connected_for_sec": int(now - p.connected_at),
+                "last_seen_age_sec": round(last_seen_age, 3),
+                "health_timeout_sec": int(health_timeout),
+                "healthy": gap <= 2 and last_seen_age < health_timeout,
+            })
+        expected = int(getattr(self.config, "testnet_expected_peers", 0) or 0)
+        return {
+            "node_id": getattr(self.config, "node_id", ""),
+            "chain_id": getattr(self.config, "chain_id", 0),
+            "running": self._running,
+            "local_height": local_height,
+            "local_head": self.head() or "",
+            "peer_count": len(peers),
+            "expected_peers": expected,
+            "topology_healthy": (len(peers) >= expected if expected else True)
+                and all(p["healthy"] for p in peers),
+            "bootstrap_peers": list(getattr(self.config, "bootstrap_peers", []) or []),
+            "known_addresses": list(self._known_addrs),
+            "peers": peers,
+            "state_consistent": self._state_consistent,
+        }

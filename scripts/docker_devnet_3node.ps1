@@ -9,6 +9,56 @@ Set-Location $ProjectRoot
 $composeFile = "docker-compose.devnet-3node.yml"
 Write-Host "Docker 3-node testnet: node1 :8080, node2 :8081, node3 :8082" -ForegroundColor Cyan
 
+function Assert-DevnetPortsAvailable {
+    $ports = @(8080, 8081, 8082, 8545, 8546, 8547, 5000, 5001, 5002, 8766, 8767, 8768)
+    $blocked = @()
+    foreach ($port in $ports) {
+        $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+        foreach ($conn in $conns) {
+            $proc = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
+            $name = if ($proc) { $proc.ProcessName } else { "unknown" }
+            if ($name -ne "com.docker.backend") {
+                $blocked += ":$port PID=$($conn.OwningProcess) $name"
+            }
+        }
+    }
+    if ($blocked.Count -gt 0) {
+        Write-Host "FAIL: devnet host ports are still owned by non-Docker processes:" -ForegroundColor Red
+        $blocked | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
+        Write-Host "Run .\scripts\stop_node.ps1 or close the listed process, then retry." -ForegroundColor Yellow
+        exit 1
+    }
+}
+
+function Assert-DockerApiNode {
+    param([int]$Port, [string]$ExpectedNodeId)
+    try {
+        $st = Invoke-RestMethod "http://127.0.0.1:$Port/status" -UseBasicParsing -TimeoutSec 5
+        if ($st.node_id -ne $ExpectedNodeId) {
+            Write-Host "FAIL: :$Port answered as '$($st.node_id)', expected '$ExpectedNodeId'." -ForegroundColor Red
+            Write-Host "This usually means a local python main.py is intercepting Docker devnet traffic." -ForegroundColor Yellow
+            exit 1
+        }
+    } catch {
+        Write-Host "FAIL: :$Port is not reachable as $ExpectedNodeId" -ForegroundColor Red
+        exit 1
+    }
+}
+
+function Invoke-P2PReconnect {
+    param([int[]]$Ports = @(8080, 8081, 8082))
+    foreach ($port in $Ports) {
+        try {
+            $null = Invoke-RestMethod "http://127.0.0.1:$port/p2p/reconnect" `
+                -Method POST `
+                -Body '{"timeout":20}' `
+                -ContentType "application/json" `
+                -UseBasicParsing `
+                -TimeoutSec 30
+        } catch { }
+    }
+}
+
 if ($NoCloneDb) {
     $env:SKIP_DB_SEED = "1"
     Write-Host "Fresh DB on node2/node3 (-NoCloneDb)" -ForegroundColor Yellow
@@ -40,6 +90,7 @@ Get-CimInstance Win32_Process -Filter "Name = 'python.exe' OR Name = 'python3.ex
     Where-Object { $_.CommandLine -and $_.CommandLine -like '*main.py*' } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Seconds 2
+Assert-DevnetPortsAvailable
 
 Write-Host "Starting node1..." -ForegroundColor Gray
 docker compose -f $composeFile build node1 node2 node3
@@ -111,14 +162,39 @@ $ok3 = Wait-DockerNode -Port 8082 -Label "node3"
 if ($ok1 -and $ok2 -and $ok3) {
     Write-Host "Waiting for P2P mesh (60s)..." -ForegroundColor Gray
     Start-Sleep -Seconds 60
+    Assert-DevnetPortsAvailable
+    Assert-DockerApiNode -Port 8080 -ExpectedNodeId "docker-node-1"
+    Assert-DockerApiNode -Port 8081 -ExpectedNodeId "docker-node-2"
+    Assert-DockerApiNode -Port 8082 -ExpectedNodeId "docker-node-3"
     try {
-        $mesh = Invoke-RestMethod "http://127.0.0.1:8080/testnet/mesh" -UseBasicParsing
+        $mesh = Invoke-RestMethod "http://127.0.0.1:8080/testnet/mesh" -UseBasicParsing -TimeoutSec 10
         Write-Host "testnet/mesh peer_count=$($mesh.peer_count) mesh_healthy=$($mesh.mesh_healthy)" -ForegroundColor Gray
+        if (-not $mesh.mesh_healthy -or [int]$mesh.peer_count -lt 2) {
+            Write-Host "P2P mesh not ready; reconnecting known peers..." -ForegroundColor Yellow
+            Invoke-P2PReconnect
+            Start-Sleep -Seconds 10
+            $mesh = Invoke-RestMethod "http://127.0.0.1:8080/testnet/mesh" -UseBasicParsing -TimeoutSec 10
+            Write-Host "testnet/mesh after reconnect peer_count=$($mesh.peer_count) mesh_healthy=$($mesh.mesh_healthy)" -ForegroundColor Gray
+        }
     } catch {
         Write-Host "testnet/mesh not available yet" -ForegroundColor Yellow
+        Invoke-P2PReconnect
+        Start-Sleep -Seconds 10
     }
     python scripts/verify_p2p_ci.py --mode devnet3 --wait 300
-    exit $LASTEXITCODE
+    $verifyExit = $LASTEXITCODE
+    if ($verifyExit -eq 0) {
+        Write-Host "Restoring P2P mesh after verification..." -ForegroundColor Gray
+        Invoke-P2PReconnect
+        Start-Sleep -Seconds 10
+        try {
+            $topology = Invoke-RestMethod "http://127.0.0.1:8080/p2p/topology" -UseBasicParsing -TimeoutSec 10
+            Write-Host "post-verify topology peer_count=$($topology.peer_count) topology_healthy=$($topology.topology_healthy)" -ForegroundColor Gray
+        } catch {
+            Write-Host "post-verify topology not available" -ForegroundColor Yellow
+        }
+    }
+    exit $verifyExit
 }
 
 Write-Host "Nodes not ready - check: docker compose -f $composeFile logs" -ForegroundColor Yellow

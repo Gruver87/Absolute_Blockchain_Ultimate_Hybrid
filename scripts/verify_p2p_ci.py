@@ -397,9 +397,66 @@ def _pull_peer_mempools(peer_urls: list[str]) -> None:
     """Ask followers to reconcile + pull mempool when tips are aligned."""
     for url in peer_urls:
         try:
-            _post_json(url, "/sync/reconcile", {"timeout": 45}, timeout=60)
+            _post_json(url, "/p2p/reconnect", {"timeout": 10}, timeout=15)
         except Exception:
             pass
+        try:
+            _post_json(url, "/sync/reconcile", {"timeout": 30}, timeout=20)
+        except Exception:
+            pass
+
+
+def _restore_p2p_mesh(urls: list[str], expected_peers: int = 2) -> None:
+    """Best-effort cleanup after recovery drills so live devnet remains peered."""
+    if len(urls) < 2:
+        return
+    for attempt in range(3):
+        for url in urls:
+            try:
+                _post_json(url, "/p2p/reconnect", {"timeout": 20}, timeout=30)
+            except Exception:
+                pass
+        time.sleep(5)
+        try:
+            mesh = _api(f"{urls[0]}/testnet/mesh", timeout=8)
+            peer_count = int(mesh.get("peer_count", 0) or 0)
+            if peer_count >= expected_peers and bool(mesh.get("mesh_healthy")):
+                print(
+                    f"OK: post-verify mesh restored peer_count={peer_count} "
+                    f"mesh_healthy={mesh.get('mesh_healthy')}"
+                )
+                return
+        except Exception:
+            pass
+    try:
+        topo = _api(f"{urls[0]}/p2p/topology", timeout=8)
+        print(
+            f"WARN: post-verify mesh not fully restored peer_count={topo.get('peer_count')} "
+            f"topology_healthy={topo.get('topology_healthy')}"
+        )
+    except Exception:
+        print("WARN: post-verify mesh restore status unavailable")
+
+
+def _wait_topology_healthy(url: str, expected_peers: int, timeout: int = 45) -> bool:
+    """Wait until P2P topology has enough fresh/healthy peers."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            topo = _api(f"{url}/p2p/topology", timeout=8)
+            if (
+                int(topo.get("peer_count", 0) or 0) >= expected_peers
+                and bool(topo.get("topology_healthy"))
+            ):
+                return True
+        except Exception:
+            pass
+        try:
+            _post_json(url, "/p2p/reconnect", {"timeout": 10}, timeout=15)
+        except Exception:
+            pass
+        time.sleep(5)
+    return False
 
 
 def _block_has_tx(base_url: str, tx_hash: str, height: int) -> bool:
@@ -466,6 +523,9 @@ def _verify_tx_propagation_multi(url1: str, target_urls: list[str], s1: dict) ->
     if wave < 51:
         print("SKIP: tx propagation (api_wave < 51)")
         return True
+
+    if not _wait_topology_healthy(url1, expected_peers=max(1, len(target_urls)), timeout=45):
+        print("WARN: P2P topology not fully healthy before tx propagation")
 
     try:
         resp = _send_propagation_tx(url1, peer_urls=target_urls)
@@ -1011,11 +1071,15 @@ def verify_n_nodes(urls: list[str], wait_sync_sec: int = 300) -> int:
             print(f"FAIL: chain_id mismatch node1={cid} node{i}={st.get('chain_id')}")
             return 4
 
+    expected_hub_peers = max(1, len(urls) - 1)
+    _restore_p2p_mesh(urls, expected_peers=expected_hub_peers)
+
     loops = max(20, wait_sync_sec // 3)
     stable_ok = 0
     STABLE_NEED = 3
     MAX_MINING_GAP = 2
     p_counts = [0] * len(urls)
+    last_reconnect = 0.0
     for _ in range(loops):
         try:
             statuses = [_api(f"{u}/status") for u in urls]
@@ -1030,13 +1094,20 @@ def verify_n_nodes(urls: list[str], wait_sync_sec: int = 300) -> int:
                 for i in range(len(urls))
             ]
             roots_match = bool(roots[0] and all(r == roots[0] for r in roots))
-            all_peered = all(c > 0 for c in p_counts)
+            all_peered = p_counts[0] >= expected_hub_peers and all(c > 0 for c in p_counts)
             if all_peered and gap <= MAX_MINING_GAP and roots_match:
                 stable_ok += 1
                 if stable_ok >= STABLE_NEED:
                     break
             else:
                 stable_ok = 0
+                if not all_peered and time.time() - last_reconnect >= 20:
+                    last_reconnect = time.time()
+                    for url in urls:
+                        try:
+                            _post_json(url, "/p2p/reconnect", {"timeout": 20}, timeout=30)
+                        except Exception:
+                            pass
                 for url in urls:
                     try:
                         st = _api(f"{url}/status")
@@ -1070,8 +1141,11 @@ def verify_n_nodes(urls: list[str], wait_sync_sec: int = 300) -> int:
         )
 
     if not _verify_tx_propagation_multi(url1, urls[1:], statuses[0]):
+        _restore_p2p_mesh(urls, expected_peers=max(1, len(urls) - 1))
         return 7
-    return verify_state_consistency(urls, statuses[0])
+    result = verify_state_consistency(urls, statuses[0])
+    _restore_p2p_mesh(urls, expected_peers=max(1, len(urls) - 1))
+    return result
 
 
 def verify_triple(url1: str, url2: str, url3: str, wait_sync_sec: int = 300) -> int:

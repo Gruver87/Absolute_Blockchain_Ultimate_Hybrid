@@ -8,7 +8,7 @@
 > **Версия:** `1.2.0-industrial` (unified node)  
 > **Автор:** Uladzimir Dabranski (Gruver87)  
 > **Обновлено:** 2026-06-21  
-> **API Wave:** `60`  
+> **API Wave:** `61`
 > **Статус:** учебный проект, не production mainnet  
 > **Тесты:** `244 passed, 1 skipped` (`pytest tests/unit/ -q`)
 
@@ -18,7 +18,7 @@
 
 > Полная версия: **Часть 0** в [`docs/ALL_COMMANDS.txt`](ALL_COMMANDS.txt)
 
-**Это учебный проект** — не mainnet, не аудит, ABS не листинг. Проверено: **244 unit tests**, **API Wave 60**, **32 вкладки UI**, Docker 2/3/5-node devnet P2P sync OK.
+**Это учебный проект** — не mainnet, не аудит, ABS не листинг. Проверено: **244 unit tests**, **API Wave 61**, **32 вкладки UI**, Docker 2/3/5-node devnet P2P sync/rejoin OK.
 
 ### Wave 38 (EVM)
 - **BLOCKHASH**, **CALLCODE** opcodes
@@ -74,6 +74,8 @@ python scripts/mega_audit.py
 python scripts/verify_p2p_ci.py --mode devnet --wait 240
 python scripts/verify_p2p_ci.py --mode devnet3 --wait 300
 python scripts/verify_p2p_ci.py --mode ci-bridge-relayer
+curl http://localhost:8080/p2p/topology
+curl -X POST http://localhost:8080/p2p/reconnect -H "Content-Type: application/json" -d "{\"timeout\":20}"
 ```
 
 ---

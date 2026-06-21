@@ -87,6 +87,7 @@ _DEV_PUBLIC_POST = frozenset({
     "/transactions", "/tx/send", "/devnet/faucet", "/pools/dao/vote", "/devnet/pool-spend",
     "/bridge/confirm-lock", "/bridge/confirm-pending", "/bridge/dev-confirm-pending",
     "/bridge/lock", "/bridge/confirm", "/bridge2/transfer",
+    "/p2p/reconnect",
     "/sync/fast-sync", "/sync/reconcile",
     "/chain/consistency/repair", "/chain/consistency/repair",
     "/testnet/reorg-exercise",
@@ -111,6 +112,8 @@ _RATE_LIMIT_EXEMPT_PATHS = frozenset({
     "/status",
     "/peers",
     "/network/peers",
+    "/p2p/topology",
+    "/p2p/peer-score",
     "/sync/status",
     "/testnet/mesh",
     "/testnet/fork-status",
@@ -165,6 +168,8 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/sharding/pending", "summary": "Pending cross-shard transactions"},
     {"method": "GET", "path": "/peers", "summary": "Connected P2P peers (alias)"},
     {"method": "GET", "path": "/network/peers", "summary": "Connected P2P peers"},
+    {"method": "GET", "path": "/p2p/topology", "summary": "Live P2P topology and rejoin candidates (Wave 61)"},
+    {"method": "POST", "path": "/p2p/reconnect", "summary": "Reconnect bootstrap/known P2P peers (dev, Wave 61)"},
     {"method": "GET", "path": "/testnet/mesh", "summary": "P2P mesh health (3-node testnet)"},
     {"method": "GET", "path": "/testnet/fork-status", "summary": "Fork heads, gaps, slashing summary (Wave 53)"},
     {"method": "GET", "path": "/slashing/events", "summary": "Persisted slash events from SQLite"},
@@ -749,7 +754,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
-                    "api_wave": 60,
+                    "api_wave": 61,
                     "core_real": {
                         "deterministic_proposer": True,
                         "finality_quorum_live": True,
@@ -1034,6 +1039,18 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "solo_mode": len(peers_info) == 0,
                     "bootstrap_peers": getattr(cfg, "bootstrap_peers", []),
                 })
+
+            elif path in ("/p2p/topology", "/p2p/peer-score"):
+                if p2p and hasattr(p2p, "get_topology"):
+                    self._json(p2p.get_topology())
+                else:
+                    self._json({
+                        "node_id": getattr(cfg, "node_id", ""),
+                        "running": False,
+                        "peer_count": 0,
+                        "topology_healthy": False,
+                        "peers": [],
+                    })
 
             elif path == "/network/stats":
                 self._json(p2p.get_stats() if p2p else {})
@@ -2221,7 +2238,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 self._json({
                     "count": len(events),
                     "events": events,
-                    "api_wave": 60,
+                    "api_wave": 61,
                 })
 
             elif path == "/sync/status":
@@ -4259,6 +4276,21 @@ class RESTHandler(BaseHTTPRequestHandler):
                 else:
                     self._json({"success": False, "error": "finalize_checkpoint not available"})
 
+            # ── P2P operational reconnect (Wave 61) ──────────────────────────
+            elif path == "/p2p/reconnect":
+                p2p = self.__class__.p2p
+                if not p2p or not hasattr(p2p, "reconnect_known_peers_sync"):
+                    self._error(503, "P2P reconnect not available"); return
+                timeout = max(5.0, min(60.0, float(body.get("timeout", 20) or 20)))
+                detail = p2p.reconnect_known_peers_sync(timeout=timeout)
+                topology = p2p.get_topology() if hasattr(p2p, "get_topology") else {}
+                self._json({
+                    "success": bool(detail.get("ok")),
+                    "message": "P2P reconnect finished",
+                    "detail": detail,
+                    "topology": topology,
+                })
+
             # ── Sync: fast sync, add/remove peer ─────────────────────────────
             elif path == "/sync/fast-sync":
                 p2p = self.__class__.p2p
@@ -4349,7 +4381,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "reorg_safe": bool(
                         before_root == after_root and harness.get("harness_healthy")
                     ),
-                    "api_wave": 60,
+                    "api_wave": 61,
                 })
 
             elif path == "/testnet/fork-exercise":
@@ -4885,7 +4917,7 @@ def _build_testnet_mesh(p2p, bc, cfg) -> Dict:
         "bootstrap_peers": getattr(cfg, "bootstrap_peers", []),
         "peers": peers,
         "testnet_mode": "3-node" if expected_peers >= 2 else "multi",
-        "api_wave": 60,
+        "api_wave": 61,
     }
 
 
@@ -4946,7 +4978,7 @@ def _build_testnet_fork_status(p2p, bc, cfg, db=None) -> Dict:
         "slash_events_count": len(slash_events),
         "recent_slash_events": slash_events[:5],
         "peers": peers,
-        "api_wave": 60,
+        "api_wave": 61,
     }
 
 
@@ -5007,7 +5039,7 @@ def _build_testnet_fork_exercise(p2p, bc, cfg, db=None, run_reconcile: bool = Fa
         "harness_healthy": bool(harness.get("harness_healthy")),
         "fork_recovered": fork_recovered if run_reconcile else None,
         "needs_recovery": not before.get("consensus_healthy") or before.get("fork_detected"),
-        "api_wave": 60,
+        "api_wave": 61,
     }
 
 
@@ -5123,7 +5155,7 @@ def _build_state_consistency_harness(p2p, bc, cfg, db=None) -> Dict:
         "harness_healthy": harness_healthy,
         "failed_checks": [c["id"] for c in checks if not c["ok"]],
         "policy": policy,
-        "api_wave": 60,
+        "api_wave": 61,
     }
 
 
@@ -5159,7 +5191,7 @@ def _build_testnet_validators_status(db, cfg, bc) -> Dict:
         "validators": validators,
         "manifest": getattr(cfg, "testnet_validators_manifest", ""),
         "validator_index": int(getattr(cfg, "testnet_validator_index", 0) or 0),
-        "api_wave": 60,
+        "api_wave": 61,
     }
 
 
@@ -5243,7 +5275,7 @@ def _build_testnet_multi_node_proof(p2p, bc, cfg, db, consensus_adapter) -> Dict
         "checks": checks,
         "proof_ok": proof_ok,
         "failed_checks": [c["id"] for c in checks if not c["ok"]],
-        "api_wave": 60,
+        "api_wave": 61,
     }
 
 
@@ -5386,7 +5418,7 @@ def _build_l2_status(handler_cls) -> Dict:
         m.get("persisted") for m in modules.values() if isinstance(m, dict)
     )
     return {
-        "api_wave": 60,
+        "api_wave": 61,
         "l2_persisted": persisted,
         "nft_persisted": nft_persisted,
         "core": {
@@ -5507,7 +5539,7 @@ def _build_testnet_bridge_relayer_proof(cfg, db, bridge) -> Dict:
     proof_ok = bridge_on and oracle_on and rust_path
 
     return {
-        "api_wave": 60,
+        "api_wave": 61,
         "bridge_enabled": bridge_on,
         "bridge_mode": getattr(cfg, "bridge_mode", "simulator"),
         "oracle_hmac_configured": oracle_on,

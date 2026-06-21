@@ -2,11 +2,19 @@
 
 Все значимые изменения документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/).
 
-**Текущая волна API:** `api_wave = 60` (проверка: `GET /status`)
+**Текущая волна API:** `api_wave = 61` (проверка: `GET /status`)
 
 ---
 
-## [1.2.0-industrial] — Wave 37–60 (июнь 2026)
+## [1.2.0-industrial] — Wave 37–61 (июнь 2026)
+
+### Wave 61 — Network hygiene + real peer rejoin
+
+- P2P handshake now advertises each node's real listening `p2p_port`, so peer discovery/rejoin stores stable node addresses instead of ephemeral TCP socket ports
+- `GET /p2p/topology` / `GET /p2p/peer-score` — live peer graph, known rejoin candidates, height gaps, last-seen ages, and topology health
+- `POST /p2p/reconnect` — actively reconnect bootstrap/known peers from the unified node runtime
+- `scripts/docker_devnet_3node.ps1` — host-port guard prevents local `python main.py` from being mixed with Docker devnet ports
+- **`api_wave` → 61**
 
 ### Wave 60 — Mock L1 RPC + relayer live e2e
 
