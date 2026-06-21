@@ -112,7 +112,7 @@ Invoke-RestMethod http://localhost:8080/chain/consistency/harness -UseBasicParsi
 .\scripts\docker_devnet_5validator.ps1
 python scripts/verify_p2p_ci.py --mode devnet5
 
-# 3-node testnet (Wave 60 verified):
+# 3-node testnet (Wave 61 verified):
 .\scripts\docker_devnet_3node.ps1
 python scripts/verify_p2p_ci.py --mode devnet3 --wait 300
 
