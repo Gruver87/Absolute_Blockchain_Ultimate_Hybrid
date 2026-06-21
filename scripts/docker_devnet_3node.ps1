@@ -30,9 +30,10 @@ if (-not $dockerOk) {
 }
 
 Write-Host "Stopping conflicting 2-node compose (if any)..." -ForegroundColor Gray
-docker compose -f docker-compose.devnet-rust.yml down 2>$null | Out-Null
-docker compose -f docker-compose.devnet.yml down 2>$null | Out-Null
-docker compose -f $composeFile down -v 2>$null | Out-Null
+docker compose -f docker-compose.devnet-rust.yml down -v --remove-orphans 2>$null | Out-Null
+docker compose -f docker-compose.devnet.yml down -v --remove-orphans 2>$null | Out-Null
+docker compose -f docker-compose.yml down -v --remove-orphans 2>$null | Out-Null
+docker compose -f $composeFile down -v --remove-orphans 2>$null | Out-Null
 
 Write-Host "Stopping local Python nodes..." -ForegroundColor Gray
 Get-CimInstance Win32_Process -Filter "Name = 'python.exe' OR Name = 'python3.exe'" -ErrorAction SilentlyContinue |
@@ -83,9 +84,9 @@ if (-not $NoCloneDb) {
 
 Write-Host "Starting node1 + node2 + node3..." -ForegroundColor Gray
 if (-not $NoCloneDb) {
-    docker compose -f $composeFile up -d --force-recreate
+    docker compose -f $composeFile up -d --force-recreate --remove-orphans
 } else {
-    docker compose -f $composeFile up -d
+    docker compose -f $composeFile up -d --remove-orphans
 }
 if ($LASTEXITCODE -ne 0) { exit 1 }
 

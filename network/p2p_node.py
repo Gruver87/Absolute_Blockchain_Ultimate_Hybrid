@@ -682,14 +682,14 @@ class P2PNode:
         if accepted:
             print(f"[P2P] Mempool sync from {peer_id[:8]}: +{accepted} tx(s)")
 
-    async def _sync_mempool_with_peer(self, peer: PeerConnection):
+    async def _sync_mempool_with_peer(self, peer: PeerConnection, timeout: float = 12):
         """Pull peer mempool when chain tips are aligned (real pending tx relay)."""
         if abs(peer.height - self.blockchain.get_height()) > 2:
             return
         msg = await self._wait_peer_response(
             peer,
             (MSG_MEMPOOL,),
-            timeout=12,
+            timeout=timeout,
             presend=lambda: peer.send(MSG_GET_MEMPOOL, {}),
         )
         if msg and msg.get("type") == MSG_MEMPOOL:
@@ -889,6 +889,8 @@ class P2PNode:
                 else:
                     entry["ok"] = True
                     entry["action"] = "ahead_of_peer"
+                if abs(int(peer.height or 0) - int(self.blockchain.get_height() or 0)) <= 2:
+                    await self._sync_mempool_with_peer(peer, timeout=3)
             except Exception as exc:
                 entry["error"] = str(exc)
             results.append(entry)
