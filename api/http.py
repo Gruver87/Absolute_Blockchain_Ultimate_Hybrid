@@ -155,6 +155,39 @@ def _bridge_for_request(handler_cls, cfg):
         return None
     return rust_bridge or getattr(handler_cls, "cross_bridge", None)
 
+
+def _rust_bridge_health(cfg) -> Dict:
+    """Return Rust bridge CLI health for readiness and metrics."""
+    enabled = bool(getattr(cfg, "bridge_enabled", False)) if cfg else False
+    mode = getattr(cfg, "bridge_mode", "unknown") if cfg else "unknown"
+    required = bool(enabled and mode == "rust" and _is_production_cfg(cfg))
+    out = {
+        "enabled": enabled,
+        "mode": mode,
+        "required": required,
+        "ok": True,
+        "path": "",
+        "error": "",
+    }
+    if not enabled or mode != "rust":
+        return out
+
+    try:
+        from bridge.health import check_rust_bridge_binary
+        resolve = getattr(cfg, "resolve_rust_bridge_path", None)
+        path = resolve() if callable(resolve) else getattr(cfg, "rust_bridge_path", "")
+        status = check_rust_bridge_binary(path, timeout=1.5)
+        out.update({
+            "ok": bool(status.get("ok")),
+            "path": status.get("path", path),
+            "error": status.get("error", ""),
+        })
+        if status.get("response"):
+            out["response"] = status["response"]
+    except Exception as exc:
+        out.update({"ok": False, "error": str(exc)})
+    return out
+
 # Devnet / probes: не считаем в rate limit (start_two_nodes, devnet_status, K8s)
 _RATE_LIMIT_EXEMPT_PATHS = frozenset({
     "/status",
@@ -208,6 +241,7 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/status", "summary": "Node status"},
     {"method": "GET", "path": "/health/live", "summary": "Liveness probe"},
     {"method": "GET", "path": "/health/ready", "summary": "Readiness probe"},
+    {"method": "GET", "path": "/native/crypto", "summary": "Rust/PyO3 native crypto diagnostics"},
     {"method": "GET", "path": "/tokenomics", "summary": "ABS tokenomics"},
     {"method": "GET", "path": "/founder", "summary": "Founder allocation"},
     {"method": "GET", "path": "/allocation", "summary": "Genesis allocation"},
@@ -680,6 +714,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 native_crypto = native.native_crypto_status(
                     required=bool(getattr(cfg, "require_native_crypto", False))
                 )
+                bridge_health = _rust_bridge_health(cfg)
                 checks = {
                     "blockchain": bc is not None,
                     "database": db is not None,
@@ -689,12 +724,18 @@ class RESTHandler(BaseHTTPRequestHandler):
                         if native_crypto["required"]
                         else True
                     ),
+                    "rust_bridge": (
+                        bool(bridge_health.get("ok"))
+                        if bridge_health.get("required")
+                        else True
+                    ),
                 }
                 ready = all(checks.values())
                 payload = {
                     "status": "ready" if ready else "not_ready",
                     "checks": checks,
                     "native_crypto": native_crypto,
+                    "rust_bridge": bridge_health,
                     "height": bc.get_height() if bc else 0,
                 }
                 if ready:
@@ -719,6 +760,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "Metrics collector unavailable")
                     return
                 validators = db.get_validators() if db else []
+                from crypto import native
+                native_crypto = native.native_crypto_status(
+                    required=bool(getattr(cfg, "require_native_crypto", False))
+                )
+                bridge_health = _rust_bridge_health(cfg)
                 text = mc.render_prometheus(
                     height=bc.get_height() if bc else 0,
                     peers=p2p.peer_count() if p2p else 0,
@@ -726,6 +772,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                     validators=len(validators),
                     deployment_mode=getattr(cfg, "deployment_mode", "dev"),
                     node_id=getattr(cfg, "node_id", "node-1"),
+                    native_crypto=native_crypto,
+                    bridge_health=bridge_health,
                 )
                 body = text.encode()
                 self.send_response(200)
@@ -733,6 +781,23 @@ class RESTHandler(BaseHTTPRequestHandler):
                 self.send_header("Content-Length", len(body))
                 self.end_headers()
                 self.wfile.write(body)
+                return
+
+            if path == "/native/crypto":
+                from crypto import native
+                native_crypto = native.native_crypto_status(
+                    required=bool(getattr(cfg, "require_native_crypto", False))
+                )
+                self._json({
+                    "native_crypto": native_crypto,
+                    "ready": (
+                        native_crypto["available"] and native_crypto["self_test"]
+                        if native_crypto["required"]
+                        else True
+                    ),
+                    "node_id": getattr(cfg, "node_id", "node-1"),
+                    "deployment_mode": getattr(cfg, "deployment_mode", "dev"),
+                })
                 return
 
             # ── favicon (browsers always request it) ─────────────────────────
@@ -805,6 +870,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 native_crypto = native.native_crypto_status(
                     required=bool(getattr(cfg, "require_native_crypto", False))
                 )
+                bridge_health = _rust_bridge_health(cfg)
                 self._json({
                     "status": "running",
                     "node_version": cfg.node_version,
@@ -844,6 +910,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
                     "native_crypto": native_crypto,
+                    "rust_bridge": bridge_health,
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
                     "api_wave": 61,
                     "core_real": {
@@ -5856,6 +5923,7 @@ def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
         }
     except Exception:
         overview["l1_rpc"] = {"eth_configured": False}
+    overview["rust_bridge_health"] = _rust_bridge_health(cfg)
     if rb and hasattr(rb, "get_stats"):
         overview["rust_bridge"] = rb.get_stats()
         overview["bridge_fees"] = overview["rust_bridge"].get("bridge_fees", {})

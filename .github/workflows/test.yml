@@ -12,7 +12,7 @@ on:
 
 jobs:
   test:
-    name: Educational Node Checks
+    name: Hybrid Node Checks
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -38,6 +38,14 @@ jobs:
 
     - name: Build native crypto
       run: bash scripts/build_native.sh
+
+    - name: Build Rust bridge CLI
+      run: |
+        source "$HOME/.cargo/env"
+        bash scripts/build_bridge.sh
+
+    - name: Native crypto required self-test
+      run: python -c "from crypto import native; s=native.native_crypto_status(required=True); assert s['available'] and s['self_test'], s; print('OK native:', s)"
 
     - name: Secret scan (block keys in repo)
       run: python scripts/check_secrets.py
@@ -82,15 +90,20 @@ jobs:
           tests/unit/test_bridge_relayer.py \
           -q --tb=short
 
-    - name: Build Rust bridge CLI
+    - name: Hybrid native and bridge critical tests
       if: runner.os == 'Linux' && matrix.python-version == '3.12'
       run: |
-        source "$HOME/.cargo/env"
-        bash scripts/build_bridge.sh
-
-    - name: Rust bridge CLI and native crypto test
-      if: runner.os == 'Linux' && matrix.python-version == '3.12'
-      run: pytest tests/unit/test_rust_bridge_cli.py tests/unit/test_rust_bridge_e2e.py tests/unit/test_native_crypto.py tests/unit/test_state_root_native.py tests/unit/test_secp256k1.py -q
+        pytest \
+          tests/unit/test_rust_bridge_cli.py \
+          tests/unit/test_rust_bridge_e2e.py \
+          tests/unit/test_native_crypto.py \
+          tests/unit/test_state_root_native.py \
+          tests/unit/test_secp256k1.py \
+          tests/unit/test_chain_integrity.py \
+          tests/unit/test_api.py \
+          tests/unit/test_prod_config.py \
+          tests/unit/test_bridge_health.py \
+          -q
 
     - name: Docker prod image build (smoke)
       if: matrix.python-version == '3.12'

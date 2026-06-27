@@ -36,7 +36,11 @@ class MetricsCollector:
         validators: int = 0,
         deployment_mode: str = "dev",
         node_id: str = "node-1",
+        native_crypto: Optional[dict[str, Any]] = None,
+        bridge_health: Optional[dict[str, Any]] = None,
     ) -> str:
+        native_crypto = native_crypto or {}
+        bridge_health = bridge_health or {}
         lines = [
             "# HELP abs_uptime_seconds Node uptime",
             "# TYPE abs_uptime_seconds gauge",
@@ -60,5 +64,46 @@ class MetricsCollector:
             "# TYPE abs_errors_total counter",
             f"abs_errors_total{{node_id=\"{node_id}\"}} {self.errors}",
             f"abs_deployment_mode{{node_id=\"{node_id}\",mode=\"{deployment_mode}\"}} 1",
+            "# HELP abs_native_crypto_available Native Rust/PyO3 crypto module availability",
+            "# TYPE abs_native_crypto_available gauge",
+            (
+                f"abs_native_crypto_available{{node_id=\"{node_id}\"}} "
+                f"{1 if native_crypto.get('available') else 0}"
+            ),
+            "# HELP abs_native_crypto_required Whether this node requires native crypto",
+            "# TYPE abs_native_crypto_required gauge",
+            (
+                f"abs_native_crypto_required{{node_id=\"{node_id}\"}} "
+                f"{1 if native_crypto.get('required') else 0}"
+            ),
+            "# HELP abs_native_crypto_self_test Native crypto self-test status",
+            "# TYPE abs_native_crypto_self_test gauge",
+            (
+                f"abs_native_crypto_self_test{{node_id=\"{node_id}\"}} "
+                f"{1 if native_crypto.get('self_test') else 0}"
+            ),
+            "# HELP abs_rust_bridge_enabled Whether the Rust bridge path is enabled",
+            "# TYPE abs_rust_bridge_enabled gauge",
+            (
+                f"abs_rust_bridge_enabled{{node_id=\"{node_id}\"}} "
+                f"{1 if bridge_health.get('enabled') and bridge_health.get('mode') == 'rust' else 0}"
+            ),
+            "# HELP abs_rust_bridge_required Whether readiness requires the Rust bridge",
+            "# TYPE abs_rust_bridge_required gauge",
+            (
+                f"abs_rust_bridge_required{{node_id=\"{node_id}\"}} "
+                f"{1 if bridge_health.get('required') else 0}"
+            ),
+            "# HELP abs_rust_bridge_ok Rust bridge JSON smoke-test status",
+            "# TYPE abs_rust_bridge_ok gauge",
+            (
+                f"abs_rust_bridge_ok{{node_id=\"{node_id}\"}} "
+                f"{1 if bridge_health.get('ok') else 0}"
+            ),
         ]
+        for kernel in native_crypto.get("kernels", []):
+            safe_kernel = str(kernel).replace("\\", "\\\\").replace('"', '\\"')
+            lines.append(
+                f"abs_native_crypto_kernel_enabled{{node_id=\"{node_id}\",kernel=\"{safe_kernel}\"}} 1"
+            )
         return "\n".join(lines) + "\n"

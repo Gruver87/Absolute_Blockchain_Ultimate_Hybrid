@@ -386,6 +386,17 @@ class Config:
             elif weak_secret(jwt_secret):
                 errors.append("prod JWT_SECRET is placeholder or too short")
         if self.is_production and self.bridge_enabled:
+            if self.bridge_mode == "rust":
+                try:
+                    from bridge.health import check_rust_bridge_binary
+                    bridge_status = check_rust_bridge_binary(self.resolve_rust_bridge_path())
+                    if not bridge_status.get("ok"):
+                        errors.append(
+                            "prod bridge rust binary smoke-test failed: "
+                            + str(bridge_status.get("error") or bridge_status)
+                        )
+                except Exception as e:
+                    errors.append(f"prod bridge rust binary smoke-test failed: {e}")
             if not self.bridge_oracle_secret:
                 errors.append("prod bridge requires BRIDGE_ORACLE_SECRET for relayer callbacks")
             elif weak_secret(self.bridge_oracle_secret):

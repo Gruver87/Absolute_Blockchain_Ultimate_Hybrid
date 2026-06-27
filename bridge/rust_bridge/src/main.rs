@@ -126,7 +126,11 @@ fn make_proof_id(command: &str, args: &serde_json::Value) -> String {
     format!("prf_{}", &hex::encode(digest)[..24])
 }
 
-fn verify_l1_if_present(_command: &str, chain: &Option<String>, args: &serde_json::Value) -> Result<u32, String> {
+fn verify_l1_if_present(
+    _command: &str,
+    chain: &Option<String>,
+    args: &serde_json::Value,
+) -> Result<u32, String> {
     let need = min_confirmations();
     let chain_name = chain.clone().unwrap_or_else(|| "ethereum".into());
     let rpc = resolve_rpc(&chain_name);
@@ -135,14 +139,17 @@ fn verify_l1_if_present(_command: &str, chain: &Option<String>, args: &serde_jso
         return Err(format!("l1_tx_hash required for {chain_name}"));
     }
     if rpc.is_some() && l1_tx.is_none() {
-        return Err(format!("l1_tx_hash required when RPC configured for {chain_name}"));
+        return Err(format!(
+            "l1_tx_hash required when RPC configured for {chain_name}"
+        ));
     }
     let l1_tx = match l1_tx {
         Some(t) => t,
         None => return Ok(need),
     };
     let rpc = rpc.ok_or_else(|| format!("no RPC for chain {chain_name}"))?;
-    let conf = get_tx_confirmations(&rpc, &l1_tx).ok_or_else(|| "L1 RPC check failed".to_string())?;
+    let conf =
+        get_tx_confirmations(&rpc, &l1_tx).ok_or_else(|| "L1 RPC check failed".to_string())?;
     if conf < need {
         return Err(format!("L1 confirmations {conf} < required {need}"));
     }
@@ -222,8 +229,8 @@ fn main() {
         }
     };
     let resp = handle(req);
+    println!("{}", serde_json::to_string(&resp).unwrap_or_default());
     if resp.error.is_some() {
         std::process::exit(1);
     }
-    println!("{}", serde_json::to_string(&resp).unwrap_or_default());
 }

@@ -204,3 +204,10 @@ def test_prod_example_json_structure():
     assert cfg.require_native_crypto is True
     assert cfg.feature_mev is False
     assert cfg.feature_ai_agents is False
+
+
+def test_prometheus_alerts_include_rust_bridge_readiness():
+    root = Path(__file__).resolve().parents[2]
+    alerts = (root / "deploy" / "prometheus" / "alerts.yml").read_text(encoding="utf-8")
+    assert "AbsoluteRustBridgeDown" in alerts
+    assert "abs_rust_bridge_required == 1 and abs_rust_bridge_ok == 0" in alerts

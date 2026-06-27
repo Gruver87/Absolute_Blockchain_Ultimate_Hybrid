@@ -32,6 +32,8 @@ docker compose -f docker-compose.observability.yml up -d
 - `abs_mempool_size` — мемпул
 - `abs_http_requests_total` — HTTP запросы
 - `abs_errors_total` — ошибки API
+- `abs_native_crypto_available` / `abs_native_crypto_self_test` — состояние PyO3/Rust crypto
+- `abs_rust_bridge_required` / `abs_rust_bridge_ok` — production readiness Rust bridge CLI
 
 ## Алерты
 
@@ -41,6 +43,7 @@ docker compose -f docker-compose.observability.yml up -d
 - `AbsoluteNoPeers` — 0 пиров 10m
 - `AbsoluteMempoolBacklog` — mempool > 500
 - `AbsoluteHighErrorRate` — рост ошибок
+- `AbsoluteRustBridgeDown` — production Rust bridge не прошёл JSON smoke-test
 
 ## JSON-логи
 

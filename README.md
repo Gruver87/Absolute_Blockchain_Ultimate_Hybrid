@@ -6,20 +6,26 @@
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Production--hardened%20R%26D-blue)]()
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/Unit%20Tests-258%20passed-brightgreen)](tests/unit/)
+[![Tests](https://img.shields.io/badge/Full%20Audit-421%20passed-brightgreen)](scripts/check_hybrid_full.ps1)
+[![Hybrid Critical](https://img.shields.io/badge/Hybrid%20Critical-63%20passed-brightgreen)](tests/unit/)
 [![Audit](https://img.shields.io/badge/Full%20Audit-passing-brightgreen)](scripts/check_everything.ps1)
 [![Release](https://img.shields.io/badge/Release-Hybrid%20R%26D-blue)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid)
 
 **Repo:** [github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid)
 
+**Author:** **ULADZIMIR DABRANSKI** (D.U.P.)<br>
+**Project owner:** Gruver87
+
 | Field | Value |
 |-------|-------|
 | **Version** | `1.2.0-industrial` |
+| **Author** | **ULADZIMIR DABRANSKI** |
 | **API Wave** | 61; check GET /status fields: api_wave, core_real |
 | **Entry point** | `python main.py` |
 | **Storage** | SQLite `data/blockchain.db` |
 | **Chain ID (dev)** | `77777` |
 | **Native layer** | Rust/PyO3 `abs_native`: SHA-256, Merkle, state root, secp256k1 verify |
+| **Production gate** | `.\scripts\check_hybrid_full.ps1` / `bash scripts/check_hybrid_full.sh` |
 
 | Docs | Link |
 |------|------|
@@ -61,7 +67,7 @@
 | **EVM / L2 / Bridge** | 🟡 Mixed | EVM subset and Rust bridge path are integrated; dev-only L2/offchain modules are blocked by prod profile |
 | **Production mainnet** | 🔴 Not launched | Requires external audit, live infra, validator operations, and L1 bridge RPC/secrets |
 
-**Quality gate (Jun 2026):** `258 passed, 1 skipped` locally · **`.\scripts\check_everything.ps1`** → full audit OK (`324 passed, 1 skipped` inside audit) · `cargo check` OK for Rust bridge
+**Quality gate (Jun 2026):** **`.\scripts\check_hybrid_full.ps1`** → full audit OK (`421 passed`) + hybrid critical OK (`63 passed`) · Rust/PyO3 native crypto self-test OK · Rust bridge JSON smoke-test OK
 
 ---
 
@@ -166,8 +172,8 @@ Config: `runtime/tokenomics.py` · API: `GET /tokenomics`
 ### Install
 
 ```bash
-git clone https://github.com/Gruver87/absolute-blockchain-ultimate.git
-cd absolute-blockchain-ultimate
+git clone https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid.git
+cd Absolute_Blockchain_Ultimate_Hybrid
 pip install -r requirements.txt
 cp .env.example .env
 cp wallet.example.json data/wallet.json
@@ -177,12 +183,16 @@ Build the real Rust/PyO3 crypto extension for local high-throughput runs:
 
 ```powershell
 .\scripts\build_native.ps1
+.\scripts\build_bridge.ps1
+.\scripts\check_hybrid_full.ps1
 ```
 
 Linux/macOS:
 
 ```bash
 bash scripts/build_native.sh
+bash scripts/build_bridge.sh
+bash scripts/check_hybrid_full.sh
 ```
 
 The `abs_native` extension accelerates deterministic consensus kernels behind
@@ -305,6 +315,7 @@ Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Honest feature list: [d
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/status` | `api_wave`, peers, bridge, flags |
+| GET | `/native/crypto` | Rust/PyO3 native crypto availability, self-test, kernels |
 | GET | `/sync/status` | heights, `state_consistent`, policy |
 | GET | `/chain/metrics` | block time, tx/receipt/proposer counts |
 | GET | `/chain/state-root/status` | roots vs peers, mismatches |

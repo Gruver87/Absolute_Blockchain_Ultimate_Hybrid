@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from runtime.config import Config
 from observability.metrics import MetricsCollector
+import api.http as http_api
 from api.http import create_http_server, RESTHandler, ThreadedHTTPServer, configure_rate_limiter
 from storage.database import Database
 from kernel.event_bus import EventBus
@@ -90,10 +91,27 @@ def test_config_apply_env_prod_wallet_required(tmp_path, monkeypatch):
 
 def test_metrics_prometheus_format():
     mc = MetricsCollector()
-    text = mc.render_prometheus(height=42, peers=3, mempool=7, node_id="n1")
+    text = mc.render_prometheus(
+        height=42,
+        peers=3,
+        mempool=7,
+        node_id="n1",
+        native_crypto={
+            "available": True,
+            "required": True,
+            "self_test": True,
+            "kernels": ["sha256", "secp256k1_verify"],
+        },
+        bridge_health={"enabled": True, "mode": "rust", "required": True, "ok": True},
+    )
     assert "abs_chain_height" in text
     assert 'abs_chain_height{node_id="n1"} 42' in text
     assert "abs_uptime_seconds" in text
+    assert 'abs_native_crypto_available{node_id="n1"} 1' in text
+    assert 'abs_native_crypto_kernel_enabled{node_id="n1",kernel="secp256k1_verify"} 1' in text
+    assert 'abs_rust_bridge_enabled{node_id="n1"} 1' in text
+    assert 'abs_rust_bridge_required{node_id="n1"} 1' in text
+    assert 'abs_rust_bridge_ok{node_id="n1"} 1' in text
 
 
 def test_health_live(api_server):
@@ -113,7 +131,9 @@ def test_health_ready(api_server):
     assert data["status"] == "ready"
     assert data["checks"]["blockchain"] is True
     assert data["checks"]["native_crypto"] is True
+    assert data["checks"]["rust_bridge"] is True
     assert "native_crypto" in data
+    assert "rust_bridge" in data
 
 
 def test_metrics_endpoint(api_server):
@@ -122,6 +142,20 @@ def test_metrics_endpoint(api_server):
     text = body.decode()
     assert status == 200
     assert "abs_chain_height" in text
+    assert "abs_native_crypto_available" in text
+    assert 'kernel="state_root"' in text
+    assert "abs_rust_bridge_ok" in text
+
+
+def test_native_crypto_endpoint(api_server):
+    base, _ = api_server
+    status, body = _get(f"{base}/native/crypto")
+    data = json.loads(body)
+    assert status == 200
+    assert data["ready"] is True
+    assert "native_crypto" in data
+    assert "sha256" in data["native_crypto"]["kernels"]
+    assert "secp256k1_verify" in data["native_crypto"]["kernels"]
 
 
 def test_status_has_health_links(api_server):
@@ -138,6 +172,16 @@ def test_status_has_health_links(api_server):
     assert data["bridge_pending"] == 0
     assert "native_crypto" in data
     assert "secp256k1_verify" in data["native_crypto"]["kernels"]
+    assert "rust_bridge" in data
+    assert "ok" in data["rust_bridge"]
+
+
+def test_openapi_lists_native_crypto(api_server):
+    base, _ = api_server
+    status, body = _get(f"{base}/openapi.json")
+    data = json.loads(body)
+    assert status == 200
+    assert "/native/crypto" in data["paths"]
 
 
 def test_status_bridge_pending_counts(api_server, industrial_config):
@@ -171,6 +215,48 @@ def test_bridge_overview(api_server):
     assert data["mode"] in ("simulator", "rust")
     assert "locks" in data
     assert "supported_chains" in data
+    assert "rust_bridge_health" in data
+
+
+def test_prod_health_ready_fails_when_required_rust_bridge_is_bad(tmp_path, monkeypatch):
+    cfg = Config()
+    cfg.db_path = str(tmp_path / "ready-prod.db")
+    cfg.http_port = _free_port()
+    cfg.deployment_mode = "prod"
+    cfg.bridge_enabled = True
+    cfg.bridge_mode = "rust"
+    cfg.rate_limit_rpm = 0
+    cfg.require_native_crypto = False
+    db = Database(cfg.db_path, synchronous="NORMAL")
+    db.initialize()
+    bc = Blockchain(cfg, db, EventBus())
+    mp = Mempool(max_size=100, min_fee=0.001)
+    monkeypatch.setattr(
+        http_api,
+        "_rust_bridge_health",
+        lambda _cfg: {
+            "enabled": True,
+            "mode": "rust",
+            "required": True,
+            "ok": False,
+            "error": "bad bridge",
+        },
+    )
+    server = create_http_server(bc, mp, db, cfg)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    time.sleep(0.1)
+    try:
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            urllib.request.urlopen(f"http://127.0.0.1:{cfg.http_port}/health/ready", timeout=5)
+        body = json.loads(exc_info.value.read().decode())
+        assert exc_info.value.code == 503
+        assert body["status"] == "not_ready"
+        assert body["checks"]["rust_bridge"] is False
+        assert body["rust_bridge"]["error"] == "bad bridge"
+    finally:
+        server.shutdown()
+        db.close()
 
 
 def test_bridge2_transfer_requires_rust_bridge(api_server):
