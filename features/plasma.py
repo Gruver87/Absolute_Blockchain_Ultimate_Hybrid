@@ -88,11 +88,16 @@ class PlasmaChain:
             return True
         return False
 
-    def _credit_l1(self, addr: str, amount: float) -> None:
+    def _credit_l1(self, addr: str, amount: float) -> bool:
         if amount <= 0:
-            return
+            return False
         if self.db and hasattr(self.db, "update_balance"):
             self.db.update_balance(addr, amount)
+            return True
+        if self.root_chain and hasattr(self.root_chain, "update_balance"):
+            self.root_chain.update_balance(addr, amount)
+            return True
+        return False
 
     def _load_from_db(self) -> None:
         if not self.db:
@@ -230,13 +235,14 @@ class PlasmaChain:
                 return False
             if not force and time.time() - req["created_at"] < self.CHALLENGE_PERIOD:
                 return False
+            if not self._credit_l1(req["user"], req["amount"]):
+                return False
             req["status"] = "finalized"
             dep = self.deposits.get(req["deposit_id"])
             if dep:
                 dep["status"] = "exited"
                 self._persist_deposit(dep)
             self._persist_exit(req)
-        self._credit_l1(req["user"], req["amount"])
         print(f"[Plasma] Exit finalized: {exit_id} {req['amount']} ABS → {req['user'][:12]}...")
         return True
 

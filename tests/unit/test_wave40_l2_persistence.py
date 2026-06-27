@@ -128,6 +128,31 @@ def test_plasma_finalize_exit_credits_l1():
     assert db.get_balance(user) == 100.0
 
 
+def test_plasma_finalize_exit_requires_credit_backend():
+    from features.plasma import PlasmaChain
+
+    user = "0x" + "7" * 40
+    pl = PlasmaChain(chain_id="test", db=None)
+    pl.deposits["dep1"] = {
+        "id": "dep1",
+        "from": user,
+        "amount": 12.0,
+        "status": "exiting",
+    }
+    pl.exit_requests["exit1"] = {
+        "id": "exit1",
+        "deposit_id": "dep1",
+        "user": user,
+        "amount": 12.0,
+        "created_at": 0,
+        "status": "pending",
+    }
+
+    assert pl.finalize_exit("exit1", force=True) is False
+    assert pl.exit_requests["exit1"]["status"] == "pending"
+    assert pl.deposits["dep1"]["status"] == "exiting"
+
+
 def test_plasma_block_persisted():
     from features.plasma import PlasmaChain
     from storage.database import Database
