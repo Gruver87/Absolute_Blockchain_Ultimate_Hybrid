@@ -6,7 +6,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-from features.smart_accounts import AuthMethod, SessionPermission, SmartAccount
+from features.smart_accounts import AuthMethod, SessionPermission, SmartAccount, SmartAccountManager
 
 
 def test_private_social_and_passkey_auth_fail_closed():
@@ -32,3 +32,18 @@ def test_session_key_auth_remains_bounded_by_validity():
     assert account.authenticate(AuthMethod.SESSION_KEY, key_id) is True
     account.session_keys[key_id].use()
     assert account.authenticate(AuthMethod.SESSION_KEY, key_id) is False
+
+
+def test_manager_create_session_and_authenticate_fail_closed():
+    manager = SmartAccountManager()
+    created = manager.create_account("0x" + "e" * 40)
+    address = created["address"]
+
+    assert created["success"] is True
+    assert manager.authenticate(address, "raw-private-key-signature", "private_key") is False
+
+    session = manager.create_session_key(address, [SessionPermission.TRANSFER], max_uses=1)
+    assert session["success"] is True
+    assert manager.authenticate(address, session["key_id"], "session_key") is True
+    manager.get_account(address).session_keys[session["key_id"]].use()
+    assert manager.authenticate(address, session["key_id"], "session_key") is False

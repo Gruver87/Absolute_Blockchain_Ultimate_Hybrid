@@ -3332,7 +3332,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                     elif hasattr(sa, "create"):
                         acc = sa.create(owner)
                     else:
-                        acc = {"error": "create not supported"}
+                        self._error(501, "smart account create not supported")
+                        return
+                    if isinstance(acc, dict) and acc.get("success") is False:
+                        self._error(400, acc.get("error", "smart account create failed"))
+                        return
                     self._json({"success": True, "account": acc})
                 except Exception as e:
                     self._error(500, str(e))
@@ -3346,7 +3350,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                     if hasattr(sa, "create_session_key"):
                         key = sa.create_session_key(account)
                     else:
-                        key = {"error": "session_keys not supported"}
+                        self._error(501, "session keys not supported")
+                        return
+                    if isinstance(key, dict) and key.get("success") is False:
+                        self._error(400, key.get("error", "session key create failed"))
+                        return
                     self._json({"account": account, "session_key": key})
                 except Exception as e:
                     self._error(500, str(e))
@@ -4748,9 +4756,6 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if sa and hasattr(sa, "authenticate"):
                     ok = sa.authenticate(account_address, credential, auth_method)
                     self._json({"authenticated": bool(ok)})
-                elif sa and hasattr(sa, "get_account"):
-                    acc = sa.get_account(account_address)
-                    self._json({"authenticated": acc is not None})
                 else:
                     self._json({"authenticated": False, "error": "not supported"})
 

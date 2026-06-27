@@ -220,6 +220,45 @@ def test_pq_hybrid_sign_does_not_return_hash_fallback(tmp_path):
         db.close()
 
 
+def test_smart_account_authenticate_does_not_auth_by_existence(tmp_path):
+    class _LookupOnlySmartAccounts:
+        def get_account(self, _identifier):
+            return object()
+
+    cfg = Config()
+    cfg.db_path = str(tmp_path / "smart.db")
+    cfg.http_port = _free_port()
+    cfg.rate_limit_rpm = 0
+    db = Database(cfg.db_path, synchronous="NORMAL")
+    db.initialize()
+    RESTHandler.config = cfg
+    RESTHandler.db = db
+    RESTHandler.blockchain = None
+    RESTHandler.mempool = None
+    RESTHandler.smart_accounts = _LookupOnlySmartAccounts()
+    configure_rate_limiter(cfg)
+    server = ThreadedHTTPServer(("127.0.0.1", cfg.http_port), RESTHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    time.sleep(0.1)
+    try:
+        status, raw = _post(
+            f"http://127.0.0.1:{cfg.http_port}/smart-account/authenticate",
+            {
+                "account_address": "0x" + "1" * 40,
+                "credential": "anything",
+                "auth_method": "private_key",
+            },
+        )
+        body = json.loads(raw)
+        assert status == 200
+        assert body["authenticated"] is False
+        assert body["error"] == "not supported"
+    finally:
+        server.shutdown()
+        db.close()
+
+
 def test_sync_status_real(api_server):
     base, _ = api_server
     status, body = _get(f"{base}/sync/status")

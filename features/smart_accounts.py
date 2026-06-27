@@ -641,6 +641,63 @@ class SmartAccountManager:
             return self.accounts.get(self.address_index[identifier])
         
         return None
+
+    def create_account(self, owner: str, auth_method: str = "private_key") -> Dict:
+        """Create and register a smart account for an owner."""
+        if not owner:
+            return {"success": False, "error": "owner required"}
+        address = "0x" + hashlib.sha256(
+            f"smart-account:{owner}:{time.time()}:{secrets.token_hex(4)}".encode()
+        ).hexdigest()[:40]
+        account = SmartAccount(address, owner)
+        try:
+            method = AuthMethod(auth_method)
+        except ValueError:
+            method = AuthMethod.PRIVATE_KEY
+        account.add_auth_method(method, {})
+        account_id = self.register_account(account)
+        return {
+            "success": True,
+            "account_id": account_id,
+            "address": address,
+            "owner": owner,
+            "auth_method": method.value,
+        }
+
+    def create_session_key(
+        self,
+        identifier: str,
+        permissions: Optional[List[SessionPermission]] = None,
+        expires_in: int = 3600,
+        max_uses: int = 0,
+    ) -> Dict:
+        """Create a bounded session key for an existing account."""
+        account = self.get_account(identifier)
+        if not account:
+            return {"success": False, "error": "account not found"}
+        key_id = account.create_session_key(
+            permissions or [SessionPermission.BASIC],
+            expires_in=expires_in,
+            max_uses=max_uses,
+        )
+        account.add_auth_method(AuthMethod.SESSION_KEY, {})
+        return {"success": True, "key_id": key_id, "account": account.address}
+
+    def authenticate(
+        self,
+        identifier: str,
+        credential: Any,
+        auth_method: str = "private_key",
+    ) -> bool:
+        """Authenticate against a real account method; no existence-only success."""
+        account = self.get_account(identifier)
+        if not account:
+            return False
+        try:
+            method = AuthMethod(auth_method)
+        except ValueError:
+            return False
+        return account.authenticate(method, credential)
     
     def get_accounts_by_owner(self, owner: str) -> List[SmartAccount]:
         """Получение всех аккаунтов владельца"""
