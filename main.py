@@ -671,7 +671,7 @@ class NodeOrchestrator:
 
         # 15. Post-Quantum Crypto
         if _POSTQUANTUM_AVAILABLE and getattr(config, "feature_pq", True):
-            print("[Node] Post-Quantum Crypto: SPHINCS+ enabled")
+            print("[Node] Post-Quantum Crypto: SPHINCS+ interface available (backend required)")
 
         # 16. WebSocket server (real-time browser events on :8546)
         self.ws_server = WebSocketServer(event_bus=self.bus,
@@ -996,7 +996,7 @@ class NodeOrchestrator:
         try:
             from crypto.sphincs_plus import SPHINCSPLUS as _SPHINCS
             self.sphincs = _SPHINCS()
-            print("[Node] SPHINCS+: post-quantum hash-based signatures ready")
+            print("[Node] SPHINCS+: interface ready (signing backend required)")
         except Exception as _e:
             self.sphincs = None
             print(f"[Node] SPHINCS+: unavailable ({_e})")

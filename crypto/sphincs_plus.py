@@ -1,14 +1,13 @@
-﻿# crypto/sphincs_plus.py - SPHINCS+ implementation (pure Python)
+﻿# crypto/sphincs_plus.py - SPHINCS+ interface
 import hashlib
-import os
-import hmac
-from typing import Tuple, Optional
 import base64
 
 class SPHINCSPLUS:
     """
     SPHINCS+ - Stateless Hash-Based Signature Scheme
-    Pure Python implementation for educational purposes
+
+    This class intentionally fails closed until a real SPHINCS+ backend is
+    wired in. The previous HMAC/length-check implementation was not SPHINCS+.
     """
     
     def __init__(self, param_set: str = "SHA2_256f"):
@@ -29,27 +28,17 @@ class SPHINCSPLUS:
             counter += 1
         return result[:length]
     
-    def generate_keypair(self) -> Tuple[bytes, bytes]:
+    def generate_keypair(self) -> tuple[bytes, bytes]:
         """Generate SPHINCS+ keypair (private_key, public_key)"""
-        # Generate root seed (private key)
-        private_key = os.urandom(32)
-        
-        # Derive public key from private key
-        public_key = self._hash(private_key)
-        
-        return private_key, public_key
+        raise NotImplementedError("SPHINCS+ key generation backend not available")
     
     def sign(self, message: bytes, private_key: bytes) -> bytes:
         """Sign message with SPHINCS+"""
-        # Simplified signature: HMAC with private key
-        signature = hmac.new(private_key, message, hashlib.sha256).digest()
-        return signature
+        raise NotImplementedError("SPHINCS+ signing backend not available")
     
     def verify(self, message: bytes, signature: bytes, public_key: bytes) -> bool:
         """Verify SPHINCS+ signature"""
-        # Recompute expected signature from public key
-        # For simplified version, just check length and format
-        return len(signature) == 32
+        return False
     
     @staticmethod
     def quantum_address_from_pubkey(public_key: bytes) -> str:

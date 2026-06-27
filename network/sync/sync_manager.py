@@ -62,6 +62,10 @@ class SyncManager:
         return blocks
 
     def start_sync(self, peer_id: str) -> bool:
+        if peer_id not in self._peers:
+            return False
+        if self.get_peer_height(peer_id) <= self._get_local_height():
+            return False
         self.syncing = True
         return True
 

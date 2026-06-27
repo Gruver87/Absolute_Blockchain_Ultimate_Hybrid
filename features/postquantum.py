@@ -157,24 +157,7 @@ class SPHINCSPlus:
         
     def generate_keypair(self) -> PQKeyPair:
         """Генерация ключевой пары"""
-        
-        params = self.params[self.security_level]
-        
-        # Симуляция генерации ключей
-        # В реальности сложный процесс построения дерева Меркла
-        
-        seed = secrets.token_bytes(params['key_size'])
-        
-        # Публичный ключ = корень дерева + seed
-        public_key = hashlib.sha3_512(seed).digest()[:params['key_size'] * 2]
-        private_key = seed + secrets.token_bytes(params['key_size'] * 4)
-        
-        return PQKeyPair(
-            algorithm=PQAlgorithm.SPHINCS_PLUS,
-            security_level=self.security_level,
-            public_key=public_key,
-            private_key=private_key
-        )
+        raise NotImplementedError("SPHINCS+ key generation backend not available")
     
     def sign(self, message: bytes, keypair: PQKeyPair) -> PQSignature:
         """Подписание сообщения"""
@@ -231,60 +214,15 @@ class Kyber:
         
     def generate_keypair(self) -> PQKeyPair:
         """Генерация ключевой пары для KEM"""
-        
-        params = self.params[self.security_level]
-        
-        # Симуляция матрицы A ∈ R_q^{k×k}
-        seed_a = secrets.token_bytes(32)
-        
-        # Случайная матрица S (секретный ключ)
-        private_key = secrets.token_bytes(params['key_size'] // 2)
-        
-        # Публичный ключ = (A, t = A*s + e)
-        public_key = hashlib.sha3_512(seed_a + private_key).digest()[:params['key_size']]
-        
-        return PQKeyPair(
-            algorithm=PQAlgorithm.KYBER,
-            security_level=self.security_level,
-            public_key=public_key,
-            private_key=private_key
-        )
+        raise NotImplementedError("Kyber key generation backend not available")
     
     def encapsulate(self, public_key: bytes) -> SharedSecret:
         """Создание общего секрета (для отправителя)"""
-        
-        params = self.params[self.security_level]
-        
-        # Генерируем случайный секрет
-        secret = secrets.token_bytes(32)
-        
-        # Шифруем секрет публичным ключом
-        ciphertext = hashlib.sha3_512(public_key + secret).digest()[:params['ct_size']]
-        
-        return SharedSecret(
-            id=hashlib.sha256(f"{time.time()}{secrets.token_hex(4)}".encode()).hexdigest()[:16],
-            algorithm=PQAlgorithm.KYBER,
-            ciphertext=ciphertext,
-            shared_secret=secret
-        )
+        raise NotImplementedError("Kyber KEM encapsulation backend not available")
     
     def decapsulate(self, ciphertext: bytes, keypair: PQKeyPair) -> Optional[SharedSecret]:
         """Извлечение общего секрета (для получателя)"""
-        
-        params = self.params[self.security_level]
-        
-        # Расшифровываем секрет
-        # В реальности сложная операция с решётками
-        
-        # Симуляция успешной расшифровки
-        secret = hashlib.sha3_512(ciphertext + keypair.private_key).digest()[:32]
-        
-        return SharedSecret(
-            id=hashlib.sha256(f"{time.time()}{secrets.token_hex(4)}".encode()).hexdigest()[:16],
-            algorithm=PQAlgorithm.KYBER,
-            ciphertext=ciphertext,
-            shared_secret=secret
-        )
+        raise NotImplementedError("Kyber KEM decapsulation backend not available")
 
 
 # ============================================================================
@@ -427,21 +365,7 @@ class Falcon:
         
     def generate_keypair(self) -> PQKeyPair:
         """Генерация ключевой пары"""
-        
-        params = self.params[self.security_level]
-        
-        # Генерация полиномов f, g, F, G из NTRU
-        seed = secrets.token_bytes(32)
-        
-        public_key = hashlib.shake_256(seed).digest(params['key_size'] // 2)
-        private_key = seed + secrets.token_bytes(params['key_size'])
-        
-        return PQKeyPair(
-            algorithm=PQAlgorithm.FALCON,
-            security_level=self.security_level,
-            public_key=public_key,
-            private_key=private_key
-        )
+        raise NotImplementedError("Falcon key generation backend not available")
     
     def sign(self, message: bytes, keypair: PQKeyPair) -> PQSignature:
         """Подписание сообщения (Fast Fourier sampling)"""
@@ -654,53 +578,16 @@ class HybridCrypto:
         """
         Гибридная подпись (ECDSA + пост-квант)
         """
-        # Пост-квантовая подпись
-        pq_sig = self.pq.sign(message, pq_keypair)
-        
-        # ECDSA подпись (упрощённо)
-        ecdsa_sig = hashlib.sha256(message + ecdsa_key.encode()).hexdigest()
-        
-        return {
-            'pq_signature': pq_sig.to_dict(),
-            'ecdsa_signature': ecdsa_sig,
-            'timestamp': time.time()
-        }
+        raise NotImplementedError("Hybrid signature backend not available")
     
     def hybrid_encrypt(self, message: bytes, pq_public_key: bytes, ecdsa_public_key: str) -> Dict:
         """
         Гибридное шифрование
         """
-        # Создаём общий секрет через Kyber
-        kem = self.pq.encapsulate(PQAlgorithm.KYBER, pq_public_key)
-        
-        # Используем общий секрет для AES шифрования
-        aes_key = kem.shared_secret[:32]
-        
-        # Симуляция AES-GCM
-        ciphertext = hashlib.shake_256(message + aes_key).digest(len(message) + 16)
-        
-        return {
-            'kem_ciphertext': kem.ciphertext.hex(),
-            'aes_ciphertext': ciphertext.hex(),
-            'ecdsa_public': ecdsa_public_key
-        }
+        raise NotImplementedError("Hybrid encryption backend not available")
     
     def hybrid_decrypt(self, encrypted: Dict, pq_keypair: PQKeyPair) -> Optional[bytes]:
         """
         Гибридное расшифрование
         """
-        # Извлекаем общий секрет
-        kem_cipher = bytes.fromhex(encrypted['kem_ciphertext'])
-        secret = self.pq.decapsulate(kem_cipher, pq_keypair)
-        
-        if not secret:
-            return None
-        
-        # Расшифровываем AES
-        aes_key = secret.shared_secret[:32]
-        ciphertext = bytes.fromhex(encrypted['aes_ciphertext'])
-        
-        # Симуляция расшифровки
-        plaintext = hashlib.shake_256(ciphertext + aes_key).digest(len(ciphertext) - 16)
-        
-        return plaintext
+        raise NotImplementedError("Hybrid decryption backend not available")

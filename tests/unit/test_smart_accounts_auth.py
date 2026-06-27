@@ -23,15 +23,17 @@ def test_private_social_and_passkey_auth_fail_closed():
 def test_session_key_auth_remains_bounded_by_validity():
     account = SmartAccount("0x" + "c" * 40, "0x" + "d" * 40)
     account.add_auth_method(AuthMethod.SESSION_KEY, {})
-    key_id = account.create_session_key(
+    session_key = account.create_session_key(
         [SessionPermission.TRANSFER],
         expires_in=60,
         max_uses=1,
     )
+    key_id = session_key.split(".", 1)[0]
 
-    assert account.authenticate(AuthMethod.SESSION_KEY, key_id) is True
-    account.session_keys[key_id].use()
     assert account.authenticate(AuthMethod.SESSION_KEY, key_id) is False
+    assert account.authenticate(AuthMethod.SESSION_KEY, session_key) is True
+    account.session_keys[key_id].use()
+    assert account.authenticate(AuthMethod.SESSION_KEY, session_key) is False
 
 
 def test_manager_create_session_and_authenticate_fail_closed():
@@ -44,6 +46,7 @@ def test_manager_create_session_and_authenticate_fail_closed():
 
     session = manager.create_session_key(address, [SessionPermission.TRANSFER], max_uses=1)
     assert session["success"] is True
-    assert manager.authenticate(address, session["key_id"], "session_key") is True
-    manager.get_account(address).session_keys[session["key_id"]].use()
     assert manager.authenticate(address, session["key_id"], "session_key") is False
+    assert manager.authenticate(address, session["session_key"], "session_key") is True
+    manager.get_account(address).session_keys[session["key_id"]].use()
+    assert manager.authenticate(address, session["session_key"], "session_key") is False

@@ -9,6 +9,7 @@
 """
 
 import hashlib
+import hmac
 import time
 import json
 import secrets
@@ -239,11 +240,18 @@ class SmartAccount:
     
     def _verify_session_key(self, key_id: str) -> bool:
         """Проверка сессионного ключа"""
+        if not isinstance(key_id, str) or "." not in key_id:
+            return False
+        key_id, secret = key_id.split(".", 1)
         if key_id not in self.session_keys:
             return False
         
         key = self.session_keys[key_id]
-        return key.is_valid()
+        if not key.is_valid():
+            return False
+        expected = key.public_key.replace("sha256:", "", 1)
+        actual = hashlib.sha256(secret.encode()).hexdigest()
+        return hmac.compare_digest(actual, expected)
     
     def _verify_social(self, token: str) -> bool:
         """Social auth requires external provider/JWT verification."""
@@ -269,9 +277,8 @@ class SmartAccount:
         key_id = hashlib.sha256(
             f"{self.address}{time.time()}{secrets.token_hex(8)}".encode()
         ).hexdigest()[:16]
-        
-        # Генерируем ключевую пару (упрощённо)
-        public_key = hashlib.sha256(f"session_{key_id}".encode()).hexdigest()
+        secret = secrets.token_urlsafe(32)
+        public_key = "sha256:" + hashlib.sha256(secret.encode()).hexdigest()
         
         key = SessionKey(
             id=key_id,
@@ -285,10 +292,12 @@ class SmartAccount:
         self.session_keys[key_id] = key
         self.stats['active_sessions'] += 1
         
-        return key_id
+        return f"{key_id}.{secret}"
     
     def revoke_session_key(self, key_id: str) -> bool:
         """Отзыв сессионного ключа"""
+        if isinstance(key_id, str) and "." in key_id:
+            key_id = key_id.split(".", 1)[0]
         if key_id in self.session_keys:
             del self.session_keys[key_id]
             self.stats['active_sessions'] -= 1
@@ -675,13 +684,19 @@ class SmartAccountManager:
         account = self.get_account(identifier)
         if not account:
             return {"success": False, "error": "account not found"}
-        key_id = account.create_session_key(
+        session_key = account.create_session_key(
             permissions or [SessionPermission.BASIC],
             expires_in=expires_in,
             max_uses=max_uses,
         )
         account.add_auth_method(AuthMethod.SESSION_KEY, {})
-        return {"success": True, "key_id": key_id, "account": account.address}
+        key_id = session_key.split(".", 1)[0]
+        return {
+            "success": True,
+            "key_id": key_id,
+            "session_key": session_key,
+            "account": account.address,
+        }
 
     def authenticate(
         self,

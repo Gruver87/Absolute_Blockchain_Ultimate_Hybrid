@@ -2397,10 +2397,16 @@ class RESTHandler(BaseHTTPRequestHandler):
                 algo = qs.get("algo", ["kyber"])[0]
                 pq = self.__class__.pq_manager
                 if pq and hasattr(pq, "encapsulate"):
-                    result = pq.encapsulate(pubkey, algo)
-                    self._json({"ciphertext": str(result), "algorithm": algo})
+                    try:
+                        algorithm = pq._parse_algorithm(algo) if hasattr(pq, "_parse_algorithm") else algo
+                        result = pq.encapsulate(algorithm, bytes.fromhex(pubkey.replace("0x", "")))
+                    except NotImplementedError as e:
+                        self._error(501, str(e)); return
+                    except ValueError as e:
+                        self._error(400, str(e)); return
+                    self._json({"ciphertext": result.ciphertext.hex(), "algorithm": algo})
                 else:
-                    self._json({"enabled": bool(pq), "error": "encapsulate not available"})
+                    self._error(501, "encapsulate not available")
 
             # ── Smart account info and accounts by owner ──────────────────────
             elif path == "/smart-account/all":
@@ -2701,11 +2707,15 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/pq/sphincs/keygen":
                 sph = self.__class__.sphincs
                 if sph and hasattr(sph, "generate_keypair"):
-                    kp = sph.generate_keypair()
-                    self._json({"public_key": str(kp[0] if isinstance(kp,tuple) else kp),
+                    try:
+                        private_key, public_key = sph.generate_keypair()
+                    except NotImplementedError as e:
+                        self._error(501, str(e)); return
+                    self._json({"public_key": public_key.hex(),
+                                "private_key": private_key.hex(),
                                 "algorithm": "SPHINCS+"})
                 else:
-                    self._json({"enabled": bool(sph), "error": "SPHINCS+ not available"})
+                    self._error(503, "SPHINCS+ not available")
 
             # ── Canonical Serializer ──────────────────────────────────────────
             elif path.startswith("/block/canonical-hash/"):
@@ -3279,13 +3289,25 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "PostQuantumManager not enabled"); return
                 algo = body.get("algorithm", "dilithium")
                 try:
-                    if hasattr(pqm, "generate_keys"):
+                    if hasattr(pqm, "generate_keypair"):
+                        algorithm = pqm._parse_algorithm(algo) if hasattr(pqm, "_parse_algorithm") else algo
+                        kp = pqm.generate_keypair(algorithm)
+                        keys = {
+                            "key_id": kp.key_id,
+                            "public_key": kp.public_key.hex(),
+                            "private_key": kp.private_key.hex(),
+                        }
+                    elif hasattr(pqm, "generate_keys"):
                         keys = pqm.generate_keys(algo)
                     elif hasattr(pqm, "keygen"):
                         keys = pqm.keygen(algo)
                     else:
-                        keys = {"error": "keygen not available"}
+                        self._error(501, "keygen not available"); return
                     self._json({"algorithm": algo, "keys": keys})
+                except NotImplementedError as e:
+                    self._error(501, str(e))
+                except ValueError as e:
+                    self._error(400, str(e))
                 except Exception as e:
                     self._error(500, str(e))
 
@@ -3302,6 +3324,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                         self._json(result)
                     else:
                         self._error(501, "sign not implemented in PQ manager")
+                except NotImplementedError as e:
+                    self._error(501, str(e))
                 except Exception as e:
                     self._error(500, str(e))
 
@@ -3360,7 +3384,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     if isinstance(key, dict) and key.get("success") is False:
                         self._error(400, key.get("error", "session key create failed"))
                         return
-                    self._json({"account": account, "session_key": key})
+                    self._json(key if isinstance(key, dict) else {"account": account, "session_key": key})
                 except Exception as e:
                     self._error(500, str(e))
 
@@ -4342,11 +4366,19 @@ class RESTHandler(BaseHTTPRequestHandler):
                 message = body.get("message", "")
                 private_key = body.get("private_key", "")
                 if hasattr(sph, "sign"):
-                    sig = sph.sign(message.encode() if isinstance(message,str) else message,
-                                   private_key)
-                    self._json({"signature": str(sig), "algorithm": "SPHINCS+"})
+                    try:
+                        private_key_bytes = bytes.fromhex(private_key.replace("0x", ""))
+                    except ValueError:
+                        self._error(400, "private_key must be hex"); return
+                    try:
+                        sig = sph.sign(message.encode() if isinstance(message,str) else message,
+                                       private_key_bytes)
+                    except NotImplementedError as e:
+                        self._error(501, str(e)); return
+                    signature_hex = sig.hex() if isinstance(sig, bytes) else str(sig)
+                    self._json({"signature": signature_hex, "algorithm": "SPHINCS+"})
                 else:
-                    self._json({"success": False, "error": "sign not available"})
+                    self._error(501, "sign not available")
 
             elif path == "/pq/sphincs/verify":
                 sph = self.__class__.sphincs
@@ -4356,11 +4388,16 @@ class RESTHandler(BaseHTTPRequestHandler):
                 signature = body.get("signature", "")
                 public_key = body.get("public_key", "")
                 if hasattr(sph, "verify"):
+                    try:
+                        sig_bytes = bytes.fromhex(signature.replace("0x", ""))
+                        pub_bytes = bytes.fromhex(public_key.replace("0x", ""))
+                    except ValueError:
+                        self._error(400, "signature and public_key must be hex"); return
                     ok = sph.verify(message.encode() if isinstance(message,str) else message,
-                                    signature, public_key)
+                                    sig_bytes, pub_bytes)
                     self._json({"valid": bool(ok), "algorithm": "SPHINCS+"})
                 else:
-                    self._json({"valid": False, "error": "verify not available"})
+                    self._error(501, "verify not available")
 
             # ── Finality finalize checkpoint ─────────────────────────────────
             elif path == "/finality/finalize":
@@ -4666,7 +4703,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                 message = body.get("message", "")
                 private_key = body.get("private_key", "")
                 if hasattr(pq, "hybrid_sign"):
-                    sig = pq.hybrid_sign(message, private_key)
+                    try:
+                        sig = pq.hybrid_sign(message, private_key)
+                    except NotImplementedError as e:
+                        self._error(501, str(e)); return
                     self._json({"signature": str(sig), "algorithm": "hybrid"})
                 else:
                     self._error(501, "hybrid_sign not available in PQ manager")
@@ -4678,10 +4718,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                 message = body.get("message", "")
                 public_key = body.get("public_key", "")
                 if hasattr(pq, "hybrid_encrypt"):
-                    ciphertext = pq.hybrid_encrypt(message, public_key)
+                    try:
+                        ciphertext = pq.hybrid_encrypt(message, public_key)
+                    except NotImplementedError as e:
+                        self._error(501, str(e)); return
                     self._json({"ciphertext": str(ciphertext), "algorithm": "kyber_hybrid"})
                 else:
-                    self._json({"ciphertext": None, "error": "hybrid_encrypt not available"})
+                    self._error(501, "hybrid_encrypt not available")
 
             # ── PQ hybrid decrypt ─────────────────────────────────────────────
             elif path == "/pq/hybrid-decrypt":
@@ -4689,10 +4732,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                 ciphertext = body.get("ciphertext", "")
                 private_key = body.get("private_key", "")
                 if pq and hasattr(pq, "hybrid_decrypt"):
-                    plaintext = pq.hybrid_decrypt(ciphertext, private_key)
+                    try:
+                        plaintext = pq.hybrid_decrypt(ciphertext, private_key)
+                    except NotImplementedError as e:
+                        self._error(501, str(e)); return
                     self._json({"plaintext": str(plaintext)})
                 else:
-                    self._json({"plaintext": None, "error": "hybrid_decrypt not available"})
+                    self._error(501, "hybrid_decrypt not available")
 
             # ── Smart account: register, add/remove auth, settings ───────────
             elif path == "/smart-account/register":

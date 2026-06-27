@@ -5,14 +5,34 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-from features.postquantum import PQAlgorithm, PQSignature, PostQuantumManager
+from features.postquantum import (
+    HybridCrypto,
+    PQAlgorithm,
+    PQKeyPair,
+    PQSignature,
+    PostQuantumManager,
+    SecurityLevel,
+)
 
 
-def test_sphincs_and_falcon_signing_fail_closed_without_backend():
+def test_unsupported_signature_keygen_fails_closed_without_backend():
     pqm = PostQuantumManager()
 
     for algorithm in (PQAlgorithm.SPHINCS_PLUS, PQAlgorithm.FALCON):
-        keypair = pqm.generate_keypair(algorithm)
+        with pytest.raises(NotImplementedError):
+            pqm.generate_keypair(algorithm)
+
+
+def test_unsupported_signature_signing_fails_closed_without_backend():
+    pqm = PostQuantumManager()
+
+    for algorithm in (PQAlgorithm.SPHINCS_PLUS, PQAlgorithm.FALCON):
+        keypair = PQKeyPair(
+            algorithm=algorithm,
+            security_level=SecurityLevel.LEVEL5,
+            public_key=b"public",
+            private_key=b"private",
+        )
         with pytest.raises(NotImplementedError):
             pqm.sign(b"absolute-chain", keypair)
 
@@ -22,7 +42,6 @@ def test_sphincs_and_falcon_verify_fail_closed_without_backend():
     message = b"absolute-chain"
 
     for algorithm in (PQAlgorithm.SPHINCS_PLUS, PQAlgorithm.FALCON):
-        keypair = pqm.generate_keypair(algorithm)
         signature = PQSignature(
             id="fake",
             algorithm=algorithm,
@@ -30,8 +49,42 @@ def test_sphincs_and_falcon_verify_fail_closed_without_backend():
             public_key_hash="fake",
             message_hash="fake",
         )
-        assert pqm.verify(signature, message, keypair.public_key) is False
+        assert pqm.verify(signature, message, b"public") is False
         assert signature.verified is False
+
+
+def test_kyber_kem_fails_closed_without_backend():
+    pqm = PostQuantumManager()
+    keypair = PQKeyPair(
+        algorithm=PQAlgorithm.KYBER,
+        security_level=SecurityLevel.LEVEL5,
+        public_key=b"public",
+        private_key=b"private",
+    )
+
+    with pytest.raises(NotImplementedError):
+        pqm.generate_keypair(PQAlgorithm.KYBER)
+    with pytest.raises(NotImplementedError):
+        pqm.encapsulate(PQAlgorithm.KYBER, keypair.public_key)
+    with pytest.raises(NotImplementedError):
+        pqm.decapsulate(b"ciphertext", keypair)
+
+
+def test_hybrid_crypto_fails_closed_without_backend():
+    hybrid = HybridCrypto(PostQuantumManager())
+    keypair = PQKeyPair(
+        algorithm=PQAlgorithm.DILITHIUM,
+        security_level=SecurityLevel.LEVEL5,
+        public_key=b"public",
+        private_key=b"private",
+    )
+
+    with pytest.raises(NotImplementedError):
+        hybrid.hybrid_sign(b"message", keypair, "ecdsa")
+    with pytest.raises(NotImplementedError):
+        hybrid.hybrid_encrypt(b"message", b"public", "ecdsa-public")
+    with pytest.raises(NotImplementedError):
+        hybrid.hybrid_decrypt({}, keypair)
 
 
 def test_dilithium_commitment_path_still_verifies_and_rejects_tamper():

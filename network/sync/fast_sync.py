@@ -26,6 +26,18 @@ class FastSyncManager:
         return peer_height - local > self.LAG_THRESHOLD
 
     def start_sync(self, peer_id: str, target_height: int) -> bool:
+        storage = getattr(self.node, "storage", None)
+        local = 0
+        if storage and hasattr(storage, "get_latest_block_number"):
+            local = int(storage.get_latest_block_number())
+        if target_height <= local:
+            return False
+
+        sync_mgr = getattr(self.node, "sync_manager", None)
+        if sync_mgr and hasattr(sync_mgr, "get_peer_height"):
+            if int(sync_mgr.get_peer_height(peer_id)) < target_height:
+                return False
+
         self.syncing = True
         self.target_height = target_height
         self.state_root = None
@@ -58,6 +70,8 @@ class FastSyncManager:
                 storage.save_validator(validator.get("address", ""), validator.get("stake", 0))
 
     def complete_fast_sync(self) -> bool:
+        if not self.syncing:
+            return False
         self.syncing = False
         return True
 
