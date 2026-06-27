@@ -3607,7 +3607,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(400, "token_id, bidder, price required"); return
                 if hasattr(nft, "make_offer"):
                     oid = nft.make_offer(token_id, bidder, price, hours)
-                    self._json({"success": bool(oid), "offer_id": oid})
+                    if oid:
+                        self._json({"success": True, "offer_id": oid})
+                    else:
+                        self._error(400, "Could not create offer")
                 else:
                     self._error(501, "Offers not supported")
 
@@ -3621,7 +3624,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(400, "offer_id and seller required"); return
                 if hasattr(nft, "accept_offer"):
                     result = nft.accept_offer(offer_id, seller)
-                    self._json(result)
+                    if isinstance(result, dict) and result.get("success"):
+                        self._json(result)
+                    else:
+                        error = result.get("error", "Could not accept offer") if isinstance(result, dict) else "Could not accept offer"
+                        self._error(400, error)
                 else:
                     self._error(501, "Offers not supported")
 
@@ -3634,7 +3641,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(400, "auction_id required"); return
                 if hasattr(nft, "finalize_auction"):
                     result = nft.finalize_auction(auction_id)
-                    self._json(result)
+                    if isinstance(result, dict) and result.get("success"):
+                        self._json(result)
+                    else:
+                        error = result.get("error", "Could not finalize auction") if isinstance(result, dict) else "Could not finalize auction"
+                        self._error(400, error)
                 else:
                     self._error(501, "Auctions not supported")
 
@@ -3725,7 +3736,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "Lightning not enabled"); return
                 cid = body.get("channel_id", "")
                 ok = ln.close_channel(cid) if cid else False
-                self._json({"success": ok, "channel_id": cid})
+                if ok:
+                    self._json({"success": True, "channel_id": cid})
+                else:
+                    self._error(400, "Could not close channel")
 
             elif path == "/lightning/pay":
                 ln = self.__class__.lightning
@@ -3768,7 +3782,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                 wid = body.get("will_id", "")
                 owner = body.get("owner", "")
                 ok = cw.cancel_will(wid, owner) if wid and owner else False
-                self._json({"success": ok})
+                if ok:
+                    self._json({"success": True})
+                else:
+                    self._error(400, "Could not cancel will")
 
             elif path == "/will/execute":
                 cw = self.__class__.crypto_will
@@ -3779,7 +3796,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not wid:
                     self._error(400, "will_id required"); return
                 ok = cw.execute_will(wid, force=force) if hasattr(cw, "execute_will") else False
-                self._json({"success": bool(ok), "will_id": wid, "forced": force})
+                if ok:
+                    self._json({"success": True, "will_id": wid, "forced": force})
+                else:
+                    self._error(400, "Could not execute will")
 
             # ── Plasma Chain ──────────────────────────────────────────────────
             elif path == "/plasma/deposit":
@@ -3806,7 +3826,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not from_addr or not to_addr or amount <= 0:
                     self._error(400, "from, to, amount required"); return
                 txh = pl.submit_transaction(from_addr, to_addr, amount)
-                self._json({"success": bool(txh), "tx_hash": txh})
+                if txh:
+                    self._json({"success": True, "tx_hash": txh})
+                else:
+                    self._error(400, "Transfer failed (insufficient L2 balance)")
 
             elif path == "/plasma/submit-block":
                 pl = self.__class__.plasma
@@ -3818,13 +3841,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json({"success": True, "block": result})
                 else:
                     st = pl.get_stats() if hasattr(pl, "get_stats") else {}
-                    self._json({
-                        "success": False,
-                        "message": "No pending transactions",
-                        "pending_transactions": st.get("pending_transactions", 0),
-                        "blocks": st.get("blocks", 0),
-                        "hint": "POST /plasma/deposit or /plasma/tx first",
-                    })
+                    self._error(400, (
+                        "No pending transactions "
+                        f"(pending={st.get('pending_transactions', 0)}, blocks={st.get('blocks', 0)})"
+                    ))
 
             elif path == "/plasma/exit":
                 pl = self.__class__.plasma
@@ -4037,7 +4057,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                 force = bool(body.get("force", False))
                 if hasattr(plasma, "finalize_exit"):
                     ok = plasma.finalize_exit(exit_id, force=force)
-                    self._json({"success": bool(ok), "exit_id": exit_id, "forced": force})
+                    if ok:
+                        self._json({"success": True, "exit_id": exit_id, "forced": force})
+                    else:
+                        self._error(400, "Could not finalize exit")
                 else:
                     self._json({"success": False, "error": "finalize_exit not available"})
 
