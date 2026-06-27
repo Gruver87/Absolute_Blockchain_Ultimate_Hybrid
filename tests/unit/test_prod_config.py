@@ -27,6 +27,16 @@ def test_prod_rejects_simulator_bridge_without_override():
     assert any("bridge_mode=rust" in e for e in errs)
 
 
+def test_prod_rejects_bridge_dev_adapter():
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.bridge_dev_adapter_enabled = True
+    cfg.require_wallet_file = False
+    cfg.rpc_api_key_required = False
+    errs = cfg.validate()
+    assert any("BRIDGE_DEV_ADAPTER_ENABLED" in e for e in errs)
+
+
 def test_prod_requires_jwt_secret():
     cfg = Config()
     cfg.deployment_mode = "prod"

@@ -3902,21 +3902,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                             "hint": "Confirm via POST /bridge/confirm-lock or bridge relayer",
                         })
                     return
-                if not cb:
-                    self._error(503, "Cross-chain bridge not enabled"); return
-                tx_hash = cb.bridge(from_chain, to_chain, from_addr, to_addr, amount)
-                cb.confirm_transaction(tx_hash)
-                fee = cb.estimate_fee(from_chain, amount)
-                self._json({
-                    "success": True,
-                    "tx_hash": tx_hash,
-                    "from_chain": from_chain,
-                    "to_chain": to_chain,
-                    "amount": amount - fee,
-                    "fee": fee,
-                    "status": "confirmed",
-                    "bridge_path": "dev-test-simulator",
-                })
+                self._error(503, "RustBridge runtime required for bridge transfer")
+                return
 
             # ── Standalone Consensus Engine ───────────────────────────────────
             elif path == "/consensus/engine/attest":

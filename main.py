@@ -870,10 +870,14 @@ class NodeOrchestrator:
             self.ai_manager = None
 
         # 33. Cross-Chain Bridge dev/test adapter (production path is RustBridge)
-        if _CROSS_BRIDGE_AVAILABLE and not config.bridge_enabled:
+        if (
+            _CROSS_BRIDGE_AVAILABLE
+            and not config.bridge_enabled
+            and getattr(config, "bridge_dev_adapter_enabled", False)
+        ):
             try:
                 self.cross_bridge = CrossChainBridge()
-                print("[Node] Cross-Chain Bridge dev/test adapter: bridge disabled")
+                print("[Node] Cross-Chain Bridge dev/test adapter: explicitly enabled")
             except Exception as e:
                 self.cross_bridge = None
                 print(f"[Node] Cross-Bridge dev/test adapter: unavailable ({e})")

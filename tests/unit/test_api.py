@@ -7,6 +7,7 @@ import os
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 
 import pytest
@@ -157,6 +158,24 @@ def test_bridge_overview(api_server):
     assert data["mode"] in ("simulator", "rust")
     assert "locks" in data
     assert "supported_chains" in data
+
+
+def test_bridge2_transfer_requires_rust_bridge(api_server):
+    base, _ = api_server
+    payload = {
+        "from_chain": "ethereum",
+        "to_chain": "absolute",
+        "from_address": "0x" + "a" * 40,
+        "to_address": "0x" + "b" * 40,
+        "amount": 1.0,
+    }
+    try:
+        _post(f"{base}/bridge2/transfer", payload)
+        assert False, "bridge2 transfer should not fallback to simulator"
+    except urllib.error.HTTPError as exc:
+        body = json.loads(exc.read().decode())
+        assert exc.code == 503
+        assert "RustBridge runtime required" in body["error"]
 
 
 def test_sync_status_real(api_server):

@@ -99,6 +99,7 @@ class Config:
     bridge_mode: str = "rust"           # "rust" | explicit dev/test-only "simulator"
     bridge_auto_confirm_sec: int = 0    # 0 = manual POST /bridge/confirm-lock only
     bridge_require_l1_proof: bool = False
+    bridge_dev_adapter_enabled: bool = False  # explicit dev/test CrossChainBridge adapter
     rust_bridge_path: str = "bridge/abs_bridge_bin"
     bridge_oracle_secret: str = ""      # HMAC secret for /bridge/oracle/* relayer
     bridge_l1_queue_path: str = "data/bridge_l1_queue.json"
@@ -248,6 +249,9 @@ class Config:
         self.bridge_require_l1_proof = env_bool(
             "BRIDGE_REQUIRE_L1_PROOF", self.bridge_require_l1_proof
         )
+        self.bridge_dev_adapter_enabled = env_bool(
+            "BRIDGE_DEV_ADAPTER_ENABLED", self.bridge_dev_adapter_enabled
+        )
         rust_path = env_str("RUST_BRIDGE_PATH", "")
         if rust_path:
             self.rust_bridge_path = rust_path
@@ -326,6 +330,8 @@ class Config:
                     errors.append(msg)
         if self.is_production and self.bridge_mode == "simulator":
             errors.append("prod deployment should use bridge_mode=rust (or disable bridge)")
+        if self.is_production and self.bridge_dev_adapter_enabled:
+            errors.append("prod deployment forbids BRIDGE_DEV_ADAPTER_ENABLED")
         if self.is_production:
             if not self.cors_origins:
                 errors.append("prod mode requires CORS_ORIGINS")
