@@ -97,3 +97,34 @@ def test_ai_create_requires_balance_backend():
 
     m = AIAgentManager(db=None)
     assert m.create_agent("NoBackend", "0x" + "e" * 40) is None
+
+
+def test_ai_agent_trade_requires_active_agent_and_final_execution():
+    from features.ai_manager import AIAgentManager
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "inactive.db"))
+    db.initialize()
+    owner = "0x" + "f" * 40
+    db.set_balance(owner, 10.0)
+
+    def pending_executor(_order):
+        return {
+            "success": True,
+            "trade_id": "venue-trade-pending",
+            "status": "pending",
+        }
+
+    m = AIAgentManager(db=db, trade_executor=pending_executor)
+    aid = m.create_agent("Bot", owner)
+    out = m.trade(aid, "buy", 1.0, 100.0)
+    assert out == {"success": False, "error": "Trade execution not final: pending"}
+    assert m.get_agent(aid).actions_count == 0
+
+    assert m.deactivate(aid) is True
+    assert m.deactivate(aid) is False
+    assert m.trade(aid, "buy", 1.0, 100.0) == {
+        "success": False,
+        "error": "Agent is not active",
+    }

@@ -76,6 +76,11 @@ class AIAgent:
         price: float,
         execution: Dict[str, Any],
     ) -> Dict:
+        if not isinstance(execution, dict) or not execution.get("success"):
+            return {"success": False, "error": "Trade execution was not successful"}
+        status = str(execution.get("status", "filled")).lower()
+        if status not in ("filled", "executed", "settled"):
+            return {"success": False, "error": f"Trade execution not final: {status}"}
         trade_id = str(execution.get("trade_id") or hashlib.sha256(
             f"{self.agent_id}_{trade_type}_{time.time_ns()}".encode()
         ).hexdigest()[:16])
@@ -219,6 +224,8 @@ class AIAgentManager:
         agent = self.agents.get(agent_id)
         if not agent:
             return {"success": False, "error": "Agent not found"}
+        if agent.status != "active":
+            return {"success": False, "error": "Agent is not active"}
         if amount <= 0 or price <= 0:
             return {"success": False, "error": "Invalid trade parameters"}
         if not self.trade_executor:
@@ -240,7 +247,7 @@ class AIAgentManager:
 
     def deactivate(self, agent_id: str) -> bool:
         agent = self.agents.get(agent_id)
-        if not agent:
+        if not agent or agent.status == "inactive":
             return False
         agent.status = "inactive"
         self._persist(agent)

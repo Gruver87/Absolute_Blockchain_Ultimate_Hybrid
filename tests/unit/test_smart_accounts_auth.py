@@ -143,3 +143,33 @@ def test_smart_account_recovery_rejects_invalid_new_owner():
 
     assert account.execute_recovery(request_id, "") is False
     assert account.execute_recovery(request_id, owner) is False
+
+
+def test_manager_recover_account_requires_real_guardian_quorum():
+    manager = SmartAccountManager()
+    created = manager.create_account("0x" + "a" * 40)
+    account = manager.get_account(created["address"])
+    g1 = "0x" + "1" * 40
+    g2 = "0x" + "2" * 40
+    new_owner = "0x" + "b" * 40
+
+    account.add_guardian(g1, "guardian-1")
+    account.add_guardian(g2, "guardian-2")
+
+    assert manager.recover_account(created["address"], new_owner, [g1, g2]) is False
+
+    account.approve_guardian(g1, account.owner)
+    assert manager.recover_account(created["address"], new_owner, [g1]) is True
+    assert account.owner == new_owner
+
+    created2 = manager.create_account("0x" + "c" * 40)
+    account2 = manager.get_account(created2["address"])
+    h1 = "0x" + "3" * 40
+    h2 = "0x" + "4" * 40
+    account2.add_guardian(h1, "guardian-1")
+    account2.add_guardian(h2, "guardian-2")
+    account2.approve_guardian(h1, account2.owner)
+    account2.approve_guardian(h2, account2.owner)
+
+    assert manager.recover_account(created2["address"], "0x" + "d" * 40, [h1]) is False
+    assert manager.recover_account(created2["address"], "0x" + "d" * 40, [h1, h2]) is True

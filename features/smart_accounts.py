@@ -772,9 +772,13 @@ class SmartAccountManager:
             return False
         request_id = None
         for guardian in guardians:
-            request_id = account.request_recovery(guardian) or request_id
             if request_id:
-                account.approve_recovery(request_id, guardian)
+                if not account.approve_recovery(request_id, guardian):
+                    return False
+                continue
+            request_id = account.request_recovery(guardian)
+            if request_id and not account.approve_recovery(request_id, guardian):
+                return False
         if not request_id:
             return False
         return account.execute_recovery(request_id, new_owner)

@@ -3398,7 +3398,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                 try:
                     if hasattr(sa, "recover_account"):
                         ok = sa.recover_account(account, new_owner, guardians)
-                        self._json({"success": ok, "account": account, "new_owner": new_owner})
+                        if ok:
+                            self._json({"success": True, "account": account, "new_owner": new_owner})
+                        else:
+                            self._error(400, "recovery not approved")
                     elif hasattr(sa, "get_account"):
                         acc = sa.get_account(account)
                         if not acc:
@@ -3413,7 +3416,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                         if req_id and acc.execute_recovery(req_id, new_owner):
                             self._json({"success": True, "account": account, "new_owner": new_owner, "request_id": req_id})
                         else:
-                            self._json({"success": False, "error": "recovery not approved"})
+                            self._error(400, "recovery not approved")
                     else:
                         self._error(501, "recovery not implemented")
                 except Exception as e:
@@ -3915,6 +3918,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not agent_id:
                     self._error(400, "agent_id required"); return
                 result = am.predict(agent_id, market_data)
+                if isinstance(result, dict) and result.get("error"):
+                    self._error(404, result.get("error", "Agent not found")); return
                 self._json(result)
 
             elif path == "/ai-agent/analyze":
@@ -3926,6 +3931,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not agent_id:
                     self._error(400, "agent_id required"); return
                 result = am.analyze(agent_id, price_history)
+                if isinstance(result, dict) and result.get("error"):
+                    self._error(404, result.get("error", "Agent not found")); return
                 self._json(result)
 
             elif path == "/ai-agent/trade":
@@ -3941,6 +3948,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                 result = am.trade(agent_id, trade_type, amount, price)
                 if isinstance(result, dict) and result.get("error") == "Trade execution backend not configured":
                     self._error(503, result["error"])
+                    return
+                if isinstance(result, dict) and result.get("success") is False:
+                    status = 404 if result.get("error") == "Agent not found" else 400
+                    self._error(status, result.get("error", "Trade failed"))
                     return
                 self._json(result)
 
