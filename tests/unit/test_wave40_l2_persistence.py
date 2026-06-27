@@ -48,6 +48,46 @@ def test_lightning_close_credits_l1():
     assert db.get_balance(peer) == 10.0
 
 
+def test_lightning_open_requires_balance_backend():
+    from features.lightning import LightningNetwork
+
+    node = "0x" + "a" * 40
+    peer = "0x" + "b" * 40
+    ln = LightningNetwork(node_address=node, db=None)
+
+    assert ln.open_channel(peer, 10.0, node_balance=100.0) is None
+
+
+def test_lightning_close_requires_refund_backend():
+    from features.lightning import LightningChannel, LightningNetwork
+
+    node = "0x" + "c" * 40
+    peer = "0x" + "d" * 40
+    ln = LightningNetwork(node_address=node, db=None)
+    ln.channels["chan1"] = LightningChannel("chan1", node, peer, 10.0)
+
+    assert ln.close_channel("chan1") is False
+    assert ln.channels["chan1"].status == "open"
+
+
+def test_lightning_payment_rejects_non_positive_amount():
+    from features.lightning import LightningNetwork
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "ln-pay.db"))
+    db.initialize()
+    node = "0x" + "9" * 40
+    peer = "0x" + "8" * 40
+    db.set_balance(node, 100.0)
+
+    ln = LightningNetwork(node_address=node, db=db)
+    cid = ln.open_channel(peer, 10.0)
+
+    assert ln.send_payment(cid, peer, 0) is None
+    assert ln.send_payment(cid, peer, -1.0) is None
+
+
 def test_plasma_deposit_debits_and_persists():
     from features.plasma import PlasmaChain
     from storage.database import Database

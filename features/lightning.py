@@ -143,14 +143,16 @@ class LightningNetwork:
                      node_balance: float = None) -> Optional[str]:
         if capacity < self.MIN_CHANNEL or capacity > self.MAX_CHANNEL:
             return None
-        if self.db and hasattr(self.db, "get_balance"):
-            bal = self.db.get_balance(self.node_address)
-            if bal < capacity:
-                return None
-        elif node_balance is not None and node_balance < capacity:
+        if (
+            not self.db
+            or not hasattr(self.db, "get_balance")
+            or not hasattr(self.db, "update_balance")
+        ):
             return None
-        if self.db and hasattr(self.db, "update_balance"):
-            self.db.update_balance(self.node_address, -capacity)
+        bal = self.db.get_balance(self.node_address)
+        if bal < capacity:
+            return None
+        self.db.update_balance(self.node_address, -capacity)
         channel_id = hashlib.sha256(
             f"{self.node_address}{peer_address}{capacity}{time.time()}".encode()
         ).hexdigest()[:16]
@@ -163,15 +165,18 @@ class LightningNetwork:
         ch = self.channels.get(channel_id)
         if not ch or ch.status != "open":
             return False
-        if self.db and hasattr(self.db, "update_balance"):
-            self.db.update_balance(ch.node1, ch.balance1)
-            self.db.update_balance(ch.node2, ch.balance2)
+        if not self.db or not hasattr(self.db, "update_balance"):
+            return False
+        self.db.update_balance(ch.node1, ch.balance1)
+        self.db.update_balance(ch.node2, ch.balance2)
         ch.status = "closed"
         self._persist_channel(ch)
         return True
 
     def send_payment(self, channel_id: str, to_node: str,
                      amount: float) -> Optional[str]:
+        if amount <= 0:
+            return None
         ch = self.channels.get(channel_id)
         if not ch or ch.status != "open":
             return None
