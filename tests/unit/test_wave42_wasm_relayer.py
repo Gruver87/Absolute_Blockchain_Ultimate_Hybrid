@@ -62,6 +62,32 @@ def test_wasm_deploy_rejects_low_balance():
     assert vm.deploy("code", owner) is None
 
 
+def test_wasm_deploy_requires_balance_backend():
+    from features.wasm_vm import WASMVirtualMachine
+
+    owner = "0x" + "e" * 40
+    vm = WASMVirtualMachine(db=None)
+    assert vm.deploy("fn hello() {}", owner, "NoBackend") is None
+
+
+def test_wasm_custom_function_fails_without_execution_backend():
+    from features.wasm_vm import WASMVirtualMachine
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "custom.db"))
+    db.initialize()
+    owner = "0x" + "f" * 40
+    db.set_balance(owner, 1.0)
+
+    vm = WASMVirtualMachine(db=db)
+    addr = vm.deploy("fn hello() {}", owner, "CustomContract")
+    out = vm.call(addr, "hello", {}, owner)
+
+    assert out["success"] is False
+    assert out["error"] == "Custom WASM execution backend not available"
+
+
 def test_bridge_relayer_status_helper():
     from api.http import _build_bridge_relayer_status
     from runtime.config import Config

@@ -102,8 +102,12 @@ class WASMVirtualMachine:
         })
 
     def _charge_deploy_fee(self, owner: str) -> bool:
-        if not self.db or not hasattr(self.db, "update_balance"):
-            return True
+        if (
+            not self.db
+            or not hasattr(self.db, "get_balance")
+            or not hasattr(self.db, "update_balance")
+        ):
+            return False
         if self.db.get_balance(owner) < self.DEPLOY_FEE:
             return False
         self.db.update_balance(owner, -self.DEPLOY_FEE)
@@ -155,8 +159,9 @@ class WASMVirtualMachine:
             "timestamp": int(time.time()),
         })
         return {
-            "success": result.get("success", True),
+            "success": result.get("success", False),
             "result": result.get("result"),
+            "error": result.get("error"),
             "gas_used": gas_used,
             "data": result.get("data"),
         }
@@ -236,7 +241,10 @@ class WASMVirtualMachine:
         else:
             code = contract.code
             if f"fn {fn}" in code or f"function {fn}" in code or f"def {fn}" in code:
-                return {"success": True, "result": f"Function {fn} executed (custom)"}
+                return {
+                    "success": False,
+                    "error": "Custom WASM execution backend not available",
+                }
             return {"success": False, "error": f"Function '{fn}' not found"}
 
     def _log_event(self, event: Dict):
