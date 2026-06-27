@@ -3605,12 +3605,17 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(400, "private_key required"); return
                 try:
                     from crypto.tx_signer import TransactionSigner
+                    from crypto.keys import KeyGenerator
                     tx_data = {"from": from_addr, "to": to_addr,
                                "amount": amount, "nonce": nonce,
                                "fee": float(body.get("fee", 0.001))}
+                    keypair = KeyGenerator.from_private_key(private_key)
+                    tx_data["public_key"] = keypair.public_key.hex()
                     tx_hash = TransactionSigner.hash_transaction(tx_data)
                     sig = TransactionSigner.sign_transaction(tx_data, private_key)
                     self._json({"tx_hash": tx_hash, "signature": sig,
+                                "public_key": keypair.public_key.hex(),
+                                "address": keypair.address,
                                 "transaction": tx_data})
                 except Exception as e:
                     self._error(500, str(e))

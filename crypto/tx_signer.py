@@ -3,11 +3,12 @@
 """Подпись и верификация транзакций"""
 
 import hashlib
-import hmac
 import json
-import secrets
 import time
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any
+
+from crypto.keys import KeyGenerator
+from crypto.secp256k1_backend import CRYPTO_AVAILABLE, sign, verify
 
 class TransactionSigner:
     """Управление подписями транзакций"""
@@ -29,40 +30,37 @@ class TransactionSigner:
     
     @staticmethod
     def sign_transaction(tx_data: Dict[str, Any], private_key: str) -> str:
-        """
-        Подпись транзакции
-        В реальном блокчейне используется ECDSA, здесь упрощённая версия для демо
-        """
+        """Подпись транзакции через SECP256K1."""
+        if not CRYPTO_AVAILABLE:
+            raise RuntimeError("SECP256K1 backend not available")
         tx_hash = TransactionSigner.hash_transaction(tx_data)
-        
-        # Упрощённая подпись (в production использовать cryptography или ecdsa)
-        # HMAC на основе приватного ключа
-        signature = hmac.new(
-            private_key.encode() if isinstance(private_key, str) else private_key,
-            tx_hash.encode(),
-            hashlib.sha256
-        ).hexdigest()
-        
-        return signature
+        private_key_bytes = bytes.fromhex(private_key) if isinstance(private_key, str) else private_key
+        return sign(tx_hash.encode(), private_key_bytes, hashfunc=hashlib.sha256).hex()
     
     @staticmethod
     def verify_signature(tx_data: Dict[str, Any], signature: str, address: str) -> bool:
         """
         Верификация подписи
-        Проверяет, что подпись соответствует адресу
+        Проверяет, что подпись соответствует public_key и адресу.
         """
-        # В production здесь должна быть проверка ECDSA подписи
-        # Сейчас упрощённая проверка
-        
-        if not signature or len(signature) != 64:
+        if not CRYPTO_AVAILABLE:
             return False
-        
-        # Проверка, что подпись не нулевая
-        if all(c == '0' for c in signature):
+        if not signature:
             return False
-        
-        # В реальном проекте: verify with public key derived from address
-        return True
+        public_key_hex = tx_data.get("public_key", "")
+        if not public_key_hex:
+            return False
+        try:
+            public_key = bytes.fromhex(public_key_hex)
+            signature_bytes = bytes.fromhex(signature)
+        except ValueError:
+            return False
+        if address:
+            derived = KeyGenerator.derive_address(public_key)
+            if derived.lower() != address.lower():
+                return False
+        tx_hash = TransactionSigner.hash_transaction(tx_data)
+        return verify(tx_hash.encode(), signature_bytes, public_key, hashfunc=hashlib.sha256)
     
     @staticmethod
     def generate_nonce(address: str) -> int:
