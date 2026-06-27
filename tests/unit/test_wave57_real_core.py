@@ -74,9 +74,9 @@ def test_reorg_denied_below_finalized_floor(chain_env):
 
 
 def test_mev_uses_fee_order_not_random():
-    from features.mev_simulator import MEVSimulator, Transaction
+    from features.mev_analyzer import MEVAnalyzer, Transaction
 
-    mev = MEVSimulator()
+    mev = MEVAnalyzer()
     txs = [
         Transaction("0x1", "a", "b", 10.0, 100, 1),
         Transaction("0x2", "c", "d", 5.0, 50, 2),

@@ -2783,7 +2783,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if mp and tx_hash:
                     for tx in mp.get(limit=500):
                         if tx.tx_hash == tx_hash:
-                            from features.mev_simulator import Transaction as MevTx
+                            from features.mev_analyzer import Transaction as MevTx
                             target = MevTx(
                                 hash=tx.tx_hash,
                                 from_addr=tx.from_addr,
@@ -3402,7 +3402,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "MEV analyzer not enabled"); return
                 txs_raw = body.get("transactions", [])
                 try:
-                    from features.mev_simulator import Transaction as MevTx
+                    from features.mev_analyzer import Transaction as MevTx
                     txs = [MevTx(
                         hash=t.get("hash", "0x0"),
                         from_addr=t.get("from", ""),
@@ -4795,7 +4795,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 tx_hash = body.get("tx_hash", tx_data.get("hash", ""))
                 target = None
                 if tx_data:
-                    from features.mev_simulator import Transaction as MevTx
+                    from features.mev_analyzer import Transaction as MevTx
                     target = MevTx(
                         hash=tx_data.get("hash", tx_hash or "0x0"),
                         from_addr=tx_data.get("from", ""),
@@ -4807,7 +4807,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 elif mp and tx_hash:
                     for tx in mp.get(limit=500):
                         if tx.tx_hash == tx_hash:
-                            from features.mev_simulator import Transaction as MevTx
+                            from features.mev_analyzer import Transaction as MevTx
                             target = MevTx(
                                 hash=tx.tx_hash,
                                 from_addr=tx.from_addr,

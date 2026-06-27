@@ -7,15 +7,15 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, ROOT)
 
 
-def test_mev_simulation_persists():
-    from features.mev_simulator import MEVSimulator, Transaction
+def test_mev_analysis_persists():
+    from features.mev_analyzer import MEVAnalyzer, Transaction
     from storage.database import Database
 
     tmp = tempfile.mkdtemp()
     db = Database(os.path.join(tmp, "m.db"))
     db.initialize()
 
-    m1 = MEVSimulator(db=db)
+    m1 = MEVAnalyzer(db=db)
     txs = [
         Transaction("0xabc", "0xu1", "0xpool", 10, 100, 1),
         Transaction("0xdef", "0xu2", "0xpool", 5, 50, 2),
@@ -23,23 +23,30 @@ def test_mev_simulation_persists():
     r = m1.detect_sandwich_opportunity(txs)
     assert r["opportunity"] is True
 
-    m2 = MEVSimulator(db=db)
+    m2 = MEVAnalyzer(db=db)
     assert m2.get_statistics()["total_attacks"] >= 1
     assert m2.get_statistics()["persisted"] is True
 
 
 def test_mev_frontrun_recorded():
-    from features.mev_simulator import MEVSimulator, Transaction
+    from features.mev_analyzer import MEVAnalyzer, Transaction
     from storage.database import Database
 
     tmp = tempfile.mkdtemp()
     db = Database(os.path.join(tmp, "f.db"))
     db.initialize()
-    mev = MEVSimulator(db=db)
+    mev = MEVAnalyzer(db=db)
     tx = Transaction("0x111", "0xa", "0xb", 20.0, 50, 3)
     out = mev.simulate_frontrun(tx, bot_balance=1000.0)
     assert out["success"] is True
     assert mev.get_statistics()["attack_types"]["frontrun"] >= 1
+
+
+def test_mev_simulator_name_is_compatibility_alias():
+    from features.mev_analyzer import MEVAnalyzer
+    from features.mev_simulator import MEVSimulator
+
+    assert MEVSimulator is MEVAnalyzer
 
 
 def test_l2_status_aggregator():

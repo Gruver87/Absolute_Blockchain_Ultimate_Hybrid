@@ -215,7 +215,7 @@ feature_map = {
     "features/smart_accounts.py": "SmartAccount",
     "features/postquantum.py": "PostQuantum",
     "features/ai_validator.py": "AIValidator",
-    "features/mev_simulator.py": "MEVAnalyzer",
+    "features/mev_analyzer.py": "MEVAnalyzer",
     "features/reorg_predictor.py": "ReorgPredictor",
     "real_world_oracles.py": "RealWorldOracles",
     "dynamic_sharding.py": "ShardingManager",

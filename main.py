@@ -179,10 +179,10 @@ except Exception:
 
 # --- MEV Analyzer ---
 try:
-    from features.mev_simulator import MEVAnalyzer
-    _MEV_SIMULATOR_AVAILABLE = True
+    from features.mev_analyzer import MEVAnalyzer
+    _MEV_ANALYZER_AVAILABLE = True
 except Exception:
-    _MEV_SIMULATOR_AVAILABLE = False
+    _MEV_ANALYZER_AVAILABLE = False
 
 # --- Immutable State Manager (satoshi-precision balances) ---
 try:
@@ -739,7 +739,7 @@ class NodeOrchestrator:
             self.reorg_predictor = None
 
         # 24. MEV analysis module (disabled by prod profile)
-        if _MEV_SIMULATOR_AVAILABLE and getattr(config, "feature_mev", True):
+        if _MEV_ANALYZER_AVAILABLE and getattr(config, "feature_mev", True):
             self.mev_simulator = MEVAnalyzer(db=self.db)
             print("[Node] MEVAnalyzer: enabled (sandwich/arbitrage/frontrun analysis)")
         else:
@@ -1448,7 +1448,7 @@ class NodeOrchestrator:
             # ── MEV scan (monitoring, PBS handles protection) ─────────────────
             if self.mev_simulator and len(pending) >= 2:
                 try:
-                    from features.mev_simulator import Transaction as MevTx
+                    from features.mev_analyzer import Transaction as MevTx
                     mev_txs = [MevTx(mp_tx.tx_hash, mp_tx.from_addr, mp_tx.to_addr,
                                      mp_tx.amount, int(mp_tx.fee * 1e9), int(mp_tx.timestamp))
                                for mp_tx in pending[:10]]
