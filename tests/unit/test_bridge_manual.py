@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from runtime.config import Config
 from storage.database import Database
 from bridge.abs_bridge import RustBridge
+from bridge.dev_bridge_adapter import DevBridgeAdapter
 
 
 @pytest.fixture
@@ -73,6 +74,12 @@ def test_bridge_accepts_eth_chain_alias(bridge_env):
     res = br.lock_and_bridge("0xalice", "ETH", "0xrecipient", 10.0)
     assert "tx_hash" in res, res
     assert res["to_chain"] == "ethereum"
+
+
+def test_cross_chain_bridge_name_is_compatibility_alias():
+    from cross_chain_bridge import CrossChainBridge
+
+    assert CrossChainBridge is DevBridgeAdapter
 
 
 def test_rust_bridge_missing_binary_does_not_fallback_to_simulator():

@@ -219,7 +219,7 @@ feature_map = {
     "features/reorg_predictor.py": "ReorgPredictor",
     "real_world_oracles.py": "RealWorldOracles",
     "dynamic_sharding.py": "ShardingManager",
-    "cross_chain_bridge.py": "CrossChainBridge",
+    "bridge/dev_bridge_adapter.py": "DevBridgeAdapter",
     "consensus_engine.py": "ConsensusEngine",
     "finality_engine.py": "FinalityEngine",
     "sync/sync_engine.py": "SyncEngine",

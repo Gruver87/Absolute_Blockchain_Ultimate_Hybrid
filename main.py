@@ -228,7 +228,7 @@ except Exception:
 
 # --- Cross-Chain Bridge dev/test adapter ---
 try:
-    from cross_chain_bridge import CrossChainBridge
+    from bridge.dev_bridge_adapter import DevBridgeAdapter
     _CROSS_BRIDGE_AVAILABLE = True
 except Exception:
     _CROSS_BRIDGE_AVAILABLE = False
@@ -876,7 +876,7 @@ class NodeOrchestrator:
             and getattr(config, "bridge_dev_adapter_enabled", False)
         ):
             try:
-                self.cross_bridge = CrossChainBridge()
+                self.cross_bridge = DevBridgeAdapter()
                 print("[Node] Cross-Chain Bridge dev/test adapter: explicitly enabled")
             except Exception as e:
                 self.cross_bridge = None

@@ -5,7 +5,7 @@ Absolute Cross-Chain Bridge
 
 Режим работы задаётся в Config.bridge_mode:
   "rust"      — вызов скомпилированного Rust-бинарника через subprocess
-  "simulator" — явный dev/test-only режим на основе cross_chain_bridge.py
+  "simulator" — явный dev/test-only режим на основе DevBridgeAdapter
 
 Поддерживаемые сети: Ethereum, BSC, Solana, Absolute (ABS)
 """
@@ -22,7 +22,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from cross_chain_bridge import CrossChainBridge, BridgeTransaction, Chain
+from bridge.dev_bridge_adapter import CrossChainBridge, BridgeTransaction, Chain
 from storage.database import Database
 from runtime.config import Config
 from kernel.event_bus import EventBus
@@ -46,7 +46,7 @@ class BridgeLock:
 class RustBridge:
     """
     Обёртка над Rust-бинарником кросс-чейн моста.
-    Python simulator остаётся только явным dev/test-only режимом.
+    Python dev/test adapter remains available only when selected explicitly.
 
     Жизненный цикл транзакции:
       1. lock_and_bridge()   — блокируем ABS на нашей цепи, инициируем перевод
@@ -92,7 +92,7 @@ class RustBridge:
         if self._is_prod and config.bridge_mode != "rust":
             raise RuntimeError("production bridge requires bridge_mode=rust")
 
-        # Python simulator is dev/test-only and must be selected explicitly.
+        # Python dev/test adapter must be selected explicitly.
         self._simulator = (
             CrossChainBridge()
             if not self._is_prod and config.bridge_mode == "simulator"
