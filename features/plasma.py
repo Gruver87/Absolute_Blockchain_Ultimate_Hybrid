@@ -140,6 +140,30 @@ class PlasmaChain:
         if self.db and hasattr(self.db, "set_meta"):
             self.db.set_meta("plasma_pending_txs", self.pending_txs[-200:])
 
+    def _l2_balance(self, addr: str) -> float:
+        balance = 0.0
+        for dep in self.deposits.values():
+            if dep.get("from") == addr and dep.get("status") == "confirmed":
+                balance += float(dep.get("amount", 0) or 0)
+        for block in self.blocks:
+            for tx in block.transactions:
+                if tx.get("type") == "deposit":
+                    continue
+                amount = float(tx.get("amount", 0) or 0)
+                if tx.get("from") == addr:
+                    balance -= amount
+                if tx.get("to") == addr:
+                    balance += amount
+        for tx in self.pending_txs:
+            if tx.get("type") == "deposit":
+                continue
+            amount = float(tx.get("amount", 0) or 0)
+            if tx.get("from") == addr:
+                balance -= amount
+            if tx.get("to") == addr:
+                balance += amount
+        return balance
+
     def deposit(self, from_addr: str, amount: float,
                 main_tx_hash: str = "") -> Optional[str]:
         if amount <= 0:
@@ -176,19 +200,21 @@ class PlasmaChain:
                            amount: float) -> Optional[str]:
         if amount <= 0 or not from_addr or not to_addr:
             return None
-        tx = {
-            "hash": hashlib.sha256(
-                f"{from_addr}{to_addr}{amount}{time.time()}".encode()
-            ).hexdigest()[:16],
-            "from": from_addr,
-            "to": to_addr,
-            "amount": amount,
-            "timestamp": int(time.time()),
-        }
         with self._lock:
+            if self._l2_balance(from_addr) < amount:
+                return None
+            tx = {
+                "hash": hashlib.sha256(
+                    f"{from_addr}{to_addr}{amount}{time.time()}".encode()
+                ).hexdigest()[:16],
+                "from": from_addr,
+                "to": to_addr,
+                "amount": amount,
+                "timestamp": int(time.time()),
+            }
             self.pending_txs.append(tx)
             self._persist_pending()
-        return tx["hash"]
+            return tx["hash"]
 
     def submit_block(self, proposer: str = "operator") -> Optional[Dict]:
         with self._lock:
@@ -210,6 +236,8 @@ class PlasmaChain:
         with self._lock:
             dep = self.deposits.get(deposit_id)
             if not dep or dep["status"] != "confirmed" or dep["from"] != user:
+                return None
+            if self._l2_balance(user) < float(dep.get("amount", 0) or 0):
                 return None
             exit_id = hashlib.sha256(
                 f"{deposit_id}{user}{time.time()}".encode()

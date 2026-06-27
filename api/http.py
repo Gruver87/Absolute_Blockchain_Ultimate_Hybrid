@@ -3470,7 +3470,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                 try:
                     if hasattr(nft, "create_auction"):
                         aid = nft.create_auction(token_id, seller, start_price, reserve, hours)
-                        self._json({"success": True, "auction_id": aid})
+                        if aid:
+                            self._json({"success": True, "auction_id": aid})
+                        else:
+                            self._error(400, "Could not create auction")
                     else:
                         self._error(501, "Auctions not supported by this NFT module")
                 except Exception as e:
@@ -3488,7 +3491,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                 try:
                     if hasattr(nft, "place_bid"):
                         result = nft.place_bid(auction_id, bidder, amount)
-                        self._json({"success": bool(result), "result": result})
+                        if isinstance(result, dict) and result.get("success"):
+                            self._json({"success": True, "result": result})
+                        else:
+                            error = result.get("error", "Bid failed") if isinstance(result, dict) else "Bid failed"
+                            self._error(400, error)
                     else:
                         self._error(501, "Bidding not supported")
                 except Exception as e:
@@ -3506,10 +3513,23 @@ class RESTHandler(BaseHTTPRequestHandler):
                 try:
                     if hasattr(nft, "create_listing"):
                         lid = nft.create_listing(token_id, seller, price)
-                        self._json({"success": True, "listing_id": lid})
+                        if lid:
+                            self._json({"success": True, "listing_id": lid})
+                        else:
+                            self._error(400, "Could not create listing")
                     elif hasattr(nft, "list_token"):
                         lid = nft.list_token(token_id, seller, price)
-                        self._json({"success": True, "listing_id": lid})
+                        if lid:
+                            self._json({"success": True, "listing_id": lid})
+                        else:
+                            self._error(400, "Could not create listing")
+                    elif hasattr(nft, "list_for_sale"):
+                        result = nft.list_for_sale(token_id, seller, price)
+                        if isinstance(result, dict) and result.get("success"):
+                            self._json(result)
+                        else:
+                            error = result.get("error", "Could not list token") if isinstance(result, dict) else "Could not list token"
+                            self._error(400, error)
                     else:
                         self._error(501, "Listings not supported")
                 except Exception as e:

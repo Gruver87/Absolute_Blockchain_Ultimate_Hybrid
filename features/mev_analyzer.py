@@ -118,16 +118,17 @@ class MEVAnalyzer:
 
     def simulate_frontrun(self, target_tx: Transaction, bot_balance: float) -> Dict:
         if target_tx.value * 0.1 > bot_balance:
-            return {"success": False, "reason": "Insufficient balance"}
-        profit = target_tx.value * min(0.05, target_tx.gas_price / 1_000_000_000.0)
+            return {"opportunity": False, "executed": False, "reason": "Insufficient balance"}
+        estimated_profit = target_tx.value * min(0.05, target_tx.gas_price / 1_000_000_000.0)
         result = {
-            "success": True,
-            "profit": round(profit, 6),
+            "opportunity": estimated_profit > 0,
+            "executed": False,
+            "estimated_profit": round(estimated_profit, 6),
             "strategy": "frontrun",
             "gas_used": 21000 * 2,
             "source": "fee_priority_model",
         }
-        self._record("frontrun", profit, {
+        self._record("frontrun", estimated_profit, {
             "target": target_tx.hash[:16],
             **result,
         })

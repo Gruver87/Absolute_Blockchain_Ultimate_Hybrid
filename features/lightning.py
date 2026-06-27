@@ -13,8 +13,8 @@ class LightningChannel:
         self.node1 = node1
         self.node2 = node2
         self.capacity = capacity
-        self.balance1 = balance1 if balance1 is not None else capacity / 2
-        self.balance2 = balance2 if balance2 is not None else capacity / 2
+        self.balance1 = balance1 if balance1 is not None else capacity
+        self.balance2 = balance2 if balance2 is not None else 0.0
         self.status = status
         self.created_at = created_at if created_at is not None else int(time.time())
         self.fee_rate = fee_rate
@@ -180,19 +180,23 @@ class LightningNetwork:
         ch = self.channels.get(channel_id)
         if not ch or ch.status != "open":
             return None
+        fee = amount * ch.fee_rate
         if self.node_address == ch.node1:
-            if ch.balance1 < amount:
+            if to_node != ch.node2:
                 return None
-            ch.balance1 -= amount
+            if ch.balance1 < amount + fee:
+                return None
+            ch.balance1 -= amount + fee
             ch.balance2 += amount
         elif self.node_address == ch.node2:
-            if ch.balance2 < amount:
+            if to_node != ch.node1:
+                return None
+            if ch.balance2 < amount + fee:
                 return None
             ch.balance1 += amount
-            ch.balance2 -= amount
+            ch.balance2 -= amount + fee
         else:
             return None
-        fee = amount * ch.fee_rate
         pid = hashlib.sha256(
             f"{channel_id}{self.node_address}{to_node}{amount}{time.time()}".encode()
         ).hexdigest()[:16]

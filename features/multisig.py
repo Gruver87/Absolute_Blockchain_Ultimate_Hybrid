@@ -1,12 +1,17 @@
 ﻿# multisig.py - Multi-signature wallet module
 import hashlib
 import time
-from typing import List, Dict, Any, Set
+from typing import Callable, List, Dict, Any, Optional, Set
 
 class MultiSigWallet:
     _registry: Dict[str, "MultiSigWallet"] = {}
 
-    def __init__(self, owners: List[str], required: int):
+    def __init__(
+        self,
+        owners: List[str],
+        required: int,
+        transaction_executor: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None,
+    ):
         unique_owners = []
         for owner in owners or []:
             if owner and owner not in unique_owners:
@@ -18,6 +23,7 @@ class MultiSigWallet:
 
         self.owners = unique_owners
         self.required = required
+        self.transaction_executor = transaction_executor
         self.wallet_id = hashlib.sha256(
             f"{'|'.join(self.owners)}:{self.required}:{time.time_ns()}".encode()
         ).hexdigest()[:16]
@@ -41,6 +47,7 @@ class MultiSigWallet:
             "created_at": int(time.time()),
             "status": "pending",
             "executed": False,
+            "execution_result": None,
             "required": self.required,
             "confirmations": [],
         }
@@ -63,14 +70,24 @@ class MultiSigWallet:
         tx["confirmations"] = confirmations
         duplicate = len(confirmations) == before
         if len(confirmations) >= self.required:
-            tx["executed"] = True
-            tx["status"] = "executed"
+            if self.transaction_executor:
+                execution = self.transaction_executor(dict(tx))
+                if isinstance(execution, dict) and execution.get("success") is not False:
+                    tx["executed"] = True
+                    tx["status"] = "executed"
+                    tx["execution_result"] = execution
+                else:
+                    tx["status"] = "execution_failed"
+                    tx["execution_result"] = execution
+            else:
+                tx["status"] = "approved"
         return {
             "success": True,
             "tx_id": tx_id,
             "confirmations": len(confirmations),
             "required": self.required,
             "executed": tx["executed"],
+            "status": tx["status"],
             "duplicate": duplicate,
         }
 

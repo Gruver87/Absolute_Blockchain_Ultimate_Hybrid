@@ -130,6 +130,45 @@ class NFTMarketplace:
         for aid in list(self.auctions.keys()):
             self._persist_auction(aid)
 
+    def _has_balance_backend(self) -> bool:
+        return bool(
+            self.db
+            and hasattr(self.db, "get_balance")
+            and hasattr(self.db, "update_balance")
+        )
+
+    def _balance(self, addr: str) -> float:
+        if not self._has_balance_backend():
+            return 0.0
+        return float(self.db.get_balance(addr))
+
+    def _debit(self, addr: str, amount: float) -> bool:
+        if amount <= 0 or not self._has_balance_backend():
+            return False
+        if self._balance(addr) < amount:
+            return False
+        self.db.update_balance(addr, -amount)
+        return True
+
+    def _credit(self, addr: str, amount: float) -> bool:
+        if amount <= 0 or not self._has_balance_backend():
+            return False
+        self.db.update_balance(addr, amount)
+        return True
+
+    def _settle_sale(self, buyer: str, seller: str, creator: str, price: float) -> bool:
+        if price <= 0 or not self._has_balance_backend():
+            return False
+        if self._balance(buyer) < price:
+            return False
+        royalty = price * self.ROYALTY
+        seller_amount = price - royalty
+        self.db.update_balance(buyer, -price)
+        self.db.update_balance(seller, seller_amount)
+        if creator != seller and royalty > 0:
+            self.db.update_balance(creator, royalty)
+        return True
+
     def _load_genesis_collection(self):
         """Начальная коллекция Genesis."""
         genesis = [
@@ -159,11 +198,8 @@ class NFTMarketplace:
             if token_id in self.tokens:
                 return {"success": False, "error": "token_id already exists"}
 
-            if self.db:
-                balance = self.db.get_balance(creator)
-                if balance < self.MINT_FEE:
-                    return {"success": False, "error": f"Need {self.MINT_FEE} ABS to mint"}
-                self.db.update_balance(creator, -self.MINT_FEE)
+            if not self._debit(creator, self.MINT_FEE):
+                return {"success": False, "error": f"Need {self.MINT_FEE} ABS to mint"}
 
             self.tokens[token_id] = NFTToken(
                 token_id=token_id, name=name, description=description,
@@ -181,6 +217,8 @@ class NFTMarketplace:
 
     def list_for_sale(self, token_id: str, owner: str, price: float) -> Dict:
         with self.lock:
+            if price <= 0:
+                return {"success": False, "error": "price must be > 0"}
             if token_id not in self.tokens:
                 return {"success": False, "error": "not found"}
             t = self.tokens[token_id]
@@ -204,15 +242,8 @@ class NFTMarketplace:
 
             price = t.price
 
-            if self.db:
-                if self.db.get_balance(buyer) < price:
-                    return {"success": False, "error": "insufficient balance"}
-                royalty = price * self.ROYALTY
-                seller_amount = price - royalty
-                self.db.update_balance(buyer, -price)
-                self.db.update_balance(t.owner, seller_amount)
-                if t.creator != t.owner:
-                    self.db.update_balance(t.creator, royalty)
+            if not self._settle_sale(buyer, t.owner, t.creator, price):
+                return {"success": False, "error": "insufficient balance or balance backend unavailable"}
 
             old_owner = t.owner
             t.owner = buyer
@@ -235,6 +266,8 @@ class NFTMarketplace:
 
     def transfer(self, token_id: str, from_addr: str, to_addr: str) -> Dict:
         with self.lock:
+            if not to_addr:
+                return {"success": False, "error": "recipient required"}
             if token_id not in self.tokens:
                 return {"success": False, "error": "not found"}
             t = self.tokens[token_id]
@@ -286,7 +319,11 @@ class NFTMarketplace:
         """Create a purchase offer for any NFT (not just for-sale ones)."""
         import hashlib
         with self.lock:
+            if price <= 0:
+                return None
             if token_id not in self.tokens:
+                return None
+            if not self._has_balance_backend() or self._balance(bidder) < price:
                 return None
             offer_id = hashlib.sha256(
                 f"{token_id}{bidder}{price}{time.time()}".encode()
@@ -315,14 +352,8 @@ class NFTMarketplace:
                 return {"success": False, "error": "Not token owner"}
             # Transfer
             price = offer["price"]
-            if self.db:
-                if self.db.get_balance(offer["bidder"]) < price:
-                    return {"success": False, "error": "Bidder has insufficient balance"}
-                royalty = price * self.ROYALTY
-                self.db.update_balance(offer["bidder"], -price)
-                self.db.update_balance(seller, price - royalty)
-                if t.creator != seller:
-                    self.db.update_balance(t.creator, royalty)
+            if not self._settle_sale(offer["bidder"], seller, t.creator, price):
+                return {"success": False, "error": "Bidder has insufficient balance or balance backend unavailable"}
             old_owner = t.owner
             t.owner = offer["bidder"]
             t.for_sale = False
@@ -354,6 +385,8 @@ class NFTMarketplace:
         """Create an English auction for an NFT."""
         import hashlib
         with self.lock:
+            if start_price <= 0 or reserve_price < 0 or hours <= 0:
+                return None
             t = self.tokens.get(token_id)
             if not t or t.owner != seller:
                 return None
@@ -388,6 +421,8 @@ class NFTMarketplace:
                 return {"success": False, "error": "Auction has ended"}
             if amount <= auction["current_bid"]:
                 return {"success": False, "error": f"Bid must be > {auction['current_bid']}"}
+            if not self._has_balance_backend() or self._balance(bidder) < amount:
+                return {"success": False, "error": "insufficient balance or balance backend unavailable"}
             auction["bids"].append({"bidder": bidder, "amount": amount, "ts": int(time.time())})
             auction["current_bid"] = amount
             auction["current_bidder"] = bidder
@@ -409,21 +444,22 @@ class NFTMarketplace:
             if winner and price >= auction.get("reserve_price", 0):
                 token_id = auction["token_id"]
                 t = self.tokens.get(token_id)
-                if t:
-                    old_owner = t.owner
-                    if self.db:
-                        royalty = price * self.ROYALTY
-                        self.db.update_balance(winner, -price)
-                        self.db.update_balance(old_owner, price - royalty)
-                        if t.creator != old_owner:
-                            self.db.update_balance(t.creator, royalty)
-                    t.owner = winner
-                    t.for_sale = False
-                    self._persist_token(token_id)
-                    self._record_sale({
-                        "token_id": token_id, "from": old_owner, "to": winner,
-                        "price": price, "type": "auction", "timestamp": int(time.time()),
-                    })
+                if not t:
+                    auction["status"] = "settlement_failed"
+                    self._persist_auction(auction_id)
+                    return {"success": False, "error": "Auction token not found"}
+                old_owner = t.owner
+                if not self._settle_sale(winner, old_owner, t.creator, price):
+                    auction["status"] = "settlement_failed"
+                    self._persist_auction(auction_id)
+                    return {"success": False, "error": "insufficient balance or balance backend unavailable"}
+                t.owner = winner
+                t.for_sale = False
+                self._persist_token(token_id)
+                self._record_sale({
+                    "token_id": token_id, "from": old_owner, "to": winner,
+                    "price": price, "type": "auction", "timestamp": int(time.time()),
+                })
                 return {"success": True, "auction_id": auction_id,
                         "winner": winner, "price": price}
             return {"success": True, "auction_id": auction_id,

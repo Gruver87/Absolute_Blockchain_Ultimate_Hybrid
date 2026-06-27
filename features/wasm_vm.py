@@ -219,8 +219,7 @@ class WASMVirtualMachine:
             self.storage[addr] = store
             return {"success": True, "result": True}
         elif fn == "constructor":
-            self._run_constructor(addr, params, caller)
-            return {"success": True, "result": "Initialized"}
+            return {"success": False, "error": "Constructor cannot be called after deployment"}
         elif fn == "getInfo":
             return {"success": True, "result": contract.name}
         elif fn == "getOwner":
@@ -228,6 +227,8 @@ class WASMVirtualMachine:
         elif fn == "totalSupply":
             return {"success": True, "result": store.get("totalSupply", 0)}
         elif fn == "setStorage":
+            if caller != contract.owner:
+                return {"success": False, "error": "Only contract owner can set storage"}
             key = params.get("key")
             val = params.get("value")
             if key:

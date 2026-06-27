@@ -43,9 +43,8 @@ def test_lightning_close_credits_l1():
     cid = ln.open_channel(peer, 20.0)
     assert db.get_balance(node) == 30.0
     assert ln.close_channel(cid)
-    # half capacity returned to each side (10 + 10)
-    assert db.get_balance(node) == 40.0
-    assert db.get_balance(peer) == 10.0
+    assert db.get_balance(node) == 50.0
+    assert db.get_balance(peer) == 0.0
 
 
 def test_lightning_open_requires_balance_backend():
@@ -86,6 +85,36 @@ def test_lightning_payment_rejects_non_positive_amount():
 
     assert ln.send_payment(cid, peer, 0) is None
     assert ln.send_payment(cid, peer, -1.0) is None
+
+
+def test_lightning_payment_requires_channel_counterparty_and_fee_balance():
+    from features.lightning import LightningNetwork
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "ln-real-pay.db"))
+    db.initialize()
+    node = "0x" + "1" * 40
+    peer = "0x" + "2" * 40
+    stranger = "0x" + "3" * 40
+    db.set_balance(node, 100.0)
+
+    ln = LightningNetwork(node_address=node, db=db)
+    cid = ln.open_channel(peer, 10.0)
+    assert cid
+    ch = ln.channels[cid]
+    assert ch.balance1 == 10.0
+    assert ch.balance2 == 0.0
+
+    assert ln.send_payment(cid, stranger, 1.0) is None
+    before_sender = ch.balance1
+    before_receiver = ch.balance2
+    payment_id = ln.send_payment(cid, peer, 1.0)
+
+    assert payment_id
+    assert ch.balance1 == before_sender - 1.0 - (1.0 * ch.fee_rate)
+    assert ch.balance2 == before_receiver + 1.0
+    assert ln.send_payment(cid, peer, ch.balance1) is None
 
 
 def test_plasma_deposit_debits_and_persists():
@@ -160,11 +189,53 @@ def test_plasma_block_persisted():
     tmp = tempfile.mkdtemp()
     db = Database(os.path.join(tmp, "pb.db"))
     db.initialize()
+    user = "0x" + "1" * 40
+    recipient = "0x" + "2" * 40
+    db.set_balance(user, 100.0)
 
     pl = PlasmaChain(chain_id="test", db=db)
-    pl.submit_transaction("0x" + "1" * 40, "0x" + "2" * 40, 5.0)
+    assert pl.deposit(user, 10.0)
+    assert pl.submit_transaction(user, recipient, 5.0)
     blk = pl.submit_block()
     assert blk is not None
 
     pl2 = PlasmaChain(chain_id="test", db=db)
     assert len(pl2.blocks) >= 2  # genesis + submitted
+
+
+def test_plasma_transfer_requires_l2_balance():
+    from features.plasma import PlasmaChain
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "pbalance.db"))
+    db.initialize()
+    user = "0x" + "3" * 40
+    recipient = "0x" + "4" * 40
+    db.set_balance(user, 100.0)
+
+    pl = PlasmaChain(chain_id="test", db=db)
+    assert pl.submit_transaction(user, recipient, 1.0) is None
+    assert pl.deposit(user, 10.0)
+    assert pl.submit_transaction(user, recipient, 11.0) is None
+    assert pl.submit_transaction(user, recipient, 4.0)
+    assert pl.submit_transaction(user, recipient, 7.0) is None
+
+
+def test_plasma_exit_requires_unspent_l2_balance():
+    from features.plasma import PlasmaChain
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "pexit-balance.db"))
+    db.initialize()
+    user = "0x" + "5" * 40
+    recipient = "0x" + "6" * 40
+    db.set_balance(user, 100.0)
+
+    pl = PlasmaChain(chain_id="test", db=db)
+    did = pl.deposit(user, 10.0)
+    assert did
+    assert pl.submit_transaction(user, recipient, 6.0)
+
+    assert pl.request_exit(did, user) is None

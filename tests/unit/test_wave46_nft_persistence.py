@@ -47,6 +47,55 @@ def test_nft_mint_and_buy_persist():
     tok = nft2.get_token(tid)
     assert tok["owner"] == buyer
     assert nft2.get_stats()["total_sales"] >= 1
+    assert db.get_balance(buyer) == 950.0
+    assert db.get_balance(seller) == 1046.5
+
+
+def test_nft_paid_operations_require_balance_backend():
+    from features.nft import NFTMarketplace
+
+    nft = NFTMarketplace(db=None)
+    seller = "0x" + "a" * 40
+    buyer = "0x" + "b" * 40
+    tid = "test_nft_no_backend"
+
+    minted = nft.mint(tid, "NoBackend", "test", "img", seller, price=50.0)
+    assert minted["success"] is False
+
+    nft._mint_internal(tid, "NoBackend", "test", "img", seller, 50.0)
+    assert nft.buy(tid, buyer)["success"] is False
+    assert nft.make_offer(tid, buyer, 55.0) is None
+
+    auction_id = nft.create_auction(tid, seller, 50.0)
+    assert auction_id is not None
+    bid = nft.place_bid(auction_id, buyer, 60.0)
+    assert bid["success"] is False
+
+
+def test_nft_auction_finalize_fails_if_token_missing():
+    from features.nft import NFTMarketplace
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "auction.db"))
+    db.initialize()
+    seller = "0x" + "a" * 40
+    buyer = "0x" + "b" * 40
+    db.update_balance(seller, 1000.0)
+    db.update_balance(buyer, 1000.0)
+
+    nft = NFTMarketplace(db=db)
+    tid = "test_nft_missing_before_finalize"
+    assert nft.mint(tid, "Missing", "test", "img", seller, price=50.0)["success"] is True
+    auction_id = nft.create_auction(tid, seller, 50.0)
+    assert auction_id is not None
+    assert nft.place_bid(auction_id, buyer, 60.0)["success"] is True
+
+    del nft.tokens[tid]
+    finalized = nft.finalize_auction(auction_id)
+
+    assert finalized == {"success": False, "error": "Auction token not found"}
+    assert nft.auctions[auction_id]["status"] == "settlement_failed"
 
 
 def test_db_nft_token_roundtrip():

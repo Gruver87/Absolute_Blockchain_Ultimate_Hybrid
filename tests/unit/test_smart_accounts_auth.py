@@ -104,3 +104,42 @@ def test_smart_account_transaction_uses_real_executor_and_consumes_session():
         auth_method=AuthMethod.SESSION_KEY,
         credential=session_key,
     ) is None
+
+
+def test_smart_account_recovery_requires_approved_guardian_majority():
+    owner = "0x" + "a" * 40
+    new_owner = "0x" + "b" * 40
+    g1 = "0x" + "1" * 40
+    g2 = "0x" + "2" * 40
+    account = SmartAccount("0x" + "c" * 40, owner)
+
+    assert account.add_guardian(g1, "guardian-1") is True
+    assert account.add_guardian(g2, "guardian-2") is True
+    assert account.request_recovery(g1) is None
+
+    assert account.approve_guardian(g1, owner) is True
+    assert account.approve_guardian(g2, owner) is True
+    request_id = account.request_recovery(g1)
+    assert request_id
+
+    assert account.approve_recovery(request_id, g1) is True
+    assert account.recovery_requests[request_id].status == "pending"
+    assert account.execute_recovery(request_id, new_owner) is False
+
+    assert account.approve_recovery(request_id, g2) is True
+    assert account.recovery_requests[request_id].status == "approved"
+    assert account.execute_recovery(request_id, new_owner) is True
+    assert account.owner == new_owner
+
+
+def test_smart_account_recovery_rejects_invalid_new_owner():
+    owner = "0x" + "d" * 40
+    guardian = "0x" + "3" * 40
+    account = SmartAccount("0x" + "e" * 40, owner)
+    account.add_guardian(guardian, "guardian")
+    account.approve_guardian(guardian, owner)
+    request_id = account.request_recovery(guardian)
+    account.approve_recovery(request_id, guardian)
+
+    assert account.execute_recovery(request_id, "") is False
+    assert account.execute_recovery(request_id, owner) is False

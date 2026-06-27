@@ -363,7 +363,7 @@ class SmartAccount:
     def add_guardian(self, address: str, name: str, weight: int = 1) -> bool:
         """Добавление хранителя"""
         
-        if address in self.guardians:
+        if not address or address in self.guardians or weight <= 0:
             return False
         
         guardian = Guardian(
@@ -393,7 +393,8 @@ class SmartAccount:
     def request_recovery(self, requested_by: str) -> Optional[str]:
         """Запрос на восстановление аккаунта"""
         
-        if requested_by not in self.guardians:
+        guardian = self.guardians.get(requested_by)
+        if not guardian or not guardian.approved:
             return None
         
         request_id = hashlib.sha256(
@@ -416,17 +417,24 @@ class SmartAccount:
         if request_id not in self.recovery_requests:
             return False
         
-        if guardian not in self.guardians:
+        guardian_record = self.guardians.get(guardian)
+        if not guardian_record or not guardian_record.approved:
             return False
         
         request = self.recovery_requests[request_id]
+        if request.status != "pending":
+            return False
+        if time.time() > request.expires_at:
+            request.status = "expired"
+            return False
         
         if guardian not in request.guardians_approved:
             request.guardians_approved.append(guardian)
         
         # Проверяем, достаточно ли одобрений
         total_weight = sum(self.guardians[g].weight for g in request.guardians_approved)
-        required_weight = sum(g.weight for g in self.guardians.values()) // 2
+        approved_weight = sum(g.weight for g in self.guardians.values() if g.approved)
+        required_weight = approved_weight // 2 + 1
         
         if total_weight >= required_weight:
             request.status = "approved"
@@ -441,10 +449,14 @@ class SmartAccount:
         
         request = self.recovery_requests[request_id]
         
+        if not new_owner or new_owner == self.owner:
+            return False
+        
         if request.status != "approved":
             return False
         
         if time.time() > request.expires_at:
+            request.status = "expired"
             return False
         
         # Меняем владельца

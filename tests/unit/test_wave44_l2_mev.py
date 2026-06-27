@@ -38,7 +38,9 @@ def test_mev_frontrun_recorded():
     mev = MEVAnalyzer(db=db)
     tx = Transaction("0x111", "0xa", "0xb", 20.0, 50, 3)
     out = mev.simulate_frontrun(tx, bot_balance=1000.0)
-    assert out["success"] is True
+    assert out["opportunity"] is True
+    assert out["executed"] is False
+    assert "estimated_profit" in out
     assert mev.get_statistics()["attack_types"]["frontrun"] >= 1
 
 
