@@ -1,0 +1,132 @@
+﻿name: Blockchain Tests
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Hybrid Node Checks
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Set up Rust toolchain
+      run: |
+        rustup toolchain install stable --profile minimal
+        rustup default stable
+
+    - name: Build native crypto
+      run: bash scripts/build_native.sh
+
+    - name: Build Rust bridge CLI
+      run: |
+        source "$HOME/.cargo/env"
+        bash scripts/build_bridge.sh
+
+    - name: Native crypto required self-test
+      run: python -c "from crypto import native; s=native.native_crypto_status(required=True); assert s['available'] and s['self_test'], s; print('OK native:', s)"
+
+    - name: Secret scan (block keys in repo)
+      run: python scripts/check_secrets.py
+
+    - name: Syntax check (compile all active modules)
+      run: |
+        python -c "
+        import os, py_compile
+        skip = {'_archive','__pycache__','.git','venv','.venv'}
+        errs = []
+        for root, dirs, files in os.walk('.'):
+            dirs[:] = [d for d in dirs if d not in skip]
+            for f in files:
+                if f.endswith('.py') and not f.startswith('_'):
+                    p = os.path.join(root, f)
+                    try: py_compile.compile(p, doraise=True)
+                    except py_compile.PyCompileError as e: errs.append(str(e))
+        if errs: raise SystemExit('\n'.join(errs[:20]))
+        print('OK: syntax clean')
+        "
+
+    - name: Merkle + Light Client test
+      run: python tests/smoke/merkle_light.py
+
+    - name: Pytest (unit + integration)
+      env:
+        PYTHONUTF8: "1"
+      run: pytest tests/ -q --tb=short
+
+    - name: Bridge + pool devnet API tests
+      if: matrix.python-version == '3.12'
+      env:
+        PYTHONUTF8: "1"
+      run: |
+        pytest tests/unit/test_bridge_incoming.py \
+          tests/unit/test_bridge_confirm_pending.py \
+          tests/unit/test_bridge_manual.py \
+          tests/unit/test_devnet_pool_spend.py \
+          tests/unit/test_pool_dao.py \
+          tests/unit/test_telegram_bot_bridge.py \
+          tests/unit/test_api_prod_auth.py \
+          tests/unit/test_bridge_relayer.py \
+          -q --tb=short
+
+    - name: Hybrid native and bridge critical tests
+      if: runner.os == 'Linux' && matrix.python-version == '3.12'
+      run: |
+        pytest \
+          tests/unit/test_rust_bridge_cli.py \
+          tests/unit/test_rust_bridge_e2e.py \
+          tests/unit/test_native_crypto.py \
+          tests/unit/test_state_root_native.py \
+          tests/unit/test_secp256k1.py \
+          tests/unit/test_chain_integrity.py \
+          tests/unit/test_api.py \
+          tests/unit/test_prod_config.py \
+          tests/unit/test_bridge_health.py \
+          -q
+
+    - name: Docker prod image build (smoke)
+      if: matrix.python-version == '3.12'
+      run: docker build -f Dockerfile.prod -t absolute-blockchain-prod:ci .
+
+    - name: Two-node P2P smoke (Linux CI mode)
+      if: runner.os == 'Linux' && matrix.python-version == '3.12'
+      env:
+        PYTHONUTF8: "1"
+      run: python scripts/verify_p2p_ci.py --mode ci
+
+    - name: Three-node adversarial CI (fork + slashing)
+      if: runner.os == 'Linux' && matrix.python-version == '3.12'
+      env:
+        PYTHONUTF8: "1"
+      run: python scripts/verify_p2p_ci.py --mode ci3
+
+    - name: Load test (health endpoint)
+      run: python scripts/load_test.py --spawn-local --workers 6 --requests 20
+
+    - name: Import main module
+      run: python -c "import main; print('main.py OK')"
+
+    - name: Final audit (non-blocking)
+      run: python scripts/final_audit.py || true
+      continue-on-error: true

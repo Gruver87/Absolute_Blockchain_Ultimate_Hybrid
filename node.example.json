@@ -1,0 +1,22 @@
+{
+  "node_id": "node-1",
+  "network_name": "Absolute Devnet",
+  "chain_id": 77777,
+  "p2p_port": 5000,
+  "http_port": 8080,
+  "rpc_port": 8545,
+  "ws_port": 8766,
+  "bootstrap_peers": [],
+  "mining_enabled": true,
+  "require_signatures": true,
+  "enforce_proposer": true,
+  "verify_peer_state_root": true,
+  "state_root_legacy_cutoff_height": 0,
+  "bridge_enabled": true,
+  "bridge_mode": "rust",
+  "rust_bridge_path": "bridge/abs_bridge_bin",
+  "bridge_auto_confirm_sec": 0,
+  "rate_limit_rpm": 0,
+  "db_path": "data/blockchain.db",
+  "log_file": "data/node.log"
+}

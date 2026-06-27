@@ -1,0 +1,143 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000">
+    <defs>
+        <radialGradient id="bgGrad" cx="50%" cy="50%" r="70%">
+            <stop offset="0%" stop-color="#1a1a2e" stop-opacity="1" />
+            <stop offset="50%" stop-color="#16213e" stop-opacity="1" />
+            <stop offset="100%" stop-color="#0f0c29" stop-opacity="1" />
+        </radialGradient>
+        <radialGradient id="glowGrad" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#CCAA88" stop-opacity="0.4" />
+            <stop offset="100%" stop-color="#CCAA88" stop-opacity="0" />
+        </radialGradient>
+        <linearGradient id="mainGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#CCAA88" />
+            <stop offset="50%" stop-color="#AA8866" />
+            <stop offset="100%" stop-color="#CCAA88" />
+        </linearGradient>
+        <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#FFD700" />
+            <stop offset="50%" stop-color="#FFA500" />
+            <stop offset="100%" stop-color="#FFD700" />
+        </linearGradient>
+        <filter id="glow">
+            <feGaussianBlur stdDeviation="10" result="blur"/>
+            <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+        <filter id="strongGlow">
+            <feGaussianBlur stdDeviation="15" result="blur"/>
+            <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+        <filter id="shadow">
+            <feDropShadow dx="0" dy="15" stdDeviation="20" flood-color="#000" flood-opacity="0.6"/>
+        </filter>
+    </defs>
+    
+    <rect width="1000" height="1000" fill="url(#bgGrad)"/>
+    <circle cx="500" cy="500" r="450" fill="url(#glowGrad)"/>
+    
+    <!-- Внешняя рамка -->
+    <rect x="30" y="30" width="940" height="940" rx="40" ry="40" fill="none" stroke="url(#mainGrad)" stroke-width="6" opacity="0.9" filter="url(#glow)"/>
+    <rect x="45" y="45" width="910" height="910" rx="35" ry="35" fill="none" stroke="#AA44FF" stroke-width="2" opacity="0.4"/>
+    
+    <!-- Углы с редкостью -->
+    <rect x="30" y="30" width="80" height="80" rx="15" ry="15" fill="url(#mainGrad)" opacity="0.7"/>
+    <rect x="890" y="30" width="80" height="80" rx="15" ry="15" fill="url(#mainGrad)" opacity="0.7"/>
+    <rect x="30" y="890" width="80" height="80" rx="15" ry="15" fill="url(#mainGrad)" opacity="0.7"/>
+    <rect x="890" y="890" width="80" height="80" rx="15" ry="15" fill="url(#mainGrad)" opacity="0.7"/>
+    
+    <text x="70" y="75" text-anchor="middle" font-family="'Segoe UI', Arial" font-size="14" font-weight="bold" fill="white" filter="url(#glow)">EPIC</text>
+    <text x="930" y="75" text-anchor="middle" font-family="'Segoe UI', Arial" font-size="14" font-weight="bold" fill="white" filter="url(#glow)">EPIC</text>
+    <text x="70" y="935" text-anchor="middle" font-family="'Segoe UI', Arial" font-size="14" font-weight="bold" fill="white" filter="url(#glow)">EPIC</text>
+    <text x="930" y="935" text-anchor="middle" font-family="'Segoe UI', Arial" font-size="14" font-weight="bold" fill="white" filter="url(#glow)">EPIC</text>
+    
+    <!-- Название -->
+    <text x="500" y="110" text-anchor="middle" font-family="'Segoe UI', Arial" font-size="36" font-weight="bold" fill="url(#mainGrad)" filter="url(#strongGlow)">Серебряный Волк</text>
+    
+    <!-- Блики -->
+    <circle cx="200" cy="200" r="150" fill="white" opacity="0.03"/>
+    <circle cx="800" cy="800" r="200" fill="white" opacity="0.02"/>
+    
+    <!-- 3D ПЕРСОНАЖ -->
+    <g transform="translate(500,480)" filter="url(#shadow)">
+        <!-- Тело -->
+        <ellipse cx="0" cy="30" rx="110" ry="150" fill="url(#mainGrad)" opacity="0.95"/>
+        <ellipse cx="0" cy="30" rx="90" ry="130" fill="none" stroke="white" stroke-width="1" opacity="0.1"/>
+        
+        <!-- Голова -->
+        <circle cx="0" cy="-120" r="85" fill="url(#mainGrad)" filter="url(#glow)"/>
+        <circle cx="0" cy="-120" r="70" fill="none" stroke="white" stroke-width="1.5" opacity="0.2"/>
+        
+        <!-- Глаза -->
+        <ellipse cx="-30" cy="-140" rx="22" ry="28" fill="white"/>
+        <ellipse cx="30" cy="-140" rx="22" ry="28" fill="white"/>
+        <circle cx="-25" cy="-138" r="12" fill="#111"/>
+        <circle cx="35" cy="-138" r="12" fill="#111"/>
+        <circle cx="-22" cy="-136" r="5" fill="white"/>
+        <circle cx="38" cy="-136" r="5" fill="white"/>
+        
+        <!-- Свечение глаз -->
+        <circle cx="-25" cy="-138" r="8" fill="#CCAA88" opacity="0.5" filter="url(#glow)"/>
+        <circle cx="35" cy="-138" r="8" fill="#CCAA88" opacity="0.5" filter="url(#glow)"/>
+        
+        <!-- Брови -->
+        <path d="M -55,-165 Q -30,-180 -10,-165" stroke="#222" stroke-width="8" fill="none" stroke-linecap="round"/>
+        <path d="M 10,-165 Q 30,-180 55,-165" stroke="#222" stroke-width="8" fill="none" stroke-linecap="round"/>
+        
+        <!-- Улыбка -->
+        <path d="M -30,-95 Q 0,-80 30,-95" stroke="#222" stroke-width="5" fill="none" stroke-linecap="round"/>
+        
+        <!-- Корона для мифических -->
+        if ("EPIC" -eq "MYTHIC") {
+            <g>
+                <polygon points="0,-210 -35,-180 -25,-210 -50,-190 -40,-210 -65,-195 -55,-210" fill="url(#goldGrad)" filter="url(#glow)"/>
+                <circle cx="0" cy="-215" r="12" fill="url(#goldGrad)"/>
+                <circle cx="-35" cy="-200" r="8" fill="url(#goldGrad)"/>
+                <circle cx="35" cy="-200" r="8" fill="url(#goldGrad)"/>
+            </g>
+        }
+        
+        # Крылья для легендарных и выше
+        if ("EPIC" -ne "RARE") {
+            <g opacity="0.4">
+                <path d="M -110,0 Q -180,-80 -100,-160 Q -60,-100 -110,0" fill="#AA8866" filter="url(#glow)"/>
+                <path d="M 110,0 Q 180,-80 100,-160 Q 60,-100 110,0" fill="#AA8866" filter="url(#glow)"/>
+            </g>
+        }
+        
+        <!-- Иконка на груди -->
+        <circle cx="0" cy="20" r="45" fill="url(#goldGrad)" opacity="0.3"/>
+        <text x="0" y="40" text-anchor="middle" font-family="Arial" font-size="65" fill="white" filter="url(#glow)">🐺</text>
+        
+        # Оружие/атрибут
+        if ("wolf" -eq "samurai") {
+            <path d="M 90,-30 L 110,-60 L 100,-65 L 80,-35 Z" fill="#CCCCCC" stroke="#999" stroke-width="2"/>
+            <rect x="85" y="-65" width="10" height="40" rx="3" fill="#FF6600"/>
+        } elseif ("wolf" -eq "mage") {
+            <circle cx="90" cy="10" r="20" fill="#CCAA88" filter="url(#glow)"/>
+            <text x="90" y="18" text-anchor="middle" font-size="20" fill="white">⭐</text>
+        } elseif ("wolf" -eq "knight") {
+            <path d="M -90,-20 L -110,-50 L -100,-55 L -80,-25 Z" fill="#CCCCCC" stroke="#999" stroke-width="2"/>
+            <rect x="-95" y="-55" width="8" height="35" rx="3" fill="#FF6600"/>
+        }
+    </g>
+    
+    <!-- Характеристики панель -->
+    <rect x="150" y="750" width="700" height="130" rx="25" ry="25" fill="rgba(0,0,0,0.7)" stroke="url(#mainGrad)" stroke-width="3" filter="url(#shadow)"/>
+    
+    <text x="250" y="795" text-anchor="middle" font-family="Arial" font-size="18" fill="#aaa">⚡ СИЛА</text>
+    <text x="500" y="795" text-anchor="middle" font-family="Arial" font-size="18" fill="#aaa">🎭 ТИП</text>
+    <text x="750" y="795" text-anchor="middle" font-family="Arial" font-size="18" fill="#aaa">⭐ РЕДКОСТЬ</text>
+    
+    <text x="250" y="840" text-anchor="middle" font-family="'Segoe UI', Arial" font-size="32" font-weight="bold" fill="url(#mainGrad)" filter="url(#glow)">870</text>
+    <text x="500" y="840" text-anchor="middle" font-family="'Segoe UI', Arial" font-size="28" font-weight="bold" fill="url(#mainGrad)" filter="url(#glow)">WOLF</text>
+    <text x="750" y="840" text-anchor="middle" font-family="'Segoe UI', Arial" font-size="28" font-weight="bold" fill="#AA44FF" filter="url(#glow)">EPIC</text>
+    
+    <!-- Подпись -->
+    <text x="500" y="970" text-anchor="middle" font-family="'Segoe UI', Arial" font-size="16" fill="#666">🔐 ABSOLUTE BLOCKCHAIN • УНИКАЛЬНЫЙ 3D NFT #18</text>
+</svg>

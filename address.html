@@ -1,0 +1,69 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Address Details | Absolute Explorer</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: monospace; background: #0a0a0a; color: #0f0; padding: 20px; }
+        .card { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+        .info { color: #60a5fa; }
+        a { color: #34d399; text-decoration: none; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 8px; border-bottom: 1px solid #1f2937; }
+    </style>
+</head>
+<body>
+    <h1>🔗 Address Details</h1>
+    <div id="addrInfo" class="card">Loading...</div>
+    <div class="card">
+        <h2>📝 Transaction History</h2>
+        <div id="transactions">Loading...</div>
+    </div>
+    
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const address = urlParams.get('address');
+        const API_URL = 'http://localhost:8081';
+        
+        async function loadAddress() {
+            const res = await fetch(`${API_URL}/api/address/${address}`);
+            const data = await res.json();
+            
+            if (data.error) {
+                document.getElementById('addrInfo').innerHTML = `<div style="color:#f87171">❌ Address not found</div>`;
+                return;
+            }
+            
+            const balance = parseInt(data.balance, 16) / 1e18;
+            
+            document.getElementById('addrInfo').innerHTML = `
+                <div><span class="info">Address:</span> ${data.address}</div>
+                <div><span class="info">Balance:</span> ${balance} ABS</div>
+                <div><span class="info">Transactions:</span> ${data.tx_count || 0}</div>
+            `;
+            
+            if (data.transactions && data.transactions.length > 0) {
+                let html = '<tr><th>Tx Hash</th><th>Block</th><th>From</th><th>To</th><th>Value (ABS)</th><th>Age</th></tr>';
+                for (const tx of data.transactions) {
+                    const age = Math.floor((Date.now() / 1000 - tx.timestamp) / 60);
+                    const value = parseInt(tx.value, 16) / 1e18;
+                    html += `<tr>
+                        <td><a href="/tx.html?hash=${tx.hash}">${tx.hash.substring(0, 16)}...</a></td>
+                        <td><a href="/block.html?number=${tx.block}">#${tx.block}</a></td>
+                        <td><a href="/address.html?address=${tx.from}">${tx.from.substring(0, 12)}...</a></td>
+                        <td><a href="/address.html?address=${tx.to}">${tx.to ? tx.to.substring(0, 12) + '...' : '-'}</a></td>
+                        <td>${value}</td>
+                        <td>${age} min ago</td>
+                    </tr>`;
+                }
+                html += '</tr>';
+                document.getElementById('transactions').innerHTML = html;
+            } else {
+                document.getElementById('transactions').innerHTML = '<p>No transactions</p>';
+            }
+        }
+        
+        loadAddress();
+    </script>
+</body>
+</html>

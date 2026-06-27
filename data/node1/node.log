@@ -1,7 +1,0 @@
-2026-06-21 09:02:29,455 [Node] INFO: Initializing components...
-2026-06-21 09:02:30,013 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
-2026-06-21 09:02:30,014 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
-2026-06-21 09:02:30,025 [websockets.server] INFO: server listening on 0.0.0.0:8766
-2026-06-21 09:02:30,025 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
-2026-06-21 09:16:01,993 [websockets.server] INFO: server closing
-2026-06-21 09:16:01,994 [websockets.server] INFO: server closed

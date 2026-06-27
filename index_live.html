@@ -1,0 +1,118 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Absolute Blockchain Live Explorer</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: monospace; background: #0a0a0a; color: #0f0; padding: 20px; }
+        h1 { color: #0f0; text-align: center; }
+        .online { background: #0a3a0a; border: 1px solid #0f0; padding: 10px; margin: 10px 0; text-align: center; }
+        .offline { background: #3a0a0a; border: 1px solid #f00; padding: 10px; margin: 10px 0; text-align: center; }
+        .block { border: 1px solid #0f0; margin: 10px 0; padding: 10px; border-radius: 5px; animation: fadeIn 0.3s ease-in; }
+        .pending-tx { border-left: 3px solid #ff0; margin: 5px 0; padding: 5px; background: #1a1a0a; }
+        .info { display: inline-block; margin: 5px; padding: 5px 10px; background: #1a1a1a; border-radius: 5px; }
+        button { background: #0a0a0a; color: #0f0; border: 1px solid #0f0; padding: 5px 10px; cursor: pointer; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <h1>🔗 Absolute Blockchain Live Explorer</h1>
+    <div id="status" class="offline">🔄 Connecting to WebSocket...</div>
+    <div class="info">📦 Live Height: <span id="liveHeight">?</span></div>
+    <div class="info">📋 Pending: <span id="pendingCount">0</span></div>
+    <div class="info">🔗 Chain ID: 1337</div>
+    <button onclick="refresh()">🔄 Refresh</button>
+    <hr>
+    
+    <h2>⏳ Pending Transactions</h2>
+    <div id="pendingTxs">Loading...</div>
+    
+    <h2>📦 Latest Blocks (Live)</h2>
+    <div id="blocks">Loading...</div>
+    
+    <script>
+        let ws = null;
+        let blocksContainer = document.getElementById('blocks');
+        
+        function connectWebSocket() {
+            ws = new WebSocket('ws://localhost:8766');
+            
+            ws.onopen = function() {
+                document.getElementById('status').innerHTML = '✅ Connected to Live Stream';
+                document.getElementById('status').className = 'online';
+                console.log('WebSocket connected');
+            };
+            
+            ws.onclose = function() {
+                document.getElementById('status').innerHTML = '❌ Disconnected - Reconnecting...';
+                document.getElementById('status').className = 'offline';
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+            };
+            
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                console.log('WebSocket message:', data);
+                
+                if (data.type === 'CONNECTED') {
+                    loadStats();
+                    loadBlocks();
+                } else if (data.type === 'PONG') {
+                    console.log('Pong received');
+                }
+            };
+        }
+        
+        async function loadStats() {
+            try {
+                const res = await fetch('http://localhost:8081/api/stats');
+                const data = await res.json();
+                document.getElementById('liveHeight').innerText = data.total_blocks || 0;
+                document.getElementById('pendingCount').innerText = data.pending_txs || 0;
+            } catch(e) {
+                console.error('Stats error:', e);
+            }
+        }
+        
+        async function loadBlocks() {
+            try {
+                const res = await fetch('http://localhost:8081/api/blocks/latest?limit=15');
+                const data = await res.json();
+                if (data && data.blocks) {
+                    let html = '';
+                    for (const block of data.blocks) {
+                        html += `<div class="block">
+                            <b>🔷 Block #${block.number}</b>
+                            <div>Hash: ${block.hash.substring(0, 30)}...</div>
+                            <div>Miner: ${block.miner ? block.miner.substring(0, 25) + '...' : 'Unknown'}</div>
+                            <div>📝 Transactions: ${block.tx_count || 0}</div>
+                            <div>⏱️ Time: ${new Date(block.timestamp * 1000).toLocaleTimeString()}</div>
+                        </div>`;
+                    }
+                    document.getElementById('blocks').innerHTML = html || '<p>No blocks</p>';
+                }
+            } catch(e) {
+                console.error('Blocks error:', e);
+            }
+        }
+        
+        function refresh() {
+            loadStats();
+            loadBlocks();
+        }
+        
+        connectWebSocket();
+        loadStats();
+        loadBlocks();
+        setInterval(loadStats, 5000);
+        setInterval(loadBlocks, 10000);
+    </script>
+</body>
+</html>
+

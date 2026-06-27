@@ -1,4 +1,0 @@
-{"ts": "2026-05-31T03:03:10.726769", "validator": "val1", "reason": "DOUBLE_VOTE", "amount": 100}
-{"ts": "2026-05-31T03:03:10.728104", "validator": "val2", "reason": "DOUBLE_PROPOSE", "amount": 200}
-{"ts": "2026-05-31T03:03:10.728996", "validator": "val3", "reason": "INVALID_PROPOSAL", "amount": 50}
-{"ts": "2026-05-31T03:03:10.729946", "validator": "val4", "reason": "DOUBLE_VOTE", "amount": 100}

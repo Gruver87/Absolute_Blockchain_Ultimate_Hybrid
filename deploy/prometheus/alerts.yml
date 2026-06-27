@@ -1,0 +1,48 @@
+# Prometheus alert rules for Absolute Blockchain node
+groups:
+  - name: absolute_blockchain_node
+    rules:
+      - alert: AbsoluteNodeDown
+        expr: absent(abs_uptime_seconds) or abs_uptime_seconds == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Absolute node {{ $labels.node_id }} is down"
+          description: "No uptime metric for 2 minutes."
+
+      - alert: AbsoluteNoPeers
+        expr: abs_peers_connected == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Node {{ $labels.node_id }} has no P2P peers"
+          description: "Peer count is 0 for 10 minutes."
+
+      - alert: AbsoluteMempoolBacklog
+        expr: abs_mempool_size > 500
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Large mempool on {{ $labels.node_id }}"
+          description: "Mempool size {{ $value }} > 500 for 5m."
+
+      - alert: AbsoluteHighErrorRate
+        expr: rate(abs_errors_total[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API error rate on {{ $labels.node_id }}"
+          description: "API error rate is above 1 error/sec for 5 minutes."
+
+      - alert: AbsoluteRustBridgeDown
+        expr: abs_rust_bridge_required == 1 and abs_rust_bridge_ok == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Rust bridge is not ready on {{ $labels.node_id }}"
+          description: "Production bridge is required but abs_bridge_bin failed its JSON smoke-test."

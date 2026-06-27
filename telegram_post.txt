@@ -1,0 +1,16 @@
+﻿🚀 Absolute Blockchain Ultimate v54
+
+✅ Working blockchain from scratch in Python!
+
+Features:
+• Full transaction cycle (mempool → block)
+• JSON-RPC API (eth_blockNumber, eth_sendTransaction, etc.)
+• Mini-EVM with persistent storage
+• Auto-mining every 15 seconds
+• SQLite storage with crash recovery
+
+GitHub: https://github.com/Gruver87/absolute-blockchain-ultimate
+
+⚠️ Educational project - not for production
+
+#blockchain #python #crypto

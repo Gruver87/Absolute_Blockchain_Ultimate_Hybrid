@@ -1,0 +1,95 @@
+﻿# crypto/keys.py
+"""
+Cryptographic key generation and management
+secp256k1 curve (same as Bitcoin/Ethereum)
+"""
+
+import hashlib
+import secrets
+from typing import Tuple, Optional
+from dataclasses import dataclass
+
+from crypto.secp256k1_backend import (
+    CRYPTO_AVAILABLE as ECDSA_AVAILABLE,
+    generate_keypair as _generate_keypair,
+    _private_key_from_bytes,
+)
+
+
+@dataclass
+class KeyPair:
+    """Key pair for blockchain identity"""
+    private_key: bytes
+    public_key: bytes
+    address: str
+    
+    def to_dict(self) -> dict:
+        return {
+            "address": self.address,
+            "public_key": self.public_key.hex(),
+            "private_key": self.private_key.hex()  # ⚠️ Only for export!
+        }
+
+
+class KeyGenerator:
+    """Generate secp256k1 key pairs"""
+    
+    @staticmethod
+    def generate_private_key() -> bytes:
+        """Generate random private key"""
+        private_key, _ = _generate_keypair()
+        return private_key
+
+    @staticmethod
+    def private_to_public(private_key: bytes) -> bytes:
+        """Derive public key from private key"""
+        if not ECDSA_AVAILABLE:
+            raise RuntimeError("SECP256K1 backend not available")
+        sk = _private_key_from_bytes(private_key)
+        nums = sk.public_key().public_numbers()
+        return nums.x.to_bytes(32, "big") + nums.y.to_bytes(32, "big")
+    
+    @staticmethod
+    def derive_address(public_key: bytes) -> str:
+        """Derive Ethereum-style address from public key"""
+        # Hash public key
+        sha = hashlib.sha256(public_key).digest()
+        # Take last 20 bytes for address
+        address_bytes = sha[-20:]
+        # Add 0x prefix
+        return "0x" + address_bytes.hex()
+    
+    @staticmethod
+    def generate_keypair() -> KeyPair:
+        """Generate complete key pair"""
+        private_key = KeyGenerator.generate_private_key()
+        public_key = KeyGenerator.private_to_public(private_key)
+        address = KeyGenerator.derive_address(public_key)
+        
+        return KeyPair(
+            private_key=private_key,
+            public_key=public_key,
+            address=address
+        )
+    
+    @staticmethod
+    def from_private_key(private_key_hex: str) -> KeyPair:
+        """Recover key pair from private key hex"""
+        private_key = bytes.fromhex(private_key_hex)
+        public_key = KeyGenerator.private_to_public(private_key)
+        address = KeyGenerator.derive_address(public_key)
+        
+        return KeyPair(
+            private_key=private_key,
+            public_key=public_key,
+            address=address
+        )
+
+
+# Test vector
+if __name__ == "__main__":
+    # Generate a test key
+    keypair = KeyGenerator.generate_keypair()
+    print(f"Address: {keypair.address}")
+    print(f"Public Key: {keypair.public_key.hex()[:64]}...")
+    print(f"Private Key: {keypair.private_key.hex()[:32]}...")

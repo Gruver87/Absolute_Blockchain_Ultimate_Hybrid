@@ -1,0 +1,60 @@
+{
+  "title": "Absolute Blockchain Node",
+  "uid": "abs-node-industrial",
+  "tags": ["absolute", "blockchain", "production-hardening"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Uptime (seconds)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [{"expr": "abs_uptime_seconds", "legendFormat": "{{node_id}}"}]
+    },
+    {
+      "id": 2,
+      "title": "Chain Height",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [{"expr": "abs_chain_height", "legendFormat": "{{node_id}}"}]
+    },
+    {
+      "id": 3,
+      "title": "P2P Peers",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8},
+      "targets": [{"expr": "abs_peers_connected"}]
+    },
+    {
+      "id": 4,
+      "title": "Mempool Size",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8},
+      "targets": [{"expr": "abs_mempool_size"}]
+    },
+    {
+      "id": 5,
+      "title": "Active Validators",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 8},
+      "targets": [{"expr": "abs_validators_active"}]
+    },
+    {
+      "id": 6,
+      "title": "HTTP Requests (total)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [{"expr": "abs_http_requests_total", "legendFormat": "{{node_id}}"}]
+    },
+    {
+      "id": 7,
+      "title": "API Errors (total)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "targets": [{"expr": "abs_errors_total", "legendFormat": "{{node_id}}"}]
+    }
+  ]
+}

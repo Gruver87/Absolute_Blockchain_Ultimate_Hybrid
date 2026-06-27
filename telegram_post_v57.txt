@@ -1,0 +1,14 @@
+﻿🚀 Absolute Blockchain Ultimate v57 released!
+
+Full educational blockchain framework from scratch:
+
+✅ UTXO + PoS + LMD-GHOST
+✅ Mini-EVM (50+ opcodes)
+✅ NFT marketplace
+✅ Sharding (4 shards)
+✅ ZK proofs + SPHINCS+ post-quantum crypto
+✅ Web explorer + WebSocket
+
+GitHub: https://github.com/Gruver87/absolute-blockchain-ultimate
+
+#blockchain #python

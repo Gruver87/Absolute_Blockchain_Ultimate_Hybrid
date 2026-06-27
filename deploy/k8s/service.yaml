@@ -1,0 +1,44 @@
+# Headless — P2P discovery между pod'ами
+apiVersion: v1
+kind: Service
+metadata:
+  name: abs-p2p
+  namespace: absolute-chain
+spec:
+  clusterIP: None
+  selector:
+    app: abs-node
+  ports:
+    - name: p2p
+      port: 5000
+      targetPort: p2p
+---
+# HTTP REST + Explorer
+apiVersion: v1
+kind: Service
+metadata:
+  name: abs-http
+  namespace: absolute-chain
+spec:
+  type: ClusterIP
+  selector:
+    app: abs-node
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+# JSON-RPC
+apiVersion: v1
+kind: Service
+metadata:
+  name: abs-rpc
+  namespace: absolute-chain
+spec:
+  type: ClusterIP
+  selector:
+    app: abs-node
+  ports:
+    - name: rpc
+      port: 8545
+      targetPort: rpc

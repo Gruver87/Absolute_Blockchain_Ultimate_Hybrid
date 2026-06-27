@@ -1,0 +1,235 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Absolute Blockchain Explorer | Etherscan Pro</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0a0c10; color: #e0e0e0; }
+        
+        /* Header */
+        .header { background: #111827; border-bottom: 1px solid #1f2937; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .logo { font-size: 24px; font-weight: bold; color: #60a5fa; }
+        .logo span { color: #34d399; }
+        .search { display: flex; gap: 10px; }
+        .search input { width: 400px; padding: 10px 15px; background: #1f2937; border: 1px solid #374151; border-radius: 8px; color: white; font-size: 14px; outline: none; }
+        .search input:focus { border-color: #60a5fa; }
+        .search button { padding: 10px 20px; background: #60a5fa; border: none; border-radius: 8px; color: white; cursor: pointer; font-weight: bold; }
+        .search button:hover { background: #3b82f6; }
+        
+        /* Stats Bar */
+        .stats { display: flex; gap: 30px; padding: 20px 30px; background: #0f1420; border-bottom: 1px solid #1f2937; flex-wrap: wrap; }
+        .stat-card { background: #111827; padding: 15px 25px; border-radius: 10px; min-width: 150px; }
+        .stat-label { font-size: 12px; color: #9ca3af; margin-bottom: 5px; }
+        .stat-value { font-size: 24px; font-weight: bold; color: #60a5fa; }
+        
+        /* Content */
+        .container { padding: 20px 30px; }
+        .card { background: #111827; border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid #1f2937; }
+        .card-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #60a5fa; }
+        
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 12px; background: #1a2332; color: #9ca3af; font-weight: normal; }
+        td { padding: 12px; border-bottom: 1px solid #1f2937; }
+        .hash { font-family: monospace; color: #34d399; }
+        .address { font-family: monospace; color: #60a5fa; }
+        .link { color: #60a5fa; text-decoration: none; cursor: pointer; }
+        .link:hover { text-decoration: underline; }
+        
+        /* Loading */
+        .loading { text-align: center; padding: 40px; color: #9ca3af; }
+        
+        /* Footer */
+        .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; border-top: 1px solid #1f2937; }
+        
+        @media (max-width: 768px) {
+            .header { flex-direction: column; }
+            .search input { width: 100%; }
+            .stats { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">⛓️ Absolute Blockchain <span>Explorer</span></div>
+        <div class="search">
+            <input type="text" id="searchInput" placeholder="Search by Block / Tx Hash / Address..." autocomplete="off">
+            <button onclick="search()">🔍 Search</button>
+        </div>
+    </div>
+    
+    <div class="stats" id="stats">
+        <div class="stat-card">
+            <div class="stat-label">Latest Block</div>
+            <div class="stat-value" id="latestBlock">-</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Blocks</div>
+            <div class="stat-value" id="totalBlocks">-</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Transactions</div>
+            <div class="stat-value" id="totalTxs">-</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Addresses</div>
+            <div class="stat-value" id="totalAddresses">-</div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="card">
+            <div class="card-title">📦 Latest Blocks</div>
+            <div id="latestBlocks">Loading...</div>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">💸 Recent Transactions</div>
+            <div id="recentTxs">Loading...</div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        Absolute Blockchain Explorer | Powered by Mini-EVM | Live Network
+    </div>
+    
+    <script>
+        const API_URL = 'http://localhost:8081';
+        
+        async function fetchJSON(url) {
+            try {
+                const res = await fetch(url);
+                return await res.json();
+            } catch(e) {
+                console.error('Fetch error:', e);
+                return null;
+            }
+        }
+        
+        async function loadStats() {
+            const stats = await fetchJSON(`${API_URL}/api/stats`);
+            if (stats) {
+                document.getElementById('totalBlocks').innerText = stats.total_blocks || 0;
+                document.getElementById('totalTxs').innerText = stats.total_transactions || 0;
+                document.getElementById('totalAddresses').innerText = stats.total_accounts || 0;
+            }
+            
+            const latest = await fetchJSON(`${API_URL}/api/block/latest`);
+            if (latest) {
+                document.getElementById('latestBlock').innerText = latest.number || 0;
+            }
+        }
+        
+        async function loadLatestBlocks() {
+            const latest = await fetchJSON(`${API_URL}/api/block/latest`);
+            if (!latest) {
+                document.getElementById('latestBlocks').innerHTML = '<div class="loading">Unable to connect to node</div>';
+                return;
+            }
+            
+            let html = '<table><tr><th>Block</th><th>Hash</th><th>Transactions</th><th>Miner</th></tr>';
+            
+            const start = Math.max(0, latest.number - 9);
+            for (let i = latest.number; i >= start; i--) {
+                const block = await fetchJSON(`${API_URL}/api/block/${i}`);
+                if (block) {
+                    html += `<tr>
+                        <td><a class="link" onclick="searchBlock(${block.number})">#${block.number}</a></td>
+                        <td class="hash">${block.hash.substring(0, 20)}...</td>
+                        <td>${block.tx_count || 0}</td>
+                        <td class="address">${block.miner ? block.miner.substring(0, 15) + '...' : '-'}</td>
+                    </tr>`;
+                }
+            }
+            html += '</table>';
+            document.getElementById('latestBlocks').innerHTML = html;
+        }
+        
+        async function loadRecentTransactions() {
+            const latest = await fetchJSON(`${API_URL}/api/block/latest`);
+            if (!latest) {
+                document.getElementById('recentTxs').innerHTML = '<div class="loading">No transactions yet</div>';
+                return;
+            }
+            
+            let html = '<table><tr><th>Tx Hash</th><th>Block</th><th>From</th><th>To</th><th>Value (ABS)</th></tr>';
+            let txCount = 0;
+            
+            for (let i = latest.number; i >= Math.max(0, latest.number - 5) && txCount < 15; i--) {
+                const block = await fetchJSON(`${API_URL}/api/block/${i}`);
+                if (block && block.number) {
+                    // Получаем транзакции из блоков (через адреса пока сложно, сделаем заглушку)
+                    html += `<tr>
+                        <td class="hash">-</td>
+                        <td><a class="link" onclick="searchBlock(${block.number})">#${block.number}</a></td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                    </tr>`;
+                }
+                txCount++;
+            }
+            html += '</table>';
+            document.getElementById('recentTxs').innerHTML = html;
+        }
+        
+        async function search() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) return;
+            
+            // Check if it's a number (block)
+            if (/^\d+$/.test(query)) {
+                searchBlock(parseInt(query));
+                return;
+            }
+            
+            // Check if it's a hash (tx or address)
+            if (query.startsWith('0x')) {
+                // Try as transaction
+                let result = await fetchJSON(`${API_URL}/api/tx/${query}`);
+                if (result && result.hash) {
+                    showTxPage(result);
+                    return;
+                }
+                
+                // Try as address
+                result = await fetchJSON(`${API_URL}/api/address/${query}`);
+                if (result) {
+                    showAddressPage(result);
+                    return;
+                }
+            }
+            
+            alert('Not found: ' + query);
+        }
+        
+        function searchBlock(number) {
+            window.location.href = `/api/block/${number}`;
+        }
+        
+        function showTxPage(tx) {
+            alert(`Transaction: ${tx.hash}\nFrom: ${tx.from}\nTo: ${tx.to}\nValue: ${parseInt(tx.value, 16)} ABS`);
+        }
+        
+        function showAddressPage(addr) {
+            alert(`Address: ${addr.address}\nBalance: ${addr.balance} ABS\nTransactions: ${addr.tx_count}`);
+        }
+        
+        // Auto-refresh
+        loadStats();
+        loadLatestBlocks();
+        loadRecentTransactions();
+        
+        setInterval(() => {
+            loadStats();
+            loadLatestBlocks();
+        }, 5000);
+        
+        // Enter key search
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') search();
+        });
+    </script>
+</body>
+</html>

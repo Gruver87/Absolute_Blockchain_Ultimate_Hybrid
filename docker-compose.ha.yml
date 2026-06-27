@@ -1,0 +1,81 @@
+version: '3.8'
+
+# HA profile: 3 nodes + Redis (distributed rate limit)
+# Usage: docker compose -f docker-compose.ha.yml up --build
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - blockchain
+
+  node1:
+    build: .
+    ports:
+      - "8545:8545"
+      - "8080:8080"
+      - "5000:5000"
+      - "8766:8766"
+    environment:
+      - NODE_ID=node1
+      - DATA_DIR=/app/data/node1
+      - DEPLOYMENT_MODE=staging
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_RATE_LIMIT=true
+      - RATE_LIMIT_RPM=120
+    volumes:
+      - ./data/node1:/app/data/node1
+    networks:
+      - blockchain
+    depends_on:
+      - redis
+
+  node2:
+    build: .
+    ports:
+      - "8546:8545"
+      - "8081:8080"
+      - "5001:5000"
+      - "8767:8766"
+    environment:
+      - NODE_ID=node2
+      - DATA_DIR=/app/data/node2
+      - DEPLOYMENT_MODE=staging
+      - BOOTSTRAP_PEERS=node1:5000
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_RATE_LIMIT=true
+    volumes:
+      - ./data/node2:/app/data/node2
+    networks:
+      - blockchain
+    depends_on:
+      - redis
+      - node1
+
+  node3:
+    build: .
+    ports:
+      - "8547:8545"
+      - "8082:8080"
+      - "5002:5000"
+      - "8768:8766"
+    environment:
+      - NODE_ID=node3
+      - DATA_DIR=/app/data/node3
+      - DEPLOYMENT_MODE=staging
+      - BOOTSTRAP_PEERS=node1:5000
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_RATE_LIMIT=true
+    volumes:
+      - ./data/node3:/app/data/node3
+    networks:
+      - blockchain
+    depends_on:
+      - redis
+      - node1
+
+networks:
+  blockchain:
+    driver: bridge

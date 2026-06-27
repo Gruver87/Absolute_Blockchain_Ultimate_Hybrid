@@ -1,0 +1,70 @@
+﻿version: '3.8'
+
+# Legacy 3-node compose — use docker-compose.devnet.yml for the maintained two-node devnet.
+services:
+  node1:
+    build: .
+    hostname: node1
+    command: ["python", "main.py", "--config", "docker/node1.json"]
+    ports:
+      - "8545:8545"
+      - "8080:8080"
+      - "5000:5000"
+      - "8766:8766"
+    environment:
+      PYTHONUTF8: "1"
+      NODE_ID: node1
+      CHAIN_ID: "77777"
+      RATE_LIMIT_RPM: "0"
+    volumes:
+      - ./data/node1:/app/data
+    networks:
+      - blockchain
+
+  node2:
+    build: .
+    hostname: node2
+    command: ["python", "main.py", "--config", "docker/node2.json"]
+    ports:
+      - "8546:8545"
+      - "8081:8080"
+      - "5001:5000"
+      - "8767:8766"
+    environment:
+      PYTHONUTF8: "1"
+      NODE_ID: node2
+      CHAIN_ID: "77777"
+      BOOTSTRAP_PEERS: node1:5000
+      RATE_LIMIT_RPM: "0"
+    volumes:
+      - ./data/node2:/app/data
+    networks:
+      - blockchain
+    depends_on:
+      - node1
+
+  node3:
+    build: .
+    hostname: node3
+    command: ["python", "main.py", "--config", "docker/node2.json"]
+    environment:
+      PYTHONUTF8: "1"
+      NODE_ID: node3
+      CHAIN_ID: "77777"
+      BOOTSTRAP_PEERS: node1:5000
+      RATE_LIMIT_RPM: "0"
+    ports:
+      - "8547:8545"
+      - "8082:8080"
+      - "5002:5000"
+      - "8768:8766"
+    volumes:
+      - ./data/node3:/app/data
+    networks:
+      - blockchain
+    depends_on:
+      - node1
+
+networks:
+  blockchain:
+    driver: bridge

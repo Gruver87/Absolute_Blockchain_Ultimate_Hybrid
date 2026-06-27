@@ -1,0 +1,141 @@
+# Five-validator Absolute Devnet (Wave 55) — 3 miners + 2 attesters
+# Usage:
+#   .\scripts\docker_devnet_5validator.ps1
+#   curl http://localhost:8080/testnet/validators
+
+x-seed: &seed
+  image: alpine:3.20
+  profiles: ["seed"]
+  environment:
+    SKIP_DB_SEED: ${SKIP_DB_SEED:-0}
+  entrypoint: ["/bin/sh", "-c"]
+  restart: "no"
+  networks: [abs-devnet-5v]
+
+x-node: &node
+  build:
+    context: .
+    dockerfile: Dockerfile.devnet-rust
+  environment:
+    PYTHONUTF8: "1"
+    PYTHONIOENCODING: utf-8
+    DEPLOYMENT_MODE: dev
+    CHAIN_ID: "77777"
+    RATE_LIMIT_RPM: "0"
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live', timeout=3)"]
+    interval: 15s
+    timeout: 5s
+    retries: 8
+    start_period: 90s
+  networks: [abs-devnet-5v]
+
+services:
+  node1:
+    <<: *node
+    hostname: node1
+    command: ["python", "main.py", "--config", "docker/node1.devnet5.rust.json"]
+    environment:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+      NODE_ID: docker-node-1
+      DEPLOYMENT_MODE: dev
+      CHAIN_ID: "77777"
+      RATE_LIMIT_RPM: "0"
+    ports: ["8080:8080", "8545:8545", "5000:5000", "8766:8766"]
+    volumes: [abs-5v-node1-data:/app/data]
+
+  node2-db-seed:
+    <<: *seed
+    volumes: [abs-5v-node1-data:/seed-from, abs-5v-node2-data:/seed-to]
+    command: ["set -e; [ \"$$SKIP_DB_SEED\" = \"1\" ] && exit 0; [ -f /seed-from/blockchain.db ] || exit 0; apk add --no-cache sqlite >/dev/null; sqlite3 /seed-from/blockchain.db 'PRAGMA wal_checkpoint(TRUNCATE);'; rm -f /seed-to/blockchain.db*; cp /seed-from/blockchain.db /seed-to/; cp /seed-from/wallet.json /seed-to/ 2>/dev/null || true; cp /seed-from/dev_signer.json /seed-to/ 2>/dev/null || true; echo node2 seeded"]
+
+  node3-db-seed:
+    <<: *seed
+    volumes: [abs-5v-node1-data:/seed-from, abs-5v-node3-data:/seed-to]
+    command: ["set -e; [ \"$$SKIP_DB_SEED\" = \"1\" ] && exit 0; [ -f /seed-from/blockchain.db ] || exit 0; apk add --no-cache sqlite >/dev/null; sqlite3 /seed-from/blockchain.db 'PRAGMA wal_checkpoint(TRUNCATE);'; rm -f /seed-to/blockchain.db*; cp /seed-from/blockchain.db /seed-to/; cp /seed-from/wallet.json /seed-to/ 2>/dev/null || true; cp /seed-from/dev_signer.json /seed-to/ 2>/dev/null || true; echo node3 seeded"]
+
+  node4-db-seed:
+    <<: *seed
+    volumes: [abs-5v-node1-data:/seed-from, abs-5v-node4-data:/seed-to]
+    command: ["set -e; [ \"$$SKIP_DB_SEED\" = \"1\" ] && exit 0; [ -f /seed-from/blockchain.db ] || exit 0; apk add --no-cache sqlite >/dev/null; sqlite3 /seed-from/blockchain.db 'PRAGMA wal_checkpoint(TRUNCATE);'; rm -f /seed-to/blockchain.db*; cp /seed-from/blockchain.db /seed-to/; cp /seed-from/wallet.json /seed-to/ 2>/dev/null || true; cp /seed-from/dev_signer.json /seed-to/ 2>/dev/null || true; echo node4 seeded"]
+
+  node5-db-seed:
+    <<: *seed
+    volumes: [abs-5v-node1-data:/seed-from, abs-5v-node5-data:/seed-to]
+    command: ["set -e; [ \"$$SKIP_DB_SEED\" = \"1\" ] && exit 0; [ -f /seed-from/blockchain.db ] || exit 0; apk add --no-cache sqlite >/dev/null; sqlite3 /seed-from/blockchain.db 'PRAGMA wal_checkpoint(TRUNCATE);'; rm -f /seed-to/blockchain.db*; cp /seed-from/blockchain.db /seed-to/; cp /seed-from/wallet.json /seed-to/ 2>/dev/null || true; cp /seed-from/dev_signer.json /seed-to/ 2>/dev/null || true; echo node5 seeded"]
+
+  node2:
+    <<: *node
+    hostname: node2
+    command: ["python", "main.py", "--config", "docker/node2.devnet5.rust.json"]
+    environment:
+      PYTHONUTF8: "1"
+      NODE_ID: docker-node-2
+      DEPLOYMENT_MODE: dev
+      CHAIN_ID: "77777"
+      BOOTSTRAP_PEERS: node1:5000
+      RATE_LIMIT_RPM: "0"
+    ports: ["8081:8080", "8546:8545", "5001:5000", "8767:8766"]
+    volumes: [abs-5v-node2-data:/app/data]
+    depends_on:
+      node1: {condition: service_healthy}
+
+  node3:
+    <<: *node
+    hostname: node3
+    command: ["python", "main.py", "--config", "docker/node3.devnet5.rust.json"]
+    environment:
+      PYTHONUTF8: "1"
+      NODE_ID: docker-node-3
+      DEPLOYMENT_MODE: dev
+      CHAIN_ID: "77777"
+      BOOTSTRAP_PEERS: node1:5000
+      RATE_LIMIT_RPM: "0"
+    ports: ["8082:8080", "8547:8545", "5002:5000", "8768:8766"]
+    volumes: [abs-5v-node3-data:/app/data]
+    depends_on:
+      node1: {condition: service_healthy}
+
+  node4:
+    <<: *node
+    hostname: node4
+    command: ["python", "main.py", "--config", "docker/node4.devnet5.rust.json"]
+    environment:
+      PYTHONUTF8: "1"
+      NODE_ID: docker-node-4
+      DEPLOYMENT_MODE: dev
+      CHAIN_ID: "77777"
+      BOOTSTRAP_PEERS: node1:5000
+      RATE_LIMIT_RPM: "0"
+    ports: ["8083:8080", "8548:8545", "5003:5000", "8769:8766"]
+    volumes: [abs-5v-node4-data:/app/data]
+    depends_on:
+      node1: {condition: service_healthy}
+
+  node5:
+    <<: *node
+    hostname: node5
+    command: ["python", "main.py", "--config", "docker/node5.devnet5.rust.json"]
+    environment:
+      PYTHONUTF8: "1"
+      NODE_ID: docker-node-5
+      DEPLOYMENT_MODE: dev
+      CHAIN_ID: "77777"
+      BOOTSTRAP_PEERS: node1:5000,node2:5000
+      RATE_LIMIT_RPM: "0"
+    ports: ["8084:8080", "8549:8545", "5004:5000", "8770:8766"]
+    volumes: [abs-5v-node5-data:/app/data]
+    depends_on:
+      node1: {condition: service_healthy}
+
+volumes:
+  abs-5v-node1-data:
+  abs-5v-node2-data:
+  abs-5v-node3-data:
+  abs-5v-node4-data:
+  abs-5v-node5-data:
+
+networks:
+  abs-devnet-5v:
+    driver: bridge

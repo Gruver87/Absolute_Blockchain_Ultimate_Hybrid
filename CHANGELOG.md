@@ -1,0 +1,221 @@
+# Changelog
+
+Все значимые изменения документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/).
+
+**Текущая волна API:** `api_wave = 61` (проверка: `GET /status`)
+
+---
+
+## [1.2.0-industrial] — Wave 37–63 (июнь 2026)
+
+### Wave 63 — Admin lockdown for node repair endpoints
+
+- Node-admin POST endpoints (`/p2p/reconnect`, `/sync/fast-sync`, `/sync/reconcile`, `/chain/consistency/repair`, `/testnet/reorg-exercise`, `/testnet/fork-exercise`) are no longer dev-public when JWT admin enforcement is enabled
+- Docker 3-node devnet now runs with `JWT_ENFORCE_ADMIN=true` and a devnet-only `JWT_SECRET`, so recovery/sync tests exercise the real admin boundary
+- `verify_p2p_ci.py` automatically obtains a dev JWT from `/auth/token` and retries protected repair/recovery POSTs with `Authorization: Bearer ...`
+- Unit coverage now asserts dev-admin `/sync/reconcile` rejects unauthenticated requests and accepts authenticated calls through the auth boundary
+- Multi-node proof now reports manifest/evidence-backed effective validator counts and separates low-height pending checks from real failed checks
+- **`api_wave` remains 61** — Wave 63 hardens access policy, not the REST API surface
+
+### Wave 62 — Live Docker recovery gate
+
+- `verify_p2p_ci.py --mode devnet3-recovery` — live 3-node Docker recovery drill that stops `node2`, keeps `node1/node3` consistent, restarts `node2`, and requires mesh rejoin plus matching `state_root`
+- `scripts/docker_devnet_3node.ps1 -Recovery` — optional industrial gate after normal 3-node verification
+- Recovery assertions verify persistent heights, root convergence, peer rejoin, and `topology_healthy=true` after restart
+- **`api_wave` remains 61** — Wave 62 hardens live verification, not the REST API surface
+
+### Wave 61 — Network hygiene + real peer rejoin
+
+- P2P handshake now advertises each node's real listening `p2p_port`, so peer discovery/rejoin stores stable node addresses instead of ephemeral TCP socket ports
+- `GET /p2p/topology` / `GET /p2p/peer-score` — live peer graph, known rejoin candidates, height gaps, last-seen ages, and topology health
+- `POST /p2p/reconnect` — actively reconnect bootstrap/known peers from the unified node runtime
+- `scripts/docker_devnet_3node.ps1` — host-port guard prevents local `python main.py` from being mixed with Docker devnet ports
+- **`api_wave` → 61**
+
+### Wave 60 — CI L1 RPC + relayer live e2e
+
+- `bridge/mock_l1_rpc.py` — in-process Ethereum JSON-RPC endpoint for isolated CI
+- `GET /testnet/bridge-relayer-proof` — relayer readiness dashboard
+- `verify_p2p_ci.py` — `verify_bridge_relayer()` + `--mode ci-bridge-relayer`
+- **`api_wave` → 60**
+
+### Wave 59 — Bridge relayer e2e + Explorer fork UI
+
+- `RustBridge.enqueue_l1_incoming()` — L1 incoming queue for relayer watch
+- `POST /bridge2/transfer` — routes through `RustBridge` when enabled (incoming/outbound)
+- `POST /bridge/oracle/l1-register` — enqueues incoming/outbound L1 queue entries
+- Explorer — Testnet Fork Monitor card, `l1_tx_hash` on bridge forms, `bridge2` RustBridge path
+- `verify_p2p_ci.py` — `verify_bridge()` after adversarial; `--mode ci-bridge` isolated test
+- `tests/unit/test_bridge_relayer_e2e.py` — lock → queue → relayer incoming e2e
+- **`api_wave` → 59**
+
+### Wave 58 — Fork CI (partition + recovery)
+
+- `GET/POST /testnet/fork-exercise` — fork-status before/after + P2P reconcile drill
+- `verify_p2p_ci.py` — `verify_fork_recovery()` after multi-node proof
+- `--mode ci-fork` — real partition test: stop follower node, mine ahead, restart, reconcile
+- **`api_wave` → 58**
+
+### Wave 57 — Real core (no random stubs in consensus path)
+
+- **Deterministic proposer** — `ConsensusEngine` + `ValidatorSelection.select_proposer_weighted`; removed `random` fallbacks and AI-validator mining shortcut
+- **Finality quorum** — `FinalityEngine` uses live validator count (not hardcoded 32)
+- **Reorg finality guard** — `Blockchain.reorg_to_ancestor()` refuses rollback below finalized checkpoint
+- **P2P reorg** — `ReorgPredictor.analyze_live_peers()` wired into fork reconcile
+- **MEV** — fee-ordering analysis from mempool (no `random.uniform` profits)
+- **Bridge honesty** — Python bridge adapter only for explicit dev/test paths; Docker uses `RustBridge`
+- `GET /status` → `core_real` flags; **`api_wave` → 57**
+
+### Wave 56 — Multi-node proof (3-validator devnet)
+
+- `docker/validators.devnet3.json` — 3 miners + attesters; `node*.devnet3.rust.json` configs
+- `GET /testnet/multi-node-proof` — mesh + harness + validators + attestations + `proof_ok`
+- `POST /testnet/reorg-exercise` — canonical replay drill (`reorg_safe` flag)
+- Proposer rotation threshold: `distinct_proposers >= 3` when `expected_validators >= 3` and height ≥ 12
+- `verify_p2p_ci.py` — `verify_multi_node_proof()` after state harness (attestations, rotation, reorg drill)
+- **`api_wave` → 56**
+
+### Wave 55 — 5-validator devnet
+
+- `docker-compose.devnet-5validator.yml` — 5 nodes `:8080`–`:8084`, 3 miners + 2 attesters
+- `docker/validators.devnet5.json` — manifest; addresses derived at runtime (no keys on disk)
+- `GET /testnet/validators` — validator set health, proposer rotation stats
+- Mining proposer gate — only selected validator forges when `active_validators > 1`
+- `verify_p2p_ci.py --mode devnet5`; `.\scripts\docker_devnet_5validator.ps1`
+- Devnet5 sync fix — seeded-chain `dev_signer` skip, `ensure_state_at_tip` replay at tip
+- **`scripts/full_audit.py`** — unified audit: syntax, Waves 52–55, secrets, mega/final, pytest, live API, P2P
+- `verify_p2p_ci.py` — unique tx recipient per run (no false fail on repeat audit)
+
+### Wave 54 — State consistency harness
+
+- `GET /chain/consistency/harness` — tip alignment, peer roots, supply cap, mismatch audit
+- `GET /testnet/state-consistency` — alias for harness on multi-node devnet
+- `POST /chain/consistency/repair` — replay chain when live state drifted from tip
+- `verify_p2p_ci.py` — cross-node harness check + auto-repair in devnet/ci3 modes
+
+### Wave 53 — Fork / slashing / partition CI
+
+- `GET /testnet/fork-status` — divergent heads, height gaps, `consensus_healthy`, slash summary
+- `GET /slashing/events` — persisted slash events from SQLite
+- `verify_p2p_ci.py --mode ci3` / `ci-adversarial` — isolated 3-node + double-vote slash test
+- Atomic `reorg_to_ancestor` rollback; `ensure_state_at_tip()` on boot; staking catch-up only on miner
+
+### Wave 52 — 3-node testnet (Docker)
+
+- `docker-compose.devnet-3node.yml` — node1 `:8080`, node2 `:8081`, node3 `:8082`
+- `GET /testnet/mesh` — peer heights, `mesh_healthy`, `expected_peers`
+- `verify_p2p_ci.py --mode devnet3` — 3-node sync + tx on node2 **and** node3 mempools
+- `.\scripts\docker_devnet_3node.ps1` — seed DB, force-recreate, CI verify
+- Faucet top-up in verify when dev signer balance low
+
+### Wave 51 — Transaction propagation (P2P)
+
+- Full signed tx gossip + mempool pull sync (`get_mempool` / `mempool` P2P messages)
+- SQLite `tx_propagation_events` — lifecycle: submit → mempool → P2P → block → receipt
+- `GET /tx/trace/{hash}`, `GET /tx/propagation/recent`
+- Explorer dashboard: Tx Propagation Trace
+- `verify_p2p_ci.py` checks node2 mempool after `/tx/send` on node1
+
+### Wave 50 — Strict state_root on all nodes
+
+- `state_root_strict_p2p` (default `true`) — P2P import rejects `state_root` mismatch above baseline
+- `GET /chain/state-root/status` — local root, peer comparison, policy, recent mismatches
+- SQLite `state_root_mismatches` audit log; pruned on reorg
+- `/sync/status` includes `state_root_strict_p2p` and policy fields
+
+### Wave 49 — Block proposer audit log
+
+- `block_proposer_audit` SQLite table on every confirmed block
+- Backfill from historical `blocks` on node start
+- `GET /chain/proposers/stats` — top proposers by block count
+- `GET /chain/proposers/history` — paginated audit log (`proposer` filter)
+- `GET /chain/proposer/{addr}` — proposer detail + recent blocks
+- Pruned on reorg; `proposer_audit_count` in `/chain/metrics`
+
+### Wave 48 — Address tx index + receipt backfill
+
+- `GET /address/{addr}/activity` — balance, sent/received counts, last tx height
+- `GET /address/{addr}/txs` — paginated history (`limit`, `offset`, `direction=sent|received|all`)
+- Idempotent backfill: historical `transactions` → `tx_receipts` on each node start
+
+### Wave 47 — Core L1 receipts + chain metrics
+
+- `tx_receipts` SQLite table on every confirmed tx
+- `GET /chain/metrics` — avg block time, tx/receipt counts
+- `GET /tx/receipt/{hash}`, `GET /receipts/block/{height}`
+- Receipts pruned on reorg (`truncate_chain_state`)
+
+### Wave 46 — NFT SQLite persistence
+
+- NFT tokens, offers, auctions, sales history в SQLite
+- Genesis collection seed при пустой БД; mint/buy/transfer сохраняются
+- `GET /nft/stats`, `nft_persisted` в `/l2/status`
+
+### Wave 45 — Reorg predictor + dev bridge
+
+- SQLite-история оценок реорга (`reorg_assessments`)
+- Исправлены `GET /reorg/depth`, `/reorg/fork`, добавлены `/reorg/history`
+- `GET /features` — `api_wave`, `l2_modules`, подсказка `bridge_dev_confirm`
+- Dev: `POST /bridge/confirm-pending` и alias `/bridge/dev-confirm-pending` (без HMAC)
+
+### Wave 44 — L2 dashboard + MEV history
+
+- `GET /l2/status` — единый дашборд Lightning / Plasma / Will / WASM / AI
+- MEV analyzer: история в SQLite, `GET /mev/history`
+
+### Wave 43 — AI agents
+
+- AI agents / trades в SQLite, create fee 0.01 ABS
+- Plasma `submit-block`: подсказки при пустой очереди
+
+### Wave 42 — WASM + relayer status
+
+- WASM VM: контракты / storage / events в SQLite, deploy fee 0.01 ABS
+- `GET /bridge/relayer/status` — L1 queue + pending locks
+
+### Wave 41 — Crypto Will
+
+- Завещания в SQLite: create блокирует L1, execute → heir, cancel → refund
+- `POST /will/execute` (`force=true` в dev)
+
+### Wave 40 — L2 persistence
+
+- Lightning: каналы в SQLite, open/close влияет на L1 ABS
+- Plasma: deposits / blocks / exits в SQLite, deposit/exit влияет на L1
+
+### Wave 39 — Oracle registry + bridge L1 queue
+
+- HMAC-signed oracle feeds в SQLite (`GET /oracles/feeds`, `POST /oracles/feeds/submit`)
+- `POST /bridge/lock` с `l1_tx_hash` → `data/bridge_l1_queue.json`
+- `GET /bridge/l1-queue`, alias `GET /oracles/l1-queue`
+
+### Wave 37–38 — EVM hardening + P2P
+
+- EVM: LOG, EXTCODE, SELFDESTRUCT, BLOCKHASH, CALLCODE; bytecode validator в mempool
+- EVM logs в SQLite (`GET /evm/logs`)
+- Sharding: cross-shard реальные переводы балансов
+- Bridge: `l1_tx_hash` обязателен при `ETH_RPC_URL`
+- Секреты только в `.env`, честная документация в `docs/ALL_COMMANDS.txt`
+
+---
+
+## Проверено локально
+
+| Проверка | Результат |
+|----------|-----------|
+| `pytest tests/unit` | 217 passed, 1 skipped |
+| Docker devnet 2 nodes | P2P sync, heights aligned, `state_roots_match=True` |
+| Docker devnet 3 nodes | `GET /testnet/mesh`, tx on node2+node3 mempools |
+| `api_wave` | 52 |
+| `mega_audit.py` | 256 REST routes |
+
+---
+
+## Честно: что это **не** даёт
+
+- Не production mainnet
+- Не полный EVM / не Ethereum-совместимость на 100%
+- Bridge / Lightning / Plasma / MEV — dev/test or analysis modules with real L1 effects where stated
+- Крипто-аудит не проводился
+
+См. [DISCLAIMER.md](DISCLAIMER.md) и **Часть 0** в [docs/ALL_COMMANDS.txt](docs/ALL_COMMANDS.txt).

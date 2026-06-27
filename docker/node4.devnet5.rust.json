@@ -1,0 +1,23 @@
+{
+  "node_id": "docker-node-4",
+  "network_name": "Absolute Devnet",
+  "chain_id": 77777,
+  "p2p_port": 5000,
+  "http_port": 8080,
+  "rpc_port": 8545,
+  "ws_port": 8766,
+  "bootstrap_peers": ["node1:5000"],
+  "mining_enabled": false,
+  "require_signatures": true,
+  "enforce_proposer": true,
+  "verify_peer_state_root": true,
+  "state_root_strict_p2p": true,
+  "bridge_enabled": false,
+  "rate_limit_rpm": 0,
+  "testnet_expected_peers": 1,
+  "testnet_expected_validators": 5,
+  "testnet_validator_index": 4,
+  "testnet_validators_manifest": "docker/validators.devnet5.json",
+  "db_path": "data/blockchain.db",
+  "log_file": "data/node.log"
+}

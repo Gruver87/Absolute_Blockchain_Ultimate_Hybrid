@@ -1,0 +1,56 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Transaction Details | Absolute Explorer</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: monospace; background: #0a0a0a; color: #0f0; padding: 20px; }
+        .card { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+        .info { color: #60a5fa; }
+        .success { color: #34d399; }
+        .failed { color: #f87171; }
+        a { color: #34d399; text-decoration: none; }
+        .hash { font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>🔗 Transaction Details</h1>
+    <div id="txInfo" class="card">Loading...</div>
+    
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const txHash = urlParams.get('hash');
+        const API_URL = 'http://localhost:8081';
+        
+        async function loadTx() {
+            const res = await fetch(`${API_URL}/api/tx/${txHash}`);
+            const tx = await res.json();
+            
+            if (tx.error) {
+                document.getElementById('txInfo').innerHTML = `<div style="color:#f87171">❌ Transaction not found</div>`;
+                return;
+            }
+            
+            const statusClass = tx.status === 'success' ? 'success' : 'failed';
+            const statusText = tx.status === 'success' ? '✅ Success' : '⏳ Pending';
+            const valueAbs = parseInt(tx.value, 16) / 1e18;
+            const fee = (tx.gas_used || 21000) * parseInt(tx.gas_price, 16);
+            
+            document.getElementById('txInfo').innerHTML = `
+                <div><span class="info">Transaction Hash:</span> <span class="hash">${tx.hash}</span></div>
+                <div><span class="info">Status:</span> <span class="${statusClass}">${statusText}</span></div>
+                <div><span class="info">Block:</span> <a href="/block.html?number=${tx.block}">#${tx.block}</a></div>
+                <div><span class="info">Timestamp:</span> ${new Date(tx.timestamp * 1000).toLocaleString()}</div>
+                <div><span class="info">From:</span> <a href="/address.html?address=${tx.from}">${tx.from}</a></div>
+                <div><span class="info">To:</span> <a href="/address.html?address=${tx.to}">${tx.to}</a></div>
+                <div><span class="info">Value:</span> ${valueAbs} ABS</div>
+                <div><span class="info">Gas Price:</span> ${parseInt(tx.gas_price, 16)} Gwei</div>
+                <div><span class="info">Gas Used:</span> ${tx.gas_used || 21000}</div>
+                <div><span class="info">Fee:</span> ${fee}</div>
+            `;
+        }
+        
+        loadTx();
+    </script>
+</body>
+</html>
