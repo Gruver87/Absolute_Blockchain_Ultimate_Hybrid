@@ -226,7 +226,7 @@ class AbsoluteBot:
 
 Версия: 1.2.0-industrial
 Консенсус: PoS (LMD-GHOST + Casper FFG)
-TPS: educational devnet
+Профиль: production-hardened devnet / node stack
 Комиссия: 0.001 ABS
 Квантовая защита: SPHINCS+
 
@@ -414,7 +414,7 @@ TPS: educational devnet
             self.send_message(chat_id, "🌉 Bridge выключен на этой ноде")
             return
         locks = br.get("locks", {})
-        mode = br.get("mode", "simulator")
+        mode = br.get("mode") or "unknown"
         manual = (br.get("auto_confirm_sec") or 0) <= 0
         text = (
             f"🌉 BRIDGE\n\n"
@@ -424,6 +424,8 @@ TPS: educational devnet
         )
         if mode == "rust" and br.get("rust_binary"):
             text += f"Rust bin: {br['rust_binary']}\n"
+        elif mode == "simulator":
+            text += "Profile: explicit dev/test simulator mode\n"
         self.send_message(chat_id, text)
 
     def show_bridge_pending(self, chat_id):
