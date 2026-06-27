@@ -4648,9 +4648,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     sig = pq.hybrid_sign(message, private_key)
                     self._json({"signature": str(sig), "algorithm": "hybrid"})
                 else:
-                    import hashlib
-                    self._json({"signature": hashlib.sha256(message.encode()).hexdigest(),
-                                "algorithm": "sha256_fallback"})
+                    self._error(501, "hybrid_sign not available in PQ manager")
 
             elif path == "/pq/hybrid-encrypt":
                 pq = self.__class__.pq_manager

@@ -4,6 +4,7 @@
 
 import json
 import os
+import socket
 import sys
 import threading
 import time
@@ -16,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from runtime.config import Config
 from observability.metrics import MetricsCollector
-from api.http import create_http_server, RESTHandler
+from api.http import create_http_server, RESTHandler, ThreadedHTTPServer, configure_rate_limiter
 from storage.database import Database
 from kernel.event_bus import EventBus
 from core.blockchain import Blockchain
@@ -65,6 +66,14 @@ def _post(url: str, payload: dict) -> tuple:
     )
     with urllib.request.urlopen(req, timeout=5) as resp:
         return resp.status, resp.read()
+
+
+def _free_port() -> int:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    return port
 
 
 def test_config_apply_env_prod_wallet_required(tmp_path, monkeypatch):
@@ -176,6 +185,39 @@ def test_bridge2_transfer_requires_rust_bridge(api_server):
         body = json.loads(exc.read().decode())
         assert exc.code == 503
         assert "RustBridge runtime required" in body["error"]
+
+
+def test_pq_hybrid_sign_does_not_return_hash_fallback(tmp_path):
+    cfg = Config()
+    cfg.db_path = str(tmp_path / "pq.db")
+    cfg.http_port = _free_port()
+    cfg.rate_limit_rpm = 0
+    db = Database(cfg.db_path, synchronous="NORMAL")
+    db.initialize()
+    RESTHandler.config = cfg
+    RESTHandler.db = db
+    RESTHandler.blockchain = None
+    RESTHandler.mempool = None
+    RESTHandler.pq_manager = object()
+    configure_rate_limiter(cfg)
+    server = ThreadedHTTPServer(("127.0.0.1", cfg.http_port), RESTHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    time.sleep(0.1)
+    try:
+        try:
+            _post(
+                f"http://127.0.0.1:{cfg.http_port}/pq/hybrid-sign",
+                {"message": "hello", "private_key": "k"},
+            )
+            assert False, "PQ hybrid-sign should fail closed without real signer"
+        except urllib.error.HTTPError as exc:
+            body = json.loads(exc.read().decode())
+            assert exc.code == 501
+            assert "hybrid_sign not available" in body["error"]
+    finally:
+        server.shutdown()
+        db.close()
 
 
 def test_sync_status_real(api_server):
