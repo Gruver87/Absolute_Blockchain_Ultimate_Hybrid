@@ -3190,7 +3190,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                     from features.multisig import MultiSigWallet
                     ms = MultiSigWallet(owners, required)
                     result = ms.create_transaction(to, value)
+                    if isinstance(result, dict) and result.get("success") is False:
+                        self._error(400, result.get("error", "multisig transaction failed"))
+                        return
                     self._json({**result, "owners": owners, "required": required})
+                except ValueError as e:
+                    self._error(400, str(e))
                 except Exception as e:
                     self._error(500, str(e))
 
