@@ -40,7 +40,7 @@
 
 ---
 
-## Snapshot (for reviewers & investors)
+## Snapshot
 
 **Absolute Blockchain Ultimate** is a production-hardened Python L1 node and devnet stack: real SQLite persistence, deterministic `state_root`, multi-node P2P sync, a full REST/RPC surface, a browser explorer, Rust bridge integration, and fail-closed production configuration gates. It is a serious R&D implementation and deployment base, not a claim that a public audited mainnet is already live.
 
@@ -330,4 +330,4 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 
 ---
 
-*Last update: June 2026 — API Wave 61, real P2P topology/rejoin, Docker 3-node devnet, admin repair lockdown, 246 unit tests.*
+*Last update: June 2026 — API Wave 61, production profile hardening, real P2P topology/rejoin, Docker 3-node devnet, admin repair lockdown, 258 unit tests locally and 324 tests in full audit.*

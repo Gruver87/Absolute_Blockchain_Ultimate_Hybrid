@@ -7,10 +7,10 @@
 
 > **Версия:** `1.2.0-industrial` (unified node)  
 > **Автор:** Uladzimir Dabranski (Gruver87)  
-> **Обновлено:** 2026-06-21  
+> **Обновлено:** 2026-06-27  
 > **API Wave:** `61`
-> **Статус:** учебный проект, не production mainnet  
-> **Тесты:** `246 passed, 1 skipped` (`pytest tests/unit/ -q`)
+> **Статус:** production-hardened R&D/devnet node, не public audited mainnet  
+> **Тесты:** `258 passed, 1 skipped` (`pytest tests/unit/ -q`), `324 passed, 1 skipped` внутри `scripts/check_everything.ps1`
 
 ---
 
@@ -18,7 +18,7 @@
 
 > Полная версия: **Часть 0** в [`docs/ALL_COMMANDS.txt`](ALL_COMMANDS.txt)
 
-**Это учебный проект** — не mainnet, не аудит, ABS не листинг. Проверено: **246 unit tests**, **API Wave 61**, **32 вкладки UI**, Docker 2/3/5-node devnet P2P sync/rejoin OK, Wave 62 live node restart/rejoin gate OK, Wave 63 admin repair endpoint lockdown OK.
+**Это production-hardened R&D/devnet implementation** — не запущенный public mainnet, не внешний аудит, ABS не листинг. Проверено: **258 unit tests локально**, **324 tests в full audit**, **API Wave 61**, **32 вкладки UI**, Docker 2/3/5-node devnet P2P sync/rejoin OK, Wave 62 live node restart/rejoin gate OK, Wave 63 admin repair endpoint lockdown OK.
 
 ### Wave 38 (EVM)
 - **BLOCKHASH**, **CALLCODE** opcodes
@@ -54,10 +54,10 @@
 | Модуль | Реальность |
 |--------|------------|
 | **EVM** | Не полный Ethereum; ограниченные opcodes, `/evm/validate` |
-| **Bridge** | Simulator по умолчанию; rust — `-RustBridge` |
+| **Bridge** | В dev доступен simulator; в prod требуется `BRIDGE_MODE=rust`, L1 RPC и `BRIDGE_REQUIRE_L1_PROOF=true` |
 | **Sharding** | 4 шарда как routing на одной DB, не отдельные ноды |
 | **Oracles** | Demo цены; погода — ключи в `.env` |
-| **ZK / PQ** | Educational, не audited crypto |
+| **ZK / PQ** | R&D crypto modules, не audited crypto |
 | **Lightning / Plasma / WASM** | Demo in-memory |
 | **MEV / AI / Reorg / Will** | Симуляция и эвристики |
 
@@ -65,7 +65,7 @@
 
 ### 🔴 Чего нет
 
-Production mainnet, полный EVM, крипто-аудит, листинг ABS, распределённая сеть как Ethereum.
+Запущенный public mainnet, полный EVM, внешний крипто-аудит, листинг ABS, распределённая сеть как Ethereum.
 
 ```powershell
 curl http://localhost:8080/features

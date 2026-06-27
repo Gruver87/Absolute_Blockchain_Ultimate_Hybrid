@@ -7,18 +7,20 @@
 | Item | Value |
 |------|-------|
 | Entry point | `main.py` only |
-| API endpoints | 230 |
-| Web UI tabs | 31 (100% endpoint coverage) |
+| API endpoints | 288+ |
+| Web UI tabs | 32 |
 | Tokenomics | 221M ABS, D.U.P. 17.4% |
 | Light client | `light/light_client.py` |
 | Pool locks | `runtime/pool_locks.py` |
 | Legacy code | `_archive/` |
+| Production profile | Fail-closed config, admin/RPC auth gates, Rust bridge proof requirement |
 
 Run local audit:
 
 ```bash
 python scripts/mega_audit.py
 python scripts/final_audit.py
+python scripts/prod_gate.py
 ```
 
-**Educational project — not production.**
+**Current status:** production-hardened R&D/devnet node; not a launched public audited mainnet.

@@ -1,10 +1,10 @@
 ﻿# Contributing — Absolute Blockchain Ultimate
 
-Спасибо за интерес! Это **учебный** проект — любой вклад в код, тесты и документацию приветствуется.
+Спасибо за интерес! Это **production-hardened R&D/devnet** проект — любой вклад в код, тесты и документацию приветствуется.
 
 ## Перед началом
 
-1. Прочитайте [DISCLAIMER.md](DISCLAIMER.md) — проект **не для production**.
+1. Прочитайте [DISCLAIMER.md](DISCLAIMER.md) — проект **не является запущенным public audited mainnet**.
 2. Запуск только через `python main.py` (не `_archive/` и не старые скрипты).
 
 ## Как помочь
@@ -64,7 +64,7 @@ test: merkle light client cases
 
 - Улучшение P2P и синхронизации между узлами
 - Больше pytest-тестов вместо script-style tests
-- Усиление безопасности (с пометкой «educational»)
+- Усиление production-hardening и security gates
 - Перевод документации
 - CI (GitHub Actions): `pytest tests/`, `tests/smoke/merkle_light.py`, `scripts/final_audit.py`
 
@@ -73,4 +73,4 @@ test: merkle light client cases
 - Issues: https://github.com/Gruver87/absolute-blockchain-ultimate/issues
 - Автор: [@Gruver87](https://github.com/Gruver87)
 
-**Спасибо за развитие учебного блокчейна вместе с сообществом!**
+**Спасибо за развитие Absolute Blockchain Ultimate вместе с сообществом!**

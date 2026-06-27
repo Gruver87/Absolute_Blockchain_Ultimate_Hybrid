@@ -1,6 +1,6 @@
 # Architecture — Absolute Blockchain Ultimate
 
-> Educational experimental node. Not production.
+> Production-hardened R&D/devnet node. It is not a launched public audited mainnet.
 
 ## Entry point
 
@@ -22,8 +22,8 @@ All components are wired in `main.py` and passed to `api/http.py` (REST) and JSO
 | Network | `network/` | P2P, WebSocket |
 | Features | `features/` | NFT, ZK, Lightning, Plasma, AI, etc. |
 | Light | `light/` | SPV light client |
-| API | `api/http.py` | 230 REST endpoints |
-| Web | `web/explorer/` | 31-tab SPA |
+| API | `api/http.py` | 288+ REST endpoints plus JSON-RPC |
+| Web | `web/explorer/` | 32-tab SPA |
 
 ## Data flow (mining)
 
@@ -57,6 +57,8 @@ Old scripts (`level12_node.py`, `ABSOLUTE_*.py`, etc.) are removed or moved to `
 
 ## Audit scripts
 
+- `scripts/check_everything.ps1` — secrets scan, production gate, full audit, pytest
+- `scripts/prod_gate.py` — static production config validation
 - `scripts/mega_audit.py` — syntax, endpoints, web coverage, tokenomics
 - `scripts/final_audit.py` — wiring, runtime smoke tests
 
