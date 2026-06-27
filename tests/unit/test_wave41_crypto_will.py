@@ -81,3 +81,27 @@ def test_will_insufficient_balance_rejected():
 
     cw = CryptoWillManager(db=db)
     assert cw.create_will(owner, "0x" + "2" * 40, 10.0, {}, execution_delay=86400) is None
+
+
+def test_will_cancel_requires_credit_backend():
+    from features.crypto_will import CryptoWill, CryptoWillManager
+
+    owner = "0x" + "3" * 40
+    heir = "0x" + "4" * 40
+    cw = CryptoWillManager(db=None)
+    cw.wills["will1"] = CryptoWill("will1", owner, heir, 10.0, {}, 0)
+
+    assert cw.cancel_will("will1", owner) is False
+    assert cw.wills["will1"].status == "pending"
+
+
+def test_will_execute_requires_credit_backend():
+    from features.crypto_will import CryptoWill, CryptoWillManager
+
+    owner = "0x" + "5" * 40
+    heir = "0x" + "6" * 40
+    cw = CryptoWillManager(db=None)
+    cw.wills["will2"] = CryptoWill("will2", owner, heir, 10.0, {}, 0)
+
+    assert cw.execute_will("will2", force=True) is False
+    assert cw.wills["will2"].status == "pending"

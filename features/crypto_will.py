@@ -87,11 +87,16 @@ class CryptoWillManager:
             return True
         return False
 
-    def _credit(self, addr: str, amount: float) -> None:
+    def _credit(self, addr: str, amount: float) -> bool:
         if amount <= 0:
-            return
+            return False
         if self.db and hasattr(self.db, "update_balance"):
             self.db.update_balance(addr, amount)
+            return True
+        if self.blockchain and hasattr(self.blockchain, "update_balance"):
+            self.blockchain.update_balance(addr, amount)
+            return True
+        return False
 
     def _load_from_db(self) -> None:
         if not self.db or not hasattr(self.db, "get_crypto_wills"):
@@ -157,8 +162,9 @@ class CryptoWillManager:
             w = self.wills.get(will_id)
             if not w or w.owner != owner or w.status != "pending":
                 return False
+            if not self._credit(owner, w.amount):
+                return False
             w.status = "cancelled"
-            self._credit(owner, w.amount)
             del self.wills[will_id]
             if self.db and hasattr(self.db, "save_crypto_will"):
                 self.db.save_crypto_will(w.to_db())
@@ -174,7 +180,8 @@ class CryptoWillManager:
                 return False
             if not force and int(time.time()) < w.execution_time:
                 return False
-        self._credit(w.heir, w.amount)
+            if not self._credit(w.heir, w.amount):
+                return False
         with self._lock:
             w.status = "executed"
             self._persist(w)
