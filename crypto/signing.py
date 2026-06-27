@@ -37,7 +37,7 @@ class Signer:
     def _sign_hash(data_hash: str, private_key: bytes) -> str:
         """Internal: sign a hash with private key"""
         if not ECDSA_AVAILABLE:
-            return hashlib.sha256((data_hash + private_key.hex()).encode()).hexdigest()
+            raise RuntimeError("SECP256K1 backend not available")
         signature = sign(data_hash.encode(), private_key, hashfunc=hashlib.sha256)
         return signature.hex()
     

@@ -3,7 +3,6 @@
 Full crypto wallet with ECDSA signing for transactions
 """
 
-import os
 import json
 import hashlib
 import time
@@ -34,11 +33,9 @@ class Wallet:
     
     def _generate_keypair(self) -> KeyPair:
         """Generate new secp256k1 keypair"""
-        if ECDSA_AVAILABLE:
-            private_key, public_key = _generate_secp_keypair()
-        else:
-            private_key = os.urandom(32)
-            public_key = hashlib.sha256(private_key).digest()
+        if not ECDSA_AVAILABLE:
+            raise RuntimeError("SECP256K1 backend not available")
+        private_key, public_key = _generate_secp_keypair()
         
         address = self._derive_address(public_key)
         
@@ -125,7 +122,7 @@ class Wallet:
     def _sign_hash(self, data_hash: str) -> str:
         """Sign a hash with private key"""
         if not ECDSA_AVAILABLE:
-            return hashlib.sha256((data_hash + self.private_key).encode()).hexdigest()
+            raise RuntimeError("SECP256K1 backend not available")
         
         signature = sign(data_hash.encode(), self.keypair.private_key, hashfunc=hashlib.sha256)
         return signature.hex()

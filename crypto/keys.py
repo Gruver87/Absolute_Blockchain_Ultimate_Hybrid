@@ -43,11 +43,11 @@ class KeyGenerator:
     @staticmethod
     def private_to_public(private_key: bytes) -> bytes:
         """Derive public key from private key"""
-        if ECDSA_AVAILABLE:
-            sk = _private_key_from_bytes(private_key)
-            nums = sk.public_key().public_numbers()
-            return nums.x.to_bytes(32, "big") + nums.y.to_bytes(32, "big")
-        return hashlib.sha256(private_key).digest()
+        if not ECDSA_AVAILABLE:
+            raise RuntimeError("SECP256K1 backend not available")
+        sk = _private_key_from_bytes(private_key)
+        nums = sk.public_key().public_numbers()
+        return nums.x.to_bytes(32, "big") + nums.y.to_bytes(32, "big")
     
     @staticmethod
     def derive_address(public_key: bytes) -> str:

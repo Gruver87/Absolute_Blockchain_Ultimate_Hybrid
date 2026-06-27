@@ -18,3 +18,32 @@ def test_sign_verify_roundtrip():
     sig = sign(message, private_key, hashfunc=hashlib.sha256)
     assert verify(message, sig, public_key, hashfunc=hashlib.sha256)
     assert not verify(b"tampered", sig, public_key, hashfunc=hashlib.sha256)
+
+
+def test_secp_backend_fails_closed_when_unavailable(monkeypatch):
+    import crypto.secp256k1_backend as backend
+
+    monkeypatch.setattr(backend, "CRYPTO_AVAILABLE", False)
+
+    with pytest.raises(RuntimeError):
+        backend.generate_keypair()
+    with pytest.raises(RuntimeError):
+        backend.sign(b"message", b"1" * 32)
+    assert backend.verify(b"message", b"signature", b"public") is False
+
+
+def test_key_wallet_and_signer_fail_closed_when_unavailable(monkeypatch):
+    import crypto.keys as keys
+    import crypto.signing as signing
+    import crypto.wallet as wallet
+
+    monkeypatch.setattr(keys, "ECDSA_AVAILABLE", False)
+    monkeypatch.setattr(wallet, "ECDSA_AVAILABLE", False)
+    monkeypatch.setattr(signing, "ECDSA_AVAILABLE", False)
+
+    with pytest.raises(RuntimeError):
+        keys.KeyGenerator.private_to_public(b"1" * 32)
+    with pytest.raises(RuntimeError):
+        wallet.Wallet.create_new()
+    with pytest.raises(RuntimeError):
+        signing.Signer._sign_hash("a" * 64, b"1" * 32)
