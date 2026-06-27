@@ -42,6 +42,22 @@ def test_cross_shard_validation_rejects_insufficient_balance(db):
     assert sh._validate_cross_shard_tx(tx) is False
 
 
+def test_cross_shard_processing_fails_without_balance_backend():
+    sh = ShardingManager(num_shards=4, db=None)
+    sender, recipient = "0x" + "11" * 20, "0x" + "22" * 20
+    if sh.get_shard_for_address(sender) == sh.get_shard_for_address(recipient):
+        recipient = "0x" + "23" * 20
+    _, cross_id = sh.add_transaction({
+        "from": sender, "to": recipient, "value": 10, "hash": "0xno-db",
+    })
+    assert cross_id
+
+    sh.process_cross_shard_transactions()
+
+    assert sh.cross_shard_txs[cross_id].status == "failed"
+    assert cross_id not in sh.pending_cross_txs
+
+
 def test_bridge_credit_idempotency(db):
     from bridge.abs_bridge import RustBridge
     from runtime.config import Config

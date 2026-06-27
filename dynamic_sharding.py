@@ -99,10 +99,9 @@ class ShardingManager:
         for tx_id in self.pending_cross_txs[:]:
             tx = self.cross_shard_txs[tx_id]
             if self._validate_cross_shard_tx(tx):
-                if self._db and hasattr(self._db, "update_balance"):
-                    amount = float(tx.amount)
-                    self._db.update_balance(tx.from_addr, -amount)
-                    self._db.update_balance(tx.to_addr, amount)
+                amount = float(tx.amount)
+                self._db.update_balance(tx.from_addr, -amount)
+                self._db.update_balance(tx.to_addr, amount)
                 tx.status = "confirmed"
                 tx.confirmed_at = time.time()
                 self.pending_cross_txs.remove(tx_id)
@@ -116,10 +115,14 @@ class ShardingManager:
             return False
         if not tx.from_addr or not tx.to_addr:
             return False
-        if self._db and hasattr(self._db, "get_balance"):
-            balance = float(self._db.get_balance(tx.from_addr))
-            return balance >= float(tx.amount)
-        return True
+        if (
+            not self._db
+            or not hasattr(self._db, "get_balance")
+            or not hasattr(self._db, "update_balance")
+        ):
+            return False
+        balance = float(self._db.get_balance(tx.from_addr))
+        return balance >= float(tx.amount)
 
     def get_shard_balance(self, address: str, shard_id: int = None) -> float:
         """Balance for address (logical shard routing; funds live on L1 state)."""
