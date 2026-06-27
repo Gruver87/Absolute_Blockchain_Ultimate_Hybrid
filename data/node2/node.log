@@ -1,0 +1,2335 @@
+2026-06-13 00:12:04,691 [Node] INFO: Initializing components...
+2026-06-13 00:12:04,721 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:12:04,727 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:12:04,733 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 00:12:04,733 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 01:14:59,715 [Node] INFO: Initializing components...
+2026-06-13 01:14:59,725 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:14:59,732 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:14:59,738 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 01:14:59,738 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 01:18:45,635 [Node] INFO: Initializing components...
+2026-06-13 01:18:45,666 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:18:45,672 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:18:45,678 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 01:18:45,678 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 01:20:05,689 [Node] INFO: Initializing components...
+2026-06-13 01:20:05,699 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:20:05,705 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:20:05,711 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 01:20:05,711 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 01:24:15,160 [Node] INFO: Initializing components...
+2026-06-13 01:24:15,175 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:24:15,181 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:24:15,188 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 01:24:15,188 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 01:27:09,903 [Node] INFO: Initializing components...
+2026-06-13 01:27:09,916 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:27:09,922 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:27:09,929 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 01:27:09,929 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 01:29:06,153 [Node] INFO: Initializing components...
+2026-06-13 01:29:06,164 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:29:06,171 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:29:06,179 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 01:29:06,179 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 01:41:24,839 [Node] INFO: Initializing components...
+2026-06-13 01:41:24,875 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:41:24,885 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:41:24,897 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 01:41:24,897 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 01:44:33,130 [Node] INFO: Initializing components...
+2026-06-13 01:44:33,160 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:44:33,166 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:44:33,173 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 01:44:33,173 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 02:09:10,353 [Node] INFO: Initializing components...
+2026-06-13 02:09:10,384 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:09:10,390 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:09:10,397 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 02:09:10,397 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 02:14:25,759 [Node] INFO: Initializing components...
+2026-06-13 02:14:25,807 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:14:25,814 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:14:25,825 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 02:14:25,825 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 02:17:27,180 [Node] INFO: Initializing components...
+2026-06-13 02:17:27,215 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:17:27,222 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:17:27,230 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 02:17:27,230 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 02:19:44,712 [Node] INFO: Initializing components...
+2026-06-13 02:19:44,747 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:19:44,762 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:19:44,775 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 02:19:44,775 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 02:21:57,367 [Node] INFO: Initializing components...
+2026-06-13 02:21:57,407 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:21:57,414 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:21:57,423 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 02:21:57,423 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 02:25:02,609 [Node] INFO: Initializing components...
+2026-06-13 02:25:02,652 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:25:02,659 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:25:02,670 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 02:25:02,670 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 02:28:58,290 [Node] INFO: Initializing components...
+2026-06-13 02:28:58,331 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:28:58,339 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:28:58,357 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 02:28:58,357 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 02:33:36,646 [Node] INFO: Initializing components...
+2026-06-13 02:33:36,685 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:33:36,692 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:33:36,703 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 02:33:36,703 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 02:36:17,558 [Node] INFO: Initializing components...
+2026-06-13 02:36:17,605 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:36:17,611 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:36:17,620 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 02:36:17,621 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 22:28:17,179 [Node] INFO: Initializing components...
+2026-06-13 22:28:17,213 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:28:17,220 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:28:17,231 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 22:28:17,231 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 22:37:21,798 [Node] INFO: Initializing components...
+2026-06-13 22:37:21,863 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:37:21,870 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:37:29,832 [Node] INFO: Initializing components...
+2026-06-13 22:37:29,892 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:37:29,899 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:37:29,909 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 22:37:29,909 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 22:44:18,225 [Node] INFO: Initializing components...
+2026-06-13 22:44:18,266 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:44:18,273 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:44:18,283 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 22:44:18,283 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 22:44:47,710 [Node] INFO: Initializing components...
+2026-06-13 22:44:47,742 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:44:47,748 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:44:47,757 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 22:44:47,757 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 22:48:18,460 [Node] INFO: Initializing components...
+2026-06-13 22:48:18,502 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:48:18,508 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:48:18,516 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 22:48:18,516 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 22:49:14,001 [websockets.server] INFO: connection open
+2026-06-13 22:49:14,002 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 22:50:51,623 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 753, in do_GET
+    stats = dict(ca.get_stats())
+                 ~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 384, in get_stats
+    slashing_stats = self.slashing_engine.get_stats()
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 118, in get_stats
+    "head_hash": self.get_head(),
+                 ~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 983 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 22:50:51,634 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 22:50:51,731 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 753, in do_GET
+    stats = dict(ca.get_stats())
+                 ~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 384, in get_stats
+    slashing_stats = self.slashing_engine.get_stats()
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 118, in get_stats
+    "head_hash": self.get_head(),
+                 ~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 983 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:05,794 [Node] INFO: Initializing components...
+2026-06-13 23:08:05,833 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:08:05,839 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:08:05,849 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 23:08:05,849 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 23:08:07,274 [websockets.server] INFO: connection open
+2026-06-13 23:08:07,274 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 23:08:07,291 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:07,340 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:07,387 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:07,432 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:07,476 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:07,525 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:07,572 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:07,620 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:07,666 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:07,712 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:07,757 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:07,803 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:07,846 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:07,892 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:07,938 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:07,982 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,026 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,070 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,114 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,159 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,205 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,249 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,295 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,339 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,388 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,435 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,483 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,530 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,577 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,625 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,673 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,721 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,768 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,815 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,861 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,904 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,949 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:08,992 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:09,037 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:09,084 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:09,130 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:09,182 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:09,227 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:09,275 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:09,324 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:09,391 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:09,446 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:09,500 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:09,556 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:09,608 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:09,659 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:09,707 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:09,753 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:09,802 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:09,852 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:08:09,897 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:09:50,437 [websockets.server] INFO: connection open
+2026-06-13 23:09:50,438 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 23:09:52,772 [websockets.server] INFO: connection open
+2026-06-13 23:09:52,773 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 23:10:14,774 [websockets.server] INFO: connection open
+2026-06-13 23:10:14,775 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 23:11:40,214 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 753, in do_GET
+    stats = dict(ca.get_stats())
+                 ~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 384, in get_stats
+    slashing_stats = self.slashing_engine.get_stats()
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 118, in get_stats
+    "head_hash": self.get_head(),
+                 ~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 983 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:11:40,222 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:11:40,330 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 753, in do_GET
+    stats = dict(ca.get_stats())
+                 ~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 384, in get_stats
+    slashing_stats = self.slashing_engine.get_stats()
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 118, in get_stats
+    "head_hash": self.get_head(),
+                 ~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 983 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:11:43,457 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 753, in do_GET
+    stats = dict(ca.get_stats())
+                 ~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 384, in get_stats
+    slashing_stats = self.slashing_engine.get_stats()
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 118, in get_stats
+    "head_hash": self.get_head(),
+                 ~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 983 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:11:43,486 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 814, in do_GET
+    "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+            ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 240, in get_canonical_head
+    return self.slashing_engine.get_head()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 984 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:11:43,581 [API] ERROR: REST error: maximum recursion depth exceeded
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 753, in do_GET
+    stats = dict(ca.get_stats())
+                 ~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\adapter.py", line 384, in get_stats
+    slashing_stats = self.slashing_engine.get_stats()
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 118, in get_stats
+    "head_hash": self.get_head(),
+                 ~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py", line 86, in get_head
+    return select_head(self._block_tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 50, in select_head
+    cum_weight = get_cumulative_weight(child, tree, weights)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py", line 14, in get_cumulative_weight
+    total += get_cumulative_weight(child, tree, weights)
+             ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  [Previous line repeated 983 more times]
+RecursionError: maximum recursion depth exceeded
+2026-06-13 23:18:26,368 [Node] INFO: Initializing components...
+2026-06-13 23:18:26,431 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:18:26,437 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:18:26,445 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 23:18:26,446 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 23:18:34,009 [websockets.server] INFO: connection open
+2026-06-13 23:18:34,009 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 23:24:10,074 [Node] INFO: Initializing components...
+2026-06-13 23:24:10,137 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:24:10,144 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:24:10,154 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 23:24:10,154 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 23:24:10,507 [websockets.server] INFO: connection open
+2026-06-13 23:24:10,507 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 23:29:53,155 [Node] INFO: Initializing components...
+2026-06-13 23:29:53,226 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:29:53,235 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:29:53,245 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 23:29:53,247 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 23:29:53,318 [websockets.server] INFO: connection open
+2026-06-13 23:29:53,320 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 23:38:31,467 [Node] INFO: Initializing components...
+2026-06-13 23:38:31,546 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:38:31,553 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:38:31,562 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 23:38:31,564 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 23:38:31,818 [websockets.server] INFO: connection open
+2026-06-13 23:38:31,820 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 23:43:15,110 [Node] INFO: Initializing components...
+2026-06-13 23:43:15,178 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:43:15,187 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:43:15,193 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 23:43:15,195 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 23:43:19,276 [websockets.server] INFO: connection open
+2026-06-13 23:43:19,285 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 23:50:43,413 [Node] INFO: Initializing components...
+2026-06-13 23:50:43,475 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:50:43,483 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:50:43,492 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 23:50:43,494 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 23:50:43,780 [websockets.server] INFO: connection open
+2026-06-13 23:50:43,782 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 23:56:07,129 [Node] INFO: Initializing components...
+2026-06-13 23:56:07,197 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:56:07,206 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:56:07,216 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-13 23:56:07,218 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-13 23:56:08,273 [websockets.server] INFO: connection open
+2026-06-13 23:56:08,283 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 00:01:02,433 [Node] INFO: Initializing components...
+2026-06-14 00:01:02,493 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 00:01:02,503 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 00:01:02,513 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 00:01:02,515 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 00:01:02,792 [websockets.server] INFO: connection open
+2026-06-14 00:01:02,794 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 00:05:42,003 [Node] INFO: Initializing components...
+2026-06-14 00:05:42,064 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 00:05:42,072 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 00:05:42,080 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 00:05:42,082 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 00:05:42,271 [websockets.server] INFO: connection open
+2026-06-14 00:05:42,273 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 00:10:24,257 [Node] INFO: Initializing components...
+2026-06-14 00:10:24,323 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 00:10:24,333 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 00:10:24,340 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 00:10:24,342 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 00:10:28,289 [websockets.server] INFO: connection open
+2026-06-14 00:10:28,291 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 00:16:58,624 [Node] INFO: Initializing components...
+2026-06-14 00:16:58,682 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 00:16:58,690 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 00:16:58,701 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 00:16:58,701 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 00:16:58,833 [websockets.server] INFO: connection open
+2026-06-14 00:16:58,834 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 00:27:17,122 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 02:00:47,536 [Node] INFO: Initializing components...
+2026-06-14 02:00:47,608 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:00:47,619 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:00:47,632 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 02:00:47,633 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 02:08:45,115 [Node] INFO: Initializing components...
+2026-06-14 02:08:45,183 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:08:45,190 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:08:45,197 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 02:08:45,199 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 02:17:59,818 [Node] INFO: Initializing components...
+2026-06-14 02:17:59,882 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:17:59,890 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:17:59,898 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 02:17:59,900 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 02:28:58,288 [Node] INFO: Initializing components...
+2026-06-14 02:28:58,354 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:28:58,361 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:28:58,370 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 02:28:58,371 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 02:50:42,901 [Node] INFO: Initializing components...
+2026-06-14 02:50:42,961 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:50:42,970 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:50:42,979 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 02:50:42,981 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 03:04:05,963 [Node] INFO: Initializing components...
+2026-06-14 03:04:06,033 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:04:06,042 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:04:06,053 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 03:04:06,054 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 03:14:23,623 [Node] INFO: Initializing components...
+2026-06-14 03:14:23,683 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:14:23,691 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:14:23,700 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 03:14:23,700 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 03:22:36,466 [Node] INFO: Initializing components...
+2026-06-14 03:22:36,525 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:22:36,532 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:22:36,541 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 03:22:36,542 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 03:29:56,775 [Node] INFO: Initializing components...
+2026-06-14 03:29:56,837 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:29:56,845 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:29:56,851 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 03:29:56,851 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 03:38:33,007 [Node] INFO: Initializing components...
+2026-06-14 03:38:33,078 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:38:33,085 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:38:33,095 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 03:38:33,095 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 03:43:28,639 [Node] INFO: Initializing components...
+2026-06-14 03:43:28,712 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:43:28,726 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:43:28,736 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 03:43:28,738 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 03:47:56,927 [Node] INFO: Initializing components...
+2026-06-14 03:47:56,997 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:47:57,005 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:47:57,015 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 03:47:57,017 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 04:09:26,249 [Node] INFO: Initializing components...
+2026-06-14 04:09:26,357 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 04:09:26,368 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 04:09:26,380 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 04:09:26,383 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 04:19:50,880 [Node] INFO: Initializing components...
+2026-06-14 04:19:51,000 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 04:19:51,012 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 04:19:51,022 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 04:19:51,024 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 04:21:14,259 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:29:56,980 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:32:03,958 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:33:11,657 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:33:34,988 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:36:40,615 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:37:04,434 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:37:49,900 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:38:13,731 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 20:42:32,433 [Node] INFO: Initializing components...
+2026-06-14 20:42:32,508 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 20:42:32,517 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 20:42:32,524 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 20:42:32,526 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 20:51:18,110 [websockets.server] INFO: connection open
+2026-06-14 20:51:18,113 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 21:01:26,003 [Node] INFO: Initializing components...
+2026-06-14 21:01:26,197 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 21:01:26,205 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 21:01:26,215 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 21:01:26,216 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 21:16:02,870 [Node] INFO: Initializing components...
+2026-06-14 21:16:02,894 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 21:16:02,908 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 21:16:02,921 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 21:16:02,922 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 21:21:10,967 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 21:21:54,901 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 21:44:47,339 [Node] INFO: Initializing components...
+2026-06-14 21:44:47,358 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 21:44:47,370 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 21:44:47,384 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 21:44:47,386 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 21:46:22,928 [websockets.server] INFO: connection open
+2026-06-14 21:46:22,931 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 21:46:47,343 [websockets.server] INFO: connection open
+2026-06-14 21:46:47,346 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 21:47:29,247 [websockets.server] INFO: connection open
+2026-06-14 21:47:29,250 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 21:50:26,294 [websockets.server] INFO: connection open
+2026-06-14 21:50:26,296 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 21:53:33,516 [websockets.server] INFO: connection open
+2026-06-14 21:53:33,526 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 22:11:33,907 [Node] INFO: Initializing components...
+2026-06-14 22:11:33,922 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:11:33,929 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:11:33,941 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 22:11:33,942 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 22:11:34,020 [websockets.server] INFO: connection open
+2026-06-14 22:11:34,020 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 22:22:01,980 [Node] INFO: Initializing components...
+2026-06-14 22:22:01,999 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:22:02,013 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:22:02,023 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 22:22:02,024 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 22:22:03,259 [websockets.server] INFO: connection open
+2026-06-14 22:22:03,261 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 22:28:38,447 [Node] INFO: Initializing components...
+2026-06-14 22:28:38,472 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:28:38,481 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:28:38,489 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 22:28:38,491 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 22:28:40,243 [websockets.server] INFO: connection open
+2026-06-14 22:28:40,253 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 22:32:07,473 [Node] INFO: Initializing components...
+2026-06-14 22:32:07,486 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:32:07,493 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:32:07,499 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 22:32:07,500 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 22:32:12,268 [websockets.server] INFO: connection open
+2026-06-14 22:32:12,270 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 22:33:28,895 [websockets.server] INFO: connection open
+2026-06-14 22:33:28,897 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 22:34:31,878 [websockets.server] INFO: connection open
+2026-06-14 22:34:31,887 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 22:37:12,873 [websockets.server] INFO: connection open
+2026-06-14 22:37:12,876 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 22:50:28,796 [Node] INFO: Initializing components...
+2026-06-14 22:50:28,813 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:50:28,823 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:50:28,834 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 22:50:28,835 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 22:50:29,002 [websockets.server] INFO: connection open
+2026-06-14 22:50:29,004 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 22:50:40,861 [P2P] WARNING: [P2P] State root mismatch vs node-1: local=e829725d28bd peer=a3a642a687a1
+2026-06-14 22:57:08,029 [Node] INFO: Initializing components...
+2026-06-14 22:57:08,049 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:57:08,056 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:57:08,062 [websockets.server] INFO: server listening on 0.0.0.0:8767
+2026-06-14 22:57:08,062 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8767
+2026-06-14 22:57:14,053 [websockets.server] INFO: connection open
+2026-06-14 22:57:14,055 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 23:00:42,113 [API] ERROR: REST error: [WinError 10053] Программа на вашем хост-компьютере разорвала установленное подключение
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 1137, in do_GET
+    self._json({"count": len(rows), "blocks": rows})
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 4748, in _json
+    self.wfile.write(body)
+    ~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\socketserver.py", line 845, in write
+    self._sock.sendall(b)
+    ~~~~~~~~~~~~~~~~~~^^^
+ConnectionAbortedError: [WinError 10053] Программа на вашем хост-компьютере разорвала установленное подключение
+2026-06-14 23:00:42,116 [API] ERROR: REST error: [WinError 10053] Программа на вашем хост-компьютере разорвала установленное подключение
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 1137, in do_GET
+    self._json({"count": len(rows), "blocks": rows})
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 4748, in _json
+    self.wfile.write(body)
+    ~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\socketserver.py", line 845, in write
+    self._sock.sendall(b)
+    ~~~~~~~~~~~~~~~~~~^^^
+ConnectionAbortedError: [WinError 10053] Программа на вашем хост-компьютере разорвала установленное подключение
+2026-06-14 23:00:42,150 [websockets.server] INFO: connection open
+2026-06-14 23:00:42,156 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 23:11:30,327 [websockets.server] INFO: connection open
+2026-06-14 23:11:30,328 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-21 09:02:29,909 [Node] INFO: Initializing components...
+2026-06-21 09:02:30,139 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-21 09:02:30,141 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-21 09:02:30,150 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-21 09:02:30,151 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-21 09:16:01,322 [websockets.server] INFO: server closing
+2026-06-21 09:16:01,323 [websockets.server] INFO: server closed

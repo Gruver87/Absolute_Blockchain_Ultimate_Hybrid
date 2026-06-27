@@ -1,0 +1,156 @@
+[Config] Loaded from: node.rust.example.json
+2026-06-14 22:57:07,620 [Node] INFO: Initializing components...
+[Node] Database: data/blockchain.db
+[Blockchain] StateEngine: enabled (deterministic state_root)
+[Blockchain] BlockValidator: enabled
+[Blockchain] Genesis block created (minted=82,654,000 ABS, max_supply=221,000,000, founder=D.U.P. 17.4%)
+[Node] Blockchain height: 0
+[Node] state_root policy: strict_p2p=True baseline=#0
+[Consensus] LMD-GHOST + Slashing + ValidatorRegistry + PBS: enabled
+[Consensus] CasperFFG two-step finality: enabled
+[Consensus] BeaconChain engine: enabled (parallel fork choice)
+[EventBus] Subscribed: _on_new_block -> block.new
+[Node] Founder wallet (D.U.P.): 0xbeb0962327d6f0ad8de263bd883bb184e88744a2
+[Node] Signing wallet from WALLET_PRIVATE_KEY: 0x911cb7924cd902fc5dec09be50c2fc8f4f1f9500 (founder mines: 0xbeb0962327d6f0ad8de263bd883bb184e88744a2)
+[Node] Genesis allocation applied (founder 38,454,000 ABS -> 0xbeb0962327d6f0ad8de263bd883bb184e88744a2)
+[OK] Validator registered: 0xbeb0962327d6f0... stake=1000
+[Consensus] New validator: 0xbeb0962327... stake=1000.0
+[Node] Registered self as validator: 0xbeb0962327d6f0ad8de263bd883bb184e88744a2
+[Node] PoolLockManager: ecosystem/treasury/staking locks active
+[Node] LightClient: enabled (1 headers synced)
+[Node] EVM: enabled
+[EventBus] Subscribed: _on_local_block -> block.new
+[EventBus] Subscribed: _on_local_tx -> tx.new
+[EventBus] Subscribed: _on_consensus_attestation -> consensus.attestation
+[P2P] SyncEngine: enabled (fast catch-up)
+[EventBus] Subscribed: _on_incoming -> bridge.incoming
+[Bridge] Rust bridge: bridge/abs_bridge_bin.exe
+[Bridge] Initialized in 'rust' mode. Supported chains: ethereum, bsc, solana, absolute
+[NFT] Marketplace initialized (5 tokens, persisted=True)
+[Node] NFT Marketplace: 5 tokens (persisted=True)
+[Node] ZK Proof System: ready
+[Node] Sharding: 4 shards active
+[Node] Oracle registry: SQLite feeds enabled
+[Node] Oracles: price feeds active (BTC/ETH/ABS)
+[Node] Multisig: enabled
+[Node] Smart Accounts: enabled (session keys, social recovery)
+[Node] Post-Quantum Crypto: SPHINCS+ enabled
+[EventBus] Subscribed: _on_block -> block.new
+[EventBus] Subscribed: _on_tx -> tx.new
+[EventBus] Subscribed: _on_tx -> tx.applied
+[EventBus] Subscribed: _on_attestation -> consensus.attestation
+[Node] MiniVM ContractManager: ready (deploy/call via /minivm/*)
+[Node] RANDAO ValidatorSelection: enabled
+[Node] ChainStorage: JSON backup layer ready
+[Node] PostQuantumManager: Kyber/Dilithium/Falcon enabled
+[Node] TransactionValidator: enabled (nonce/fee/balance checks)
+[Node] AIValidatorEngine: enabled (performance-weighted proposer selection)
+[Reorg] Predictor initialized (0 assessments, persisted=True)
+[Node] ReorgPredictor: enabled (SQLite assessments + fork risk)
+[MEV] Simulator initialized (0 records, persisted=True)
+[Node] MEVSimulator: enabled (sandwich/arbitrage/frontrun analysis)
+[Node] StateEngine: enabled (deterministic state transitions)
+[Node] BlockBuilder: enabled (deterministic tx selection)
+[Node] ImmutableStateManager: enabled (satoshi-precision balances)
+[Node] ValidatorKeys: initialized (0x911cb7924cd902...)
+[OK] Validator registered: 0x911cb7924cd902... stake=1000
+[Consensus] New validator: 0x911cb7924c... stake=1000.0
+[Node] Registered attestation validator: 0x911cb7924cd902…
+[Lightning] Network initialized for 0xbeb0962327d6f0... (0 channels, persisted=True)
+[Node] Lightning Network: payment channels ready
+[CryptoWill] Manager initialized (0 wills, persisted=True)
+[Node] CryptoWill: inheritance system ready
+[Plasma] Chain 'plasma_abs' initialized (1 blocks, persisted=True)
+[Node] Plasma Chain: L2 sidechain ready
+[WASM VM] Initialized (0 contracts, persisted=True)
+[Node] WASM VM: WebAssembly-style VM ready
+[AIAgentManager] Initialized (0 agents, persisted=True)
+[Node] AI Agent Manager: trading agents ready
+[Node] Cross-Chain Bridge: using RustBridge (production path)
+[Node] Standalone ConsensusEngine: PoS slots/attestations ready
+[Node] SlashingEngine: double-vote detection ready
+[OK] Validator registered: 0xbeb0962327d6f0... stake=1000
+[Node] ValidatorRegistry: ready
+[Node] EpochManager: 32 blocks/epoch
+[Node] BeaconFinality: beacon chain finality ready
+[Node] LMDTable: LMD-GHOST fork choice ready
+[Node] ConsensusEngineCasper: Casper FFG engine ready
+[Node] ConsensusEngineBeacon: Beacon consensus ready
+[Node] ConsensusEngineSlashing: slashing-aware consensus ready
+[Node] CasperFinality: Casper finality engine ready
+[Node] BlockValidator: block pre-validation ready
+[Node] SPHINCS+: post-quantum hash-based signatures ready
+[Node] CanonicalSerializer: deterministic block hashing ready
+[Node] Hasher: crypto hashing utility ready
+[Node] KeyGenerator: key pair generation ready
+[Node] Signer: transaction signing utility ready
+[Node] TransactionSigner: advanced TX signing ready
+[Node] FinalityEngine: Casper FFG ready
+[Node] SyncEngine: fast-sync ready
+[Node] All components initialized.
+2026-06-14 22:57:07,664 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+[RPC] JSON-RPC server started on 0.0.0.0:8545
+2026-06-14 22:57:07,671 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+[HTTP] REST API server started on 0.0.0.0:8080
+
++--------------------------------------------------------------+
+|  ABSOLUTE BLOCKCHAIN NODE  v1.2.0-industrial                      |
++--------------------------------------------------------------+
+|  Chain      : Absolute Devnet   Chain ID : 77777           |
+|  Supply     : max=221,000,000 ABS  founder=D.U.P. 17.4% |
+|  Founder    : Uladzimir Dabranski                           |
+|  Height     : 0                                             |
+|  Burned     : 0.0000 ABS                                    |
+|  Validators : 2                                             |
+|  State Root : 788a8f59bc2049716552282cf943ffdd...           |
++--------------------------------------------------------------+
+|  Consensus  : LMD-GHOST=True  PBS=True  Slashing=yes  |
+|  Features   : Sharding=4 shards  Oracles=on  PQ=SPHINCS+       |
+|  Wallets    : Multisig=on  SmartAccounts=on                  |
+|  L2/Bridge  : Lightning=on  Plasma=on  WASM=on  Will=on  |
++--------------------------------------------------------------+
+|  JSON-RPC  ->  http://localhost:8545                          |
+|  Explorer  ->  http://localhost:8080                          |
+|  WebSocket ->  ws://localhost:8766                           |
+|  P2P       ->  0.0.0.0:5000                                  |
++--------------------------------------------------------------+
+
+[Monitor] Blockchain Monitor initialized (node-1 -> http://127.0.0.1:8080)
+[Monitor] Monitor started on http://localhost:8092
+[Monitor] Health monitor started: http://localhost:8092
+[RPC Proxy] CORS proxy started: http://localhost:8082/rpc -> :8545
+🤖 ABSOLUTE BLOCKCHAIN TELEGRAM BOT v2.0
+🔗 API: http://127.0.0.1:8080
+✅ Бот запущен и ожидает сообщения...
+[Telegram] Bot started (token: 89892192...)
+[Mining] Loop started. Block time: 15s
+[P2P] Listening on 0.0.0.0:5000
+2026-06-14 22:57:07,680 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 22:57:07,680 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+[Monitor] Solo node (0 peers) — OK for local dev
+[P2P] Connected: Peer(node-2… 127.0.0.1:65409 h=0)
+[Sync] Checking state consistency...
+   State consistent (root=788a8f59bc20... height=0)
+[BLOCK #     1] hash=7c1a0c63944f... txs=  0  burned=0 ABS
+2026-06-14 22:57:11,521 [websockets.server] INFO: connection open
+2026-06-14 22:57:11,524 [WebSocket] INFO: [WS] client connected (1 total)
+[Mempool] size=1 avg_fee=0.002100 ABS
+   ⚡ SLASH: 0xa1a1a1a1a1a1a1... | double_vote | penalty=100
+[Mempool] size=1 avg_fee=0.002100 ABS
+[Mempool] size=2 avg_fee=0.002100 ABS
+2026-06-14 23:00:39,380 [websockets.server] INFO: connection open
+2026-06-14 23:00:39,381 [WebSocket] INFO: [WS] client connected (1 total)
+[Mempool] size=2 avg_fee=0.002100 ABS
+[Mempool] size=2 avg_fee=0.002100 ABS
+[Mempool] size=2 avg_fee=0.002100 ABS
+[Mempool] size=2 avg_fee=0.002100 ABS
+[Mempool] size=2 avg_fee=0.002100 ABS
+[Mempool] size=2 avg_fee=0.002100 ABS
+[Mempool] size=2 avg_fee=0.002100 ABS
+[Mempool] size=2 avg_fee=0.002100 ABS
+[Mempool] size=2 avg_fee=0.002100 ABS
+[Mempool] size=2 avg_fee=0.002100 ABS
+[P2P] Disconnected: node-2
+[Mempool] size=2 avg_fee=0.002100 ABS
+2026-06-14 23:11:31,242 [websockets.server] INFO: connection open
+2026-06-14 23:11:31,244 [WebSocket] INFO: [WS] client connected (1 total)

@@ -1,0 +1,98 @@
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 50514)
+----------------------------------------
+Traceback (most recent call last):
+Exception occurred during processing of request from ('127.0.0.1', 50901)
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 1137, in do_GET
+    self._json({"count": len(rows), "blocks": rows})
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 4748, in _json
+    self.wfile.write(body)
+    ~~~~~~~~~~~~~~~~^^^^^^
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\socketserver.py", line 845, in write
+    self._sock.sendall(b)
+    ~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 1137, in do_GET
+    self._json({"count": len(rows), "blocks": rows})
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ConnectionAbortedError: [WinError 10053] Программа на вашем хост-компьютере разорвала установленное подключение
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 4748, in _json
+    self.wfile.write(body)
+    ~~~~~~~~~~~~~~~~^^^^^^
+
+During handling of the above exception, another exception occurred:
+
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\socketserver.py", line 845, in write
+    self._sock.sendall(b)
+    ~~~~~~~~~~~~~~~~~~^^^
+Traceback (most recent call last):
+ConnectionAbortedError: [WinError 10053] Программа на вашем хост-компьютере разорвала установленное подключение
+
+During handling of the above exception, another exception occurred:
+
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\socketserver.py", line 697, in process_request_thread
+    self.finish_request(request, client_address)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\socketserver.py", line 362, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\socketserver.py", line 697, in process_request_thread
+    self.finish_request(request, client_address)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\socketserver.py", line 766, in __init__
+    self.handle()
+    ~~~~~~~~~~~^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\socketserver.py", line 362, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\http\server.py", line 436, in handle
+    self.handle_one_request()
+    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\socketserver.py", line 766, in __init__
+    self.handle()
+    ~~~~~~~~~~~^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\http\server.py", line 424, in handle_one_request
+    method()
+    ~~~~~~^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\http\server.py", line 436, in handle
+    self.handle_one_request()
+    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 2831, in do_GET
+    self._error(500, str(e))
+    ~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\http\server.py", line 424, in handle_one_request
+    method()
+    ~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 4760, in _error
+    self.end_headers()
+    ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\http\server.py", line 538, in end_headers
+    self.flush_headers()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 2831, in do_GET
+    self._error(500, str(e))
+    ~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\http\server.py", line 542, in flush_headers
+    self.wfile.write(b"".join(self._headers_buffer))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 4760, in _error
+    self.end_headers()
+    ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\socketserver.py", line 845, in write
+    self._sock.sendall(b)
+    ~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\http\server.py", line 538, in end_headers
+    self.flush_headers()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\http\server.py", line 542, in flush_headers
+    self.wfile.write(b"".join(self._headers_buffer))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ConnectionAbortedError: [WinError 10053] Программа на вашем хост-компьютере разорвала установленное подключение
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\socketserver.py", line 845, in write
+    self._sock.sendall(b)
+    ~~~~~~~~~~~~~~~~~~^^^
+----------------------------------------
+ConnectionAbortedError: [WinError 10053] Программа на вашем хост-компьютере разорвала установленное подключение
+----------------------------------------

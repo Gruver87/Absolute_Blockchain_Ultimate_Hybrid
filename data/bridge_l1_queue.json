@@ -1,0 +1,22 @@
+{
+  "outbound": [
+    {
+      "abs_tx_hash": "0x93167c00b47cf1d1c39b543b86a18b7d7f6d34130463da332f7441e1f4ecca99",
+      "tx_hash": "0x93167c00b47cf1d1c39b543b86a18b7d7f6d34130463da332f7441e1f4ecca99",
+      "l1_tx_hash": "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "chain": "ethereum",
+      "queued_at": 1781466319
+    }
+  ],
+  "incoming": [
+    {
+      "l1_tx_hash": "0xc2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+      "tx_hash": "0xc2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+      "tx_id": "ci-bridge-in-1",
+      "recipient": "0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+      "amount": 3.0,
+      "from_chain": "ethereum",
+      "queued_at": 1781466319
+    }
+  ]
+}

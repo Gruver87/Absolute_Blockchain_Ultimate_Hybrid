@@ -1,0 +1,1583 @@
+2026-06-12 18:00:16,235 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-12 18:00:16,235 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-12 18:03:47,282 [websockets.server] INFO: server closing
+2026-06-12 18:03:47,285 [websockets.server] INFO: server closed
+2026-06-12 18:03:49,969 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-12 18:03:49,969 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-12 18:05:02,293 [websockets.server] INFO: server closing
+2026-06-12 18:05:02,296 [websockets.server] INFO: server closed
+2026-06-12 18:09:02,170 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-12 18:09:02,170 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-12 18:11:04,148 [WebSocket] ERROR: [WebSocket] error: [Errno 10048] error while attempting to bind on address ('0.0.0.0', 8766): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2026-06-12 18:11:24,000 [WebSocket] ERROR: [WebSocket] error: [Errno 10048] error while attempting to bind on address ('0.0.0.0', 8766): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2026-06-12 18:11:55,858 [WebSocket] ERROR: [WebSocket] error: [Errno 10048] error while attempting to bind on address ('0.0.0.0', 8766): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2026-06-12 18:17:44,230 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-12 18:17:44,231 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-12 19:11:52,439 [WebSocket] ERROR: [WebSocket] error: [Errno 10048] error while attempting to bind on address ('0.0.0.0', 8766): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2026-06-12 20:22:27,146 [WebSocket] ERROR: [WebSocket] error: [Errno 10048] error while attempting to bind on address ('0.0.0.0', 8766): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2026-06-12 20:45:36,428 [WebSocket] ERROR: [WebSocket] error: [Errno 10048] error while attempting to bind on address ('0.0.0.0', 8766): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2026-06-12 21:59:27,378 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 21:59:27,388 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 21:59:27,404 [WebSocket] ERROR: [WebSocket] error: [Errno 10048] error while attempting to bind on address ('0.0.0.0', 8766): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2026-06-12 22:13:44,662 [Node] INFO: Initializing components...
+2026-06-12 22:13:44,718 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 22:13:44,725 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 22:13:44,734 [WebSocket] ERROR: [WebSocket] error: [Errno 10048] error while attempting to bind on address ('0.0.0.0', 8766): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2026-06-12 22:17:19,681 [Node] INFO: Initializing components...
+2026-06-12 22:17:19,766 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 22:17:19,777 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 22:17:19,790 [WebSocket] ERROR: [WebSocket] error: [Errno 10048] error while attempting to bind on address ('0.0.0.0', 8766): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2026-06-12 22:21:00,675 [Node] INFO: Initializing components...
+2026-06-12 22:21:00,734 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 22:21:00,741 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 22:21:00,749 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-12 22:21:00,749 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-12 22:33:03,034 [websockets.server] INFO: server closing
+2026-06-12 22:33:03,035 [websockets.server] INFO: server closed
+2026-06-12 22:36:18,028 [Node] INFO: Initializing components...
+2026-06-12 22:36:18,093 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 22:36:18,104 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 22:36:18,114 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-12 22:36:18,116 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-12 22:39:15,889 [websockets.server] INFO: server closing
+2026-06-12 22:39:15,890 [websockets.server] INFO: server closed
+2026-06-12 22:39:33,698 [Node] INFO: Initializing components...
+2026-06-12 22:39:33,756 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 22:39:33,763 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 22:39:33,771 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-12 22:39:33,771 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-12 22:41:27,532 [websockets.server] INFO: server closing
+2026-06-12 22:41:27,532 [websockets.server] INFO: server closed
+2026-06-12 22:45:19,173 [Node] INFO: Initializing components...
+2026-06-12 22:45:19,234 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 22:45:19,241 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 22:45:19,260 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-12 22:45:19,260 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-12 22:45:27,190 [Node] INFO: Initializing components...
+2026-06-12 22:45:27,246 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 22:45:27,254 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 22:45:27,268 [WebSocket] ERROR: [WebSocket] error: [Errno 10048] error while attempting to bind on address ('0.0.0.0', 8766): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2026-06-12 23:04:20,358 [Node] INFO: Initializing components...
+2026-06-12 23:04:20,418 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 23:04:20,428 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 23:04:20,443 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-12 23:04:20,445 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-12 23:16:53,320 [websockets.server] INFO: server closing
+2026-06-12 23:16:53,320 [websockets.server] INFO: server closed
+2026-06-12 23:21:43,736 [Node] INFO: Initializing components...
+2026-06-12 23:21:43,798 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 23:21:43,807 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 23:21:43,823 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-12 23:21:43,824 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-12 23:49:16,987 [websockets.server] INFO: server closing
+2026-06-12 23:49:16,988 [websockets.server] INFO: server closed
+2026-06-12 23:49:17,431 [Node] INFO: Initializing components...
+2026-06-12 23:49:17,502 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 23:49:17,509 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-12 23:49:17,520 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-12 23:49:17,520 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-12 23:49:56,930 [websockets.server] INFO: server closing
+2026-06-12 23:49:56,930 [websockets.server] INFO: server closed
+2026-06-13 00:08:54,229 [Node] INFO: Initializing components...
+2026-06-13 00:08:54,291 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:08:54,300 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:08:54,309 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 00:08:54,309 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 00:10:40,078 [Node] INFO: Initializing components...
+2026-06-13 00:10:40,127 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:10:40,134 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:10:40,140 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 00:10:40,140 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 00:10:48,768 [Node] INFO: Initializing components...
+2026-06-13 00:10:48,820 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:10:48,826 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:10:48,833 [WebSocket] ERROR: [WebSocket] error: [Errno 10048] error while attempting to bind on address ('0.0.0.0', 8766): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2026-06-13 00:11:57,833 [Node] INFO: Initializing components...
+2026-06-13 00:11:57,883 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:11:57,889 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:11:57,899 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 00:11:57,899 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 00:17:08,669 [Node] INFO: Initializing components...
+2026-06-13 00:17:08,735 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:17:08,746 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:17:08,758 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 00:17:08,759 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 00:30:56,818 [websockets.server] INFO: server closing
+2026-06-13 00:30:56,818 [websockets.server] INFO: server closed
+2026-06-13 00:31:33,832 [Node] INFO: Initializing components...
+2026-06-13 00:31:33,895 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:31:33,903 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:31:33,912 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 00:31:33,912 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 00:31:34,594 [websockets.server] INFO: connection open
+2026-06-13 00:31:34,594 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 00:42:30,571 [websockets.server] INFO: connection closed
+2026-06-13 00:42:30,572 [websockets.server] INFO: server closing
+2026-06-13 00:42:30,573 [websockets.server] INFO: server closed
+2026-06-13 00:42:54,705 [Node] INFO: Initializing components...
+2026-06-13 00:42:54,769 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:42:54,778 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:42:54,788 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 00:42:54,788 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 00:42:54,832 [websockets.server] INFO: connection open
+2026-06-13 00:42:54,832 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 00:42:55,514 [websockets.server] INFO: connection open
+2026-06-13 00:42:55,515 [WebSocket] INFO: [WS] client connected (2 total)
+2026-06-13 00:43:01,165 [websockets.server] INFO: connection closed
+2026-06-13 00:43:01,774 [websockets.server] INFO: connection open
+2026-06-13 00:43:01,775 [WebSocket] INFO: [WS] client connected (2 total)
+2026-06-13 00:44:36,863 [Node] INFO: Initializing components...
+2026-06-13 00:44:36,919 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:44:36,927 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:44:36,935 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 00:44:36,935 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 00:44:37,422 [websockets.server] INFO: connection open
+2026-06-13 00:44:37,424 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 00:44:37,683 [websockets.server] INFO: connection open
+2026-06-13 00:44:37,683 [WebSocket] INFO: [WS] client connected (2 total)
+2026-06-13 00:44:41,522 [websockets.server] INFO: connection open
+2026-06-13 00:44:41,523 [WebSocket] INFO: [WS] client connected (3 total)
+2026-06-13 00:44:51,947 [websockets.server] INFO: connection closed
+2026-06-13 00:44:52,447 [websockets.server] INFO: connection closed
+2026-06-13 00:55:45,949 [Node] INFO: Initializing components...
+2026-06-13 00:55:46,009 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:55:46,015 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 00:55:46,024 [WebSocket] ERROR: [WebSocket] error: [Errno 10048] error while attempting to bind on address ('0.0.0.0', 8766): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2026-06-13 00:57:00,438 [websockets.server] INFO: connection closed
+2026-06-13 00:57:01,056 [websockets.server] INFO: connection open
+2026-06-13 00:57:01,056 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 01:14:52,542 [Node] INFO: Initializing components...
+2026-06-13 01:14:52,609 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:14:52,617 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:14:52,624 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 01:14:52,625 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 01:14:53,546 [websockets.server] INFO: connection open
+2026-06-13 01:14:53,546 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 01:18:20,716 [Node] INFO: Initializing components...
+2026-06-13 01:18:20,771 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:18:20,778 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:18:20,785 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 01:18:20,785 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 01:20:00,929 [Node] INFO: Initializing components...
+2026-06-13 01:20:00,983 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:20:00,989 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:20:00,996 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 01:20:00,996 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 01:20:03,772 [websockets.server] INFO: connection open
+2026-06-13 01:20:03,772 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 01:24:03,831 [Node] INFO: Initializing components...
+2026-06-13 01:24:03,883 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:24:03,890 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:24:03,897 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 01:24:03,897 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 01:24:08,532 [websockets.server] INFO: connection open
+2026-06-13 01:24:08,532 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 01:26:57,401 [Node] INFO: Initializing components...
+2026-06-13 01:26:57,459 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:26:57,465 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:26:57,472 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 01:26:57,472 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 01:26:57,592 [websockets.server] INFO: connection open
+2026-06-13 01:26:57,592 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 01:28:52,017 [Node] INFO: Initializing components...
+2026-06-13 01:28:52,071 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:28:52,078 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:28:52,085 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 01:28:52,085 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 01:28:56,543 [websockets.server] INFO: connection open
+2026-06-13 01:28:56,543 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 01:35:55,565 [Node] INFO: Initializing components...
+2026-06-13 01:35:55,626 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:35:55,635 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:35:55,650 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 01:35:55,651 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 01:35:56,117 [websockets.server] INFO: connection open
+2026-06-13 01:35:56,119 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 01:41:20,867 [Node] INFO: Initializing components...
+2026-06-13 01:41:20,930 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:41:20,937 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:41:20,945 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 01:41:20,945 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 01:41:27,967 [websockets.server] INFO: connection open
+2026-06-13 01:41:27,967 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 01:44:01,117 [websockets.server] INFO: connection closed
+2026-06-13 01:44:01,117 [websockets.server] INFO: server closing
+2026-06-13 01:44:01,118 [websockets.server] INFO: server closed
+2026-06-13 01:44:29,149 [Node] INFO: Initializing components...
+2026-06-13 01:44:29,211 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:44:29,217 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 01:44:29,224 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 01:44:29,224 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 01:44:33,568 [websockets.server] INFO: connection open
+2026-06-13 01:44:33,568 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 02:08:39,549 [websockets.server] INFO: connection closed
+2026-06-13 02:08:39,549 [websockets.server] INFO: server closing
+2026-06-13 02:08:39,550 [websockets.server] INFO: server closed
+2026-06-13 02:09:06,376 [Node] INFO: Initializing components...
+2026-06-13 02:09:06,442 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:09:06,449 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:09:06,457 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 02:09:06,457 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 02:11:28,563 [Node] INFO: Initializing components...
+2026-06-13 02:11:28,631 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:12:06,116 [Node] INFO: Initializing components...
+2026-06-13 02:12:06,181 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:12:06,192 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:12:06,199 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 02:12:06,200 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 02:14:24,661 [Node] INFO: Initializing components...
+2026-06-13 02:14:24,730 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:14:24,737 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:14:24,752 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 02:14:24,753 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 02:17:26,164 [Node] INFO: Initializing components...
+2026-06-13 02:17:26,230 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:17:26,236 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:17:26,244 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 02:17:26,244 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 02:17:33,295 [websockets.server] INFO: connection open
+2026-06-13 02:17:33,295 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 02:19:43,600 [Node] INFO: Initializing components...
+2026-06-13 02:19:43,665 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:19:43,672 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:19:43,680 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 02:19:43,681 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 02:19:44,087 [websockets.server] INFO: connection open
+2026-06-13 02:19:44,087 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 02:21:56,335 [Node] INFO: Initializing components...
+2026-06-13 02:21:56,392 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:21:56,400 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:21:56,407 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 02:21:56,407 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 02:21:56,589 [websockets.server] INFO: connection open
+2026-06-13 02:21:56,590 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 02:23:20,957 [websockets.server] INFO: connection closed
+2026-06-13 02:23:21,292 [websockets.server] INFO: connection open
+2026-06-13 02:23:21,292 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 02:25:01,520 [Node] INFO: Initializing components...
+2026-06-13 02:25:01,586 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:25:01,598 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:25:01,609 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 02:25:01,609 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 02:25:01,908 [websockets.server] INFO: connection open
+2026-06-13 02:25:01,909 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 02:28:57,171 [Node] INFO: Initializing components...
+2026-06-13 02:28:57,240 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:28:57,249 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:28:57,264 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 02:28:57,265 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 02:28:57,626 [websockets.server] INFO: connection open
+2026-06-13 02:28:57,627 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 02:33:35,540 [Node] INFO: Initializing components...
+2026-06-13 02:33:35,603 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:33:35,614 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:33:35,625 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 02:33:35,625 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 02:33:37,900 [websockets.server] INFO: connection open
+2026-06-13 02:33:37,900 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 02:33:57,076 [websockets.server] INFO: connection closed
+2026-06-13 02:33:57,411 [websockets.server] INFO: connection open
+2026-06-13 02:33:57,411 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 02:36:16,539 [Node] INFO: Initializing components...
+2026-06-13 02:36:16,612 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:36:16,622 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 02:36:16,631 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 02:36:16,631 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 02:36:17,130 [websockets.server] INFO: connection open
+2026-06-13 02:36:17,130 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 02:37:16,587 [websockets.server] INFO: connection closed
+2026-06-13 02:37:16,921 [websockets.server] INFO: connection open
+2026-06-13 02:37:16,922 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 03:00:30,792 [Node] INFO: Initializing components...
+2026-06-13 03:00:30,855 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 03:00:30,866 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 03:13:14,851 [Node] INFO: Initializing components...
+2026-06-13 03:13:14,949 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 03:13:14,958 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 03:18:01,232 [Node] INFO: Initializing components...
+2026-06-13 03:18:01,336 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 03:18:01,353 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 03:19:51,880 [Node] INFO: Initializing components...
+2026-06-13 03:19:51,979 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 03:19:51,989 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 03:21:06,968 [Node] INFO: Initializing components...
+2026-06-13 03:21:07,065 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 03:21:07,074 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 03:21:20,170 [Node] INFO: Initializing components...
+2026-06-13 03:21:20,268 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 03:21:20,277 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 03:21:20,286 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 03:21:20,287 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 03:22:30,906 [Node] INFO: Initializing components...
+2026-06-13 03:22:31,008 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 03:22:31,018 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 03:22:31,033 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 03:22:31,034 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 03:27:40,814 [websockets.server] INFO: connection open
+2026-06-13 03:27:40,815 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 03:28:43,798 [websockets.server] INFO: connection closed
+2026-06-13 03:28:43,798 [websockets.server] INFO: server closing
+2026-06-13 03:28:43,800 [websockets.server] INFO: server closed
+2026-06-13 22:10:51,740 [Node] INFO: Initializing components...
+2026-06-13 22:10:51,817 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:10:51,828 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:10:51,841 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 22:10:51,842 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 22:19:40,565 [websockets.server] INFO: server closing
+2026-06-13 22:19:40,566 [websockets.server] INFO: server closed
+2026-06-13 22:20:11,620 [Node] INFO: Initializing components...
+2026-06-13 22:20:11,723 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:20:11,733 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:20:11,744 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 22:20:11,745 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 22:24:17,033 [Node] INFO: Initializing components...
+2026-06-13 22:24:17,092 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:24:17,098 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:24:17,106 [WebSocket] ERROR: [WebSocket] error: [Errno 10048] error while attempting to bind on address ('0.0.0.0', 8766): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2026-06-13 22:25:47,183 [websockets.server] INFO: server closing
+2026-06-13 22:25:47,183 [websockets.server] INFO: server closed
+2026-06-13 22:26:32,501 [Node] INFO: Initializing components...
+2026-06-13 22:26:32,568 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:26:32,574 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:26:32,583 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 22:26:32,583 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 22:28:16,065 [Node] INFO: Initializing components...
+2026-06-13 22:28:16,129 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:28:16,138 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:28:16,148 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 22:28:16,149 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 22:29:21,092 [websockets.server] INFO: connection open
+2026-06-13 22:29:21,094 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 22:29:24,462 [websockets.server] INFO: connection open
+2026-06-13 22:29:24,463 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 22:35:22,284 [Node] INFO: Initializing components...
+2026-06-13 22:35:22,363 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:35:22,376 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:35:22,388 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 22:35:22,388 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 22:42:50,605 [websockets.server] INFO: server closing
+2026-06-13 22:42:50,606 [websockets.server] INFO: server closed
+2026-06-13 22:43:42,934 [Node] INFO: Initializing components...
+2026-06-13 22:43:43,019 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:43:43,028 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:43:43,039 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 22:43:43,039 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 22:44:17,226 [Node] INFO: Initializing components...
+2026-06-13 22:44:17,309 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:44:17,324 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:44:17,335 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 22:44:17,335 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 22:44:46,704 [Node] INFO: Initializing components...
+2026-06-13 22:44:46,767 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:44:46,774 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:44:46,783 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 22:44:46,783 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 22:46:13,847 [Node] INFO: Initializing components...
+2026-06-13 22:46:13,907 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:46:13,917 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:46:13,924 [WebSocket] ERROR: [WebSocket] error: [Errno 10048] error while attempting to bind on address ('0.0.0.0', 8766): [winerror 10048] обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
+2026-06-13 22:48:17,434 [Node] INFO: Initializing components...
+2026-06-13 22:48:17,494 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:48:17,500 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 22:48:17,508 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 22:48:17,508 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 22:48:59,771 [websockets.server] INFO: connection open
+2026-06-13 22:48:59,771 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 23:08:04,798 [Node] INFO: Initializing components...
+2026-06-13 23:08:04,865 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:08:04,873 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:08:04,883 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 23:08:04,883 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 23:08:07,273 [websockets.server] INFO: connection open
+2026-06-13 23:08:07,274 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 23:18:25,372 [Node] INFO: Initializing components...
+2026-06-13 23:18:25,431 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:18:25,442 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:18:25,450 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 23:18:25,450 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 23:24:09,113 [Node] INFO: Initializing components...
+2026-06-13 23:24:09,175 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:24:09,183 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:24:09,191 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 23:24:09,192 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 23:25:01,155 [websockets.server] INFO: connection open
+2026-06-13 23:25:01,156 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 23:25:05,929 [websockets.server] INFO: connection open
+2026-06-13 23:25:05,930 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 23:29:52,586 [Node] INFO: Initializing components...
+2026-06-13 23:29:52,655 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:29:52,664 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:29:52,673 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 23:29:52,674 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 23:29:52,849 [websockets.server] INFO: connection open
+2026-06-13 23:29:52,851 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 23:34:25,977 [Node] INFO: Initializing components...
+2026-06-13 23:38:30,439 [Node] INFO: Initializing components...
+2026-06-13 23:38:30,513 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:38:30,522 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:38:30,532 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 23:38:30,534 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 23:38:30,778 [websockets.server] INFO: connection open
+2026-06-13 23:38:31,095 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 23:43:14,597 [Node] INFO: Initializing components...
+2026-06-13 23:43:14,657 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:43:14,668 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:43:14,676 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 23:43:14,678 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 23:43:17,170 [websockets.server] INFO: connection open
+2026-06-13 23:43:17,171 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 23:50:42,887 [Node] INFO: Initializing components...
+2026-06-13 23:50:42,957 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:50:42,964 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:50:42,979 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 23:50:42,979 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 23:50:43,372 [websockets.server] INFO: connection open
+2026-06-13 23:50:43,381 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-13 23:56:06,583 [Node] INFO: Initializing components...
+2026-06-13 23:56:06,654 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:56:06,663 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-13 23:56:06,678 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-13 23:56:06,680 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-13 23:56:08,883 [websockets.server] INFO: connection open
+2026-06-13 23:56:08,885 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 00:01:01,911 [Node] INFO: Initializing components...
+2026-06-14 00:01:01,971 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 00:01:01,985 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 00:01:01,992 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 00:01:01,992 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 00:01:02,408 [websockets.server] INFO: connection open
+2026-06-14 00:01:02,417 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 00:04:01,461 [websockets.server] INFO: connection open
+2026-06-14 00:04:01,471 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 00:05:41,493 [Node] INFO: Initializing components...
+2026-06-14 00:05:41,568 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 00:05:41,577 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 00:05:41,584 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 00:05:41,585 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 00:05:41,903 [websockets.server] INFO: connection open
+2026-06-14 00:05:41,909 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 00:10:23,751 [Node] INFO: Initializing components...
+2026-06-14 00:10:23,816 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 00:10:23,824 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 00:10:23,831 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 00:10:23,834 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 00:10:23,978 [websockets.server] INFO: connection open
+2026-06-14 00:10:23,980 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 00:16:58,136 [Node] INFO: Initializing components...
+2026-06-14 00:16:58,202 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 00:16:58,211 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 00:16:58,220 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 00:16:58,222 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 00:16:58,450 [websockets.server] INFO: connection open
+2026-06-14 00:16:58,452 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 00:25:23,552 [websockets.server] INFO: connection open
+2026-06-14 00:25:23,557 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 00:27:11,066 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 02:00:46,504 [Node] INFO: Initializing components...
+2026-06-14 02:00:46,584 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:00:46,595 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:00:46,607 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 02:00:46,609 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 02:00:51,161 [websockets.server] INFO: connection open
+2026-06-14 02:00:51,163 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 02:08:44,599 [Node] INFO: Initializing components...
+2026-06-14 02:08:44,665 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:08:44,674 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:08:44,682 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 02:08:44,684 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 02:08:47,423 [websockets.server] INFO: connection open
+2026-06-14 02:08:47,432 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 02:17:59,336 [Node] INFO: Initializing components...
+2026-06-14 02:17:59,397 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:17:59,406 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:17:59,416 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 02:17:59,418 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 02:18:05,251 [websockets.server] INFO: connection open
+2026-06-14 02:18:05,253 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 02:18:06,802 [websockets.server] INFO: connection open
+2026-06-14 02:18:06,813 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 02:21:28,378 [websockets.server] INFO: connection open
+2026-06-14 02:21:28,380 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 02:28:57,750 [Node] INFO: Initializing components...
+2026-06-14 02:28:57,806 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:28:57,818 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:28:57,827 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 02:28:57,828 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 02:29:07,111 [websockets.server] INFO: connection open
+2026-06-14 02:29:07,111 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 02:34:57,814 [websockets.server] INFO: connection open
+2026-06-14 02:34:57,817 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 02:46:31,196 [websockets.server] INFO: connection open
+2026-06-14 02:46:31,199 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 02:48:42,129 [websockets.server] INFO: connection open
+2026-06-14 02:48:42,130 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 02:50:42,420 [Node] INFO: Initializing components...
+2026-06-14 02:50:42,481 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:50:42,489 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 02:50:42,498 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 02:50:42,499 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 02:50:43,553 [websockets.server] INFO: connection open
+2026-06-14 02:50:43,555 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 02:51:31,078 [websockets.server] INFO: connection open
+2026-06-14 02:51:31,081 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 03:04:05,448 [Node] INFO: Initializing components...
+2026-06-14 03:04:05,517 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:04:05,530 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:04:05,537 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 03:04:05,539 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 03:04:08,993 [websockets.server] INFO: connection open
+2026-06-14 03:04:09,003 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 03:04:23,480 [websockets.server] INFO: connection open
+2026-06-14 03:04:23,480 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 03:14:01,139 [websockets.server] INFO: connection open
+2026-06-14 03:14:01,141 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 03:14:23,096 [Node] INFO: Initializing components...
+2026-06-14 03:14:23,170 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:14:23,179 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:14:23,188 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 03:14:23,190 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 03:14:24,961 [websockets.server] INFO: connection open
+2026-06-14 03:14:24,970 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 03:15:31,715 [websockets.server] INFO: connection open
+2026-06-14 03:15:31,724 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 03:22:35,950 [Node] INFO: Initializing components...
+2026-06-14 03:22:36,013 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:22:36,021 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:22:36,027 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 03:22:36,027 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 03:22:36,693 [websockets.server] INFO: connection open
+2026-06-14 03:22:36,693 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 03:23:01,879 [websockets.server] INFO: connection open
+2026-06-14 03:23:01,882 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 03:29:56,199 [Node] INFO: Initializing components...
+2026-06-14 03:29:56,271 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:29:56,283 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:29:56,292 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 03:29:56,293 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 03:29:57,037 [websockets.server] INFO: connection open
+2026-06-14 03:29:57,039 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 03:30:00,973 [API] ERROR: REST error: [WinError 10053] Программа на вашем хост-компьютере разорвала установленное подключение
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 886, in do_GET
+    self._json({
+    ~~~~~~~~~~^^
+        "count": len(votes),
+        ^^^^^^^^^^^^^^^^^^^^
+        "attestations": votes,
+        ^^^^^^^^^^^^^^^^^^^^^^
+        "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    })
+    ^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 3766, in _json
+    self.wfile.write(body)
+    ~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\socketserver.py", line 845, in write
+    self._sock.sendall(b)
+    ~~~~~~~~~~~~~~~~~~^^^
+ConnectionAbortedError: [WinError 10053] Программа на вашем хост-компьютере разорвала установленное подключение
+2026-06-14 03:30:01,571 [websockets.server] INFO: connection open
+2026-06-14 03:30:01,573 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 03:31:06,789 [websockets.server] INFO: connection open
+2026-06-14 03:31:06,791 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 03:36:53,537 [websockets.server] INFO: connection open
+2026-06-14 03:36:53,539 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 03:38:32,415 [Node] INFO: Initializing components...
+2026-06-14 03:38:32,478 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:38:32,491 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:38:32,501 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 03:38:32,501 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 03:38:34,363 [websockets.server] INFO: connection open
+2026-06-14 03:38:34,363 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 03:43:08,974 [websockets.server] INFO: connection open
+2026-06-14 03:43:08,983 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 03:43:28,122 [Node] INFO: Initializing components...
+2026-06-14 03:43:28,193 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:43:28,202 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:43:28,209 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 03:43:28,210 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 03:43:32,510 [websockets.server] INFO: connection open
+2026-06-14 03:43:32,520 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 03:47:56,354 [Node] INFO: Initializing components...
+2026-06-14 03:47:56,420 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:47:56,429 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 03:47:56,437 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 03:47:56,439 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 03:47:57,078 [websockets.server] INFO: connection open
+2026-06-14 03:47:57,079 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 03:49:15,662 [websockets.server] INFO: connection open
+2026-06-14 03:49:15,671 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 04:09:25,208 [Node] INFO: Initializing components...
+2026-06-14 04:09:25,323 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 04:09:25,333 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 04:09:25,346 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 04:09:25,348 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 04:09:27,681 [websockets.server] INFO: connection open
+2026-06-14 04:09:27,684 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 04:19:49,850 [Node] INFO: Initializing components...
+2026-06-14 04:19:49,942 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 04:19:49,951 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 04:19:49,963 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 04:19:49,963 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 04:19:50,707 [websockets.server] INFO: connection open
+2026-06-14 04:19:50,735 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 04:20:10,438 [websockets.server] INFO: connection open
+2026-06-14 04:20:10,441 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 04:21:08,173 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:29:57,959 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:30:01,846 [websockets.server] INFO: connection open
+2026-06-14 04:30:01,848 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 04:30:18,441 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:33:12,674 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:33:24,342 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:33:26,814 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:33:28,944 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:36:41,596 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:36:53,789 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:36:56,265 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:36:58,406 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:37:50,795 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:38:01,257 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:38:03,790 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 04:38:07,614 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 07:18:37,005 [Node] INFO: Initializing components...
+2026-06-14 07:18:37,075 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-14 07:18:37,082 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-14 07:18:37,094 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 07:18:37,094 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 07:20:22,097 [websockets.server] INFO: server closing
+2026-06-14 07:20:22,098 [websockets.server] INFO: server closed
+2026-06-14 09:08:09,166 [Node] INFO: Initializing components...
+2026-06-14 09:08:09,244 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-14 09:08:09,255 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-14 09:08:09,267 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 09:08:09,267 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 09:08:32,606 [websockets.server] INFO: connection open
+2026-06-14 09:08:32,607 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 20:42:31,936 [Node] INFO: Initializing components...
+2026-06-14 20:42:32,007 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 20:42:32,015 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 20:42:32,022 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 20:42:32,022 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 20:42:35,139 [websockets.server] INFO: connection open
+2026-06-14 20:42:35,140 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 20:45:09,759 [websockets.server] INFO: connection open
+2026-06-14 20:45:09,769 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 21:01:24,768 [Node] INFO: Initializing components...
+2026-06-14 21:01:24,908 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 21:01:24,926 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 21:01:24,948 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 21:01:24,950 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 21:01:28,725 [websockets.server] INFO: connection open
+2026-06-14 21:01:28,809 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 21:16:02,317 [Node] INFO: Initializing components...
+2026-06-14 21:16:02,367 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 21:16:02,374 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 21:16:02,386 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 21:16:02,386 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 21:16:41,349 [websockets.server] INFO: connection open
+2026-06-14 21:16:41,350 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 21:21:05,030 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 21:21:55,639 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-14 21:44:46,315 [Node] INFO: Initializing components...
+2026-06-14 21:44:46,370 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 21:44:46,384 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 21:44:46,398 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 21:44:46,400 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 21:44:46,845 [websockets.server] INFO: connection open
+2026-06-14 21:44:46,847 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 21:46:51,177 [websockets.server] INFO: connection open
+2026-06-14 21:46:51,179 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 21:50:21,818 [websockets.server] INFO: connection open
+2026-06-14 21:50:21,818 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 21:52:59,521 [API] ERROR: REST POST error: cannot access local variable 'hashlib' where it is not associated with a value
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 3778, in do_POST
+    "0x" + hashlib.sha256(
+           ^^^^^^^
+UnboundLocalError: cannot access local variable 'hashlib' where it is not associated with a value
+2026-06-14 21:56:03,375 [API] ERROR: REST POST error: ZKProofSystem.create_zk_transaction() got an unexpected keyword argument 'sender'
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 4726, in do_POST
+    tx = zk.create_zk_transaction(
+        sender=body.get("sender",""),
+        amount=int(body.get("amount", 1)))
+TypeError: ZKProofSystem.create_zk_transaction() got an unexpected keyword argument 'sender'
+2026-06-14 22:11:33,392 [Node] INFO: Initializing components...
+2026-06-14 22:11:33,428 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:11:33,435 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:11:33,446 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 22:11:33,446 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 22:11:33,868 [websockets.server] INFO: connection open
+2026-06-14 22:11:33,868 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 22:22:01,473 [Node] INFO: Initializing components...
+2026-06-14 22:22:01,518 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:22:01,526 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:22:01,534 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 22:22:01,536 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 22:22:04,851 [websockets.server] INFO: connection open
+2026-06-14 22:22:04,859 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 22:28:37,931 [Node] INFO: Initializing components...
+2026-06-14 22:28:37,969 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:28:37,979 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:28:37,989 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 22:28:37,990 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 22:28:40,850 [websockets.server] INFO: connection open
+2026-06-14 22:28:40,853 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 22:32:07,008 [Node] INFO: Initializing components...
+2026-06-14 22:32:07,051 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:32:07,061 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:32:07,071 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 22:32:07,072 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 22:32:07,393 [websockets.server] INFO: connection open
+2026-06-14 22:32:07,402 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 22:33:24,742 [websockets.server] INFO: connection open
+2026-06-14 22:33:24,744 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 22:34:30,726 [websockets.server] INFO: connection open
+2026-06-14 22:34:30,728 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 22:37:08,581 [websockets.server] INFO: connection open
+2026-06-14 22:37:08,584 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 22:50:27,742 [Node] INFO: Initializing components...
+2026-06-14 22:50:27,810 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:50:27,825 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:50:27,840 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 22:50:27,842 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 22:50:28,863 [websockets.server] INFO: connection open
+2026-06-14 22:50:28,865 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 22:57:07,620 [Node] INFO: Initializing components...
+2026-06-14 22:57:07,664 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:57:07,671 [API] INFO: Rate limiter: disabled (rate_limit_rpm=0)
+2026-06-14 22:57:07,680 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-14 22:57:07,680 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-14 22:57:11,521 [websockets.server] INFO: connection open
+2026-06-14 22:57:11,524 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 23:00:39,380 [websockets.server] INFO: connection open
+2026-06-14 23:00:39,381 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-14 23:11:31,242 [websockets.server] INFO: connection open
+2026-06-14 23:11:31,244 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-21 10:34:47,888 [Node] INFO: Initializing components...
+2026-06-21 10:34:47,919 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-21 10:34:47,930 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-21 10:34:47,945 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-21 10:34:47,946 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-21 10:35:16,535 [websockets.server] INFO: connection open
+2026-06-21 10:35:16,536 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-21 11:02:21,645 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-21 11:02:25,962 [websockets.server] INFO: connection open
+2026-06-21 11:02:25,963 [WebSocket] INFO: [WS] client connected (2 total)
+2026-06-21 11:02:28,810 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-21 11:16:03,424 [websockets.server] ERROR: opening handshake failed
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 138, in parse
+    request_line = yield from parse_line(read_line)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 309, in parse_line
+    line = yield from read_line(MAX_LINE_LENGTH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\streams.py", line 46, in read_line
+    raise EOFError(f"stream ends after {p} bytes, before end of line")
+EOFError: stream ends after 0 bytes, before end of line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\server.py", line 545, in parse
+    request = yield from Request.parse(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.reader.read_line,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\http11.py", line 140, in parse
+    raise EOFError("connection closed while reading HTTP request line") from exc
+EOFError: connection closed while reading HTTP request line
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 356, in conn_handler
+    await connection.handshake(
+    ...<3 lines>...
+    )
+  File "C:\Users\vovun\AppData\Local\Programs\Python\Python313\Lib\site-packages\websockets\asyncio\server.py", line 207, in handshake
+    raise self.protocol.handshake_exc
+websockets.exceptions.InvalidMessage: did not receive a valid HTTP request
+2026-06-21 11:46:42,276 [Node] INFO: Initializing components...
+2026-06-21 11:46:42,305 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-21 11:46:42,320 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-21 11:46:42,337 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-21 11:46:42,337 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-21 12:13:14,614 [Node] INFO: Initializing components...
+2026-06-21 12:13:14,638 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-21 12:13:14,644 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-21 12:13:14,655 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-21 12:13:14,655 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-21 12:31:43,188 [Node] INFO: Initializing components...
+2026-06-21 12:31:43,210 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-21 12:31:43,221 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-21 12:31:43,233 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-21 12:31:43,233 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-21 12:36:40,602 [Node] INFO: Initializing components...
+2026-06-21 12:36:40,624 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-21 12:36:40,631 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-21 12:36:40,641 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-21 12:36:40,641 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-21 12:49:06,365 [Node] INFO: Initializing components...
+2026-06-21 12:49:06,389 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-21 12:49:06,397 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-21 12:49:06,412 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-21 12:49:06,412 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-21 15:21:38,456 [Node] INFO: Initializing components...
+2026-06-21 15:21:38,482 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-21 15:21:38,490 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-21 15:21:38,512 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-21 15:21:38,512 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-27 16:49:25,464 [Node] INFO: Initializing components...
+2026-06-27 16:49:25,488 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-27 16:49:25,494 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-27 16:49:25,501 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-27 16:49:25,502 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-27 16:50:50,646 [websockets.server] INFO: connection open
+2026-06-27 16:50:50,650 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-27 16:58:35,482 [websockets.server] INFO: connection open
+2026-06-27 16:58:35,483 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-27 17:07:11,438 [websockets.server] INFO: connection open
+2026-06-27 17:07:11,439 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-27 17:08:16,732 [websockets.server] INFO: server closing
+2026-06-27 18:43:57,991 [Node] INFO: Initializing components...
+2026-06-27 18:43:58,013 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-27 18:43:58,019 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-27 18:43:58,029 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-27 18:43:58,029 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-27 18:44:08,201 [websockets.server] INFO: connection open
+2026-06-27 18:44:08,201 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-27 18:45:36,463 [websockets.server] INFO: server closing
+2026-06-27 18:45:37,918 [API] ERROR: REST error: Cannot operate on a closed database.
+Traceback (most recent call last):
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\http.py", line 1283, in do_GET
+    self._json(bc.get_stats())
+               ~~~~~~~~~~~~^^
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\blockchain.py", line 1056, in get_stats
+    db_stats = self.db.get_stats()
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\storage\database.py", line 2351, in get_stats
+    height = self.get_chain_tip()
+  File "C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\storage\database.py", line 691, in get_chain_tip
+    row = self.conn.execute(
+          ~~~~~~~~~~~~~~~~~^
+        "SELECT COALESCE(MAX(height),0) as h FROM blocks"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ).fetchone()
+    ^
+sqlite3.ProgrammingError: Cannot operate on a closed database.
+2026-06-27 19:42:56,031 [Node] INFO: Initializing components...
+2026-06-27 19:42:56,069 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-27 19:42:56,080 [API] INFO: Rate limiter: memory (120 rpm)
+2026-06-27 19:42:56,096 [websockets.server] INFO: server listening on 0.0.0.0:8766
+2026-06-27 19:42:56,097 [WebSocket] INFO: [WebSocket] server running on 0.0.0.0:8766
+2026-06-27 19:43:44,221 [websockets.server] INFO: connection open
+2026-06-27 19:43:44,222 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-27 19:43:45,783 [websockets.server] INFO: connection open
+2026-06-27 19:43:45,784 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-27 19:44:58,752 [websockets.server] INFO: connection open
+2026-06-27 19:44:58,753 [WebSocket] INFO: [WS] client connected (1 total)
+2026-06-27 19:45:39,835 [websockets.server] INFO: server closing

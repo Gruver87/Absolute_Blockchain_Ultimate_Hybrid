@@ -1,0 +1,10 @@
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\bridge\rust_bridge\target\release\deps\version_check-69adb7b93180a22e.d: C:\Users\vovun\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\version_check-0.9.5\src\lib.rs C:\Users\vovun\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\version_check-0.9.5\src\version.rs C:\Users\vovun\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\version_check-0.9.5\src\channel.rs C:\Users\vovun\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\version_check-0.9.5\src\date.rs
+
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\bridge\rust_bridge\target\release\deps\libversion_check-69adb7b93180a22e.rlib: C:\Users\vovun\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\version_check-0.9.5\src\lib.rs C:\Users\vovun\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\version_check-0.9.5\src\version.rs C:\Users\vovun\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\version_check-0.9.5\src\channel.rs C:\Users\vovun\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\version_check-0.9.5\src\date.rs
+
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\bridge\rust_bridge\target\release\deps\libversion_check-69adb7b93180a22e.rmeta: C:\Users\vovun\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\version_check-0.9.5\src\lib.rs C:\Users\vovun\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\version_check-0.9.5\src\version.rs C:\Users\vovun\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\version_check-0.9.5\src\channel.rs C:\Users\vovun\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\version_check-0.9.5\src\date.rs
+
+C:\Users\vovun\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\version_check-0.9.5\src\lib.rs:
+C:\Users\vovun\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\version_check-0.9.5\src\version.rs:
+C:\Users\vovun\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\version_check-0.9.5\src\channel.rs:
+C:\Users\vovun\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\version_check-0.9.5\src\date.rs:

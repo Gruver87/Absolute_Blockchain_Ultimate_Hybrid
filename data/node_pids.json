@@ -1,0 +1,13 @@
+﻿{
+    "node1":  {
+                  "config":  "node.rust.example.json",
+                  "pid":  20664,
+                  "http":  8080
+              },
+    "node2":  {
+                  "config":  "node2.example.json",
+                  "pid":  26024,
+                  "http":  8081
+              },
+    "started_at":  "2026-06-14T22:57:08.2480811+02:00"
+}

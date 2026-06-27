@@ -1,0 +1,147 @@
+{
+  "files": 253,
+  "endpoints": 288,
+  "web_uncovered": [
+    "/chain/consistency/repair",
+    "/chain/metrics",
+    "/chain/proposers/history",
+    "/chain/proposers/stats",
+    "/chain/state-root/status",
+    "/docs",
+    "/evm/logs",
+    "/evm/logs/",
+    "/l2/status",
+    "/metrics",
+    "/openapi.json",
+    "/oracles/feeds",
+    "/oracles/feeds/",
+    "/oracles/feeds/submit",
+    "/p2p/reconnect",
+    "/receipts/block/",
+    "/receipts/tx/",
+    "/sync/reconcile",
+    "/testnet/bridge-relayer-proof",
+    "/testnet/mesh",
+    "/testnet/multi-node-proof",
+    "/testnet/reorg-exercise"
+  ],
+  "issues": [],
+  "warnings": [
+    {
+      "cat": "WEB",
+      "msg": "/chain/consistency/repair"
+    },
+    {
+      "cat": "WEB",
+      "msg": "/chain/metrics"
+    },
+    {
+      "cat": "WEB",
+      "msg": "/chain/proposers/history"
+    },
+    {
+      "cat": "WEB",
+      "msg": "/chain/proposers/stats"
+    },
+    {
+      "cat": "WEB",
+      "msg": "/chain/state-root/status"
+    },
+    {
+      "cat": "WEB",
+      "msg": "/docs"
+    },
+    {
+      "cat": "WEB",
+      "msg": "/evm/logs"
+    },
+    {
+      "cat": "WEB",
+      "msg": "/evm/logs/"
+    },
+    {
+      "cat": "WEB",
+      "msg": "/l2/status"
+    },
+    {
+      "cat": "WEB",
+      "msg": "/metrics"
+    },
+    {
+      "cat": "WEB",
+      "msg": "/openapi.json"
+    },
+    {
+      "cat": "WEB",
+      "msg": "/oracles/feeds"
+    },
+    {
+      "cat": "WEB",
+      "msg": "/oracles/feeds/"
+    },
+    {
+      "cat": "WEB",
+      "msg": "/oracles/feeds/submit"
+    },
+    {
+      "cat": "WEB",
+      "msg": "/p2p/reconnect"
+    },
+    {
+      "cat": "INTEGRATION",
+      "msg": "bridge/l1_rpc.py"
+    },
+    {
+      "cat": "INTEGRATION",
+      "msg": "execution/evm_bytecode_validator.py"
+    },
+    {
+      "cat": "INTEGRATION",
+      "msg": "middleware/jwt_auth.py"
+    },
+    {
+      "cat": "INTEGRATION",
+      "msg": "node_persistent.py"
+    },
+    {
+      "cat": "ENTRY",
+      "msg": "monitor.py"
+    },
+    {
+      "cat": "ENTRY",
+      "msg": "real_world_oracles.py"
+    },
+    {
+      "cat": "ENTRY",
+      "msg": "scripts/check_secrets.py"
+    },
+    {
+      "cat": "ENTRY",
+      "msg": "scripts/full_audit.py"
+    },
+    {
+      "cat": "ENTRY",
+      "msg": "scripts/load_test.py"
+    }
+  ],
+  "not_integrated": [
+    [
+      "bridge/l1_rpc.py",
+      []
+    ],
+    [
+      "execution/evm_bytecode_validator.py",
+      []
+    ],
+    [
+      "middleware/jwt_auth.py",
+      [
+        "JWTAuth"
+      ]
+    ],
+    [
+      "node_persistent.py",
+      []
+    ]
+  ]
+}

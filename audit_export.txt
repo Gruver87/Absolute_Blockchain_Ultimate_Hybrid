@@ -1,0 +1,1641 @@
+﻿=== PROJECT_STRUCTURE.txt ===
+╤ЄЁєъЄєЁр яряюъ Єюьр Windows
+╤хЁшщэ√щ эюьхЁ Єюьр: 000000C7 B2A7:0CDC
+C:.
+ж   .env
+ж   .env.example
+ж   .gitignore
+ж   ABSOLUTE_FINAL_FIXED.py
+ж   ABSOLUTE_FINAL_FIXED_backup.py
+ж   ABSOLUTE_FINAL_FIXED_backup_20260525_001835.py
+ж   ABSOLUTE_FINAL_FIXED_backup_20260525_002132.py
+ж   ai_consensus.py
+ж   amm_core.py
+ж   audit_report.txt
+ж   auto_heal.py
+ж   build_docker.ps1
+ж   crosschain_bridge.py
+ж   docker-compose.yml
+ж   Dockerfile
+ж   dynamic_sharding.py
+ж   explorer.py
+ж   extended_api_server.py
+ж   formal_verification.py
+ж   global_p2p_network.py
+ж   gui.py
+ж   init_git.ps1
+ж   lightning_network.py
+ж   mobile_api.py
+ж   monitor.py
+ж   multisig.py
+ж   nft_core.py
+ж   nft_gallery.html
+ж   nft_hydration_fix.py
+ж   nft_marketplace_enhanced.py
+ж   node_persistent.py
+ж   postquantum_core.py
+ж   project_structure.txt
+ж   prometheus_metrics.py
+ж   README.md
+ж   real_world_oracles.py
+ж   real_world_oracles.py.backup
+ж   requirements.txt
+ж   run_coverage.ps1
+ж   run_rpc.py
+ж   smart_accounts.py
+ж   social_linkedin.txt
+ж   social_post_linkedin.txt
+ж   social_post_telegram.txt
+ж   social_post_twitter.txt
+ж   social_telegram.txt
+ж   social_twitter.txt
+ж   start_blockchain.ps1
+ж   start_full.ps1
+ж   structure.txt
+ж   telegram_super_bot.py
+ж   testnet.py
+ж   test_adversarial_network.py
+ж   test_consensus_refactored.py
+ж   test_finality.py
+ж   test_merkle_light.py
+ж   test_mev_mempool.py
+ж   test_p2p.py
+ж   test_reorg_engine.py
+ж   test_rpc.py
+ж   test_slashing.py
+ж   test_slashing_integration.py
+ж   test_state_engine.py
+ж   test_sync_engine.py
+ж   test_sync_engine_v2.py
+ж   test_v44.py
+ж   test_v45.py
+ж   test_v46.py
+ж   test_v47.py
+ж   test_v48.py
+ж   test_v49.py
+ж   test_v50.py
+ж   test_v51.py
+ж   test_v52.py
+ж   test_v54.py
+ж   test_v55.py
+ж   test_validator_selection.py
+ж   test_vm.py
+ж   web_server.py
+ж   zk_proofs.py
+ж   
++---.github
+ж   +---.github
+ж   ж   L---workflows
+ж   ж           ci-cd.yml
+ж   ж           
+ж   L---workflows
+ж           ci-cd.yml
+ж           test.yml
+ж           
++---.pytest_cache
+ж   ж   .gitignore
+ж   ж   CACHEDIR.TAG
+ж   ж   README.md
+ж   ж   
+ж   L---v
+ж       L---cache
+ж               lastfailed
+ж               nodeids
+ж               
++---abi
+ж   ж   contract_examples.py
+ж   ж   
+ж   L---__pycache__
+ж           contract_examples.cpython-313.pyc
+ж           
++---api
+ж   ж   server.py
+ж   ж   
+ж   +---auth
+ж   ж       jwt_handler_backup.py
+ж   ж       jwt_handler_backup_routes.py
+ж   ж       wallet_auth.py
+ж   ж       
+ж   +---handlers
+ж   ж       stats_handler.py
+ж   ж       transaction_handler.py
+ж   ж       wallet_handler.py
+ж   ж       
+ж   +---middleware
+ж   ж       rate_limit.py
+ж   ж       rate_limiter.py
+ж   ж       
+ж   +---routes
+ж   ж       router.py
+ж   ж       
+ж   +---rpc
+ж   +---utils
+ж   ж       response.py
+ж   ж       
+ж   L---validators
+ж           validators.py
+ж           
++---beacon
++---blockchain
+ж       canonical_serializer.py
+ж       immutable_state.py
+ж       mempool.py
+ж       tx_validator.py
+ж       
++---compiler
+ж   ж   assembler.py
+ж   ж   examples.py
+ж   ж   
+ж   L---__pycache__
+ж           assembler.cpython-313.pyc
+ж           examples.cpython-313.pyc
+ж           
++---consensus
+ж   ж   canonical_chain.py
+ж   ж   convergence_engine.py
+ж   ж   engine_beacon.py
+ж   ж   engine_casper.py
+ж   ж   engine_refactored.py
+ж   ж   engine_slashing.py
+ж   ж   engine_v42.py
+ж   ж   engine_v45.py
+ж   ж   engine_with_slashing.py
+ж   ж   epoch.py
+ж   ж   finality.py
+ж   ж   finality_beacon.py
+ж   ж   finality_casper.py
+ж   ж   ghost.py
+ж   ж   heaviest_chain.py
+ж   ж   lmd.py
+ж   ж   pbs.py
+ж   ж   reorg_engine.py
+ж   ж   slashing.py
+ж   ж   sync.py
+ж   ж   validator_registry.py
+ж   ж   validator_selection.py
+ж   ж   
+ж   L---__pycache__
+ж           convergence_engine.cpython-313.pyc
+ж           engine_beacon.cpython-313.pyc
+ж           engine_refactored.cpython-313.pyc
+ж           engine_with_slashing.cpython-313.pyc
+ж           epoch.cpython-313.pyc
+ж           finality_beacon.cpython-313.pyc
+ж           ghost.cpython-313.pyc
+ж           lmd.cpython-313.pyc
+ж           pbs.cpython-313.pyc
+ж           reorg_engine.cpython-313.pyc
+ж           slashing.cpython-313.pyc
+ж           validator_registry.cpython-313.pyc
+ж           validator_selection.cpython-313.pyc
+ж           
++---core
+ж   ж   block.py
+ж   ж   blockchain.py
+ж   ж   blockchain_network.py
+ж   ж   blockchain_rocks.py
+ж   ж   blockchain_utxo.py
+ж   ж   blockchain_working.py
+ж   ж   block_header.py
+ж   ж   locks.py
+ж   ж   mempool.py
+ж   ж   merkle.py
+ж   ж   node.py
+ж   ж   storage.py
+ж   ж   storage_engine.py
+ж   ж   storage_working.py
+ж   ж   transaction.py
+ж   ж   transaction_utxo.py
+ж   ж   tx_builder.py
+ж   ж   tx_signer.py
+ж   ж   utxo.py
+ж   ж   utxo_set.py
+ж   ж   utxo_simple.py
+ж   ж   wallet_crypto.py
+ж   ж   __init__.py
+ж   ж   
+ж   L---__pycache__
+ж           block.cpython-313.pyc
+ж           block_header.cpython-313.pyc
+ж           merkle.cpython-313.pyc
+ж           transaction.cpython-313.pyc
+ж           wallet_crypto.cpython-313.pyc
+ж           __init__.cpython-313.pyc
+ж           
++---crypto
+ж   ж   hashing.py
+ж   ж   keys.py
+ж   ж   merkle.py
+ж   ж   signing.py
+ж   ж   validator_keys.py
+ж   ж   wallet.py
+ж   ж   __init__.py
+ж   ж   
+ж   +---wallets
+ж   L---__pycache__
+ж           hashing.cpython-313.pyc
+ж           keys.cpython-313.pyc
+ж           merkle.cpython-313.pyc
+ж           signing.cpython-313.pyc
+ж           validator_keys.cpython-313.pyc
+ж           wallet.cpython-313.pyc
+ж           __init__.cpython-313.pyc
+ж           
++---data
+ж   ж   blockchain.db
+ж   ж   blockchain.db.corrupted_backup
+ж   ж   wallet.json
+ж   ж   
+ж   +---blocks
+ж   +---checkpoints
+ж   +---mempool
+ж   +---network
+ж   +---snapshots
+ж   L---state
++---db
++---docs
+ж   L---screenshots
+ж           ╤эшьюъ ¤ъЁрэр_24-5-2026_211644_localhost.jpeg
+ж           ╤эшьюъ ¤ъЁрэр_24-5-2026_211740_localhost.jpeg
+ж           ╤эшьюъ ¤ъЁрэр_24-5-2026_211830_localhost.jpeg
+ж           ╤эшьюъ ¤ъЁрэр_24-5-2026_21183_localhost.jpeg
+ж           ╤эшьюъ ¤ъЁрэр_24-5-2026_211855_localhost.jpeg
+ж           ╤эшьюъ ¤ъЁрэр_24-5-2026_211915_localhost.jpeg
+ж           
++---eips
++---engine
++---execution
+ж   ж   block_builder.py
+ж   ж   block_importer.py
+ж   ж   block_validator.py
+ж   ж   contracts.py
+ж   ж   contract_executor.py
+ж   ж   contract_manager.py
+ж   ж   execution_engine.py
+ж   ж   mempool.py
+ж   ж   receipts.py
+ж   ж   secure_mempool.py
+ж   ж   state_engine.py
+ж   ж   vm.py
+ж   ж   
+ж   L---__pycache__
+ж           block_builder.cpython-313.pyc
+ж           block_importer.cpython-313.pyc
+ж           block_validator.cpython-313.pyc
+ж           contracts.cpython-313.pyc
+ж           contract_executor.cpython-313.pyc
+ж           contract_manager.cpython-313.pyc
+ж           execution_engine.cpython-313.pyc
+ж           mempool.cpython-313.pyc
+ж           receipts.cpython-313.pyc
+ж           secure_mempool.cpython-313.pyc
+ж           state_engine.cpython-313.pyc
+ж           vm.cpython-313.pyc
+ж           
++---geth_consensus
++---geth_core
++---geth_crypto
++---geth_db
++---geth_engine
++---geth_evm
++---geth_mempool
++---geth_p2p
++---geth_rpc
++---geth_state
++---geth_sync
++---light
+ж   ж   light_client.py
+ж   ж   
+ж   L---__pycache__
+ж           light_client.cpython-313.pyc
+ж           
++---logs
++---mempool
++---modules
+ж   ж   nft.py
+ж   ж   oracle.py
+ж   ж   p2p.py
+ж   ж   sharding.py
+ж   ж   telegram.py
+ж   ж   
+ж   L---__pycache__
+ж           nft.cpython-313.pyc
+ж           
++---network
+ж   ж   adversarial_network.py
+ж   ж   sync_engine.py
+ж   ж   
+ж   +---p2p
+ж   ж   ж   discovery.py
+ж   ж   ж   handshake.py
+ж   ж   ж   messages.py
+ж   ж   ж   message_handler.py
+ж   ж   ж   peer_manager.py
+ж   ж   ж   
+ж   ж   L---__pycache__
+ж   ж           discovery.cpython-313.pyc
+ж   ж           handshake.cpython-313.pyc
+ж   ж           messages.cpython-313.pyc
+ж   ж           message_handler.cpython-313.pyc
+ж   ж           peer_manager.cpython-313.pyc
+ж   ж           
+ж   +---sync
+ж   ж   ж   fast_sync.py
+ж   ж   ж   sync_manager.py
+ж   ж   ж   
+ж   ж   L---__pycache__
+ж   ж           fast_sync.cpython-313.pyc
+ж   ж           sync_manager.cpython-313.pyc
+ж   ж           
+ж   L---__pycache__
+ж           adversarial_network.cpython-313.pyc
+ж           sync_engine.cpython-313.pyc
+ж           
++---nft_images
+ж   ж   3d_nft_001_crown.svg
+ж   ж   3d_nft_002_scepter.svg
+ж   ж   3d_nft_003_throne.svg
+ж   ж   3d_nft_004_halo.svg
+ж   ж   3d_nft_005_guardian.svg
+ж   ж   3d_nft_006_clock.svg
+ж   ж   3d_nft_007_portal.svg
+ж   ж   3d_nft_008_block.svg
+ж   ж   3d_nft_009_sun.svg
+ж   ж   3d_nft_010_star.svg
+ж   ж   3d_nft_011_fire.svg
+ж   ж   3d_nft_012_ice.svg
+ж   ж   3d_nft_013_wind.svg
+ж   ж   3d_nft_014_water.svg
+ж   ж   3d_nft_015_key.svg
+ж   ж   3d_nft_016_mirror.svg
+ж   ж   3d_nft_017_heart.svg
+ж   ж   3d_nft_018_crystal.svg
+ж   ж   3d_nft_019_eye.svg
+ж   ж   3d_nft_020_sphere.svg
+ж   ж   3d_nft_021_book.svg
+ж   ж   3d_nft_022_shield.svg
+ж   ж   3d_nft_023_sword.svg
+ж   ж   3d_nft_024_ring.svg
+ж   ж   3d_nft_025_amulet.svg
+ж   ж   3d_nft_026_key.svg
+ж   ж   3d_nft_027_infinity.svg
+ж   ж   3d_nft_028_dove.svg
+ж   ж   3d_nft_029_star.svg
+ж   ж   nft_001_Absolute_Crown___╩юЁ.svg
+ж   ж   nft_002_Absolute_Crown___╤ъш.svg
+ж   ж   nft_003_Absolute_Crown___╥Ёю.svg
+ж   ж   nft_004_Absolute_Crown___┬хэ.svg
+ж   ж   nft_005_Quantum_Guardian___╤.svg
+ж   ж   nft_006_Quantum_Guardian___╒.svg
+ж   ж   nft_007_Quantum_Guardian___┬.svg
+ж   ж   nft_008_Absolute_Genesis___╧.svg
+ж   ж   nft_009_Absolute_Genesis___╩.svg
+ж   ж   nft_010_Absolute_Genesis___┬.svg
+ж   ж   nft_011_Elemental_Master___╧.svg
+ж   ж   nft_012_Elemental_Master___╒.svg
+ж   ж   nft_013_Elemental_Master___┬.svg
+ж   ж   nft_014_Elemental_Master___╧.svg
+ж   ж   nft_015_Ancient_Artifact___╩.svg
+ж   ж   nft_016_Ancient_Artifact___╟.svg
+ж   ж   nft_017_Ancient_Artifact___╤.svg
+ж   ж   nft_018_Ancient_Artifact___╧.svg
+ж   ж   nft_019_Wisdom_Relic___╩ЁшёЄ.svg
+ж   ж   nft_020_Wisdom_Relic___├ырч_.svg
+ж   ж   nft_021_Wisdom_Relic___╤ЇхЁр.svg
+ж   ж   nft_022_Wisdom_Relic___╩эшур.svg
+ж   ж   nft_023_Protector_Shield___┘.svg
+ж   ж   nft_024_Protector_Shield___╠.svg
+ж   ж   nft_025_Protector_Shield___╧.svg
+ж   ж   nft_026_Protector_Shield___└.svg
+ж   ж   nft_027_Harmony_Token___╩ы■ў.svg
+ж   ж   nft_028_Harmony_Token___╤шьт.svg
+ж   ж   nft_029_Harmony_Token___╟эръ.svg
+ж   ж   nft_030_Harmony_Token___▌ьсы.svg
+ж   ж   nft_1.svg
+ж   ж   nft_10.svg
+ж   ж   nft_11.svg
+ж   ж   nft_12.svg
+ж   ж   nft_13.svg
+ж   ж   nft_14.svg
+ж   ж   nft_15.svg
+ж   ж   nft_16.svg
+ж   ж   nft_17.svg
+ж   ж   nft_18.svg
+ж   ж   nft_19.svg
+ж   ж   nft_2.svg
+ж   ж   nft_20.svg
+ж   ж   nft_21.svg
+ж   ж   nft_22.svg
+ж   ж   nft_23.svg
+ж   ж   nft_24.svg
+ж   ж   nft_25.svg
+ж   ж   nft_26.svg
+ж   ж   nft_27.svg
+ж   ж   nft_28.svg
+ж   ж   nft_29.svg
+ж   ж   nft_3.svg
+ж   ж   nft_30.svg
+ж   ж   nft_31.svg
+ж   ж   nft_32.svg
+ж   ж   nft_33.svg
+ж   ж   nft_34.svg
+ж   ж   nft_35.svg
+ж   ж   nft_36.svg
+ж   ж   nft_37.svg
+ж   ж   nft_38.svg
+ж   ж   nft_39.svg
+ж   ж   nft_3d_001.svg
+ж   ж   nft_3d_002.svg
+ж   ж   nft_3d_003.svg
+ж   ж   nft_3d_004.svg
+ж   ж   nft_3d_005.svg
+ж   ж   nft_3d_006.svg
+ж   ж   nft_3d_007.svg
+ж   ж   nft_3d_008.svg
+ж   ж   nft_3d_009.svg
+ж   ж   nft_3d_010.svg
+ж   ж   nft_3d_011.svg
+ж   ж   nft_3d_012.svg
+ж   ж   nft_3d_013.svg
+ж   ж   nft_3d_014.svg
+ж   ж   nft_3d_015.svg
+ж   ж   nft_3d_016.svg
+ж   ж   nft_3d_017.svg
+ж   ж   nft_3d_018.svg
+ж   ж   nft_3d_019.svg
+ж   ж   nft_3d_020.svg
+ж   ж   nft_3d_021.svg
+ж   ж   nft_3d_022.svg
+ж   ж   nft_3d_023.svg
+ж   ж   nft_3d_024.svg
+ж   ж   nft_3d_025.svg
+ж   ж   nft_3d_026.svg
+ж   ж   nft_3d_027.svg
+ж   ж   nft_4.svg
+ж   ж   nft_40.svg
+ж   ж   nft_41.svg
+ж   ж   nft_42.svg
+ж   ж   nft_43.svg
+ж   ж   nft_44.svg
+ж   ж   nft_45.svg
+ж   ж   nft_46.svg
+ж   ж   nft_47.svg
+ж   ж   nft_48.svg
+ж   ж   nft_49.svg
+ж   ж   nft_5.svg
+ж   ж   nft_50.svg
+ж   ж   nft_51.svg
+ж   ж   nft_52.svg
+ж   ж   nft_53.svg
+ж   ж   nft_54.svg
+ж   ж   nft_55.svg
+ж   ж   nft_56.svg
+ж   ж   nft_57.svg
+ж   ж   nft_58.svg
+ж   ж   nft_59.svg
+ж   ж   nft_6.svg
+ж   ж   nft_60.svg
+ж   ж   nft_7.svg
+ж   ж   nft_8.svg
+ж   ж   nft_9.svg
+ж   ж   personage_001_Absolute_Crown_.svg
+ж   ж   
+ж   L---nft_images
+ж           3d_nft_001_crown.svg
+ж           3d_nft_002_scepter.svg
+ж           3d_nft_003_throne.svg
+ж           3d_nft_004_halo.svg
+ж           3d_nft_005_guardian.svg
+ж           3d_nft_006_clock.svg
+ж           3d_nft_007_portal.svg
+ж           3d_nft_008_block.svg
+ж           3d_nft_009_sun.svg
+ж           3d_nft_010_star.svg
+ж           3d_nft_011_fire.svg
+ж           3d_nft_012_ice.svg
+ж           3d_nft_013_wind.svg
+ж           3d_nft_014_water.svg
+ж           3d_nft_015_key.svg
+ж           3d_nft_016_mirror.svg
+ж           3d_nft_017_heart.svg
+ж           3d_nft_018_crystal.svg
+ж           3d_nft_019_eye.svg
+ж           3d_nft_020_sphere.svg
+ж           3d_nft_021_book.svg
+ж           3d_nft_022_shield.svg
+ж           3d_nft_023_sword.svg
+ж           3d_nft_024_ring.svg
+ж           3d_nft_025_amulet.svg
+ж           3d_nft_026_key.svg
+ж           3d_nft_027_infinity.svg
+ж           3d_nft_028_dove.svg
+ж           3d_nft_029_star.svg
+ж           nft_001_Absolute_Crown___╩юЁ.svg
+ж           nft_002_Absolute_Crown___╤ъш.svg
+ж           nft_003_Absolute_Crown___╥Ёю.svg
+ж           nft_004_Absolute_Crown___┬хэ.svg
+ж           nft_005_Quantum_Guardian___╤.svg
+ж           nft_006_Quantum_Guardian___╒.svg
+ж           nft_007_Quantum_Guardian___┬.svg
+ж           nft_008_Absolute_Genesis___╧.svg
+ж           nft_009_Absolute_Genesis___╩.svg
+ж           nft_010_Absolute_Genesis___┬.svg
+ж           nft_011_Elemental_Master___╧.svg
+ж           nft_012_Elemental_Master___╒.svg
+ж           nft_013_Elemental_Master___┬.svg
+ж           nft_014_Elemental_Master___╧.svg
+ж           nft_015_Ancient_Artifact___╩.svg
+ж           nft_016_Ancient_Artifact___╟.svg
+ж           nft_017_Ancient_Artifact___╤.svg
+ж           nft_018_Ancient_Artifact___╧.svg
+ж           nft_019_Wisdom_Relic___╩ЁшёЄ.svg
+ж           nft_020_Wisdom_Relic___├ырч_.svg
+ж           nft_021_Wisdom_Relic___╤ЇхЁр.svg
+ж           nft_022_Wisdom_Relic___╩эшур.svg
+ж           nft_023_Protector_Shield___┘.svg
+ж           nft_024_Protector_Shield___╠.svg
+ж           nft_025_Protector_Shield___╧.svg
+ж           nft_026_Protector_Shield___└.svg
+ж           nft_027_Harmony_Token___╩ы■ў.svg
+ж           nft_028_Harmony_Token___╤шьт.svg
+ж           nft_029_Harmony_Token___╟эръ.svg
+ж           nft_030_Harmony_Token___▌ьсы.svg
+ж           nft_1.svg
+ж           nft_10.svg
+ж           nft_11.svg
+ж           nft_12.svg
+ж           nft_13.svg
+ж           nft_14.svg
+ж           nft_15.svg
+ж           nft_16.svg
+ж           nft_17.svg
+ж           nft_18.svg
+ж           nft_19.svg
+ж           nft_2.svg
+ж           nft_20.svg
+ж           nft_21.svg
+ж           nft_22.svg
+ж           nft_23.svg
+ж           nft_24.svg
+ж           nft_25.svg
+ж           nft_26.svg
+ж           nft_27.svg
+ж           nft_28.svg
+ж           nft_29.svg
+ж           nft_3.svg
+ж           nft_30.svg
+ж           nft_31.svg
+ж           nft_32.svg
+ж           nft_33.svg
+ж           nft_34.svg
+ж           nft_35.svg
+ж           nft_36.svg
+ж           nft_37.svg
+ж           nft_38.svg
+ж           nft_39.svg
+ж           nft_3d_001.svg
+ж           nft_3d_002.svg
+ж           nft_3d_003.svg
+ж           nft_3d_004.svg
+ж           nft_3d_005.svg
+ж           nft_3d_006.svg
+ж           nft_3d_007.svg
+ж           nft_3d_008.svg
+ж           nft_3d_009.svg
+ж           nft_3d_010.svg
+ж           nft_3d_011.svg
+ж           nft_3d_012.svg
+ж           nft_3d_013.svg
+ж           nft_3d_014.svg
+ж           nft_3d_015.svg
+ж           nft_3d_016.svg
+ж           nft_3d_017.svg
+ж           nft_3d_018.svg
+ж           nft_3d_019.svg
+ж           nft_3d_020.svg
+ж           nft_3d_021.svg
+ж           nft_3d_022.svg
+ж           nft_3d_023.svg
+ж           nft_3d_024.svg
+ж           nft_3d_025.svg
+ж           nft_3d_026.svg
+ж           nft_3d_027.svg
+ж           nft_4.svg
+ж           nft_40.svg
+ж           nft_41.svg
+ж           nft_42.svg
+ж           nft_43.svg
+ж           nft_44.svg
+ж           nft_45.svg
+ж           nft_46.svg
+ж           nft_47.svg
+ж           nft_48.svg
+ж           nft_49.svg
+ж           nft_5.svg
+ж           nft_50.svg
+ж           nft_51.svg
+ж           nft_52.svg
+ж           nft_53.svg
+ж           nft_54.svg
+ж           nft_55.svg
+ж           nft_56.svg
+ж           nft_57.svg
+ж           nft_58.svg
+ж           nft_59.svg
+ж           nft_6.svg
+ж           nft_60.svg
+ж           nft_7.svg
+ж           nft_8.svg
+ж           nft_9.svg
+ж           personage_001_Absolute_Crown_.svg
+ж           
++---node
++---p2p
+ж       full_node.py
+ж       gossip.py
+ж       node.py
+ж       sync.py
+ж       wire.py
+ж       
++---rpc
+ж   ж   json_rpc_server.py
+ж   ж   server.py
+ж   ж   
+ж   L---__pycache__
+ж           server.cpython-313.pyc
+ж           
++---state
++---storage
+ж   ж   chain_storage.py
+ж   ж   database.py
+ж   ж   persistent_storage.py
+ж   ж   rocksdb_storage.py
+ж   ж   
+ж   L---__pycache__
+ж           chain_storage.cpython-313.pyc
+ж           database.cpython-313.pyc
+ж           persistent_storage.cpython-313.pyc
+ж           
++---sync
+ж   ж   sync_engine.py
+ж   ж   
+ж   L---__pycache__
+ж           sync_engine.cpython-313.pyc
+ж           
++---tests
+ж   ж   run_tests.py
+ж   ж   test_blockchain.py
+ж   ж   test_blockchain_fixed.py
+ж   ж   test_block_fix.py
+ж   ж   test_block_fixed.py
+ж   ж   test_crypto.py
+ж   ж   test_minimal.py
+ж   ж   test_nft.py
+ж   ж   __init__.py
+ж   ж   
+ж   L---unit
+ж           test_all.py
+ж           test_api.py
+ж           test_block.py
+ж           test_crypto.py
+ж           test_merkle.py
+ж           test_nft.py
+ж           test_transaction.py
+ж           __init__.py
+ж           
++---test_hardened_system
+ж       wal.log
+ж       
++---wallets
+L---__pycache__
+        dynamic_sharding.cpython-313.pyc
+        nft_marketplace_enhanced.cpython-313.pyc
+        real_world_oracles.cpython-313.pyc
+        
+
+
+=== FILE_LIST.txt ===
+
+FullName                                                                                                           Leng
+                                                                                                                     th
+--------                                                                                                           ----
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\.env                                                            534
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\.env.example                                                    379
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\.gitignore                                                      460
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\ABSOLUTE_FINAL_FIXED.py                                        ...6
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\ABSOLUTE_FINAL_FIXED_backup.py                                 ...2
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\ABSOLUTE_FINAL_FIXED_backup_20260525_001835.py                 ...6
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\ABSOLUTE_FINAL_FIXED_backup_20260525_002132.py                 ...6
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\ai_consensus.py                                                ...1
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\amm_core.py                                                     452
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\audit_report.txt                                                972
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\auto_heal.py                                                   ...4
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\build_docker.ps1                                                371
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\crosschain_bridge.py                                            336
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\docker-compose.yml                                              820
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\Dockerfile                                                      254
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\dynamic_sharding.py                                            ...8
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\explorer.py                                                    ...0
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\extended_api_server.py                                         7847
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\file_list.txt                                                     0
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\formal_verification.py                                         ...0
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\global_p2p_network.py                                          7746
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\gui.py                                                         ...3
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\init_git.ps1                                                    471
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\lightning_network.py                                            316
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\mobile_api.py                                                  5802
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\monitor.py                                                     5551
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\multisig.py                                                     645
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_core.py                                                    ...2
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_gallery.html                                               5515
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_hydration_fix.py                                           1895
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_marketplace_enhanced.py                                    7162
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\node_persistent.py                                             9197
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\postquantum_core.py                                            ...1
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\project_structure.txt                                          ...0
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\prometheus_metrics.py                                          3373
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\README.md                                                      8349
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\real_world_oracles.py                                          9420
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\real_world_oracles.py.backup                                   9408
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\requirements.txt                                                193
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\run_coverage.ps1                                                303
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\run_rpc.py                                                      446
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\smart_accounts.py                                              ...2
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\social_linkedin.txt                                            1135
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\social_post_linkedin.txt                                        935
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\social_post_telegram.txt                                        463
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\social_post_twitter.txt                                         336
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\social_telegram.txt                                             516
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\social_twitter.txt                                              359
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\start_blockchain.ps1                                           8511
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\start_full.ps1                                                 9112
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\structure.txt                                                  ...4
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\telegram_super_bot.py                                          ...9
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\testnet.py                                                     ...3
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_adversarial_network.py                                    3536
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_consensus_refactored.py                                   3976
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_finality.py                                               4161
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_merkle_light.py                                           4731
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_mev_mempool.py                                            1402
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_p2p.py                                                    1940
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_reorg_engine.py                                           3598
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_rpc.py                                                     951
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_slashing.py                                               1172
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_slashing_integration.py                                   3487
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_state_engine.py                                           3422
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_sync_engine.py                                            4069
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_sync_engine_v2.py                                         4192
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_v44.py                                                    3168
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_v45.py                                                    6617
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_v46.py                                                    5541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_v47.py                                                    6886
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_v48.py                                                    3143
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_v49.py                                                    3242
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_v50.py                                                    5379
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_v51.py                                                    5639
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_v52.py                                                    6707
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_v54.py                                                    1626
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_v55.py                                                    2242
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_validator_selection.py                                    3571
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_vm.py                                                     1161
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\web_server.py                                                   465
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\zk_proofs.py                                                   2456
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\.github\.github\workflows\ci-cd.yml                            2127
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\.github\workflows\ci-cd.yml                                     480
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\.github\workflows\test.yml                                     2084
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\.pytest_cache\.gitignore                                         39
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\.pytest_cache\CACHEDIR.TAG                                      191
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\.pytest_cache\README.md                                         310
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\.pytest_cache\v\cache\lastfailed                                121
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\.pytest_cache\v\cache\nodeids                                   463
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\abi\contract_examples.py                                       1322
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\abi\__pycache__\contract_examples.cpython-313.pyc              1019
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\server.py                                                  ...6
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\auth\jwt_handler_backup.py                                 7125
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\auth\jwt_handler_backup_routes.py                          7711
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\auth\wallet_auth.py                                        4467
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\handlers\stats_handler.py                                   267
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\handlers\transaction_handler.py                            1524
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\handlers\wallet_handler.py                                  757
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\middleware\rate_limit.py                                    902
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\middleware\rate_limiter.py                                 1346
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\routes\router.py                                            694
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\utils\response.py                                          1011
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\api\validators\validators.py                                    517
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\blockchain\canonical_serializer.py                             2537
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\blockchain\immutable_state.py                                  4996
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\blockchain\mempool.py                                          2100
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\blockchain\tx_validator.py                                     4354
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\compiler\assembler.py                                          2537
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\compiler\examples.py                                           2594
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\compiler\__pycache__\assembler.cpython-313.pyc                 3736
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\compiler\__pycache__\examples.cpython-313.pyc                  3192
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\canonical_chain.py                                   4498
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\convergence_engine.py                                6444
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_beacon.py                                     4698
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_casper.py                                     4770
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_refactored.py                                 4773
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_slashing.py                                   6065
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_v42.py                                        5741
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_v45.py                                        7262
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\engine_with_slashing.py                              5673
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\epoch.py                                             1151
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\finality.py                                          4272
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\finality_beacon.py                                   4515
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\finality_casper.py                                   4227
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\ghost.py                                             2385
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\heaviest_chain.py                                    1972
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\lmd.py                                               1907
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\pbs.py                                               2342
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\reorg_engine.py                                      4820
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\slashing.py                                          2695
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\sync.py                                              5248
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\validator_registry.py                                4630
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\validator_selection.py                               3854
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\__pycache__\convergence_engine.cpython-313.pyc       8193
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\__pycache__\engine_beacon.cpython-313.pyc            7597
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\__pycache__\engine_refactored.cpython-313.pyc        6297
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\__pycache__\engine_with_slashing.cpython-313.pyc     8915
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\__pycache__\epoch.cpython-313.pyc                    2394
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\__pycache__\finality_beacon.cpython-313.pyc          6025
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\__pycache__\ghost.cpython-313.pyc                    2813
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\__pycache__\lmd.cpython-313.pyc                      3054
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\__pycache__\pbs.cpython-313.pyc                      4270
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\__pycache__\reorg_engine.cpython-313.pyc             6536
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\__pycache__\slashing.cpython-313.pyc                 4338
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\__pycache__\validator_registry.cpython-313.pyc       9605
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\consensus\__pycache__\validator_selection.cpython-313.pyc      5815
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\block.py                                                  2935
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\blockchain.py                                             6385
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\blockchain_network.py                                     5151
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\blockchain_rocks.py                                       6521
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\blockchain_utxo.py                                        3418
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\blockchain_working.py                                     4321
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\block_header.py                                           2687
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\locks.py                                                  7569
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\mempool.py                                                3005
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\merkle.py                                                  915
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\node.py                                                   4493
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\storage.py                                                8664
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\storage_engine.py                                         ...4
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\storage_working.py                                        8177
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\transaction.py                                            5019
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\transaction_utxo.py                                       2513
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\tx_builder.py                                             1838
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\tx_signer.py                                              1926
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\utxo.py                                                    409
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\utxo_set.py                                               2096
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\utxo_simple.py                                            2809
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\wallet_crypto.py                                          6854
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\__init__.py                                                  0
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\__pycache__\block.cpython-313.pyc                         4573
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\__pycache__\block_header.cpython-313.pyc                  4277
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\__pycache__\merkle.cpython-313.pyc                        1968
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\__pycache__\transaction.cpython-313.pyc                   7090
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\__pycache__\wallet_crypto.cpython-313.pyc                 9565
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\core\__pycache__\__init__.cpython-313.pyc                       165
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\crypto\hashing.py                                              2618
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\crypto\keys.py                                                 3092
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\crypto\merkle.py                                               2820
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\crypto\signing.py                                              4283
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\crypto\validator_keys.py                                       2889
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\crypto\wallet.py                                               7555
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\crypto\__init__.py                                                0
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\crypto\__pycache__\hashing.cpython-313.pyc                     4790
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\crypto\__pycache__\keys.cpython-313.pyc                        4714
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\crypto\__pycache__\merkle.cpython-313.pyc                      3718
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\crypto\__pycache__\signing.cpython-313.pyc                     6323
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\crypto\__pycache__\validator_keys.cpython-313.pyc              4363
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\crypto\__pycache__\wallet.cpython-313.pyc                      ...4
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\crypto\__pycache__\__init__.cpython-313.pyc                     167
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\data\blockchain.db                                             ...8
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\data\blockchain.db.corrupted_backup                            ...0
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\data\wallet.json                                                298
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\docs\screenshots\Снимок экрана_24-5-2026_211644_localhost.jpeg ...3
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\docs\screenshots\Снимок экрана_24-5-2026_211740_localhost.jpeg ...3
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\docs\screenshots\Снимок экрана_24-5-2026_211830_localhost.jpeg ...4
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\docs\screenshots\Снимок экрана_24-5-2026_21183_localhost.jpeg  ...4
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\docs\screenshots\Снимок экрана_24-5-2026_211855_localhost.jpeg ...7
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\docs\screenshots\Снимок экрана_24-5-2026_211915_localhost.jpeg ...8
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\block_builder.py                                     3325
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\block_importer.py                                    4506
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\block_validator.py                                   4355
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\contracts.py                                         2221
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\contract_executor.py                                 3487
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\contract_manager.py                                  1385
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\execution_engine.py                                  3856
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\mempool.py                                           5327
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\receipts.py                                          2566
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\secure_mempool.py                                    4653
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\state_engine.py                                      5548
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\vm.py                                                6229
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\__pycache__\block_builder.cpython-313.pyc            4797
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\__pycache__\block_importer.cpython-313.pyc           5599
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\__pycache__\block_validator.cpython-313.pyc          5623
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\__pycache__\contracts.cpython-313.pyc                3656
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\__pycache__\contract_executor.cpython-313.pyc        4168
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\__pycache__\contract_manager.cpython-313.pyc         2556
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\__pycache__\execution_engine.cpython-313.pyc         4684
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\__pycache__\mempool.cpython-313.pyc                  9030
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\__pycache__\receipts.cpython-313.pyc                 4839
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\__pycache__\secure_mempool.cpython-313.pyc           7302
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\__pycache__\state_engine.cpython-313.pyc             8304
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\execution\__pycache__\vm.cpython-313.pyc                       9348
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\light\light_client.py                                          1478
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\light\__pycache__\light_client.cpython-313.pyc                 2881
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\modules\nft.py                                                 4531
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\modules\oracle.py                                              2363
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\modules\p2p.py                                                 2087
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\modules\sharding.py                                             799
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\modules\telegram.py                                            2795
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\modules\__pycache__\nft.cpython-313.pyc                        7060
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\network\adversarial_network.py                                 4417
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\network\sync_engine.py                                         4720
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\network\p2p\discovery.py                                       2272
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\network\p2p\handshake.py                                       2538
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\network\p2p\messages.py                                        5544
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\network\p2p\message_handler.py                                 5993
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\network\p2p\peer_manager.py                                    7475
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\network\p2p\__pycache__\discovery.cpython-313.pyc              3537
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\network\p2p\__pycache__\handshake.cpython-313.pyc              3491
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\network\p2p\__pycache__\messages.cpython-313.pyc               8892
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\network\p2p\__pycache__\message_handler.cpython-313.pyc        9030
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\network\p2p\__pycache__\peer_manager.cpython-313.pyc           ...1
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\network\sync\fast_sync.py                                      6621
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\network\sync\sync_manager.py                                   ...1
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\network\sync\__pycache__\fast_sync.cpython-313.pyc             9354
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\network\sync\__pycache__\sync_manager.cpython-313.pyc          ...4
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\network\__pycache__\adversarial_network.cpython-313.pyc        7093
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\network\__pycache__\sync_engine.cpython-313.pyc                6977
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_001_crown.svg                                5763
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_002_scepter.svg                              5763
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_003_throne.svg                               5767
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_004_halo.svg                                 5761
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_005_guardian.svg                             5771
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_006_clock.svg                                5789
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_007_portal.svg                               5793
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_008_block.svg                                5763
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_009_sun.svg                                  5779
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_010_star.svg                                 5787
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_011_fire.svg                                 5770
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_012_ice.svg                                  5766
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_013_wind.svg                                 5772
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_014_water.svg                                5774
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_015_key.svg                                  5780
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_016_mirror.svg                               5780
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_017_heart.svg                                5776
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_018_crystal.svg                              5766
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_019_eye.svg                                  5766
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_020_sphere.svg                               5758
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_021_book.svg                                 5760
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_022_shield.svg                               5766
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_023_sword.svg                                5780
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_024_ring.svg                                 5770
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_025_amulet.svg                               5770
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_026_key.svg                                  5767
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_027_infinity.svg                             5769
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_028_dove.svg                                 5765
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\3d_nft_029_star.svg                                 5787
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_001_Absolute_Crown___Кор.svg                    2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_002_Absolute_Crown___Ски.svg                    2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_003_Absolute_Crown___Тро.svg                    2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_004_Absolute_Crown___Вен.svg                    2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_005_Quantum_Guardian___С.svg                    2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_006_Quantum_Guardian___Х.svg                    2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_007_Quantum_Guardian___В.svg                    2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_008_Absolute_Genesis___П.svg                    2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_009_Absolute_Genesis___К.svg                    2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_010_Absolute_Genesis___В.svg                    2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_011_Elemental_Master___П.svg                    2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_012_Elemental_Master___Х.svg                    2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_013_Elemental_Master___В.svg                    2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_014_Elemental_Master___П.svg                    2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_015_Ancient_Artifact___К.svg                    2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_016_Ancient_Artifact___З.svg                    2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_017_Ancient_Artifact___С.svg                    2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_018_Ancient_Artifact___П.svg                    2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_019_Wisdom_Relic___Крист.svg                    2545
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_020_Wisdom_Relic___Глаз_.svg                    2545
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_021_Wisdom_Relic___Сфера.svg                    2545
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_022_Wisdom_Relic___Книга.svg                    2537
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_023_Protector_Shield___Щ.svg                    2539
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_024_Protector_Shield___М.svg                    2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_025_Protector_Shield___П.svg                    2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_026_Protector_Shield___А.svg                    2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_027_Harmony_Token___Ключ.svg                    2542
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_028_Harmony_Token___Симв.svg                    2544
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_029_Harmony_Token___Знак.svg                    2534
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_030_Harmony_Token___Эмбл.svg                    2544
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_1.svg                                           8545
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_10.svg                                          8555
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_11.svg                                          8535
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_12.svg                                          8516
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_13.svg                                          8534
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_14.svg                                          8530
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_15.svg                                          8526
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_16.svg                                          8525
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_17.svg                                          8522
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_18.svg                                          8524
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_19.svg                                          8526
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_2.svg                                           8558
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_20.svg                                          8514
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_21.svg                                          8516
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_22.svg                                          8537
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_23.svg                                          8511
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_24.svg                                          8529
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_25.svg                                          8512
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_26.svg                                          8523
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_27.svg                                          8515
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_28.svg                                          8534
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_29.svg                                          8526
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3.svg                                           8533
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_30.svg                                          8514
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_31.svg                                          8516
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_32.svg                                          8537
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_33.svg                                          8511
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_34.svg                                          8529
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_35.svg                                          8512
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_36.svg                                          8523
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_37.svg                                          8515
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_38.svg                                          8534
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_39.svg                                          8526
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_001.svg                                      2429
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_002.svg                                      2423
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_003.svg                                      2425
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_004.svg                                      2423
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_005.svg                                      2432
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_006.svg                                      2432
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_007.svg                                      2432
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_008.svg                                      2422
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_009.svg                                      2432
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_010.svg                                      2422
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_011.svg                                      2425
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_012.svg                                      2419
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_013.svg                                      2425
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_014.svg                                      2427
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_015.svg                                      2427
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_016.svg                                      2427
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_017.svg                                      2427
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_018.svg                                      2425
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_019.svg                                      2421
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_020.svg                                      2423
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_021.svg                                      2413
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_022.svg                                      2415
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_023.svg                                      2427
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_024.svg                                      2418
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_025.svg                                      2422
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_026.svg                                      2410
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_3d_027.svg                                      2422
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_4.svg                                           8543
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_40.svg                                          8514
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_41.svg                                          8516
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_42.svg                                          8537
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_43.svg                                          8511
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_44.svg                                          8529
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_45.svg                                          8512
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_46.svg                                          8523
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_47.svg                                          8515
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_48.svg                                          8534
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_49.svg                                          8526
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_5.svg                                           8564
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_50.svg                                          8514
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_51.svg                                          8516
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_52.svg                                          8537
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_53.svg                                          8511
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_54.svg                                          8529
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_55.svg                                          8512
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_56.svg                                          8523
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_57.svg                                          8515
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_58.svg                                          8534
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_59.svg                                          8526
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_6.svg                                           8550
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_60.svg                                          8514
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_7.svg                                           8552
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_8.svg                                           8579
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_9.svg                                           8568
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\personage_001_Absolute_Crown_.svg                   3868
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_001_crown.svg                     5763
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_002_scepter.svg                   5763
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_003_throne.svg                    5767
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_004_halo.svg                      5761
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_005_guardian.svg                  5771
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_006_clock.svg                     5789
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_007_portal.svg                    5793
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_008_block.svg                     5763
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_009_sun.svg                       5779
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_010_star.svg                      5787
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_011_fire.svg                      5770
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_012_ice.svg                       5766
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_013_wind.svg                      5772
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_014_water.svg                     5774
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_015_key.svg                       5780
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_016_mirror.svg                    5780
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_017_heart.svg                     5776
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_018_crystal.svg                   5766
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_019_eye.svg                       5766
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_020_sphere.svg                    5758
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_021_book.svg                      5760
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_022_shield.svg                    5766
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_023_sword.svg                     5780
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_024_ring.svg                      5770
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_025_amulet.svg                    5770
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_026_key.svg                       5767
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_027_infinity.svg                  5769
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_028_dove.svg                      5765
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\3d_nft_029_star.svg                      5787
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_001_Absolute_Crown___Кор.svg         2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_002_Absolute_Crown___Ски.svg         2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_003_Absolute_Crown___Тро.svg         2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_004_Absolute_Crown___Вен.svg         2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_005_Quantum_Guardian___С.svg         2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_006_Quantum_Guardian___Х.svg         2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_007_Quantum_Guardian___В.svg         2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_008_Absolute_Genesis___П.svg         2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_009_Absolute_Genesis___К.svg         2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_010_Absolute_Genesis___В.svg         2546
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_011_Elemental_Master___П.svg         2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_012_Elemental_Master___Х.svg         2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_013_Elemental_Master___В.svg         2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_014_Elemental_Master___П.svg         2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_015_Ancient_Artifact___К.svg         2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_016_Ancient_Artifact___З.svg         2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_017_Ancient_Artifact___С.svg         2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_018_Ancient_Artifact___П.svg         2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_019_Wisdom_Relic___Крист.svg         2545
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_020_Wisdom_Relic___Глаз_.svg         2545
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_021_Wisdom_Relic___Сфера.svg         2545
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_022_Wisdom_Relic___Книга.svg         2537
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_023_Protector_Shield___Щ.svg         2539
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_024_Protector_Shield___М.svg         2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_025_Protector_Shield___П.svg         2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_026_Protector_Shield___А.svg         2541
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_027_Harmony_Token___Ключ.svg         2542
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_028_Harmony_Token___Симв.svg         2544
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_029_Harmony_Token___Знак.svg         2534
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_030_Harmony_Token___Эмбл.svg         2544
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_1.svg                                8545
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_10.svg                               8555
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_11.svg                               8535
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_12.svg                               8516
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_13.svg                               8534
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_14.svg                               8530
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_15.svg                               8526
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_16.svg                               8525
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_17.svg                               8522
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_18.svg                               8524
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_19.svg                               8526
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_2.svg                                8558
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_20.svg                               8514
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_21.svg                               8516
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_22.svg                               8537
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_23.svg                               8511
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_24.svg                               8529
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_25.svg                               8512
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_26.svg                               8523
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_27.svg                               8515
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_28.svg                               8534
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_29.svg                               8526
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3.svg                                8533
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_30.svg                               8514
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_31.svg                               8516
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_32.svg                               8537
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_33.svg                               8511
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_34.svg                               8529
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_35.svg                               8512
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_36.svg                               8523
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_37.svg                               8515
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_38.svg                               8534
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_39.svg                               8526
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_001.svg                           2429
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_002.svg                           2423
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_003.svg                           2425
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_004.svg                           2423
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_005.svg                           2432
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_006.svg                           2432
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_007.svg                           2432
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_008.svg                           2422
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_009.svg                           2432
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_010.svg                           2422
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_011.svg                           2425
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_012.svg                           2419
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_013.svg                           2425
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_014.svg                           2427
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_015.svg                           2427
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_016.svg                           2427
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_017.svg                           2427
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_018.svg                           2425
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_019.svg                           2421
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_020.svg                           2423
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_021.svg                           2413
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_022.svg                           2415
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_023.svg                           2427
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_024.svg                           2418
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_025.svg                           2422
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_026.svg                           2410
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_3d_027.svg                           2422
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_4.svg                                8543
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_40.svg                               8514
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_41.svg                               8516
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_42.svg                               8537
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_43.svg                               8511
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_44.svg                               8529
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_45.svg                               8512
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_46.svg                               8523
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_47.svg                               8515
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_48.svg                               8534
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_49.svg                               8526
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_5.svg                                8564
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_50.svg                               8514
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_51.svg                               8516
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_52.svg                               8537
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_53.svg                               8511
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_54.svg                               8529
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_55.svg                               8512
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_56.svg                               8523
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_57.svg                               8515
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_58.svg                               8534
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_59.svg                               8526
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_6.svg                                8550
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_60.svg                               8514
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_7.svg                                8552
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_8.svg                                8579
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\nft_9.svg                                8568
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\nft_images\nft_images\personage_001_Absolute_Crown_.svg        3868
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\p2p\full_node.py                                               3355
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\p2p\gossip.py                                                  3528
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\p2p\node.py                                                    8323
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\p2p\sync.py                                                    3936
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\p2p\wire.py                                                    1626
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\rpc\json_rpc_server.py                                         5980
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\rpc\server.py                                                  ...5
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\rpc\__pycache__\server.cpython-313.pyc                         ...2
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\storage\chain_storage.py                                       4618
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\storage\database.py                                            ...3
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\storage\persistent_storage.py                                  5129
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\storage\rocksdb_storage.py                                      656
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\storage\__pycache__\chain_storage.cpython-313.pyc              9230
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\storage\__pycache__\database.cpython-313.pyc                   ...9
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\storage\__pycache__\persistent_storage.cpython-313.pyc         8967
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\sync\sync_engine.py                                            5539
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\sync\__pycache__\sync_engine.cpython-313.pyc                   7632
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\tests\run_tests.py                                              238
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\tests\test_blockchain.py                                       ...8
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\tests\test_blockchain_fixed.py                                 ...7
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\tests\test_block_fix.py                                        1524
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\tests\test_block_fixed.py                                      2141
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\tests\test_crypto.py                                            144
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\tests\test_minimal.py                                            54
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\tests\test_nft.py                                               149
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\tests\__init__.py                                                 0
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\tests\unit\test_all.py                                          927
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\tests\unit\test_api.py                                          270
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\tests\unit\test_block.py                                        888
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\tests\unit\test_crypto.py                                       682
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\tests\unit\test_merkle.py                                       612
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\tests\unit\test_nft.py                                          480
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\tests\unit\test_transaction.py                                  837
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\tests\unit\__init__.py                                            0
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\test_hardened_system\wal.log                                    169
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\__pycache__\dynamic_sharding.cpython-313.pyc                   ...3
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\__pycache__\nft_marketplace_enhanced.cpython-313.pyc           9299
+C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate\__pycache__\real_world_oracles.cpython-313.pyc                 ...5
+
+
+
+
+=== VM_PREVIEW.txt ===
+# execution/vm.py - FIXED VERSION
+"""
+Mini-EVM — bytecode VM with stack, storage, gas metering
+"""
+
+from typing import List, Tuple, Dict, Any, Optional
+
+
+class MiniVM:
+    """Simplified Ethereum Virtual Machine"""
+    
+    GAS_COSTS = {
+        "PUSH": 2, "POP": 2, "ADD": 3, "SUB": 3, "MUL": 5, "DIV": 5,
+        "STORE": 100, "LOAD": 50, "STOP": 0, "INC": 2, "DEC": 2,
+        "EQ": 3, "LT": 3, "GT": 3, "JUMP": 8, "JUMPI": 10, "CALL": 25, "RETURN": 2
+    }
+
+    def __init__(self, gas_limit: int = 10000):
+        self.stack: List[int] = []
+        self.storage: Dict[str, int] = {}
+        self.gas_used = 0
+        self.gas_limit = gas_limit
+        self.pc = 0
+        self.running = True
+        self.call_stack: List[int] = []
+
+    def _consume_gas(self, op: str):
+        cost = self.GAS_COSTS.get(op, 1)
+        self.gas_used += cost
+        if self.gas_used > self.gas_limit:
+            raise Exception(f"Out of gas! Used {self.gas_used}, limit {self.gas_limit}")
+
+    def execute(self, bytecode: List[Tuple[str, Optional[int]]]) -> Dict[str, Any]:
+        self.pc = 0
+        self.gas_used = 0
+        self.stack = []
+        self.running = True
+
+        while self.pc < len(bytecode) and self.running:
+            op, arg = bytecode[self.pc]
+            self._consume_gas(op)
+
+            if op == "PUSH":
+                if arg is None:
+                    raise Exception("PUSH requires argument")
+                self.stack.append(arg)
+
+            elif op == "POP":
+                if not self.stack:
+                    raise Exception("POP on empty stack")
+
+
+=== SLASHING_PREVIEW.txt ===
+# consensus/slashing.py
+"""
+Slashing Engine — наказание валидаторов за нарушение консенсуса
+Double vote detection (LMD violation)
+"""
+
+from typing import Dict, Set, Optional
+
+
+class SlashingEngine:
+    """
+    Handles validator misbehavior detection:
+    - Double vote (LMD violation)
+    - Basic penalty tracking
+    """
+
+    def __init__(self):
+        # validator -> (epoch -> block)
+        self.votes: Dict[str, Dict[int, str]] = {}
+        # slashed validators
+        self.slashed: Set[str] = set()
+        # info
+        self.reasons: Dict[str, str] = {}
+
+    def is_slashed(self, validator: str) -> bool:
+        return validator in self.slashed
+
+    def add_vote(self, validator: str, epoch: int, block: str) -> bool:
+        """
+        Add vote and check for double vote.
+        Returns True if vote accepted, False if validator already slashed.
+        """
+        if self.is_slashed(validator):
+            return False
+
+        if validator not in self.votes:
+            self.votes[validator] = {}
+
+        # already voted in this epoch?
+        if epoch in self.votes[validator]:
+            old_block = self.votes[validator][epoch]
+            if old_block != block:
+                self.slash(validator, f"DOUBLE_VOTE epoch={epoch} (voted {old_block} and {block})")
+                return False
+
+        self.votes[validator][epoch] = block
+        return True
+
+    def slash(self, validator: str, reason: str):
+        """Slash validator — remove from consensus"""
+
+
+=== README.txt ===
+[![Docs](https://img.shields.io/badge/docs-github%20pages-blue.svg)](https://gruver87.github.io/absolute-blockchain-ultimate/)
+# Absolute Blockchain Ultimate
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Tests](https://github.com/Gruver87/absolute-blockchain-ultimate/actions/workflows/test.yml/badge.svg)](https://github.com/Gruver87/absolute-blockchain-ultimate/actions)
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com/r/gruver87/absolute-blockchain)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![GitHub release](https://img.shields.io/github/v/release/Gruver87/absolute-blockchain-ultimate)](https://github.com/Gruver87/absolute-blockchain-ultimate/releases)
+
+> **Учебный блокчейн-клиент | PoS консенсус | Multi-node sync | Python + Docker**
+
+---
+
+## ⚠️ ВАЖНОЕ ПРЕДУПРЕЖДЕНИЕ
+
+**Это учебный/экспериментальный проект. НЕ ИСПОЛЬЗУЙТЕ В PRODUCTION!**
+
+- 🧪 Проект в стадии активной разработки (Beta)
+- 🔄 Данные могут быть сброшены в любой момент
+- 🔒 Безопасность не гарантируется
+
+---
+
+## 📌 Что это такое?
+
+Учебный проект по созданию блокчейн-клиента с нуля на Python. Реализует:
+
+- LMD-GHOST консенсус
+- PoS (Proof of Stake) механизмы
+- Casper FFG финализацию
+- P2P сети и gossip протоколы
+- **Multi-node синхронизацию (v50)**
+
+---
+
+## ✅ Что РЕАЛЬНО работает (v44-v51)
+
+### Core Components (Проверено тестами)
+| Компонент | Статус | Тесты |
+|-----------|--------|-------|
+| State Engine | ✅ | 19/19 |
+| Mempool | ✅ | Gas priority |
+| Block Builder | ✅ | Сборка блоков |
+| Block Validator | ✅ | Подписи, балансы, nonce |
+| Block Importer | ✅ | Импорт + реорг |
+
+### Cryptography (Проверено)
+| Компонент | Статус |
+|-----------|--------|
+| secp256k1 Keys | ✅ |
+| ECDSA Signatures | ✅ |
+| Wallet (create/export/import) | ✅ |
+| Nonce Protection | ✅ |
+| Chain ID Protection | ✅ |
+
+### Storage (Проверено)
+| Компонент | Статус |
+|-----------|--------|
+| SQLite Database | ✅ |
+| Crash Recovery | ✅ |
+| Snapshots | ✅ |
+| Backup | ✅ |
+
+
+
+### 🔥 v51: Fast Sync (State Root Sync) (НОВОЕ!)
+| Компонент | Статус | Описание |
+|-----------|--------|----------|
+| Fast Sync Manager | ✅ | Управление быстрой синхронизацией |
+| Snapshot Protocol | ✅ | SNAPSHOT_REQUEST/RESPONSE |
+| State Root Verification | ✅ | STATE_ROOT_REQUEST/RESPONSE |
+| Auto Trigger | ✅ | Запуск при отставании >20 блоков |
+| Near-instant Bootstrap | ✅ | Состояние восстанавливается мгновенно |
+| Компонент | Статус |
+|-----------|--------|
+| Peer Manager | ✅ |
+| Peer Discovery | ✅ |
+| Message Protocol | ✅ |
+| Peer Scoring | ✅ |
+| Ban System | ✅ |
+| Rate Limiting | ✅ |
+
+### 🔥 v50: Block Sync (НОВОЕ!)
+| Компонент | Статус |
+|-----------|--------|
+| Sync Manager | ✅ |
+| Block Propagation | ✅ |
+| Chain Sync | ✅ |
+| Peer Height Tracking | ✅ |
+| Fork Detection | ✅ |
+| Reorg Support | ✅ |
+
+### API
+| Компонент | Статус |
+|-----------|--------|
+| JSON-RPC 2.0 | ✅ |
+| CORS Support | ✅ |
+
+---
+
+## ❌ Что НЕ реализовано (честно)
+
+- Полноценный EVM / Смарт-контракты (в планах)
+- Доказательства с нулевым разглашением (ZK)
+- Шардинг
+- Механизмы slashing для валидаторов
+- NFT (только базовая структура)
+
+---
+
+## 🏗️ Архитектура
+┌─────────────────────────────────────────────────────────────┐
+│ JSON-RPC API (8545) │
+├─────────────────────────────────────────────────────────────┤
+│ BLOCK SYNC ENGINE (v50) │
+├─────────────────────────────────────────────────────────────┤
+│ STATE ENGINE │
+├─────────────────────────────────────────────────────────────┤
+│ MEMPOOL │
+├─────────────────────────────────────────────────────────────┤
+│ BLOCK PIPELINE │
+├─────────────────────────────────────────────────────────────┤
+│ CRYPTO LAYER │
+├─────────────────────────────────────────────────────────────┤
+│ P2P + GOSSIP NETWORK │
+└─────────────────────────────────────────────────────────────┘
+
+text
+
+---
+
+## 🚀 Быстрый старт
+
+### Установка
+
+```bash
+git clone https://github.com/Gruver87/absolute-blockchain-ultimate.git
+cd absolute-blockchain-ultimate
+pip install -r requirements.txt
+Запуск ноды
+bash
+python node_persistent.py
+Или через Docker
+bash
+docker-compose up --build
+Проверка RPC
+bash
+curl -X POST http://localhost:8545 -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
+Запуск тестов
+bash
+python -X utf8 test_state_engine.py
+python -X utf8 test_v44.py
+python -X utf8 test_v46.py
+python -X utf8 test_v47.py
+python -X utf8 test_v48.py
+python -X utf8 test_v49.py
+python -X utf8 test_v50.py
+📊 Результаты тестов (актуальные)
+text
+test_state_engine.py   → [OK] 19/19
+test_v44.py            → [OK] 7/7
+test_v46.py            → [OK] 25/25
+test_p2p.py            → [OK] 4/4
+test_v47.py            → [OK] 24/24
+test_v48.py            → [OK] 8/8
+test_v49.py            → [OK] 11/11
+test_v50.py            → [OK] 10/10
+
+[WIN] ALL 8 TESTS PASSED!
+📁 Структура проекта
+text
+absolute-blockchain-ultimate/
+├── crypto/           # Криптография (ключи, подписи, кошельки)
+├── execution/        # Исполнение (state engine, mempool, блоки)
+├── storage/          # Хранение (SQLite, snapshots)
+├── network/          # P2P сеть (peer manager, discovery, sync)
+│   ├── p2p/          # Peer-to-peer протокол
+│   └── sync/         # Block sync engine (v50)
+├── rpc/              # JSON-RPC API
+├── consensus/        # Консенсус (GHOST, Casper)
+├── data/             # Данные (блоки, состояние)
+├── node_persistent.py # Главный файл запуска
+├── Dockerfile
+├── docker-compose.yml
+└── test_*.py         # Тесты (v44-v51)
+🤝 Как помочь
+⭐ Поставьте звезду
+
+🐛 Сообщайте об ошибках
+
+💡 Предлагайте улучшения
+
+📄 Лицензия
+MIT License — свободно для изучения и экспериментов
+
+👤 Автор
+Uladzimir Dabranski (Gruver87)
+
+GitHub: @Gruver87
+
+Email: gruverpetrov@gmail.com
+
+⚠️ ЕЩЁ РАЗ: ЭТО УЧЕБНЫЙ ПРОЕКТ, НЕ PRODUCTION!
+
+
+
+
+=== REQUIREMENTS.txt ===
+# Core (see requirements.txt in repo)
+cryptography>=42.0.0
+requests>=2.31.0
+websockets>=12.0
+PyJWT>=2.8.0
+pytest>=8.0.0
+# numpy>=1.24.0
+# scikit-learn>=1.3.0
+
+# FastAPI for extended API
+fastapi>=0.104.0
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# Prometheus metrics
+prometheus-client>=0.19.0
+
