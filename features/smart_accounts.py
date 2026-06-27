@@ -234,9 +234,8 @@ class SmartAccount:
         return False
     
     def _verify_private_key(self, signature: str) -> bool:
-        """Проверка подписи приватным ключом"""
-        # В реальности ECDSA verify
-        return True
+        """Private-key auth requires a real signature verifier."""
+        return False
     
     def _verify_session_key(self, key_id: str) -> bool:
         """Проверка сессионного ключа"""
@@ -247,14 +246,12 @@ class SmartAccount:
         return key.is_valid()
     
     def _verify_social(self, token: str) -> bool:
-        """Проверка социального токена"""
-        # В реальности проверка JWT от Google/Apple
-        return True
+        """Social auth requires external provider/JWT verification."""
+        return False
     
     def _verify_passkey(self, assertion: Dict) -> bool:
-        """Проверка WebAuthn passkey"""
-        # В реальности проверка WebAuthn
-        return True
+        """Passkey auth requires WebAuthn assertion verification."""
+        return False
     
     # ------------------------------------------------------------------------
     # Сессионные ключи
