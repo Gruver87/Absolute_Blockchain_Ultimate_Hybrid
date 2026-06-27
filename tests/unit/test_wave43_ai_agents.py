@@ -27,7 +27,7 @@ def test_ai_agent_create_persists_and_charges_fee():
     assert m2.get_stats()["persisted"] is True
 
 
-def test_ai_agent_trade_persists_memory():
+def test_ai_agent_trade_fails_without_execution_backend():
     from features.ai_manager import AIAgentManager
     from storage.database import Database
 
@@ -40,12 +40,42 @@ def test_ai_agent_trade_persists_memory():
     m = AIAgentManager(db=db)
     aid = m.create_agent("Bot", owner)
     out = m.trade(aid, "buy", 1.0, 100.0)
+    assert out == {"success": False, "error": "Trade execution backend not configured"}
+
+
+def test_ai_agent_trade_persists_executor_result():
+    from features.ai_manager import AIAgentManager
+    from storage.database import Database
+
+    tmp = tempfile.mkdtemp()
+    db = Database(os.path.join(tmp, "atex.db"))
+    db.initialize()
+    owner = "0x" + "d" * 40
+    db.set_balance(owner, 10.0)
+
+    def executor(order):
+        assert order["type"] == "buy"
+        assert order["amount"] == 1.0
+        return {
+            "success": True,
+            "trade_id": "venue-trade-1",
+            "pnl": 2.5,
+            "venue": "test-exchange",
+            "status": "filled",
+        }
+
+    m = AIAgentManager(db=db, trade_executor=executor)
+    aid = m.create_agent("Bot", owner)
+    out = m.trade(aid, "buy", 1.0, 100.0)
     assert out["success"] is True
+    assert out["trade_id"] == "venue-trade-1"
+    assert out["pnl"] == 2.5
 
     m2 = AIAgentManager(db=db)
     agent = m2.get_agent(aid)
     assert agent.actions_count == 1
     assert len(agent.memory) == 1
+    assert agent.memory[0]["venue"] == "test-exchange"
 
 
 def test_ai_create_rejects_low_balance():
@@ -60,3 +90,10 @@ def test_ai_create_rejects_low_balance():
 
     m = AIAgentManager(db=db)
     assert m.create_agent("X", owner) is None
+
+
+def test_ai_create_requires_balance_backend():
+    from features.ai_manager import AIAgentManager
+
+    m = AIAgentManager(db=None)
+    assert m.create_agent("NoBackend", "0x" + "e" * 40) is None

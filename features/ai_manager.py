@@ -3,7 +3,7 @@
 import hashlib
 import json
 import time
-from typing import Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 
 class AIAgent:
@@ -67,12 +67,19 @@ class AIAgent:
 
     def execute_trade(self, trade_type: str, amount: float,
                       price: float) -> Dict:
-        if amount <= 0 or price <= 0:
-            return {"success": False, "error": "Invalid trade parameters"}
-        trade_id = hashlib.sha256(
-            f"{self.agent_id}_{trade_type}_{time.time()}".encode()
-        ).hexdigest()[:16]
-        pnl = (price * amount * 0.01) * (1 if trade_type == "buy" else -1)
+        return {"success": False, "error": "Trade execution backend not configured"}
+
+    def record_executed_trade(
+        self,
+        trade_type: str,
+        amount: float,
+        price: float,
+        execution: Dict[str, Any],
+    ) -> Dict:
+        trade_id = str(execution.get("trade_id") or hashlib.sha256(
+            f"{self.agent_id}_{trade_type}_{time.time_ns()}".encode()
+        ).hexdigest()[:16])
+        pnl = float(execution.get("pnl", 0.0))
         self.total_profit += pnl
         self.actions_count += 1
         self.last_action = int(time.time())
@@ -83,6 +90,8 @@ class AIAgent:
             "amount": amount,
             "price": price,
             "pnl": pnl,
+            "venue": execution.get("venue", ""),
+            "execution_status": execution.get("status", "filled"),
             "timestamp": int(time.time()),
         }
         self.memory.append(record)
@@ -125,8 +134,9 @@ class AIAgentManager:
 
     CREATE_FEE = 0.01
 
-    def __init__(self, db=None):
+    def __init__(self, db=None, trade_executor: Optional[Callable[[Dict], Dict]] = None):
         self.db = db
+        self.trade_executor = trade_executor
         self.agents: Dict[str, AIAgent] = {}
         self._load_from_db()
         print(f"[AIAgentManager] Initialized ({len(self.agents)} agents, "
@@ -157,8 +167,12 @@ class AIAgentManager:
             self.db.save_ai_agent(agent.to_db())
 
     def _charge_create_fee(self, owner: str) -> bool:
-        if not self.db or not hasattr(self.db, "update_balance"):
-            return True
+        if (
+            not self.db
+            or not hasattr(self.db, "get_balance")
+            or not hasattr(self.db, "update_balance")
+        ):
+            return False
         if self.db.get_balance(owner) < self.CREATE_FEE:
             return False
         self.db.update_balance(owner, -self.CREATE_FEE)
@@ -205,7 +219,21 @@ class AIAgentManager:
         agent = self.agents.get(agent_id)
         if not agent:
             return {"success": False, "error": "Agent not found"}
-        result = agent.execute_trade(trade_type, amount, price)
+        if amount <= 0 or price <= 0:
+            return {"success": False, "error": "Invalid trade parameters"}
+        if not self.trade_executor:
+            return {"success": False, "error": "Trade execution backend not configured"}
+        execution = self.trade_executor({
+            "agent_id": agent_id,
+            "owner": agent.owner,
+            "type": trade_type,
+            "amount": amount,
+            "price": price,
+        })
+        if not isinstance(execution, dict) or not execution.get("success"):
+            error = execution.get("error", "Trade execution failed") if isinstance(execution, dict) else "Trade execution failed"
+            return {"success": False, "error": error}
+        result = agent.record_executed_trade(trade_type, amount, price, execution)
         if result.get("success"):
             self._persist(agent)
         return result

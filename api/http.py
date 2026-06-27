@@ -3870,6 +3870,9 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not agent_id or amount <= 0:
                     self._error(400, "agent_id, amount, price required"); return
                 result = am.trade(agent_id, trade_type, amount, price)
+                if isinstance(result, dict) and result.get("error") == "Trade execution backend not configured":
+                    self._error(503, result["error"])
+                    return
                 self._json(result)
 
             # ── Cross-Chain Bridge ────────────────────────────────────────────
