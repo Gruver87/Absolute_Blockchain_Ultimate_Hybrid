@@ -96,7 +96,7 @@ class Config:
 
     # ── Мост (Cross-chain bridge) ────────────────────────────────────────────
     bridge_enabled: bool = True
-    bridge_mode: str = "simulator"      # "simulator" | "rust"
+    bridge_mode: str = "rust"           # "rust" | explicit dev/test-only "simulator"
     bridge_auto_confirm_sec: int = 0    # 0 = manual POST /bridge/confirm-lock only
     bridge_require_l1_proof: bool = False
     rust_bridge_path: str = "bridge/abs_bridge_bin"
@@ -347,7 +347,7 @@ class Config:
             enabled_blocked = [name for name, enabled in blocked.items() if enabled]
             if enabled_blocked:
                 errors.append(
-                    "prod deployment blocks demo/routing/offchain features: "
+                    "prod deployment blocks dev/test/routing/offchain features: "
                     + ", ".join(enabled_blocked)
                 )
         if self.deployment_mode != "dev" and not self.allow_insecure_public_bind:

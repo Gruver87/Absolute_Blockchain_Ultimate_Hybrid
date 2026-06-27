@@ -49,19 +49,19 @@
 - Slashing (double-vote по slot), validators, attestations
 - Devnet: faucet, pool-spend, `start_two_nodes.ps1 -RustBridge -Fresh`, `docker_devnet_3node.ps1`
 
-### 🟡 Упрощённо / demo (dev OK, prod блокируется)
+### 🟡 Dev/test-only modules (prod блокируется)
 
 | Модуль | Реальность |
 |--------|------------|
 | **EVM** | Не полный Ethereum; ограниченные opcodes, `/evm/validate` |
-| **Bridge** | В dev доступен simulator; в prod требуется `BRIDGE_MODE=rust`, L1 RPC и `BRIDGE_REQUIRE_L1_PROOF=true` |
+| **Bridge** | Основной путь — RustBridge; Python simulator только для явных dev/test сценариев |
 | **Sharding** | 4 шарда как routing на одной DB, не отдельные ноды |
-| **Oracles** | Demo цены; погода — ключи в `.env` |
+| **Oracles** | Внешние price/weather feeds; ключи только в `.env` |
 | **ZK / PQ** | R&D crypto modules, не audited crypto |
-| **Lightning / Plasma / WASM** | Demo in-memory |
-| **MEV / AI / Reorg / Will** | Симуляция и эвристики |
+| **Lightning / Plasma / WASM** | Dev/test L2 modules, prod-blocked где небезопасно |
+| **MEV / AI / Reorg / Will** | Аналитика и эвристики, prod-blocked где небезопасно |
 
-Статус модулей: `GET /features` (tier: production / routing / offchain / demo / educational).
+Статус модулей: `GET /features` (tier: production / routing / offchain / dev-test / r-and-d).
 
 ### 🔴 Чего нет
 
@@ -439,7 +439,7 @@ Invoke-RestMethod "http://localhost:8080/oracles/weather?city=London"
 Invoke-RestMethod http://localhost:8080/oracles/stats
 ```
 
-Ключи в `.env`: `OPENWEATHER_API_KEY`, `WEATHERAPI_KEY` (без ключей — demo).
+Ключи в `.env`: `OPENWEATHER_API_KEY`, `WEATHERAPI_KEY` (без ключей weather feed отключается).
 
 ---
 

@@ -16,6 +16,7 @@ from runtime.config import Config
 
 def test_config_default_bridge_manual_confirm():
     cfg = Config()
+    assert cfg.bridge_mode == "rust"
     assert cfg.bridge_auto_confirm_sec == 0
 
 

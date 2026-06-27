@@ -32,9 +32,9 @@
 - `scripts/docker_devnet_3node.ps1` — host-port guard prevents local `python main.py` from being mixed with Docker devnet ports
 - **`api_wave` → 61**
 
-### Wave 60 — Mock L1 RPC + relayer live e2e
+### Wave 60 — CI L1 RPC + relayer live e2e
 
-- `bridge/mock_l1_rpc.py` — in-process Ethereum JSON-RPC mock for CI
+- `bridge/mock_l1_rpc.py` — in-process Ethereum JSON-RPC endpoint for isolated CI
 - `GET /testnet/bridge-relayer-proof` — relayer readiness dashboard
 - `verify_p2p_ci.py` — `verify_bridge_relayer()` + `--mode ci-bridge-relayer`
 - **`api_wave` → 60**
@@ -44,7 +44,7 @@
 - `RustBridge.enqueue_l1_incoming()` — L1 incoming queue for relayer watch
 - `POST /bridge2/transfer` — routes through `RustBridge` when enabled (incoming/outbound)
 - `POST /bridge/oracle/l1-register` — enqueues incoming/outbound L1 queue entries
-- Explorer — Testnet Fork Monitor card, `l1_tx_hash` on bridge forms, `bridge2` rust vs simulator path
+- Explorer — Testnet Fork Monitor card, `l1_tx_hash` on bridge forms, `bridge2` RustBridge path
 - `verify_p2p_ci.py` — `verify_bridge()` after adversarial; `--mode ci-bridge` isolated test
 - `tests/unit/test_bridge_relayer_e2e.py` — lock → queue → relayer incoming e2e
 - **`api_wave` → 59**
@@ -63,7 +63,7 @@
 - **Reorg finality guard** — `Blockchain.reorg_to_ancestor()` refuses rollback below finalized checkpoint
 - **P2P reorg** — `ReorgPredictor.analyze_live_peers()` wired into fork reconcile
 - **MEV** — fee-ordering analysis from mempool (no `random.uniform` profits)
-- **Bridge honesty** — `CrossChainBridge` demo only when `bridge_enabled=false`; Docker uses `RustBridge`
+- **Bridge honesty** — Python bridge adapter only for explicit dev/test paths; Docker uses `RustBridge`
 - `GET /status` → `core_real` flags; **`api_wave` → 57**
 
 ### Wave 56 — Multi-node proof (3-validator devnet)
@@ -161,7 +161,7 @@
 ### Wave 44 — L2 dashboard + MEV history
 
 - `GET /l2/status` — единый дашборд Lightning / Plasma / Will / WASM / AI
-- MEV simulator: история в SQLite, `GET /mev/history`
+- MEV analyzer: история в SQLite, `GET /mev/history`
 
 ### Wave 43 — AI agents
 
@@ -215,7 +215,7 @@
 
 - Не production mainnet
 - Не полный EVM / не Ethereum-совместимость на 100%
-- Bridge / Lightning / Plasma / MEV — **demo / simulator** с реальными L1-эффектами где указано
+- Bridge / Lightning / Plasma / MEV — dev/test or analysis modules with real L1 effects where stated
 - Крипто-аудит не проводился
 
 См. [DISCLAIMER.md](DISCLAIMER.md) и **Часть 0** в [docs/ALL_COMMANDS.txt](docs/ALL_COMMANDS.txt).

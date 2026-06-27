@@ -81,7 +81,7 @@ class OracleManager:
             return None
 
     def get_abs_reference_price(self) -> PriceData:
-        """Educational ABS reference — derived from chain tokenomics, not a market feed."""
+        """Deterministic ABS reference value derived from tokenomics, not a market feed."""
         try:
             from runtime.tokenomics import MAX_SUPPLY_ABS
             supply = float(MAX_SUPPLY_ABS)

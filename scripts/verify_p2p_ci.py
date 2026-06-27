@@ -238,7 +238,7 @@ def verify_bridge(url1: str, status: dict, oracle_secret: str = "") -> int:
         )
     except urllib.error.HTTPError as exc:
         if exc.code in (503, 501):
-            print(f"SKIP: bridge checks (HTTP {exc.code} — rebuild image or set bridge_mode=simulator)")
+            print(f"SKIP: bridge checks (HTTP {exc.code} — rebuild image with Rust bridge or use explicit dev/test simulator)")
             return 0
         print(f"FAIL: bridge verification: HTTP {exc.code}")
         return 19

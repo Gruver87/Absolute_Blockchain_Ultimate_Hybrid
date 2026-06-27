@@ -73,3 +73,28 @@ def test_bridge_accepts_eth_chain_alias(bridge_env):
     res = br.lock_and_bridge("0xalice", "ETH", "0xrecipient", 10.0)
     assert "tx_hash" in res, res
     assert res["to_chain"] == "ethereum"
+
+
+def test_rust_bridge_missing_binary_does_not_fallback_to_simulator():
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    cfg = Config()
+    cfg.db_path = path
+    cfg.deployment_mode = "dev"
+    cfg.bridge_mode = "rust"
+    cfg.rust_bridge_path = "missing/abs_bridge_bin"
+    db = Database(path)
+    db.initialize()
+    db.set_balance("0xalice", 100.0)
+    try:
+        br = RustBridge(cfg, db, None)
+        assert br._mode == "unavailable"
+        res = br.lock_and_bridge("0xalice", "ethereum", "0xrecipient", 10.0)
+        assert "bridge unavailable" in res["error"]
+        assert db.get_balance("0xalice") == 100.0
+    finally:
+        db.close()
+        try:
+            os.remove(path)
+        except OSError:
+            pass

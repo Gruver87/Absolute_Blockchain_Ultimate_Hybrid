@@ -225,7 +225,7 @@ _PUBLIC_API_ROUTES = [
     {"method": "POST", "path": "/chain/consistency/repair", "summary": "Replay chain if live state drifted from tip"},
     {"method": "GET", "path": "/testnet/validators", "summary": "5-validator set health and proposer rotation (Wave 55)"},
     {"method": "GET", "path": "/testnet/multi-node-proof", "summary": "Multi-node proof dashboard (Wave 56)"},
-    {"method": "GET", "path": "/testnet/bridge-relayer-proof", "summary": "Bridge relayer + L1 mock proof (Wave 60)"},
+    {"method": "GET", "path": "/testnet/bridge-relayer-proof", "summary": "Bridge relayer + CI L1 RPC proof (Wave 60)"},
     {"method": "POST", "path": "/testnet/reorg-exercise", "summary": "Canonical replay reorg drill (dev only, Wave 56)"},
     {"method": "GET", "path": "/testnet/fork-exercise", "summary": "Fork recovery drill status (Wave 58)"},
     {"method": "POST", "path": "/testnet/fork-exercise", "summary": "P2P fork reconcile recovery drill (dev, Wave 58)"},
@@ -250,7 +250,7 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/bridge/relayer/status", "summary": "Bridge relayer queue + pending locks"},
     {"method": "GET", "path": "/ai-agent/stats", "summary": "AI trading agents stats (SQLite)"},
     {"method": "GET", "path": "/l2/status", "summary": "Unified L2 modules dashboard"},
-    {"method": "GET", "path": "/mev/history", "summary": "MEV simulation history (SQLite)"},
+    {"method": "GET", "path": "/mev/history", "summary": "MEV analyzer history (SQLite)"},
     {"method": "POST", "path": "/oracles/feeds/submit", "summary": "Submit signed oracle feed (HMAC)"},
     {"method": "GET", "path": "/bridge/l1-proofs", "summary": "Registered L1 proof metadata"},
     {"method": "POST", "path": "/sync/reconcile", "summary": "P2P fork reconcile + state sync"},
@@ -548,7 +548,7 @@ class RESTHandler(BaseHTTPRequestHandler):
     multisig = None                  # MultiSigWallet class
     ai_validator = None              # AIValidatorEngine
     reorg_predictor = None           # ReorgPredictor
-    mev_simulator = None             # MEVSimulator
+    mev_simulator = None             # MEVAnalyzer
     immutable_state = None           # ImmutableStateManager
     # ── NEW features ───────────────────────────────────────────────────────────
     lightning = None                 # LightningNetwork
@@ -818,7 +818,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "total_burned": total_burned,
                     "evm_enabled": cfg.evm_enabled,
                     "bridge_enabled": cfg.bridge_enabled,
-                    "bridge_mode": getattr(cfg, "bridge_mode", "simulator"),
+                    "bridge_mode": getattr(cfg, "bridge_mode", "unknown"),
                     "bridge_pending": bridge_pending,
                     "bridge_locks_total": len(bridge_locks),
                     "deployment_mode": getattr(cfg, "deployment_mode", "dev"),
@@ -836,11 +836,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "finality_quorum_live": True,
                         "reorg_finality_guard": True,
                         "mev_mempool_analysis": True,
-                        "bridge_production_path": getattr(cfg, "bridge_mode", "simulator") == "rust",
+                        "bridge_production_path": getattr(cfg, "bridge_mode", "unknown") == "rust",
                         "bridge_l1_queue": True,
                         "bridge2_rust_path": bool(getattr(self.__class__, "bridge", None)),
                         "bridge_relayer_live": True,
-                        "bridge_mock_l1_rpc": True,
+                        "bridge_ci_l1_rpc": True,
                     },
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,
@@ -1871,7 +1871,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 else:
                     self._json({"enabled": False})
 
-            # ── MEV Simulator ─────────────────────────────────────────────────
+            # ── MEV Analyzer ─────────────────────────────────────────────────
             elif path == "/mev/stats":
                 mev = self.__class__.mev_simulator
                 if mev:
@@ -2260,8 +2260,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                 locks = overview.get("locks") or {}
                 stats.update({
                     "enabled": overview.get("enabled", False),
-                    "mode": overview.get("mode", "simulator"),
-                    "tier": overview.get("tier", "simulator"),
+                    "mode": overview.get("mode", "unknown"),
+                    "tier": overview.get("tier", "dev-only"),
                     "auto_confirm_sec": overview.get("auto_confirm_sec", 0),
                     "supported_chains": overview.get("supported_chains", stats.get("supported_chains", [])),
                     "total_transactions": locks.get("total", stats.get("total_transactions", 0)),
@@ -2770,11 +2770,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                 else:
                     self._json({"total_stake": 0, "enabled": False})
 
-            # ── MEV frontrun simulation ───────────────────────────────────────
+            # ── MEV frontrun analysis ─────────────────────────────────────────
             elif path == "/mev/frontrun":
                 cfg = self.__class__.config
                 if getattr(cfg, "is_production", False):
-                    self._json({"enabled": False, "demo": True, "error": "MEV disabled in production"})
+                    self._json({"enabled": False, "dev_only": True, "error": "MEV disabled in production"})
                     return
                 mev = self.__class__.mev_simulator
                 mp = self.__class__.mempool
@@ -2795,14 +2795,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                             break
                 if mev and target and hasattr(mev, "simulate_frontrun"):
                     result = mev.simulate_frontrun(target, bot_balance=1000.0)
-                    result["demo"] = True
+                    result["dev_only"] = True
                     result["tx_hash"] = tx_hash
                     self._json(result)
                 else:
                     self._json({
                         "success": False,
                         "feasible": False,
-                        "demo": True,
+                        "dev_only": True,
                         "enabled": bool(mev),
                         "error": "tx not in mempool" if tx_hash else "tx_hash required",
                     })
@@ -3399,7 +3399,7 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/mev/analyze":
                 mev = self.__class__.mev_simulator
                 if not mev:
-                    self._error(503, "MEV simulator not enabled"); return
+                    self._error(503, "MEV analyzer not enabled"); return
                 txs_raw = body.get("transactions", [])
                 try:
                     from features.mev_simulator import Transaction as MevTx
@@ -3915,7 +3915,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "amount": amount - fee,
                     "fee": fee,
                     "status": "confirmed",
-                    "bridge_path": "simulator",
+                    "bridge_path": "dev-test-simulator",
                 })
 
             # ── Standalone Consensus Engine ───────────────────────────────────
@@ -4787,7 +4787,7 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/mev/frontrun":
                 cfg = self.__class__.config
                 if getattr(cfg, "is_production", False):
-                    self._json({"enabled": False, "demo": True, "error": "MEV disabled in production"})
+                    self._json({"enabled": False, "dev_only": True, "error": "MEV disabled in production"})
                     return
                 mev = self.__class__.mev_simulator
                 mp = self.__class__.mempool
@@ -4819,13 +4819,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                             break
                 if mev and target and hasattr(mev, "simulate_frontrun"):
                     result = mev.simulate_frontrun(target, bot_balance=1000.0)
-                    result["demo"] = True
+                    result["dev_only"] = True
                     self._json(result)
                 else:
                     self._json({
                         "success": False,
                         "feasible": False,
-                        "demo": True,
+                        "dev_only": True,
                         "enabled": bool(mev),
                         "error": "transaction or tx_hash required",
                     })
@@ -5533,7 +5533,7 @@ def _collect_recent_activity(db, cross_bridge=None, limit: int = 30) -> List[Dic
 
 
 def _build_l2_status(handler_cls) -> Dict:
-    """Unified dashboard for Waves 40-43 L2/demo modules."""
+    """Unified dashboard for Waves 40-43 L2/dev-test modules."""
     modules = {}
     ln = handler_cls.lightning
     pl = handler_cls.plasma
@@ -5682,14 +5682,14 @@ def _build_testnet_bridge_relayer_proof(cfg, db, bridge) -> Dict:
     return {
         "api_wave": 61,
         "bridge_enabled": bridge_on,
-        "bridge_mode": getattr(cfg, "bridge_mode", "simulator"),
+        "bridge_mode": getattr(cfg, "bridge_mode", "unknown"),
         "oracle_hmac_configured": oracle_on,
         "eth_rpc_configured": rpc_on,
         "l1_incoming": queue_in,
         "l1_outbound": queue_out,
         "pending_locks": int(relayer.get("pending_locks", 0) or 0),
         "relayer": relayer,
-        "mock_l1_hint": "bridge.mock_l1_rpc.start_mock_l1_rpc + ETH_RPC_URL for CI",
+        "ci_l1_rpc_hint": "bridge.mock_l1_rpc.start_mock_l1_rpc + ETH_RPC_URL for CI",
         "ci_mode": "python scripts/verify_p2p_ci.py --mode ci-bridge-relayer",
         "proof_ok": proof_ok,
     }
@@ -5699,14 +5699,14 @@ def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
     """Unified GET /bridge summary (RustBridge + CrossChainBridge + DB locks)."""
     overview = {
         "enabled": bool(getattr(cfg, "bridge_enabled", False)),
-        "mode": getattr(cfg, "bridge_mode", "simulator"),
-        "demo": getattr(cfg, "bridge_mode", "simulator") == "simulator",
-        "tier": "production" if getattr(cfg, "bridge_mode", "") == "rust" else "simulator",
+        "mode": getattr(cfg, "bridge_mode", "unknown"),
+        "dev_only": getattr(cfg, "bridge_mode", "unknown") == "simulator",
+        "tier": "production" if getattr(cfg, "bridge_mode", "") == "rust" else "dev-only",
         "auto_confirm_sec": int(getattr(cfg, "bridge_auto_confirm_sec", 0) or 0),
         "deployment_note": (
             "Manual confirm mode — use POST /bridge/confirm-lock"
             if int(getattr(cfg, "bridge_auto_confirm_sec", 0) or 0) <= 0
-            else "Devnet simulator — auto-confirm after bridge_auto_confirm_sec"
+            else "Devnet-only auto-confirm after bridge_auto_confirm_sec"
         ),
         "supported_chains": ["ethereum", "bsc", "solana", "absolute"],
         "endpoints": {
@@ -5748,7 +5748,7 @@ def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
             overview["rust_version"] = overview["rust_bridge"].get("version", "v4")
     if cb and hasattr(cb, "get_bridge_stats"):
         overview["cross_chain"] = cb.get_bridge_stats()
-    overview["status"] = "simulator" if overview.get("mode") == "simulator" else overview.get("mode")
+    overview["status"] = "dev-test-simulator" if overview.get("mode") == "simulator" else overview.get("mode")
     return overview
 
 
@@ -5765,7 +5765,7 @@ def _build_openapi_spec(cfg) -> Dict:
         "info": {
             "title": "Absolute Blockchain REST API",
             "version": getattr(cfg, "node_version", "1.2.0") if cfg else "1.2.0",
-            "description": "Educational ABS node API. See /docs for quick reference.",
+            "description": "Production-hardened ABS node API. See /docs for quick reference.",
         },
         "servers": [{"url": f"http://localhost:{http_port}"}],
         "paths": paths,

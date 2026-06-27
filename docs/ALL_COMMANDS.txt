@@ -74,7 +74,7 @@
 #   Plasma submit-block: подсказка если pending пуст (нужен новый deposit/tx)
 # Wave 44:
 #   GET /l2/status — единый дашборд Lightning/Plasma/Will/WASM/AI
-#   MEV simulator: история симуляций в SQLite (GET /mev/history)
+#   MEV analyzer: история mempool fee-ordering сигналов в SQLite (GET /mev/history)
 # Wave 45:
 #   Reorg predictor: assessments в SQLite (GET /reorg/history)
 #   Исправлены GET /reorg/depth (?network_hashrate=&attacker_hashrate=)
@@ -194,14 +194,14 @@
 # 🟡 EVM — упрощённый адаптер (НЕ полный Ethereum VM)
 #        Wave 37-38: +LOG/EXTCODE/SELFDESTRUCT/BLOCKHASH/CALLCODE; логи в DB
 #        GET /evm/logs, GET /evm/logs/{address}
-# 🟡 WASM VM — demo-интерпретатор (Wave 42: SQLite + deploy fee 0.01 ABS)
+# 🟡 WASM VM — R&D-интерпретатор (Wave 42: SQLite + deploy fee 0.01 ABS)
 #
 # --- NFT, Multisig, Smart Accounts ---
 #
 # 🟢 NFT marketplace — mint/list/buy, genesis tokens, /nft/*, UI вкладка
 # 🟢 Multisig — создание кошельков, подписи, /multisig/*
 # 🟢 Smart Accounts — session keys, social recovery, /smart-account/*
-# 🟡 On-chain NFT metadata | Локальные файлы / demo URI, не IPFS mainnet
+# 🟡 On-chain NFT metadata | Локальные файлы / URI, не IPFS mainnet
 #
 # --- Cross-chain Bridge ---
 #
@@ -209,8 +209,8 @@
 # 🟢 L1 relayer queue (Wave 39) — lock с l1_tx_hash → bridge_l1_queue.json; GET /oracles/l1-queue
 # 🟢 Relayer status (Wave 42) — GET /bridge/relayer/status + scripts/bridge_relayer.py
 # 🟢 Simulator mode (по умолчанию) — учебная симуляция ETH/BSC/Solana/ABS
-# 🟡 Rust bridge — bridge/abs_bridge_bin; -RustBridge в start_two_nodes
-#        В Docker может остаться simulator если бинарник не в образе
+# 🟢 Rust bridge — bridge/abs_bridge_bin; default bridge path
+#        Docker image now builds and ships abs_bridge_bin
 # 🟡 Реальный L1 | Нужны ETH_RPC_URL + ключи; не автоматический mainnet
 # 🔴 Prod без rust | DEPLOYMENT_MODE=prod требует bridge_mode=rust
 #
@@ -221,10 +221,10 @@
 #
 # --- Oracles ---
 #
-# 🟢 Цены BTC/ETH/ABS — встроенные demo feeds
+# 🟢 Цены BTC/ETH/ABS — внешние feeds + deterministic ABS reference
 # 🟢 Oracle registry (Wave 39) — GET /oracles/feeds, /oracles/feeds/{symbol}
 #        POST /oracles/feeds/submit (HMAC: BRIDGE_ORACLE_SECRET + X-Bridge-Oracle-Signature)
-# 🟡 Погода — OPENWEATHER_API_KEY / WEATHERAPI_KEY в .env (иначе demo)
+# 🟡 Погода — OPENWEATHER_API_KEY / WEATHERAPI_KEY в .env
 # 🟡 Tier=offchain | Данные не консенсус-валидируются как в Chainlink
 #
 # --- Demo / Educational (работают в dev, отключены в prod) ---
@@ -233,16 +233,16 @@
 #
 # | Модуль | Tier | Что реально |
 # |--------|------|-------------|
-# | ZK Proofs | educational | Учебные proof-структуры, не audited SNARK |
-# | Post-Quantum | educational | SPHINCS+/Kyber/Dilithium demo, не NIST prod |
-# | MEV Simulator | demo | SQLite history (Wave 44), GET /mev/history |
-# | Lightning | demo | Payment channels в SQLite (Wave 40); open/close двигают L1 баланс |
-# | Plasma L2 | demo | Sidechain deposits/blocks в SQLite; deposit/exit двигают L1 |
-# | WASM VM | demo | SQLite persistence (Wave 42), deploy fee 0.01 ABS |
-# | AI Validator | demo | Эвристики выбора proposer, не ML-модель |
-# | AI Agents | demo | SQLite persistence (Wave 43), create fee 0.01 ABS |
-# | Reorg Predictor | demo | Оценка риска по глубине подтверждений |
-# | Crypto Will | demo | Завещания в SQLite (Wave 41); create/execute/cancel двигают L1 |
+# | ZK Proofs | r-and-d | Proof-структуры, не audited SNARK |
+# | Post-Quantum | r-and-d | SPHINCS+/Kyber/Dilithium, не NIST prod |
+# | MEV Analyzer | analysis | SQLite history (Wave 44), GET /mev/history |
+# | Lightning | dev-test | Payment channels в SQLite (Wave 40); open/close двигают L1 баланс |
+# | Plasma L2 | dev-test | Sidechain deposits/blocks в SQLite; deposit/exit двигают L1 |
+# | WASM VM | r-and-d | SQLite persistence (Wave 42), deploy fee 0.01 ABS |
+# | AI Validator | analysis | Эвристики выбора proposer, не ML-модель |
+# | AI Agents | dev-test | SQLite persistence (Wave 43), create fee 0.01 ABS |
+# | Reorg Predictor | analysis | Оценка риска по глубине подтверждений |
+# | Crypto Will | dev-test | Завещания в SQLite (Wave 41); create/execute/cancel двигают L1 |
 #
 # --- API и Web UI ---
 #
@@ -509,8 +509,8 @@ Invoke-RestMethod http://127.0.0.1:8080/bridge/confirm-lock -Method POST -Body $
 # POST /bridge/oracle/l1-register   — регистрация L1 proof (Wave 35)
 
 # Режимы bridge:
-#   simulator — учебный, без Rust CLI
-#   rust      — abs_bridge_bin v4 (L1 proof только через l1_tx_hash)
+#   rust      — abs_bridge_bin v4 (default; L1 proof через l1_tx_hash)
+#   simulator — explicit dev/test-only fallback for isolated tests
 
 
 # =============================================================================
@@ -534,7 +534,7 @@ Invoke-RestMethod http://localhost:8080/stats
 # --- 7.4 Метрики Prometheus ---
 Invoke-RestMethod http://localhost:8080/metrics
 
-# --- 7.5 Feature tiers (production / routing / demo / educational) ---
+# --- 7.5 Feature tiers (production / routing / offchain / dev-test / r-and-d) ---
 Invoke-RestMethod http://localhost:8080/features
 
 # Founder address (v1.2):
@@ -839,7 +839,7 @@ python scripts/check_secrets.py
 # | GITHUB_TOKEN              | gh CLI / push (локально)           |
 # | BRIDGE_ORACLE_SECRET      | HMAC /bridge/oracle/*              |
 # | ETH_RPC_URL               | L1 Ethereum RPC                    |
-# | BRIDGE_MODE               | simulator / rust                   |
+# | BRIDGE_MODE               | rust (simulator only for dev/test) |
 #
 # --- Публичные адреса (не секреты, можно копировать) ---
 #

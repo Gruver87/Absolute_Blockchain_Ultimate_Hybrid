@@ -177,9 +177,9 @@ try:
 except Exception:
     _REORG_PREDICTOR_AVAILABLE = False
 
-# --- MEV Simulator ---
+# --- MEV Analyzer ---
 try:
-    from features.mev_simulator import MEVSimulator
+    from features.mev_simulator import MEVAnalyzer
     _MEV_SIMULATOR_AVAILABLE = True
 except Exception:
     _MEV_SIMULATOR_AVAILABLE = False
@@ -226,7 +226,7 @@ try:
 except Exception:
     _AI_MANAGER_AVAILABLE = False
 
-# --- Cross-Chain Bridge Simulator ---
+# --- Cross-Chain Bridge dev/test adapter ---
 try:
     from cross_chain_bridge import CrossChainBridge
     _CROSS_BRIDGE_AVAILABLE = True
@@ -621,7 +621,7 @@ class NodeOrchestrator:
         self.nft = NFTMarketplace(db=self.db, bus=self.bus)
         print(f"[Node] NFT Marketplace: {len(self.nft.tokens)} tokens (persisted={self.nft.get_stats().get('persisted', False)})")
 
-        # 10. ZK Proof System (educational; disabled by prod profile)
+        # 10. ZK Proof System (R&D; disabled by prod profile)
         self.zk = ZKProofSystem() if getattr(config, "feature_zk", True) else None
         print("[Node] ZK Proof System: ready" if self.zk else "[Node] ZK Proof System: disabled")
 
@@ -740,8 +740,8 @@ class NodeOrchestrator:
 
         # 24. MEV analysis module (disabled by prod profile)
         if _MEV_SIMULATOR_AVAILABLE and getattr(config, "feature_mev", True):
-            self.mev_simulator = MEVSimulator(db=self.db)
-            print("[Node] MEVSimulator: enabled (sandwich/arbitrage/frontrun analysis)")
+            self.mev_simulator = MEVAnalyzer(db=self.db)
+            print("[Node] MEVAnalyzer: enabled (sandwich/arbitrage/frontrun analysis)")
         else:
             self.mev_simulator = None
 
@@ -869,14 +869,14 @@ class NodeOrchestrator:
         else:
             self.ai_manager = None
 
-        # 33. Cross-Chain Bridge Simulator (demo API — production path is RustBridge)
+        # 33. Cross-Chain Bridge dev/test adapter (production path is RustBridge)
         if _CROSS_BRIDGE_AVAILABLE and not config.bridge_enabled:
             try:
                 self.cross_bridge = CrossChainBridge()
-                print("[Node] Cross-Chain Bridge simulator: demo API only (bridge disabled)")
+                print("[Node] Cross-Chain Bridge dev/test adapter: bridge disabled")
             except Exception as e:
                 self.cross_bridge = None
-                print(f"[Node] Cross-Bridge simulator: unavailable ({e})")
+                print(f"[Node] Cross-Bridge dev/test adapter: unavailable ({e})")
         else:
             self.cross_bridge = None
             if config.bridge_enabled:

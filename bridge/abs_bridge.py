@@ -3,9 +3,9 @@
 """
 Absolute Cross-Chain Bridge
 
-Два режима работы (задаётся в Config.bridge_mode):
-  "simulator" — Python-симулятор на основе cross_chain_bridge.py
+Режим работы задаётся в Config.bridge_mode:
   "rust"      — вызов скомпилированного Rust-бинарника через subprocess
+  "simulator" — явный dev/test-only режим на основе cross_chain_bridge.py
 
 Поддерживаемые сети: Ethereum, BSC, Solana, Absolute (ABS)
 """
@@ -45,7 +45,8 @@ class BridgeLock:
 
 class RustBridge:
     """
-    Обёртка над Python-симулятором / Rust-бинарником кросс-чейн моста.
+    Обёртка над Rust-бинарником кросс-чейн моста.
+    Python simulator остаётся только явным dev/test-only режимом.
 
     Жизненный цикл транзакции:
       1. lock_and_bridge()   — блокируем ABS на нашей цепи, инициируем перевод
@@ -91,8 +92,12 @@ class RustBridge:
         if self._is_prod and config.bridge_mode != "rust":
             raise RuntimeError("production bridge requires bridge_mode=rust")
 
-        # Python simulator is dev/test-only. Production must not keep a fallback path.
-        self._simulator = None if self._is_prod else CrossChainBridge()
+        # Python simulator is dev/test-only and must be selected explicitly.
+        self._simulator = (
+            CrossChainBridge()
+            if not self._is_prod and config.bridge_mode == "simulator"
+            else None
+        )
 
         # Подписываемся на входящие bridge-события
         if self.bus:
@@ -106,13 +111,14 @@ class RustBridge:
                 print(f"[Bridge] ERROR: {msg} at '{config.rust_bridge_path}'")
                 if self._is_prod:
                     raise RuntimeError(msg)
-                print("[Bridge] Falling back to simulator (dev only).")
-                self._mode = "simulator"
+                self._mode = "unavailable"
             else:
                 self._mode = "rust"
                 print(f"[Bridge] Rust bridge: {self._rust_bin}")
-        else:
+        elif config.bridge_mode == "simulator":
             self._mode = "simulator"
+        else:
+            self._mode = "unavailable"
 
         print(f"[Bridge] Initialized in '{self._mode}' mode. "
               f"Supported chains: {', '.join(self.SUPPORTED_CHAINS)}")
@@ -165,19 +171,15 @@ class RustBridge:
                 "amount": net_amount,
             })
             if not tx_hash:
-                if self._is_prod:
-                    return {"error": "rust bridge call failed"}
-                if not self._simulator:
-                    return {"error": "simulator bridge not available"}
-                tx_hash = self._simulator.bridge(
-                    "absolute", to_chain, from_addr, to_addr, net_amount
-                )
-        else:
+                return {"error": "rust bridge call failed"}
+        elif self._mode == "simulator":
             if not self._simulator:
                 return {"error": "simulator bridge not available"}
             tx_hash = self._simulator.bridge(
                 "absolute", to_chain, from_addr, to_addr, net_amount
             )
+        else:
+            return {"error": "bridge unavailable: rust binary missing or bridge mode invalid"}
 
         # Списываем с отправителя
         self.db.update_balance(from_addr, -amount)
@@ -311,6 +313,8 @@ class RustBridge:
                 rust_args["l1_tx_hash"] = l1_tx_hash
             if not self._call_rust_ok("incoming", rust_args):
                 return {"confirmed": False, "error": "rust incoming failed"}
+        elif self._mode != "simulator":
+            return {"confirmed": False, "error": "bridge unavailable: rust binary missing or bridge mode invalid"}
 
         self.db.update_balance(recipient, amount)
         self.db.save_bridge_credit(tx_hash, recipient, amount, from_chain)
@@ -365,7 +369,7 @@ class RustBridge:
             "total_locks": len(locks),
             "pending_locks": sum(1 for l in locks if l["status"] == "pending"),
             "confirmed_locks": sum(1 for l in locks if l["status"] == "confirmed"),
-            "simulator_stats": sim_stats,
+            "dev_simulator_stats": sim_stats,
         }
 
     def estimate_fee(self, to_chain: str, amount: float) -> Dict:
@@ -399,6 +403,8 @@ class RustBridge:
                 if self._mode == "rust":
                     if not self._call_rust_ok("confirm", {"tx_hash": tx_hash}):
                         return {"confirmed": False, "error": "rust confirm failed"}
+                elif self._mode != "simulator":
+                    return {"confirmed": False, "error": "bridge unavailable: rust binary missing or bridge mode invalid"}
                 if self._simulator:
                     self._simulator.confirm_transaction(tx_hash)
                 self.db.confirm_bridge_lock(tx_hash)
@@ -501,5 +507,5 @@ class RustBridge:
             if self._is_prod:
                 print(f"[Bridge] Rust call failed: {e}.")
             else:
-                print(f"[Bridge] Rust call failed: {e}. Falling back to simulator.")
+                print(f"[Bridge] Rust call failed: {e}.")
         return None

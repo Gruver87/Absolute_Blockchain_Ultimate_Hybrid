@@ -79,7 +79,7 @@ volumeMounts:
 | `RUST_BRIDGE_PATH` | Да для rust | `bridge/abs_bridge_bin` в образе (`Dockerfile.prod`) |
 | `CORS_ORIGINS` | Да (не `*`) | ConfigMap — URL Explorer |
 | `REQUIRE_SIGNATURES` | Да | `node.prod.example.json` |
-| `OPENWEATHER_API_KEY` | Нет | `.env` (оракулы demo без ключа) |
+| `OPENWEATHER_API_KEY` | Нет | `.env` (weather feed disabled without key) |
 | `TELEGRAM_BOT_TOKEN` | Нет | `.env` |
 
 Docker prod (локальный smoke):

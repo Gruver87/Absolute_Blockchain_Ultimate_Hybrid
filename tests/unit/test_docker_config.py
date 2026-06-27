@@ -25,6 +25,8 @@ def test_docker_node_configs_parse():
     assert n1["bootstrap_peers"] == []
     assert n2["bootstrap_peers"] == ["node1:5000"]
     assert n2["mining_enabled"] is False
+    assert n1["bridge_mode"] == "rust"
+    assert n2["bridge_mode"] == "rust"
 
 
 def test_config_from_docker_json_files():
@@ -32,6 +34,7 @@ def test_config_from_docker_json_files():
         cfg = Config.from_json(os.path.join(ROOT, "docker", name))
         assert cfg.chain_id == 77777
         assert cfg.rate_limit_rpm == 0
+        assert cfg.bridge_mode == "rust"
 
 
 def test_chain_id_env_override():

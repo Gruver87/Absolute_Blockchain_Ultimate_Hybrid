@@ -1,4 +1,10 @@
-﻿FROM python:3.13-slim
+﻿FROM rust:1-bookworm AS bridge-builder
+WORKDIR /build
+COPY bridge/rust_bridge/Cargo.toml bridge/rust_bridge/Cargo.lock ./
+COPY bridge/rust_bridge/src ./src
+RUN cargo build --release
+
+FROM python:3.13-slim
 
 WORKDIR /app
 
@@ -10,6 +16,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+COPY --from=bridge-builder /build/target/release/abs_bridge_bin /app/bridge/abs_bridge_bin
+RUN chmod +x /app/bridge/abs_bridge_bin
+RUN test -x /app/bridge/abs_bridge_bin
 
 EXPOSE 8545 8080 5000 8766
 

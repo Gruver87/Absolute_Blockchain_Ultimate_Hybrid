@@ -1896,13 +1896,15 @@ async function refreshStatus() {
     if (!data.bridge_enabled) {
       bridgeEl.textContent = 'off';
     } else {
-      const mode = (data.bridge_mode || 'simulator').toLowerCase();
+      const mode = (data.bridge_mode || 'unknown').toLowerCase();
       const pending = data.bridge_pending || 0;
       const pendingBadge = pending > 0
         ? ` <span class="badge badge-yellow">${pending} pending</span>` : '';
       bridgeEl.innerHTML = (mode === 'rust'
         ? '<span class="badge badge-blue">rust</span>'
-        : '<span class="badge badge-green">sim</span>') + pendingBadge;
+        : mode === 'simulator'
+          ? '<span class="badge badge-yellow">dev-only</span>'
+          : '<span class="badge badge-red">unavailable</span>') + pendingBadge;
     }
   }
 
@@ -1932,7 +1934,7 @@ async function refreshStatus() {
     ['State Root', '<span class="hash">' + (data.state_root||'n/a').slice(0,32) + '…</span>'],
     ['EVM', data.evm_enabled ? '<span class="badge badge-green">ON</span>' : 'off'],
     ['Bridge', data.bridge_enabled
-      ? `<span class="badge badge-blue">ON</span> ${(data.bridge_mode||'simulator')}` +
+      ? `<span class="badge badge-blue">ON</span> ${(data.bridge_mode||'unknown')}` +
         ((data.bridge_pending||0) > 0 ? ` <span class="badge badge-yellow">${data.bridge_pending} pending</span>` : '')
       : 'off'],
   ];
@@ -2849,7 +2851,7 @@ async function loadMEVStats() {
       <tr><td>Arbitrage</td><td>${r.attack_types?.arbitrage||0}</td></tr>
       <tr><td>Frontrun</td><td>${r.attack_types?.frontrun||0}</td></tr>`;
   } else {
-    el.innerHTML = `<tr><td colspan="2" style="color:var(--gray)">${r?.enabled===false?'MEV Simulator not enabled':'No data'}</td></tr>`;
+    el.innerHTML = `<tr><td colspan="2" style="color:var(--gray)">${r?.enabled===false?'MEV analyzer not enabled':'No data'}</td></tr>`;
   }
 }
 

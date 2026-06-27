@@ -35,7 +35,7 @@
 |---|---|
 | **What it is** | Production-hardened R&D blockchain node, local/devnet network stack, portfolio-grade protocol implementation |
 | **What it is NOT** | Launched public mainnet, formally audited DeFi, listed token, investment product |
-| **ABS token** | In-repo **simulation** (221M cap model) — **not** a tradable asset |
+| **ABS token** | In-repo tokenomics model (221M cap) — **not** a tradable asset |
 | **Security** | Stronger production gates are implemented; no external audit yet; do **not** use for real funds without independent review |
 
 ---
@@ -75,7 +75,7 @@
 | P2P sync verification | ✅ | `python scripts/verify_p2p_ci.py --mode devnet3` |
 | Full project audit (one command) | ✅ | `.\scripts\check_everything.ps1` |
 | Unit + integration tests | ✅ | `pytest tests/ -q` |
-| Cross-chain bridge (sim / rust) | ✅ Hardened path | Rust bridge + required L1 proof/RPC in prod; simulator remains dev-only |
+| Cross-chain bridge | ✅ Hardened path | Rust bridge + required L1 proof/RPC in prod; Python simulator is explicit dev/test-only |
 | NFT marketplace | ✅ Dev module | Persisted in SQLite |
 | Lightning / Plasma / WASM / Will | ✅ Dev module | Available through L2 status endpoint; prod-blocked where unsafe |
 | Oracles (prices + weather) | ✅ Dev module | Price/weather feeds; external keys stay in .env |
@@ -96,7 +96,7 @@
 | **54** | **State consistency harness** | `GET /chain/consistency/harness`, `POST /chain/consistency/repair` |
 | **58** | **Fork CI** | `POST /testnet/fork-exercise`, `--mode ci-fork` partition recovery |
 | **59** | **Bridge relayer e2e** | `POST /bridge2/transfer` → RustBridge, L1 queue, `--mode ci-bridge` |
-| **60** | **Mock L1 + relayer CI** | `GET /testnet/bridge-relayer-proof`, `--mode ci-bridge-relayer` |
+| **60** | **CI L1 RPC + relayer proof** | `GET /testnet/bridge-relayer-proof`, `--mode ci-bridge-relayer` |
 | **61** | **Network hygiene + peer rejoin** | `GET /p2p/topology`, `POST /p2p/reconnect`, stable advertised peer ports |
 | **62** | **Live Docker recovery gate** | `--mode devnet3-recovery`, `docker_devnet_3node.ps1 -Recovery`, restart/rejoin `state_root` convergence |
 | **63** | **Admin repair endpoint lockdown** | `JWT_ENFORCE_ADMIN=true`, protected sync/reconnect/repair/fork drill POSTs |

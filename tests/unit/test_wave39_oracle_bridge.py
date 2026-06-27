@@ -122,7 +122,7 @@ def test_sync_from_manager_ingests_prices():
     from storage.database import Database
 
     class _Price:
-        def __init__(self, price, source="demo", change_24h=0, volume=0):
+        def __init__(self, price, source="test-feed", change_24h=0, volume=0):
             self.price = price
             self.source = source
             self.change_24h = change_24h

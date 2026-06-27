@@ -47,7 +47,7 @@ def test_feature_flags_from_config():
     assert d["nft"]["configured"] is False
 
 
-def test_prod_feature_flags_block_analysis_and_demo_modules():
+def test_prod_feature_flags_block_analysis_and_dev_only_modules():
     cfg = Config()
     cfg.deployment_mode = "prod"
     cfg.feature_mev = True
@@ -58,6 +58,7 @@ def test_prod_feature_flags_block_analysis_and_demo_modules():
     assert d["mev"]["tier"] == "analysis"
     assert d["mev"]["prod_blocked_reason"]
     assert d["ai_agents"]["enabled"] is False
+    assert d["ai_agents"]["tier"] == "dev-test"
     assert d["ai_agents"]["prod_blocked_reason"]
 
 

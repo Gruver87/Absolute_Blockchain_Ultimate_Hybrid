@@ -2,7 +2,7 @@
 from dataclasses import dataclass, asdict
 from typing import Dict, Any, Optional
 
-# production = affects L1 state; routing = logical layer on L1; demo = simulation only
+# production = affects L1 state; routing = logical layer on L1; dev-test/r-and-d = blocked in prod
 MODULE_TIERS: Dict[str, str] = {
     "evm": "production",
     "bridge": "production",
@@ -12,15 +12,15 @@ MODULE_TIERS: Dict[str, str] = {
     "sharding": "routing",
     "oracles": "offchain",
     "nft": "production",
-    "wasm": "demo",
-    "plasma": "demo",
-    "lightning": "demo",
-    "zk": "educational",
-    "pq": "educational",
+    "wasm": "r-and-d",
+    "plasma": "dev-test",
+    "lightning": "dev-test",
+    "zk": "r-and-d",
+    "pq": "r-and-d",
     "mev": "analysis",
-    "ai_agents": "demo",
+    "ai_agents": "dev-test",
     "reorg_predictor": "production",
-    "cross_bridge": "demo",
+    "cross_bridge": "dev-test",
 }
 
 
@@ -62,16 +62,16 @@ class FeatureFlags:
         out = {"deployment_mode": getattr(config, "deployment_mode", "dev") if config else "dev"}
         for name, enabled in asdict(self).items():
             live = instances.get(name)
-            tier = MODULE_TIERS.get(name, "demo")
+            tier = MODULE_TIERS.get(name, "dev-test")
             blocked_in_prod = is_prod and tier in (
-                "demo", "educational", "offchain", "routing", "analysis"
+                "dev-test", "r-and-d", "offchain", "routing", "analysis"
             )
             out[name] = {
                 "enabled": bool(enabled and live is not None and not blocked_in_prod),
                 "configured": enabled,
                 "loaded": live is not None,
                 "tier": tier,
-                "demo": tier in ("demo", "educational", "offchain"),
+                "dev_only": tier in ("dev-test", "r-and-d", "offchain"),
                 "analysis": tier == "analysis",
                 "prod_blocked_reason": (
                     f"{tier} feature is not production-grade"

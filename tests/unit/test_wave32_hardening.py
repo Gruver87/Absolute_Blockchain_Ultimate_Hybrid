@@ -61,13 +61,14 @@ def test_bridge_credit_idempotency(db):
     assert db.get_balance(recipient) == 5.0
 
 
-def test_feature_tiers_mark_demo_modules():
+def test_feature_tiers_mark_dev_only_modules():
     assert MODULE_TIERS["mev"] == "analysis"
     assert MODULE_TIERS["sharding"] == "routing"
+    assert MODULE_TIERS["zk"] == "r-and-d"
     flags = FeatureFlags()
     out = flags.to_api_dict(
         {"zk": object(), "sharding": object()},
         config=type("C", (), {"deployment_mode": "prod", "is_production": True})(),
     )
-    assert out["zk"]["demo"] is True
+    assert out["zk"]["dev_only"] is True
     assert out["zk"]["enabled"] is False

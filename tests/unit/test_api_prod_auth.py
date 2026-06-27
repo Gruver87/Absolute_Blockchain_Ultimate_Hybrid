@@ -316,7 +316,7 @@ def test_prod_rust_bridge_runtime_has_no_simulator(tmp_path):
         assert bridge._mode == "rust"
         assert bridge._simulator is None
         stats = bridge.get_stats()
-        assert stats["simulator_stats"]["enabled"] is False
+        assert stats["dev_simulator_stats"]["enabled"] is False
     finally:
         db.close()
 

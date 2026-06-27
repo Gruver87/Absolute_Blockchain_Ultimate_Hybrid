@@ -1,7 +1,7 @@
 {
   "title": "Absolute Blockchain Node",
   "uid": "abs-node-industrial",
-  "tags": ["absolute", "blockchain", "educational"],
+  "tags": ["absolute", "blockchain", "production-hardening"],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,

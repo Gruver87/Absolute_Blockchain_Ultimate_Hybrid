@@ -13,16 +13,16 @@ $env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"
 
 $node1Config = "node.example.json"
-if ($RustBridge) {
-    $bin = Join-Path $ProjectRoot "bridge\abs_bridge_bin.exe"
-    if (-not (Test-Path $bin)) {
-        Write-Host "Rust bridge binary missing - running build_bridge.ps1" -ForegroundColor Yellow
-        & (Join-Path $ProjectRoot "scripts\build_bridge.ps1")
-        if ($LASTEXITCODE -ne 0) { exit 1 }
-    }
-    $node1Config = "node.rust.example.json"
-    Write-Host "Node1 bridge_mode=rust ($node1Config)" -ForegroundColor Cyan
+$bin = Join-Path $ProjectRoot "bridge\abs_bridge_bin.exe"
+if (-not (Test-Path $bin)) {
+    Write-Host "Rust bridge binary missing - running build_bridge.ps1" -ForegroundColor Yellow
+    & (Join-Path $ProjectRoot "scripts\build_bridge.ps1")
+    if ($LASTEXITCODE -ne 0) { exit 1 }
 }
+if ($RustBridge) {
+    Write-Host "-RustBridge is now the default path; using $node1Config" -ForegroundColor DarkGray
+}
+Write-Host "Local nodes bridge_mode=rust ($node1Config + node2.example.json)" -ForegroundColor Cyan
 
 function Wait-NodeReady {
     param(

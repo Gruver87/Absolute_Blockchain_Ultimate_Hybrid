@@ -17,14 +17,14 @@ class Transaction:
     timestamp: int
 
 
-class MEVSimulator:
+class MEVAnalyzer:
     """MEV analysis from real mempool ordering (fee priority), persisted in SQLite."""
 
     def __init__(self, db=None):
         self.db = db
         self.attack_history: List[Dict] = []
         self._load_from_db()
-        print(f"[MEV] Simulator initialized ({len(self.attack_history)} records, "
+        print(f"[MEV] Analyzer initialized ({len(self.attack_history)} records, "
               f"persisted={bool(db)})")
 
     def _load_from_db(self) -> None:
@@ -147,3 +147,7 @@ class MEVSimulator:
             },
             "persisted": bool(self.db),
         }
+
+
+# Backward-compatible import name for existing API/tests.
+MEVSimulator = MEVAnalyzer

@@ -10,9 +10,9 @@ Set-Location $ProjectRoot
 
 $composeFile = "docker-compose.devnet.yml"
 if ($RustBridge) {
-    $composeFile = "docker-compose.devnet-rust.yml"
-    Write-Host "Docker devnet: node1 bridge_mode=rust ($composeFile)" -ForegroundColor Cyan
+    Write-Host "-RustBridge is now the default Docker devnet path; using $composeFile" -ForegroundColor DarkGray
 }
+Write-Host "Docker devnet: bridge_mode=rust ($composeFile)" -ForegroundColor Cyan
 
 if ($NoCloneDb) {
     $env:SKIP_DB_SEED = "1"
