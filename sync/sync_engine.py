@@ -11,7 +11,7 @@ from typing import List, Dict, Optional
 
 class SyncEngine:
     """
-    Fast sync engine (simplified Ethereum-style)
+    Fast sync engine with deterministic head selection and fail-closed block import.
     """
 
     def __init__(self, node):
@@ -120,6 +120,38 @@ class SyncEngine:
             return int(self.node.get_height() or 0)
         return 0
 
+    @staticmethod
+    def _block_height(block: Dict) -> int:
+        return int(block.get("height", block.get("number", 0)) or 0)
+
+    @staticmethod
+    def _block_hash(block: Dict) -> str:
+        return str(block.get("hash", ""))
+
+    @staticmethod
+    def _parent_hash(block: Dict) -> str:
+        return str(block.get("parent_hash") or block.get("parent") or "")
+
+    def _validate_downloaded_chain(self, chain: List[Dict], local_height: int) -> bool:
+        """Require a contiguous parent-linked block sequence before importing."""
+        previous_hash = ""
+        previous_height = local_height
+        if chain and hasattr(self.node, "blockchain") and self.node.blockchain:
+            local_head = self.node.blockchain.get_block(local_height)
+            if local_head:
+                previous_hash = self._block_hash(local_head)
+        for idx, block in enumerate(chain):
+            height = self._block_height(block)
+            block_hash = self._block_hash(block)
+            parent_hash = self._parent_hash(block)
+            if not block_hash or height != previous_height + 1:
+                return False
+            if previous_hash and parent_hash != previous_hash:
+                return False
+            previous_hash = block_hash
+            previous_height = height
+        return True
+
     def download_chain(self, head: str, stop_at_height: Optional[int] = None) -> List[Dict]:
         """Walk parent chain from head; stop at a block we already have locally."""
         chain = []
@@ -137,12 +169,12 @@ class SyncEngine:
             if not block:
                 break
 
-            height = int(block.get("height", block.get("number", 0)) or 0)
+            height = self._block_height(block)
             if height <= stop_h:
                 break
 
             chain.append(block)
-            current = block.get("parent_hash") or block.get("parent")
+            current = self._parent_hash(block)
             if len(chain) > 10000:
                 break
 
@@ -191,17 +223,27 @@ class SyncEngine:
             self.is_syncing = False
             return False
 
-        to_import = [
-            b for b in chain
-            if int(b.get("height", b.get("number", 0)) or 0) > local_h
-        ]
-        to_import.sort(key=lambda b: int(b.get("height", b.get("number", 0)) or 0))
+        target_h = best_peer_h if target_block > 0 else None
+        to_import = []
+        for block in chain:
+            height = self._block_height(block)
+            if height <= local_h:
+                continue
+            if target_h is not None and height > target_h:
+                continue
+            to_import.append(block)
+        to_import.sort(key=self._block_height)
 
         if not to_import:
             print(f"[Sync] No new blocks (local={local_h}, chain_len={len(chain)})")
             self.sync_state()
             self.is_syncing = False
             return True
+
+        if not self._validate_downloaded_chain(to_import, local_h):
+            print("[Sync] Downloaded chain is not contiguous")
+            self.is_syncing = False
+            return False
 
         imported = 0
         for i, block in enumerate(to_import):
@@ -212,6 +254,10 @@ class SyncEngine:
                 ok = bool(self.node.consensus.add_block(block))
             if ok:
                 imported += 1
+            else:
+                print(f"[Sync] Import failed at height {self._block_height(block)}")
+                self.is_syncing = False
+                return False
             self.sync_progress = i + 1
 
         if hasattr(self.node, "consensus") and hasattr(self.node.consensus, "set_head"):

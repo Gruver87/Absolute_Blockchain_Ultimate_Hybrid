@@ -29,13 +29,16 @@ class _Peer:
 
 
 class _Node:
-    def __init__(self, peers, blockchain, imported=None):
+    def __init__(self, peers, blockchain, imported=None, fail_height=None):
         self.p2p = type("P2P", (), {"peers": {p.peer_id: p for p in peers}})()
         self.blockchain = blockchain
         self.consensus = None
         self._imported = imported if imported is not None else []
+        self._fail_height = fail_height
 
     def import_block(self, block):
+        if int(block.get("height", 0)) == self._fail_height:
+            return False
         self._imported.append(block)
         return True
 
@@ -93,3 +96,41 @@ def test_fast_sync_noop_when_already_synced():
 
     assert engine.fast_sync() is True
     assert imported == []
+
+
+def test_fast_sync_respects_target_block():
+    blocks = _chain_blocks()
+    bc = _BlockChain(height=5, blocks_by_hash=blocks)
+    peer = _Peer("0x08", height=8, peer_id="p1")
+    imported = []
+    node = _Node([peer], bc, imported=imported)
+    engine = SyncEngine(node=node)
+
+    assert engine.fast_sync(target_block=6) is True
+    assert [int(b["height"]) for b in imported] == [6]
+
+
+def test_fast_sync_rejects_non_contiguous_download():
+    blocks = _chain_blocks()
+    blocks["0x07"]["parent_hash"] = "0xnot-local-parent"
+    bc = _BlockChain(height=5, blocks_by_hash=blocks)
+    peer = _Peer("0x08", height=8, peer_id="p1")
+    imported = []
+    node = _Node([peer], bc, imported=imported)
+    engine = SyncEngine(node=node)
+
+    assert engine.fast_sync() is False
+    assert imported == []
+
+
+def test_fast_sync_stops_on_import_failure():
+    blocks = _chain_blocks()
+    bc = _BlockChain(height=5, blocks_by_hash=blocks)
+    peer = _Peer("0x08", height=8, peer_id="p1")
+    imported = []
+    node = _Node([peer], bc, imported=imported, fail_height=7)
+    engine = SyncEngine(node=node)
+
+    assert engine.fast_sync() is False
+    assert [int(b["height"]) for b in imported] == [6]
+    assert engine.is_syncing is False
