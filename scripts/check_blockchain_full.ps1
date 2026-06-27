@@ -18,6 +18,8 @@
 #
 # Heavy Docker image build check:
 #   .\scripts\check_blockchain_full.ps1 -Docker -DockerBuild
+#
+# If Windows closes a local test socket once, the full audit is retried once by default.
 
 param(
     [switch]$Live,
@@ -25,9 +27,11 @@ param(
     [switch]$Docker,
     [switch]$DockerBuild,
     [switch]$BuildRust,
+    [switch]$NoClean,
     [string]$BaseUrl = "http://127.0.0.1:8080",
     [int]$PytestTimeout = 900,
-    [int]$P2PWait = 300
+    [int]$P2PWait = 300,
+    [int]$AuditRetries = 1
 )
 
 $ErrorActionPreference = "Stop"
@@ -78,6 +82,33 @@ function Invoke-JsonEndpoint {
     Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec $TimeoutSec | Out-Null
 }
 
+function Clear-PythonGeneratedFiles {
+    Write-Host "Removing Python cache files..." -ForegroundColor DarkGray
+    Get-ChildItem -Path $ProjectRoot -Directory -Recurse -Force -Filter "__pycache__" -ErrorAction SilentlyContinue |
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    Get-ChildItem -Path $ProjectRoot -File -Recurse -Force -Include "*.pyc", "*.pyo" -ErrorAction SilentlyContinue |
+        Remove-Item -Force -ErrorAction SilentlyContinue
+}
+
+function Invoke-FullAuditWithRetry {
+    $attempt = 0
+    while ($true) {
+        $attempt += 1
+        Write-Host "Full audit attempt $attempt/$($AuditRetries + 1)" -ForegroundColor Gray
+        $global:LASTEXITCODE = 0
+        python scripts/full_audit.py --pytest-timeout $PytestTimeout
+        if ($LASTEXITCODE -eq 0) {
+            return
+        }
+        if ($attempt -gt $AuditRetries) {
+            exit $LASTEXITCODE
+        }
+        Write-Host "Full audit failed once; cleaning caches and retrying..." -ForegroundColor Yellow
+        Clear-PythonGeneratedFiles
+        Start-Sleep -Seconds 2
+    }
+}
+
 Write-Host "Absolute Blockchain Ultimate - FULL BLOCKCHAIN CHECK" -ForegroundColor Green
 Write-Host "Project: $ProjectRoot"
 Write-Host "BaseUrl: $BaseUrl"
@@ -119,8 +150,14 @@ Run-Step "Rust bridge binary" {
     Write-Host "Rust bridge status: $($json.status) source=$($json.source)"
 }
 
+if (-not $NoClean) {
+    Run-Step "Clean generated Python cache" {
+        Clear-PythonGeneratedFiles
+    }
+}
+
 Run-Step "Full audit and pytest" {
-    python scripts/full_audit.py --pytest-timeout $PytestTimeout
+    Invoke-FullAuditWithRetry
 }
 
 if ($Live) {
