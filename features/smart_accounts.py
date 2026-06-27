@@ -165,10 +165,16 @@ class SmartAccount:
     Умный аккаунт с поддержкой абстракции
     """
     
-    def __init__(self, address: str, owner: str):
+    def __init__(
+        self,
+        address: str,
+        owner: str,
+        transaction_executor: Optional[Callable[[Dict], Dict]] = None,
+    ):
         self.address = address
         self.owner = owner  # Основной владелец
         self.created_at = time.time()
+        self.transaction_executor = transaction_executor
         
         # Методы аутентификации
         self.auth_methods: Dict[AuthMethod, Any] = {}
@@ -466,8 +472,10 @@ class SmartAccount:
             return None
         
         # Для сессионных ключей проверяем разрешения
+        key = None
         if auth_method == AuthMethod.SESSION_KEY:
-            key = self.session_keys.get(credential)
+            key_id = credential.split(".", 1)[0] if isinstance(credential, str) else ""
+            key = self.session_keys.get(key_id)
             if not key or SessionPermission.TRANSFER not in key.permissions:
                 return None
         
@@ -475,8 +483,10 @@ class SmartAccount:
         if value > self.settings['daily_limit']:
             return None
         
-        # Создаём транзакцию (упрощённо)
-        tx = {
+        if not self.transaction_executor:
+            return None
+
+        tx_request = {
             'id': hashlib.sha256(f"{self.address}{to}{value}{time.time()}".encode()).hexdigest()[:16],
             'from': self.address,
             'to': to,
@@ -485,7 +495,13 @@ class SmartAccount:
             'auth_method': auth_method.value,
             'timestamp': time.time()
         }
-        
+        tx = self.transaction_executor(tx_request)
+        if not isinstance(tx, dict) or tx.get("success") is False:
+            return None
+
+        if key:
+            key.use()
+
         # Обновляем статистику
         self.stats['total_transactions'] += 1
         self.stats['total_volume'] += value
@@ -624,9 +640,10 @@ class SmartAccountManager:
     Менеджер для управления всеми умными аккаунтами
     """
     
-    def __init__(self):
+    def __init__(self, transaction_executor: Optional[Callable[[Dict], Dict]] = None):
         self.accounts: Dict[str, SmartAccount] = {}
         self.address_index: Dict[str, str] = {}  # address -> account_id
+        self.transaction_executor = transaction_executor
         
     def register_account(self, account: SmartAccount) -> str:
         """Регистрация аккаунта"""
@@ -658,7 +675,7 @@ class SmartAccountManager:
         address = "0x" + hashlib.sha256(
             f"smart-account:{owner}:{time.time()}:{secrets.token_hex(4)}".encode()
         ).hexdigest()[:40]
-        account = SmartAccount(address, owner)
+        account = SmartAccount(address, owner, transaction_executor=self.transaction_executor)
         try:
             method = AuthMethod(auth_method)
         except ValueError:

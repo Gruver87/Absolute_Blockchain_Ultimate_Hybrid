@@ -50,3 +50,57 @@ def test_manager_create_session_and_authenticate_fail_closed():
     assert manager.authenticate(address, session["session_key"], "session_key") is True
     manager.get_account(address).session_keys[session["key_id"]].use()
     assert manager.authenticate(address, session["session_key"], "session_key") is False
+
+
+def test_smart_account_transaction_requires_execution_backend():
+    account = SmartAccount("0x" + "f" * 40, "0x" + "1" * 40)
+    account.add_auth_method(AuthMethod.SESSION_KEY, {})
+    session_key = account.create_session_key(
+        [SessionPermission.TRANSFER],
+        expires_in=60,
+        max_uses=1,
+    )
+
+    assert account.execute_transaction(
+        "0x" + "2" * 40,
+        1.0,
+        auth_method=AuthMethod.SESSION_KEY,
+        credential=session_key,
+    ) is None
+
+
+def test_smart_account_transaction_uses_real_executor_and_consumes_session():
+    calls = []
+
+    def executor(tx):
+        calls.append(tx)
+        return {"success": True, "tx_hash": "0xabc", **tx}
+
+    account = SmartAccount(
+        "0x" + "3" * 40,
+        "0x" + "4" * 40,
+        transaction_executor=executor,
+    )
+    account.add_auth_method(AuthMethod.SESSION_KEY, {})
+    session_key = account.create_session_key(
+        [SessionPermission.TRANSFER],
+        expires_in=60,
+        max_uses=1,
+    )
+
+    result = account.execute_transaction(
+        "0x" + "5" * 40,
+        2.0,
+        auth_method=AuthMethod.SESSION_KEY,
+        credential=session_key,
+    )
+
+    assert result["success"] is True
+    assert result["tx_hash"] == "0xabc"
+    assert calls[0]["from"] == account.address
+    assert account.execute_transaction(
+        "0x" + "5" * 40,
+        2.0,
+        auth_method=AuthMethod.SESSION_KEY,
+        credential=session_key,
+    ) is None
