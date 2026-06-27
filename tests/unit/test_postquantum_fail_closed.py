@@ -1,0 +1,43 @@
+import os
+import sys
+
+import pytest
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+
+from features.postquantum import PQAlgorithm, PQSignature, PostQuantumManager
+
+
+def test_sphincs_and_falcon_signing_fail_closed_without_backend():
+    pqm = PostQuantumManager()
+
+    for algorithm in (PQAlgorithm.SPHINCS_PLUS, PQAlgorithm.FALCON):
+        keypair = pqm.generate_keypair(algorithm)
+        with pytest.raises(NotImplementedError):
+            pqm.sign(b"absolute-chain", keypair)
+
+
+def test_sphincs_and_falcon_verify_fail_closed_without_backend():
+    pqm = PostQuantumManager()
+    message = b"absolute-chain"
+
+    for algorithm in (PQAlgorithm.SPHINCS_PLUS, PQAlgorithm.FALCON):
+        keypair = pqm.generate_keypair(algorithm)
+        signature = PQSignature(
+            id="fake",
+            algorithm=algorithm,
+            signature=b"a" * 64,
+            public_key_hash="fake",
+            message_hash="fake",
+        )
+        assert pqm.verify(signature, message, keypair.public_key) is False
+        assert signature.verified is False
+
+
+def test_dilithium_commitment_path_still_verifies_and_rejects_tamper():
+    pqm = PostQuantumManager()
+    keypair = pqm.generate_keypair(PQAlgorithm.DILITHIUM)
+    signature = pqm.sign(b"absolute-chain", keypair)
+
+    assert pqm.verify(signature, b"absolute-chain", keypair.public_key) is True
+    assert pqm.verify(signature, b"tampered", keypair.public_key) is False

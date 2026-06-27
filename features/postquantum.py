@@ -178,37 +178,12 @@ class SPHINCSPlus:
     
     def sign(self, message: bytes, keypair: PQKeyPair) -> PQSignature:
         """Подписание сообщения"""
-        
-        message_hash = hashlib.sha3_512(message).hexdigest()
-        
-        # Симуляция подписи
-        signature_data = hashlib.sha3_512(
-            message_hash.encode() + keypair.private_key + secrets.token_bytes(32)
-        ).digest()
-        
-        # Увеличиваем размер до реального SPHINCS+
-        signature = signature_data * (self.params[self.security_level]['sig_size'] // 64)
-        
-        return PQSignature(
-            id=hashlib.sha256(f"{message_hash}{time.time()}".encode()).hexdigest()[:16],
-            algorithm=PQAlgorithm.SPHINCS_PLUS,
-            signature=signature[:self.params[self.security_level]['sig_size']],
-            public_key_hash=hashlib.sha256(keypair.public_key).hexdigest(),
-            message_hash=message_hash
-        )
+        raise NotImplementedError("SPHINCS+ signing backend not available")
     
     def verify(self, signature: PQSignature, message: bytes, public_key: bytes) -> bool:
         """Проверка подписи"""
-        
-        # Симуляция проверки
-        expected_hash = hashlib.sha3_512(message).hexdigest()
-        
-        if expected_hash != signature.message_hash:
-            return False
-        
-        # Симуляция успешной проверки
-        signature.verified = True
-        return True
+        signature.verified = False
+        return False
 
 
 # ============================================================================
@@ -470,33 +445,12 @@ class Falcon:
     
     def sign(self, message: bytes, keypair: PQKeyPair) -> PQSignature:
         """Подписание сообщения (Fast Fourier sampling)"""
-        
-        params = self.params[self.security_level]
-        message_hash = hashlib.sha3_512(message).hexdigest()
-        
-        # Симуляция подписи с компактным представлением
-        signature = hashlib.shake_256(
-            message_hash.encode() + keypair.private_key
-        ).digest(params['sig_size'])
-        
-        return PQSignature(
-            id=hashlib.sha256(f"{message_hash}{time.time()}".encode()).hexdigest()[:16],
-            algorithm=PQAlgorithm.FALCON,
-            signature=signature,
-            public_key_hash=hashlib.sha256(keypair.public_key).hexdigest(),
-            message_hash=message_hash
-        )
+        raise NotImplementedError("Falcon signing backend not available")
     
     def verify(self, signature: PQSignature, message: bytes, public_key: bytes) -> bool:
         """Проверка подписи"""
-        
-        expected_hash = hashlib.sha3_512(message).hexdigest()
-        
-        if expected_hash != signature.message_hash:
-            return False
-        
-        signature.verified = True
-        return True
+        signature.verified = False
+        return False
 
 
 # ============================================================================
