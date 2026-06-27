@@ -49,6 +49,12 @@ fn min_confirmations() -> u32 {
         .max(1)
 }
 
+fn require_l1_proof() -> bool {
+    env::var("BRIDGE_REQUIRE_L1_PROOF")
+        .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+        .unwrap_or(false)
+}
+
 fn parse_hex_u64(v: &serde_json::Value) -> Option<u64> {
     match v {
         serde_json::Value::Number(n) => n.as_u64(),
@@ -125,6 +131,9 @@ fn verify_l1_if_present(_command: &str, chain: &Option<String>, args: &serde_jso
     let chain_name = chain.clone().unwrap_or_else(|| "ethereum".into());
     let rpc = resolve_rpc(&chain_name);
     let l1_tx = l1_tx_from_args(args);
+    if require_l1_proof() && l1_tx.is_none() {
+        return Err(format!("l1_tx_hash required for {chain_name}"));
+    }
     if rpc.is_some() && l1_tx.is_none() {
         return Err(format!("l1_tx_hash required when RPC configured for {chain_name}"));
     }

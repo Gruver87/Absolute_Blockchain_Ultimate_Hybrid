@@ -4,9 +4,11 @@
 
 import json
 import os
+import socket
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 
 import pytest
@@ -19,6 +21,14 @@ from storage.database import Database
 from kernel.event_bus import EventBus
 from core.blockchain import Blockchain
 from blockchain.mempool import Mempool
+
+
+def _free_port() -> int:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    return port
 
 
 @pytest.fixture
@@ -82,3 +92,69 @@ def test_rpc_rejects_fake_raw_tx(rpc_env):
     with urllib.request.urlopen(req, timeout=5) as resp:
         body = json.loads(resp.read().decode())
     assert "error" in body
+
+
+def test_prod_rpc_requires_key_and_restricts_cors(tmp_path):
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.db_path = str(tmp_path / "rpc-prod.db")
+    cfg.rpc_port = _free_port()
+    cfg.http_port = _free_port()
+    cfg.rpc_api_key_required = True
+    cfg.rpc_api_keys = ["rpc-prod-key"]
+    cfg.cors_origins = ["https://explorer.example.com"]
+
+    db = Database(cfg.db_path, synchronous="NORMAL")
+    db.initialize()
+    bc = Blockchain(cfg, db, EventBus())
+    mp = Mempool(max_size=100, min_fee=0.001)
+    server = create_rpc_server(bc, mp, cfg, p2p=None, wallet=None, sync_engine=None)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    time.sleep(0.25)
+    url = f"http://127.0.0.1:{cfg.rpc_port}"
+
+    try:
+        payload = {"jsonrpc": "2.0", "method": "eth_chainId", "params": [], "id": 1}
+        data = json.dumps(payload).encode()
+
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={
+                "Content-Type": "application/json",
+                "Origin": "https://explorer.example.com",
+            },
+            method="POST",
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            urllib.request.urlopen(req, timeout=5)
+        assert exc_info.value.code == 401
+        assert exc_info.value.headers["Access-Control-Allow-Origin"] == "https://explorer.example.com"
+
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={
+                "Content-Type": "application/json",
+                "Origin": "https://explorer.example.com",
+                "X-API-Key": "rpc-prod-key",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            body = json.loads(resp.read().decode())
+            assert resp.headers["Access-Control-Allow-Origin"] == "https://explorer.example.com"
+        assert body["result"] == hex(cfg.chain_id)
+
+        get_req = urllib.request.Request(
+            url,
+            headers={"Origin": "https://explorer.example.com"},
+            method="GET",
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            urllib.request.urlopen(get_req, timeout=5)
+        assert exc_info.value.code == 405
+    finally:
+        server.shutdown()
+        db.close()

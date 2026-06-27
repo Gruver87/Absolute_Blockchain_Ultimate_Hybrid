@@ -43,6 +43,7 @@ class Config:
     rpc_port: int = 8545        # JSON-RPC (Ethereum-совместимый)
     http_host: str = "0.0.0.0"
     http_port: int = 8080       # REST API
+    ws_host: str = "0.0.0.0"
     ws_port: int = 8766         # WebSocket
     p2p_host: str = "0.0.0.0"
     p2p_port: int = 5000        # P2P сеть
@@ -89,11 +90,15 @@ class Config:
     feature_wasm: bool = True
     feature_plasma: bool = True
     feature_lightning: bool = True
+    feature_pq: bool = True
+    feature_mev: bool = True
+    feature_ai_agents: bool = True
 
     # ── Мост (Cross-chain bridge) ────────────────────────────────────────────
     bridge_enabled: bool = True
     bridge_mode: str = "simulator"      # "simulator" | "rust"
     bridge_auto_confirm_sec: int = 0    # 0 = manual POST /bridge/confirm-lock only
+    bridge_require_l1_proof: bool = False
     rust_bridge_path: str = "bridge/abs_bridge_bin"
     bridge_oracle_secret: str = ""      # HMAC secret for /bridge/oracle/* relayer
     bridge_l1_queue_path: str = "data/bridge_l1_queue.json"
@@ -108,6 +113,7 @@ class Config:
     jwt_enforce_admin: bool = False       # prod: требовать JWT на POST/admin
     require_wallet_file: bool = False     # prod: не генерировать кошелёк автоматически
     enable_cors_rpc_proxy: bool = True    # dev-only RPC proxy :8082
+    allow_insecure_public_bind: bool = False
     sqlite_synchronous: str = "NORMAL"      # prod: FULL
     metrics_enabled: bool = True
 
@@ -176,6 +182,10 @@ class Config:
         self.node_id = env_str("NODE_ID", self.node_id)
         self.deployment_mode = env_str("DEPLOYMENT_MODE", self.deployment_mode).lower()
         self.chain_id = env_int("CHAIN_ID", self.chain_id)
+        self.rpc_host = env_str("RPC_HOST", self.rpc_host)
+        self.http_host = env_str("HTTP_HOST", self.http_host)
+        self.ws_host = env_str("WS_HOST", self.ws_host)
+        self.p2p_host = env_str("P2P_HOST", self.p2p_host)
         self.rpc_port = env_int("RPC_PORT", self.rpc_port)
         self.http_port = env_int("HTTP_PORT", env_int("WEB_PORT", self.http_port))
         self.ws_port = env_int("WS_PORT", self.ws_port)
@@ -204,6 +214,9 @@ class Config:
         self.metrics_enabled = env_bool("METRICS_ENABLED", self.metrics_enabled)
         self.jwt_enforce_admin = env_bool("JWT_ENFORCE_ADMIN", self.jwt_enforce_admin)
         self.enable_cors_rpc_proxy = env_bool("ENABLE_CORS_RPC_PROXY", self.enable_cors_rpc_proxy)
+        self.allow_insecure_public_bind = env_bool(
+            "ALLOW_INSECURE_PUBLIC_BIND", self.allow_insecure_public_bind
+        )
         self.redis_url = env_str("REDIS_URL", self.redis_url)
         self.redis_rate_limit_enabled = env_bool("REDIS_RATE_LIMIT", self.redis_rate_limit_enabled)
         self.rate_limit_rpm = env_int("RATE_LIMIT_RPM", self.rate_limit_rpm)
@@ -211,6 +224,17 @@ class Config:
         rpc_keys = env_list("RPC_API_KEYS")
         if rpc_keys:
             self.rpc_api_keys = rpc_keys
+
+        self.feature_nft = env_bool("FEATURE_NFT", self.feature_nft)
+        self.feature_zk = env_bool("FEATURE_ZK", self.feature_zk)
+        self.feature_sharding = env_bool("FEATURE_SHARDING", self.feature_sharding)
+        self.feature_oracles = env_bool("FEATURE_ORACLES", self.feature_oracles)
+        self.feature_wasm = env_bool("FEATURE_WASM", self.feature_wasm)
+        self.feature_plasma = env_bool("FEATURE_PLASMA", self.feature_plasma)
+        self.feature_lightning = env_bool("FEATURE_LIGHTNING", self.feature_lightning)
+        self.feature_pq = env_bool("FEATURE_PQ", self.feature_pq)
+        self.feature_mev = env_bool("FEATURE_MEV", self.feature_mev)
+        self.feature_ai_agents = env_bool("FEATURE_AI_AGENTS", self.feature_ai_agents)
 
         peers = env_list("BOOTSTRAP_PEERS")
         if peers:
@@ -220,6 +244,9 @@ class Config:
         self.bridge_mode = env_str("BRIDGE_MODE", self.bridge_mode)
         self.bridge_auto_confirm_sec = env_int(
             "BRIDGE_AUTO_CONFIRM_SEC", self.bridge_auto_confirm_sec
+        )
+        self.bridge_require_l1_proof = env_bool(
+            "BRIDGE_REQUIRE_L1_PROOF", self.bridge_require_l1_proof
         )
         rust_path = env_str("RUST_BRIDGE_PATH", "")
         if rust_path:
@@ -242,14 +269,29 @@ class Config:
             self.enable_cors_rpc_proxy = env_bool("ENABLE_CORS_RPC_PROXY", False)
             self.log_json = env_bool("LOG_JSON", True)
             self.rpc_api_key_required = env_bool("RPC_API_KEY_REQUIRED", True)
+            self.bridge_require_l1_proof = env_bool("BRIDGE_REQUIRE_L1_PROOF", True)
+            self.feature_zk = env_bool("FEATURE_ZK", False)
+            self.feature_sharding = env_bool("FEATURE_SHARDING", False)
+            self.feature_oracles = env_bool("FEATURE_ORACLES", False)
+            self.feature_wasm = env_bool("FEATURE_WASM", False)
+            self.feature_plasma = env_bool("FEATURE_PLASMA", False)
+            self.feature_lightning = env_bool("FEATURE_LIGHTNING", False)
+            self.feature_pq = env_bool("FEATURE_PQ", False)
+            self.feature_mev = env_bool("FEATURE_MEV", False)
+            self.feature_ai_agents = env_bool("FEATURE_AI_AGENTS", False)
             if self.cors_origins == ["*"]:
-                self.cors_origins = env_list("CORS_ORIGINS", ["http://localhost:8080"])
+                self.cors_origins = env_list("CORS_ORIGINS", [])
 
         return self
 
     def validate(self) -> List[str]:
         """Возвращает список ошибок конфигурации (пустой = OK)."""
         errors = []
+
+        def weak_secret(value: str, min_len: int = 24) -> bool:
+            from runtime.secret_utils import is_placeholder_secret
+            return is_placeholder_secret(value) or len(value.strip()) < min_len
+
         for name, port in [
             ("rpc_port", self.rpc_port),
             ("http_port", self.http_port),
@@ -267,8 +309,13 @@ class Config:
             )
             if not os.path.isfile(wallet):
                 errors.append(f"prod mode requires wallet file: {wallet}")
-        if self.rpc_api_key_required and not self.rpc_api_keys:
-            errors.append("RPC_API_KEY_REQUIRED=true but RPC_API_KEYS is empty")
+        if self.rpc_api_key_required:
+            if not self.rpc_api_keys:
+                errors.append("RPC_API_KEY_REQUIRED=true but RPC_API_KEYS is empty")
+            else:
+                weak_keys = [k for k in self.rpc_api_keys if weak_secret(str(k))]
+                if weak_keys:
+                    errors.append("RPC_API_KEYS contains placeholder or weak key")
         if self.bridge_mode not in ("simulator", "rust"):
             errors.append(f"bridge_mode invalid: {self.bridge_mode}")
         if self.bridge_mode == "rust":
@@ -279,10 +326,59 @@ class Config:
                     errors.append(msg)
         if self.is_production and self.bridge_mode == "simulator":
             errors.append("prod deployment should use bridge_mode=rust (or disable bridge)")
-        if self.is_production and not os.environ.get("JWT_SECRET") and not getattr(self, "jwt_secret", ""):
-            errors.append("prod mode requires JWT_SECRET")
-        if self.is_production and self.bridge_enabled and not self.bridge_oracle_secret:
-            errors.append("prod bridge requires BRIDGE_ORACLE_SECRET for relayer callbacks")
+        if self.is_production:
+            if not self.cors_origins:
+                errors.append("prod mode requires CORS_ORIGINS")
+            if "*" in self.cors_origins:
+                errors.append("prod mode forbids wildcard CORS_ORIGINS")
+            if any(o.startswith("http://localhost") or o.startswith("http://127.") for o in self.cors_origins):
+                errors.append("prod mode forbids localhost CORS_ORIGINS")
+            blocked = {
+                "FEATURE_ZK": self.feature_zk,
+                "FEATURE_SHARDING": self.feature_sharding,
+                "FEATURE_ORACLES": self.feature_oracles,
+                "FEATURE_WASM": self.feature_wasm,
+                "FEATURE_PLASMA": self.feature_plasma,
+                "FEATURE_LIGHTNING": self.feature_lightning,
+                "FEATURE_PQ": self.feature_pq,
+                "FEATURE_MEV": self.feature_mev,
+                "FEATURE_AI_AGENTS": self.feature_ai_agents,
+            }
+            enabled_blocked = [name for name, enabled in blocked.items() if enabled]
+            if enabled_blocked:
+                errors.append(
+                    "prod deployment blocks demo/routing/offchain features: "
+                    + ", ".join(enabled_blocked)
+                )
+        if self.deployment_mode != "dev" and not self.allow_insecure_public_bind:
+            public_http = self.http_host in ("0.0.0.0", "::", "")
+            public_rpc = self.rpc_host in ("0.0.0.0", "::", "")
+            if public_http and not self.jwt_enforce_admin:
+                errors.append("non-dev public HTTP bind requires JWT_ENFORCE_ADMIN=true")
+            if public_rpc and not self.rpc_api_key_required:
+                errors.append("non-dev public RPC bind requires RPC_API_KEY_REQUIRED=true")
+            if (public_http or public_rpc) and "*" in self.cors_origins:
+                errors.append("non-dev public bind forbids wildcard CORS_ORIGINS")
+        if self.is_production:
+            jwt_secret = os.environ.get("JWT_SECRET") or getattr(self, "jwt_secret", "")
+            if not jwt_secret:
+                errors.append("prod mode requires JWT_SECRET")
+            elif weak_secret(jwt_secret):
+                errors.append("prod JWT_SECRET is placeholder or too short")
+        if self.is_production and self.bridge_enabled:
+            if not self.bridge_oracle_secret:
+                errors.append("prod bridge requires BRIDGE_ORACLE_SECRET for relayer callbacks")
+            elif weak_secret(self.bridge_oracle_secret):
+                errors.append("prod BRIDGE_ORACLE_SECRET is placeholder or too short")
+            l1_rpc = [
+                os.environ.get("ETH_RPC_URL", "").strip(),
+                os.environ.get("BSC_RPC_URL", "").strip(),
+                os.environ.get("POLYGON_RPC_URL", "").strip(),
+            ]
+            if not any(l1_rpc):
+                errors.append("prod bridge requires at least one L1 RPC URL (ETH_RPC_URL/BSC_RPC_URL/POLYGON_RPC_URL)")
+            if not self.bridge_require_l1_proof:
+                errors.append("prod bridge requires BRIDGE_REQUIRE_L1_PROOF=true")
         return errors
 
     def __repr__(self) -> str:

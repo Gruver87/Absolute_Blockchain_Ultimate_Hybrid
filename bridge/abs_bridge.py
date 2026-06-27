@@ -86,9 +86,13 @@ class RustBridge:
         self.bus = bus
         self._running = False
         self._lock = threading.Lock()
+        self._is_prod = getattr(config, "deployment_mode", "dev") == "prod"
 
-        # Инициализируем Python-симулятор
-        self._simulator = CrossChainBridge()
+        if self._is_prod and config.bridge_mode != "rust":
+            raise RuntimeError("production bridge requires bridge_mode=rust")
+
+        # Python simulator is dev/test-only. Production must not keep a fallback path.
+        self._simulator = None if self._is_prod else CrossChainBridge()
 
         # Подписываемся на входящие bridge-события
         if self.bus:
@@ -100,7 +104,7 @@ class RustBridge:
             if not self._rust_bin:
                 msg = "Rust bridge binary not found"
                 print(f"[Bridge] ERROR: {msg} at '{config.rust_bridge_path}'")
-                if getattr(config, "deployment_mode", "dev") == "prod":
+                if self._is_prod:
                     raise RuntimeError(msg)
                 print("[Bridge] Falling back to simulator (dev only).")
                 self._mode = "simulator"
@@ -161,12 +165,16 @@ class RustBridge:
                 "amount": net_amount,
             })
             if not tx_hash:
-                if getattr(self.config, "deployment_mode", "dev") == "prod":
+                if self._is_prod:
                     return {"error": "rust bridge call failed"}
+                if not self._simulator:
+                    return {"error": "simulator bridge not available"}
                 tx_hash = self._simulator.bridge(
                     "absolute", to_chain, from_addr, to_addr, net_amount
                 )
         else:
+            if not self._simulator:
+                return {"error": "simulator bridge not available"}
             tx_hash = self._simulator.bridge(
                 "absolute", to_chain, from_addr, to_addr, net_amount
             )
@@ -289,6 +297,8 @@ class RustBridge:
                 "eth": "ETH_RPC_URL",
                 "bsc": "BSC_RPC_URL",
             }.get(from_chain.lower(), "")
+            if self._is_prod and not l1_tx_hash:
+                return {"confirmed": False, "error": "l1_tx_hash required in production"}
             if chain_key and os.environ.get(chain_key) and not l1_tx_hash:
                 return {"confirmed": False, "error": "l1_tx_hash required when L1 RPC configured"}
             rust_args = {
@@ -305,7 +315,8 @@ class RustBridge:
         self.db.update_balance(recipient, amount)
         self.db.save_bridge_credit(tx_hash, recipient, amount, from_chain)
         self.db.confirm_bridge_lock(tx_hash)
-        self._simulator.confirm_transaction(tx_hash)
+        if self._simulator:
+            self._simulator.confirm_transaction(tx_hash)
 
         if self.bus:
             self.bus.emit("bridge.confirmed", {
@@ -341,7 +352,11 @@ class RustBridge:
     # ── Информация ───────────────────────────────────────────────────────────
 
     def get_stats(self) -> Dict:
-        sim_stats = self._simulator.get_bridge_stats()
+        sim_stats = (
+            self._simulator.get_bridge_stats()
+            if self._simulator
+            else {"enabled": False, "reason": "simulator disabled"}
+        )
         locks = self.db.get_bridge_locks(limit=1000)
         return {
             "mode": self._mode,
@@ -384,7 +399,8 @@ class RustBridge:
                 if self._mode == "rust":
                     if not self._call_rust_ok("confirm", {"tx_hash": tx_hash}):
                         return {"confirmed": False, "error": "rust confirm failed"}
-                self._simulator.confirm_transaction(tx_hash)
+                if self._simulator:
+                    self._simulator.confirm_transaction(tx_hash)
                 self.db.confirm_bridge_lock(tx_hash)
                 if self.bus:
                     self.bus.emit("bridge.confirmed", {
@@ -430,7 +446,7 @@ class RustBridge:
         Set bridge_auto_confirm_sec=0 for manual oracle confirmation only.
         """
         sec = int(getattr(self.config, "bridge_auto_confirm_sec", 0) or 0)
-        if self._mode != "simulator" or sec <= 0:
+        if self._mode != "simulator" or sec <= 0 or not self._simulator:
             return
         locks = self.db.get_bridge_locks()
         now = int(time.time())
@@ -482,5 +498,8 @@ class RustBridge:
             if result.returncode == 0:
                 return json.loads(result.stdout.decode())
         except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError) as e:
-            print(f"[Bridge] Rust call failed: {e}. Falling back to simulator.")
+            if self._is_prod:
+                print(f"[Bridge] Rust call failed: {e}.")
+            else:
+                print(f"[Bridge] Rust call failed: {e}. Falling back to simulator.")
         return None

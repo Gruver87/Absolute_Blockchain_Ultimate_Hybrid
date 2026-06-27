@@ -173,7 +173,7 @@ for root, dirs, files in os.walk(BASE):
         if not f.endswith(".py"):
             continue
         rel = os.path.relpath(os.path.join(root, f), BASE).replace("\\", "/")
-        if rel.startswith("_"):
+        if rel.startswith("_") or rel == "scripts/final_audit.py":
             continue
         src = read(rel)
         for pat in stale_patterns:

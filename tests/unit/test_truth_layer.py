@@ -47,6 +47,20 @@ def test_feature_flags_from_config():
     assert d["nft"]["configured"] is False
 
 
+def test_prod_feature_flags_block_analysis_and_demo_modules():
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.feature_mev = True
+    cfg.feature_ai_agents = True
+    flags = FeatureFlags.from_config(cfg)
+    d = flags.to_api_dict({"mev": object(), "ai_agents": object()}, cfg)
+    assert d["mev"]["enabled"] is False
+    assert d["mev"]["tier"] == "analysis"
+    assert d["mev"]["prod_blocked_reason"]
+    assert d["ai_agents"]["enabled"] is False
+    assert d["ai_agents"]["prod_blocked_reason"]
+
+
 def test_build_sync_status_includes_state_root():
     status = _build_sync_status(None, _FakeP2P(), _FakeBC(), Config())
     assert status["state_root"] == "abc123" * 8

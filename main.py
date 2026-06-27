@@ -621,12 +621,12 @@ class NodeOrchestrator:
         self.nft = NFTMarketplace(db=self.db, bus=self.bus)
         print(f"[Node] NFT Marketplace: {len(self.nft.tokens)} tokens (persisted={self.nft.get_stats().get('persisted', False)})")
 
-        # 10. ZK Proof System
-        self.zk = ZKProofSystem()
-        print("[Node] ZK Proof System: ready")
+        # 10. ZK Proof System (educational; disabled by prod profile)
+        self.zk = ZKProofSystem() if getattr(config, "feature_zk", True) else None
+        print("[Node] ZK Proof System: ready" if self.zk else "[Node] ZK Proof System: disabled")
 
         # 11. Dynamic Sharding (4 shards: Genesis, Finance, Governance, Identity)
-        if _SHARDING_AVAILABLE:
+        if _SHARDING_AVAILABLE and getattr(config, "feature_sharding", True):
             self.sharding = ShardingManager(num_shards=4, db=self.db)
             self.sharding.register_node(config.miner_address or "node-0")
             print(f"[Node] Sharding: {self.sharding.num_shards} shards active")
@@ -636,14 +636,14 @@ class NodeOrchestrator:
         # 12. Real World Oracles (crypto prices, weather) + on-chain feed registry
         self.oracle_registry = None
         self.oracles = None
-        if _ORACLE_REGISTRY_AVAILABLE:
+        if _ORACLE_REGISTRY_AVAILABLE and getattr(config, "feature_oracles", True):
             try:
                 self.oracle_registry = OracleFeedRegistry(self.db)
                 print("[Node] Oracle registry: SQLite feeds enabled")
             except Exception as e:
                 self.oracle_registry = None
                 print(f"[Node] Oracle registry: unavailable ({e})")
-        if _ORACLE_MANAGER_AVAILABLE:
+        if _ORACLE_MANAGER_AVAILABLE and getattr(config, "feature_oracles", True):
             try:
                 self.oracles = OracleManager()
                 print("[Node] Oracles: price feeds active (BTC/ETH/ABS)")
@@ -670,12 +670,12 @@ class NodeOrchestrator:
             self.smart_accounts = None
 
         # 15. Post-Quantum Crypto
-        if _POSTQUANTUM_AVAILABLE:
+        if _POSTQUANTUM_AVAILABLE and getattr(config, "feature_pq", True):
             print("[Node] Post-Quantum Crypto: SPHINCS+ enabled")
 
         # 16. WebSocket server (real-time browser events on :8546)
         self.ws_server = WebSocketServer(event_bus=self.bus,
-                                         host="0.0.0.0",
+                                         host=getattr(config, "ws_host", "0.0.0.0"),
                                          port=getattr(config, "ws_port", 8546))
 
         # 17. MiniVM Contract Manager + Assembler
@@ -705,7 +705,7 @@ class NodeOrchestrator:
             self.chain_storage = None
 
         # 20. Post-Quantum Manager (full suite: Kyber, Dilithium, Falcon)
-        if _PQ_MANAGER_AVAILABLE:
+        if _PQ_MANAGER_AVAILABLE and getattr(config, "feature_pq", True):
             try:
                 self.pq_manager = PostQuantumManager()
                 print("[Node] PostQuantumManager: Kyber/Dilithium/Falcon enabled")
@@ -738,8 +738,8 @@ class NodeOrchestrator:
         else:
             self.reorg_predictor = None
 
-        # 24. MEV Simulator
-        if _MEV_SIMULATOR_AVAILABLE:
+        # 24. MEV analysis module (disabled by prod profile)
+        if _MEV_SIMULATOR_AVAILABLE and getattr(config, "feature_mev", True):
             self.mev_simulator = MEVSimulator(db=self.db)
             print("[Node] MEVSimulator: enabled (sandwich/arbitrage/frontrun analysis)")
         else:
@@ -808,7 +808,7 @@ class NodeOrchestrator:
             self._attestation_validator = _vaddr
 
         # 28. Lightning Network (payment channels)
-        if _LIGHTNING_AVAILABLE:
+        if _LIGHTNING_AVAILABLE and getattr(config, "feature_lightning", True):
             try:
                 self.lightning = LightningNetwork(
                     node_address=config.miner_address or "genesis",
@@ -833,7 +833,7 @@ class NodeOrchestrator:
             self.crypto_will = None
 
         # 30. Plasma Chain (L2 sidechain)
-        if _PLASMA_AVAILABLE:
+        if _PLASMA_AVAILABLE and getattr(config, "feature_plasma", True):
             try:
                 self.plasma = PlasmaChain(
                     chain_id="plasma_abs",
@@ -848,7 +848,7 @@ class NodeOrchestrator:
             self.plasma = None
 
         # 31. WASM VM (WebAssembly-style contracts)
-        if _WASM_VM_AVAILABLE:
+        if _WASM_VM_AVAILABLE and getattr(config, "feature_wasm", True):
             try:
                 self.wasm_vm = WASMVirtualMachine(db=self.db)
                 print("[Node] WASM VM: WebAssembly-style VM ready")
@@ -858,8 +858,8 @@ class NodeOrchestrator:
         else:
             self.wasm_vm = None
 
-        # 32. AI Agent Manager (trading agents)
-        if _AI_MANAGER_AVAILABLE:
+        # 32. AI Agent Manager (trading agents; disabled by prod profile)
+        if _AI_MANAGER_AVAILABLE and getattr(config, "feature_ai_agents", True):
             try:
                 self.ai_manager = AIAgentManager(db=self.db)
                 print("[Node] AI Agent Manager: trading agents ready")
@@ -1220,7 +1220,7 @@ class NodeOrchestrator:
                             pass
                     def log_message(self, *a):
                         pass
-                _proxy = _HTTPServer(("0.0.0.0", _proxy_port), _CORSProxy)
+                _proxy = _HTTPServer(("127.0.0.1", _proxy_port), _CORSProxy)
                 _threading.Thread(target=_proxy.serve_forever, daemon=True, name="RPCProxy").start()
                 print(f"[RPC Proxy] CORS proxy started: http://localhost:{_proxy_port}/rpc -> :{_rpc_port}")
             except Exception:

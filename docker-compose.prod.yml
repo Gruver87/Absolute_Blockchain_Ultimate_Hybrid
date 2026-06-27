@@ -1,6 +1,6 @@
 # Single-node prod profile (Docker) — Rust bridge + prod config
 # Usage:
-#   $env:JWT_SECRET="your-secret"; $env:RPC_API_KEYS="your-key"
+#   $env:JWT_SECRET="<random>"; $env:RPC_API_KEYS="<key>"; $env:BRIDGE_ORACLE_SECRET="<random>"
 #   docker compose -f docker-compose.prod.yml up --build
 #   curl http://localhost:8080/bridge
 
@@ -21,15 +21,22 @@ services:
       NODE_ID: docker-prod-1
       DEPLOYMENT_MODE: prod
       CHAIN_ID: "77777"
+      HTTP_HOST: "0.0.0.0"
+      RPC_HOST: "0.0.0.0"
+      WS_HOST: "0.0.0.0"
+      P2P_HOST: "0.0.0.0"
       BRIDGE_MODE: rust
       RUST_BRIDGE_PATH: bridge/abs_bridge_bin
       BRIDGE_AUTO_CONFIRM_SEC: "0"
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-      RPC_API_KEYS: ${RPC_API_KEYS:-docker-dev-rpc-key}
+      BRIDGE_REQUIRE_L1_PROOF: "true"
+      ETH_RPC_URL: ${ETH_RPC_URL:?set ETH_RPC_URL before starting prod bridge}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET before starting prod}
+      RPC_API_KEYS: ${RPC_API_KEYS:?set RPC_API_KEYS before starting prod}
+      BRIDGE_ORACLE_SECRET: ${BRIDGE_ORACLE_SECRET:?set BRIDGE_ORACLE_SECRET before starting prod}
       RPC_API_KEY_REQUIRED: "true"
       JWT_ENFORCE_ADMIN: "true"
-      REQUIRE_WALLET_FILE: "false"
-      CORS_ORIGINS: http://localhost:8080
+      REQUIRE_WALLET_FILE: "true"
+      CORS_ORIGINS: ${CORS_ORIGINS:?set CORS_ORIGINS before starting prod}
       RATE_LIMIT_RPM: "120"
     volumes:
       - abs-prod-data:/app/data

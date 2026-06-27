@@ -24,7 +24,7 @@ services:
       CHAIN_ID: "77777"
       RATE_LIMIT_RPM: "0"
       JWT_ENFORCE_ADMIN: "true"
-      JWT_SECRET: "absolute-devnet3-admin-secret"
+      JWT_SECRET: ${JWT_SECRET:-devnet3-local-admin-secret}
     volumes:
       - abs-3node-node1-data:/app/data
     healthcheck:
@@ -126,7 +126,7 @@ services:
       BOOTSTRAP_PEERS: node1:5000
       RATE_LIMIT_RPM: "0"
       JWT_ENFORCE_ADMIN: "true"
-      JWT_SECRET: "absolute-devnet3-admin-secret"
+      JWT_SECRET: ${JWT_SECRET:-devnet3-local-admin-secret}
     volumes:
       - abs-3node-node2-data:/app/data
     depends_on:
@@ -161,7 +161,7 @@ services:
       BOOTSTRAP_PEERS: node1:5000,node2:5000
       RATE_LIMIT_RPM: "0"
       JWT_ENFORCE_ADMIN: "true"
-      JWT_SECRET: "absolute-devnet3-admin-secret"
+      JWT_SECRET: ${JWT_SECRET:-devnet3-local-admin-secret}
     volumes:
       - abs-3node-node3-data:/app/data
     depends_on:

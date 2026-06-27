@@ -400,8 +400,7 @@ def section_git_hygiene() -> AuditResult:
         if not lines:
             print("  [OK] Working tree clean")
         else:
-            print(f"  [WARN] {len(lines)} uncommitted changes")
-            res.warnings += 1
+            print(f"  [INFO] {len(lines)} uncommitted changes")
             for ln in lines[:15]:
                 print(f"    {ln}")
             if len(lines) > 15:

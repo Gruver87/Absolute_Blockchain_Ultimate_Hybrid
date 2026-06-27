@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """MEGA AUDIT — every file, every integration, every endpoint."""
-import os, re, py_compile, json
+import ast, os, re, json
 from collections import defaultdict
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -45,8 +45,8 @@ print("\n[1] PYTHON SYNTAX")
 syntax_errs = []
 for p in sorted(all_py):
     try:
-        py_compile.compile(os.path.join(BASE, p), doraise=True)
-    except py_compile.PyCompileError as e:
+        ast.parse(read(p), filename=p)
+    except SyntaxError as e:
         syntax_errs.append((p, str(e)))
 if syntax_errs:
     for p, e in syntax_errs:

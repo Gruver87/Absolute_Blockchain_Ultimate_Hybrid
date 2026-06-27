@@ -1,12 +1,12 @@
 ﻿# Absolute Blockchain Ultimate
 
-> **Educational Python blockchain node** — L1 core, REST/RPC, web explorer, PoS-style consensus, ABS tokenomics model.
+> **Production-hardened Python blockchain node and devnet stack** — L1 core, REST/RPC, web explorer, PoS-style consensus, ABS tokenomics model, Rust bridge path, Docker/Kubernetes deployment profiles.
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Educational%20Only-orange)]()
+[![Status](https://img.shields.io/badge/Status-Production--hardened%20R%26D-blue)]()
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/Unit%20Tests-246%20passed-brightgreen)](tests/unit/)
+[![Tests](https://img.shields.io/badge/Unit%20Tests-258%20passed-brightgreen)](tests/unit/)
 [![Audit](https://img.shields.io/badge/Full%20Audit-passing-brightgreen)](scripts/full_audit.py)
 [![Release](https://img.shields.io/badge/Release-v1.2.0--industrial-blue)](https://github.com/Gruver87/absolute-blockchain-ultimate/releases)
 
@@ -33,33 +33,33 @@
 
 | | |
 |---|---|
-| **What it is** | Learning / R&D codebase, portfolio demo, community fork base |
-| **What it is NOT** | Production mainnet, audited DeFi, listed token, investment product |
+| **What it is** | Production-hardened R&D blockchain node, local/devnet network stack, portfolio-grade protocol implementation |
+| **What it is NOT** | Launched public mainnet, formally audited DeFi, listed token, investment product |
 | **ABS token** | In-repo **simulation** (221M cap model) — **not** a tradable asset |
-| **Security** | No formal audit; do **not** use for real funds |
+| **Security** | Stronger production gates are implemented; no external audit yet; do **not** use for real funds without independent review |
 
 ---
 
 ## Snapshot (for reviewers & investors)
 
-**Absolute Blockchain Ultimate** is a single-process educational L1 node: real SQLite persistence, deterministic `state_root`, multi-node P2P sync, a full REST/RPC surface, and a browser explorer — designed as a portfolio-grade demo and research base, not as a production mainnet.
+**Absolute Blockchain Ultimate** is a production-hardened Python L1 node and devnet stack: real SQLite persistence, deterministic `state_root`, multi-node P2P sync, a full REST/RPC surface, a browser explorer, Rust bridge integration, and fail-closed production configuration gates. It is a serious R&D implementation and deployment base, not a claim that a public audited mainnet is already live.
 
 | Area | Level | What is verified in-repo |
 |------|-------|--------------------------|
-| **L1 core** | 🟢 Production-quality demo | Blocks, balances, 2% burn, genesis, ECDSA txs, auto-mining ~12–15s |
-| **REST API** | 🟢 | **283+** route handlers, OpenAPI `/docs`, `api_wave=61` |
+| **L1 core** | 🟢 Hardened R&D implementation | Blocks, balances, 2% burn, genesis, ECDSA txs, auto-mining ~12–15s |
+| **REST API** | 🟢 | **288+** route handlers, OpenAPI `/docs`, `api_wave=61`, prod admin gates |
 | **Web Explorer** | 🟢 | SPA at `:8080` — **32** functional tabs |
 | **P2P networking** | 🟢 Verified | 2 / 3 / 5-node Docker meshes; strict `state_root`, topology, and rejoin APIs |
 | **TX propagation** | 🟢 | Signed gossip + mempool pull + `/tx/trace/{hash}` |
 | **Multi-validator devnet** | 🟢 | 5 validators, proposer rotation, 3 miners + 2 attesters |
 | **State consistency** | 🟢 | Cross-node harness + auto-repair (`/chain/consistency/*`) |
 | **Fork & slashing CI** | 🟢 | `/testnet/fork-status`, double-vote detection |
-| **JSON-RPC** | 🟢 | `eth_*` subset (MetaMask-style) on `:8545` |
+| **JSON-RPC** | 🟢 | `eth_*` subset on `:8545`, API-key protection in prod |
 | **Tokenomics model** | 🟢 | 221M ABS cap, founder D.U.P. 17.4% — enforced in code |
-| **EVM / L2 / Bridge** | 🟡 Educational | Working demos with SQLite persistence; not full Ethereum parity |
-| **Production mainnet** | 🔴 Out of scope | By design — see [DISCLAIMER.md](DISCLAIMER.md) |
+| **EVM / L2 / Bridge** | 🟡 Mixed | EVM subset and Rust bridge path are integrated; demo L2/offchain modules are blocked by prod profile |
+| **Production mainnet** | 🔴 Not launched | Requires external audit, live infra, validator operations, and L1 bridge RPC/secrets |
 
-**Quality gate (Jun 2026):** `246 passed, 1 skipped` · **`python scripts/full_audit.py --live --p2p`** → 12/12 sections OK
+**Quality gate (Jun 2026):** `258 passed, 1 skipped` locally · **`.\scripts\check_everything.ps1`** → full audit OK (`324 passed, 1 skipped` inside audit) · `cargo check` OK for Rust bridge
 
 ---
 
@@ -75,11 +75,11 @@
 | P2P sync verification | ✅ | `python scripts/verify_p2p_ci.py --mode devnet3` |
 | Full project audit (one command) | ✅ | `python scripts/full_audit.py --live --p2p` |
 | Unit + integration tests | ✅ | `pytest tests/ -q` |
-| Cross-chain bridge (sim / rust) | ✅ Demo | Explorer → Cross-Chain tab |
+| Cross-chain bridge (sim / rust) | ✅ Hardened path | Rust bridge + required L1 proof/RPC in prod; simulator remains dev-only |
 | NFT marketplace | ✅ Demo | Persisted in SQLite |
 | Lightning / Plasma / WASM / Will | ✅ Demo | `GET /l2/status` |
 | Oracles (prices + weather) | ✅ Demo | `GET /oracles/prices` |
-| Post-quantum crypto demos | ✅ Educational | SPHINCS+, Kyber, Dilithium |
+| Post-quantum crypto demos | ✅ Educational | SPHINCS+, Kyber, Dilithium; private-key helper endpoints blocked in prod |
 
 ---
 
@@ -127,7 +127,7 @@ python scripts/verify_p2p_ci.py --mode ci3
 python scripts/verify_p2p_ci.py --mode ci-fork
 python scripts/verify_p2p_ci.py --mode ci-bridge
 python scripts/verify_p2p_ci.py --mode ci-bridge-relayer
-# Send tx (node1 wallet auto_sign), then trace:
+# Dev-only convenience send (auto_sign is disabled in prod), then trace:
 Invoke-RestMethod http://localhost:8080/tx/send -Method POST -ContentType application/json -Body '{"auto_sign":true,"to":"0x2222222222222222222222222222222222222222","value":0.01}'
 Invoke-RestMethod http://localhost:8081/mempool -UseBasicParsing   # same tx on node2
 Invoke-RestMethod http://localhost:8080/tx/trace/{hash} -UseBasicParsing
@@ -172,6 +172,34 @@ cp wallet.example.json data/wallet.json
 
 Secrets (`BRIDGE_ORACLE_SECRET`, `TELEGRAM_BOT_TOKEN`, RPC keys) — **only in `.env`**, never commit.
 
+### Production Profile
+
+The production profile is fail-closed by default. It requires explicit secrets and real L1 bridge configuration before startup:
+
+| Requirement | Enforced by |
+|-------------|-------------|
+| Signed transactions only; no public `auto_sign` | REST/RPC handlers |
+| Admin POST protection | `JWT_SECRET`, `JWT_ENFORCE_ADMIN=true` |
+| JSON-RPC protection | `RPC_API_KEY_REQUIRED=true`, `RPC_API_KEYS` |
+| No wildcard/localhost CORS | `CORS_ORIGINS` validation |
+| Rust bridge only; no simulator fallback | `BRIDGE_MODE=rust`, `RustBridge` runtime |
+| Required L1 proof path | `BRIDGE_REQUIRE_L1_PROOF=true`, `ETH_RPC_URL` / `BSC_RPC_URL` / `POLYGON_RPC_URL` |
+| Demo/offchain modules disabled | `feature_*` prod defaults and `/features` API |
+| Production config gate | `python scripts/prod_gate.py` |
+
+Start production only after generating real secrets and mounting `data/wallet.json`:
+
+```powershell
+# Set JWT_SECRET to a generated long value.
+# Set RPC_API_KEYS to one or more generated API keys.
+# Set BRIDGE_ORACLE_SECRET to a generated long value.
+# Set CORS_ORIGINS to your real explorer origin.
+# Set ETH_RPC_URL to your real Ethereum RPC endpoint.
+.\scripts\docker_prod.ps1
+```
+
+This is still **not** a public audited mainnet by itself. Before real funds or public validators, run an independent security audit, operate external L1 RPC infrastructure, deploy validator/key management, and test an actual multi-node environment.
+
 ### Run
 
 ```bash
@@ -205,10 +233,12 @@ api_wave=61
 
 ### Full audit (recommended before release)
 
-Single script — syntax, tokenomics, Waves 52–61, secrets scan, mega/final audit, pytest, live API, P2P mesh:
+Single script — secrets scan, production gate, syntax, tokenomics, Waves 52–61, mega/final audit, pytest, optional live API/P2P/Docker checks:
 
 ```powershell
-python scripts/full_audit.py --live --p2p
+.\scripts\check_everything.ps1
+# Optional:
+.\scripts\check_everything.ps1 -Live -P2P -Docker
 # Report: data/full_audit_report.json
 ```
 
@@ -216,7 +246,7 @@ python scripts/full_audit.py --live --p2p
 
 ```powershell
 pytest tests/ -q
-pytest tests/unit/ -q                              # 246 passed, 1 skipped
+pytest tests/unit/ -q                              # 258 passed, 1 skipped
 python scripts/verify_p2p_ci.py --mode devnet3 --wait 300    # 3-node mesh
 python scripts/verify_p2p_ci.py --mode devnet3-recovery --wait 300    # node restart/rejoin
 python scripts/verify_p2p_ci.py --mode devnet5    # 5-validator mesh

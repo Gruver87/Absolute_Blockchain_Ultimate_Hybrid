@@ -18,6 +18,7 @@ MODULE_TIERS: Dict[str, str] = {
     "zk": "educational",
     "pq": "educational",
     "mev": "analysis",
+    "ai_agents": "demo",
     "reorg_predictor": "production",
     "cross_bridge": "demo",
 }
@@ -34,6 +35,9 @@ class FeatureFlags:
     wasm: bool = True
     plasma: bool = True
     lightning: bool = True
+    pq: bool = True
+    mev: bool = True
+    ai_agents: bool = True
 
     @classmethod
     def from_config(cls, config) -> "FeatureFlags":
@@ -47,6 +51,9 @@ class FeatureFlags:
             wasm=getattr(config, "feature_wasm", True),
             plasma=getattr(config, "feature_plasma", True),
             lightning=getattr(config, "feature_lightning", True),
+            pq=getattr(config, "feature_pq", True),
+            mev=getattr(config, "feature_mev", True),
+            ai_agents=getattr(config, "feature_ai_agents", True),
         )
 
     def to_api_dict(self, instances: Optional[Dict[str, Any]] = None, config=None) -> Dict:
@@ -56,7 +63,9 @@ class FeatureFlags:
         for name, enabled in asdict(self).items():
             live = instances.get(name)
             tier = MODULE_TIERS.get(name, "demo")
-            blocked_in_prod = is_prod and tier in ("demo", "educational")
+            blocked_in_prod = is_prod and tier in (
+                "demo", "educational", "offchain", "routing", "analysis"
+            )
             out[name] = {
                 "enabled": bool(enabled and live is not None and not blocked_in_prod),
                 "configured": enabled,
@@ -64,5 +73,10 @@ class FeatureFlags:
                 "tier": tier,
                 "demo": tier in ("demo", "educational", "offchain"),
                 "analysis": tier == "analysis",
+                "prod_blocked_reason": (
+                    f"{tier} feature is not production-grade"
+                    if blocked_in_prod
+                    else ""
+                ),
             }
         return out

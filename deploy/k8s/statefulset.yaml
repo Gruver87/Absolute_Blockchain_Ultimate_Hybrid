@@ -30,6 +30,8 @@ spec:
           envFrom:
             - configMapRef:
                 name: abs-node-config
+            - secretRef:
+                name: abs-node-secrets
           env:
             - name: NODE_ID
               valueFrom:

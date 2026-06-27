@@ -2,11 +2,28 @@
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location (Split-Path -Parent $ProjectRoot)
 
-if (-not $env:JWT_SECRET) {
-    Write-Host "JWT_SECRET not set — using docker-compose default (change for real prod)" -ForegroundColor Yellow
+$missing = @()
+foreach ($name in @("JWT_SECRET", "RPC_API_KEYS", "BRIDGE_ORACLE_SECRET", "CORS_ORIGINS", "ETH_RPC_URL")) {
+    if (-not [Environment]::GetEnvironmentVariable($name)) {
+        $missing += $name
+    }
 }
-if (-not $env:RPC_API_KEYS) {
-    Write-Host "RPC_API_KEYS not set — using docker-compose default" -ForegroundColor Yellow
+if ($missing.Count -gt 0) {
+    Write-Host "Missing required prod env vars: $($missing -join ', ')" -ForegroundColor Red
+    Write-Host "Example:" -ForegroundColor Gray
+    Write-Host '  set $env:JWT_SECRET to a random long secret' -ForegroundColor Gray
+    Write-Host '  set $env:RPC_API_KEYS to a generated RPC key' -ForegroundColor Gray
+    Write-Host '  set $env:BRIDGE_ORACLE_SECRET to a random long secret' -ForegroundColor Gray
+    Write-Host '  set $env:CORS_ORIGINS to your HTTPS explorer origin' -ForegroundColor Gray
+    Write-Host '  set $env:ETH_RPC_URL to your Ethereum JSON-RPC endpoint' -ForegroundColor Gray
+    exit 1
+}
+
+$walletPath = Join-Path (Get-Location) "data\wallet.json"
+if (-not (Test-Path $walletPath)) {
+    Write-Host "Prod wallet is required: $walletPath" -ForegroundColor Red
+    Write-Host "Create or mount data\wallet.json before starting production." -ForegroundColor Gray
+    exit 1
 }
 
 docker compose -f docker-compose.prod.yml up --build -d

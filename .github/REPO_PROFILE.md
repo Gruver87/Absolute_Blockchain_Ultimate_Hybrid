@@ -2,9 +2,9 @@
 
 | Field | Suggested value |
 |-------|-----------------|
-| **Description** | Educational Python blockchain node: L1 core, REST/RPC, explorer, PoS-style consensus, ABS tokenomics demo. API Wave 61. Not production. |
+| **Description** | Production-hardened Python blockchain node: L1 core, P2P, REST/JSON-RPC, explorer, PoS-style consensus, ABS tokenomics, Rust bridge profile. |
 | **Website** | https://github.com/Gruver87/absolute-blockchain-ultimate#readme |
-| **Topics** | `blockchain` `python` `sqlite` `rest-api` `json-rpc` `p2p` `pos` `evm` `web-explorer` `educational` `tokenomics` `docker` `devtools` |
+| **Topics** | `blockchain` `python` `sqlite` `rest-api` `json-rpc` `p2p` `pos` `evm` `web-explorer` `tokenomics` `docker` `kubernetes` `rust-bridge` |
 
 ## Topics (paste one per line in GitHub UI)
 
@@ -18,15 +18,16 @@ p2p
 pos
 evm
 web-explorer
-educational
 tokenomics
 docker
-devtools
-cryptocurrency-simulation
+kubernetes
+rust-bridge
+production-hardening
+blockchain-node
 ```
 
 ## Release tag (optional)
 
-- **Tag:** `v61.0`
-- **Title:** `v61.0 — API Wave 61 + Wave 62/63 hardening gates`
-- **Notes:** See [CHANGELOG.md](../CHANGELOG.md) Waves 37–63
+- **Tag:** `v61.1`
+- **Title:** `v61.1 — Production profile hardening`
+- **Notes:** Production gates for API/RPC, Rust bridge proof requirements, secrets validation, Docker/Kubernetes profiles, and full verification script.

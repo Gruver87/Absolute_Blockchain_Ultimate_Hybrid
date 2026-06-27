@@ -90,6 +90,28 @@ _DEV_PUBLIC_POST = frozenset({
     "/bridge/lock", "/bridge/confirm", "/bridge2/transfer",
 })
 
+_PROD_BLOCKED_PATH_PREFIXES = ("/devnet", "/testnet")
+_PROD_BLOCKED_PATHS = frozenset({
+    "/auth/token",
+    "/bridge/confirm",
+    "/bridge/confirm-lock",
+    "/bridge/refund",
+    "/chain/consistency/harness",
+    "/chain/consistency/repair",
+    "/crypto/eth-address",
+    "/crypto/keygen",
+    "/crypto/sign",
+    "/p2p/reconnect",
+    "/pq/decapsulate",
+    "/pq/hybrid-decrypt",
+    "/pq/hybrid-sign",
+    "/pq/sphincs/sign",
+    "/pools/spend",
+    "/state/credit",
+    "/sync/add-peer",
+    "/tx/sign",
+})
+
 _BRIDGE_ORACLE_PATHS = frozenset({
     "/bridge/oracle/confirm-lock",
     "/bridge/oracle/incoming",
@@ -102,6 +124,36 @@ def _public_post_paths(cfg) -> frozenset:
     if getattr(cfg, "deployment_mode", "dev") == "prod":
         return frozenset({"/transactions", "/tx/send"})
     return _DEV_PUBLIC_POST
+
+
+def _is_production_cfg(cfg) -> bool:
+    return bool(
+        getattr(cfg, "is_production", False)
+        or getattr(cfg, "deployment_mode", "dev") == "prod"
+    )
+
+
+def _reject_auto_sign_in_prod(body: Dict, cfg) -> None:
+    if _is_production_cfg(cfg) and body.get("auto_sign"):
+        raise ValueError("auto_sign is disabled in production; submit a signed transaction")
+
+
+def _is_prod_blocked_path(path: str, cfg) -> bool:
+    if not _is_production_cfg(cfg):
+        return False
+    return path in _PROD_BLOCKED_PATHS or any(
+        path == prefix or path.startswith(f"{prefix}/")
+        for prefix in _PROD_BLOCKED_PATH_PREFIXES
+    )
+
+
+def _bridge_for_request(handler_cls, cfg):
+    rust_bridge = getattr(handler_cls, "bridge", None)
+    if _is_production_cfg(cfg):
+        if rust_bridge and getattr(rust_bridge, "_mode", "") == "rust":
+            return rust_bridge
+        return None
+    return rust_bridge or getattr(handler_cls, "cross_bridge", None)
 
 # Devnet / probes: не считаем в rate limit (start_two_nodes, devnet_status, K8s)
 _RATE_LIMIT_EXEMPT_PATHS = frozenset({
@@ -236,15 +288,38 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         logger.debug(fmt % args)
 
+    @staticmethod
+    def _sanitize_header_value(value: str) -> str:
+        if not value:
+            return ""
+        return value.replace("\r", "").replace("\n", "").replace("\0", "").strip()
+
+    @classmethod
+    def _cors_origin(cls, request_origin: str = "") -> str:
+        request_origin = cls._sanitize_header_value(request_origin)
+        cfg = cls.config
+        origins = list(getattr(cfg, "cors_origins", ["*"]) or ["*"]) if cfg else ["*"]
+        if "*" in origins:
+            return "*"
+        if request_origin and request_origin in origins:
+            return request_origin
+        return origins[0] if origins else ""
+
     def do_OPTIONS(self):
         self._send_cors()
 
     def do_GET(self):
         """Redirect browser GET requests to the Explorer UI on http_port."""
+        if _is_production_cfg(self.__class__.config):
+            self.send_response(405)
+            self.send_header("Allow", "POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Origin", self._cors_origin(self.headers.get("Origin", "")))
+            self.end_headers()
+            return
         http_port = self.__class__.config.http_port if self.__class__.config else 8080
         self.send_response(302)
         self.send_header("Location", f"http://localhost:{http_port}/")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Origin", self._cors_origin(self.headers.get("Origin", "")))
         self.end_headers()
 
     def do_POST(self):
@@ -257,6 +332,7 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             if not ok:
                 self.send_response(401)
                 self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", self._cors_origin(self.headers.get("Origin", "")))
                 self.end_headers()
                 self.wfile.write(json.dumps({
                     "jsonrpc": "2.0",
@@ -375,7 +451,8 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
 
         if method == "eth_sendTransaction":
             tx_obj = dict(params[0] if params else {})
-            if wallet:
+            _reject_auto_sign_in_prod(tx_obj, cfg)
+            if wallet and not _is_production_cfg(cfg):
                 from_addr = str(tx_obj.get("from", "")).lower()
                 if from_addr and from_addr == wallet.address.lower() and not tx_obj.get("signature"):
                     tx_obj["auto_sign"] = True
@@ -431,16 +508,16 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
 
     def _send_cors(self):
         self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Origin", self._cors_origin(self.headers.get("Origin", "")))
+        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-API-Key, Authorization")
         self.end_headers()
 
     def _send_json(self, data: Any):
         body = json.dumps(data).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Origin", self._cors_origin(self.headers.get("Origin", "")))
         self.send_header("Content-Length", len(body))
         self.end_headers()
         self.wfile.write(body)
@@ -583,6 +660,9 @@ class RESTHandler(BaseHTTPRequestHandler):
 
         try:
             self._track_request()
+            if _is_prod_blocked_path(path, cfg):
+                self._error(403, "dev/testnet endpoint disabled in production")
+                return
 
             # ── Health & metrics (K8s / Prometheus) ──────────────────────────
             if path == "/health/live":
@@ -1098,6 +1178,9 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "wasm": self.__class__.wasm_vm,
                     "plasma": self.__class__.plasma,
                     "lightning": self.__class__.lightning,
+                    "pq": self.__class__.pq_manager,
+                    "mev": self.__class__.mev_simulator,
+                    "ai_agents": self.__class__.ai_manager,
                 }
                 payload = flags.to_api_dict(instances, cfg)
                 payload["api_wave"] = 58
@@ -2846,12 +2929,16 @@ class RESTHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
+        cfg = self.__class__.config
         if not _check_rate_limit(self, parsed.path):
             return
 
         self._track_request()
         length = int(self.headers.get("Content-Length", 0))
         raw_bytes = self.rfile.read(length) if length else b""
+        if _is_prod_blocked_path(path, cfg):
+            self._error(403, "dev/testnet endpoint disabled in production")
+            return
         if path in _BRIDGE_ORACLE_PATHS:
             if not self._verify_bridge_oracle(path, raw_bytes):
                 return
@@ -2868,7 +2955,6 @@ class RESTHandler(BaseHTTPRequestHandler):
 
         bc = self.__class__.blockchain
         mp = self.__class__.mempool
-        cfg = self.__class__.config
         db = self.__class__.db
         evm_adapter = self.__class__.evm
 
@@ -3785,6 +3871,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                 l1_tx = (body.get("l1_tx_hash") or "").strip()
                 if not from_addr or not to_addr or amount <= 0:
                     self._error(400, "from_address, to_address, amount required"); return
+                if _is_production_cfg(cfg) and not (
+                    rust_br and getattr(rust_br, "_mode", "") == "rust"
+                ):
+                    self._error(503, "production bridge requires RustBridge runtime")
+                    return
                 if rust_br and hasattr(rust_br, "lock_and_bridge"):
                     if to_chain.lower() in ("absolute", "abs"):
                         tx_id = body.get("tx_id") or l1_tx or (
@@ -3969,7 +4060,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 self._json(result)
 
             elif path == "/bridge/oracle/confirm-lock":
-                br = getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge
+                br = _bridge_for_request(self.__class__, cfg)
                 if not br:
                     self._error(503, "Bridge not enabled"); return
                 tx_hash = body.get("tx_hash", body.get("tx_id", ""))
@@ -3979,7 +4070,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(501, "confirm_lock not available")
 
             elif path == "/bridge/oracle/incoming":
-                br = getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge
+                br = _bridge_for_request(self.__class__, cfg)
                 if not br:
                     self._error(503, "Bridge not enabled"); return
                 tx_id = body.get("tx_id", body.get("tx_hash", ""))
@@ -3996,6 +4087,9 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json({"success": False, "error": "confirm not available"})
 
             elif path == "/bridge/oracle/l1-register":
+                if _is_production_cfg(cfg) and not _bridge_for_request(self.__class__, cfg):
+                    self._error(503, "production bridge requires RustBridge runtime")
+                    return
                 l1_tx = body.get("l1_tx_hash", body.get("tx_hash", "")).strip()
                 abs_lock = body.get("abs_lock_tx", body.get("lock_tx_hash", "")).strip()
                 chain = body.get("chain", body.get("from_chain", "ethereum"))
@@ -4036,7 +4130,7 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             # ── Bridge: lock, confirm, refund ─────────────────────────────────
             elif path == "/bridge/lock":
-                br = getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge
+                br = _bridge_for_request(self.__class__, cfg)
                 if not br:
                     self._error(503, "Bridge not enabled"); return
                 amount = float(body.get("amount", 0))
@@ -4056,7 +4150,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json({"success": False, "error": "lock not available"})
 
             elif path == "/bridge/confirm":
-                br = getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge
+                br = _bridge_for_request(self.__class__, cfg)
                 if not br:
                     self._error(503, "Bridge not enabled"); return
                 tx_id = body.get("tx_id", body.get("tx_hash", ""))
@@ -4073,7 +4167,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json({"success": False, "error": "confirm not available"})
 
             elif path == "/bridge/confirm-lock":
-                br = getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge
+                br = _bridge_for_request(self.__class__, cfg)
                 if not br:
                     self._error(503, "Bridge not enabled"); return
                 tx_hash = body.get("tx_hash", body.get("tx_id", ""))
@@ -4085,7 +4179,7 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/bridge/confirm-pending" or path == "/bridge/dev-confirm-pending":
                 if getattr(cfg, "deployment_mode", "dev") == "prod":
                     self._error(403, "batch confirm disabled in production"); return
-                br = getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge
+                br = _bridge_for_request(self.__class__, cfg)
                 if not br:
                     self._error(503, "Bridge not enabled"); return
                 if hasattr(br, "confirm_pending_locks"):
@@ -4094,7 +4188,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(501, "confirm_pending not available")
 
             elif path == "/bridge/refund":
-                br = getattr(self.__class__, "bridge", None) or self.__class__.cross_bridge
+                br = _bridge_for_request(self.__class__, cfg)
                 if not br:
                     self._error(503, "Bridge not enabled"); return
                 tx_id = body.get("tx_id", "")
@@ -5700,6 +5794,7 @@ def _handle_deploy_tx(body: Dict, bc, mp, cfg, wallet=None, evm=None) -> str:
     gas = int(body.get("gas", getattr(cfg, "evm_gas_limit", 8_000_000)))
 
     tx_body = dict(body or {})
+    _reject_auto_sign_in_prod(tx_body, cfg)
     if wallet and (body.get("auto_sign") or not from_addr):
         nonce = bc.db.get_nonce(wallet.address)
         signed = wallet.sign_transaction(
@@ -5755,6 +5850,7 @@ def _handle_call_tx(body: Dict, bc, mp, cfg, wallet=None) -> str:
     gas = int(body.get("gas", getattr(cfg, "evm_gas_limit", 500_000)))
 
     tx_body = dict(body or {})
+    _reject_auto_sign_in_prod(tx_body, cfg)
     if wallet and (body.get("auto_sign") or not from_addr):
         nonce = bc.db.get_nonce(wallet.address)
         signed = wallet.sign_transaction(
@@ -5851,6 +5947,7 @@ def _handle_devnet_pool_spend(body: Dict, bc, db, cfg, pool_locks) -> Dict:
 def _handle_send_tx_with_wallet(tx_obj: Dict, bc, mp, cfg, wallet=None) -> str:
     """Submit tx; optional auto_sign fills from/nonce/signature from operational wallet."""
     body = dict(tx_obj or {})
+    _reject_auto_sign_in_prod(body, cfg)
     if body.get("auto_sign"):
         if not wallet:
             raise ValueError(
