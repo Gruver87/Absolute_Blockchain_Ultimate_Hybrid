@@ -33,6 +33,7 @@ REQUIRED_TRUE = [
     "jwt_enforce_admin",
     "require_wallet_file",
     "bridge_require_l1_proof",
+    "require_native_crypto",
 ]
 
 

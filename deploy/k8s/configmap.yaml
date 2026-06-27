@@ -15,6 +15,7 @@ data:
   WS_HOST: "0.0.0.0"
   DATA_DIR: "/app/data"
   METRICS_ENABLED: "true"
+  ABS_REQUIRE_NATIVE_CRYPTO: "true"
   REDIS_RATE_LIMIT: "true"
   REDIS_URL: "redis://abs-redis:6379/0"
   RATE_LIMIT_RPM: "120"

@@ -25,6 +25,7 @@ from storage.database import Database
 from runtime.config import Config
 from runtime.tokenomics import genesis_balances, get_tokenomics_summary, MAX_SUPPLY_ABS
 from kernel.event_bus import EventBus
+from execution.state_root import compute_db_state_root
 
 # --- System C: StateEngine (детерминированные state transitions) ---
 try:
@@ -433,6 +434,11 @@ class Blockchain:
                 print(f"[Blockchain] Reject block #{block.height}: {proposer_check.get('error')}")
                 return False
 
+            signature_check = self._verify_block_tx_signatures(block)
+            if not signature_check["valid"]:
+                print(f"[Blockchain] Reject block #{block.height}: {signature_check.get('error')}")
+                return False
+
             peer_state_root = block.state_root if preserve_peer_hash and block.state_root else None
             slashing = self._resolve_slashing_core()
             computed_root = None
@@ -573,22 +579,7 @@ class Blockchain:
         return reward
 
     def _compute_state_root_from_db(self) -> str:
-        accounts = self.db.get_all_accounts()
-        payload = []
-        for r in accounts:
-            code = r.get("code") or ""
-            storage = r.get("storage") or "{}"
-            code_hash = hashlib.sha256(code.encode()).hexdigest() if code else ""
-            storage_hash = hashlib.sha256(storage.encode()).hexdigest() if storage else ""
-            payload.append({
-                "a": r["address"],
-                "b": round(float(r["balance"]), 12),
-                "n": int(r["nonce"]),
-                "c": code_hash,
-                "s": storage_hash,
-            })
-        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(encoded.encode()).hexdigest()
+        return compute_db_state_root(self.db.get_all_accounts())
 
     # ── Применение транзакции ────────────────────────────────────────────────
 
@@ -837,6 +828,58 @@ class Blockchain:
                 return {"valid": False, "error": "invalid_signature"}
         except Exception as e:
             return {"valid": False, "error": f"signature_check_failed: {e}"}
+        return {"valid": True}
+
+    def _verify_block_tx_signatures(self, block: Block) -> Dict:
+        """
+        Batch signature gate before block execution.
+
+        Unsigned transactions are allowed only when require_signatures is false.
+        Signed transactions must verify even in non-prod mode.
+        """
+        require = getattr(self.config, "require_signatures", False)
+        signed_payloads = []
+        signed_txs = []
+
+        for tx in block.transactions:
+            if not tx.signature:
+                if require:
+                    return {
+                        "valid": False,
+                        "error": f"missing_signature:{tx.hash}",
+                    }
+                continue
+            if not tx.public_key:
+                return {
+                    "valid": False,
+                    "error": f"missing_public_key:{tx.hash}",
+                }
+            signed_txs.append(tx)
+            signed_payloads.append({
+                "from": tx.from_addr,
+                "to": tx.to_addr,
+                "value": int(tx.value) if tx.value == int(tx.value) else tx.value,
+                "nonce": tx.nonce,
+                "chain_id": self.config.chain_id,
+                "signature": tx.signature,
+                "public_key": tx.public_key,
+                "data": tx.data or "",
+                "gas_limit": tx.gas,
+            })
+
+        if not signed_payloads:
+            return {"valid": True}
+
+        try:
+            from crypto.wallet import verify_transaction_signatures_batch
+            results = verify_transaction_signatures_batch(signed_payloads)
+        except Exception as e:
+            return {"valid": False, "error": f"signature_batch_failed: {e}"}
+
+        for tx, ok in zip(signed_txs, results):
+            if not ok:
+                return {"valid": False, "error": f"invalid_signature:{tx.hash}"}
+
         return {"valid": True}
 
     def _verify_block_proposer(self, block: Block) -> Dict:

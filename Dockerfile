@@ -3,6 +3,13 @@ WORKDIR /build
 COPY bridge/rust_bridge/Cargo.toml bridge/rust_bridge/Cargo.lock ./
 COPY bridge/rust_bridge/src ./src
 RUN cargo build --release
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 python3-pip \
+  && rm -rf /var/lib/apt/lists/*
+COPY native/abs_native /build/native/abs_native
+RUN python3 -m pip install --break-system-packages --no-cache-dir maturin \
+  && cd /build/native/abs_native \
+  && python3 -m maturin build --release --out /wheels
 
 FROM python:3.13-slim
 
@@ -17,6 +24,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 COPY --from=bridge-builder /build/target/release/abs_bridge_bin /app/bridge/abs_bridge_bin
+COPY --from=bridge-builder /wheels /wheels
+RUN pip install --no-cache-dir /wheels/*.whl \
+  && python -c "from crypto import native; s=native.native_crypto_status(required=True); assert s['available'] and s['self_test'], s; print('abs_native OK')"
 RUN chmod +x /app/bridge/abs_bridge_bin
 RUN test -x /app/bridge/abs_bridge_bin
 

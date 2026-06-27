@@ -6,7 +6,9 @@ SECP256K1 через cryptography (OpenSSL).
 """
 
 import hashlib
-from typing import Callable
+from typing import Callable, Iterable, List, Tuple
+
+from crypto import native
 
 try:
     from cryptography.hazmat.primitives.asymmetric import ec
@@ -76,6 +78,10 @@ def sign(message: bytes, private_key: bytes, hashfunc: Callable = hashlib.sha256
 def verify(message: bytes, signature: bytes, public_key: bytes, hashfunc: Callable = hashlib.sha256) -> bool:
     if not CRYPTO_AVAILABLE:
         return False
+    if hashfunc is hashlib.sha256:
+        native_result = native.verify_secp256k1_sha256(message, signature, public_key)
+        if native_result is not None:
+            return native_result
     try:
         digest = hashfunc(message).digest()
         vk = _public_key_from_bytes(public_key)
@@ -83,3 +89,26 @@ def verify(message: bytes, signature: bytes, public_key: bytes, hashfunc: Callab
         return True
     except (InvalidSignature, ValueError):
         return False
+
+
+def verify_batch_sha256(
+    items: Iterable[Tuple[bytes, bytes, bytes]]
+) -> List[bool]:
+    """
+    Batch verify DER ECDSA signatures over SHA256(message).
+
+    Each item is (message, signature_der, public_key_xy). The function is
+    fail-closed: malformed inputs produce False for that item.
+    """
+    batch = list(items)
+    if not CRYPTO_AVAILABLE:
+        return [False for _ in batch]
+
+    native_result = native.verify_secp256k1_sha256_batch(batch)
+    if native_result is not None:
+        return native_result
+
+    return [
+        verify(message, signature, public_key, hashfunc=hashlib.sha256)
+        for message, signature, public_key in batch
+    ]

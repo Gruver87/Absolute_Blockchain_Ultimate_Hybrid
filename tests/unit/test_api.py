@@ -112,6 +112,8 @@ def test_health_ready(api_server):
     assert status == 200
     assert data["status"] == "ready"
     assert data["checks"]["blockchain"] is True
+    assert data["checks"]["native_crypto"] is True
+    assert "native_crypto" in data
 
 
 def test_metrics_endpoint(api_server):
@@ -134,6 +136,8 @@ def test_status_has_health_links(api_server):
     assert "bridge_pending" in data
     assert "bridge_locks_total" in data
     assert data["bridge_pending"] == 0
+    assert "native_crypto" in data
+    assert "secp256k1_verify" in data["native_crypto"]["kernels"]
 
 
 def test_status_bridge_pending_counts(api_server, industrial_config):

@@ -1,6 +1,6 @@
-﻿# Absolute Blockchain Ultimate
+﻿# Absolute Blockchain Ultimate Hybrid
 
-> **Production-hardened Python blockchain node and devnet stack** — L1 core, REST/RPC, web explorer, PoS-style consensus, ABS tokenomics model, Rust bridge path, Docker/Kubernetes deployment profiles.
+> **Production-hardened hybrid Python + Rust blockchain node and devnet stack** — Python L1/P2P/REST orchestration with Rust/PyO3 native crypto kernels, Rust bridge path, ABS tokenomics model, Docker/Kubernetes deployment profiles.
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
@@ -8,9 +8,9 @@
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/Unit%20Tests-258%20passed-brightgreen)](tests/unit/)
 [![Audit](https://img.shields.io/badge/Full%20Audit-passing-brightgreen)](scripts/check_everything.ps1)
-[![Release](https://img.shields.io/badge/Release-v61.1-blue)](https://github.com/Gruver87/absolute-blockchain-ultimate/releases/tag/v61.1)
+[![Release](https://img.shields.io/badge/Release-Hybrid%20R%26D-blue)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid)
 
-**Repo:** [github.com/Gruver87/absolute-blockchain-ultimate](https://github.com/Gruver87/absolute-blockchain-ultimate)
+**Repo:** [github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid)
 
 | Field | Value |
 |-------|-------|
@@ -19,6 +19,7 @@
 | **Entry point** | `python main.py` |
 | **Storage** | SQLite `data/blockchain.db` |
 | **Chain ID (dev)** | `77777` |
+| **Native layer** | Rust/PyO3 `abs_native`: SHA-256, Merkle, state root, secp256k1 verify |
 
 | Docs | Link |
 |------|------|
@@ -42,7 +43,7 @@
 
 ## Snapshot
 
-**Absolute Blockchain Ultimate** is a production-hardened Python L1 node and devnet stack: real SQLite persistence, deterministic state roots, multi-node P2P sync, a full REST/RPC surface, a browser explorer, Rust bridge integration, and fail-closed production configuration gates. It is a serious R&D implementation and deployment base, not a claim that a public audited mainnet is already live.
+**Absolute Blockchain Ultimate Hybrid** is a production-hardened Python + Rust L1 node and devnet stack: Python keeps node orchestration, P2P gossip, REST/RPC and test flexibility, while Rust/PyO3 accelerates deterministic crypto kernels used by consensus paths. It includes real SQLite persistence, deterministic state roots, multi-node P2P sync, a browser explorer, Rust bridge integration, and fail-closed production configuration gates. It is a serious R&D implementation and deployment base, not a claim that a public audited mainnet is already live.
 
 | Area | Level | What is verified in-repo |
 |------|-------|--------------------------|
@@ -56,6 +57,7 @@
 | **Fork & slashing CI** | 🟢 | `/testnet/fork-status`, double-vote detection |
 | **JSON-RPC** | 🟢 | eth_* subset on port 8545, API-key protection in prod |
 | **Tokenomics model** | 🟢 | 221M ABS cap, founder D.U.P. 17.4% — enforced in code |
+| **Rust native crypto** | 🟢 Hybrid path | PyO3 `abs_native` for SHA-256, Merkle proofs, SQLite state root, secp256k1 verify |
 | **EVM / L2 / Bridge** | 🟡 Mixed | EVM subset and Rust bridge path are integrated; dev-only L2/offchain modules are blocked by prod profile |
 | **Production mainnet** | 🔴 Not launched | Requires external audit, live infra, validator operations, and L1 bridge RPC/secrets |
 
@@ -157,6 +159,7 @@ Config: `runtime/tokenomics.py` · API: `GET /tokenomics`
 ### Requirements
 
 - Python **3.10+** (3.11–3.13 tested)
+- Rust toolchain — required for `abs_native` PyO3 crypto acceleration and Rust bridge builds
 - Windows / Linux / macOS
 - Docker Desktop — optional, for `docker_devnet.ps1`
 
@@ -169,6 +172,24 @@ pip install -r requirements.txt
 cp .env.example .env
 cp wallet.example.json data/wallet.json
 ```
+
+Build the real Rust/PyO3 crypto extension for local high-throughput runs:
+
+```powershell
+.\scripts\build_native.ps1
+```
+
+Linux/macOS:
+
+```bash
+bash scripts/build_native.sh
+```
+
+The `abs_native` extension accelerates deterministic consensus kernels behind
+the existing Python API: SHA-256, Merkle roots/proofs, and the canonical SQLite
+account `state_root`, plus secp256k1 ECDSA verification for signed transaction
+validation. Production profile sets `ABS_REQUIRE_NATIVE_CRYPTO=true` so the node
+fails closed when the native wheel is not installed.
 
 Secrets (`BRIDGE_ORACLE_SECRET`, `TELEGRAM_BOT_TOKEN`, RPC keys) — **only in `.env`**, never commit.
 
@@ -183,6 +204,7 @@ The production profile is fail-closed by default. It requires explicit secrets a
 | JSON-RPC protection | `RPC_API_KEY_REQUIRED=true`, `RPC_API_KEYS` |
 | No wildcard/localhost CORS | `CORS_ORIGINS` validation |
 | Rust bridge only; no simulator fallback | `BRIDGE_MODE=rust`, `RustBridge` runtime |
+| Native crypto required | `ABS_REQUIRE_NATIVE_CRYPTO=true`, `abs_native` PyO3 wheel |
 | Required L1 proof path | `BRIDGE_REQUIRE_L1_PROOF=true`, `ETH_RPC_URL` / `BSC_RPC_URL` / `POLYGON_RPC_URL` |
 | Dev/offchain modules disabled | `feature_*` prod defaults and `/features` API |
 | Production config gate | `python scripts/prod_gate.py` |

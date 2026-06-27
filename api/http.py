@@ -676,15 +676,25 @@ class RESTHandler(BaseHTTPRequestHandler):
                 return
 
             if path == "/health/ready":
+                from crypto import native
+                native_crypto = native.native_crypto_status(
+                    required=bool(getattr(cfg, "require_native_crypto", False))
+                )
                 checks = {
                     "blockchain": bc is not None,
                     "database": db is not None,
                     "mempool": mp is not None,
+                    "native_crypto": (
+                        native_crypto["available"] and native_crypto["self_test"]
+                        if native_crypto["required"]
+                        else True
+                    ),
                 }
                 ready = all(checks.values())
                 payload = {
                     "status": "ready" if ready else "not_ready",
                     "checks": checks,
+                    "native_crypto": native_crypto,
                     "height": bc.get_height() if bc else 0,
                 }
                 if ready:
@@ -791,6 +801,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                         })
                     if peer_heights:
                         peer_gap = max(p["gap"] for p in peer_heights)
+                from crypto import native
+                native_crypto = native.native_crypto_status(
+                    required=bool(getattr(cfg, "require_native_crypto", False))
+                )
                 self._json({
                     "status": "running",
                     "node_version": cfg.node_version,
@@ -829,6 +843,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                         or os.environ.get("BRIDGE_ORACLE_SECRET", "")
                     ),
                     "bridge_l1_queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
+                    "native_crypto": native_crypto,
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
                     "api_wave": 61,
                     "core_real": {
@@ -841,6 +856,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "bridge2_rust_path": bool(getattr(self.__class__, "bridge", None)),
                         "bridge_relayer_live": True,
                         "bridge_ci_l1_rpc": True,
+                        "native_crypto": native_crypto,
                     },
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,

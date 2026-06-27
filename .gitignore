@@ -72,6 +72,7 @@ data/mega_audit_report.json
 bridge/abs_bridge_bin
 bridge/abs_bridge_bin.exe
 bridge/rust_bridge/target/
+native/abs_native/target/
 
 Old files
 Новый.py

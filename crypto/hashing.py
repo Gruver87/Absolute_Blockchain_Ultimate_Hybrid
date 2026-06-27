@@ -7,6 +7,8 @@ import hashlib
 import json
 from typing import Any, Dict
 
+from crypto import native
+
 
 class Hasher:
     """Blockchain hashing utilities"""
@@ -14,7 +16,7 @@ class Hasher:
     @staticmethod
     def sha256(data: bytes) -> str:
         """SHA256 hash"""
-        return hashlib.sha256(data).hexdigest()
+        return native.sha256_hex(data)
     
     @staticmethod
     def keccak256(data: bytes) -> str:
@@ -65,19 +67,20 @@ class Hasher:
     @staticmethod
     def double_sha256(data: bytes) -> str:
         """Bitcoin-style double SHA256"""
-        return hashlib.sha256(hashlib.sha256(data).digest()).hexdigest()
+        return native.double_sha256_hex(data)
     
     @staticmethod
     def merkle_root(hashes: list) -> str:
         """Compute Merkle root from transaction hashes"""
         if not hashes:
-            return hashlib.sha256(b"empty").hexdigest()
-        
-        while len(hashes) > 1:
-            if len(hashes) % 2 == 1:
-                hashes.append(hashes[-1])
-            hashes = [
-                hashlib.sha256((hashes[i] + hashes[i+1]).encode()).hexdigest()
-                for i in range(0, len(hashes), 2)
+            return native.sha256_hex(b"empty")
+
+        layer = list(hashes)
+        while len(layer) > 1:
+            if len(layer) % 2 == 1:
+                layer.append(layer[-1])
+            layer = [
+                native.sha256_hex((layer[i] + layer[i + 1]).encode())
+                for i in range(0, len(layer), 2)
             ]
-        return hashes[0]
+        return layer[0]

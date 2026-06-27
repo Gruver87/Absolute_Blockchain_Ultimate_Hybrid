@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Production/staging config validation rules."""
 import os
+import json
 import sys
 import tempfile
+import importlib.util
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
@@ -25,6 +28,50 @@ def test_prod_rejects_simulator_bridge_without_override():
     cfg.rpc_api_key_required = False
     errs = cfg.validate()
     assert any("bridge_mode=rust" in e for e in errs)
+
+
+def test_prod_requires_native_crypto_flag():
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.require_native_crypto = False
+    cfg.require_wallet_file = False
+    cfg.rpc_api_key_required = False
+
+    errs = cfg.validate()
+    assert any("ABS_REQUIRE_NATIVE_CRYPTO" in e for e in errs)
+
+
+def test_static_prod_gate_requires_native_crypto(tmp_path, monkeypatch):
+    root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    script_path = os.path.join(root, "scripts", "prod_gate.py")
+    spec = importlib.util.spec_from_file_location("prod_gate_for_test", script_path)
+    prod_gate = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(prod_gate)
+
+    prod_dir = tmp_path / "docker"
+    prod_dir.mkdir()
+    config_path = prod_dir / "node.prod.json"
+    config = {
+        "deployment_mode": "prod",
+        "bridge_enabled": False,
+        "require_signatures": True,
+        "enforce_proposer": True,
+        "verify_peer_state_root": True,
+        "rpc_api_key_required": True,
+        "jwt_enforce_admin": True,
+        "require_wallet_file": True,
+        "bridge_require_l1_proof": True,
+        "cors_origins": ["https://explorer.example.com"],
+    }
+    for feature in prod_gate.BLOCKED_FEATURES:
+        config[feature] = False
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    monkeypatch.setattr(prod_gate, "ROOT", Path(tmp_path))
+    errors = prod_gate.check_file("docker/node.prod.json")
+
+    assert any("require_native_crypto" in err for err in errors)
 
 
 def test_prod_rejects_bridge_dev_adapter():
@@ -154,5 +201,6 @@ def test_prod_example_json_structure():
     assert cfg.jwt_enforce_admin is True
     assert cfg.rpc_api_key_required is True
     assert cfg.bridge_require_l1_proof is True
+    assert cfg.require_native_crypto is True
     assert cfg.feature_mev is False
     assert cfg.feature_ai_agents is False

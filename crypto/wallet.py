@@ -6,7 +6,7 @@ Full crypto wallet with ECDSA signing for transactions
 import json
 import hashlib
 import time
-from typing import Optional, Dict
+from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 
 from crypto.secp256k1_backend import (
@@ -14,6 +14,7 @@ from crypto.secp256k1_backend import (
     generate_keypair as _generate_secp_keypair,
     sign,
     verify,
+    verify_batch_sha256,
 )
 from crypto.keys import KeyGenerator
 
@@ -210,8 +211,44 @@ class Wallet:
 
 def verify_transaction_signature(tx: dict) -> bool:
     """Verify transaction signature"""
-    if "signature" not in tx or "public_key" not in tx:
+    material = _transaction_signature_material(tx)
+    if material is None:
         return False
+    if not ECDSA_AVAILABLE:
+        return False
+    message, signature, public_key = material
+    return verify(message, signature, public_key, hashfunc=hashlib.sha256)
+
+
+def verify_transaction_signatures_batch(txs: List[dict]) -> List[bool]:
+    """Batch verify canonical transaction signatures."""
+    if not ECDSA_AVAILABLE:
+        return [False for _ in txs]
+
+    batch: List[Tuple[bytes, bytes, bytes]] = []
+    positions: List[int] = []
+    results = [False for _ in txs]
+
+    for idx, tx in enumerate(txs):
+        material = _transaction_signature_material(tx)
+        if material is None:
+            continue
+        batch.append(material)
+        positions.append(idx)
+
+    if not batch:
+        return results
+
+    verified = verify_batch_sha256(batch)
+    for idx, ok in zip(positions, verified):
+        results[idx] = bool(ok)
+
+    return results
+
+
+def _transaction_signature_material(tx: dict) -> Optional[Tuple[bytes, bytes, bytes]]:
+    if "signature" not in tx or "public_key" not in tx:
+        return None
 
     tx_to_verify = Wallet._canonical_tx_for_hash({
         "from": tx["from"],
@@ -226,13 +263,14 @@ def verify_transaction_signature(tx: dict) -> bool:
     tx_hash_hashed = hashlib.sha256(
         json.dumps(tx_to_verify, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
-    
-    signature = bytes.fromhex(tx["signature"])
-    public_key = bytes.fromhex(tx["public_key"])
-    
-    if not ECDSA_AVAILABLE:
-        return False
-    return verify(tx_hash_hashed.encode(), signature, public_key, hashfunc=hashlib.sha256)
+
+    try:
+        signature = bytes.fromhex(tx["signature"])
+        public_key = bytes.fromhex(tx["public_key"])
+    except (TypeError, ValueError):
+        return None
+
+    return tx_hash_hashed.encode(), signature, public_key
 
 
 def create_test_wallet() -> Wallet:

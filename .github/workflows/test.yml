@@ -31,6 +31,14 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
+    - name: Set up Rust toolchain
+      run: |
+        rustup toolchain install stable --profile minimal
+        rustup default stable
+
+    - name: Build native crypto
+      run: bash scripts/build_native.sh
+
     - name: Secret scan (block keys in repo)
       run: python scripts/check_secrets.py
 
@@ -77,13 +85,12 @@ jobs:
     - name: Build Rust bridge CLI
       if: runner.os == 'Linux' && matrix.python-version == '3.12'
       run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
         source "$HOME/.cargo/env"
         bash scripts/build_bridge.sh
 
-    - name: Rust bridge CLI test
+    - name: Rust bridge CLI and native crypto test
       if: runner.os == 'Linux' && matrix.python-version == '3.12'
-      run: pytest tests/unit/test_rust_bridge_cli.py tests/unit/test_rust_bridge_e2e.py -q
+      run: pytest tests/unit/test_rust_bridge_cli.py tests/unit/test_rust_bridge_e2e.py tests/unit/test_native_crypto.py tests/unit/test_state_root_native.py tests/unit/test_secp256k1.py -q
 
     - name: Docker prod image build (smoke)
       if: matrix.python-version == '3.12'

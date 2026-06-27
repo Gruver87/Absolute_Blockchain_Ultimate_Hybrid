@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from runtime.config import Config
 from storage.database import Database
 from kernel.event_bus import EventBus
-from core.blockchain import Blockchain, Transaction
+from core.blockchain import Blockchain, Block, Transaction
 from blockchain.mempool import Mempool, MempoolTransaction
 from crypto.wallet import Wallet
 
@@ -137,3 +137,35 @@ def test_import_allows_equal_timestamp(chain_env):
     child_dict["timestamp"] = ts
     child_dict["hash"] = "b" * 64
     assert bc.import_block(child_dict) is True
+
+
+def test_add_block_rejects_invalid_signed_tx_before_execution(chain_env):
+    cfg, db, bc = chain_env
+    sender = Wallet()
+    recipient = "0x" + "b" * 40
+    db.set_balance(sender.address, 1000.0)
+
+    raw = sender.sign_transaction(recipient, 1, nonce=0, chain_id=cfg.chain_id)
+    bad_sig = ("00" if raw["signature"][:2] != "00" else "01") + raw["signature"][2:]
+    tx = Transaction(
+        from_addr=raw["from"],
+        to_addr=raw["to"],
+        value=float(raw["value"]),
+        nonce=raw["nonce"],
+        gas=21_000,
+        tx_hash=raw["hash"],
+        signature=bad_sig,
+        public_key=raw["public_key"],
+    )
+
+    last = db.get_last_block()
+    block = Block(
+        height=last["height"] + 1,
+        parent_hash=last["hash"],
+        miner=cfg.miner_address,
+        transactions=[tx],
+    )
+
+    assert bc.add_block(block) is False
+    assert db.get_balance(sender.address) == 1000.0
+    assert db.get_nonce(sender.address) == 0

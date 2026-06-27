@@ -11,6 +11,8 @@ from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 import copy
 
+from execution.state_root import compute_state_engine_root
+
 
 @dataclass
 class AccountState:
@@ -80,11 +82,7 @@ class StateEngine:
     
     def _compute_state_root(self, accounts: Dict[str, AccountState]) -> str:
         """Compute merkle root of all account states"""
-        state_data = json.dumps({
-            addr: {"balance": acc.balance, "nonce": acc.nonce}
-            for addr, acc in accounts.items()
-        }, sort_keys=True)
-        return hashlib.sha256(state_data.encode()).hexdigest()[:32]
+        return compute_state_engine_root(accounts)
     
     def _compute_genesis_hash(self) -> str:
         return hashlib.sha256(b"genesis_absolute_chain").hexdigest()[:32]
