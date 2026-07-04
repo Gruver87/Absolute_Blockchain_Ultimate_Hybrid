@@ -123,7 +123,8 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Public validator set registry: `validators.manifest.example.json`, `runtime/validator_loader.py`, `/validators/registry`, prod gate
 - [ ] Validator key ops (HSM/KMS — long-term)
 - [x] JSON-RPC `eth_getLogs` filters + `eth_sendRawTransaction` RLP
-- [ ] JSON-RPC subscriptions (`eth_newFilter`, `eth_subscribe`)
+- [x] JSON-RPC polling filters: `eth_newFilter`, `eth_getFilterChanges`, `eth_getFilterLogs`, block/pending filters
+- [ ] JSON-RPC WebSocket subscriptions (`eth_subscribe`)
 - [ ] External security audit before public mainnet
 - [ ] Optional PyO3 bridge helper (CLI sufficient today)
 - Dev-only (keep blocked in prod): `bridge_mode=simulator`, `mock_l1_rpc`, `feature_wasm/plasma/lightning/pq/zk`

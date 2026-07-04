@@ -325,6 +325,7 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
     wallet = None
     sync_engine = None
     rpc_auth = None
+    eth_filters = None
 
     def log_message(self, fmt, *args):
         logger.debug(fmt % args)
@@ -609,6 +610,45 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             if not isinstance(filt, dict):
                 raise ValueError("eth_getLogs expects object filter")
             return _handle_eth_get_logs(filt, bc)
+
+        filters = self.__class__.eth_filters
+        if method == "eth_newFilter":
+            filt = params[0] if params else {}
+            if not isinstance(filt, dict):
+                raise ValueError("eth_newFilter expects object filter")
+            if not filters:
+                raise ValueError("eth filters unavailable")
+            return filters.new_log_filter(filt, bc)
+
+        if method == "eth_newBlockFilter":
+            if not filters:
+                raise ValueError("eth filters unavailable")
+            return filters.new_block_filter(bc)
+
+        if method == "eth_newPendingTransactionFilter":
+            if not filters:
+                raise ValueError("eth filters unavailable")
+            return filters.new_pending_filter(mp)
+
+        if method == "eth_getFilterChanges":
+            if not filters:
+                return []
+            filter_id = params[0] if params else ""
+            return filters.get_filter_changes(
+                filter_id, bc, mp, _handle_eth_get_logs
+            )
+
+        if method == "eth_getFilterLogs":
+            if not filters:
+                return []
+            filter_id = params[0] if params else ""
+            return filters.get_filter_logs(filter_id, bc, _handle_eth_get_logs)
+
+        if method == "eth_uninstallFilter":
+            if not filters:
+                return False
+            filter_id = params[0] if params else ""
+            return filters.uninstall(filter_id)
 
         # ── Мемпул ────────────────────────────────────────────────────────
         if method == "eth_getMempoolSize":
@@ -6582,6 +6622,11 @@ def create_rpc_server(blockchain, mempool, config, evm=None, p2p=None, wallet=No
     JSONRPCHandler.p2p = p2p
     JSONRPCHandler.wallet = wallet
     JSONRPCHandler.sync_engine = sync_engine
+    try:
+        from api.eth_filters import EthFilterStore
+        JSONRPCHandler.eth_filters = EthFilterStore()
+    except ImportError:
+        JSONRPCHandler.eth_filters = None
     server = ThreadedHTTPServer((config.rpc_host, config.rpc_port), JSONRPCHandler)
     return server
 
