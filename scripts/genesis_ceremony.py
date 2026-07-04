@@ -23,7 +23,7 @@ def main() -> int:
     parser.add_argument(
         "--strict-mainnet",
         action="store_true",
-        help="Reject placeholder validator addresses (0x000…000N)",
+        help="Reject placeholder/template validator addresses (0x000…, 0xaaa… fills)",
     )
     args = parser.parse_args()
 

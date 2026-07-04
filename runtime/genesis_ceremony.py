@@ -9,6 +9,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+from runtime.mainnet_constants import (
+    is_ceremony_template_address,
+    is_zero_prefix_placeholder_address,
+)
 from runtime.tokenomics import (
     FOUNDER_AMOUNT_ABS,
     MAX_SUPPLY_ABS,
@@ -58,13 +62,11 @@ def genesis_alloc_hash(founder_address: str = "") -> str:
 
 
 def _is_placeholder_validator_address(address: str) -> bool:
-    raw = str(address or "").strip().lower().removeprefix("0x")
-    if len(raw) != 40 or not all(c in "0123456789abcdef" for c in raw):
-        return True
-    # Example manifest uses 0x000…0001 — not valid for public mainnet launch
-    if raw.startswith("0" * 38):
-        return True
-    return False
+    return is_zero_prefix_placeholder_address(address)
+
+
+def _is_strict_template_address(address: str) -> bool:
+    return is_ceremony_template_address(address)
 
 
 def validate_manifest_for_mainnet(
@@ -91,7 +93,7 @@ def validate_manifest_for_mainnet(
         stake = float(row.get("stake", 0) or 0)
         if stake <= 0:
             errors.append(f"invalid_stake:{addr}")
-        if strict_addresses and _is_placeholder_validator_address(addr):
+        if strict_addresses and _is_strict_template_address(addr):
             errors.append(f"placeholder_validator_address:{addr}")
         total_stake += stake
     if total_stake <= 0:

@@ -42,8 +42,7 @@ def save_status(path: Path, items: Dict[str, Any]) -> Path:
     return path
 
 
-DEVNET_CHAIN_ID = 77777
-MAINNET_CHAIN_ID_PLACEHOLDER = 778888  # replace with final ID at genesis ceremony
+from runtime.mainnet_constants import DEVNET_CHAIN_ID, MAINNET_V1_CHAIN_ID
 
 AUTOMATED_ITEMS = {
     "Disaster recovery drill for multi-node devnet completed",

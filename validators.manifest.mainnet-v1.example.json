@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "description": "Mainnet v1 public validator set template — replace addresses with ceremony-approved keys before launch.",
+  "description": "Mainnet v1 public validator set — addresses derived from chain_id ceremony seed (scripts/genesis_ceremony_addresses.py). Replace with operator-controlled keys before public cutover.",
   "validators": [
     {
       "index": 1,
       "node_id": "mainnet-v1-validator-1",
-      "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1",
+      "address": "0x9e5f187ef9688cf0a4fb348f977225ee09533624",
       "public_key": "",
       "mines": true,
       "stake": 5000,
@@ -14,7 +14,7 @@
     {
       "index": 2,
       "node_id": "mainnet-v1-validator-2",
-      "address": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb2",
+      "address": "0x0fbc7ef9c8a2b3db17c7a68db73b4e9a6a51348f",
       "public_key": "",
       "mines": true,
       "stake": 3000,
@@ -23,7 +23,7 @@
     {
       "index": 3,
       "node_id": "mainnet-v1-validator-3",
-      "address": "0xccccccccccccccccccccccccccccccccccccccc3",
+      "address": "0xe98e4070e46fe5e38f48195fceff75f2eabc91e6",
       "public_key": "",
       "mines": false,
       "stake": 2000,

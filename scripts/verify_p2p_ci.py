@@ -30,6 +30,8 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+from runtime.mainnet_constants import MAINNET_V1_CHAIN_ID
+
 DEVNET_URL1 = "http://127.0.0.1:8080"
 DEVNET_URL2 = "http://127.0.0.1:8081"
 DEVNET_URL3 = "http://127.0.0.1:8082"
@@ -755,7 +757,7 @@ def _send_propagation_tx_signed(
     from crypto.wallet import Wallet
 
     wallet = Wallet.import_wallet(wallet_path)
-    chain_id = int(s1.get("chain_id", 778888))
+    chain_id = int(s1.get("chain_id", MAINNET_V1_CHAIN_ID))
     addr_info = _api(f"{url1}/address/{wallet.address}")
     nonce = int(addr_info.get("nonce", 0) or 0)
     balance = float(addr_info.get("balance", 0) or 0)

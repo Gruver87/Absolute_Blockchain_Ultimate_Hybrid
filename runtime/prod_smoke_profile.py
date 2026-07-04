@@ -9,9 +9,11 @@ import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+from runtime.mainnet_constants import MAINNET_V1_CHAIN_ID
+
 ROOT = Path(__file__).resolve().parents[1]
 
-PROD_SMOKE_CHAIN_ID = 778888
+PROD_SMOKE_CHAIN_ID = MAINNET_V1_CHAIN_ID
 
 
 PROD_SMOKE_HTTP_PORTS = (15180, 15181)

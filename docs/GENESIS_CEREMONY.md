@@ -8,8 +8,8 @@ Automated builder: `runtime/genesis_ceremony.py` / `scripts/genesis_ceremony.py`
 
 ## Prerequisites
 
-- [ ] Final `chain_id` chosen (replace placeholder `778888` in prod configs)
-- [ ] Real validator `0x` addresses in manifest (no `0x000…0001` placeholders)
+- [x] Mainnet v1 `chain_id` **778888** (`runtime/mainnet_constants.py` — `MAINNET_V1_CHAIN_ID`)
+- [ ] Real validator **private keys** generated for ceremony addresses (`scripts/genesis_ceremony_addresses.py`)
 - [ ] Founder address decided (optional override)
 - [ ] All nodes use **deterministic genesis** (`resolve_genesis_timestamp()` from `chain_id`)
 - [ ] Third-party security audit complete (organizational gate)
@@ -35,12 +35,13 @@ python scripts/genesis_ceremony.py `
   --write data/genesis_ceremony.json
 ```
 
-Strict check (reject placeholder addresses):
+Strict check (reject zero-prefix and repetitive template addresses):
 
 ```powershell
 python scripts/genesis_ceremony.py --strict-mainnet `
   --config node.prod.mainnet-v1.example.json `
-  --manifest validators.mainnet.json
+  --manifest validators.manifest.mainnet-v1.example.json
+python scripts/genesis_ceremony_addresses.py
 ```
 
 ### 3. Publish hashes
