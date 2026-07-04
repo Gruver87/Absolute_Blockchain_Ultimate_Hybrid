@@ -22,7 +22,68 @@ pub fn evm_opcode_is_host(op: u8) -> bool {
 }
 
 fn opcode_stops_segment(op: u8, host_bridge: Option<&Bound<'_, PyAny>>) -> bool {
-    evm_opcode_is_host(op) || (evm_opcode_is_bridge(op) && host_bridge.is_none())
+    if evm_opcode_is_host(op) {
+        return !bridge_supports_runtime(host_bridge);
+    }
+    if evm_opcode_is_bridge(op) {
+        return host_bridge.is_none();
+    }
+    false
+}
+
+fn bridge_supports_runtime(host_bridge: Option<&Bound<'_, PyAny>>) -> bool {
+    host_bridge
+        .map(|bridge| bridge.hasattr("apply_host_op").unwrap_or(false))
+        .unwrap_or(false)
+}
+
+fn apply_runtime_host_op(
+    py: Python<'_>,
+    bridge: &Bound<'_, PyAny>,
+    op: u8,
+    stack: &mut Vec<U256>,
+    memory: &mut Vec<u8>,
+    gas_limit: u64,
+    gas_used: &mut u64,
+    storage: Option<&Bound<'_, PyDict>>,
+    return_data: &mut Vec<u8>,
+    running: &mut bool,
+    reverted: &mut bool,
+) -> PyResult<()> {
+    let stack_list = stack_to_pylist(py, stack)?;
+    let memory_ba = PyByteArray::new_bound(py, memory);
+    let storage_obj: PyObject = match storage {
+        Some(dict) => dict.clone().unbind().into(),
+        None => PyDict::new_bound(py).into(),
+    };
+    let out = bridge.call_method1(
+        "apply_host_op",
+        (
+            op,
+            stack_list,
+            memory_ba,
+            gas_limit,
+            *gas_used,
+            storage_obj,
+            return_data.as_slice(),
+        ),
+    )?;
+    let out_dict = out.downcast::<PyDict>()?;
+    *gas_used = out_dict.get_item("gas_used")?.unwrap().extract()?;
+    *memory = out_dict
+        .get_item("memory")?
+        .unwrap()
+        .extract::<Vec<u8>>()?;
+    let stack_any = out_dict.get_item("stack")?.unwrap();
+    let stack_list = stack_any.downcast::<PyList>()?;
+    *stack = stack_from_py(stack_list)?;
+    *return_data = out_dict
+        .get_item("return_data")?
+        .unwrap()
+        .extract::<Vec<u8>>()?;
+    *running = out_dict.get_item("running")?.unwrap().extract()?;
+    *reverted = out_dict.get_item("reverted")?.unwrap().extract()?;
+    Ok(())
 }
 
 struct EvmStaticContext {
@@ -229,6 +290,9 @@ fn gas_cost(op: u8) -> u64 {
         0x40 => 20,
         0x54 => 200,
         0x55 => 5000,
+        0xF0 | 0xF5 => 32000,
+        0xF1 | 0xF2 | 0xF4 | 0xFA => 700,
+        0xFF => 5000,
         0xF3 | 0xFD => 0,
         0xFE => 0,
         _ if (0x60..=0x7F).contains(&op) => 3,
@@ -405,25 +469,31 @@ fn run_pure_segment_inner(
             break;
         }
 
-        let cost = gas_cost(op);
-        if let Err(reason) = consume_gas(&mut gas_used, gas_limit, cost) {
-            running = false;
-            let stack = stack_to_pylist(py, &stack)?;
-            let memory_out = PyByteArray::new_bound(py, &memory);
-            return result_dict(
-                py,
-                pc,
-                gas_used,
-                running,
-                reverted,
-                return_data,
-                reason,
-                None,
-                Some(reason.to_string()),
-                steps,
-                stack,
-                memory_out,
-            );
+        let cost = if (0xA0..=0xA4).contains(&op) {
+            0
+        } else {
+            gas_cost(op)
+        };
+        if cost > 0 {
+            if let Err(reason) = consume_gas(&mut gas_used, gas_limit, cost) {
+                running = false;
+                let stack = stack_to_pylist(py, &stack)?;
+                let memory_out = PyByteArray::new_bound(py, &memory);
+                return result_dict(
+                    py,
+                    pc,
+                    gas_used,
+                    running,
+                    reverted,
+                    return_data,
+                    reason,
+                    None,
+                    Some(reason.to_string()),
+                    steps,
+                    stack,
+                    memory_out,
+                );
+            }
         }
 
         steps += 1;
@@ -780,6 +850,25 @@ fn run_pure_segment_inner(
                 }
                 op if (0x90..=0x9F).contains(&op) => {
                     stack_swap(&mut stack, (op - 0x8F) as usize)?;
+                    Ok(Some(false))
+                }
+                op if evm_opcode_is_host(op) => {
+                    let bridge = host_bridge.ok_or_else(|| {
+                        pyo3::exceptions::PyRuntimeError::new_err("host_bridge_unavailable")
+                    })?;
+                    apply_runtime_host_op(
+                        py,
+                        bridge,
+                        op,
+                        &mut stack,
+                        &mut memory,
+                        gas_limit,
+                        &mut gas_used,
+                        storage,
+                        &mut return_data,
+                        &mut running,
+                        &mut reverted,
+                    )?;
                     Ok(Some(false))
                 }
                 _ => Ok(None),

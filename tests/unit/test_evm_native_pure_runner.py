@@ -142,7 +142,27 @@ def test_interpreter_uses_native_segment_for_pure_bytecode():
     assert result["stack"] == [5]
 
 
-def test_interpreter_still_handles_host_after_native_segment():
+def test_pure_segment_stops_at_interpreter_host_without_runtime_bridge():
+    # CALL without runtime bridge stops segment
+    bytecode = bytes([0x60, 0x00] * 7 + [0xF1])  # zeros + CALL
+    table = native.evm_build_jumpdest_table(bytecode)
+    seg = native.evm_run_pure_until_host(
+        bytecode,
+        0,
+        10_000_000,
+        0,
+        [0] * 7,
+        bytearray(),
+        table,
+        b"",
+        b"",
+        _host_ctx(),
+    )
+    assert seg["stop_reason"] == "host"
+    assert seg["host_opcode"] == 0xF1
+
+
+def test_interpreter_still_handles_caller_after_native_segment():
     ctx_caller = "0x" + "ab" * 20
     ctx = EVMContext(caller=ctx_caller)
     bytecode = bytes([0x33, 0x00])  # CALLER, STOP

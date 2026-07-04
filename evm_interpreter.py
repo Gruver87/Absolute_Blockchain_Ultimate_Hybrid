@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Any
 
 from crypto import native
-from execution.evm_host_bridge import make_evm_host_bridge
+from execution.evm_host_bridge import make_evm_runtime_bridge
 
 
 @dataclass
@@ -214,7 +214,7 @@ class EVM:
             self.return_data,
             native.evm_host_context_from_evm(self.ctx),
             self.storage,
-            make_evm_host_bridge(self.ctx),
+            make_evm_runtime_bridge(self),
         )
         reason = self._apply_native_segment(seg)
         if reason == "error":
