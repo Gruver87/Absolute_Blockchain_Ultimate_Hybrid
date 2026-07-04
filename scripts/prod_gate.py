@@ -82,6 +82,10 @@ def check_file(path: str) -> list[str]:
             "assign unique mainnet chain_id before public launch"
         )
 
+    mode = str(cfg.get("consensus_mode", "auto") or "auto").strip().lower()
+    if mode == "parallel":
+        errors.append(f"{path}: consensus_mode=parallel forbidden in prod (use unified or auto)")
+
     return errors
 
 

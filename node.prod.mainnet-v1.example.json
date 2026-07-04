@@ -27,6 +27,7 @@
   "rpc_api_key_required": true,
   "jwt_enforce_admin": true,
   "require_wallet_file": true,
+  "consensus_mode": "unified",
   "feature_zk": false,
   "feature_sharding": false,
   "feature_oracles": false,

@@ -62,6 +62,7 @@ class Config:
     signing_address: str = ""           # operational wallet for API signing
     validator_count: int = 21
     min_stake: float = 1000.0           # минимальный стейк валидатора
+    consensus_mode: str = "auto"        # auto | parallel | unified (prod → unified)
     require_signatures: bool = False    # prod / node.json: true — reject unsigned txs
     enforce_proposer: bool = True       # reject blocks from unknown/slashed proposers
     verify_peer_state_root: bool = True # compare state_root on P2P import
@@ -171,6 +172,15 @@ class Config:
         if ts > 0:
             return ts
         return 1_704_067_200 + int(getattr(self, "chain_id", 77777))
+
+    def resolved_consensus_mode(self) -> str:
+        """Single canonical fork-choice path in prod (LMD-GHOST + FinalityEngine)."""
+        mode = str(getattr(self, "consensus_mode", "auto") or "auto").strip().lower()
+        if mode == "auto":
+            return "unified" if self.is_production else "parallel"
+        if mode in ("parallel", "unified"):
+            return mode
+        return "parallel"
 
     @property
     def is_production(self) -> bool:

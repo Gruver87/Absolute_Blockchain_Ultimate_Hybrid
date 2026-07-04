@@ -188,6 +188,7 @@ def prod_node_config(
         "rpc_api_key_required": True,
         "jwt_enforce_admin": True,
         "require_wallet_file": True,
+        "consensus_mode": "unified",
         "feature_zk": False,
         "feature_sharding": False,
         "feature_oracles": False,

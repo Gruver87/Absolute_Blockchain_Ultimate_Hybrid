@@ -69,6 +69,8 @@ class ConsensusAdapter:
         self.config = config
         self.db = db
         self.bus = bus
+        self._consensus_mode = config.resolved_consensus_mode()
+        self._unified_consensus = self._consensus_mode == "unified"
 
         # --- System A engines (always available) ---
         self.engine = ConsensusEngine()
@@ -91,20 +93,27 @@ class ConsensusAdapter:
             print("[Consensus] Basic PoS mode (engine_slashing not available)")
 
         # --- Casper FFG engine (two-step finality, alternative to FinalityEngine) ---
-        if _CASPER_AVAILABLE:
+        if _CASPER_AVAILABLE and not self._unified_consensus:
             epoch_sz = getattr(config, "epoch_size", 32)
             self.casper_engine = ConsensusEngineCasper(epoch_size=epoch_sz)
             print("[Consensus] CasperFFG two-step finality: enabled")
         else:
             self.casper_engine = None
+            if _CASPER_AVAILABLE and self._unified_consensus:
+                print("[Consensus] Casper parallel engine: disabled (unified mode)")
 
         # --- Beacon Chain consensus engine ---
-        if _BEACON_AVAILABLE:
+        if _BEACON_AVAILABLE and not self._unified_consensus:
             epoch_sz = getattr(config, "epoch_size", 32)
             self.beacon_engine = ConsensusEngineBeacon(epoch_size=epoch_sz)
             print("[Consensus] BeaconChain engine: enabled (parallel fork choice)")
         else:
             self.beacon_engine = None
+            if _BEACON_AVAILABLE and self._unified_consensus:
+                print("[Consensus] Beacon parallel engine: disabled (unified mode)")
+
+        if self._unified_consensus:
+            print("[Consensus] Unified path: LMD-GHOST + FinalityEngine")
 
         self._last_block_time: float = 0.0
         self._load_validators_from_db()
@@ -308,6 +317,8 @@ class ConsensusAdapter:
         if block_hash and self.slashing_engine:
             if self.slashing_engine.is_finalized(block_hash):
                 return True
+        if self._unified_consensus:
+            return False
         if block_hash and self.casper_engine:
             try:
                 if self.casper_engine.is_finalized(block_hash):
@@ -395,6 +406,8 @@ class ConsensusAdapter:
             **engine_stats,
             **finality_stats,
             "enabled": True,
+            "consensus_mode": self._consensus_mode,
+            "unified_consensus_path": self._unified_consensus,
             "block_time": self.config.block_time,
             "min_stake": self.config.min_stake,
             "lmd_ghost_enabled": lmd_on,
