@@ -1,5 +1,9 @@
 # Absolute Blockchain Ultimate Hybrid - ONE-STOP full verification.
 #
+# Single entry point (alias):
+#   .\scripts\test_all.ps1
+#   .\scripts\test_all.ps1 -SkipNativeBuild
+#
 # Local full gate (recommended before push):
 #   .\scripts\test_blockchain_full.ps1
 #

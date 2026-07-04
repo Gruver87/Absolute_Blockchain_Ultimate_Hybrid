@@ -20,6 +20,32 @@ from bridge.l1_rpc import (
 from bridge.oracle_auth import sign_payload
 
 
+def l1_queue_http_mode() -> bool:
+    from runtime.env_loader import env_bool
+
+    return env_bool("BRIDGE_L1_QUEUE_HTTP", False)
+
+
+def fetch_l1_queue(base: str, queue_path: str) -> Dict[str, list]:
+    if l1_queue_http_mode():
+        data = http_get_json(f"{base.rstrip('/')}/bridge/l1-queue")
+        queue = data.get("queue") if isinstance(data, dict) else None
+        if not isinstance(queue, dict):
+            return {"outbound": [], "incoming": []}
+        return {
+            "outbound": list(queue.get("outbound", [])),
+            "incoming": list(queue.get("incoming", [])),
+        }
+    return load_l1_queue(queue_path)
+
+
+def persist_l1_queue(base: str, secret: str, queue_path: str, queue: Dict[str, list]) -> None:
+    if l1_queue_http_mode():
+        oracle_post(base, "/bridge/oracle/l1-queue-sync", queue, secret)
+        return
+    save_l1_queue(queue_path, queue)
+
+
 def relayer_require_l1_proof() -> bool:
     from runtime.env_loader import env_bool
 
@@ -168,7 +194,7 @@ def process_l1_queue(
     dry_run: bool = False,
 ) -> int:
     """Watch L1 RPC for queued outbound/incoming bridge proofs."""
-    queue = load_l1_queue(queue_path)
+    queue = fetch_l1_queue(base, queue_path)
     outbound = queue.get("outbound", [])
     incoming = queue.get("incoming", [])
     if not outbound and not incoming:
@@ -237,5 +263,10 @@ def process_l1_queue(
             remaining_in.append(item)
 
     if not dry_run:
-        save_l1_queue(queue_path, {"outbound": remaining_out, "incoming": remaining_in})
+        persist_l1_queue(
+            base,
+            secret,
+            queue_path,
+            {"outbound": remaining_out, "incoming": remaining_in},
+        )
     return processed

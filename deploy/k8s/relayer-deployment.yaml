@@ -1,4 +1,4 @@
-# Bridge relayer — polls L1 queue and posts oracle-signed callbacks to the node HTTP API.
+# Bridge relayer — polls L1 queue via node HTTP API (BRIDGE_L1_QUEUE_HTTP=true).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -34,11 +34,8 @@ spec:
           env:
             - name: ABS_API_URL
               value: http://abs-http.absolute-chain.svc.cluster.local:8080
-            - name: BRIDGE_L1_QUEUE_PATH
-              value: /app/data/bridge_l1_queue.json
-          volumeMounts:
-            - name: relayer-data
-              mountPath: /app/data
+            - name: BRIDGE_L1_QUEUE_HTTP
+              value: "true"
           livenessProbe:
             exec:
               command:
@@ -57,6 +54,3 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "500m"
-      volumes:
-        - name: relayer-data
-          emptyDir: {}

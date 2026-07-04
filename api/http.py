@@ -116,6 +116,7 @@ _BRIDGE_ORACLE_PATHS = frozenset({
     "/bridge/oracle/confirm-lock",
     "/bridge/oracle/incoming",
     "/bridge/oracle/l1-register",
+    "/bridge/oracle/l1-queue-sync",
     "/oracles/feeds/submit",
 })
 
@@ -4307,6 +4308,30 @@ class RESTHandler(BaseHTTPRequestHandler):
                     br._enqueue_l1_outbound(abs_lock, l1_tx, chain)
                     entry["queued_outbound"] = True
                 self._json({"success": True, "registered": entry, "count": len(proofs)})
+
+            elif path == "/bridge/oracle/l1-queue-sync":
+                if _is_production_cfg(cfg) and not _bridge_for_request(self.__class__, cfg):
+                    self._error(503, "production bridge requires RustBridge runtime")
+                    return
+                from bridge.l1_rpc import save_l1_queue
+
+                qpath = getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json")
+                outbound = body.get("outbound", [])
+                incoming = body.get("incoming", [])
+                if not isinstance(outbound, list) or not isinstance(incoming, list):
+                    self._error(400, "outbound/incoming must be lists")
+                    return
+                queue = {
+                    "outbound": list(outbound)[-500:],
+                    "incoming": list(incoming)[-500:],
+                }
+                save_l1_queue(qpath, queue)
+                self._json({
+                    "success": True,
+                    "path": qpath,
+                    "outbound": len(queue["outbound"]),
+                    "incoming": len(queue["incoming"]),
+                })
 
             # ── Bridge: lock, confirm, refund ─────────────────────────────────
             elif path == "/bridge/lock":

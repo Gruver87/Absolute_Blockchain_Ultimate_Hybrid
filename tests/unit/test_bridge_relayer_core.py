@@ -61,6 +61,38 @@ def test_relayer_preflight_node_unreachable(monkeypatch):
     assert any("unreachable" in e for e in out["errors"])
 
 
+def test_relayer_l1_queue_http_mode(monkeypatch):
+    monkeypatch.setenv("BRIDGE_L1_QUEUE_HTTP", "true")
+    posts = []
+
+    monkeypatch.setattr(
+        relayer,
+        "http_get_json",
+        lambda url, timeout=10.0: {
+            "queue": {
+                "outbound": [],
+                "incoming": [{
+                    "l1_tx_hash": "0x1",
+                    "recipient": "0xr",
+                    "amount": 1,
+                    "from_chain": "ethereum",
+                    "rpc_url": "http://rpc",
+                }],
+            }
+        },
+    )
+    monkeypatch.setattr(relayer, "is_tx_confirmed", lambda *a, **k: True)
+    monkeypatch.setattr(
+        relayer,
+        "oracle_post",
+        lambda base, path, payload, secret: posts.append((path, payload)) or {"confirmed": True},
+    )
+
+    n = relayer.process_l1_queue("http://127.0.0.1:8080", "secret", "ignored.json")
+    assert n == 1
+    assert any(p[0].endswith("/l1-queue-sync") for p in posts)
+
+
 def test_relayer_preflight_ok(monkeypatch):
     monkeypatch.setattr(
         relayer,

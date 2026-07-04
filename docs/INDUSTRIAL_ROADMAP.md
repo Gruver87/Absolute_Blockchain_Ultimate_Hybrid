@@ -86,4 +86,6 @@ docker compose -f docker-compose.observability.yml up -d
 - [x] Prod: `BRIDGE_REQUIRE_L1_PROOF=true` skips blind pending confirm (use `--watch-l1`)
 - [x] Docker prod stack: node + relayer sidecar (`docker-compose.prod.yml`)
 - [x] K8s relayer deployment (`deploy/k8s/relayer-deployment.yaml`)
+- [x] K8s relayer uses HTTP L1 queue sync (`BRIDGE_L1_QUEUE_HTTP` + `/bridge/oracle/l1-queue-sync`)
 - [x] Live prod smoke gate (`scripts/prod_smoke.py`)
+- [x] One-shot full test entry: `scripts/test_all.ps1` / `test_all.sh`

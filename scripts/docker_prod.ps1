@@ -11,11 +11,11 @@ foreach ($name in @("JWT_SECRET", "RPC_API_KEYS", "BRIDGE_ORACLE_SECRET", "CORS_
 if ($missing.Count -gt 0) {
     Write-Host "Missing required prod env vars: $($missing -join ', ')" -ForegroundColor Red
     Write-Host "Example:" -ForegroundColor Gray
-    Write-Host '  $env:JWT_SECRET = "<random-long-secret>"' -ForegroundColor Gray
-    Write-Host '  $env:RPC_API_KEYS = "<generated-rpc-key>"' -ForegroundColor Gray
-    Write-Host '  $env:BRIDGE_ORACLE_SECRET = "<random-long-secret>"' -ForegroundColor Gray
-    Write-Host '  $env:CORS_ORIGINS = "https://explorer.example.com"' -ForegroundColor Gray
-    Write-Host '  $env:ETH_RPC_URL = "https://your-ethereum-rpc"' -ForegroundColor Gray
+    Write-Host "  Set JWT_SECRET to a generated long value (32+ chars)" -ForegroundColor Gray
+    Write-Host "  Set RPC_API_KEYS to a generated API key" -ForegroundColor Gray
+    Write-Host "  Set BRIDGE_ORACLE_SECRET to a generated long value" -ForegroundColor Gray
+    Write-Host "  Set CORS_ORIGINS to your HTTPS explorer origin" -ForegroundColor Gray
+    Write-Host "  Set ETH_RPC_URL to your Ethereum JSON-RPC endpoint" -ForegroundColor Gray
     exit 1
 }
 

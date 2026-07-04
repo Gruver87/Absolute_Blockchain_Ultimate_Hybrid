@@ -20,6 +20,7 @@ def test_k8s_includes_relayer_deployment():
     text = (ROOT / "deploy" / "k8s" / "relayer-deployment.yaml").read_text(encoding="utf-8")
     assert "abs-bridge-relayer" in text
     assert "--watch-l1" in text
+    assert "BRIDGE_L1_QUEUE_HTTP" in text
     kustomize = (ROOT / "deploy" / "k8s" / "kustomization.yaml").read_text(encoding="utf-8")
     assert "relayer-deployment.yaml" in kustomize
 
