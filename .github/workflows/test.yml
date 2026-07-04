@@ -135,6 +135,26 @@ jobs:
         PYTHONUTF8: "1"
       run: python scripts/verify_p2p_ci.py --mode ci
 
+    - name: Prod profile unit + E2E boot
+      if: runner.os == 'Linux' && matrix.python-version == '3.12'
+      env:
+        PYTHONUTF8: "1"
+      run: |
+        pytest tests/unit/test_prod_smoke_profile.py \
+          tests/unit/test_prod_boot_e2e.py \
+          tests/unit/test_wave54_state_consistency.py \
+          -q --tb=short
+
+    - name: Industrial static gate
+      if: matrix.python-version == '3.12'
+      run: python scripts/industrial_gate.py
+
+    - name: Prod-profile P2P smoke (Linux)
+      if: runner.os == 'Linux' && matrix.python-version == '3.12'
+      env:
+        PYTHONUTF8: "1"
+      run: python scripts/verify_p2p_ci.py --mode prod-smoke
+
     - name: Three-node adversarial CI (fork + slashing)
       if: runner.os == 'Linux' && matrix.python-version == '3.12'
       env:

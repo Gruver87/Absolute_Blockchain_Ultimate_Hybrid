@@ -54,6 +54,7 @@ def run_checks() -> Tuple[List[str], List[str], List[str]]:
         "scripts/mainnet_readiness.py",
         "scripts/genesis_ceremony.py",
         "runtime/prod_smoke_profile.py",
+        "scripts/industrial_gate.py",
         "node.prod.mainnet-v1.example.json",
         "scripts/external_audit_tracker.py",
         "runtime/external_audit.py",

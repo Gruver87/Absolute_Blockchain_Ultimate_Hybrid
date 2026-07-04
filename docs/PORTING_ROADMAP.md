@@ -142,6 +142,8 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Prod bridge: Solana blocked; L1 chains ethereum/bsc/polygon only in rust path
 - [x] Prod `chain_id` must not be devnet default `77777` (placeholder `778888` in prod examples)
 - [x] Prod smoke spawn (`verify_p2p_ci --mode prod-smoke`) + E2E prod boot test
+- [x] `scripts/industrial_gate.py` — code gate without external audit blockers
+- [x] CI: industrial gate + prod P2P smoke on Linux
 - [x] Mainnet v1 config without bridge (`node.prod.mainnet-v1.example.json`)
 - [x] State harness `canonical_state_root_source: blockchain.database`
 - [x] PyO3 bridge helper CLI: `scripts/native_bridge_helper.py`
@@ -158,6 +160,8 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Prod bridge: Solana blocked; L1 chains ethereum/bsc/polygon only in rust path
 - [x] Prod `chain_id` must not be devnet default `77777` (placeholder `778888` in prod examples)
 - [x] Prod smoke spawn (`verify_p2p_ci --mode prod-smoke`) + E2E prod boot test
+- [x] `scripts/industrial_gate.py` — code gate without external audit blockers
+- [x] CI: industrial gate + prod P2P smoke on Linux
 - [x] Mainnet v1 config without bridge (`node.prod.mainnet-v1.example.json`)
 - [x] State harness `canonical_state_root_source: blockchain.database`
 - [x] Public mainnet genesis + validator set ceremony (`genesis_ceremony.py`, `GET /chain/genesis/ceremony`)

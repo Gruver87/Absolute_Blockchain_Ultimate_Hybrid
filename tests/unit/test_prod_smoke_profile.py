@@ -58,6 +58,23 @@ def test_prod_smoke_config_validates_with_secrets():
                 os.environ[k] = old
 
 
+def test_ensure_smoke_ports_free_detects_busy():
+    import socket
+    from runtime.prod_smoke_profile import ensure_smoke_ports_free
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(("127.0.0.1", 0))
+    sock.listen(1)
+    port = sock.getsockname()[1]
+    try:
+        busy = ensure_smoke_ports_free((port,))
+        assert port in busy
+    finally:
+        sock.close()
+        assert ensure_smoke_ports_free((port,)) == []
+
+
 def test_write_prod_pair_uses_smoke_manifest_with_wallet_addresses():
     tmp = tempfile.mkdtemp()
     cfg1, cfg2, _, _ = write_prod_pair_configs(tmp, bridge_enabled=False)

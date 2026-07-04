@@ -77,6 +77,7 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 | Bridge | On-chain lock/mint contracts + monitored relayer (not proof-only) |
 | Storage | Plan beyond SQLite for high-throughput mainnet (or document limits) |
 | Tests | E2E prod boot CI, prod P2P mesh, live `prod_smoke` in pipeline |
+| Tests | ✅ CI: `industrial_gate.py`, prod boot E2E, `verify_p2p_ci --mode prod-smoke` |
 
 ---
 
@@ -91,6 +92,10 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 ## Commands
 
 ```powershell
+# Industrial static gate (no external audit blockers)
+python scripts/industrial_gate.py
+python scripts/industrial_gate.py --prod-smoke-spawn
+
 # Strict mainnet gate (fails until external audit complete)
 .\scripts\mainnet_readiness.ps1
 

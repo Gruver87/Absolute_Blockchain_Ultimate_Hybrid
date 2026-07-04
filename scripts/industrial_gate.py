@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+"""Industrial readiness gate — code-level checks without external audit blockers."""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+
+def run_industrial_gate(*, prod_smoke_spawn: bool = False) -> int:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "mainnet_readiness", ROOT / "scripts" / "mainnet_readiness.py"
+    )
+    mr = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mr)
+
+    errors, warnings, sections = mr.run_gate(
+        live=False,
+        strict_audit=False,
+    )
+    report = {
+        "ok": not errors,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "errors": errors,
+        "warnings": warnings,
+        "sections": sections,
+    }
+
+    if prod_smoke_spawn:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "verify_p2p_ci", ROOT / "scripts" / "verify_p2p_ci.py"
+        )
+        mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(mod)
+        rc = mod.run_prod_smoke_spawn()
+        report["prod_smoke_spawn_rc"] = rc
+        if rc != 0:
+            errors.append(f"prod_smoke_spawn exited {rc}")
+
+    out = ROOT / "data" / "industrial_gate.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+    if errors:
+        print("FAIL: industrial gate")
+        for err in errors:
+            print(f"  - {err}")
+        return 1
+    print("OK: industrial gate")
+    if warnings:
+        print(f"  ({len(warnings)} warning(s) — see {out})")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Industrial code gate (no strict audit)")
+    parser.add_argument(
+        "--prod-smoke-spawn",
+        action="store_true",
+        help="Run isolated verify_p2p_ci --mode prod-smoke after static checks",
+    )
+    parser.add_argument("--json", action="store_true", help="Print report path only")
+    args = parser.parse_args()
+    rc = run_industrial_gate(prod_smoke_spawn=args.prod_smoke_spawn)
+    if args.json:
+        print(str(ROOT / "data" / "industrial_gate.json"))
+    return rc
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

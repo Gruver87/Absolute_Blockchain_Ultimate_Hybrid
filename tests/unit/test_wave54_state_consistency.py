@@ -63,6 +63,7 @@ def test_harness_healthy_aligned():
     )
     assert h["harness_healthy"] is True
     assert h["tip_state_aligned"] is True
+    assert h["canonical_state_root_source"] == "blockchain.database"
     assert h["api_wave"] == EXPECTED_API_WAVE
     assert h["failed_checks"] == []
 

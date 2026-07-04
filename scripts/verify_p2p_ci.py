@@ -1927,12 +1927,22 @@ def run_prod_smoke_spawn() -> int:
         print("SKIP: prod-smoke requires abs_native wheel (ABS_REQUIRE_NATIVE_CRYPTO)")
         return 0
 
+    from runtime.prod_smoke_profile import ensure_smoke_ports_free
+
+    busy = ensure_smoke_ports_free()
+    if busy:
+        print(f"FAIL: prod-smoke ports busy: {busy}")
+        print("  Stop stale nodes: .\\scripts\\stop_node.ps1")
+        print("  Or wait for prior prod-smoke / verify_p2p_ci to exit")
+        return 1
+
     tmp = tempfile.mkdtemp(prefix="abs_prod_smoke_")
     cfg1, cfg2, url1, url2 = write_prod_pair_configs(tmp, bridge_enabled=False)
     env = apply_prod_smoke_env()
     if env.get("PROD_SMOKE_ADMIN_JWT"):
         os.environ["PROD_SMOKE_ADMIN_JWT"] = env["PROD_SMOKE_ADMIN_JWT"]
     env["MINING_ENABLED"] = ""
+    env["PYTHONUNBUFFERED"] = "1"
     log1 = os.path.join(tmp, "node1.stderr.log")
     log2 = os.path.join(tmp, "node2.stderr.log")
     procs = []
@@ -1968,7 +1978,13 @@ def run_prod_smoke_spawn() -> int:
             print(f"  stderr: {log2}")
             return 1
 
-        rc = verify_pair(url1, url2, wait_sync_sec=240)
+        for url in (url1, url2):
+            try:
+                _admin_token(url)
+            except Exception as exc:
+                print(f"WARN: prod-smoke admin JWT prefetch {url}: {exc}")
+
+        rc = verify_pair(url1, url2, wait_sync_sec=300)
         if rc != 0:
             return rc
         return verify_prod_post_checks(url1)

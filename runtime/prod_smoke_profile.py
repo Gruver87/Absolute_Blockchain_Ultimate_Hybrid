@@ -14,6 +14,29 @@ ROOT = Path(__file__).resolve().parents[1]
 PROD_SMOKE_CHAIN_ID = 778888
 
 
+PROD_SMOKE_HTTP_PORTS = (15180, 15181)
+PROD_SMOKE_P2P_PORTS = (15100, 15101)
+
+
+def ensure_smoke_ports_free(
+    ports: tuple[int, ...] | None = None,
+) -> list[int]:
+    """Return ports with an active TCP listener on 127.0.0.1 (empty = OK to spawn)."""
+    import socket
+
+    check = ports or (*PROD_SMOKE_HTTP_PORTS, *PROD_SMOKE_P2P_PORTS)
+    busy: list[int] = []
+    for port in check:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(0.5)
+        try:
+            if sock.connect_ex(("127.0.0.1", port)) == 0:
+                busy.append(port)
+        finally:
+            sock.close()
+    return busy
+
+
 def prod_smoke_secret_env() -> Dict[str, str]:
     """Non-placeholder secrets for prod Config.validate() in isolated smoke."""
     jwt_secret = "prod-smoke-jwt-" + ("Q" * 32)
