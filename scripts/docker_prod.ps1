@@ -32,7 +32,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 docker compose -f docker-compose.prod.yml up --build -d
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Docker failed — start Docker Desktop and retry." -ForegroundColor Red
+    Write-Host "Docker failed - start Docker Desktop and retry." -ForegroundColor Red
     exit $LASTEXITCODE
 }
 
@@ -57,15 +57,15 @@ while ((Get-Date) -lt $deadline) {
 }
 
 if (-not $ready) {
-    Write-Host "WARN: node not ready yet — check logs: docker compose -f docker-compose.prod.yml logs node" -ForegroundColor Yellow
+    Write-Host "WARN: node not ready yet - check logs: docker compose -f docker-compose.prod.yml logs node" -ForegroundColor Yellow
 } else {
     Write-Host "Node ready." -ForegroundColor Green
     python scripts/prod_smoke.py http://127.0.0.1:8080
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "WARN: prod smoke failed — inspect bridge/L1 RPC configuration" -ForegroundColor Yellow
+        Write-Host "WARN: prod smoke failed - inspect bridge/L1 RPC configuration" -ForegroundColor Yellow
     }
 }
 
 Write-Host "Prod node:  http://localhost:8080  RPC :8545" -ForegroundColor Green
-Write-Host "Relayer:   docker compose -f docker-compose.prod.yml logs -f relayer" -ForegroundColor Gray
-Write-Host "All logs:  docker compose -f docker-compose.prod.yml logs -f" -ForegroundColor Gray
+Write-Host 'Relayer:   docker compose -f docker-compose.prod.yml logs -f relayer' -ForegroundColor Gray
+Write-Host 'All logs:  docker compose -f docker-compose.prod.yml logs -f' -ForegroundColor Gray
