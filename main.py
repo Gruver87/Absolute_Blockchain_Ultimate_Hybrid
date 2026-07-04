@@ -541,7 +541,7 @@ class NodeOrchestrator:
                 _manifest = resolve_manifest_path(config)
             except Exception:
                 _manifest = ""
-        if _manifest and os.path.isfile(_manifest):
+        if _manifest and os.path.isfile(_manifest) and config.deployment_mode == "dev":
             try:
                 from runtime.devnet_validators import apply_manifest
                 apply_manifest(self, _manifest)
@@ -944,6 +944,25 @@ class NodeOrchestrator:
         except Exception as _e:
             self.validator_registry = None
             print(f"[Node] ValidatorRegistry: unavailable ({_e})")
+
+        _public_manifest = getattr(config, "validators_manifest_path", "") or ""
+        if _public_manifest and os.path.isfile(_public_manifest):
+            try:
+                from runtime.validator_loader import apply_public_manifest
+                apply_public_manifest(self, _public_manifest)
+            except Exception as _pm:
+                if config.is_production():
+                    raise
+                print(f"[Node] Public validator manifest note: {_pm}")
+
+        try:
+            from api.http import RESTHandler
+            RESTHandler.public_validator_set = getattr(self, "_public_validator_set", None)
+            RESTHandler.validators_manifest_path = (
+                getattr(self, "_public_validator_manifest", "") or ""
+            )
+        except Exception:
+            pass
 
         try:
             from consensus.epoch import EpochManager as _EpMgr

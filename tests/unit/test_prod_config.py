@@ -227,6 +227,7 @@ def test_prod_example_json_structure():
     assert cfg.require_native_crypto is True
     assert cfg.feature_mev is False
     assert cfg.feature_ai_agents is False
+    assert cfg.validators_manifest_path == "validators.manifest.example.json"
 
 
 def test_prometheus_alerts_include_rust_bridge_readiness():

@@ -77,6 +77,7 @@ class Config:
     testnet_expected_validators: int = 0  # Wave 55: 5-validator devnet
     testnet_validator_index: int = 0      # this node's slot in manifest (1..5)
     testnet_validators_manifest: str = "" # docker/validators.devnet5.json
+    validators_manifest_path: str = ""    # prod: public validator set (addresses only)
     peer_timeout: int = 30              # секунд до отключения неактивного пира
     sync_batch_size: int = 100          # блоков за один запрос синхронизации
 
@@ -252,6 +253,10 @@ class Config:
         peers = env_list("BOOTSTRAP_PEERS")
         if peers:
             self.bootstrap_peers = peers
+
+        manifest_path = env_str("VALIDATORS_MANIFEST_PATH", "")
+        if manifest_path:
+            self.validators_manifest_path = manifest_path
 
         self.bridge_enabled = env_bool("BRIDGE_ENABLED", self.bridge_enabled)
         self.bridge_mode = env_str("BRIDGE_MODE", self.bridge_mode)

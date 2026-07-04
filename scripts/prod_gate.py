@@ -65,6 +65,9 @@ def check_file(path: str) -> list[str]:
     if any(str(origin).startswith(("http://localhost", "http://127.")) for origin in origins):
         errors.append(f"{path}: localhost CORS is forbidden in prod")
 
+    if not cfg.get("validators_manifest_path"):
+        errors.append(f"{path}: validators_manifest_path is required in prod")
+
     return errors
 
 

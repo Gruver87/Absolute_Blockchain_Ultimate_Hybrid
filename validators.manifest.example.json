@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "description": "Public validator set — addresses and optional secp256k1 public keys only (no private keys).",
+  "validators": [
+    {
+      "index": 1,
+      "node_id": "prod-validator-1",
+      "address": "0x0000000000000000000000000000000000000001",
+      "public_key": "",
+      "mines": true,
+      "stake": 5000
+    },
+    {
+      "index": 2,
+      "node_id": "prod-validator-2",
+      "address": "0x0000000000000000000000000000000000000002",
+      "public_key": "",
+      "mines": true,
+      "stake": 3000
+    },
+    {
+      "index": 3,
+      "node_id": "prod-validator-3",
+      "address": "0x0000000000000000000000000000000000000003",
+      "public_key": "",
+      "mines": false,
+      "stake": 2000
+    }
+  ]
+}

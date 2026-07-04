@@ -39,5 +39,6 @@
   "log_json": true,
   "enable_cors_rpc_proxy": false,
   "db_path": "data/blockchain.db",
-  "log_file": "data/node.log"
+  "log_file": "data/node.log",
+  "validators_manifest_path": "validators.manifest.example.json"
 }

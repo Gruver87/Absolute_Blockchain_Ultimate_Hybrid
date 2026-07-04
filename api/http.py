@@ -683,6 +683,8 @@ class RESTHandler(BaseHTTPRequestHandler):
     state_engine = None              # StateEngine
     slashing_engine = None           # SlashingEngine
     validator_registry = None        # ValidatorRegistry
+    public_validator_set = None      # prod manifest snapshot (addresses only)
+    validators_manifest_path = ""    # path to public validator manifest
     epoch_manager = None             # EpochManager
     beacon_finality = None           # BeaconFinality
     lmd_table = None                 # LMDTable
@@ -2781,6 +2783,20 @@ class RESTHandler(BaseHTTPRequestHandler):
             # ── Validator Registry ────────────────────────────────────────────
             elif path == "/validators/registry":
                 vr = self.__class__.validator_registry
+                db = self.__class__.db
+                manifest_rows = getattr(self.__class__, "public_validator_set", None)
+                manifest_path = getattr(self.__class__, "validators_manifest_path", "") or ""
+                if db:
+                    try:
+                        from runtime.validator_loader import merged_registry_view_from_parts
+                        self._json(
+                            merged_registry_view_from_parts(
+                                db, vr, manifest_rows, manifest_path
+                            )
+                        )
+                        return
+                    except Exception:
+                        pass
                 if vr and hasattr(vr, "validators"):
                     vals = vr.validators
                     self._json({"validators": {k: v.to_dict() if hasattr(v,'to_dict') else str(v)

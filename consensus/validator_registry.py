@@ -85,6 +85,9 @@ class ValidatorRegistry:
     def get_validator(self, address: str) -> Optional[ValidatorState]:
         with self.lock:
             return self.validators.get(address)
+
+    def get(self, address: str) -> Optional[ValidatorState]:
+        return self.get_validator(address)
     
     def get_all_validators(self) -> List[ValidatorState]:
         with self.lock:
