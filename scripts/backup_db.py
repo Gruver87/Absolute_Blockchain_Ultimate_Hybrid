@@ -1,55 +1,55 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""Online-бэкап SQLite базы узла (без остановки ноды)."""
+"""Online SQLite backup for node chain database."""
+
+from __future__ import annotations
 
 import argparse
 import os
 import sys
-import time
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
-from storage.database import Database
+from runtime.config import Config  # noqa: E402
+from storage.database import Database  # noqa: E402
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Backup Absolute Blockchain SQLite DB")
-    default_db = os.path.join(os.getenv("DATA_DIR", "data"), "blockchain.db")
+def backup_database(source: str, dest: str) -> bool:
+    source = os.path.abspath(source)
+    dest = os.path.abspath(dest)
+    if not os.path.isfile(source):
+        raise FileNotFoundError(f"source database not found: {source}")
+    cfg = Config()
+    cfg.db_path = source
+    db = Database(source)
+    db.initialize()
+    try:
+        return bool(db.backup_to(dest))
+    finally:
+        db.close()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Backup blockchain SQLite DB (online-safe)")
     parser.add_argument(
-        "--db",
-        default=default_db,
-        help="Path to blockchain.db",
+        "--source",
+        default="data/blockchain.db",
+        help="Source chain.db path (default: data/blockchain.db)",
     )
-    parser.add_argument(
-        "--out-dir",
-        default="",
-        help="Backup directory (default: <db_dir>/backups)",
-    )
+    parser.add_argument("--dest", required=True, help="Destination backup file path")
     args = parser.parse_args()
-
-    db_path = args.db.replace("\\", "/")
-    if db_path.endswith("/blockchain.db") is False and not db_path.endswith("blockchain.db"):
-        db_path = os.path.join(db_path, "blockchain.db")
-
-    if not os.path.isfile(db_path):
-        print(f"ERROR: database not found: {db_path}")
-        sys.exit(1)
-
-    out_dir = args.out_dir or os.path.join(os.path.dirname(db_path) or ".", "backups")
-    os.makedirs(out_dir, exist_ok=True)
-    stamp = time.strftime("%Y%m%d_%H%M%S")
-    dest = os.path.join(out_dir, f"blockchain_{stamp}.db")
-
-    db = Database(db_path)
-    ok = db.backup_to(dest)
-    db.close()
-
-    if ok:
-        print(f"OK: backup saved to {dest}")
-        sys.exit(0)
-    print("ERROR: backup failed")
-    sys.exit(1)
+    try:
+        ok = backup_database(args.source, args.dest)
+    except Exception as exc:
+        print(f"backup_db failed: {exc}", file=sys.stderr)
+        return 1
+    if not ok:
+        print("backup_db failed: backup_to returned false", file=sys.stderr)
+        return 1
+    print(f"Backed up {args.source} -> {args.dest}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

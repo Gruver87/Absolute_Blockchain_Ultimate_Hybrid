@@ -297,9 +297,37 @@ class EVMAdapter:
         result["logs"] = evm.logs
         return result
 
+    @staticmethod
+    def _deploy_salt_to_word(salt: str) -> int:
+        digest = native.keccak256_digest(str(salt).encode())
+        return int.from_bytes(digest[:32], "big")
+
+    def _resolve_deploy_address(
+        self,
+        deployer: str,
+        bytecode: bytes,
+        salt: str | None,
+        block_number: int = 0,
+    ) -> tuple[str | None, str | None]:
+        """Block-execution deploy address (CREATE2 legacy / EIP-1014 when salted)."""
+        if salt is None:
+            if getattr(self.config, "evm_require_deploy_salt", False):
+                return None, "deploy_salt_required"
+            seed = str(time.time())
+            return (
+                "0x" + hashlib.sha256(f"{deployer}{seed}".encode()).hexdigest()[:40],
+                None,
+            )
+
+        if getattr(self.config, "evm_create2_eip1014", False):
+            salt_word = self._deploy_salt_to_word(salt)
+            return native.evm_create2_address_eip1014(deployer, salt_word, bytecode), None
+
+        return native.evm_deploy_address_create2_legacy(deployer, salt, bytecode), None
+
     def deploy_contract(self, deployer: str, bytecode_hex: str,
                         value: float = 0.0, gas_limit: int = 0,
-                        salt: str = None) -> EVMResult:
+                        salt: str = None, block_number: int = 0) -> EVMResult:
         """
         Деплоит смарт-контракт.
         Сохраняет байткод и начальное состояние в БД.
@@ -322,16 +350,14 @@ class EVMAdapter:
             detail = bad[0]["name"] if bad else v.get("error", "unsupported_bytecode")
             return EVMResult(success=False, error=f"bytecode_invalid:{detail}")
 
-        # Deterministic address when salt provided (block execution); else dev-only
-        if salt is None and getattr(self.config, "evm_require_deploy_salt", False):
-            return EVMResult(
-                success=False,
-                error="deploy_salt_required",
-            )
-        seed = salt if salt is not None else str(time.time())
-        contract_addr = "0x" + hashlib.sha256(
-            f"{deployer}{seed}".encode()
-        ).hexdigest()[:40]
+        contract_addr, addr_err = self._resolve_deploy_address(
+            deployer,
+            bytecode,
+            salt,
+            block_number=block_number,
+        )
+        if addr_err:
+            return EVMResult(success=False, error=addr_err)
 
         # Выполняем конструктор
         try:

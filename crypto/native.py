@@ -980,8 +980,8 @@ def evm_deploy_address_create(deployer: str, block_number: int, init_code_len: i
     return "0x" + hashlib.sha256(seed.encode()).hexdigest()[:40]
 
 
-def evm_deploy_address_create2_legacy(deployer: str, salt: int, init_code: bytes) -> str:
-    salt_text = str(int(salt))
+def evm_deploy_address_create2_legacy(deployer: str, salt, init_code: bytes) -> str:
+    salt_text = str(int(salt)) if isinstance(salt, int) else str(salt)
     if _native is not None and hasattr(_native, "evm_deploy_address_create2_legacy"):
         return str(_native.evm_deploy_address_create2_legacy(
             str(deployer),

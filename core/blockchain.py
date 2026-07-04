@@ -680,6 +680,7 @@ class Blockchain:
                     tx.value,
                     gas_limit=tx.gas or self.config.evm_gas_limit,
                     salt=deploy_salt,
+                    block_number=block_height,
                 )
                 if not evm_res.success:
                     return {"success": False, "error": evm_res.error or "evm_deploy_failed"}

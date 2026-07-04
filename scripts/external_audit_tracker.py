@@ -15,6 +15,7 @@ from runtime.external_audit import (  # noqa: E402
     default_status_path,
     evaluate,
     set_item_done,
+    sync_automated_items,
 )
 
 
@@ -26,9 +27,28 @@ def main() -> int:
     parser.add_argument("--note", default="", help="Optional note for --set")
     parser.add_argument("--json", action="store_true", help="JSON output")
     parser.add_argument("--status-file", default="", help="Override status JSON path")
+    parser.add_argument(
+        "--sync-automated",
+        action="store_true",
+        help="Mark items done when automated checks pass (DR drill, prod_gate, key scan)",
+    )
     args = parser.parse_args()
 
     status_path = Path(args.status_file) if args.status_file else default_status_path(ROOT)
+
+    if args.sync_automated:
+        marked = sync_automated_items(ROOT, status_path)
+        if args.json:
+            print(json.dumps({"ok": True, "marked": marked, "status_file": str(status_path)}))
+        else:
+            if marked:
+                print("Automated checklist updates:")
+                for label in marked:
+                    print(f"  [x] {label}")
+            else:
+                print("No automated items passed (nothing updated).")
+            print(f"Status: {status_path}")
+        return 0
 
     if args.set:
         if args.set not in DEFAULT_CHECKLIST:
