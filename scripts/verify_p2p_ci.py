@@ -1954,6 +1954,18 @@ def verify_prod_post_checks(url: str) -> int:
             errors.append(f"deployment_mode={st.get('deployment_mode')}")
         if int(st.get("chain_id", 0) or 0) == 77777:
             errors.append("prod smoke uses devnet chain_id 77777")
+        cons = st.get("consensus") or {}
+        if cons.get("mode") != "unified":
+            errors.append(f"consensus.mode={cons.get('mode')}")
+        if not cons.get("unified_path"):
+            errors.append("consensus.unified_path=false")
+        if not cons.get("lmd_ghost_enabled"):
+            errors.append("consensus.lmd_ghost_enabled=false")
+        native = st.get("native_crypto") or {}
+        if not native.get("available") or not native.get("self_test"):
+            errors.append("native_crypto not ready")
+        if not st.get("state_root_strict_p2p"):
+            errors.append("state_root_strict_p2p=false")
     except Exception as exc:
         errors.append(f"status: {exc}")
     try:
@@ -1977,6 +1989,54 @@ def verify_prod_post_checks(url: str) -> int:
             print(f"  - {err}")
         return 14
     print("OK: prod post-checks passed")
+    return 0
+
+
+def verify_prod_consensus_mesh(url1: str, url2: str) -> int:
+    """Hybrid mainnet path: both prod nodes unified, native-ready, same canonical head."""
+    errors = []
+    statuses = {}
+    for label, url in (("node1", url1), ("node2", url2)):
+        try:
+            statuses[label] = _api(f"{url}/status")
+        except Exception as exc:
+            errors.append(f"{label} status: {exc}")
+    if errors:
+        print("FAIL: prod consensus mesh")
+        for err in errors:
+            print(f"  - {err}")
+        return 15
+
+    h1 = statuses["node1"].get("height")
+    h2 = statuses["node2"].get("height")
+    if h1 != h2:
+        errors.append(f"height mismatch {h1} vs {h2}")
+
+    head1 = (statuses["node1"].get("head_hash") or "").lower()
+    head2 = (statuses["node2"].get("head_hash") or "").lower()
+    if not head1 or not head2:
+        errors.append("missing head_hash on one or both nodes")
+    elif head1 != head2:
+        errors.append(f"head_hash mismatch {head1[:16]} vs {head2[:16]}")
+
+    for label, st in statuses.items():
+        cons = st.get("consensus") or {}
+        if cons.get("mode") != "unified":
+            errors.append(f"{label} consensus.mode={cons.get('mode')}")
+        if not cons.get("unified_path"):
+            errors.append(f"{label} unified_path=false")
+
+    if errors:
+        print("FAIL: prod consensus mesh")
+        for err in errors:
+            print(f"  - {err}")
+        return 15
+
+    print(
+        f"OK: prod consensus mesh unified height={h1} "
+        f"head={head1[:16]} attestations="
+        f"{statuses['node1'].get('consensus', {}).get('attestation_count', 0)}"
+    )
     return 0
 
 
@@ -2074,6 +2134,9 @@ def run_prod_smoke_spawn() -> int:
                             print(tail)
                     except Exception:
                         pass
+            return rc
+        rc = verify_prod_consensus_mesh(url1, url2)
+        if rc != 0:
             return rc
         return verify_prod_post_checks(url1)
     finally:

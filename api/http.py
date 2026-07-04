@@ -1015,6 +1015,28 @@ class RESTHandler(BaseHTTPRequestHandler):
                     required=bool(getattr(cfg, "require_native_crypto", False))
                 )
                 bridge_health = _rust_bridge_health(cfg)
+                last_blk = bc.get_last_block() if bc else None
+                head_hash = (last_blk or {}).get("hash", "")
+                consensus_info = {
+                    "mode": cfg.resolved_consensus_mode(),
+                    "unified_path": cfg.resolved_consensus_mode() == "unified",
+                    "lmd_ghost_enabled": False,
+                    "canonical_head": None,
+                    "attestation_count": 0,
+                }
+                ca = self.__class__.consensus_adapter
+                if ca and hasattr(ca, "get_stats"):
+                    try:
+                        cstats = ca.get_stats()
+                        consensus_info.update({
+                            "mode": cstats.get("consensus_mode", consensus_info["mode"]),
+                            "unified_path": bool(cstats.get("unified_consensus_path")),
+                            "lmd_ghost_enabled": bool(cstats.get("lmd_ghost_enabled")),
+                            "canonical_head": cstats.get("canonical_head"),
+                            "attestation_count": int(cstats.get("attestation_count", 0) or 0),
+                        })
+                    except Exception:
+                        pass
                 self._json({
                     "status": "running",
                     "node_version": cfg.node_version,
@@ -1022,6 +1044,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "chain_name": cfg.network_name,
                     "chain_id": cfg.chain_id,
                     "height": bc.get_height(),
+                    "head_hash": head_hash,
                     "peers": p2p.peer_count() if p2p else 0,
                     "mempool_size": mp.get_size(),
                     "mempool_stats": mp_stats,
@@ -1046,6 +1069,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "bridge_pending": bridge_pending,
                     "bridge_locks_total": len(bridge_locks),
                     "deployment_mode": getattr(cfg, "deployment_mode", "dev"),
+                    "consensus": consensus_info,
+                    "state_root_strict_p2p": bool(
+                        getattr(cfg, "state_root_strict_p2p", True)
+                    ),
                     "jwt_enforce_admin": getattr(cfg, "jwt_enforce_admin", False),
                     "rpc_api_key_required": getattr(cfg, "rpc_api_key_required", False),
                     "bridge_oracle_enabled": bool(

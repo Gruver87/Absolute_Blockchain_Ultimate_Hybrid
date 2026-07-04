@@ -68,6 +68,10 @@ def test_prod_node_boots_and_serves_status():
         assert st.get("deployment_mode") == "prod"
         assert st.get("bridge_enabled") is False
         assert int(st.get("chain_id", 0)) == cfg_dict["chain_id"]
+        cons = st.get("consensus") or {}
+        assert cons.get("mode") == "unified"
+        assert cons.get("unified_path") is True
+        assert st.get("state_root_strict_p2p") is True
     finally:
         proc.terminate()
         try:
