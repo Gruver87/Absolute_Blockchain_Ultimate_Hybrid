@@ -1,6 +1,6 @@
 use k256::ecdsa::signature::hazmat::PrehashVerifier;
 use k256::ecdsa::{Signature, VerifyingKey};
-use primitive_types::U256;
+use primitive_types::{U256, U512};
 use pyo3::prelude::*;
 use pyo3::types::PyByteArray;
 use serde_json::{Map, Number, Value};
@@ -687,6 +687,142 @@ fn evm_u256_shr(a: [u8; 32], shift: u32) -> PyResult<[u8; 32]> {
     Ok(u256_to_be32(u256_from_be32(a) >> shift))
 }
 
+fn u256_is_negative(v: U256) -> bool {
+    v.bit(255)
+}
+
+fn u256_abs(v: U256) -> U256 {
+    if u256_is_negative(v) {
+        (!v).overflowing_add(U256::one()).0
+    } else {
+        v
+    }
+}
+
+fn u256_negate(v: U256) -> U256 {
+    (!v).overflowing_add(U256::one()).0
+}
+
+fn evm_u256_sdiv_inner(a: U256, b: U256) -> U256 {
+    if b.is_zero() {
+        return U256::zero();
+    }
+    let min_i256 = U256::one() << 255;
+    if a == min_i256 && b == U256::MAX {
+        return min_i256;
+    }
+    let a_neg = u256_is_negative(a);
+    let b_neg = u256_is_negative(b);
+    let mut quot = u256_abs(a) / u256_abs(b);
+    if a_neg ^ b_neg {
+        quot = u256_negate(quot);
+    }
+    quot
+}
+
+fn evm_u256_smod_inner(a: U256, b: U256) -> U256 {
+    if b.is_zero() {
+        return U256::zero();
+    }
+    let a_neg = u256_is_negative(a);
+    let mut rem = u256_abs(a) % u256_abs(b);
+    if a_neg {
+        rem = u256_negate(rem);
+    }
+    rem
+}
+
+fn evm_u256_addmod_inner(a: U256, b: U256, modulo: U256) -> U256 {
+    if modulo.is_zero() {
+        return U256::zero();
+    }
+    let sum = U512::from(a) + U512::from(b);
+    U256::try_from(sum % U512::from(modulo)).unwrap_or(U256::zero())
+}
+
+fn evm_u256_mulmod_inner(a: U256, b: U256, modulo: U256) -> U256 {
+    if modulo.is_zero() {
+        return U256::zero();
+    }
+    let prod = U512::from(a) * U512::from(b);
+    U256::try_from(prod % U512::from(modulo)).unwrap_or(U256::zero())
+}
+
+fn evm_u256_exp_inner(base: U256, exp: U256) -> U256 {
+    if exp.is_zero() {
+        return if base.is_zero() {
+            U256::zero()
+        } else {
+            U256::one()
+        };
+    }
+    let mut result = U256::one();
+    let mut b = base;
+    let mut e = exp;
+    loop {
+        if e.bit(0) {
+            result = result.overflowing_mul(b).0;
+        }
+        e >>= 1;
+        if e.is_zero() {
+            break;
+        }
+        b = b.overflowing_mul(b).0;
+    }
+    result
+}
+
+fn evm_u256_signextend_inner(k: u32, x: U256) -> U256 {
+    if k >= 32 {
+        return x;
+    }
+    let bit = 8 * k + 7;
+    let lower_mask = (U256::one() << (bit + 1)) - U256::one();
+    if x.bit(bit as usize) {
+        x | !lower_mask
+    } else {
+        x & lower_mask
+    }
+}
+
+#[pyfunction]
+fn evm_u256_sdiv(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(u256_to_be32(evm_u256_sdiv_inner(u256_from_be32(a), u256_from_be32(b))))
+}
+
+#[pyfunction]
+fn evm_u256_smod(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(u256_to_be32(evm_u256_smod_inner(u256_from_be32(a), u256_from_be32(b))))
+}
+
+#[pyfunction]
+fn evm_u256_addmod(a: [u8; 32], b: [u8; 32], modulo: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(u256_to_be32(evm_u256_addmod_inner(
+        u256_from_be32(a),
+        u256_from_be32(b),
+        u256_from_be32(modulo),
+    )))
+}
+
+#[pyfunction]
+fn evm_u256_mulmod(a: [u8; 32], b: [u8; 32], modulo: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(u256_to_be32(evm_u256_mulmod_inner(
+        u256_from_be32(a),
+        u256_from_be32(b),
+        u256_from_be32(modulo),
+    )))
+}
+
+#[pyfunction]
+fn evm_u256_exp(base: [u8; 32], exp: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(u256_to_be32(evm_u256_exp_inner(u256_from_be32(base), u256_from_be32(exp))))
+}
+
+#[pyfunction]
+fn evm_u256_signextend(k: u32, x: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(u256_to_be32(evm_u256_signextend_inner(k, u256_from_be32(x))))
+}
+
 fn evm_u256_bool_word(truthy: bool) -> [u8; 32] {
     if truthy {
         let mut out = [0u8; 32];
@@ -775,6 +911,35 @@ fn evm_memory_copy(
         if idx < memory.len() {
             memory[idx] = byte;
         }
+    }
+    Ok(())
+}
+
+#[pyfunction]
+fn evm_memory_write_word(
+    py_memory: &Bound<'_, PyByteArray>,
+    offset: usize,
+    value: [u8; 32],
+) -> PyResult<()> {
+    let memory = unsafe { py_memory.as_bytes_mut() };
+    for i in 0..32 {
+        let idx = offset + i;
+        if idx < memory.len() {
+            memory[idx] = value[i];
+        }
+    }
+    Ok(())
+}
+
+#[pyfunction]
+fn evm_memory_write_byte(
+    py_memory: &Bound<'_, PyByteArray>,
+    offset: usize,
+    value: u32,
+) -> PyResult<()> {
+    let memory = unsafe { py_memory.as_bytes_mut() };
+    if offset < memory.len() {
+        memory[offset] = (value & 0xff) as u8;
     }
     Ok(())
 }
@@ -1035,6 +1200,12 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_u256_sub, m)?)?;
     m.add_function(wrap_pyfunction!(evm_u256_div, m)?)?;
     m.add_function(wrap_pyfunction!(evm_u256_mod, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_sdiv, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_smod, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_addmod, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_mulmod, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_exp, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_signextend, m)?)?;
     m.add_function(wrap_pyfunction!(evm_u256_and, m)?)?;
     m.add_function(wrap_pyfunction!(evm_u256_or, m)?)?;
     m.add_function(wrap_pyfunction!(evm_u256_xor, m)?)?;
@@ -1047,6 +1218,8 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_u256_iszero, m)?)?;
     m.add_function(wrap_pyfunction!(evm_u256_byte, m)?)?;
     m.add_function(wrap_pyfunction!(evm_memory_read_word, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_memory_write_word, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_memory_write_byte, m)?)?;
     m.add_function(wrap_pyfunction!(evm_calldataload, m)?)?;
     m.add_function(wrap_pyfunction!(evm_memory_copy, m)?)?;
     m.add_function(wrap_pyfunction!(keccak256_hex, m)?)?;

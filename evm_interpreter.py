@@ -46,6 +46,7 @@ class EVM:
 
     GAS_COSTS = {
         "STOP": 0, "ADD": 3, "MUL": 5, "SUB": 3, "DIV": 5, "MOD": 5,
+        "SDIV": 5, "SMOD": 5, "ADDMOD": 8, "MULMOD": 8, "EXP": 10, "SIGNEXTEND": 5,
         "POP": 2, "MLOAD": 3, "MSTORE": 3, "MSTORE8": 3,
         "SLOAD": 200, "SSTORE": 5000, "JUMP": 8, "JUMPI": 10,
         "BALANCE": 400, "CALLER": 2, "ORIGIN": 2, "ADDRESS": 2,
@@ -102,7 +103,7 @@ class EVM:
 
     def _write_word(self, offset: int, value: int):
         self._mem_extend(offset, 32)
-        self.memory[offset:offset + 32] = (value & ((1 << 256) - 1)).to_bytes(32, "big")
+        native.evm_memory_write_word(self.memory, offset, value)
 
     def _read_push(self, bytecode: bytes, n: int) -> int:
         start = self.pc + 1
@@ -227,9 +228,27 @@ class EVM:
             elif op_byte == 0x04:
                 a, b = self._pop(), self._pop()
                 self._push(native.evm_u256_div(a, b))
+            elif op_byte == 0x05:
+                a, b = self._pop(), self._pop()
+                self._push(native.evm_u256_sdiv(a, b))
             elif op_byte == 0x06:
                 a, b = self._pop(), self._pop()
                 self._push(native.evm_u256_mod(a, b))
+            elif op_byte == 0x07:
+                a, b = self._pop(), self._pop()
+                self._push(native.evm_u256_smod(a, b))
+            elif op_byte == 0x08:
+                mod_, b, a = self._pop(), self._pop(), self._pop()
+                self._push(native.evm_u256_addmod(a, b, mod_))
+            elif op_byte == 0x09:
+                mod_, b, a = self._pop(), self._pop(), self._pop()
+                self._push(native.evm_u256_mulmod(a, b, mod_))
+            elif op_byte == 0x0A:
+                exp, base = self._pop(), self._pop()
+                self._push(native.evm_u256_exp(base, exp))
+            elif op_byte == 0x0B:
+                k, x = self._pop(), self._pop()
+                self._push(native.evm_u256_signextend(k, x))
             elif op_byte == 0x10:
                 a, b = self._pop(), self._pop()
                 self._push(native.evm_u256_and(a, b))
@@ -360,7 +379,7 @@ class EVM:
             elif op_byte == 0x53:
                 offset, value = self._pop(), self._pop()
                 self._mem_extend(offset, 1)
-                self.memory[offset] = value & 0xFF
+                native.evm_memory_write_byte(self.memory, offset, value)
             elif op_byte == 0x54:
                 key = self._pop()
                 self._push(self.storage.get(key, 0))
@@ -501,7 +520,9 @@ class EVM:
     def _opcode_name(op: int) -> str:
         names = {
             0x00: "STOP", 0x01: "ADD", 0x02: "MUL", 0x03: "SUB", 0x04: "DIV",
-            0x06: "MOD", 0x10: "AND", 0x11: "OR", 0x12: "XOR", 0x14: "EQ",
+            0x05: "SDIV", 0x06: "MOD", 0x07: "SMOD", 0x08: "ADDMOD", 0x09: "MULMOD",
+            0x0A: "EXP", 0x0B: "SIGNEXTEND",
+            0x10: "AND", 0x11: "OR", 0x12: "XOR", 0x14: "EQ",
             0x15: "ISZERO", 0x16: "LT", 0x17: "GT", 0x19: "NOT", 0x1A: "BYTE",
             0x1B: "SHL", 0x1C: "SHR", 0x20: "SHA3", 0x30: "ADDRESS",
             0x31: "BALANCE", 0x32: "ORIGIN", 0x33: "CALLER", 0x34: "CALLVALUE",

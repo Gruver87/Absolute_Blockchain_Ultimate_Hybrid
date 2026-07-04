@@ -9,6 +9,7 @@ with the historical implementation so consensus behavior does not drift.
 
 import hashlib
 import json
+import math
 import os
 from typing import Any, List, Optional
 
@@ -443,6 +444,130 @@ def evm_calldataload(calldata: bytes, offset: int) -> int:
     if len(chunk) < 32:
         chunk = chunk + (b"\x00" * (32 - len(chunk)))
     return int.from_bytes(chunk, "big")
+
+
+def _evm_i256_to_signed(value: int) -> int:
+    value &= EVM_U256_MASK
+    if value >= (1 << 255):
+        return value - (1 << 256)
+    return value
+
+
+def _evm_i256_from_signed(value: int) -> int:
+    return int(value) & EVM_U256_MASK
+
+
+def _evm_u256_native_call(name: str, *args: int) -> int:
+    if _native is not None and hasattr(_native, name):
+        packed = [_evm_u256_bytes(arg) for arg in args]
+        if len(packed) == 1:
+            result = getattr(_native, name)(packed[0])
+        elif len(packed) == 2:
+            result = getattr(_native, name)(packed[0], packed[1])
+        else:
+            result = getattr(_native, name)(packed[0], packed[1], packed[2])
+        return _evm_u256_int(bytes(result))
+    raise ValueError(f"unsupported native call: {name}")
+
+
+def evm_u256_sdiv(left: int, right: int) -> int:
+    left &= EVM_U256_MASK
+    right &= EVM_U256_MASK
+    if _native is not None and hasattr(_native, "evm_u256_sdiv"):
+        return _evm_u256_native_call("evm_u256_sdiv", left, right)
+    if right == 0:
+        return 0
+    if left == (1 << 255) and right == EVM_U256_MASK:
+        return left
+    return _evm_i256_from_signed(int(_evm_i256_to_signed(left) / _evm_i256_to_signed(right)))
+
+
+def evm_u256_smod(left: int, right: int) -> int:
+    left &= EVM_U256_MASK
+    right &= EVM_U256_MASK
+    if _native is not None and hasattr(_native, "evm_u256_smod"):
+        return _evm_u256_native_call("evm_u256_smod", left, right)
+    if right == 0:
+        return 0
+    left_s = _evm_i256_to_signed(left)
+    right_s = abs(_evm_i256_to_signed(right))
+    return _evm_i256_from_signed(int(math.copysign(abs(left_s) % right_s, left_s)))
+
+
+def evm_u256_addmod(left: int, right: int, modulo: int) -> int:
+    left &= EVM_U256_MASK
+    right &= EVM_U256_MASK
+    modulo &= EVM_U256_MASK
+    if _native is not None and hasattr(_native, "evm_u256_addmod"):
+        return _evm_u256_native_call("evm_u256_addmod", left, right, modulo)
+    if modulo == 0:
+        return 0
+    return (left + right) % modulo
+
+
+def evm_u256_mulmod(left: int, right: int, modulo: int) -> int:
+    left &= EVM_U256_MASK
+    right &= EVM_U256_MASK
+    modulo &= EVM_U256_MASK
+    if _native is not None and hasattr(_native, "evm_u256_mulmod"):
+        return _evm_u256_native_call("evm_u256_mulmod", left, right, modulo)
+    if modulo == 0:
+        return 0
+    return (left * right) % modulo
+
+
+def evm_u256_exp(base: int, exponent: int) -> int:
+    base &= EVM_U256_MASK
+    exponent &= EVM_U256_MASK
+    if _native is not None and hasattr(_native, "evm_u256_exp"):
+        return _evm_u256_native_call("evm_u256_exp", base, exponent)
+    if exponent == 0:
+        return 0 if base == 0 else 1
+    result = 1
+    b = base
+    e = exponent
+    while e:
+        if e & 1:
+            result = (result * b) & EVM_U256_MASK
+        b = (b * b) & EVM_U256_MASK
+        e >>= 1
+    return result
+
+
+def evm_u256_signextend(index: int, word: int) -> int:
+    index = int(index) & EVM_U256_MASK
+    word &= EVM_U256_MASK
+    if _native is not None and hasattr(_native, "evm_u256_signextend"):
+        result = _native.evm_u256_signextend(int(index), _evm_u256_bytes(word))
+        return _evm_u256_int(bytes(result))
+    if index >= 32:
+        return word
+    bit = 8 * index + 7
+    lower_mask = (1 << (bit + 1)) - 1
+    if word & (1 << bit):
+        return word | (~lower_mask & EVM_U256_MASK)
+    return word & lower_mask
+
+
+def evm_memory_write_word(memory: bytearray, offset: int, value: int) -> None:
+    offset = int(offset)
+    word = _evm_u256_bytes(value)
+    if _native is not None and hasattr(_native, "evm_memory_write_word"):
+        _native.evm_memory_write_word(memory, offset, word)
+        return
+    for i in range(32):
+        idx = offset + i
+        if idx < len(memory):
+            memory[idx] = word[i]
+
+
+def evm_memory_write_byte(memory: bytearray, offset: int, value: int) -> None:
+    offset = int(offset)
+    if _native is not None and hasattr(_native, "evm_memory_write_byte"):
+        _native.evm_memory_write_byte(memory, offset, int(value) & 0xFF)
+        return
+    if offset < len(memory):
+        memory[offset] = int(value) & 0xFF
 
 
 def evm_memory_copy(memory: bytearray, dest: int, src: bytes, src_offset: int, size: int) -> None:
