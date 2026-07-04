@@ -2,6 +2,7 @@ use k256::ecdsa::signature::hazmat::PrehashVerifier;
 use k256::ecdsa::{Signature, VerifyingKey};
 use primitive_types::U256;
 use pyo3::prelude::*;
+use pyo3::types::PyByteArray;
 use serde_json::{Map, Number, Value};
 use sha2::{Digest, Sha256};
 use tiny_keccak::{Hasher, Keccak};
@@ -686,6 +687,98 @@ fn evm_u256_shr(a: [u8; 32], shift: u32) -> PyResult<[u8; 32]> {
     Ok(u256_to_be32(u256_from_be32(a) >> shift))
 }
 
+fn evm_u256_bool_word(truthy: bool) -> [u8; 32] {
+    if truthy {
+        let mut out = [0u8; 32];
+        out[31] = 1;
+        out
+    } else {
+        [0u8; 32]
+    }
+}
+
+#[pyfunction]
+fn evm_u256_lt(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(evm_u256_bool_word(u256_from_be32(a) < u256_from_be32(b)))
+}
+
+#[pyfunction]
+fn evm_u256_gt(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(evm_u256_bool_word(u256_from_be32(a) > u256_from_be32(b)))
+}
+
+#[pyfunction]
+fn evm_u256_eq(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(evm_u256_bool_word(u256_from_be32(a) == u256_from_be32(b)))
+}
+
+#[pyfunction]
+fn evm_u256_iszero(a: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(evm_u256_bool_word(u256_from_be32(a).is_zero()))
+}
+
+#[pyfunction]
+fn evm_u256_byte(index: u32, word: [u8; 32]) -> PyResult<[u8; 32]> {
+    let value = u256_from_be32(word);
+    if index >= 32 {
+        return Ok([0u8; 32]);
+    }
+    let shift = 8 * (31 - index);
+    let byte = if shift >= 256 {
+        0
+    } else {
+        ((value >> shift).low_u32() & 0xff) as u64
+    };
+    Ok(u256_to_be32(U256::from(byte)))
+}
+
+fn evm_memory_read_word_inner(memory: &[u8], offset: usize) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    if offset < memory.len() {
+        let end = usize::min(offset + 32, memory.len());
+        out[..end - offset].copy_from_slice(&memory[offset..end]);
+    }
+    out
+}
+
+#[pyfunction]
+fn evm_memory_read_word(memory: &[u8], offset: usize) -> PyResult<[u8; 32]> {
+    Ok(evm_memory_read_word_inner(memory, offset))
+}
+
+fn evm_calldataload_inner(calldata: &[u8], offset: usize) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    if offset < calldata.len() {
+        let end = usize::min(offset + 32, calldata.len());
+        out[..end - offset].copy_from_slice(&calldata[offset..end]);
+    }
+    out
+}
+
+#[pyfunction]
+fn evm_calldataload(calldata: &[u8], offset: usize) -> PyResult<[u8; 32]> {
+    Ok(evm_calldataload_inner(calldata, offset))
+}
+
+#[pyfunction]
+fn evm_memory_copy(
+    py_memory: &Bound<'_, PyByteArray>,
+    dest: usize,
+    src: &[u8],
+    src_offset: usize,
+    size: usize,
+) -> PyResult<()> {
+    let memory = unsafe { py_memory.as_bytes_mut() };
+    for i in 0..size {
+        let byte = src.get(src_offset + i).copied().unwrap_or(0);
+        let idx = dest + i;
+        if idx < memory.len() {
+            memory[idx] = byte;
+        }
+    }
+    Ok(())
+}
+
 #[pyfunction]
 fn keccak256_hex(data: &[u8]) -> PyResult<String> {
     Ok(keccak256_hex_bytes(data))
@@ -948,6 +1041,14 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_u256_not, m)?)?;
     m.add_function(wrap_pyfunction!(evm_u256_shl, m)?)?;
     m.add_function(wrap_pyfunction!(evm_u256_shr, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_lt, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_gt, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_eq, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_iszero, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_byte, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_memory_read_word, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_calldataload, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_memory_copy, m)?)?;
     m.add_function(wrap_pyfunction!(keccak256_hex, m)?)?;
     m.add_function(wrap_pyfunction!(validate_imported_block_chain, m)?)?;
     m.add_function(wrap_pyfunction!(validate_peer_header_chain, m)?)?;

@@ -98,7 +98,7 @@ class EVM:
 
     def _read_word(self, offset: int) -> int:
         self._mem_extend(offset, 32)
-        return int.from_bytes(self.memory[offset:offset + 32], "big")
+        return native.evm_memory_read_word(bytes(self.memory), offset)
 
     def _write_word(self, offset: int, value: int):
         self._mem_extend(offset, 32)
@@ -241,23 +241,20 @@ class EVM:
                 self._push(native.evm_u256_xor(a, b))
             elif op_byte == 0x14:
                 a, b = self._pop(), self._pop()
-                self._push(1 if a == b else 0)
+                self._push(native.evm_u256_eq(a, b))
             elif op_byte == 0x15:
-                self._push(1 if self._pop() == 0 else 0)
+                self._push(native.evm_u256_iszero(self._pop()))
             elif op_byte == 0x16:
                 a, b = self._pop(), self._pop()
-                self._push(1 if a < b else 0)
+                self._push(native.evm_u256_lt(a, b))
             elif op_byte == 0x17:
                 a, b = self._pop(), self._pop()
-                self._push(1 if a > b else 0)
+                self._push(native.evm_u256_gt(a, b))
             elif op_byte == 0x19:
                 self._push(native.evm_u256_not(self._pop()))
             elif op_byte == 0x1A:
                 i, x = self._pop(), self._pop()
-                if i >= 32:
-                    self._push(0)
-                else:
-                    self._push((x >> (8 * (31 - i))) & 0xFF)
+                self._push(native.evm_u256_byte(i, x))
             elif op_byte == 0x1B:
                 shift, v = self._pop(), self._pop()
                 self._push(native.evm_u256_shl(v, shift))
@@ -286,28 +283,25 @@ class EVM:
                 self._push(self.ctx.value)
             elif op_byte == 0x35:  # CALLDATALOAD
                 i = self._pop()
-                chunk = self.ctx.calldata[i:i + 32]
-                if len(chunk) < 32:
-                    chunk = chunk + b"\x00" * (32 - len(chunk))
-                self._push(int.from_bytes(chunk, "big"))
+                self._push(native.evm_calldataload(self.ctx.calldata, i))
             elif op_byte == 0x36:  # CALLDATASIZE
                 self._push(len(self.ctx.calldata))
             elif op_byte == 0x37:  # CALLDATACOPY
                 dest, offset, size = self._pop(), self._pop(), self._pop()
                 self._mem_extend(dest, size)
-                self.memory[dest:dest + size] = self.ctx.calldata[offset:offset + size]
+                native.evm_memory_copy(self.memory, dest, self.ctx.calldata, offset, size)
             elif op_byte == 0x38:  # CODESIZE
                 self._push(len(self.bytecode))
             elif op_byte == 0x39:  # CODECOPY
                 dest, offset, size = self._pop(), self._pop(), self._pop()
                 self._mem_extend(dest, size)
-                self.memory[dest:dest + size] = self.bytecode[offset:offset + size]
+                native.evm_memory_copy(self.memory, dest, self.bytecode, offset, size)
             elif op_byte == 0x3D:  # RETURNDATASIZE
                 self._push(len(self.return_data))
             elif op_byte == 0x3E:  # RETURNDATACOPY
                 dest, offset, size = self._pop(), self._pop(), self._pop()
                 self._mem_extend(dest, size)
-                self.memory[dest:dest + size] = self.return_data[offset:offset + size]
+                native.evm_memory_copy(self.memory, dest, self.return_data, offset, size)
             elif op_byte == 0x3B:  # EXTCODESIZE
                 who = self._pop()
                 addr = self._word_to_addr(who)

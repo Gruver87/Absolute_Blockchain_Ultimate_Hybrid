@@ -68,6 +68,8 @@ def native_crypto_status(required: bool = False) -> dict:
             "canonical_hash_json",
             "keccak256",
             "evm_u256",
+            "evm_u256_cmp",
+            "evm_memory",
             "evm_keccak256_memory",
             "evm_deploy_address",
             "evm_create2_eip1014",
@@ -373,6 +375,88 @@ def evm_u256_shr(value: int, shift: int) -> int:
     if _native is not None and hasattr(_native, "evm_u256_shr"):
         return _evm_u256_int(bytes(_native.evm_u256_shr(_evm_u256_bytes(value), int(shift))))
     return value >> shift
+
+
+def _evm_u256_cmp(name: str, left: int, right: int = 0) -> int:
+    if name == "evm_u256_iszero":
+        if _native is not None and hasattr(_native, name):
+            result = getattr(_native, name)(_evm_u256_bytes(left))
+            return _evm_u256_int(bytes(result))
+        return 1 if (left & EVM_U256_MASK) == 0 else 0
+    if _native is not None and hasattr(_native, name):
+        result = getattr(_native, name)(_evm_u256_bytes(left), _evm_u256_bytes(right))
+        return _evm_u256_int(bytes(result))
+    left &= EVM_U256_MASK
+    right &= EVM_U256_MASK
+    if name == "evm_u256_eq":
+        return 1 if left == right else 0
+    if name == "evm_u256_lt":
+        return 1 if left < right else 0
+    if name == "evm_u256_gt":
+        return 1 if left > right else 0
+    raise ValueError(f"unsupported EVM cmp: {name}")
+
+
+def evm_u256_eq(left: int, right: int) -> int:
+    return _evm_u256_cmp("evm_u256_eq", left, right)
+
+
+def evm_u256_lt(left: int, right: int) -> int:
+    return _evm_u256_cmp("evm_u256_lt", left, right)
+
+
+def evm_u256_gt(left: int, right: int) -> int:
+    return _evm_u256_cmp("evm_u256_gt", left, right)
+
+
+def evm_u256_iszero(value: int) -> int:
+    return _evm_u256_cmp("evm_u256_iszero", value)
+
+
+def evm_u256_byte(index: int, word: int) -> int:
+    index = int(index) & EVM_U256_MASK
+    word &= EVM_U256_MASK
+    if _native is not None and hasattr(_native, "evm_u256_byte"):
+        return _evm_u256_int(bytes(_native.evm_u256_byte(int(index), _evm_u256_bytes(word))))
+    if index >= 32:
+        return 0
+    return (word >> (8 * (31 - index))) & 0xFF
+
+
+def evm_memory_read_word(memory: bytes, offset: int) -> int:
+    offset = int(offset)
+    if _native is not None and hasattr(_native, "evm_memory_read_word"):
+        return _evm_u256_int(bytes(_native.evm_memory_read_word(memory, offset)))
+    end = offset + 32
+    chunk = memory[offset:end] if offset < len(memory) else b""
+    if len(chunk) < 32:
+        chunk = chunk + (b"\x00" * (32 - len(chunk)))
+    return int.from_bytes(chunk, "big")
+
+
+def evm_calldataload(calldata: bytes, offset: int) -> int:
+    offset = int(offset)
+    if _native is not None and hasattr(_native, "evm_calldataload"):
+        return _evm_u256_int(bytes(_native.evm_calldataload(calldata, offset)))
+    end = offset + 32
+    chunk = calldata[offset:end] if offset < len(calldata) else b""
+    if len(chunk) < 32:
+        chunk = chunk + (b"\x00" * (32 - len(chunk)))
+    return int.from_bytes(chunk, "big")
+
+
+def evm_memory_copy(memory: bytearray, dest: int, src: bytes, src_offset: int, size: int) -> None:
+    dest = int(dest)
+    src_offset = int(src_offset)
+    size = int(size)
+    if _native is not None and hasattr(_native, "evm_memory_copy"):
+        _native.evm_memory_copy(memory, dest, src, src_offset, size)
+        return
+    for i in range(size):
+        byte = src[src_offset + i] if (src_offset + i) < len(src) else 0
+        idx = dest + i
+        if idx < len(memory):
+            memory[idx] = byte
 
 
 def evm_keccak256_memory(memory: bytes, offset: int, size: int) -> bytes:
