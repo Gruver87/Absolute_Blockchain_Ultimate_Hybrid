@@ -31,7 +31,12 @@ def _run_script(rel: str, attr: str = "main") -> tuple[int, str]:
         sys.argv = argv
 
 
-def run_launch_checklist(*, strict_mainnet: bool = False) -> tuple[list[str], list[str]]:
+def run_launch_checklist(
+    *,
+    strict_mainnet: bool = False,
+    strict_keys: bool = False,
+    ceremony_dir: str = "",
+) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
 
@@ -61,6 +66,32 @@ def run_launch_checklist(*, strict_mainnet: bool = False) -> tuple[list[str], li
             f"(count={artifact.get('placeholder_validator_count', 0)})"
         )
 
+    manifest_path = ROOT / "validators.manifest.mainnet-v1.example.json"
+    if strict_keys:
+        from runtime.ceremony_keygen import validate_manifest_public_keys
+        from runtime.validator_loader import load_manifest
+
+        key_errors = validate_manifest_public_keys(
+            load_manifest(str(manifest_path)),
+            require_mining_keys=True,
+        )
+        if key_errors:
+            errors.extend([f"validator_keys:{e}" for e in key_errors])
+
+    if ceremony_dir:
+        from runtime.ceremony_keygen import verify_ceremony_directory
+
+        cdir = Path(ceremony_dir)
+        if not cdir.is_absolute():
+            cdir = ROOT / cdir
+        c_errors, c_warnings = verify_ceremony_directory(str(cdir))
+        errors.extend([f"ceremony_dir:{e}" for e in c_errors])
+        warnings.extend(c_warnings)
+
+    rc, _ = _run_script("bridge_l1_preflight.py")
+    if rc != 0:
+        errors.append("bridge_l1_preflight failed")
+
     rc, _ = _run_script("industrial_gate.py")
     if rc != 0:
         errors.append("industrial_gate failed")
@@ -87,12 +118,26 @@ def main() -> int:
     parser.add_argument(
         "--strict-mainnet",
         action="store_true",
-        help="Fail if validator manifest still has placeholder 0x000… addresses",
+        help="Fail if validator manifest still has placeholder/template addresses",
+    )
+    parser.add_argument(
+        "--strict-keys",
+        action="store_true",
+        help="Require public_key on mining validators in mainnet-v1 manifest",
+    )
+    parser.add_argument(
+        "--ceremony-dir",
+        default="",
+        help="Verify generated ceremony dir (data/ceremony_keys) when set",
     )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
-    errors, warnings = run_launch_checklist(strict_mainnet=args.strict_mainnet)
+    errors, warnings = run_launch_checklist(
+        strict_mainnet=args.strict_mainnet,
+        strict_keys=args.strict_keys,
+        ceremony_dir=args.ceremony_dir,
+    )
     payload = {"ok": not errors, "errors": errors, "warnings": warnings}
 
     if args.json:

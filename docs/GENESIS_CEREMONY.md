@@ -9,7 +9,8 @@ Automated builder: `runtime/genesis_ceremony.py` / `scripts/genesis_ceremony.py`
 ## Prerequisites
 
 - [x] Mainnet v1 `chain_id` **778888** (`runtime/mainnet_constants.py` — `MAINNET_V1_CHAIN_ID`)
-- [ ] Real validator **private keys** generated for ceremony addresses (`scripts/genesis_ceremony_addresses.py`)
+- [ ] Real validator **private keys** generated offline (`scripts/genesis_ceremony_keygen.py`)
+- [ ] Each node's `data/wallet.json` verified against manifest (`scripts/genesis_ceremony_verify_wallet.py`)
 - [ ] Founder address decided (optional override)
 - [ ] All nodes use **deterministic genesis** (`resolve_genesis_timestamp()` from `chain_id`)
 - [ ] Third-party security audit complete (organizational gate)
@@ -42,6 +43,34 @@ python scripts/genesis_ceremony.py --strict-mainnet `
   --config node.prod.mainnet-v1.example.json `
   --manifest validators.manifest.mainnet-v1.example.json
 python scripts/genesis_ceremony_addresses.py
+```
+
+### 2b. Generate operator keys (offline ceremony)
+
+Replace template addresses with freshly generated ECDSA keys (never commit output):
+
+```powershell
+python scripts/genesis_ceremony_keygen.py --out-dir data/ceremony_keys
+python scripts/genesis_ceremony_keygen.py --out-dir data/ceremony_keys --verify
+python scripts/mainnet_launch_checklist.py --ceremony-dir data/ceremony_keys
+```
+
+Deploy `data/ceremony_keys/validators.manifest.json` as prod `validators_manifest_path`.
+Copy `wallets/validator-N.wallet.json` to each validator node's `data/wallet.json`.
+
+Verify binding:
+
+```powershell
+python scripts/genesis_ceremony_verify_wallet.py `
+  --wallet data/ceremony_keys/wallets/validator-1.wallet.json `
+  --manifest data/ceremony_keys/validators.manifest.json `
+  --index 1
+```
+
+Before public cutover:
+
+```powershell
+python scripts/mainnet_launch_checklist.py --strict-mainnet --strict-keys --ceremony-dir data/ceremony_keys
 ```
 
 ### 3. Publish hashes

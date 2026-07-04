@@ -51,6 +51,7 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 6. **Prod configs** — `chain_id: 778888` is official **MAINNET_V1_CHAIN_ID** (`runtime/mainnet_constants.py`).
 7. **Prod smoke** — `python scripts/verify_p2p_ci.py --mode prod-smoke` (2-node prod mesh on :15180/:15181).
 8. **Mainnet v1 profile** — `node.prod.mainnet-v1.example.json` (`bridge_enabled: false` until real L1 contracts).
+9. **Ceremony keygen** — `scripts/genesis_ceremony_keygen.py` + `scripts/bridge_l1_preflight.py` in launch checklist.
 
 ---
 
@@ -58,8 +59,8 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 
 - [ ] Complete all 8 items in `scripts/external_audit_tracker.py`
 - [ ] Third-party security audit (L1 + bridge + EVM)
-- [ ] Production validator manifest (real `0x` addresses, KMS/HSM keys)
-- [ ] Final `chain_id` + genesis ceremony hash published
+- [ ] Production validator manifest + offline keygen (`scripts/genesis_ceremony_keygen.py`, verify with `--ceremony-dir`)
+- [ ] Final `chain_id` (778888) + genesis ceremony hash pinned (`GENESIS_CEREMONY_HASH`)
 - [ ] Rotate all secrets (JWT, RPC keys, bridge oracle, L1 RPC)
 - [ ] Live prod smoke: `python scripts/mainnet_readiness.py --live`
 - [ ] DR drill + incident response runbook
