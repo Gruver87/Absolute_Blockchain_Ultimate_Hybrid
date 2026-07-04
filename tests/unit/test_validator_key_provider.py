@@ -70,6 +70,10 @@ def test_build_provider_modes(monkeypatch):
     monkeypatch.setenv("VALIDATOR_KEY_PROVIDER", "gcp_cloudhsm")
     from runtime.validator_key_provider import GcpCloudHsmKeyProvider
     assert isinstance(build_validator_key_provider(wallet), GcpCloudHsmKeyProvider)
+    monkeypatch.setenv("VALIDATOR_KEY_PROVIDER", "aws_cloudhsm")
+    monkeypatch.setenv("AWS_CLOUDHSM_SIGNER_URL", "http://cloudhsm-signer.local/sign")
+    from runtime.validator_key_provider import AwsCloudHsmKeyProvider
+    assert isinstance(build_validator_key_provider(wallet), AwsCloudHsmKeyProvider)
 
 
 def test_gcp_cloudhsm_rejects_software_key(monkeypatch):

@@ -103,7 +103,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Docker prod: node + relayer sidecar
 - [x] Grafana panels for native crypto / bridge / L1 RPC metrics
 
-### Priority 9 — Industrialization (simulators → real network) 🔄
+### Priority 9 — Industrialization (simulators → real network) ✅
 
 - [x] `.env.example` default `BRIDGE_MODE=rust` (simulator explicit opt-in)
 - [x] Keccak fallback: no wrong `sha3_256`; require native or pycryptodome
@@ -130,7 +130,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Validator GCP KMS provider (`VALIDATOR_KEY_PROVIDER=gcp_kms`, `GCP_KMS_KEY_VERSION`)
 - [x] Validator GCP Cloud HSM provider (`VALIDATOR_KEY_PROVIDER=gcp_cloudhsm`, HSM protection_level gate)
 - [x] P2P catch-up hardening: `catch_up_sync` retry loop, `verify_p2p_ci` devnet preflight, live audit skip/extend
-- [ ] Validator key ops (AWS CloudHSM PKCS#11 proxy — long-term)
+- [x] Validator AWS CloudHSM proxy (`VALIDATOR_KEY_PROVIDER=aws_cloudhsm`, `AWS_CLOUDHSM_SIGNER_URL`)
 - [x] JSON-RPC `eth_getLogs` filters + `eth_sendRawTransaction` RLP
 - [x] JSON-RPC polling filters: `eth_newFilter`, `eth_getFilterChanges`, `eth_getFilterLogs`, block/pending filters
 - [x] JSON-RPC WebSocket subscriptions (`eth_subscribe` / `eth_unsubscribe`: newHeads, logs, newPendingTransactions)
@@ -138,6 +138,15 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [ ] External security audit before public mainnet (third-party firm)
 - [x] PyO3 bridge helper CLI: `scripts/native_bridge_helper.py`
 - Dev-only (keep blocked in prod): `bridge_mode=simulator`, `mock_l1_rpc`, `feature_wasm/plasma/lightning/pq/zk`
+
+### Priority 10 — Mainnet launch 🔄
+
+- [x] Mainnet readiness gate: `scripts/mainnet_readiness.py` / `.ps1` (prod stack + pre-mainnet audit)
+- [x] Release gate `-Mainnet` flag: `scripts/release_gate.ps1 -Mainnet`
+- [ ] External security audit before public mainnet (third-party firm)
+- [ ] Public mainnet genesis + validator set ceremony
+- [ ] EIP-4844 blob transaction type in `eth_sendRawTransaction` (opcodes done; tx envelope optional)
+- [ ] EOF container format (EVM object format — optional)
 
 ## Process per module
 

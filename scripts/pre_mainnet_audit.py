@@ -61,6 +61,7 @@ def run_checks() -> Tuple[List[str], List[str], List[str]]:
         "scripts/verify_p2p_ci.py",
         "scripts/prod_gate.py",
         "scripts/native_bridge_helper.py",
+        "scripts/mainnet_readiness.py",
         "consensus/cross_shard_coordinator.py",
         "runtime/validator_key_provider.py",
         "docs/PORTING_ROADMAP.md",

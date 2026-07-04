@@ -72,6 +72,24 @@ class ExternalSignerKeyProvider:
         return self._pubkey
 
 
+class AwsCloudHsmKeyProvider(ExternalSignerKeyProvider):
+    """AWS CloudHSM via PKCS#11 HTTP signing proxy (sidecar or custom signer)."""
+
+    def __init__(self, url: str = "", api_key: str = "", timeout: float = 10.0) -> None:
+        resolved = (url or os.environ.get("AWS_CLOUDHSM_SIGNER_URL", "") or "").strip()
+        if not resolved:
+            resolved = os.environ.get("EXTERNAL_VALIDATOR_SIGNER_URL", "").strip()
+        token = (api_key or os.environ.get("AWS_CLOUDHSM_SIGNER_API_KEY", "") or "").strip()
+        if not token:
+            token = os.environ.get("EXTERNAL_VALIDATOR_SIGNER_API_KEY", "").strip()
+        super().__init__(resolved, token, timeout)
+
+    def sign_message(self, message: bytes) -> bytes:
+        if not self.url:
+            raise RuntimeError("aws_cloudhsm_signer_url_missing")
+        return super().sign_message(message)
+
+
 class AwsKmsKeyProvider:
     """Sign validator payloads via AWS KMS (requires boto3)."""
 
@@ -193,6 +211,8 @@ def build_validator_key_provider(wallet=None) -> ValidatorKeyProvider:
         key_id = os.environ.get("AWS_KMS_KEY_ID", "").strip()
         region = os.environ.get("AWS_REGION", "").strip()
         return AwsKmsKeyProvider(key_id, region)
+    if mode in ("aws_cloudhsm", "cloudhsm"):
+        return AwsCloudHsmKeyProvider()
     if mode in ("gcp_kms", "google_kms"):
         key_version = _gcp_kms_key_version_from_env()
         return GcpKmsKeyProvider(key_version)

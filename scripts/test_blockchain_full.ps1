@@ -229,6 +229,7 @@ Run-Step "Hybrid critical native/consensus/EVM tests" {
         tests/unit/test_distributed_sharding.py `
         tests/unit/test_validator_key_provider.py `
         tests/unit/test_pre_mainnet_audit.py `
+        tests/unit/test_mainnet_readiness.py `
         -q
 }
 
