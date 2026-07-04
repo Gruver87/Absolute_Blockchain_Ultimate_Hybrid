@@ -56,11 +56,16 @@ def run_gate(
         )
         sections["genesis_ceremony"] = {
             "ready": artifact.get("ready"),
+            "mainnet_addresses_ready": artifact.get("mainnet_addresses_ready"),
             "ceremony_hash": artifact.get("ceremony_hash"),
             "errors": ceremony_errors,
         }
         if ceremony_errors:
             errors.extend([f"genesis_ceremony:{e}" for e in ceremony_errors])
+        if not artifact.get("mainnet_addresses_ready", True):
+            warnings.append(
+                "genesis_ceremony:placeholder_validator_addresses_in_manifest"
+            )
     except Exception as exc:
         errors.append(f"genesis_ceremony:{exc}")
         sections["genesis_ceremony"] = {"errors": [str(exc)]}

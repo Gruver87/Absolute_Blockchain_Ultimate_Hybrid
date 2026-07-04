@@ -20,12 +20,22 @@ def main() -> int:
     parser.add_argument("--founder", default="", help="Optional founder address override")
     parser.add_argument("--write", default="", help="Write artifact JSON to path")
     parser.add_argument("--json", action="store_true", help="Print artifact JSON to stdout")
+    parser.add_argument(
+        "--strict-mainnet",
+        action="store_true",
+        help="Reject placeholder validator addresses (0x000…000N)",
+    )
     args = parser.parse_args()
 
     config_path = str(ROOT / args.config) if not Path(args.config).is_absolute() else args.config
     manifest_path = str(ROOT / args.manifest) if not Path(args.manifest).is_absolute() else args.manifest
 
-    artifact, errors = build_from_paths(config_path, manifest_path, args.founder)
+    artifact, errors = build_from_paths(
+        config_path,
+        manifest_path,
+        args.founder,
+        strict_addresses=args.strict_mainnet,
+    )
     out_path = args.write
     if out_path:
         target = Path(out_path)
@@ -45,6 +55,7 @@ def main() -> int:
         print(f"  validator_set_hash: {artifact['validator_set_hash'][:16]}…")
         print(f"  ceremony_hash     : {artifact['ceremony_hash'][:16]}…")
         print(f"  ready             : {artifact['ready']}")
+        print(f"  mainnet_addresses : {artifact.get('mainnet_addresses_ready', True)}")
         if errors:
             print("  errors:")
             for err in errors:

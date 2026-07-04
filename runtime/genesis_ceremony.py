@@ -57,7 +57,21 @@ def genesis_alloc_hash(founder_address: str = "") -> str:
     return hashlib.sha256(_canonical_json(ordered).encode("utf-8")).hexdigest()
 
 
-def validate_manifest_for_mainnet(manifest: Dict[str, Any]) -> List[str]:
+def _is_placeholder_validator_address(address: str) -> bool:
+    raw = str(address or "").strip().lower().removeprefix("0x")
+    if len(raw) != 40 or not all(c in "0123456789abcdef" for c in raw):
+        return True
+    # Example manifest uses 0x000…0001 — not valid for public mainnet launch
+    if raw.startswith("0" * 38):
+        return True
+    return False
+
+
+def validate_manifest_for_mainnet(
+    manifest: Dict[str, Any],
+    *,
+    strict_addresses: bool = False,
+) -> List[str]:
     errors: List[str] = []
     if manifest_requires_runtime_key_derivation(manifest):
         errors.append("manifest_must_list_explicit_0x_addresses")
@@ -77,6 +91,8 @@ def validate_manifest_for_mainnet(manifest: Dict[str, Any]) -> List[str]:
         stake = float(row.get("stake", 0) or 0)
         if stake <= 0:
             errors.append(f"invalid_stake:{addr}")
+        if strict_addresses and _is_placeholder_validator_address(addr):
+            errors.append(f"placeholder_validator_address:{addr}")
         total_stake += stake
     if total_stake <= 0:
         errors.append("total_stake_zero")
@@ -88,9 +104,16 @@ def build_ceremony_artifact(
     manifest: Dict[str, Any],
     manifest_path: str = "",
     founder_address: str = "",
+    *,
+    strict_addresses: bool = False,
 ) -> Dict[str, Any]:
-    errors = validate_manifest_for_mainnet(manifest)
+    errors = validate_manifest_for_mainnet(manifest, strict_addresses=strict_addresses)
     validators = snapshot_public_set(manifest)
+    placeholder_addrs = [
+        str(row.get("address", ""))
+        for row in manifest_entries(manifest)
+        if _is_placeholder_validator_address(str(row.get("address", "")))
+    ]
     founder = founder_address or str(config.get("founder_address", "") or "")
     tokenomics = get_tokenomics_summary(founder or None)
     artifact = {
@@ -110,6 +133,8 @@ def build_ceremony_artifact(
         "tokenomics": tokenomics,
         "validators": validators,
         "ready": len(errors) == 0,
+        "mainnet_addresses_ready": len(placeholder_addrs) == 0,
+        "placeholder_validator_count": len(placeholder_addrs),
         "errors": errors,
     }
     artifact["ceremony_hash"] = hashlib.sha256(
@@ -135,8 +160,16 @@ def build_from_paths(
     config_path: str,
     manifest_path: str,
     founder_address: str = "",
+    *,
+    strict_addresses: bool = False,
 ) -> Tuple[Dict[str, Any], List[str]]:
     cfg = load_config_dict(config_path)
     manifest = load_manifest(manifest_path)
-    artifact = build_ceremony_artifact(cfg, manifest, manifest_path, founder_address)
+    artifact = build_ceremony_artifact(
+        cfg,
+        manifest,
+        manifest_path,
+        founder_address,
+        strict_addresses=strict_addresses,
+    )
     return artifact, list(artifact.get("errors") or [])

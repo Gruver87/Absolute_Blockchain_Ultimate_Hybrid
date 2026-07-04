@@ -50,6 +50,21 @@ jobs:
     - name: Secret scan (block keys in repo)
       run: python scripts/check_secrets.py
 
+    - name: Incident runbook check
+      if: matrix.python-version == '3.12'
+      run: python scripts/runbook_check.py
+
+    - name: DR backup drill
+      if: matrix.python-version == '3.12'
+      run: python scripts/backup_db_drill.py
+
+    - name: Genesis ceremony artifact (mainnet-v1 profile)
+      if: matrix.python-version == '3.12'
+      run: |
+        python scripts/genesis_ceremony.py \
+          --config node.prod.mainnet-v1.example.json \
+          --manifest validators.manifest.example.json
+
     - name: Syntax check (compile all active modules)
       run: |
         python -c "
@@ -110,6 +125,12 @@ jobs:
           tests/unit/test_native_consensus_hash.py \
           tests/unit/test_native_peer_validation.py \
           tests/unit/test_native_deploy_address.py \
+          tests/unit/test_genesis_deterministic.py \
+          tests/unit/test_genesis_ceremony.py \
+          tests/unit/test_consensus_unified.py \
+          tests/unit/test_p2p_ghost_head.py \
+          tests/unit/test_external_audit_automation.py \
+          tests/unit/test_mainnet_launch_checklist.py \
           tests/unit/test_mempool_batch_signatures.py \
           tests/unit/test_evm_keccak_native.py \
           tests/unit/test_evm_native_u256.py \
@@ -148,6 +169,10 @@ jobs:
     - name: Industrial static gate
       if: matrix.python-version == '3.12'
       run: python scripts/industrial_gate.py
+
+    - name: Mainnet launch checklist (code gates)
+      if: matrix.python-version == '3.12'
+      run: python scripts/mainnet_launch_checklist.py
 
     - name: Prod-profile P2P smoke (Linux)
       if: runner.os == 'Linux' && matrix.python-version == '3.12'
