@@ -3,8 +3,9 @@ param(
     [string]$CeremonyDir = ""
 )
 
-$ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location (Split-Path -Parent $ProjectRoot)
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ProjectRoot = Split-Path -Parent $ScriptDir
+Set-Location $ProjectRoot
 
 function Import-DotEnvFile {
     param([string]$Path)
@@ -28,7 +29,7 @@ if (Import-DotEnvFile $dotEnv) {
 }
 
 if ($CeremonyDir) {
-    & "$ProjectRoot\scripts\deploy_ceremony_prod.ps1" -CeremonyDir $CeremonyDir
+    & "$ScriptDir\deploy_ceremony_prod.ps1" -CeremonyDir $CeremonyDir
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     $env:VALIDATORS_MANIFEST_PATH = "data/validators.manifest.json"
 }
