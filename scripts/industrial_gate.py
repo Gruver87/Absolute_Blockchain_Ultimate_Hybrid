@@ -48,6 +48,23 @@ def run_industrial_gate(*, prod_smoke_spawn: bool = False) -> int:
         if rc != 0:
             errors.append(f"prod_smoke_spawn exited {rc}")
 
+    for label, (script, attr) in (
+        ("runbook", ("runbook_check.py", "main")),
+        ("evm_opcode_parity", ("evm_opcode_parity_gate.py", "main")),
+    ):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            label, ROOT / "scripts" / script
+        )
+        mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(mod)
+        rc = int(getattr(mod, attr)())
+        report[f"{label}_rc"] = rc
+        if rc != 0:
+            errors.append(f"{label} gate exited {rc}")
+
     out = ROOT / "data" / "industrial_gate.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2), encoding="utf-8")

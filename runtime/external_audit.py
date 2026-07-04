@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -48,7 +49,87 @@ AUTOMATED_ITEMS = {
     "Disaster recovery drill for multi-node devnet completed",
     "CORS and RPC API keys reviewed for production origins",
     "Validator keys not stored in node.json / git",
+    "Incident response runbook documented",
+    "Bridge L1 RPC keys rotated from dev placeholders",
+    "Production validator manifest published (no runtime key derivation)",
 }
+
+
+def _load_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _automated_runbook(root: Path) -> tuple[bool, str]:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "runbook_check", root / "scripts" / "runbook_check.py"
+    )
+    if spec is None or spec.loader is None:
+        return False, "runbook_check.py missing"
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    ok, note = mod.check_runbook(root / "docs" / "INCIDENT_RESPONSE.md")
+    return ok, note
+
+
+def _automated_bridge_l1_keys(root: Path) -> tuple[bool, str]:
+    """Staging gate: no L1 RPC secrets in git; mainnet-v1 keeps bridge off until contracts."""
+    embedded: list[str] = []
+    for path in _prod_config_paths(root):
+        text = path.read_text(encoding="utf-8").lower()
+        if re.search(r"eth_rpc_url|l1_rpc_url|alchemy|infura", text):
+            embedded.append(path.name)
+    if embedded:
+        return False, f"L1 RPC reference in JSON: {', '.join(embedded)}"
+
+    mainnet_v1 = root / "node.prod.mainnet-v1.example.json"
+    if mainnet_v1.is_file():
+        cfg = _load_json(mainnet_v1)
+        if cfg.get("bridge_enabled") is False:
+            return True, "mainnet-v1 bridge disabled; supply ETH_RPC_URL via env at deploy"
+
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "check_secrets", root / "scripts" / "check_secrets.py"
+    )
+    if spec is None or spec.loader is None:
+        return False, "check_secrets.py missing"
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    if mod.main() != 0:
+        return False, "check_secrets found potential secrets in repo"
+    return True, "no L1 RPC secrets in repo; rotate ETH_RPC_URL in deployment env"
+
+
+def _automated_validator_manifest(root: Path) -> tuple[bool, str]:
+    manifest_path = root / "validators.manifest.example.json"
+    if not manifest_path.is_file():
+        return False, "validators.manifest.example.json missing"
+    if _json_has_private_key(manifest_path):
+        return False, "private_key in manifest template"
+    data = _load_json(manifest_path)
+    validators = data.get("validators") or []
+    if not validators:
+        return False, "empty validators list"
+    for path in _prod_config_paths(root):
+        cfg = _load_json(path)
+        if not str(cfg.get("validators_manifest_path", "")).strip():
+            return False, f"{path.name} missing validators_manifest_path"
+    return True, "public manifest template + prod configs require manifest path (replace placeholder addresses at ceremony)"
+
+
+def evaluate_automated(root: Path | None = None) -> dict[str, tuple[bool, str]]:
+    base = root or Path(__file__).resolve().parents[1]
+    return {
+        "Disaster recovery drill for multi-node devnet completed": _automated_dr_drill(base),
+        "CORS and RPC API keys reviewed for production origins": _automated_prod_gate(base),
+        "Validator keys not stored in node.json / git": _automated_no_inline_validator_keys(base),
+        "Incident response runbook documented": _automated_runbook(base),
+        "Bridge L1 RPC keys rotated from dev placeholders": _automated_bridge_l1_keys(base),
+        "Production validator manifest published (no runtime key derivation)": _automated_validator_manifest(base),
+    }
 
 
 def _prod_config_paths(root: Path) -> list[Path]:
@@ -114,15 +195,6 @@ def _automated_no_inline_validator_keys(root: Path) -> tuple[bool, str]:
     if offenders:
         return False, f"private_key in: {', '.join(offenders)}"
     return True, "no private_key in prod node JSON / validator manifest templates"
-
-
-def evaluate_automated(root: Path | None = None) -> dict[str, tuple[bool, str]]:
-    base = root or Path(__file__).resolve().parents[1]
-    return {
-        "Disaster recovery drill for multi-node devnet completed": _automated_dr_drill(base),
-        "CORS and RPC API keys reviewed for production origins": _automated_prod_gate(base),
-        "Validator keys not stored in node.json / git": _automated_no_inline_validator_keys(base),
-    }
 
 
 def sync_automated_items(
