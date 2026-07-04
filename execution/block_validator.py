@@ -3,7 +3,6 @@
 Block Validator — validates blocks before import
 """
 
-import hashlib
 import time
 from typing import Dict, Optional, Tuple
 
@@ -97,12 +96,10 @@ class BlockValidator:
         return True, ""
 
     def _compute_tx_root(self, transactions: list) -> str:
-        if not transactions:
-            return hashlib.sha256(b"empty").hexdigest()
-        try:
-            from crypto.merkle import merkle_root
-            items = [tx.get("hash", tx.get("tx_hash", "")) for tx in transactions]
-            return merkle_root(items)
-        except Exception:
-            combined = "".join(sorted(tx.get("hash", "") for tx in transactions))
-            return hashlib.sha256(combined.encode()).hexdigest()
+        from crypto.merkle import merkle_root
+
+        items = [
+            tx.get("hash", tx.get("tx_hash", ""))
+            for tx in transactions
+        ] if transactions else []
+        return merkle_root(items) if items else merkle_root(["empty"])

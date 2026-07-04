@@ -3,8 +3,9 @@
 Validator Selection — deterministic RANDAO-style proposer and committee selection.
 """
 
-import hashlib
 from typing import Dict, List, Optional
+
+from crypto import native
 
 
 class ValidatorSelection:
@@ -16,9 +17,8 @@ class ValidatorSelection:
     """
 
     def __init__(self, initial_seed: str = None):
-        # Используем хэш от "genesis" вместо строки
         if initial_seed is None:
-            initial_seed = hashlib.sha256(b"genesis").hexdigest()
+            initial_seed = native.sha256_hex(b"genesis")
         self.entropy_seed = initial_seed
         self.epoch = 0
 
@@ -27,9 +27,7 @@ class ValidatorSelection:
         RANDAO-style mixing of entropy from block hashes
         Each block contributes deterministic entropy to the seed.
         """
-        self.entropy_seed = hashlib.sha256(
-            (self.entropy_seed + block_hash).encode()
-        ).hexdigest()
+        self.entropy_seed = native.hash_text(self.entropy_seed + block_hash)
 
     def set_epoch(self, epoch: int):
         self.epoch = epoch
@@ -39,7 +37,7 @@ class ValidatorSelection:
 
     def _hash_int(self, *parts: object) -> int:
         payload = "|".join(str(part) for part in (self.entropy_seed, self.epoch, *parts))
-        return int(hashlib.sha256(payload.encode()).hexdigest(), 16)
+        return int(native.hash_text(payload), 16)
 
     def _canonical_validators(self, validators: Dict[str, int]) -> List[tuple]:
         return sorted(

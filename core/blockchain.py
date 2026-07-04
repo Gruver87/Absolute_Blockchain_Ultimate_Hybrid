@@ -483,7 +483,16 @@ class Blockchain:
                                 f"(peer={peer_root[:12]}… computed={computed_root[:12]}…) — legacy"
                             )
                     block.state_root = computed_root
-                    block.hash = peer_hash if peer_hash else block._compute_hash()
+                    canonical_hash = block._compute_hash()
+                    if peer_hash:
+                        if peer_hash != canonical_hash:
+                            raise RuntimeError(
+                                f"block_hash_mismatch expected={peer_hash[:16]} "
+                                f"computed={canonical_hash[:16]}"
+                            )
+                        block.hash = peer_hash
+                    else:
+                        block.hash = canonical_hash
 
                     if slashing and block.miner and block.miner != "genesis":
                         if not slashing.record_proposal(block.miner, block.height, block.hash):
@@ -542,6 +551,16 @@ class Blockchain:
                 if not valid:
                     print(f"[Blockchain] import_block rejected: {msg}")
                     return False
+
+            last = self.db.get_last_block()
+            expected_parent = last["hash"] if last else self.GENESIS_HASH
+            start_height = last["height"] if last else -1
+            if not native.validate_imported_block_chain(
+                [normalized], expected_parent, start_height
+            ):
+                print("[Blockchain] import_block rejected: invalid peer hash/parent chain")
+                return False
+
             try:
                 return self.add_block(Block.from_dict(normalized), preserve_peer_hash=True)
             except Exception as e:

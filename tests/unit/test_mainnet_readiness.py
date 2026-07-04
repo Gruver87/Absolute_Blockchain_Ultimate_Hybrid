@@ -18,8 +18,24 @@ def _load_mainnet():
     return mod
 
 
-def test_mainnet_readiness_strict_audit_blocks_until_complete():
+def test_mainnet_readiness_strict_audit_blocks_until_complete(monkeypatch):
     gate = _load_mainnet()
+
+    def _pending_audit(*_args, **_kwargs):
+        warnings = ["external_audit_pending:Third-party smart-contract / L1 security audit completed"]
+        summary = {
+            "all_complete": False,
+            "total": 8,
+            "completed": 7,
+            "pending": 1,
+            "items": [],
+        }
+        return warnings, [], summary
+
+    import runtime.external_audit as external_audit
+
+    monkeypatch.setattr(external_audit, "evaluate", _pending_audit)
+
     errors, warnings, meta = gate.run_gate(live=False, strict_audit=True)
     assert any("external_audit_pending:" in e for e in errors)
     assert meta["sections"]["external_audit"]["all_complete"] is False

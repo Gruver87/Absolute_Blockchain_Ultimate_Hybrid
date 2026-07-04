@@ -130,13 +130,24 @@ def test_import_allows_equal_timestamp(chain_env):
     parent = bc.create_block([], cfg.miner_address)
     assert bc.add_block(parent)
     ts = parent.timestamp
-    child_dict = bc.create_block([], cfg.miner_address).to_dict()
-    child_dict["height"] = parent.height + 1
-    child_dict["number"] = parent.height + 1
-    child_dict["parent_hash"] = parent.hash
-    child_dict["timestamp"] = ts
-    child_dict["hash"] = "b" * 64
-    assert bc.import_block(child_dict) is True
+    child = bc.create_block([], cfg.miner_address)
+    child.timestamp = ts
+    assert bc.add_block(child)
+    honest = db.get_block(child.height)
+    assert bc.reorg_to_ancestor(parent.height) is True
+    assert bc.import_block(honest) is True
+
+
+def test_import_rejects_tampered_block_hash(chain_env):
+    cfg, db, bc = chain_env
+    parent = bc.create_block([], cfg.miner_address)
+    assert bc.add_block(parent)
+    child = bc.create_block([], cfg.miner_address)
+    assert bc.add_block(child)
+    tampered = dict(db.get_block(child.height))
+    tampered["hash"] = "0" * 64
+    assert bc.reorg_to_ancestor(parent.height) is True
+    assert bc.import_block(tampered) is False
 
 
 def test_add_block_rejects_invalid_signed_tx_before_execution(chain_env):

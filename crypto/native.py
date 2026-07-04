@@ -41,6 +41,16 @@ if _REQUIRE_NATIVE and _native is None:
         "ABS_REQUIRE_NATIVE_CRYPTO is enabled, but abs_native is not available"
     ) from _native_error
 
+_NATIVE_REQUIRED_MSG = (
+    "ABS_REQUIRE_NATIVE_CRYPTO is enabled: abs_native kernel required "
+    "(pip install -e native/abs_native)"
+)
+
+
+def _require_native_kernel(kernel: str = "abs_native") -> None:
+    if _REQUIRE_NATIVE and _native is None:
+        raise RuntimeError(_NATIVE_REQUIRED_MSG)
+
 
 def native_available() -> bool:
     return _native is not None
@@ -273,6 +283,7 @@ def block_canonical_hash(block: dict) -> str:
     encoded = json.dumps(block_copy, separators=(",", ":"), ensure_ascii=False)
     if _native is not None and hasattr(_native, "block_canonical_hash_json"):
         return str(_native.block_canonical_hash_json(encoded))
+    _require_native_kernel("block_canonical_hash")
     return hash_text(_python_canonical_serialize(block_copy))
 
 
@@ -1031,6 +1042,7 @@ def validate_imported_block_chain(
             str(expected_parent_hash or ""),
             int(start_height),
         ))
+    _require_native_kernel("validate_imported_block_chain")
 
     previous_hash = str(expected_parent_hash or "")
     previous_height = int(start_height)
@@ -1096,6 +1108,7 @@ def validate_peer_header_chain(
 def sha256_hex(data: bytes) -> str:
     if _native is not None:
         return _native.sha256_hex(data)
+    _require_native_kernel("sha256_hex")
     return hashlib.sha256(data).hexdigest()
 
 
@@ -1115,6 +1128,7 @@ def merkle_root(items: List[Any]) -> str:
     string_items = _string_items(items)
     if _native is not None:
         return _native.merkle_root(string_items)
+    _require_native_kernel("merkle_root")
     return _python_merkle_root_strings(string_items)
 
 
@@ -1148,6 +1162,7 @@ def merkle_root_from_proof(item: Any, proof: List[str], target_index: int) -> st
 def state_root_from_accounts_json(accounts_json: str) -> str:
     if _native is not None:
         return _native.state_root_from_accounts_json(accounts_json)
+    _require_native_kernel("state_root_from_accounts_json")
     accounts = json.loads(accounts_json)
     return _python_state_root_from_accounts(accounts)
 

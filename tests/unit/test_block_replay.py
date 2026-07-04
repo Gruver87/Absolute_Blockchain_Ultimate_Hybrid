@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from runtime.config import Config
 from storage.database import Database
 from kernel.event_bus import EventBus
-from core.blockchain import Blockchain, Transaction
+from core.blockchain import Blockchain, Transaction, Block
 
 
 @pytest.fixture
@@ -54,7 +54,7 @@ def test_second_node_imports_block_state(tmp_path):
     tx = Transaction(from_addr=sender, to_addr=recv, value=5.0, nonce=0)
     blk = node_a.create_block([tx], proposer="0x" + "f6" * 20)
     node_a.add_block(blk)
-    exported = blk.to_dict()
+    exported = dict(node_a.db.get_block(blk.height))
 
     cfg_b = Config()
     cfg_b.db_path = db_b
@@ -64,6 +64,7 @@ def test_second_node_imports_block_state(tmp_path):
     parent = node_b.get_last_block()
     exported["parent_hash"] = parent["hash"]
     exported["timestamp"] = int(parent["timestamp"]) + 1
+    exported["hash"] = Block.from_dict(exported)._compute_hash()
 
     assert node_b.import_block(exported)
     assert node_b.get_balance(recv) == 5.0

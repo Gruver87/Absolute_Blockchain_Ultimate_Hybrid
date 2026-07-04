@@ -27,6 +27,8 @@ def _make_chain():
 
 
 def test_strict_p2p_rejects_mismatch_above_baseline():
+    from core.blockchain import Block
+
     cfg, db, bc, path = _make_chain()
     try:
         for _ in range(3):
@@ -35,9 +37,17 @@ def test_strict_p2p_rejects_mismatch_above_baseline():
         bc.set_state_root_baseline(baseline)
 
         nxt = bc.create_block([], cfg.miner_address)
-        bad = nxt.to_dict()
-        bad["state_root"] = "f" * 64
-        bad["hash"] = "b" * 64
+        bad_blk = Block(
+            height=nxt.height,
+            parent_hash=nxt.parent_hash,
+            miner=nxt.miner,
+            transactions=nxt.transactions,
+            timestamp=nxt.timestamp,
+            extra_data=nxt.extra_data,
+            state_root="f" * 64,
+        )
+        bad = bad_blk.to_dict()
+        bad["hash"] = bad_blk._compute_hash()
 
         assert bc.import_block(bad) is False
         rows = db.get_state_root_mismatches(limit=5)
@@ -48,7 +58,7 @@ def test_strict_p2p_rejects_mismatch_above_baseline():
         os.remove(path)
 
 
-def test_legacy_p2p_allows_drift_when_disabled():
+def test_legacy_p2p_rejects_inconsistent_peer_hash():
     cfg, db, bc, path = _make_chain()
     try:
         cfg.state_root_strict_p2p = False
@@ -61,9 +71,7 @@ def test_legacy_p2p_allows_drift_when_disabled():
         drift["state_root"] = "f" * 64
         drift["hash"] = "c" * 64
 
-        assert bc.import_block(drift) is True
-        stored = db.get_block(drift["height"])
-        assert stored["state_root"] != "f" * 64
+        assert bc.import_block(drift) is False
     finally:
         db.close()
         os.remove(path)
