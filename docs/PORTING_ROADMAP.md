@@ -77,6 +77,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Native PUSH decode (`evm_read_push`) + EXTCODECOPY memory kernel
 - [x] Jumpdest bitmap + EIP-150 call gas cap + address masking in Rust
 - [x] Native stack DUP/SWAP + memory slice for CALL/CREATE calldata
+- [x] Native bytecode scan + gas remaining; validator sync with all interpreter opcodes
 - [ ] Full opcode dispatch in Rust (future)
 
 ### Priority 7 — Bridge hardening (future)

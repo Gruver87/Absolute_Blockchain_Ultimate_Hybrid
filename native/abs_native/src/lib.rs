@@ -1055,6 +1055,105 @@ fn evm_stack_swap(stack: &Bound<'_, PyList>, depth: usize) -> PyResult<()> {
     Ok(())
 }
 
+fn evm_opcode_supported(op: u8) -> bool {
+    matches!(
+        op,
+        0x00 | 0x01
+            | 0x02
+            | 0x03
+            | 0x04
+            | 0x05
+            | 0x06
+            | 0x07
+            | 0x08
+            | 0x09
+            | 0x0A
+            | 0x0B
+            | 0x10
+            | 0x11
+            | 0x12
+            | 0x14
+            | 0x15
+            | 0x16
+            | 0x17
+            | 0x19
+            | 0x1A
+            | 0x1B
+            | 0x1C
+            | 0x20
+            | 0x30
+            | 0x31
+            | 0x32
+            | 0x33
+            | 0x34
+            | 0x35
+            | 0x36
+            | 0x37
+            | 0x38
+            | 0x39
+            | 0x3B
+            | 0x3C
+            | 0x3D
+            | 0x3E
+            | 0x40
+            | 0x42
+            | 0x43
+            | 0x45
+            | 0x46
+            | 0x50
+            | 0x51
+            | 0x52
+            | 0x53
+            | 0x54
+            | 0x55
+            | 0x56
+            | 0x57
+            | 0x5A
+            | 0x5B
+            | 0x5F
+            | 0xF0
+            | 0xF1
+            | 0xF2
+            | 0xF3
+            | 0xF4
+            | 0xF5
+            | 0xFA
+            | 0xFD
+            | 0xFE
+            | 0xFF
+    ) || (0x60..=0x7F).contains(&op)
+        || (0x80..=0x8F).contains(&op)
+        || (0x90..=0x9F).contains(&op)
+        || (0xA0..=0xA4).contains(&op)
+}
+
+fn evm_scan_bytecode_inner(bytecode: &[u8]) -> Vec<(usize, u8)> {
+    let mut issues = Vec::new();
+    let mut pc = 0usize;
+    while pc < bytecode.len() {
+        let op = bytecode[pc];
+        if !evm_opcode_supported(op) {
+            issues.push((pc, op));
+        }
+        if (0x60..=0x7F).contains(&op) {
+            pc += 1 + (op - 0x5F) as usize;
+        } else {
+            pc += 1;
+        }
+    }
+    issues
+}
+
+#[pyfunction]
+fn evm_scan_bytecode(bytecode: &[u8]) -> PyResult<Vec<(usize, u8)>> {
+    Ok(evm_scan_bytecode_inner(bytecode))
+}
+
+#[pyfunction]
+fn evm_gas_remaining(gas_limit: u64, gas_used: u64) -> PyResult<u64> {
+    Ok(gas_limit.saturating_sub(gas_used))
+}
+
 #[pyfunction]
 fn keccak256_hex(data: &[u8]) -> PyResult<String> {
     Ok(keccak256_hex_bytes(data))
@@ -1341,6 +1440,8 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_memory_slice, m)?)?;
     m.add_function(wrap_pyfunction!(evm_stack_dup, m)?)?;
     m.add_function(wrap_pyfunction!(evm_stack_swap, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_scan_bytecode, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_gas_remaining, m)?)?;
     m.add_function(wrap_pyfunction!(keccak256_hex, m)?)?;
     m.add_function(wrap_pyfunction!(validate_imported_block_chain, m)?)?;
     m.add_function(wrap_pyfunction!(validate_peer_header_chain, m)?)?;

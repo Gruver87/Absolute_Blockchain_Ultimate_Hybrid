@@ -339,7 +339,7 @@ class EVM:
                 offset = self._pop()
                 self._consume_gas("LOG", extra=n_topics * 375 + size)
                 self._mem_extend(offset, size)
-                data = bytes(self.memory[offset:offset + size])
+                data = native.evm_memory_slice(bytes(self.memory), offset, size)
                 if self.ctx.emit_log:
                     self.ctx.emit_log(n_topics, topics, data)
                 self.logs.append({
@@ -396,7 +396,7 @@ class EVM:
                     self.pc = dest
                     continue
             elif op_byte == 0x5A:  # GAS
-                self._push(max(0, self.gas_limit - self.gas_used))
+                self._push(native.evm_gas_remaining(self.gas_limit, self.gas_used))
             elif op_byte == 0x5B:  # JUMPDEST
                 pass
             elif op_byte == 0x5F:  # PUSH0
@@ -467,13 +467,13 @@ class EVM:
             elif op_byte == 0xF3:  # RETURN
                 offset, size = self._pop(), self._pop()
                 self._mem_extend(offset, size)
-                self.return_data = bytes(self.memory[offset:offset + size])
+                self.return_data = native.evm_memory_slice(bytes(self.memory), offset, size)
                 self.running = False
                 break
             elif op_byte == 0xFD:  # REVERT
                 offset, size = self._pop(), self._pop()
                 self._mem_extend(offset, size)
-                self.return_data = bytes(self.memory[offset:offset + size])
+                self.return_data = native.evm_memory_slice(bytes(self.memory), offset, size)
                 self.reverted = True
                 self.running = False
                 break

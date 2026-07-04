@@ -76,6 +76,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "evm_call_gas",
             "evm_stack",
             "evm_memory_slice",
+            "evm_bytecode_scan",
             "evm_keccak256_memory",
             "evm_deploy_address",
             "evm_create2_eip1014",
@@ -668,6 +669,47 @@ def evm_stack_swap(stack: list, depth: int) -> None:
     if depth <= 0 or depth >= len(stack):
         raise RuntimeError("stack underflow")
     stack[-1], stack[-1 - depth] = stack[-1 - depth], stack[-1]
+
+
+def evm_scan_bytecode(bytecode: bytes):
+    if _native is not None and hasattr(_native, "evm_scan_bytecode"):
+        return [(int(pc), int(op)) for pc, op in _native.evm_scan_bytecode(bytecode)]
+    issues = []
+    pc = 0
+    while pc < len(bytecode):
+        op = bytecode[pc]
+        if not _evm_opcode_supported_python(op):
+            issues.append((pc, op))
+        if 0x60 <= op <= 0x7F:
+            pc += 1 + (op - 0x5F)
+        else:
+            pc += 1
+    return issues
+
+
+def _evm_opcode_supported_python(op: int) -> bool:
+    if 0x60 <= op <= 0x7F or 0x80 <= op <= 0x8F or 0x90 <= op <= 0x9F or 0xA0 <= op <= 0xA4:
+        return True
+    return op in _EVM_SUPPORTED_SINGLE_OPCODES
+
+
+_EVM_SUPPORTED_SINGLE_OPCODES = {
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
+    0x10, 0x11, 0x12, 0x14, 0x15, 0x16, 0x17, 0x19, 0x1A, 0x1B, 0x1C,
+    0x20,
+    0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39,
+    0x3B, 0x3C, 0x3D, 0x3E, 0x40, 0x42, 0x43, 0x45, 0x46,
+    0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x5A, 0x5B, 0x5F,
+    0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xFA, 0xFD, 0xFE, 0xFF,
+}
+
+
+def evm_gas_remaining(gas_limit: int, gas_used: int) -> int:
+    gas_limit = max(0, int(gas_limit))
+    gas_used = max(0, int(gas_used))
+    if _native is not None and hasattr(_native, "evm_gas_remaining"):
+        return int(_native.evm_gas_remaining(gas_limit, gas_used))
+    return max(0, gas_limit - gas_used)
 
 
 def evm_memory_copy(memory: bytearray, dest: int, src: bytes, src_offset: int, size: int) -> None:
