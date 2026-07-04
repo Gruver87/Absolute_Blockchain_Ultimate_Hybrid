@@ -749,7 +749,7 @@ _EVM_BRIDGE_OPCODES = frozenset({0x31, 0x3B, 0x3C, 0x40})
 
 def evm_host_context_from_evm(ctx) -> dict:
     """Build static host context dict for native pure runner."""
-    return {
+    host = {
         "address": ctx.addr_int(ctx.address),
         "caller": ctx.addr_int(ctx.caller),
         "origin": ctx.addr_int(ctx.origin),
@@ -758,6 +758,18 @@ def evm_host_context_from_evm(ctx) -> dict:
         "block_number": int(ctx.block_number),
         "chain_id": int(ctx.chain_id),
     }
+    hooks = {}
+    if ctx.balance_of:
+        hooks["balance"] = ctx.balance_of
+    if ctx.code_size_of:
+        hooks["code_size"] = ctx.code_size_of
+    if ctx.code_copy_of:
+        hooks["code_copy"] = ctx.code_copy_of
+    if ctx.block_hash_of:
+        hooks["block_hash"] = ctx.block_hash_of
+    if hooks:
+        host["bridge_hooks"] = hooks
+    return host
 
 
 def evm_opcode_is_host(op: int) -> bool:

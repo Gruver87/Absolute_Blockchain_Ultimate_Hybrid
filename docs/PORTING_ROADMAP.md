@@ -83,7 +83,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Host bridge for BALANCE / EXTCODE* / BLOCKHASH in native pure runner
 - [x] Runtime bridge for CALL / CREATE / LOG / SELFDESTRUCT via apply_host_op
 - [x] `evm_run_until_halt` — full bytecode dispatch loop in Rust with runtime bridge
-- [ ] Inline Rust implementations for bridge callbacks (future)
+- [x] Inline Rust bridge callbacks via `host_context.bridge_state` / `bridge_hooks`
 
 ### Priority 7 — Bridge hardening (in progress)
 

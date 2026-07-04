@@ -22,14 +22,42 @@ pub fn evm_opcode_is_host(op: u8) -> bool {
         || (0xA0..=0xA4).contains(&op)
 }
 
-fn opcode_stops_segment(op: u8, host_bridge: Option<&Bound<'_, PyAny>>) -> bool {
+fn opcode_stops_segment(
+    op: u8,
+    host_context: Option<&Bound<'_, PyDict>>,
+    host_bridge: Option<&Bound<'_, PyAny>>,
+) -> bool {
     if evm_opcode_is_host(op) {
         return !bridge_supports_runtime(host_bridge);
     }
     if evm_opcode_is_bridge(op) {
-        return host_bridge.is_none();
+        return !bridge_opcode_available(host_context, host_bridge);
     }
     false
+}
+
+fn bridge_supports_inline(host_context: Option<&Bound<'_, PyDict>>) -> bool {
+    let Some(ctx) = host_context else {
+        return false;
+    };
+    if let Ok(Some(state)) = ctx.get_item("bridge_state") {
+        if state.downcast::<PyDict>().is_ok() {
+            return true;
+        }
+    }
+    if let Ok(Some(hooks)) = ctx.get_item("bridge_hooks") {
+        if let Ok(dict) = hooks.downcast::<PyDict>() {
+            return dict.len() > 0;
+        }
+    }
+    false
+}
+
+fn bridge_opcode_available(
+    host_context: Option<&Bound<'_, PyDict>>,
+    host_bridge: Option<&Bound<'_, PyAny>>,
+) -> bool {
+    host_bridge.is_some() || bridge_supports_inline(host_context)
 }
 
 fn bridge_supports_runtime(host_bridge: Option<&Bound<'_, PyAny>>) -> bool {
@@ -209,6 +237,187 @@ fn bridge_code_copy(
 fn bridge_block_hash(bridge: &Bound<'_, PyAny>, block_num: U256) -> PyResult<U256> {
     let result = bridge.call_method1("block_hash", (block_num.as_u64(),))?;
     py_to_u256_or_int(result)
+}
+
+fn bridge_state_dict<'py>(
+    host_context: Option<&Bound<'py, PyDict>>,
+) -> Option<Bound<'py, PyDict>> {
+    let ctx = host_context?;
+    let state = ctx.get_item("bridge_state").ok()??;
+    state.downcast::<PyDict>().ok().cloned()
+}
+
+fn bridge_hooks_dict<'py>(
+    host_context: Option<&Bound<'py, PyDict>>,
+) -> Option<Bound<'py, PyDict>> {
+    let ctx = host_context?;
+    let hooks = ctx.get_item("bridge_hooks").ok()??;
+    hooks.downcast::<PyDict>().ok().cloned()
+}
+
+fn inline_balance(
+    host_context: Option<&Bound<'_, PyDict>>,
+    who: U256,
+) -> Option<PyResult<U256>> {
+    let state = bridge_state_dict(host_context)?;
+    let balances = state.get_item("balances").ok()??;
+    let dict = balances.downcast::<PyDict>().ok()?;
+    let addr = word_to_address(who);
+    let value = dict.get_item(addr.as_str()).ok()??;
+    Some(py_to_u256_or_int(value))
+}
+
+fn inline_code_bytes(
+    host_context: Option<&Bound<'_, PyDict>>,
+    who: U256,
+) -> Option<PyResult<Vec<u8>>> {
+    let state = bridge_state_dict(host_context)?;
+    let codes = state.get_item("codes").ok()??;
+    let dict = codes.downcast::<PyDict>().ok()?;
+    let addr = word_to_address(who);
+    let value = dict.get_item(addr.as_str()).ok()??;
+    Some(value.extract::<Vec<u8>>())
+}
+
+fn inline_block_hash(
+    host_context: Option<&Bound<'_, PyDict>>,
+    block_num: U256,
+) -> Option<PyResult<U256>> {
+    let state = bridge_state_dict(host_context)?;
+    let hashes = state.get_item("block_hashes").ok()??;
+    let dict = hashes.downcast::<PyDict>().ok()?;
+    let block_key = block_num.as_u64();
+    let value = dict
+        .get_item(block_key)
+        .ok()
+        .flatten()
+        .or_else(|| dict.get_item(block_key.to_string()).ok().flatten())?;
+    Some(py_to_u256_or_int(value))
+}
+
+fn hook_balance(
+    host_context: Option<&Bound<'_, PyDict>>,
+    who: U256,
+) -> Option<PyResult<U256>> {
+    let hooks = bridge_hooks_dict(host_context)?;
+    let func = hooks.get_item("balance").ok()??;
+    let addr = word_to_address(who);
+    Some(func.call1((addr,)).and_then(|value| py_to_u256_or_int(value)))
+}
+
+fn hook_code_size(
+    host_context: Option<&Bound<'_, PyDict>>,
+    who: U256,
+) -> Option<PyResult<U256>> {
+    let hooks = bridge_hooks_dict(host_context)?;
+    let func = hooks.get_item("code_size").ok()??;
+    let addr = word_to_address(who);
+    Some(func.call1((addr,)).and_then(|value| py_to_u256_or_int(value)))
+}
+
+fn hook_code_copy(
+    host_context: Option<&Bound<'_, PyDict>>,
+    who: U256,
+    code_offset: usize,
+    size: usize,
+) -> Option<PyResult<Vec<u8>>> {
+    let hooks = bridge_hooks_dict(host_context)?;
+    let func = hooks.get_item("code_copy").ok()??;
+    let addr = word_to_address(who);
+    Some(
+        func.call1((addr, code_offset, size))
+            .and_then(|value| value.extract::<Vec<u8>>()),
+    )
+}
+
+fn hook_block_hash(
+    host_context: Option<&Bound<'_, PyDict>>,
+    block_num: U256,
+) -> Option<PyResult<U256>> {
+    let hooks = bridge_hooks_dict(host_context)?;
+    let func = hooks.get_item("block_hash").ok()??;
+    Some(
+        func.call1((block_num.as_u64(),))
+            .and_then(|value| py_to_u256_or_int(value)),
+    )
+}
+
+fn resolve_balance(
+    host_context: Option<&Bound<'_, PyDict>>,
+    host_bridge: Option<&Bound<'_, PyAny>>,
+    who: U256,
+) -> PyResult<U256> {
+    if let Some(result) = inline_balance(host_context, who) {
+        return result;
+    }
+    if let Some(result) = hook_balance(host_context, who) {
+        return result;
+    }
+    if let Some(bridge) = host_bridge {
+        return bridge_balance(bridge, who);
+    }
+    Err(pyo3::exceptions::PyRuntimeError::new_err("bridge_unavailable"))
+}
+
+fn resolve_code_size(
+    host_context: Option<&Bound<'_, PyDict>>,
+    host_bridge: Option<&Bound<'_, PyAny>>,
+    who: U256,
+) -> PyResult<U256> {
+    if let Some(result) = inline_code_bytes(host_context, who) {
+        return result.map(|code| U256::from(code.len()));
+    }
+    if let Some(result) = hook_code_size(host_context, who) {
+        return result;
+    }
+    if let Some(bridge) = host_bridge {
+        return bridge_code_size(bridge, who);
+    }
+    Err(pyo3::exceptions::PyRuntimeError::new_err("bridge_unavailable"))
+}
+
+fn resolve_code_copy(
+    host_context: Option<&Bound<'_, PyDict>>,
+    host_bridge: Option<&Bound<'_, PyAny>>,
+    who: U256,
+    code_offset: usize,
+    size: usize,
+) -> PyResult<Vec<u8>> {
+    if let Some(result) = inline_code_bytes(host_context, who) {
+        return result.map(|code| {
+            let mut out = vec![0u8; size];
+            let available = code.len().saturating_sub(code_offset);
+            let copy_len = size.min(available);
+            if copy_len > 0 {
+                out[..copy_len].copy_from_slice(&code[code_offset..code_offset + copy_len]);
+            }
+            out
+        });
+    }
+    if let Some(result) = hook_code_copy(host_context, who, code_offset, size) {
+        return result;
+    }
+    if let Some(bridge) = host_bridge {
+        return bridge_code_copy(bridge, who, code_offset, size);
+    }
+    Err(pyo3::exceptions::PyRuntimeError::new_err("bridge_unavailable"))
+}
+
+fn resolve_block_hash(
+    host_context: Option<&Bound<'_, PyDict>>,
+    host_bridge: Option<&Bound<'_, PyAny>>,
+    block_num: U256,
+) -> PyResult<U256> {
+    if let Some(result) = inline_block_hash(host_context, block_num) {
+        return result;
+    }
+    if let Some(result) = hook_block_hash(host_context, block_num) {
+        return result;
+    }
+    if let Some(bridge) = host_bridge {
+        return bridge_block_hash(bridge, block_num);
+    }
+    Err(pyo3::exceptions::PyRuntimeError::new_err("bridge_unavailable"))
 }
 
 fn evm_u256_div_inner(a: U256, b: U256) -> U256 {
@@ -462,7 +671,7 @@ fn run_pure_segment_inner(
 
     while pc < bytecode.len() && running && steps < max_steps {
         let op = bytecode[pc];
-        if opcode_stops_segment(op, host_bridge) {
+        if opcode_stops_segment(op, host_context, host_bridge) {
             break;
         }
 
@@ -719,18 +928,18 @@ fn run_pure_segment_inner(
                 }
                 0x31 => {
                     let who = stack_pop(&mut stack)?;
-                    let bridge = host_bridge.ok_or_else(|| {
-                        pyo3::exceptions::PyRuntimeError::new_err("host_bridge_unavailable")
-                    })?;
-                    stack_push(&mut stack, bridge_balance(bridge, who)?);
+                    stack_push(
+                        &mut stack,
+                        resolve_balance(host_context, host_bridge, who)?,
+                    );
                     Ok(Some(false))
                 }
                 0x3B => {
                     let who = stack_pop(&mut stack)?;
-                    let bridge = host_bridge.ok_or_else(|| {
-                        pyo3::exceptions::PyRuntimeError::new_err("host_bridge_unavailable")
-                    })?;
-                    stack_push(&mut stack, bridge_code_size(bridge, who)?);
+                    stack_push(
+                        &mut stack,
+                        resolve_code_size(host_context, host_bridge, who)?,
+                    );
                     Ok(Some(false))
                 }
                 0x3C => {
@@ -738,19 +947,22 @@ fn run_pure_segment_inner(
                     let mem_offset = stack_pop(&mut stack)?.as_usize();
                     let size = stack_pop(&mut stack)?.as_usize();
                     let who = stack_pop(&mut stack)?;
-                    let bridge = host_bridge.ok_or_else(|| {
-                        pyo3::exceptions::PyRuntimeError::new_err("host_bridge_unavailable")
-                    })?;
-                    let chunk = bridge_code_copy(bridge, who, code_offset, size)?;
+                    let chunk = resolve_code_copy(
+                        host_context,
+                        host_bridge,
+                        who,
+                        code_offset,
+                        size,
+                    )?;
                     memory_copy(&mut memory, mem_offset, &chunk, 0, size);
                     Ok(Some(false))
                 }
                 0x40 => {
                     let block_num = stack_pop(&mut stack)?;
-                    let bridge = host_bridge.ok_or_else(|| {
-                        pyo3::exceptions::PyRuntimeError::new_err("host_bridge_unavailable")
-                    })?;
-                    stack_push(&mut stack, bridge_block_hash(bridge, block_num)?);
+                    stack_push(
+                        &mut stack,
+                        resolve_block_hash(host_context, host_bridge, block_num)?,
+                    );
                     Ok(Some(false))
                 }
                 0x50 => {
@@ -918,7 +1130,7 @@ fn run_pure_segment_inner(
         "handoff"
     } else if steps >= max_steps && running {
         "handoff"
-    } else if pc < bytecode.len() && opcode_stops_segment(bytecode[pc], host_bridge) {
+    } else if pc < bytecode.len() && opcode_stops_segment(bytecode[pc], host_context, host_bridge) {
         "host"
     } else if !running {
         if reverted {

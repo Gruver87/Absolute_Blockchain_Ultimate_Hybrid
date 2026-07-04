@@ -86,6 +86,68 @@ def test_pure_segment_runs_balance_via_host_bridge():
     assert seg["stack"] == [12345]
 
 
+def test_pure_segment_runs_balance_via_inline_bridge_state():
+    addr = "0x0000000000000000000000000000000000000000"
+    bytecode = bytes([0x60, 0x00, 0x31, 0x00])  # PUSH1 0, BALANCE, STOP
+    table = native.evm_build_jumpdest_table(bytecode)
+    seg = native.evm_run_pure_until_host(
+        bytecode,
+        0,
+        1_000_000,
+        0,
+        [],
+        bytearray(),
+        table,
+        b"",
+        b"",
+        _host_ctx(
+            bridge_state={
+                "balances": {addr: 777},
+            }
+        ),
+    )
+    assert seg["stop_reason"] == "halt"
+    assert seg["stack"] == [777]
+
+
+def test_pure_segment_runs_extcodesize_and_blockhash_inline():
+    addr = "0x00000000000000000000000000000000000000aa"
+    code = b"\x60\x00\x60\x00"
+    extcode_bytecode = bytes([0x73] + [0x00] * 19 + [0xAA, 0x3B, 0x00])
+    table = native.evm_build_jumpdest_table(extcode_bytecode)
+    seg = native.evm_run_pure_until_host(
+        extcode_bytecode,
+        0,
+        1_000_000,
+        0,
+        [],
+        bytearray(),
+        table,
+        b"",
+        b"",
+        _host_ctx(bridge_state={"codes": {addr: code}}),
+    )
+    assert seg["stop_reason"] == "halt"
+    assert seg["stack"] == [len(code)]
+
+    block_bytecode = bytes([0x60, 0x05, 0x40, 0x00])
+    table = native.evm_build_jumpdest_table(block_bytecode)
+    seg = native.evm_run_pure_until_host(
+        block_bytecode,
+        0,
+        1_000_000,
+        0,
+        [],
+        bytearray(),
+        table,
+        b"",
+        b"",
+        _host_ctx(bridge_state={"block_hashes": {5: 0xBEEF}}),
+    )
+    assert seg["stop_reason"] == "halt"
+    assert seg["stack"] == [0xBEEF]
+
+
 def test_pure_segment_runs_caller_and_chainid():
     caller = int("ab" * 20, 16)
     bytecode = bytes([0x33, 0x46, 0x00])  # CALLER, CHAINID, STOP
