@@ -140,14 +140,29 @@ def main() -> int:
             for err in errors:
                 print(f"  - {err}")
         else:
-            print("RESULT: OK — automated gates passed (external audit checklist must still be complete)")
+            audit = (meta.get("sections") or {}).get("external_audit") or {}
+            if audit.get("all_complete"):
+                print("RESULT: OK — automated gates and external audit checklist complete")
+            else:
+                print("RESULT: OK — automated gates passed (external audit checklist must still be complete)")
         if warnings:
             print("\nWarnings:")
             for warn in warnings:
                 print(f"  ! {warn}")
-        print("\nExternal checklist:")
-        for item in meta.get("external_checklist", []):
-            print(f"  [ ] {item}")
+        audit = (meta.get("sections") or {}).get("external_audit") or {}
+        audit_items = audit.get("items") or []
+        if audit_items:
+            print("\nExternal checklist:")
+            for row in audit_items:
+                mark = "[x]" if row.get("done") else "[ ]"
+                print(f"  {mark} {row.get('label', '')}")
+            completed = int(audit.get("completed", 0) or 0)
+            total = int(audit.get("total", len(audit_items)) or len(audit_items))
+            print(f"\nAudit: {completed}/{total} complete")
+        else:
+            print("\nExternal checklist:")
+            for item in meta.get("external_checklist", []):
+                print(f"  [ ] {item}")
         print(f"\nReport: {report_path}")
         print("=" * 60)
 

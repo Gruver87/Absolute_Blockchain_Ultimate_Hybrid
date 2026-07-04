@@ -1,4 +1,7 @@
 # Mainnet readiness — prod stack + pre-mainnet audit (run before tag/release).
+# Usage: .\scripts\mainnet_readiness.ps1
+#        .\scripts\mainnet_readiness.ps1 -Live
+# Do NOT run with: python scripts/mainnet_readiness.ps1
 param(
     [switch]$Live,
     [string]$BaseUrl = "http://127.0.0.1:8080"
