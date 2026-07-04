@@ -82,7 +82,8 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Native env opcodes + SLOAD/SSTORE in pure runner (static host context)
 - [x] Host bridge for BALANCE / EXTCODE* / BLOCKHASH in native pure runner
 - [x] Runtime bridge for CALL / CREATE / LOG / SELFDESTRUCT via apply_host_op
-- [ ] Full opcode dispatch in Rust (future)
+- [x] `evm_run_until_halt` — full bytecode dispatch loop in Rust with runtime bridge
+- [ ] Inline Rust implementations for bridge callbacks (future)
 
 ### Priority 7 — Bridge hardening (future)
 

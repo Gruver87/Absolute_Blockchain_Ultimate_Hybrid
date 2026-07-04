@@ -197,6 +197,39 @@ class EVM:
         self.memory = bytearray(seg["memory"])
         return str(seg["stop_reason"])
 
+    def _handle_native_segment(self, seg: Dict[str, Any]) -> str:
+        reason = self._apply_native_segment(seg)
+        if reason == "error":
+            err = seg.get("error") or "evm error"
+            if err == "invalid_jump" or "invalid_jump" in str(err):
+                raise RuntimeError(f"invalid jump destination: {self.pc}")
+            raise RuntimeError(str(err))
+        if reason == "out_of_gas":
+            raise RuntimeError(f"out_of_gas (used={self.gas_used}, limit={self.gas_limit})")
+        return reason
+
+    def _run_native_until_halt(self, bytecode: bytes, jumpdest_table: bytes) -> Optional[str]:
+        if not hasattr(native, "evm_run_until_halt"):
+            return None
+        bridge = make_evm_runtime_bridge(self)
+        if bridge is None:
+            return None
+        seg = native.evm_run_until_halt(
+            bytecode,
+            self.pc,
+            self.gas_limit,
+            self.gas_used,
+            self.stack,
+            self.memory,
+            jumpdest_table,
+            self.ctx.calldata,
+            self.return_data,
+            native.evm_host_context_from_evm(self.ctx),
+            self.storage,
+            bridge,
+        )
+        return self._handle_native_segment(seg)
+
     def _try_native_pure_segment(self, bytecode: bytes, jumpdest_table: bytes) -> Optional[str]:
         if not self._native_pure_available():
             return None
@@ -216,15 +249,7 @@ class EVM:
             self.storage,
             make_evm_runtime_bridge(self),
         )
-        reason = self._apply_native_segment(seg)
-        if reason == "error":
-            err = seg.get("error") or "evm error"
-            if err == "invalid_jump" or "invalid_jump" in str(err):
-                raise RuntimeError(f"invalid jump destination: {self.pc}")
-            raise RuntimeError(str(err))
-        if reason == "out_of_gas":
-            raise RuntimeError(f"out_of_gas (used={self.gas_used}, limit={self.gas_limit})")
-        return reason
+        return self._handle_native_segment(seg)
 
     def execute_bytecode(self, bytecode: bytes) -> Dict[str, Any]:
         self.pc = 0
@@ -237,6 +262,20 @@ class EVM:
         self.logs = []
         self.bytecode = bytecode
         jumpdest_table = native.evm_build_jumpdest_table(bytecode)
+
+        native_reason = self._run_native_until_halt(bytecode, jumpdest_table)
+        if native_reason is not None and native_reason != "handoff":
+            return {
+                "success": self.running or (not self.reverted and bool(self.return_data or self.stack)),
+                "reverted": self.reverted,
+                "stack": self.stack.copy(),
+                "memory": bytes(self.memory),
+                "storage": self.storage.copy(),
+                "gas_used": self.gas_used,
+                "return_data": self.return_data,
+                "trace": self.trace,
+                "logs": self.logs.copy(),
+            }
 
         while self.pc < len(bytecode) and self.running:
             native_reason = self._try_native_pure_segment(bytecode, jumpdest_table)

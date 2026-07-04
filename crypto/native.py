@@ -79,6 +79,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "evm_bytecode_scan",
             "evm_keccak256_memory",
             "evm_pure_runner",
+            "evm_run_until_halt",
             "evm_deploy_address",
             "evm_create2_eip1014",
             "validate_imported_block_chain",
@@ -748,6 +749,22 @@ def evm_opcode_is_bridge(op: int) -> bool:
     return op in _EVM_BRIDGE_OPCODES
 
 
+def _parse_native_segment(seg) -> dict:
+    return {
+        "pc": int(seg["pc"]),
+        "gas_used": int(seg["gas_used"]),
+        "running": bool(seg["running"]),
+        "reverted": bool(seg["reverted"]),
+        "return_data": bytes(seg["return_data"]),
+        "stop_reason": str(seg["stop_reason"]),
+        "host_opcode": seg.get("host_opcode"),
+        "error": seg.get("error"),
+        "steps": int(seg["steps"]),
+        "stack": [int(x) for x in seg["stack"]],
+        "memory": bytearray(seg["memory"]),
+    }
+
+
 def evm_run_pure_until_host(
     bytecode: bytes,
     pc: int,
@@ -777,20 +794,41 @@ def evm_run_pure_until_host(
             storage,
             host_bridge,
         )
-        return {
-            "pc": int(seg["pc"]),
-            "gas_used": int(seg["gas_used"]),
-            "running": bool(seg["running"]),
-            "reverted": bool(seg["reverted"]),
-            "return_data": bytes(seg["return_data"]),
-            "stop_reason": str(seg["stop_reason"]),
-            "host_opcode": seg.get("host_opcode"),
-            "error": seg.get("error"),
-            "steps": int(seg["steps"]),
-            "stack": [int(x) for x in seg["stack"]],
-            "memory": bytearray(seg["memory"]),
-        }
+        return _parse_native_segment(seg)
     raise RuntimeError("evm_run_pure_until_host requires abs_native")
+
+
+def evm_run_until_halt(
+    bytecode: bytes,
+    pc: int,
+    gas_limit: int,
+    gas_used: int,
+    stack: list,
+    memory: bytearray,
+    jumpdest_table: bytes,
+    calldata: bytes,
+    return_data: bytes,
+    host_context: Optional[dict] = None,
+    storage: Optional[dict] = None,
+    host_bridge: Any = None,
+) -> dict:
+    if _native is not None and hasattr(_native, "evm_run_until_halt"):
+        seg = _native.evm_run_until_halt(
+            bytes(bytecode),
+            int(pc),
+            int(gas_limit),
+            int(gas_used),
+            stack,
+            memory,
+            bytes(jumpdest_table),
+            bytes(calldata),
+            bytes(return_data),
+            host_context,
+            storage,
+            host_bridge,
+        )
+        return _parse_native_segment(seg)
+    raise RuntimeError("evm_run_until_halt requires abs_native")
 
 
 def evm_memory_copy(memory: bytearray, dest: int, src: bytes, src_offset: int, size: int) -> None:

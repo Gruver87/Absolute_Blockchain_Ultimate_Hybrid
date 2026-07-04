@@ -11,6 +11,7 @@ use crate::{
 
 const U256_MASK: U256 = U256::MAX;
 const MAX_PURE_STEPS: usize = 8192;
+const MAX_FULL_STEPS: usize = 10_000_000;
 
 pub fn evm_opcode_is_bridge(op: u8) -> bool {
     matches!(op, 0x31 | 0x3B | 0x3C | 0x40)
@@ -428,6 +429,7 @@ fn run_pure_segment_inner(
     host_context: Option<&Bound<'_, PyDict>>,
     storage: Option<&Bound<'_, PyDict>>,
     host_bridge: Option<&Bound<'_, PyAny>>,
+    max_steps: usize,
 ) -> PyResult<PyObject> {
     if pc >= bytecode.len() {
         let stack = stack_to_pylist(py, &stack_from_py(stack_py)?)?;
@@ -458,7 +460,7 @@ fn run_pure_segment_inner(
     let mut handoff = false;
     let static_ctx = parse_static_context(host_context)?;
 
-    while pc < bytecode.len() && running && steps < MAX_PURE_STEPS {
+    while pc < bytecode.len() && running && steps < max_steps {
         let op = bytecode[pc];
         if opcode_stops_segment(op, host_bridge) {
             break;
@@ -914,6 +916,8 @@ fn run_pure_segment_inner(
 
     let stop_reason = if handoff {
         "handoff"
+    } else if steps >= max_steps && running {
+        "handoff"
     } else if pc < bytecode.len() && opcode_stops_segment(bytecode[pc], host_bridge) {
         "host"
     } else if !running {
@@ -996,5 +1000,42 @@ pub fn evm_run_pure_until_host_py(
         host_context,
         storage,
         host_bridge,
+        MAX_PURE_STEPS,
+    )
+}
+
+#[pyfunction]
+#[pyo3(name = "evm_run_until_halt")]
+#[pyo3(signature = (bytecode, pc, gas_limit, gas_used, stack, memory, jumpdest_table, calldata, return_data, host_context=None, storage=None, host_bridge=None))]
+pub fn evm_run_until_halt_py(
+    py: Python<'_>,
+    bytecode: Vec<u8>,
+    pc: usize,
+    gas_limit: u64,
+    gas_used: u64,
+    stack: &Bound<'_, PyList>,
+    memory: &Bound<'_, PyByteArray>,
+    jumpdest_table: Vec<u8>,
+    calldata: Vec<u8>,
+    return_data: Vec<u8>,
+    host_context: Option<&Bound<'_, PyDict>>,
+    storage: Option<&Bound<'_, PyDict>>,
+    host_bridge: Option<&Bound<'_, PyAny>>,
+) -> PyResult<PyObject> {
+    run_pure_segment_inner(
+        py,
+        &bytecode,
+        pc,
+        gas_limit,
+        gas_used,
+        stack,
+        memory,
+        &jumpdest_table,
+        &calldata,
+        &return_data,
+        host_context,
+        storage,
+        host_bridge,
+        MAX_FULL_STEPS,
     )
 }

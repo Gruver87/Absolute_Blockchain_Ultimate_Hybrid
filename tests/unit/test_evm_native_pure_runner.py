@@ -174,3 +174,22 @@ def test_interpreter_still_handles_caller_after_native_segment():
 @pytest.mark.skipif(not native.native_available(), reason="abs_native required")
 def test_native_required_for_pure_runner():
     assert hasattr(native, "evm_run_pure_until_host")
+    assert hasattr(native, "evm_run_until_halt")
+
+
+def test_native_run_until_halt_completes():
+    bytecode = bytes([0x60, 0x02, 0x60, 0x03, 0x01, 0x00])
+    table = native.evm_build_jumpdest_table(bytecode)
+    seg = native.evm_run_until_halt(
+        bytecode, 0, 1_000_000, 0, [], bytearray(), table, b"", b"", _host_ctx()
+    )
+    assert seg["stop_reason"] == "halt"
+    assert seg["stack"] == [5]
+    assert seg["steps"] == 4
+
+
+def test_interpreter_prefers_native_until_halt():
+    bytecode = bytes([0x60, 0x02, 0x60, 0x03, 0x01, 0x00])
+    result = EVM().execute_bytecode(bytecode)
+    assert result["reverted"] is False
+    assert result["stack"] == [5]
