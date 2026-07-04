@@ -6,6 +6,8 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Any
 
+from crypto import native
+
 
 @dataclass
 class EVMContext:
@@ -266,7 +268,7 @@ class EVM:
                 offset, size = self._pop(), self._pop()
                 self._mem_extend(offset, size)
                 data = bytes(self.memory[offset:offset + size])
-                self._push(int.from_bytes(hashlib.sha3_256(data).digest(), "big"))
+                self._push(int.from_bytes(native.keccak256_digest(data), "big"))
             elif op_byte == 0x30:  # ADDRESS
                 self._push(self.ctx.addr_int(self.ctx.address))
             elif op_byte == 0x31:  # BALANCE
