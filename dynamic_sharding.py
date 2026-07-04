@@ -56,12 +56,11 @@ class ShardingManager:
         self.mode = (mode or "routing").lower()
         self._gossip_fn: Optional[Callable[[dict], None]] = None
         self.coordinator = None
-        if self.is_distributed():
-            try:
-                from consensus.cross_shard_coordinator import CrossShardCoordinator
-                self.coordinator = CrossShardCoordinator(self.num_shards)
-            except ImportError:
-                self.coordinator = None
+        try:
+            from consensus.cross_shard_coordinator import CrossShardCoordinator
+            self.coordinator = CrossShardCoordinator(self.num_shards)
+        except ImportError:
+            self.coordinator = None
         self._initialize_shards()
 
     def set_database(self, db) -> None:
@@ -96,7 +95,10 @@ class ShardingManager:
     def get_shard_for_address(self, address: str) -> int:
         """Determine which shard an address belongs to"""
         hash_val = int(hashlib.sha256(address.encode()).hexdigest(), 16)
-        return hash_val % self.num_shards
+        shard = hash_val % self.num_shards
+        if self.coordinator:
+            return self.coordinator.resolve_shard(address, shard)
+        return shard
 
     def get_shard_for_transaction(self, tx: dict) -> int:
         """Determine shard for transaction"""
@@ -414,6 +416,67 @@ class ShardingManager:
                 for s in self.shards.values()
             ],
         }
+
+    def plan_reshard(self, new_num_shards: int, effective_epoch: int = 0) -> dict:
+        if not self.coordinator:
+            raise RuntimeError("reshard_coordinator_unavailable")
+        return self.coordinator.plan_reshard(new_num_shards, effective_epoch)
+
+    def discover_reshard_migrations(self) -> int:
+        if not self.coordinator or not self._db:
+            return 0
+        plan = self.coordinator.status().get("reshard_plan") or {}
+        if plan.get("status") != "planned":
+            return 0
+        accounts = self._db.get_all_accounts() if hasattr(self._db, "get_all_accounts") else []
+        return self.coordinator.discover_migrations(
+            accounts,
+            int(plan.get("from_shards", self.num_shards)),
+            int(plan.get("to_shards", self.num_shards)),
+        )
+
+    def apply_reshard(self) -> bool:
+        if not self.coordinator:
+            return False
+        if self.coordinator.apply_reshard():
+            self.num_shards = self.coordinator.num_shards
+            return True
+        return False
+
+    def process_reshard_migrations(self, limit: int = 20) -> dict:
+        if not self.coordinator:
+            return {"processed": 0, "error": "coordinator_unavailable"}
+        result = self.coordinator.process_local_migrations(
+            self._db,
+            self.owns_shard,
+            limit=limit,
+        )
+        for payload in result.get("payloads", []):
+            self._gossip_migration(payload)
+        return result
+
+    def receive_shard_migration(self, payload: dict) -> bool:
+        if not self.coordinator:
+            return False
+        credited = self.coordinator.apply_migration_credit(payload, self._db, self.owns_shard)
+        if credited and self._gossip_fn:
+            try:
+                self._gossip_fn({
+                    "type": "shard_migration_ack",
+                    "address": payload.get("address", ""),
+                    "to_shard": payload.get("to_shard", 0),
+                })
+            except Exception:
+                pass
+        return credited
+
+    def _gossip_migration(self, payload: dict) -> None:
+        if not self._gossip_fn:
+            return
+        try:
+            self._gossip_fn(payload)
+        except Exception:
+            pass
 
 
 # Global instance for import

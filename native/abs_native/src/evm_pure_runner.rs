@@ -128,6 +128,8 @@ struct EvmStaticContext {
     gas_price: U256,
     difficulty: U256,
     coinbase: U256,
+    blob_base_fee: U256,
+    blob_hashes: Vec<U256>,
 }
 
 fn parse_static_context(host_context: Option<&Bound<'_, PyDict>>) -> PyResult<EvmStaticContext> {
@@ -144,6 +146,8 @@ fn parse_static_context(host_context: Option<&Bound<'_, PyDict>>) -> PyResult<Ev
             gas_price: U256::zero(),
             difficulty: U256::zero(),
             coinbase: U256::zero(),
+            blob_base_fee: U256::zero(),
+            blob_hashes: Vec::new(),
         });
     };
     Ok(EvmStaticContext {
@@ -158,7 +162,19 @@ fn parse_static_context(host_context: Option<&Bound<'_, PyDict>>) -> PyResult<Ev
         gas_price: dict_get_u256(ctx, "gas_price")?,
         difficulty: dict_get_u256(ctx, "difficulty")?,
         coinbase: dict_get_u256(ctx, "coinbase")?,
+        blob_base_fee: dict_get_u256(ctx, "blob_base_fee"),
+        blob_hashes: dict_get_u256_list(ctx, "blob_hashes")?,
     })
+}
+
+fn dict_get_u256_list(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Vec<U256>> {
+    match dict.get_item(key)? {
+        Some(value) => {
+            let items: Vec<Bound<'_, PyAny>> = value.extract()?;
+            items.into_iter().map(py_to_u256).collect()
+        }
+        None => Ok(Vec::new()),
+    }
 }
 
 fn py_to_u256(obj: Bound<'_, PyAny>) -> PyResult<U256> {
@@ -1005,6 +1021,20 @@ fn run_pure_segment_inner(
                 }
                 0x48 => {
                     stack_push(&mut stack, static_ctx.base_fee);
+                    Ok(Some(false))
+                }
+                0x49 => {
+                    let index = stack_pop(&mut stack)?.as_usize();
+                    let val = static_ctx
+                        .blob_hashes
+                        .get(index)
+                        .copied()
+                        .unwrap_or(U256::zero());
+                    stack_push(&mut stack, val);
+                    Ok(Some(false))
+                }
+                0x4A => {
+                    stack_push(&mut stack, static_ctx.blob_base_fee);
                     Ok(Some(false))
                 }
                 0x3A => {

@@ -72,10 +72,46 @@ class ExternalSignerKeyProvider:
         return self._pubkey
 
 
+class AwsKmsKeyProvider:
+    """Sign validator payloads via AWS KMS (requires boto3)."""
+
+    def __init__(self, key_id: str, region: str = "") -> None:
+        self.key_id = (key_id or "").strip()
+        self.region = (region or os.environ.get("AWS_REGION", "us-east-1")).strip()
+        self._pubkey = ""
+
+    def sign_message(self, message: bytes) -> bytes:
+        if not self.key_id:
+            raise RuntimeError("aws_kms_key_id_missing")
+        try:
+            import boto3
+        except ImportError as exc:
+            raise RuntimeError("boto3_required_for_aws_kms") from exc
+        client = boto3.client("kms", region_name=self.region)
+        digest = __import__("hashlib").sha256(message).digest()
+        resp = client.sign(
+            KeyId=self.key_id,
+            Message=digest,
+            MessageType="DIGEST",
+            SigningAlgorithm="ECDSA_SHA_256",
+        )
+        sig = resp.get("Signature")
+        if not sig:
+            raise RuntimeError("aws_kms_empty_signature")
+        return bytes(sig)
+
+    def public_key_hex(self) -> str:
+        return self._pubkey
+
+
 def build_validator_key_provider(wallet=None) -> ValidatorKeyProvider:
     mode = (os.environ.get("VALIDATOR_KEY_PROVIDER", "local") or "local").strip().lower()
     if mode == "external":
         url = os.environ.get("EXTERNAL_VALIDATOR_SIGNER_URL", "").strip()
         api_key = os.environ.get("EXTERNAL_VALIDATOR_SIGNER_API_KEY", "").strip()
         return ExternalSignerKeyProvider(url, api_key)
+    if mode in ("aws_kms", "kms"):
+        key_id = os.environ.get("AWS_KMS_KEY_ID", "").strip()
+        region = os.environ.get("AWS_REGION", "").strip()
+        return AwsKmsKeyProvider(key_id, region)
     return LocalWalletKeyProvider(wallet)

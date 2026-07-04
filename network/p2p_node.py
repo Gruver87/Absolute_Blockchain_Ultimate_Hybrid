@@ -53,6 +53,7 @@ MSG_STATE_ROOT_RESPONSE = "state_root_response"
 MSG_VALIDATOR_REGISTER = "validator_register"
 MSG_CROSS_SHARD_TX = "cross_shard_tx"
 MSG_CROSS_SHARD_ACK = "cross_shard_ack"
+MSG_SHARD_MIGRATION = "shard_migration"
 
 
 class PeerConnection:
@@ -178,9 +179,14 @@ class P2PNode:
 
     def _schedule_cross_shard_gossip(self, payload: Dict) -> None:
         if self._loop and self._running:
-            asyncio.run_coroutine_threadsafe(
-                self.broadcast_cross_shard_tx(payload), self._loop
-            )
+            if isinstance(payload, dict) and payload.get("type") == "shard_migration":
+                asyncio.run_coroutine_threadsafe(
+                    self.broadcast_shard_migration(payload), self._loop
+                )
+            else:
+                asyncio.run_coroutine_threadsafe(
+                    self.broadcast_cross_shard_tx(payload), self._loop
+                )
 
     def get_block(self, block_hash: str) -> Optional[Dict]:
         """For SyncEngine.download_chain()."""
@@ -493,6 +499,8 @@ class P2PNode:
 
         elif msg_type == MSG_CROSS_SHARD_ACK:
             await self._handle_cross_shard_ack(peer, data)
+        elif msg_type == MSG_SHARD_MIGRATION:
+            await self._handle_shard_migration(peer, data)
 
     async def _handle_validator_register(self, peer: PeerConnection, data: Dict):
         """Register peer validator in local consensus when announced."""
@@ -1245,6 +1253,19 @@ class P2PNode:
         if not isinstance(payload, dict):
             return
         tasks = [peer.send(MSG_CROSS_SHARD_TX, payload) for peer in self.peers.values()]
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def _handle_shard_migration(self, peer: PeerConnection, data: Dict):
+        if not self._sharding or not isinstance(data, dict):
+            return
+        if hasattr(self._sharding, "receive_shard_migration"):
+            self._sharding.receive_shard_migration(data)
+
+    async def broadcast_shard_migration(self, payload: Dict):
+        if not isinstance(payload, dict):
+            return
+        tasks = [peer.send(MSG_SHARD_MIGRATION, payload) for peer in self.peers.values()]
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 

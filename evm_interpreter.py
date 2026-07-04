@@ -32,6 +32,8 @@ class EVMContext:
     gas_price: int = 0
     difficulty: int = 0
     coinbase: str = ""
+    blob_base_fee: int = 0
+    blob_hashes: Optional[List[int]] = None
     balance_of: Optional[Callable[[str], int]] = None
     code_size_of: Optional[Callable[[str], int]] = None
     code_copy_of: Optional[Callable[[str, int, int], bytes]] = None
@@ -71,6 +73,7 @@ class EVM:
         "GASPRICE": 2, "EXTCODEHASH": 700, "COINBASE": 2, "DIFFICULTY": 2,
         "SELFBALANCE": 5, "BASEFEE": 2, "PC": 2, "MSIZE": 2,
         "TLOAD": 100, "TSTORE": 100, "MCOPY": 3,
+        "BLOBHASH": 3, "BLOBBASEFEE": 2,
         "CALL": 700, "CALLCODE": 700, "DELEGATECALL": 700, "STATICCALL": 700,
         "BLOCKHASH": 20,
         "CREATE": 32000, "CREATE2": 32000,
@@ -511,6 +514,15 @@ class EVM:
                 self._push(bal)
             elif op_byte == 0x48:  # BASEFEE
                 self._push(int(self.ctx.base_fee))
+            elif op_byte == 0x49:  # BLOBHASH
+                index = int(self._pop())
+                hashes = list(getattr(self.ctx, "blob_hashes", None) or [])
+                val = 0
+                if 0 <= index < len(hashes):
+                    val = int(hashes[index]) & ((1 << 256) - 1)
+                self._push(val)
+            elif op_byte == 0x4A:  # BLOBBASEFEE
+                self._push(int(getattr(self.ctx, "blob_base_fee", 0) or 0))
             elif op_byte == 0x50:  # POP
                 self._pop()
             elif op_byte == 0x51:
@@ -694,7 +706,7 @@ class EVM:
             0x3D: "RETURNDATASIZE", 0x3E: "RETURNDATACOPY",
             0x42: "TIMESTAMP", 0x43: "NUMBER", 0x41: "COINBASE", 0x44: "DIFFICULTY",
             0x45: "GASLIMIT", 0x46: "CHAINID",
-            0x47: "SELFBALANCE", 0x48: "BASEFEE",
+            0x47: "SELFBALANCE", 0x48: "BASEFEE", 0x49: "BLOBHASH", 0x4A: "BLOBBASEFEE",
             0x50: "POP", 0x51: "MLOAD",
             0x52: "MSTORE", 0x53: "MSTORE8", 0x54: "SLOAD", 0x55: "SSTORE",
             0x56: "JUMP", 0x57: "JUMPI", 0x58: "PC", 0x59: "MSIZE", 0x5A: "GAS", 0x5B: "JUMPDEST",

@@ -56,3 +56,7 @@ def test_build_provider_modes(monkeypatch):
     monkeypatch.setenv("VALIDATOR_KEY_PROVIDER", "external")
     monkeypatch.setenv("EXTERNAL_VALIDATOR_SIGNER_URL", "http://localhost/sign")
     assert isinstance(build_validator_key_provider(wallet), ExternalSignerKeyProvider)
+    monkeypatch.setenv("VALIDATOR_KEY_PROVIDER", "aws_kms")
+    monkeypatch.setenv("AWS_KMS_KEY_ID", "arn:aws:kms:us-east-1:1:key/1")
+    from runtime.validator_key_provider import AwsKmsKeyProvider
+    assert isinstance(build_validator_key_provider(wallet), AwsKmsKeyProvider)

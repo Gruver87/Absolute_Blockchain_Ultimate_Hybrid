@@ -1724,6 +1724,18 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "pending": pending,
                 })
 
+            elif path == "/sharding/reshard/status":
+                sharding = self.__class__.sharding
+                if not sharding or not getattr(sharding, "coordinator", None):
+                    self._json({"enabled": False, "coordinator": None})
+                    return
+                coord = sharding.coordinator
+                self._json({
+                    "enabled": True,
+                    "coordinator": coord.status(),
+                    "migrations": coord.migrations_view(),
+                })
+
             # ── Oracles ───────────────────────────────────────────────────────
             elif path in ("/oracles/prices", "/oracles"):
                 oracles = self.__class__.oracles
@@ -4878,6 +4890,37 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json(result if isinstance(result, dict) else {"processed": result, "success": True})
                 else:
                     self._json({"success": False, "error": "process_cross_shard_transactions not available"})
+
+            elif path == "/sharding/reshard/plan":
+                sh = self.__class__.sharding
+                if not sh or not hasattr(sh, "plan_reshard"):
+                    self._error(503, "Sharding coordinator not enabled"); return
+                new_shards = int(body.get("new_num_shards", body.get("to_shards", 0)) or 0)
+                epoch = int(body.get("effective_epoch", 0) or 0)
+                plan = sh.plan_reshard(new_shards, epoch)
+                self._json({"success": True, "plan": plan})
+
+            elif path == "/sharding/reshard/discover":
+                sh = self.__class__.sharding
+                if not sh or not hasattr(sh, "discover_reshard_migrations"):
+                    self._error(503, "Sharding coordinator not enabled"); return
+                count = sh.discover_reshard_migrations()
+                self._json({"success": True, "queued": count})
+
+            elif path == "/sharding/reshard/apply":
+                sh = self.__class__.sharding
+                if not sh or not hasattr(sh, "apply_reshard"):
+                    self._error(503, "Sharding coordinator not enabled"); return
+                ok = sh.apply_reshard()
+                self._json({"success": ok, "num_shards": getattr(sh, "num_shards", 0)})
+
+            elif path == "/sharding/reshard/process-migrations":
+                sh = self.__class__.sharding
+                if not sh or not hasattr(sh, "process_reshard_migrations"):
+                    self._error(503, "Sharding coordinator not enabled"); return
+                limit = int(body.get("limit", 20) or 20)
+                result = sh.process_reshard_migrations(limit=limit)
+                self._json({"success": True, **result})
 
             # ── Smart account: request/approve recovery ───────────────────────
             elif path == "/smart-account/request-recovery":
