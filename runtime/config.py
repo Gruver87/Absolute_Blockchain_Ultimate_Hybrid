@@ -369,6 +369,18 @@ class Config:
                 from crypto import native
                 if not native.native_available():
                     errors.append("ABS_REQUIRE_NATIVE_CRYPTO=true but abs_native is unavailable")
+                elif not hasattr(native, "evm_run_until_halt"):
+                    errors.append(
+                        "ABS_REQUIRE_NATIVE_CRYPTO=true but abs_native lacks evm_run_until_halt "
+                        "(rebuild native wheel)"
+                    )
+                else:
+                    st = native.native_crypto_status(required=True)
+                    if not st.get("self_test"):
+                        errors.append(
+                            "ABS_REQUIRE_NATIVE_CRYPTO=true but native self_test failed: "
+                            + str(st.get("error") or st)
+                        )
             except Exception as e:
                 errors.append(f"ABS_REQUIRE_NATIVE_CRYPTO=true but native crypto check failed: {e}")
         if self.deployment_mode != "dev" and not self.allow_insecure_public_bind:

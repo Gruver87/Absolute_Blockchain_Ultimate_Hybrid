@@ -3,11 +3,18 @@
 """EVM interpreter — bytecode execution with real execution context."""
 
 import hashlib
+import os
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Any
 
 from crypto import native
 from execution.evm_host_bridge import make_evm_runtime_bridge
+
+
+def _native_crypto_required() -> bool:
+    return os.getenv("ABS_REQUIRE_NATIVE_CRYPTO", "").lower() in {
+        "1", "true", "yes", "on",
+    }
 
 
 @dataclass
@@ -251,6 +258,15 @@ class EVM:
         )
         return self._handle_native_segment(seg)
 
+    def _fail_on_native_handoff(self, bytecode: bytes) -> None:
+        if not _native_crypto_required():
+            return
+        op = bytecode[self.pc] if self.pc < len(bytecode) else 0
+        raise RuntimeError(
+            f"native EVM handoff at pc={self.pc} opcode=0x{op:02x} "
+            "(ABS_REQUIRE_NATIVE_CRYPTO forbids Python fallback)"
+        )
+
     def execute_bytecode(self, bytecode: bytes) -> Dict[str, Any]:
         self.pc = 0
         self.stack = []
@@ -277,11 +293,16 @@ class EVM:
                 "logs": self.logs.copy(),
             }
 
+        if native_reason == "handoff":
+            self._fail_on_native_handoff(bytecode)
+
         while self.pc < len(bytecode) and self.running:
             native_reason = self._try_native_pure_segment(bytecode, jumpdest_table)
             if native_reason is not None:
                 if native_reason in ("halt", "return", "revert"):
                     break
+                if native_reason == "handoff":
+                    self._fail_on_native_handoff(bytecode)
                 if native_reason not in ("host", "handoff"):
                     continue
 

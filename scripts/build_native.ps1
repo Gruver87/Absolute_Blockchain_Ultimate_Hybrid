@@ -15,7 +15,7 @@ try {
         throw "abs_native wheel was not produced"
     }
     python -m pip install --force-reinstall $wheel.FullName
-    python -c "import abs_native; print('abs_native OK:', abs_native.sha256_hex(b'absolute')[:16])"
+    python -c "import abs_native; print('abs_native OK:', abs_native.sha256_hex(b'absolute')[:16]); assert hasattr(abs_native, 'evm_run_until_halt')"
 }
 finally {
     Pop-Location

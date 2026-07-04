@@ -107,6 +107,30 @@ def native_crypto_status(required: bool = False) -> dict:
         ok = ok and keccak256_hex(b"") == (
             "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
         )
+        if _native is not None and hasattr(_native, "evm_run_until_halt"):
+            bc = bytes([0x60, 0x02, 0x60, 0x03, 0x01, 0x00])
+            table = evm_build_jumpdest_table(bc)
+            seg = evm_run_until_halt(
+                bc,
+                0,
+                1_000_000,
+                0,
+                [],
+                bytearray(),
+                table,
+                b"",
+                b"",
+                {
+                    "address": 0,
+                    "caller": 0,
+                    "origin": 0,
+                    "value": 0,
+                    "timestamp": 0,
+                    "block_number": 0,
+                    "chain_id": 0,
+                },
+            )
+            ok = ok and seg.get("stop_reason") == "halt" and seg.get("stack") == [5]
         status["self_test"] = bool(ok)
     except Exception as exc:
         status["error"] = str(exc)
@@ -702,6 +726,7 @@ _EVM_SUPPORTED_SINGLE_OPCODES = {
     0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39,
     0x3B, 0x3C, 0x3D, 0x3E, 0x40, 0x42, 0x43, 0x45, 0x46,
     0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x5A, 0x5B, 0x5F,
+    0xA0, 0xA1, 0xA2, 0xA3, 0xA4,
     0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xFA, 0xFD, 0xFE, 0xFF,
 }
 

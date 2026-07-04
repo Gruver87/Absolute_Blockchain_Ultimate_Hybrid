@@ -189,6 +189,7 @@ Run-Step "Hybrid critical native/consensus/EVM tests" {
         tests/unit/test_evm_native_scan.py `
         tests/unit/test_evm_native_pure_runner.py `
         tests/unit/test_evm_host_bridge.py `
+        tests/unit/test_evm_prod_handoff.py `
         tests/unit/test_native_deploy_address.py `
         tests/unit/test_mempool_batch_signatures.py `
         tests/unit/test_sync_incremental.py `

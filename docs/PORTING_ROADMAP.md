@@ -63,7 +63,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [ ] PyO3 bridge helper (optional; CLI sufficient today)
 - Dev-only: `bridge/mock_l1_rpc.py`, `bridge/dev_bridge_adapter.py` — **blocked in prod**
 
-### Priority 6 — EVM execution (in progress)
+### Priority 6 — EVM execution ✅
 
 - [x] EVM SHA3 opcode → native Ethereum Keccak-256
 - [x] `evm_u256_*` arithmetic/bitwise kernels in Rust
@@ -85,7 +85,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `evm_run_until_halt` — full bytecode dispatch loop in Rust with runtime bridge
 - [ ] Inline Rust implementations for bridge callbacks (future)
 
-### Priority 7 — Bridge hardening (future)
+### Priority 7 — Bridge hardening (in progress)
+
+- [x] Prod config validates rust bridge binary smoke-test (`config.validate`)
+- [x] Prod requires L1 RPC URLs + `BRIDGE_REQUIRE_L1_PROOF`
+- [x] Runtime bridge health in `/metrics` and API overview
+- [ ] Live L1 RPC reachability probe at startup (optional; needs network)
 
 ## Process per module
 
