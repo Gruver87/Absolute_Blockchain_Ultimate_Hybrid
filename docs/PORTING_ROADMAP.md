@@ -126,7 +126,9 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Public validator set registry: `validators.manifest.example.json`, `runtime/validator_loader.py`, `/validators/registry`, prod gate
 - [x] Validator key provider interface: local wallet + external HSM/KMS HTTP signer (`VALIDATOR_KEY_PROVIDER`)
 - [x] Validator AWS KMS provider (`VALIDATOR_KEY_PROVIDER=aws_kms`, `AWS_KMS_KEY_ID`)
-- [ ] Validator key ops (GCP HSM / CloudHSM hardware — long-term)
+- [x] Validator GCP KMS provider (`VALIDATOR_KEY_PROVIDER=gcp_kms`, `GCP_KMS_KEY_VERSION`)
+- [x] P2P catch-up hardening: `catch_up_sync` retry loop, `verify_p2p_ci` devnet preflight, live audit skip/extend
+- [ ] Validator key ops (GCP CloudHSM hardware — long-term)
 - [x] JSON-RPC `eth_getLogs` filters + `eth_sendRawTransaction` RLP
 - [x] JSON-RPC polling filters: `eth_newFilter`, `eth_getFilterChanges`, `eth_getFilterLogs`, block/pending filters
 - [x] JSON-RPC WebSocket subscriptions (`eth_subscribe` / `eth_unsubscribe`: newHeads, logs, newPendingTransactions)

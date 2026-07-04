@@ -104,6 +104,54 @@ class AwsKmsKeyProvider:
         return self._pubkey
 
 
+def _gcp_kms_key_version_from_env() -> str:
+    direct = (os.environ.get("GCP_KMS_KEY_VERSION", "") or "").strip()
+    if direct:
+        return direct
+    project = (os.environ.get("GCP_PROJECT_ID", "") or "").strip()
+    location = (os.environ.get("GCP_KMS_LOCATION", "global") or "global").strip()
+    ring = (os.environ.get("GCP_KMS_KEY_RING", "") or "").strip()
+    key = (os.environ.get("GCP_KMS_KEY_NAME", "") or "").strip()
+    version = (os.environ.get("GCP_KMS_KEY_VERSION_ID", "1") or "1").strip()
+    if project and ring and key:
+        return (
+            f"projects/{project}/locations/{location}/keyRings/{ring}"
+            f"/cryptoKeys/{key}/cryptoKeyVersions/{version}"
+        )
+    return ""
+
+
+class GcpKmsKeyProvider:
+    """Sign validator payloads via Google Cloud KMS (requires google-cloud-kms)."""
+
+    def __init__(self, key_version: str) -> None:
+        self.key_version = (key_version or "").strip()
+        self._pubkey = ""
+
+    def sign_message(self, message: bytes) -> bytes:
+        if not self.key_version:
+            raise RuntimeError("gcp_kms_key_version_missing")
+        try:
+            from google.cloud import kms
+        except ImportError as exc:
+            raise RuntimeError("google_cloud_kms_required") from exc
+        client = kms.KeyManagementServiceClient()
+        digest = __import__("hashlib").sha256(message).digest()
+        response = client.asymmetric_sign(
+            request={
+                "name": self.key_version,
+                "digest": {"sha256": digest},
+            }
+        )
+        sig = response.signature
+        if not sig:
+            raise RuntimeError("gcp_kms_empty_signature")
+        return bytes(sig)
+
+    def public_key_hex(self) -> str:
+        return self._pubkey
+
+
 def build_validator_key_provider(wallet=None) -> ValidatorKeyProvider:
     mode = (os.environ.get("VALIDATOR_KEY_PROVIDER", "local") or "local").strip().lower()
     if mode == "external":
@@ -114,4 +162,7 @@ def build_validator_key_provider(wallet=None) -> ValidatorKeyProvider:
         key_id = os.environ.get("AWS_KMS_KEY_ID", "").strip()
         region = os.environ.get("AWS_REGION", "").strip()
         return AwsKmsKeyProvider(key_id, region)
+    if mode in ("gcp_kms", "google_kms"):
+        key_version = _gcp_kms_key_version_from_env()
+        return GcpKmsKeyProvider(key_version)
     return LocalWalletKeyProvider(wallet)

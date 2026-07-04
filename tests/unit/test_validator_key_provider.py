@@ -60,3 +60,43 @@ def test_build_provider_modes(monkeypatch):
     monkeypatch.setenv("AWS_KMS_KEY_ID", "arn:aws:kms:us-east-1:1:key/1")
     from runtime.validator_key_provider import AwsKmsKeyProvider
     assert isinstance(build_validator_key_provider(wallet), AwsKmsKeyProvider)
+    monkeypatch.setenv("VALIDATOR_KEY_PROVIDER", "gcp_kms")
+    monkeypatch.setenv(
+        "GCP_KMS_KEY_VERSION",
+        "projects/p/locations/global/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1",
+    )
+    from runtime.validator_key_provider import GcpKmsKeyProvider
+    assert isinstance(build_validator_key_provider(wallet), GcpKmsKeyProvider)
+
+
+def test_gcp_kms_provider_signs(monkeypatch):
+    from runtime.validator_key_provider import GcpKmsKeyProvider
+
+    provider = GcpKmsKeyProvider(
+        "projects/p/locations/global/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1"
+    )
+    fake_client = MagicMock()
+    fake_client.asymmetric_sign.return_value = MagicMock(signature=b"\x01" * 64)
+    fake_kms = MagicMock()
+    fake_kms.KeyManagementServiceClient.return_value = fake_client
+
+    with patch.dict("sys.modules", {"google": MagicMock(), "google.cloud": MagicMock(kms=fake_kms)}):
+        sig = provider.sign_message(b"payload")
+    assert sig == b"\x01" * 64
+    fake_client.asymmetric_sign.assert_called_once()
+
+
+def test_gcp_kms_key_version_from_env_parts(monkeypatch):
+    monkeypatch.setenv("VALIDATOR_KEY_PROVIDER", "gcp_kms")
+    monkeypatch.delenv("GCP_KMS_KEY_VERSION", raising=False)
+    monkeypatch.setenv("GCP_PROJECT_ID", "my-proj")
+    monkeypatch.setenv("GCP_KMS_LOCATION", "europe-west1")
+    monkeypatch.setenv("GCP_KMS_KEY_RING", "validators")
+    monkeypatch.setenv("GCP_KMS_KEY_NAME", "node-1")
+    monkeypatch.setenv("GCP_KMS_KEY_VERSION_ID", "3")
+    from runtime.validator_key_provider import GcpKmsKeyProvider, build_validator_key_provider
+
+    provider = build_validator_key_provider()
+    assert isinstance(provider, GcpKmsKeyProvider)
+    assert provider.key_version.endswith("/cryptoKeyVersions/3")
+    assert "projects/my-proj/locations/europe-west1" in provider.key_version
