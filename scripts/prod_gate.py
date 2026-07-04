@@ -34,7 +34,11 @@ REQUIRED_TRUE = [
     "require_wallet_file",
     "bridge_require_l1_proof",
     "require_native_crypto",
+    "evm_create2_eip1014",
+    "evm_require_deploy_salt",
 ]
+
+DEVNET_CHAIN_ID = 77777
 
 
 def load_json(path: str) -> dict:
@@ -60,6 +64,8 @@ def check_file(path: str) -> list[str]:
             errors.append(f"{path}: {key} must be false in prod")
 
     origins = cfg.get("cors_origins", [])
+    if not origins:
+        errors.append(f"{path}: cors_origins must be non-empty in prod")
     if origins == ["*"] or "*" in origins:
         errors.append(f"{path}: wildcard CORS is forbidden in prod")
     if any(str(origin).startswith(("http://localhost", "http://127.")) for origin in origins):
@@ -67,6 +73,13 @@ def check_file(path: str) -> list[str]:
 
     if not cfg.get("validators_manifest_path"):
         errors.append(f"{path}: validators_manifest_path is required in prod")
+
+    chain_id = int(cfg.get("chain_id", 0) or 0)
+    if chain_id == DEVNET_CHAIN_ID:
+        errors.append(
+            f"{path}: chain_id {DEVNET_CHAIN_ID} is devnet default; "
+            "assign unique mainnet chain_id before public launch"
+        )
 
     return errors
 

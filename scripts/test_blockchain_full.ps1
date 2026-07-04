@@ -232,6 +232,8 @@ Run-Step "Hybrid critical native/consensus/EVM tests" {
         tests/unit/test_mainnet_readiness.py `
         tests/unit/test_external_audit.py `
         tests/unit/test_genesis_ceremony.py `
+        tests/unit/test_evm_prod_deploy_salt.py `
+        tests/unit/test_bridge_prod_chains.py `
         -q
 }
 

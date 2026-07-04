@@ -163,6 +163,24 @@ fn handle(req: Request) -> Response {
         .or_else(|| req.args.get("from_chain"))
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
+    if let Some(ref c) = chain {
+        let key = c.to_lowercase();
+        if key == "solana" || key == "sol" {
+            return Response {
+                tx_hash: String::new(),
+                status: "error".into(),
+                source: "abs_bridge_bin_v4".into(),
+                chain,
+                proof_id: None,
+                confirmations: None,
+                rpc_url: None,
+                error: Some(
+                    "solana L1 RPC not implemented; use ethereum/bsc/polygon in production"
+                        .into(),
+                ),
+            };
+        }
+    }
     let rpc = chain.as_deref().and_then(resolve_rpc);
 
     let l1_result = if matches!(req.command.as_str(), "confirm" | "incoming") {
@@ -182,16 +200,20 @@ fn handle(req: Request) -> Response {
             rpc_url: rpc,
             error: Some(e),
         },
-        ("bridge" | "lock" | "confirm" | "incoming", Ok(conf)) => Response {
-            tx_hash: make_tx_hash(&req.command, &req.args),
-            status: "ok".into(),
-            source: "abs_bridge_bin_v4".into(),
-            chain: chain.clone(),
-            proof_id: Some(make_proof_id(&req.command, &req.args)),
-            confirmations: Some(conf),
-            rpc_url: rpc,
-            error: None,
-        },
+        ("bridge" | "lock" | "confirm" | "incoming", Ok(conf)) => {
+            let l1_tx = l1_tx_from_args(&req.args);
+            let tx_hash = l1_tx.unwrap_or_else(|| make_tx_hash(&req.command, &req.args));
+            Response {
+                tx_hash,
+                status: "ok".into(),
+                source: "abs_bridge_bin_v4".into(),
+                chain: chain.clone(),
+                proof_id: Some(make_proof_id(&req.command, &req.args)),
+                confirmations: Some(conf),
+                rpc_url: rpc,
+                error: None,
+            }
+        }
         ("status", _) => Response {
             tx_hash: String::new(),
             status: "ready".into(),

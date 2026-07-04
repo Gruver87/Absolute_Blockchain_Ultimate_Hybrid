@@ -85,6 +85,7 @@ class Config:
     evm_enabled: bool = True
     evm_gas_limit: int = 8_000_000
     evm_create2_eip1014: bool = False   # prod: Ethereum CREATE2 (0xff++addr++salt++hash)
+    evm_require_deploy_salt: bool = False  # prod: reject non-deterministic EVM deploy addresses
     feature_nft: bool = True
     feature_zk: bool = True
     feature_sharding: bool = True
@@ -291,6 +292,8 @@ class Config:
             self.log_json = env_bool("LOG_JSON", True)
             self.rpc_api_key_required = env_bool("RPC_API_KEY_REQUIRED", True)
             self.bridge_require_l1_proof = env_bool("BRIDGE_REQUIRE_L1_PROOF", True)
+            self.evm_create2_eip1014 = env_bool("EVM_CREATE2_EIP1014", True)
+            self.evm_require_deploy_salt = env_bool("EVM_REQUIRE_DEPLOY_SALT", True)
             self.feature_zk = env_bool("FEATURE_ZK", False)
             self.feature_sharding = env_bool("FEATURE_SHARDING", False)
             self.feature_oracles = env_bool("FEATURE_ORACLES", False)
@@ -375,6 +378,14 @@ class Config:
                 )
             if not self.require_native_crypto:
                 errors.append("prod mode requires ABS_REQUIRE_NATIVE_CRYPTO=true")
+            if not self.evm_create2_eip1014:
+                errors.append("prod mode requires evm_create2_eip1014=true")
+            if not self.evm_require_deploy_salt:
+                errors.append("prod mode requires evm_require_deploy_salt=true")
+            if int(self.chain_id or 0) == 77777:
+                errors.append(
+                    "prod chain_id 77777 is devnet default; assign unique mainnet chain_id"
+                )
         if self.require_native_crypto:
             try:
                 from crypto import native

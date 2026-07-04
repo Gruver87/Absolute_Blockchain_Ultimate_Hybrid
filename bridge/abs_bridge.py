@@ -7,7 +7,8 @@ Absolute Cross-Chain Bridge
   "rust"      — вызов скомпилированного Rust-бинарника через subprocess
   "simulator" — явный dev/test-only режим на основе DevBridgeAdapter
 
-Поддерживаемые сети: Ethereum, BSC, Solana, Absolute (ABS)
+Поддерживаемые сети (prod rust path): Ethereum, BSC, Polygon, Absolute (ABS).
+Solana — только dev/test simulator; не поддерживается rust L1 RPC.
 """
 
 import json
@@ -55,6 +56,8 @@ class RustBridge:
     """
 
     SUPPORTED_CHAINS = [c.value for c in Chain]
+    RUST_L1_CHAINS = ("ethereum", "bsc", "polygon", "absolute")
+    DEV_ONLY_CHAINS = ("solana",)
 
     CHAIN_ALIASES = {
         "eth": "ethereum",
@@ -145,7 +148,18 @@ class RustBridge:
         Возвращает: {"tx_hash": str, "fee": float, "net_amount": float, "status": str}
         """
         to_chain = self._normalize_chain(to_chain)
-        if to_chain not in self.SUPPORTED_CHAINS:
+        if self._is_prod:
+            if to_chain in self.DEV_ONLY_CHAINS:
+                return {
+                    "error": f"Chain {to_chain} is not supported in production rust bridge "
+                    f"(L1 RPC not implemented). Supported: {', '.join(self.RUST_L1_CHAINS)}",
+                }
+            if to_chain not in self.RUST_L1_CHAINS:
+                return {
+                    "error": f"Unsupported chain: {to_chain}. "
+                    f"Production supported: {', '.join(self.RUST_L1_CHAINS)}",
+                }
+        elif to_chain not in self.SUPPORTED_CHAINS:
             return {"error": f"Unsupported chain: {to_chain}. "
                              f"Supported: {', '.join(self.SUPPORTED_CHAINS)}"}
 

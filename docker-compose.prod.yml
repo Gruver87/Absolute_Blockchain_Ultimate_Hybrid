@@ -9,7 +9,7 @@ x-abs-prod-env: &abs-prod-env
   PYTHONUTF8: "1"
   PYTHONIOENCODING: utf-8
   DEPLOYMENT_MODE: prod
-  CHAIN_ID: "77777"
+  CHAIN_ID: "778888"
   HTTP_HOST: "0.0.0.0"
   RPC_HOST: "0.0.0.0"
   WS_HOST: "0.0.0.0"

@@ -18,14 +18,19 @@ def _load_mainnet():
     return mod
 
 
-def test_mainnet_readiness_passes():
+def test_mainnet_readiness_strict_audit_blocks_until_complete():
     gate = _load_mainnet()
-    errors, warnings, meta = gate.run_gate(live=False)
-    assert errors == [], errors
+    errors, warnings, meta = gate.run_gate(live=False, strict_audit=True)
+    assert any("external_audit_pending:" in e for e in errors)
+    assert meta["sections"]["external_audit"]["all_complete"] is False
     assert "external_checklist" in meta
     assert meta["sections"]["genesis_ceremony"]["ready"] is True
-    assert "external_audit" in meta["sections"]
-    assert meta["sections"]["external_audit"]["all_complete"] is False
+
+
+def test_mainnet_readiness_relaxed_audit_passes_automation():
+    gate = _load_mainnet()
+    errors, warnings, meta = gate.run_gate(live=False, strict_audit=False)
+    assert errors == [], errors
     assert len(warnings) >= 1
     path = gate.write_report(errors, warnings, meta)
     assert path.is_file()

@@ -136,6 +136,11 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] JSON-RPC WebSocket subscriptions (`eth_subscribe` / `eth_unsubscribe`: newHeads, logs, newPendingTransactions)
 - [x] Pre-mainnet audit runner: `scripts/pre_mainnet_audit.py` (static gate + JSON report + external checklist)
 - [ ] External security audit before public mainnet (third-party firm; track via `scripts/external_audit_tracker.py`)
+- [x] Mainnet gap analysis doc (`docs/MAINNET_GAP_ANALYSIS.md`)
+- [x] Strict external audit gate in `mainnet_readiness.py` (default; `--no-strict-audit` for dev)
+- [x] Prod EVM: `evm_require_deploy_salt`, `evm_create2_eip1014` required in prod config
+- [x] Prod bridge: Solana blocked; L1 chains ethereum/bsc/polygon only in rust path
+- [x] Prod `chain_id` must not be devnet default `77777` (placeholder `778888` in prod examples)
 - [x] PyO3 bridge helper CLI: `scripts/native_bridge_helper.py`
 - Dev-only (keep blocked in prod): `bridge_mode=simulator`, `mock_l1_rpc`, `feature_wasm/plasma/lightning/pq/zk`
 
@@ -144,6 +149,11 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Mainnet readiness gate: `scripts/mainnet_readiness.py` / `.ps1` (prod stack + pre-mainnet audit)
 - [x] Release gate `-Mainnet` flag: `scripts/release_gate.ps1 -Mainnet`
 - [ ] External security audit before public mainnet (third-party firm; track via `scripts/external_audit_tracker.py`)
+- [x] Mainnet gap analysis doc (`docs/MAINNET_GAP_ANALYSIS.md`)
+- [x] Strict external audit gate in `mainnet_readiness.py` (default; `--no-strict-audit` for dev)
+- [x] Prod EVM: `evm_require_deploy_salt`, `evm_create2_eip1014` required in prod config
+- [x] Prod bridge: Solana blocked; L1 chains ethereum/bsc/polygon only in rust path
+- [x] Prod `chain_id` must not be devnet default `77777` (placeholder `778888` in prod examples)
 - [x] Public mainnet genesis + validator set ceremony (`genesis_ceremony.py`, `GET /chain/genesis/ceremony`)
 - [x] EIP-4844 blob transaction type in `eth_sendRawTransaction` (type 0x03 decode + verify)
 - [x] EOF container rejected at deploy (`eof_container_not_supported`; full EOF VM optional)

@@ -41,6 +41,10 @@ def save_status(path: Path, items: Dict[str, Any]) -> Path:
     return path
 
 
+DEVNET_CHAIN_ID = 77777
+MAINNET_CHAIN_ID_PLACEHOLDER = 778888  # replace with final ID at genesis ceremony
+
+
 def evaluate(
     checklist: List[str] | None = None,
     status_path: Path | None = None,

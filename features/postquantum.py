@@ -4,8 +4,11 @@
 🔐 ЧАСТЬ 28: POST-QUANTUM CRYPTO - ЯДРО
 🔐 WATERMARK: DABRANSKI ULADZIMIR PETROVICH | 14.07.1987 | GRODNO
 
-Квантово-устойчивые криптографические алгоритмы
-SPHINCS+, Kyber, Dilithium, Falcon
+Квантово-устойчивые криптографические алгоритмы (EDUCATIONAL / R&D ONLY).
+
+SPHINCS+/Kyber/Falcon raise NotImplementedError in this repo.
+Dilithium here is a deterministic hash construction — NOT NIST ML-DSA.
+Do not use for production wallets or consensus; feature_pq is blocked in prod.
 """
 
 import hashlib

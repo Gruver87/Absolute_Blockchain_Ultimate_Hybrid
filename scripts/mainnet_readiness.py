@@ -23,7 +23,11 @@ def _load_module(name: str, rel: str):
     return mod
 
 
-def run_gate(live: bool = False, base_url: str = "http://127.0.0.1:8080") -> Tuple[List[str], List[str], dict]:
+def run_gate(
+    live: bool = False,
+    base_url: str = "http://127.0.0.1:8080",
+    strict_audit: bool = True,
+) -> Tuple[List[str], List[str], dict]:
     errors: List[str] = []
     warnings: List[str] = []
     sections: dict = {}
@@ -64,10 +68,17 @@ def run_gate(live: bool = False, base_url: str = "http://127.0.0.1:8080") -> Tup
     try:
         from runtime.external_audit import evaluate
         audit_warnings, _, audit_summary = evaluate()
-        warnings.extend(audit_warnings)
         sections["external_audit"] = audit_summary
+        if strict_audit and audit_warnings:
+            errors.extend(audit_warnings)
+        else:
+            warnings.extend(audit_warnings)
     except Exception as exc:
-        warnings.append(f"external_audit:{exc}")
+        msg = f"external_audit:{exc}"
+        if strict_audit:
+            errors.append(msg)
+        else:
+            warnings.append(msg)
 
     return errors, warnings, {
         "external_checklist": checklist,
@@ -93,10 +104,19 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Mainnet readiness gate")
     parser.add_argument("--live", action="store_true", help="Include prod_smoke against running node")
     parser.add_argument("--base-url", default="http://127.0.0.1:8080")
+    parser.add_argument(
+        "--no-strict-audit",
+        action="store_true",
+        help="Do not fail on incomplete external audit checklist (dev only)",
+    )
     parser.add_argument("--json", action="store_true", help="Print JSON summary")
     args = parser.parse_args()
 
-    errors, warnings, meta = run_gate(live=args.live, base_url=args.base_url)
+    errors, warnings, meta = run_gate(
+        live=args.live,
+        base_url=args.base_url,
+        strict_audit=not args.no_strict_audit,
+    )
     report_path = write_report(errors, warnings, meta)
 
     if args.json:
@@ -115,7 +135,7 @@ def main() -> int:
             for err in errors:
                 print(f"  - {err}")
         else:
-            print("RESULT: OK — ready for external audit + mainnet cutover")
+            print("RESULT: OK — automated gates passed (external audit checklist must still be complete)")
         if warnings:
             print("\nWarnings:")
             for warn in warnings:

@@ -1,7 +1,7 @@
 {
   "node_id": "prod-node-1",
   "network_name": "Absolute",
-  "chain_id": 77777,
+  "chain_id": 778888,
   "deployment_mode": "prod",
   "http_host": "0.0.0.0",
   "rpc_host": "0.0.0.0",
@@ -23,6 +23,8 @@
   "rust_bridge_path": "bridge/abs_bridge_bin",
   "bridge_auto_confirm_sec": 0,
   "bridge_require_l1_proof": true,
+  "evm_create2_eip1014": true,
+  "evm_require_deploy_salt": true,
   "rate_limit_rpm": 120,
   "rpc_api_key_required": true,
   "jwt_enforce_admin": true,

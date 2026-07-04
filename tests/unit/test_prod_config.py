@@ -30,15 +30,30 @@ def test_prod_rejects_simulator_bridge_without_override():
     assert any("bridge_mode=rust" in e for e in errs)
 
 
-def test_prod_requires_native_crypto_flag():
+def test_prod_rejects_devnet_chain_id():
     cfg = Config()
     cfg.deployment_mode = "prod"
-    cfg.require_native_crypto = False
+    cfg.chain_id = 77777
     cfg.require_wallet_file = False
     cfg.rpc_api_key_required = False
+    cfg.evm_create2_eip1014 = True
+    cfg.evm_require_deploy_salt = True
+    errs = cfg.validate()
+    assert any("chain_id 77777" in e for e in errs)
+
+
+def test_prod_requires_deploy_salt_flag():
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.evm_require_deploy_salt = False
+    cfg.require_wallet_file = False
+    cfg.rpc_api_key_required = False
+    cfg.require_native_crypto = True
+    cfg.evm_create2_eip1014 = True
+    cfg.chain_id = 778888
 
     errs = cfg.validate()
-    assert any("ABS_REQUIRE_NATIVE_CRYPTO" in e for e in errs)
+    assert any("evm_require_deploy_salt" in e for e in errs)
 
 
 def test_static_prod_gate_requires_native_crypto(tmp_path, monkeypatch):
@@ -55,6 +70,7 @@ def test_static_prod_gate_requires_native_crypto(tmp_path, monkeypatch):
     config = {
         "deployment_mode": "prod",
         "bridge_enabled": False,
+        "chain_id": 778888,
         "require_signatures": True,
         "enforce_proposer": True,
         "verify_peer_state_root": True,
@@ -62,6 +78,10 @@ def test_static_prod_gate_requires_native_crypto(tmp_path, monkeypatch):
         "jwt_enforce_admin": True,
         "require_wallet_file": True,
         "bridge_require_l1_proof": True,
+        "require_native_crypto": False,
+        "evm_create2_eip1014": True,
+        "evm_require_deploy_salt": True,
+        "validators_manifest_path": "validators.manifest.example.json",
         "cors_origins": ["https://explorer.example.com"],
     }
     for feature in prod_gate.BLOCKED_FEATURES:
@@ -225,6 +245,9 @@ def test_prod_example_json_structure():
     assert cfg.rpc_api_key_required is True
     assert cfg.bridge_require_l1_proof is True
     assert cfg.require_native_crypto is True
+    assert cfg.evm_create2_eip1014 is True
+    assert cfg.evm_require_deploy_salt is True
+    assert cfg.chain_id == 778888
     assert cfg.feature_mev is False
     assert cfg.feature_ai_agents is False
     assert cfg.validators_manifest_path == "validators.manifest.example.json"

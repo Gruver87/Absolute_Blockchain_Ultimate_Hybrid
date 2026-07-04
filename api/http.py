@@ -139,6 +139,16 @@ def _reject_auto_sign_in_prod(body: Dict, cfg) -> None:
         raise ValueError("auto_sign is disabled in production; submit a signed transaction")
 
 
+def _reject_deploy_without_salt_in_prod(body: Dict, cfg) -> None:
+    if not _is_production_cfg(cfg):
+        return
+    if not getattr(cfg, "evm_require_deploy_salt", False):
+        return
+    salt = body.get("salt")
+    if salt is None or str(salt).strip() == "":
+        raise ValueError("deploy salt required in production for deterministic contract address")
+
+
 def _is_prod_blocked_path(path: str, cfg) -> bool:
     if not _is_production_cfg(cfg):
         return False
@@ -3314,9 +3324,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(400, f"unsupported EVM bytecode: {(v.get('unsupported') or [{}])[0].get('name', v.get('error'))}")
                     return
                 if body.get("via_mempool", body.get("mempool", False)):
+                    _reject_deploy_without_salt_in_prod(body, cfg)
                     tx_hash = _handle_deploy_tx(body, bc, mp, cfg, self.__class__.wallet, evm_adapter)
                     self._json({"tx_hash": tx_hash, "status": "pending", "via_mempool": True})
                     return
+                _reject_deploy_without_salt_in_prod(body, cfg)
                 result = evm_adapter.deploy_contract(
                     deployer=body.get("from", body.get("from_address", "")),
                     bytecode_hex=body.get("bytecode", body.get("data", "")),
@@ -3329,6 +3341,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not evm_adapter:
                     self._error(503, "EVM not enabled")
                     return
+                _reject_deploy_without_salt_in_prod(body, cfg)
                 tx_hash = _handle_deploy_tx(body, bc, mp, cfg, self.__class__.wallet, evm_adapter)
                 self._json({"tx_hash": tx_hash, "status": "pending", "via_mempool": True})
 

@@ -323,6 +323,11 @@ class EVMAdapter:
             return EVMResult(success=False, error=f"bytecode_invalid:{detail}")
 
         # Deterministic address when salt provided (block execution); else dev-only
+        if salt is None and getattr(self.config, "evm_require_deploy_salt", False):
+            return EVMResult(
+                success=False,
+                error="deploy_salt_required",
+            )
         seed = salt if salt is not None else str(time.time())
         contract_addr = "0x" + hashlib.sha256(
             f"{deployer}{seed}".encode()
