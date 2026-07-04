@@ -22,8 +22,9 @@ def l1_rpc_health_required(cfg) -> bool:
 def should_probe_l1_rpc(cfg=None) -> bool:
     from runtime.env_loader import env_bool
 
-    if env_bool("BRIDGE_PROBE_L1_RPC", False):
-        return True
+    raw = os.environ.get("BRIDGE_PROBE_L1_RPC")
+    if raw is not None and str(raw).strip() != "":
+        return env_bool("BRIDGE_PROBE_L1_RPC", False)
     return l1_rpc_health_required(cfg) if cfg is not None else False
 
 

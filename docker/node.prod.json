@@ -45,5 +45,5 @@
   "cors_origins": ["https://your-explorer.example.com"],
   "db_path": "data/blockchain.db",
   "log_file": "data/node.log",
-  "validators_manifest_path": "validators.manifest.mainnet-v1.example.json"
+  "validators_manifest_path": "data/validators.manifest.json"
 }

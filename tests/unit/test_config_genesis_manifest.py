@@ -95,7 +95,8 @@ def test_prod_config_validate_requires_manifest_path():
     assert any("validators_manifest_path" in e for e in errors)
 
 
-def test_prod_config_validate_accepts_mainnet_v1_manifest():
+def test_prod_config_validate_accepts_mainnet_v1_manifest(monkeypatch):
+    monkeypatch.delenv("GENESIS_CEREMONY_HASH", raising=False)
     cfg = Config()
     cfg.deployment_mode = "prod"
     cfg.require_wallet_file = False
@@ -124,3 +125,12 @@ def test_genesis_ceremony_hash_pin():
         expected_ceremony_hash="0" * 64,
     )
     assert any("genesis_ceremony_hash_mismatch" in e for e in errors)
+
+
+def test_apply_env_secrets_restores_validators_manifest_path(monkeypatch):
+    """Docker prod JSON must not override VALIDATORS_MANIFEST_PATH from env."""
+    monkeypatch.setenv("VALIDATORS_MANIFEST_PATH", "data/ceremony/validators.manifest.json")
+    cfg = Config.from_json("docker/node.prod.json")
+    assert cfg.validators_manifest_path == "data/validators.manifest.json"
+    cfg.apply_env_secrets()
+    assert cfg.validators_manifest_path == "data/ceremony/validators.manifest.json"

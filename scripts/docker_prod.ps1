@@ -31,7 +31,22 @@ if (Import-DotEnvFile $dotEnv) {
 if ($CeremonyDir) {
     & "$ScriptDir\deploy_ceremony_prod.ps1" -CeremonyDir $CeremonyDir
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+
+$manifestPath = Join-Path (Get-Location) "data\validators.manifest.json"
+$deployMetaPath = Join-Path (Get-Location) "data\ceremony_deploy.json"
+if ((Test-Path $manifestPath) -and (Test-Path $deployMetaPath)) {
+    $meta = Get-Content $deployMetaPath -Raw | ConvertFrom-Json
     $env:VALIDATORS_MANIFEST_PATH = "data/validators.manifest.json"
+    $env:GENESIS_CEREMONY_HASH = $meta.ceremony_hash
+    Write-Host "Ceremony: data/validators.manifest.json + GENESIS_CEREMONY_HASH from deploy meta" -ForegroundColor DarkGray
+} elseif ([Environment]::GetEnvironmentVariable("GENESIS_CEREMONY_HASH")) {
+    Write-Host "FAIL: GENESIS_CEREMONY_HASH is set but data/validators.manifest.json is missing." -ForegroundColor Red
+    Write-Host "  .\scripts\deploy_ceremony_prod.ps1 -CeremonyDir data/ceremony_keys" -ForegroundColor Cyan
+    Write-Host "  Or remove GENESIS_CEREMONY_HASH from .env for template manifest only." -ForegroundColor Gray
+    exit 1
+} else {
+    $env:VALIDATORS_MANIFEST_PATH = "validators.manifest.mainnet-v1.example.json"
 }
 
 $missing = @()
@@ -44,14 +59,22 @@ if ($missing.Count -gt 0) {
     Write-Host "Missing required prod env vars: $($missing -join ', ')" -ForegroundColor Red
     Write-Host ""
     Write-Host "Quick setup (generates .env + data\wallet.json):" -ForegroundColor Cyan
-    Write-Host "  .\scripts\setup_prod_env.ps1" -ForegroundColor White
+    Write-Host "  .\scripts\setup_prod_env.ps1 -EthRpcUrl `"https://your-real-ethereum-rpc`"" -ForegroundColor White
     Write-Host ""
     Write-Host "Or set manually in this PowerShell session:" -ForegroundColor Gray
     Write-Host '  $env:JWT_SECRET = "your_jwt_secret_here"' -ForegroundColor Gray
     Write-Host '  $env:RPC_API_KEYS = "your_rpc_api_key_here"' -ForegroundColor Gray
     Write-Host '  $env:BRIDGE_ORACLE_SECRET = "your_bridge_oracle_secret"' -ForegroundColor Gray
     Write-Host '  $env:CORS_ORIGINS = "https://your-explorer.example.com"' -ForegroundColor Gray
-    Write-Host '  $env:ETH_RPC_URL = "https://your-ethereum-rpc"' -ForegroundColor Gray
+    Write-Host '  $env:ETH_RPC_URL = "https://your-real-ethereum-rpc"' -ForegroundColor Gray
+    exit 1
+}
+
+$ethRpc = [Environment]::GetEnvironmentVariable("ETH_RPC_URL")
+if ($ethRpc -match '(?i)(ваш-ethereum|your-ethereum|your-mainnet|changeme|placeholder|todo|example\.com$|rpc\.example)') {
+    Write-Host "FAIL: ETH_RPC_URL looks like a placeholder, not a real JSON-RPC endpoint." -ForegroundColor Red
+    Write-Host "  .\scripts\setup_prod_env.ps1 -EthRpcUrl `"https://mainnet.infura.io/v3/YOUR_KEY`"" -ForegroundColor Cyan
+    Write-Host "  For local stack smoke without L1: set BRIDGE_PROBE_L1_RPC=false in .env" -ForegroundColor Gray
     exit 1
 }
 
@@ -62,11 +85,18 @@ if (-not (Test-Path $walletPath)) {
     Write-Host "Or:  .\scripts\deploy_ceremony_prod.ps1 -CeremonyDir data/ceremony_keys" -ForegroundColor Cyan
     exit 1
 }
+if (-not (Test-Path $manifestPath)) {
+    Write-Host "Prod validator manifest is required: $manifestPath" -ForegroundColor Red
+    Write-Host "Run: .\scripts\deploy_ceremony_prod.ps1 -CeremonyDir data/ceremony_keys" -ForegroundColor Cyan
+    exit 1
+}
 
 Write-Host "Running production gate..." -ForegroundColor Cyan
 python scripts/prod_gate.py
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+Write-Host "Recreating prod stack (volume abs-prod-data + ceremony file mounts)..." -ForegroundColor Cyan
+docker compose -f docker-compose.prod.yml down 2>$null
 docker compose -f docker-compose.prod.yml up --build -d
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Docker failed - start Docker Desktop and retry." -ForegroundColor Red
@@ -95,6 +125,7 @@ while ((Get-Date) -lt $deadline) {
 
 if (-not $ready) {
     Write-Host "WARN: node not ready yet - check logs: docker compose -f docker-compose.prod.yml logs node" -ForegroundColor Yellow
+    docker compose -f docker-compose.prod.yml logs node --tail 40
 } else {
     Write-Host "Node ready." -ForegroundColor Green
     $liveArgs = @("scripts/prod_smoke.py", "http://127.0.0.1:8080")

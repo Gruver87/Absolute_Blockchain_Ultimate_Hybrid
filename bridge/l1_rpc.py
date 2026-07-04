@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any, Dict, Optional
 
@@ -79,10 +80,33 @@ def min_confirmations() -> int:
         return 12
 
 
+def _ascii_request_url(url: str) -> str:
+    """Percent-encode non-ASCII host/path so urllib accepts the URL."""
+    parts = urllib.parse.urlsplit(url.strip())
+    if not parts.scheme or not parts.netloc:
+        return url
+    host = parts.hostname or ""
+    if host:
+        try:
+            host = host.encode("idna").decode("ascii")
+        except UnicodeError:
+            host = urllib.parse.quote(host, safe="")
+    port = f":{parts.port}" if parts.port else ""
+    netloc = host + port
+    if parts.username:
+        userinfo = parts.username
+        if parts.password:
+            userinfo = f"{userinfo}:{parts.password}"
+        netloc = f"{userinfo}@{netloc}"
+    return urllib.parse.urlunsplit(
+        (parts.scheme, netloc, parts.path, parts.query, parts.fragment)
+    )
+
+
 def _rpc_call(rpc_url: str, method: str, params: list, timeout: float = 15) -> Any:
     payload = json.dumps({"jsonrpc": "2.0", "method": method, "params": params, "id": 1}).encode()
     req = urllib.request.Request(
-        rpc_url,
+        _ascii_request_url(rpc_url),
         data=payload,
         method="POST",
         headers={"Content-Type": "application/json"},

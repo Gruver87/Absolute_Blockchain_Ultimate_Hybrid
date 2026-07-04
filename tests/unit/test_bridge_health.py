@@ -59,6 +59,19 @@ def test_l1_rpc_health_probes_when_enabled(monkeypatch):
     assert "ETH_RPC_URL" in out["endpoints"]
 
 
+def test_l1_rpc_health_skips_probe_when_disabled_in_prod(monkeypatch):
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.bridge_enabled = True
+    cfg.bridge_require_l1_proof = True
+    monkeypatch.setenv("ETH_RPC_URL", "https://rpc.example.com")
+    monkeypatch.setenv("BRIDGE_PROBE_L1_RPC", "false")
+    out = health.check_l1_rpc_health(cfg)
+    assert out["required"] is True
+    assert out["ok"] is True
+    assert out["probes"] == {}
+
+
 def test_l1_rpc_health_required_in_prod(monkeypatch):
     cfg = Config()
     cfg.deployment_mode = "prod"

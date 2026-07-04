@@ -21,7 +21,7 @@ x-abs-prod-env: &abs-prod-env
   RUST_BRIDGE_PATH: bridge/abs_bridge_bin
   BRIDGE_AUTO_CONFIRM_SEC: "0"
   BRIDGE_REQUIRE_L1_PROOF: "true"
-  BRIDGE_PROBE_L1_RPC: ${BRIDGE_PROBE_L1_RPC:-true}
+  BRIDGE_PROBE_L1_RPC: ${BRIDGE_PROBE_L1_RPC:-false}
   BRIDGE_L1_QUEUE_PATH: /app/data/bridge_l1_queue.json
   ETH_RPC_URL: ${ETH_RPC_URL:?set ETH_RPC_URL before starting prod bridge}
   JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET before starting prod}
@@ -51,7 +51,10 @@ services:
       <<: *abs-prod-env
       NODE_ID: docker-prod-1
     volumes:
+      # Named volume for SQLite/logs (Windows bind-mount ./data breaks WAL).
       - abs-prod-data:/app/data
+      - ./data/wallet.json:/app/data/wallet.json:ro
+      - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro
     healthcheck:
       test:
         [
@@ -87,6 +90,8 @@ services:
       ABS_API_URL: http://node:8080
     volumes:
       - abs-prod-data:/app/data
+      - ./data/wallet.json:/app/data/wallet.json:ro
+      - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro
     depends_on:
       node:
         condition: service_healthy
@@ -108,9 +113,9 @@ services:
       - abs-prod
     restart: unless-stopped
 
-volumes:
-  abs-prod-data:
-
 networks:
   abs-prod:
     driver: bridge
+
+volumes:
+  abs-prod-data:

@@ -328,6 +328,9 @@ class Config:
 
     def apply_env_secrets(self) -> "Config":
         """Re-apply credential fields from env after JSON load (secrets stay out of node JSON)."""
+        manifest_path = env_str("VALIDATORS_MANIFEST_PATH", "")
+        if manifest_path:
+            self.validators_manifest_path = manifest_path
         rpc_keys = env_list("RPC_API_KEYS")
         if rpc_keys:
             self.rpc_api_keys = rpc_keys
