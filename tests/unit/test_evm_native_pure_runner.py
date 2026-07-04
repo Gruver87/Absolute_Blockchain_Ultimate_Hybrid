@@ -7,10 +7,12 @@ from crypto import native
 from evm_interpreter import EVM, EVMContext
 
 
-def test_opcode_is_host():
-    assert native.evm_opcode_is_host(0x31) is True
+def test_opcode_is_host_and_bridge():
+    assert native.evm_opcode_is_host(0xF1) is True
     assert native.evm_opcode_is_host(0x01) is False
-    assert native.evm_opcode_is_host(0x33) is False
+    assert native.evm_opcode_is_bridge(0x31) is True
+    assert native.evm_opcode_is_bridge(0x33) is False
+    assert native.evm_opcode_is_host(0x31) is False
     assert native.evm_opcode_is_host(0xA0) is True
 
 
@@ -44,8 +46,8 @@ def test_pure_segment_runs_arithmetic_and_stops():
     assert seg["steps"] == 4
 
 
-def test_pure_segment_stops_at_host_opcode():
-    # PUSH1 0, BALANCE
+def test_pure_segment_stops_at_bridge_without_host_bridge():
+    # PUSH1 0, BALANCE — stops when no bridge object is passed
     bytecode = bytes([0x60, 0x00, 0x31])
     table = native.evm_build_jumpdest_table(bytecode)
     seg = native.evm_run_pure_until_host(
@@ -56,6 +58,32 @@ def test_pure_segment_stops_at_host_opcode():
     assert seg["pc"] == 2
     assert seg["stack"] == [0]
     assert seg["running"] is True
+
+
+def test_pure_segment_runs_balance_via_host_bridge():
+    class Bridge:
+        def balance(self, addr: str) -> int:
+            assert addr.startswith("0x")
+            return 12345
+
+    bytecode = bytes([0x60, 0x00, 0x31, 0x00])  # PUSH1 0, BALANCE, STOP
+    table = native.evm_build_jumpdest_table(bytecode)
+    seg = native.evm_run_pure_until_host(
+        bytecode,
+        0,
+        1_000_000,
+        0,
+        [],
+        bytearray(),
+        table,
+        b"",
+        b"",
+        _host_ctx(),
+        None,
+        Bridge(),
+    )
+    assert seg["stop_reason"] == "halt"
+    assert seg["stack"] == [12345]
 
 
 def test_pure_segment_runs_caller_and_chainid():

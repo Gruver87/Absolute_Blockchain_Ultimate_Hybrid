@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """Python host bridge for native EVM pure runner (state lookups)."""
 
-from typing import Optional
-
-from evm_interpreter import EVMContext
+from typing import Any, Optional
 
 
 class EvmHostBridge:
     """Thin adapter from EVMContext callables to Rust host-bridge methods."""
 
-    def __init__(self, ctx: EVMContext):
+    def __init__(self, ctx: Any):
         self._ctx = ctx
 
     def balance(self, addr: str) -> int:
@@ -34,7 +32,7 @@ class EvmHostBridge:
         return 0
 
 
-def make_evm_host_bridge(ctx: Optional[EVMContext]) -> Optional[EvmHostBridge]:
+def make_evm_host_bridge(ctx: Optional[Any]) -> Optional[EvmHostBridge]:
     if ctx is None:
         return None
     return EvmHostBridge(ctx)

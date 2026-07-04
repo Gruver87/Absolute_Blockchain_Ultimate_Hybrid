@@ -363,6 +363,7 @@ fn run_pure_segment_inner(
     return_data_in: &[u8],
     host_context: Option<&Bound<'_, PyDict>>,
     storage: Option<&Bound<'_, PyDict>>,
+    host_bridge: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyObject> {
     if pc >= bytecode.len() {
         let stack = stack_to_pylist(py, &stack_from_py(stack_py)?)?;
@@ -668,8 +669,8 @@ fn run_pure_segment_inner(
                     let bridge = host_bridge.ok_or_else(|| {
                         pyo3::exceptions::PyRuntimeError::new_err("host_bridge_unavailable")
                     })?;
-                    let chunk = bridge_code_copy(bridge, who, mem_offset, size)?;
-                    memory_copy(&mut memory, code_offset, &chunk, 0, size);
+                    let chunk = bridge_code_copy(bridge, who, code_offset, size)?;
+                    memory_copy(&mut memory, mem_offset, &chunk, 0, size);
                     Ok(Some(false))
                 }
                 0x40 => {
@@ -863,6 +864,12 @@ fn run_pure_segment_inner(
 }
 
 #[pyfunction]
+#[pyo3(name = "evm_opcode_is_bridge")]
+pub fn evm_opcode_is_bridge_py(op: u8) -> PyResult<bool> {
+    Ok(evm_opcode_is_bridge(op))
+}
+
+#[pyfunction]
 #[pyo3(name = "evm_opcode_is_host")]
 pub fn evm_opcode_is_host_py(op: u8) -> PyResult<bool> {
     Ok(evm_opcode_is_host(op))
@@ -870,7 +877,7 @@ pub fn evm_opcode_is_host_py(op: u8) -> PyResult<bool> {
 
 #[pyfunction]
 #[pyo3(name = "evm_run_pure_until_host")]
-#[pyo3(signature = (bytecode, pc, gas_limit, gas_used, stack, memory, jumpdest_table, calldata, return_data, host_context=None, storage=None))]
+#[pyo3(signature = (bytecode, pc, gas_limit, gas_used, stack, memory, jumpdest_table, calldata, return_data, host_context=None, storage=None, host_bridge=None))]
 pub fn evm_run_pure_until_host_py(
     py: Python<'_>,
     bytecode: Vec<u8>,
@@ -884,6 +891,7 @@ pub fn evm_run_pure_until_host_py(
     return_data: Vec<u8>,
     host_context: Option<&Bound<'_, PyDict>>,
     storage: Option<&Bound<'_, PyDict>>,
+    host_bridge: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyObject> {
     run_pure_segment_inner(
         py,
@@ -898,5 +906,6 @@ pub fn evm_run_pure_until_host_py(
         &return_data,
         host_context,
         storage,
+        host_bridge,
     )
 }

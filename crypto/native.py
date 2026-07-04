@@ -714,10 +714,11 @@ def evm_gas_remaining(gas_limit: int, gas_used: int) -> int:
 
 
 _EVM_HOST_OPCODES = frozenset({
-    0x31, 0x3B, 0x3C, 0x40,
     0xF0, 0xF1, 0xF2, 0xF4, 0xF5, 0xFA, 0xFF,
     *range(0xA0, 0xA5),
 })
+
+_EVM_BRIDGE_OPCODES = frozenset({0x31, 0x3B, 0x3C, 0x40})
 
 
 def evm_host_context_from_evm(ctx) -> dict:
@@ -740,6 +741,13 @@ def evm_opcode_is_host(op: int) -> bool:
     return op in _EVM_HOST_OPCODES
 
 
+def evm_opcode_is_bridge(op: int) -> bool:
+    op = int(op) & 0xFF
+    if _native is not None and hasattr(_native, "evm_opcode_is_bridge"):
+        return bool(_native.evm_opcode_is_bridge(op))
+    return op in _EVM_BRIDGE_OPCODES
+
+
 def evm_run_pure_until_host(
     bytecode: bytes,
     pc: int,
@@ -752,6 +760,7 @@ def evm_run_pure_until_host(
     return_data: bytes,
     host_context: Optional[dict] = None,
     storage: Optional[dict] = None,
+    host_bridge: Any = None,
 ) -> dict:
     if _native is not None and hasattr(_native, "evm_run_pure_until_host"):
         seg = _native.evm_run_pure_until_host(
@@ -766,6 +775,7 @@ def evm_run_pure_until_host(
             bytes(return_data),
             host_context,
             storage,
+            host_bridge,
         )
         return {
             "pc": int(seg["pc"]),

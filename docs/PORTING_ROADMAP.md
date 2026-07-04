@@ -80,6 +80,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Native bytecode scan + gas remaining; validator sync with all interpreter opcodes
 - [x] Pure-opcode segment runner (`evm_run_pure_until_host`) + interpreter host-boundary loop
 - [x] Native env opcodes + SLOAD/SSTORE in pure runner (static host context)
+- [x] Host bridge for BALANCE / EXTCODE* / BLOCKHASH in native pure runner
 - [ ] Full opcode dispatch in Rust (future)
 
 ### Priority 7 — Bridge hardening (future)

@@ -1444,6 +1444,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_stack_swap, m)?)?;
     m.add_function(wrap_pyfunction!(evm_scan_bytecode, m)?)?;
     m.add_function(wrap_pyfunction!(evm_gas_remaining, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_pure_runner::evm_opcode_is_bridge_py, m)?)?;
     m.add_function(wrap_pyfunction!(evm_pure_runner::evm_opcode_is_host_py, m)?)?;
     m.add_function(wrap_pyfunction!(evm_pure_runner::evm_run_pure_until_host_py, m)?)?;
     m.add_function(wrap_pyfunction!(keccak256_hex, m)?)?;
