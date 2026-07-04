@@ -4,6 +4,7 @@ param(
     [switch]$SkipDeploy,
     [switch]$SkipProdSmoke,
     [switch]$DockerLive,
+    [switch]$BridgeCutover,
     [switch]$StrictAudit
 )
 
@@ -26,6 +27,9 @@ if ($StrictAudit) {
 if (-not $SkipProdSmoke) {
     $readinessArgs += "--prod-smoke-spawn"
 }
+if ($BridgeCutover) {
+    $readinessArgs += "--bridge-cutover"
+}
 
 python @readinessArgs
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -34,7 +38,14 @@ if ($DockerLive) {
     Write-Host ""
     Write-Host "Docker live gate (requires JWT_SECRET, RPC_API_KEYS, ...)" -ForegroundColor Cyan
     & "$ProjectRoot\scripts\docker_prod.ps1" -CeremonyDir $CeremonyDir
-    exit $LASTEXITCODE
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    if ($BridgeCutover) {
+        Write-Host ""
+        Write-Host "Bridge L1 cutover live gate..." -ForegroundColor Cyan
+        & "$ProjectRoot\scripts\bridge_l1_cutover.ps1" -Live -ProbeL1
+        exit $LASTEXITCODE
+    }
+    exit 0
 }
 
 Write-Host ""

@@ -30,6 +30,7 @@ def run_gate(
     strict_audit: bool = True,
     prod_smoke_spawn: bool = False,
     ceremony_dir: str = "",
+    bridge_cutover: bool = False,
 ) -> Tuple[List[str], List[str], dict]:
     errors: List[str] = []
     warnings: List[str] = []
@@ -162,6 +163,23 @@ def run_gate(
         else:
             warnings.append(msg)
 
+    if bridge_cutover:
+        try:
+            sys.path.insert(0, str(ROOT / "scripts"))
+            from bridge_l1_cutover import run_cutover_gate, resolve_live_base_url
+
+            cutover_base = resolve_live_base_url(base_url) if live else ""
+            c_errors, c_warnings, c_meta = run_cutover_gate(
+                live=live,
+                base_url=cutover_base,
+                probe_l1=live,
+            )
+            errors.extend([f"bridge_cutover:{e}" for e in c_errors])
+            warnings.extend([f"bridge_cutover:{w}" for w in c_warnings])
+            sections["bridge_cutover"] = c_meta
+        except Exception as exc:
+            errors.append(f"bridge_cutover:{exc}")
+
     return errors, warnings, {
         "external_checklist": checklist,
         "sections": sections,
@@ -201,6 +219,11 @@ def main() -> int:
         action="store_true",
         help="Do not fail on incomplete external audit checklist (dev only)",
     )
+    parser.add_argument(
+        "--bridge-cutover",
+        action="store_true",
+        help="Include Bridge L1 cutover gate (requires real ETH_RPC_URL when bridge enabled)",
+    )
     parser.add_argument("--json", action="store_true", help="Print JSON summary")
     args = parser.parse_args()
 
@@ -210,6 +233,7 @@ def main() -> int:
         strict_audit=not args.no_strict_audit,
         prod_smoke_spawn=args.prod_smoke_spawn,
         ceremony_dir=args.ceremony_dir,
+        bridge_cutover=args.bridge_cutover,
     )
     report_path = write_report(errors, warnings, meta)
 
