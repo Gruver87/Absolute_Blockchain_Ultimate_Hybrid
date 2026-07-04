@@ -85,12 +85,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `evm_run_until_halt` — full bytecode dispatch loop in Rust with runtime bridge
 - [x] Inline Rust bridge callbacks via `host_context.bridge_state` / `bridge_hooks`
 
-### Priority 7 — Bridge hardening (in progress)
+### Priority 7 — Bridge hardening ✅
 
 - [x] Prod config validates rust bridge binary smoke-test (`config.validate`)
 - [x] Prod requires L1 RPC URLs + `BRIDGE_REQUIRE_L1_PROOF`
 - [x] Runtime bridge health in `/metrics` and API overview
 - [x] Live L1 RPC reachability probe at startup (opt-in: `BRIDGE_PROBE_L1_RPC=true`)
+- [x] L1 RPC health in `/health/ready`, `/metrics`, and Prometheus alerts
 
 ## Process per module
 

@@ -7,7 +7,57 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+
+
+def l1_rpc_health_required(cfg) -> bool:
+    """True when prod bridge must reach real L1 JSON-RPC endpoints."""
+    return bool(
+        getattr(cfg, "is_production", False)
+        and getattr(cfg, "bridge_enabled", False)
+        and getattr(cfg, "bridge_require_l1_proof", False)
+    )
+
+
+def should_probe_l1_rpc(cfg=None) -> bool:
+    from runtime.env_loader import env_bool
+
+    if env_bool("BRIDGE_PROBE_L1_RPC", False):
+        return True
+    return l1_rpc_health_required(cfg) if cfg is not None else False
+
+
+def check_l1_rpc_health(cfg=None, timeout: float = 3.0) -> Dict[str, Any]:
+    """Report configured L1 RPC URLs and optional live eth_blockNumber probes."""
+    from bridge.l1_rpc import configured_l1_rpc_urls, probe_configured_l1_rpcs
+
+    urls = configured_l1_rpc_urls()
+    required = l1_rpc_health_required(cfg) if cfg is not None else False
+    out: Dict[str, Any] = {
+        "required": required,
+        "configured": bool(urls),
+        "ok": True,
+        "error": "",
+        "probes": {},
+        "endpoints": list(urls.keys()),
+    }
+
+    if required and not urls:
+        out["ok"] = False
+        out["error"] = "no L1 RPC URLs configured"
+        return out
+
+    if not urls:
+        return out
+
+    if not should_probe_l1_rpc(cfg):
+        return out
+
+    probe = probe_configured_l1_rpcs(timeout=timeout)
+    out["ok"] = bool(probe.get("ok"))
+    out["error"] = str(probe.get("error") or "")
+    out["probes"] = probe.get("probes") or {}
+    return out
 
 
 def check_rust_bridge_binary(path: str, timeout: float = 3.0) -> Dict[str, Any]:

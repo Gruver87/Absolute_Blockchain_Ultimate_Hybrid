@@ -40,6 +40,36 @@ def test_rust_bridge_health_rejects_invalid_json(monkeypatch, tmp_path):
     assert "invalid JSON" in out["error"]
 
 
+def test_l1_rpc_health_without_urls():
+    out = health.check_l1_rpc_health()
+    assert out["configured"] is False
+    assert out["ok"] is True
+
+
+def test_l1_rpc_health_probes_when_enabled(monkeypatch):
+    monkeypatch.setenv("ETH_RPC_URL", "http://eth")
+    monkeypatch.setenv("BRIDGE_PROBE_L1_RPC", "true")
+    monkeypatch.setattr(
+        "bridge.l1_rpc.probe_configured_l1_rpcs",
+        lambda timeout=5.0: {"ok": True, "probes": {"ETH_RPC_URL": {"ok": True}}},
+    )
+    out = health.check_l1_rpc_health(timeout=1.0)
+    assert out["configured"] is True
+    assert out["ok"] is True
+    assert "ETH_RPC_URL" in out["endpoints"]
+
+
+def test_l1_rpc_health_required_in_prod(monkeypatch):
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.bridge_enabled = True
+    cfg.bridge_require_l1_proof = True
+    monkeypatch.delenv("ETH_RPC_URL", raising=False)
+    out = health.check_l1_rpc_health(cfg)
+    assert out["required"] is True
+    assert out["ok"] is False
+
+
 def test_prod_config_requires_rust_bridge_smoke(monkeypatch, tmp_path):
     binary = tmp_path / "abs_bridge_bin"
     binary.write_text("placeholder", encoding="utf-8")

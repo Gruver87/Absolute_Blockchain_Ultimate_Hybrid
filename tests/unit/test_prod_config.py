@@ -234,3 +234,5 @@ def test_prometheus_alerts_include_rust_bridge_readiness():
     alerts = (root / "deploy" / "prometheus" / "alerts.yml").read_text(encoding="utf-8")
     assert "AbsoluteRustBridgeDown" in alerts
     assert "abs_rust_bridge_required == 1 and abs_rust_bridge_ok == 0" in alerts
+    assert "AbsoluteL1RpcDown" in alerts
+    assert "abs_l1_rpc_required == 1 and abs_l1_rpc_ok == 0" in alerts

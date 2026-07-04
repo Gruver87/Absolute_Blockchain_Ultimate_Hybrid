@@ -46,3 +46,12 @@ groups:
         annotations:
           summary: "Rust bridge is not ready on {{ $labels.node_id }}"
           description: "Production bridge is required but abs_bridge_bin failed its JSON smoke-test."
+
+      - alert: AbsoluteL1RpcDown
+        expr: abs_l1_rpc_required == 1 and abs_l1_rpc_ok == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "L1 RPC unreachable on {{ $labels.node_id }}"
+          description: "Production bridge requires live L1 JSON-RPC but eth_blockNumber probe failed."

@@ -100,6 +100,24 @@ class MetricsCollector:
                 f"abs_rust_bridge_ok{{node_id=\"{node_id}\"}} "
                 f"{1 if bridge_health.get('ok') else 0}"
             ),
+            "# HELP abs_l1_rpc_configured Whether any L1 RPC URL is configured",
+            "# TYPE abs_l1_rpc_configured gauge",
+            (
+                f"abs_l1_rpc_configured{{node_id=\"{node_id}\"}} "
+                f"{1 if (bridge_health.get('l1_rpc') or {}).get('configured') else 0}"
+            ),
+            "# HELP abs_l1_rpc_required Whether readiness requires live L1 RPC",
+            "# TYPE abs_l1_rpc_required gauge",
+            (
+                f"abs_l1_rpc_required{{node_id=\"{node_id}\"}} "
+                f"{1 if (bridge_health.get('l1_rpc') or {}).get('required') else 0}"
+            ),
+            "# HELP abs_l1_rpc_ok L1 RPC reachability probe status",
+            "# TYPE abs_l1_rpc_ok gauge",
+            (
+                f"abs_l1_rpc_ok{{node_id=\"{node_id}\"}} "
+                f"{1 if (bridge_health.get('l1_rpc') or {}).get('ok') else 0}"
+            ),
         ]
         for kernel in native_crypto.get("kernels", []):
             safe_kernel = str(kernel).replace("\\", "\\\\").replace('"', '\\"')

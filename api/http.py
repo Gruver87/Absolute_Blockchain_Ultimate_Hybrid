@@ -173,7 +173,7 @@ def _rust_bridge_health(cfg) -> Dict:
         return out
 
     try:
-        from bridge.health import check_rust_bridge_binary
+        from bridge.health import check_l1_rpc_health, check_rust_bridge_binary
         resolve = getattr(cfg, "resolve_rust_bridge_path", None)
         path = resolve() if callable(resolve) else getattr(cfg, "rust_bridge_path", "")
         status = check_rust_bridge_binary(path, timeout=1.5)
@@ -186,6 +186,11 @@ def _rust_bridge_health(cfg) -> Dict:
             out["response"] = status["response"]
     except Exception as exc:
         out.update({"ok": False, "error": str(exc)})
+
+    l1 = check_l1_rpc_health(cfg, timeout=1.5)
+    out["l1_rpc"] = l1
+    if out.get("required") and l1.get("required"):
+        out["ok"] = bool(out.get("ok")) and bool(l1.get("ok"))
     return out
 
 # Devnet / probes: не считаем в rate limit (start_two_nodes, devnet_status, K8s)
@@ -729,6 +734,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                         if bridge_health.get("required")
                         else True
                     ),
+                    "l1_rpc": (
+                        bool(bridge_health.get("l1_rpc", {}).get("ok"))
+                        if bridge_health.get("l1_rpc", {}).get("required")
+                        else True
+                    ),
                 }
                 ready = all(checks.values())
                 payload = {
@@ -736,6 +746,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "checks": checks,
                     "native_crypto": native_crypto,
                     "rust_bridge": bridge_health,
+                    "l1_rpc": bridge_health.get("l1_rpc"),
                     "height": bc.get_height() if bc else 0,
                 }
                 if ready:
@@ -5915,11 +5926,18 @@ def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
         "confirmed": sum(1 for l in locks if l.get("status") == "confirmed"),
     }
     try:
-        from bridge.l1_rpc import chain_rpc_url, min_confirmations
+        from bridge.health import check_l1_rpc_health
+        from bridge.l1_rpc import min_confirmations
+
+        l1_health = check_l1_rpc_health(cfg, timeout=1.5)
         overview["l1_rpc"] = {
-            "eth_configured": bool(chain_rpc_url("ethereum")),
+            "eth_configured": "ETH_RPC_URL" in l1_health.get("endpoints", []),
             "min_confirmations": min_confirmations(),
             "queue_path": getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json"),
+            "required": bool(l1_health.get("required")),
+            "ok": bool(l1_health.get("ok")),
+            "endpoints": l1_health.get("endpoints", []),
+            "error": l1_health.get("error", ""),
         }
     except Exception:
         overview["l1_rpc"] = {"eth_configured": False}

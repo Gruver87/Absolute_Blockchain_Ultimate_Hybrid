@@ -102,7 +102,13 @@ def test_metrics_prometheus_format():
             "self_test": True,
             "kernels": ["sha256", "secp256k1_verify"],
         },
-        bridge_health={"enabled": True, "mode": "rust", "required": True, "ok": True},
+        bridge_health={
+            "enabled": True,
+            "mode": "rust",
+            "required": True,
+            "ok": True,
+            "l1_rpc": {"configured": True, "required": True, "ok": True},
+        },
     )
     assert "abs_chain_height" in text
     assert 'abs_chain_height{node_id="n1"} 42' in text
@@ -112,6 +118,9 @@ def test_metrics_prometheus_format():
     assert 'abs_rust_bridge_enabled{node_id="n1"} 1' in text
     assert 'abs_rust_bridge_required{node_id="n1"} 1' in text
     assert 'abs_rust_bridge_ok{node_id="n1"} 1' in text
+    assert 'abs_l1_rpc_configured{node_id="n1"} 1' in text
+    assert 'abs_l1_rpc_required{node_id="n1"} 1' in text
+    assert 'abs_l1_rpc_ok{node_id="n1"} 1' in text
 
 
 def test_health_live(api_server):
@@ -145,6 +154,7 @@ def test_metrics_endpoint(api_server):
     assert "abs_native_crypto_available" in text
     assert 'kernel="state_root"' in text
     assert "abs_rust_bridge_ok" in text
+    assert "abs_l1_rpc_ok" in text
 
 
 def test_native_crypto_endpoint(api_server):
