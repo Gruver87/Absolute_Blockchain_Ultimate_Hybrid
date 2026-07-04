@@ -279,6 +279,7 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/oracles/prices", "summary": "Crypto price feeds (registry or live)"},
     {"method": "GET", "path": "/oracles/feeds", "summary": "Persisted oracle feed registry"},
     {"method": "GET", "path": "/oracles/feeds/{symbol}", "summary": "Oracle feeds filtered by symbol"},
+    {"method": "POST", "path": "/bridge/oracle/l1-queue-sync", "summary": "Relayer L1 queue persist (oracle HMAC)"},
     {"method": "GET", "path": "/bridge/l1-queue", "summary": "L1 RPC watch queue (relayer)"},
     {"method": "GET", "path": "/oracles/l1-queue", "summary": "Bridge L1 queue (alias)"},
     {"method": "GET", "path": "/lightning/stats", "summary": "Lightning channel stats (SQLite)"},

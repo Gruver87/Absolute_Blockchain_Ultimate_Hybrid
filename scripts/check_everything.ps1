@@ -54,6 +54,10 @@ Run-Step "Static production gate" {
     python scripts/prod_gate.py
 }
 
+Run-Step "Production stack verification" {
+    python scripts/verify_prod_stack.py
+}
+
 Run-Step "Full audit with tests" {
     python scripts/full_audit.py --pytest-timeout $PytestTimeout
 }

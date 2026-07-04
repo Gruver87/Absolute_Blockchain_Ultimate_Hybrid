@@ -168,6 +168,7 @@ run_step "Hybrid critical native/consensus/EVM tests" python -m pytest \
   tests/unit/test_bridge_relayer_core.py \
   tests/unit/test_prod_compose.py \
   tests/unit/test_prod_smoke.py \
+  tests/unit/test_verify_prod_stack.py \
   tests/unit/test_native_consensus_hash.py \
   tests/unit/test_native_peer_validation.py \
   tests/unit/test_evm_keccak_native.py \

@@ -91,6 +91,7 @@ jobs:
           tests/unit/test_bridge_relayer_core.py \
           tests/unit/test_prod_compose.py \
           tests/unit/test_prod_smoke.py \
+          tests/unit/test_verify_prod_stack.py \
           -q --tb=short
 
     - name: Hybrid native and bridge critical tests

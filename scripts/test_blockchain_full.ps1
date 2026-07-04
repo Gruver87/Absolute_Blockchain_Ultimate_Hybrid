@@ -162,6 +162,10 @@ Run-Step "Rust bridge binary" {
     Write-Host "Rust bridge status: $($json.status) source=$($json.source)"
 }
 
+Run-Step "Production stack verification" {
+    python scripts/verify_prod_stack.py
+}
+
 if (-not $NoClean) {
     Run-Step "Clean generated Python cache" {
         Clear-PythonGeneratedFiles
@@ -184,6 +188,7 @@ Run-Step "Hybrid critical native/consensus/EVM tests" {
         tests/unit/test_bridge_relayer_core.py `
         tests/unit/test_prod_compose.py `
         tests/unit/test_prod_smoke.py `
+        tests/unit/test_verify_prod_stack.py `
         tests/unit/test_native_consensus_hash.py `
         tests/unit/test_native_peer_validation.py `
         tests/unit/test_evm_keccak_native.py `
