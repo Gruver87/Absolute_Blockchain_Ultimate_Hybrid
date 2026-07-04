@@ -224,6 +224,7 @@ Run-Step "Hybrid critical native/consensus/EVM tests" {
         tests/unit/test_evm_cancun_opcodes.py `
         tests/unit/test_evm_blob_opcodes.py `
         tests/unit/test_cross_shard_coordinator.py `
+        tests/unit/test_cross_shard_gossip.py `
         tests/unit/test_live_resharding.py `
         tests/unit/test_distributed_sharding.py `
         tests/unit/test_validator_key_provider.py `
