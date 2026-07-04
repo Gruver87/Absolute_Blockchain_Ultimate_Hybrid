@@ -55,6 +55,24 @@ fn require_l1_proof() -> bool {
         .unwrap_or(false)
 }
 
+fn allow_synthetic_hash() -> bool {
+    env::var("BRIDGE_ALLOW_SYNTHETIC")
+        .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+        .unwrap_or(false)
+}
+
+fn resolve_tx_hash(command: &str, args: &serde_json::Value) -> Result<String, String> {
+    if let Some(l1_tx) = l1_tx_from_args(args) {
+        return Ok(l1_tx);
+    }
+    if allow_synthetic_hash() {
+        return Ok(make_tx_hash(command, args));
+    }
+    Err(
+        "l1_tx_hash required (set BRIDGE_ALLOW_SYNTHETIC=1 only for local dev)".into(),
+    )
+}
+
 fn parse_hex_u64(v: &serde_json::Value) -> Option<u64> {
     match v {
         serde_json::Value::Number(n) => n.as_u64(),
@@ -201,17 +219,27 @@ fn handle(req: Request) -> Response {
             error: Some(e),
         },
         ("bridge" | "lock" | "confirm" | "incoming", Ok(conf)) => {
-            let l1_tx = l1_tx_from_args(&req.args);
-            let tx_hash = l1_tx.unwrap_or_else(|| make_tx_hash(&req.command, &req.args));
-            Response {
-                tx_hash,
-                status: "ok".into(),
-                source: "abs_bridge_bin_v4".into(),
-                chain: chain.clone(),
-                proof_id: Some(make_proof_id(&req.command, &req.args)),
-                confirmations: Some(conf),
-                rpc_url: rpc,
-                error: None,
+            match resolve_tx_hash(&req.command, &req.args) {
+                Ok(tx_hash) => Response {
+                    tx_hash,
+                    status: "ok".into(),
+                    source: "abs_bridge_bin_v4".into(),
+                    chain: chain.clone(),
+                    proof_id: Some(make_proof_id(&req.command, &req.args)),
+                    confirmations: Some(conf),
+                    rpc_url: rpc,
+                    error: None,
+                },
+                Err(e) => Response {
+                    tx_hash: String::new(),
+                    status: "error".into(),
+                    source: "abs_bridge_bin_v4".into(),
+                    chain,
+                    proof_id: None,
+                    confirmations: Some(conf),
+                    rpc_url: rpc,
+                    error: Some(e),
+                },
             }
         }
         ("status", _) => Response {

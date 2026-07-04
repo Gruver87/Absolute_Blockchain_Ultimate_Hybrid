@@ -768,6 +768,14 @@ fn evm_u256_slt(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
 }
 
 #[pyfunction]
+fn evm_u256_sgt(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(u256_to_be32(evm_u256_slt_inner(
+        u256_from_be32(b),
+        u256_from_be32(a),
+    )))
+}
+
+#[pyfunction]
 fn evm_u256_sar(a: [u8; 32], shift: u32) -> PyResult<[u8; 32]> {
     Ok(u256_to_be32(evm_u256_sar_inner(u256_from_be32(a), shift)))
 }
@@ -1518,6 +1526,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_u256_shl, m)?)?;
     m.add_function(wrap_pyfunction!(evm_u256_shr, m)?)?;
     m.add_function(wrap_pyfunction!(evm_u256_slt, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_sgt, m)?)?;
     m.add_function(wrap_pyfunction!(evm_u256_sar, m)?)?;
     m.add_function(wrap_pyfunction!(evm_u256_lt, m)?)?;
     m.add_function(wrap_pyfunction!(evm_u256_gt, m)?)?;

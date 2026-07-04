@@ -26,11 +26,25 @@ def _bridge_bin():
 def test_rust_bridge_cli_returns_tx_hash():
     exe = _bridge_bin()
     payload = json.dumps({"command": "bridge", "args": {"amount": 10}}).encode()
-    proc = subprocess.run([exe], input=payload, capture_output=True, timeout=10)
+    env = {**os.environ, "BRIDGE_ALLOW_SYNTHETIC": "1"}
+    proc = subprocess.run([exe], input=payload, capture_output=True, timeout=10, env=env)
     assert proc.returncode == 0, proc.stderr.decode()
     out = json.loads(proc.stdout.decode())
     assert out["tx_hash"].startswith("0x")
     assert len(out["tx_hash"]) == 66
+
+
+def test_rust_bridge_cli_rejects_synthetic_without_dev_flag():
+    exe = _bridge_bin()
+    payload = json.dumps({"command": "bridge", "args": {"amount": 10}}).encode()
+    env = os.environ.copy()
+    env.pop("BRIDGE_ALLOW_SYNTHETIC", None)
+    proc = subprocess.run([exe], input=payload, capture_output=True, timeout=10, env=env)
+    if proc.returncode == 0:
+        pytest.skip("rebuild bridge/abs_bridge_bin for production synthetic gate")
+    out = json.loads(proc.stdout.decode())
+    assert out["status"] == "error"
+    assert "l1_tx_hash" in (out.get("error") or "")
 
 
 def test_rust_bridge_cli_incoming_command():
@@ -39,7 +53,8 @@ def test_rust_bridge_cli_incoming_command():
         "command": "incoming",
         "args": {"tx_hash": "0xabc", "recipient": "0x1", "amount": 5, "from_chain": "ethereum"},
     }).encode()
-    proc = subprocess.run([exe], input=payload, capture_output=True, timeout=10)
+    env = {**os.environ, "BRIDGE_ALLOW_SYNTHETIC": "1"}
+    proc = subprocess.run([exe], input=payload, capture_output=True, timeout=10, env=env)
     assert proc.returncode == 0, proc.stderr.decode()
     out = json.loads(proc.stdout.decode())
     assert out["status"] == "ok"

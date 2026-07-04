@@ -76,10 +76,13 @@ def native_crypto_status(required: bool = False) -> dict:
             "transaction_hash",
             "transaction_hash_batch",
             "block_canonical_hash",
+            "block_canonical_hash_batch",
             "canonical_hash_json",
             "keccak256",
+            "keccak256_digest_batch",
             "evm_u256",
             "evm_u256_cmp",
+            "evm_u256_sgt",
             "evm_memory",
             "evm_read_push",
             "evm_jumpdest",
@@ -287,6 +290,17 @@ def block_canonical_hash(block: dict) -> str:
     return hash_text(_python_canonical_serialize(block_copy))
 
 
+def block_canonical_hash_batch(blocks: List[dict]) -> List[str]:
+    """Batch canonical block hash for sync/import hot paths."""
+    payloads = [
+        json.dumps(_block_dict_for_canonical_hash(block), separators=(",", ":"), ensure_ascii=False)
+        for block in blocks
+    ]
+    if _native is not None and hasattr(_native, "block_canonical_hash_batch"):
+        return [str(value) for value in _native.block_canonical_hash_batch(payloads)]
+    return [block_canonical_hash(block) for block in blocks]
+
+
 def canonical_hash_json(obj_json: str) -> str:
     """Hash a JSON object using canonical float-to-satoshi rules."""
     if _native is not None and hasattr(_native, "canonical_hash_json"):
@@ -340,6 +354,12 @@ def keccak256_digest(data: bytes) -> bytes:
     if _native is not None and hasattr(_native, "keccak256_digest"):
         return bytes(_native.keccak256_digest(data))
     return bytes.fromhex(keccak256_hex(data))
+
+
+def keccak256_digest_batch(items: List[bytes]) -> List[bytes]:
+    if _native is not None and hasattr(_native, "keccak256_digest_batch"):
+        return [bytes(digest) for digest in _native.keccak256_digest_batch([bytes(item) for item in items])]
+    return [keccak256_digest(item) for item in items]
 
 
 def recover_eth_address_keccak(prehash: bytes, r: bytes, s: bytes, rec_id: int) -> str:
@@ -1046,7 +1066,8 @@ def validate_imported_block_chain(
 
     previous_hash = str(expected_parent_hash or "")
     previous_height = int(start_height)
-    for block in blocks:
+    computed_hashes = block_canonical_hash_batch(blocks)
+    for block, canonical_hash in zip(blocks, computed_hashes):
         height = int(block.get("height", block.get("number", 0)) or 0)
         block_hash = str(block.get("hash", block.get("block_hash", "")) or "")
         parent_hash = str(block.get("parent_hash", block.get("parent", "")) or "")
@@ -1054,7 +1075,7 @@ def validate_imported_block_chain(
             return False
         if previous_hash and parent_hash != previous_hash:
             return False
-        if block_canonical_hash(block) != block_hash:
+        if canonical_hash != block_hash:
             return False
         previous_hash = block_hash
         previous_height = height

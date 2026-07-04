@@ -30,6 +30,7 @@ def rust_bridge_env(monkeypatch):
     """Isolated rust bridge — no L1 RPC from host .env."""
     for key in ("ETH_RPC_URL", "BSC_RPC_URL", "POLYGON_RPC_URL", "BRIDGE_MIN_CONFIRMATIONS"):
         monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("BRIDGE_ALLOW_SYNTHETIC", "1")
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     exe = _rust_bin()
