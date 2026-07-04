@@ -701,8 +701,66 @@ def _unique_recipient(salt: str = "") -> str:
     return "0x" + hashlib.sha256(seed.encode()).hexdigest()[:40]
 
 
-def _send_propagation_tx(url1: str, attempt: int = 0, peer_urls: list[str] | None = None) -> dict:
-    """POST /tx/send with auto_sign; retries with fresh recipient on duplicate mempool."""
+def _prod_smoke_wallet_path() -> str:
+    return os.environ.get("PROD_SMOKE_WALLET_PATH", "").strip()
+
+
+def _send_propagation_tx_signed(
+    url1: str,
+    wallet_path: str,
+    s1: dict,
+    attempt: int = 0,
+) -> dict:
+    """POST /tx/send with a locally signed tx (prod profile; no auto_sign)."""
+    from crypto.wallet import Wallet
+
+    wallet = Wallet.import_wallet(wallet_path)
+    chain_id = int(s1.get("chain_id", 778888))
+    addr_info = _api(f"{url1}/address/{wallet.address}")
+    nonce = int(addr_info.get("nonce", 0) or 0)
+    balance = float(addr_info.get("balance", 0) or 0)
+    if balance < 1.0:
+        raise RuntimeError(
+            f"prod-smoke signer balance too low ({balance}); miner rewards may not have accrued"
+        )
+    last_exc: Exception | None = None
+    for i in range(4):
+        recipient = _unique_recipient(f"{attempt}-{i}")
+        signed = wallet.sign_transaction(
+            recipient,
+            1,
+            nonce,
+            chain_id=chain_id,
+            gas_limit=21000,
+        )
+        body = {**signed, "gas": 21000}
+        try:
+            return _post_json(url1, "/tx/send", body, timeout=20)
+        except Exception as exc:
+            last_exc = exc
+            msg = str(exc).lower()
+            if "already in mempool" in msg or "500" in msg:
+                time.sleep(0.2)
+                continue
+            raise
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("tx/send failed after retries (signed prod)")
+
+
+def _send_propagation_tx(
+    url1: str,
+    attempt: int = 0,
+    peer_urls: list[str] | None = None,
+    s1: dict | None = None,
+) -> dict:
+    """POST /tx/send with auto_sign (dev) or signed body (prod-smoke)."""
+    if s1 and str(s1.get("deployment_mode", "")).lower() == "prod":
+        wallet_path = _prod_smoke_wallet_path()
+        if wallet_path and os.path.isfile(wallet_path):
+            return _send_propagation_tx_signed(url1, wallet_path, s1, attempt)
+        raise RuntimeError("prod tx propagation requires PROD_SMOKE_WALLET_PATH")
+
     _ensure_signer_funded(url1, peer_urls)
     last_exc: Exception | None = None
     for i in range(4):
@@ -729,14 +787,15 @@ def _verify_tx_propagation_multi(url1: str, target_urls: list[str], s1: dict) ->
         print("SKIP: tx propagation (api_wave < 51)")
         return True
     if str(s1.get("deployment_mode", "")).lower() == "prod":
-        print("SKIP: tx propagation (auto_sign disabled in prod; use signed raw tx)")
-        return True
+        if not _prod_smoke_wallet_path():
+            print("SKIP: tx propagation (auto_sign disabled in prod; use signed raw tx)")
+            return True
 
     if not _wait_topology_healthy(url1, expected_peers=max(1, len(target_urls)), timeout=45):
         print("WARN: P2P topology not fully healthy before tx propagation")
 
     try:
-        resp = _send_propagation_tx(url1, peer_urls=target_urls)
+        resp = _send_propagation_tx(url1, peer_urls=target_urls, s1=s1)
     except Exception as exc:
         print(f"WARN: tx propagation send failed: {exc}")
         return False
@@ -1944,6 +2003,8 @@ def run_prod_smoke_spawn() -> int:
 
     tmp = tempfile.mkdtemp(prefix="abs_prod_smoke_")
     cfg1, cfg2, url1, url2 = write_prod_pair_configs(tmp, bridge_enabled=False)
+    shared_wallet = os.path.join(tmp, "_shared", "wallet.json")
+    os.environ["PROD_SMOKE_WALLET_PATH"] = shared_wallet
     env = apply_prod_smoke_env()
     if env.get("PROD_SMOKE_ADMIN_JWT"):
         os.environ["PROD_SMOKE_ADMIN_JWT"] = env["PROD_SMOKE_ADMIN_JWT"]
