@@ -508,6 +508,94 @@ fn verify_secp256k1_sha256_inner(
     verifying_key.verify_prehash(&digest, &signature).is_ok()
 }
 
+fn evm_deploy_address_create_inner(deployer: &str, block_number: u64, init_code_len: usize) -> String {
+    let seed = format!("{deployer}{block_number}{init_code_len}");
+    format!("0x{}", &hash_string(&seed)[..40])
+}
+
+fn evm_deploy_address_create2_legacy_inner(
+    deployer: &str,
+    salt: &str,
+    init_code: &[u8],
+) -> String {
+    let seed = format!("create2:{deployer}:{salt}:{}", hex::encode(init_code));
+    format!("0x{}", &hash_string(&seed)[..40])
+}
+
+fn parse_address_20(deployer: &str) -> PyResult<[u8; 20]> {
+    let raw = deployer
+        .trim()
+        .trim_start_matches("0x")
+        .trim_start_matches("0X");
+    if raw.len() != 40 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "deployer must be a 20-byte hex address",
+        ));
+    }
+    let bytes = hex::decode(raw)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let mut out = [0u8; 20];
+    out.copy_from_slice(&bytes);
+    Ok(out)
+}
+
+fn parse_bytes32(value: &[u8]) -> PyResult<[u8; 32]> {
+    if value.len() != 32 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "salt must be exactly 32 bytes",
+        ));
+    }
+    let mut out = [0u8; 32];
+    out.copy_from_slice(value);
+    Ok(out)
+}
+
+fn evm_create2_address_eip1014_inner(
+    deployer: &[u8; 20],
+    salt: &[u8; 32],
+    init_code_hash: &[u8; 32],
+) -> [u8; 20] {
+    let mut buf = [0u8; 85];
+    buf[0] = 0xff;
+    buf[1..21].copy_from_slice(deployer);
+    buf[21..53].copy_from_slice(salt);
+    buf[53..85].copy_from_slice(init_code_hash);
+    let hash = keccak256_digest_bytes(&buf);
+    let mut out = [0u8; 20];
+    out.copy_from_slice(&hash[12..32]);
+    out
+}
+
+#[pyfunction]
+fn evm_deploy_address_create(
+    deployer: String,
+    block_number: u64,
+    init_code_len: usize,
+) -> PyResult<String> {
+    Ok(evm_deploy_address_create_inner(&deployer, block_number, init_code_len))
+}
+
+#[pyfunction]
+fn evm_deploy_address_create2_legacy(
+    deployer: String,
+    salt: String,
+    init_code: Vec<u8>,
+) -> PyResult<String> {
+    Ok(evm_deploy_address_create2_legacy_inner(&deployer, &salt, &init_code))
+}
+
+#[pyfunction]
+fn evm_create2_address_eip1014(
+    deployer: String,
+    salt: Vec<u8>,
+    init_code: Vec<u8>,
+) -> PyResult<Vec<u8>> {
+    let deployer = parse_address_20(&deployer)?;
+    let salt = parse_bytes32(&salt)?;
+    let init_code_hash = keccak256_digest_bytes(&init_code);
+    Ok(evm_create2_address_eip1014_inner(&deployer, &salt, &init_code_hash).to_vec())
+}
+
 #[pyfunction]
 fn keccak256_digest(data: &[u8]) -> PyResult<[u8; 32]> {
     Ok(keccak256_digest_bytes(data))
@@ -843,6 +931,9 @@ fn validate_hash_chain(
 
 #[pymodule]
 fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(evm_deploy_address_create, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_deploy_address_create2_legacy, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_create2_address_eip1014, m)?)?;
     m.add_function(wrap_pyfunction!(keccak256_digest, m)?)?;
     m.add_function(wrap_pyfunction!(keccak256_digest_batch, m)?)?;
     m.add_function(wrap_pyfunction!(evm_keccak256_memory, m)?)?;

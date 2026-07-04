@@ -21,6 +21,7 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from evm_interpreter import EVM, EVMContext
+from crypto import native
 from storage.database import Database
 from runtime.config import Config
 
@@ -222,10 +223,24 @@ class EVMAdapter:
         if not deployer:
             return {"success": False, "reverted": True, "gas_used": 0}
         if salt is not None:
-            seed = f"create2:{deployer}:{salt}:{init_code.hex()}"
+            if getattr(self.config, "evm_create2_eip1014", False):
+                contract_addr = native.evm_create2_address_eip1014(
+                    deployer,
+                    int(salt),
+                    init_code,
+                )
+            else:
+                contract_addr = native.evm_deploy_address_create2_legacy(
+                    deployer,
+                    int(salt),
+                    init_code,
+                )
         else:
-            seed = f"{deployer}{caller_ctx.block_number}{len(init_code)}"
-        contract_addr = "0x" + hashlib.sha256(seed.encode()).hexdigest()[:40]
+            contract_addr = native.evm_deploy_address_create(
+                deployer,
+                int(caller_ctx.block_number),
+                len(init_code),
+            )
         try:
             result = self._run_evm(
                 init_code, {}, self.config.evm_gas_limit,

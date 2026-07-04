@@ -17,7 +17,7 @@ import json
 import time
 import threading
 import logging
-from typing import Dict, List, Optional, Callable, Any
+from typing import Dict, List, Optional, Callable, Any, Tuple
 
 logger = logging.getLogger("P2P")
 
@@ -620,15 +620,10 @@ class P2PNode:
         except Exception:
             pass
 
-    async def _ingest_peer_tx(
-        self,
-        data: Dict,
-        source: str = "p2p_gossip",
-        peer_id: str = "",
-    ) -> bool:
-        """Validate and add a wire-format tx to mempool; record propagation stages."""
+    def _build_mempool_tx_from_wire(self, data: Dict):
+        """Build a mempool entry from wire-format tx; None if invalid."""
         if not isinstance(data, dict):
-            return False
+            return None
         from core.blockchain import Transaction
         from blockchain.mempool import MempoolTransaction
 
@@ -656,7 +651,7 @@ class P2PNode:
         validation = self.blockchain.validate_transaction(tx)
         if not validation["valid"]:
             logger.debug(f"[P2P] Tx rejected: {validation.get('error')}")
-            return False
+            return None
 
         fee = float(data.get("fee", gas * getattr(self.config, "gas_price_wei", 0.001)))
         mp_tx = MempoolTransaction(
@@ -671,23 +666,36 @@ class P2PNode:
             data=calldata,
             gas=gas,
         )
+        return mp_tx, tx.hash
+
+    async def _ingest_peer_tx(
+        self,
+        data: Dict,
+        source: str = "p2p_gossip",
+        peer_id: str = "",
+    ) -> bool:
+        """Validate and add a wire-format tx to mempool; record propagation stages."""
+        built = self._build_mempool_tx_from_wire(data)
+        if not built:
+            return False
+        mp_tx, tx_hash = built
         if not self.mempool.add(mp_tx):
             return False
 
         stage_recv = "mempool_sync" if source == "mempool_sync" else "p2p_received"
         self._record_tx_propagation(
-            tx.hash,
+            tx_hash,
             stage_recv,
             peer_id=peer_id,
             detail={"source": source},
         )
         self._record_tx_propagation(
-            tx.hash,
+            tx_hash,
             "mempool_remote",
             peer_id=peer_id,
             detail={"mempool_size": self.mempool.get_size()},
         )
-        logger.debug(f"[P2P] Accepted tx {tx.hash[:12]}… ({source})")
+        logger.debug(f"[P2P] Accepted tx {tx_hash[:12]}… ({source})")
         return True
 
     async def _handle_new_tx(self, peer: PeerConnection, data: Dict):
@@ -708,14 +716,30 @@ class P2PNode:
         if not isinstance(txs, list):
             return
         peer_id = getattr(peer, "peer_id", "") if peer else ""
-        accepted = 0
+        mp_txs = []
         for tx_data in txs:
-            if await self._ingest_peer_tx(
-                tx_data, source="mempool_sync", peer_id=peer_id
-            ):
-                accepted += 1
-        if accepted:
-            print(f"[P2P] Mempool sync from {peer_id[:8]}: +{accepted} tx(s)")
+            built = self._build_mempool_tx_from_wire(tx_data)
+            if built:
+                mp_txs.append(built[0])
+        if not mp_txs:
+            return
+        added, _rejected, accepted_hashes = self.mempool.add_batch(mp_txs)
+        stage_recv = "mempool_sync"
+        for tx_hash in accepted_hashes:
+            self._record_tx_propagation(
+                tx_hash,
+                stage_recv,
+                peer_id=peer_id,
+                detail={"source": "mempool_sync"},
+            )
+            self._record_tx_propagation(
+                tx_hash,
+                "mempool_remote",
+                peer_id=peer_id,
+                detail={"mempool_size": self.mempool.get_size()},
+            )
+        if added:
+            print(f"[P2P] Mempool sync from {peer_id[:8]}: +{added} tx(s)")
 
     async def _sync_mempool_with_peer(self, peer: PeerConnection, timeout: float = 12):
         """Pull peer mempool when chain tips are aligned (real pending tx relay)."""

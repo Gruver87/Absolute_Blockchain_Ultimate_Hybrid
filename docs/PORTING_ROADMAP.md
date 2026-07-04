@@ -69,8 +69,10 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `evm_u256_*` arithmetic/bitwise kernels in Rust
 - [x] `evm_keccak256_memory` for SHA3 memory slices
 - [x] Mempool `add_batch` + `verify_signatures_batch` via native secp256k1
+- [x] P2P `_handle_mempool_batch` → native batch mempool ingest
+- [x] CREATE / CREATE2 legacy deploy addresses in Rust (`evm_deploy_address_*`)
+- [x] Optional EIP-1014 CREATE2 via `evm_create2_eip1014` + `config.evm_create2_eip1014`
 - [ ] Full opcode dispatch in Rust (future)
-- [ ] CREATE2 / contract deploy hot path
 
 ### Priority 7 — Bridge hardening (future)
 

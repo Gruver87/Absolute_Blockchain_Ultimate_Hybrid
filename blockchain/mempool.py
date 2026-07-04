@@ -216,14 +216,15 @@ class Mempool:
 
         return results
 
-    def add_batch(self, txs: List[MempoolTransaction]) -> Tuple[int, int]:
+    def add_batch(self, txs: List[MempoolTransaction]) -> Tuple[int, int, List[str]]:
         """Add many txs with one native signature batch verify pass."""
         if not txs:
-            return 0, 0
+            return 0, 0, []
 
         signature_flags = self.verify_signatures_batch(txs)
         added = 0
         rejected = 0
+        accepted_hashes: List[str] = []
         for tx, signature_ok in zip(txs, signature_flags):
             if not signature_ok:
                 with self.lock:
@@ -232,9 +233,10 @@ class Mempool:
                 continue
             if self.add(tx, signature_preverified=True):
                 added += 1
+                accepted_hashes.append(tx.tx_hash)
             else:
                 rejected += 1
-        return added, rejected
+        return added, rejected, accepted_hashes
 
     def add_raw(self, tx: MempoolTransaction) -> bool:
         """Добавить транзакцию без строгой валидации адресов (для internal/genesis txs)."""

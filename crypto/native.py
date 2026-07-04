@@ -69,6 +69,8 @@ def native_crypto_status(required: bool = False) -> dict:
             "keccak256",
             "evm_u256",
             "evm_keccak256_memory",
+            "evm_deploy_address",
+            "evm_create2_eip1014",
             "validate_imported_block_chain",
             "validate_peer_header_chain",
             "merkle",
@@ -381,6 +383,50 @@ def evm_keccak256_memory(memory: bytes, offset: int, size: int) -> bytes:
     if len(data) < int(size):
         data = data + (b"\x00" * (int(size) - len(data)))
     return keccak256_digest(data)
+
+
+def evm_deploy_address_create(deployer: str, block_number: int, init_code_len: int) -> str:
+    if _native is not None and hasattr(_native, "evm_deploy_address_create"):
+        return str(_native.evm_deploy_address_create(
+            str(deployer),
+            int(block_number),
+            int(init_code_len),
+        ))
+    seed = f"{deployer}{int(block_number)}{int(init_code_len)}"
+    return "0x" + hashlib.sha256(seed.encode()).hexdigest()[:40]
+
+
+def evm_deploy_address_create2_legacy(deployer: str, salt: int, init_code: bytes) -> str:
+    salt_text = str(int(salt))
+    if _native is not None and hasattr(_native, "evm_deploy_address_create2_legacy"):
+        return str(_native.evm_deploy_address_create2_legacy(
+            str(deployer),
+            salt_text,
+            bytes(init_code),
+        ))
+    seed = f"create2:{deployer}:{salt_text}:{init_code.hex()}"
+    return "0x" + hashlib.sha256(seed.encode()).hexdigest()[:40]
+
+
+def evm_create2_address_eip1014(deployer: str, salt_word: int, init_code: bytes) -> str:
+    salt_bytes = int(salt_word).to_bytes(32, "big")
+    if _native is not None and hasattr(_native, "evm_create2_address_eip1014"):
+        addr = bytes(_native.evm_create2_address_eip1014(
+            str(deployer),
+            salt_bytes,
+            bytes(init_code),
+        ))
+        return "0x" + addr.hex()
+    init_hash = keccak256_digest(init_code)
+    prefix = b"\xff" + _address_to_bytes(deployer) + salt_bytes + init_hash
+    return "0x" + keccak256_digest(prefix)[12:].hex()
+
+
+def _address_to_bytes(address: str) -> bytes:
+    raw = str(address or "").strip().lower().removeprefix("0x")
+    if len(raw) != 40:
+        raise ValueError("address must be 20-byte hex")
+    return bytes.fromhex(raw)
 
 
 def validate_imported_block_chain(

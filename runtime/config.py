@@ -83,6 +83,7 @@ class Config:
     # ── EVM ─────────────────────────────────────────────────────────────────
     evm_enabled: bool = True
     evm_gas_limit: int = 8_000_000
+    evm_create2_eip1014: bool = False   # prod: Ethereum CREATE2 (0xff++addr++salt++hash)
     feature_nft: bool = True
     feature_zk: bool = True
     feature_sharding: bool = True
