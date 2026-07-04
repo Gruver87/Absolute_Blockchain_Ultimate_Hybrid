@@ -1,4 +1,4 @@
-# Absolute Blockchain Ultimate Hybrid — ONE-STOP full verification.
+# Absolute Blockchain Ultimate Hybrid - ONE-STOP full verification.
 #
 # Local full gate (recommended before push):
 #   .\scripts\test_blockchain_full.ps1
@@ -107,7 +107,7 @@ function Invoke-JsonEndpoint {
     Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec $TimeoutSec | Out-Null
 }
 
-Write-Host "Absolute Blockchain Ultimate Hybrid — FULL BLOCKCHAIN TEST" -ForegroundColor Green
+Write-Host "Absolute Blockchain Ultimate Hybrid - FULL BLOCKCHAIN TEST" -ForegroundColor Green
 Write-Host "Project: $ProjectRoot"
 Write-Host "BaseUrl: $BaseUrl"
 
@@ -125,7 +125,7 @@ if (-not $SkipNativeBuild) {
 }
 
 Run-Step "Native crypto self-test" {
-    python -c "from crypto import native; s=native.native_crypto_status(required=True); assert s['available'] and s['self_test'], s; print('OK native:', s)"
+    python -c "from crypto import native; st=native.native_crypto_status(required=True); assert st['available'] and st['self_test'], st; print('OK native:', st)"
 }
 
 Run-Step "Secrets scan" {

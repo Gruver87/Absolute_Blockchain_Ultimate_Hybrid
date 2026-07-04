@@ -1,4 +1,4 @@
-# Full blockchain verification — delegates to the unified test script.
+# Full blockchain verification - delegates to the unified test script.
 # Kept for backward compatibility with README/CI references.
 
 param(
