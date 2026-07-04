@@ -177,6 +177,7 @@ def prod_node_config(
         "require_native_crypto": True,
         "enforce_proposer": True,
         "verify_peer_state_root": True,
+        "state_root_strict_p2p": True,
         "state_root_legacy_cutoff_height": 0,
         "monitor_enabled": False,
         "bridge_enabled": bridge_enabled,

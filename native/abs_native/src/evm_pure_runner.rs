@@ -29,6 +29,9 @@ fn opcode_stops_segment(
     host_context: Option<&Bound<'_, PyDict>>,
     host_bridge: Option<&Bound<'_, PyAny>>,
 ) -> bool {
+    if (0xA0..=0xA4).contains(&op) {
+        return !log_runtime_available(host_context, host_bridge);
+    }
     if evm_opcode_is_host(op) {
         return !bridge_supports_runtime(host_bridge);
     }
@@ -370,6 +373,62 @@ fn hook_block_hash(
         func.call1((block_num.as_u64(),))
             .and_then(|value| py_to_u256_or_int(value)),
     )
+}
+
+fn hook_emit_log<'py>(
+    host_context: Option<&Bound<'py, PyDict>>,
+) -> Option<Bound<'py, PyAny>> {
+    let hooks = bridge_hooks_dict(host_context)?;
+    match hooks.get_item("emit_log") {
+        Ok(Some(value)) => Some(value),
+        _ => None,
+    }
+}
+
+fn log_runtime_available(
+    host_context: Option<&Bound<'_, PyDict>>,
+    host_bridge: Option<&Bound<'_, PyAny>>,
+) -> bool {
+    hook_emit_log(host_context).is_some() || bridge_supports_runtime(host_bridge)
+}
+
+fn log_opcode_gas(n_topics: usize, data_size: usize) -> u64 {
+    375 + (n_topics as u64 * 375) + data_size as u64
+}
+
+fn execute_log_hook(
+    py: Python<'_>,
+    emit_log: &Bound<'_, PyAny>,
+    op: u8,
+    stack: &mut Vec<U256>,
+    memory: &mut Vec<u8>,
+    gas_used: &mut u64,
+    gas_limit: u64,
+) -> PyResult<()> {
+    let n_topics = (op - 0xA0) as usize;
+    let mut topics = Vec::with_capacity(n_topics);
+    for _ in 0..n_topics {
+        topics.push(stack_pop(stack)?);
+    }
+    topics.reverse();
+    let size = stack_pop(stack)?.as_usize();
+    let offset = stack_pop(stack)?.as_usize();
+    let cost = log_opcode_gas(n_topics, size);
+    if let Err(reason) = consume_gas(gas_used, gas_limit, cost) {
+        return Err(pyo3::exceptions::PyRuntimeError::new_err(reason));
+    }
+    mem_extend(memory, offset, size);
+    let data = evm_memory_slice_inner(memory, offset, size);
+    let topics_list = PyList::empty_bound(py);
+    let builtins = py.import_bound("builtins")?;
+    let int_cls = builtins.getattr("int")?;
+    for topic in topics {
+        let bytes = u256_to_be32(topic);
+        let obj = int_cls.call_method1("from_bytes", (bytes.as_slice(), "big"))?;
+        topics_list.append(obj)?;
+    }
+    emit_log.call1((n_topics, topics_list, data))?;
+    Ok(())
 }
 
 fn resolve_balance(
@@ -1252,6 +1311,41 @@ fn run_pure_segment_inner(
                 op if (0x90..=0x9F).contains(&op) => {
                     stack_swap(&mut stack, (op - 0x8F) as usize)?;
                     Ok(Some(false))
+                }
+                op if (0xA0..=0xA4).contains(&op) => {
+                    if let Some(emit_log) = hook_emit_log(host_context) {
+                        execute_log_hook(
+                            py,
+                            &emit_log,
+                            op,
+                            &mut stack,
+                            &mut memory,
+                            &mut gas_used,
+                            gas_limit,
+                        )?;
+                        Ok(Some(false))
+                    } else if bridge_supports_runtime(host_bridge) {
+                        let bridge = host_bridge.ok_or_else(|| {
+                            pyo3::exceptions::PyRuntimeError::new_err("host_bridge_unavailable")
+                        })?;
+                        apply_runtime_host_op(
+                            py,
+                            bridge,
+                            op,
+                            &mut stack,
+                            &mut memory,
+                            gas_limit,
+                            &mut gas_used,
+                            storage,
+                            &mut return_data,
+                            &mut running,
+                            &mut reverted,
+                        )?;
+                        Ok(Some(false))
+                    } else {
+                        handoff = true;
+                        Ok(None)
+                    }
                 }
                 op if evm_opcode_is_host(op) => {
                     let bridge = host_bridge.ok_or_else(|| {

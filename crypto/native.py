@@ -875,6 +875,8 @@ def evm_host_context_from_evm(ctx) -> dict:
         hooks["code_hash"] = _code_hash
     if ctx.block_hash_of:
         hooks["block_hash"] = ctx.block_hash_of
+    if ctx.emit_log:
+        hooks["emit_log"] = ctx.emit_log
     if hooks:
         host["bridge_hooks"] = hooks
     return host

@@ -224,6 +224,39 @@ def test_pure_segment_stops_at_interpreter_host_without_runtime_bridge():
     assert seg["host_opcode"] == 0xF1
 
 
+def test_native_log_hook_runs_without_runtime_bridge():
+    logs = []
+
+    def _emit_log(n_topics: int, topics, data: bytes) -> None:
+        logs.append((n_topics, list(topics), bytes(data)))
+
+    ctx = _host_ctx(
+        bridge_hooks={
+            "emit_log": _emit_log,
+        }
+    )
+    bytecode = bytes([0x60, 0x00, 0x60, 0x01, 0x60, 0x2A, 0xA1, 0x00])
+    table = native.evm_build_jumpdest_table(bytecode)
+    seg = native.evm_run_until_halt(
+        bytecode,
+        0,
+        1_000_000,
+        0,
+        [],
+        bytearray(),
+        table,
+        b"",
+        b"",
+        ctx,
+        None,
+        None,
+    )
+    assert seg["stop_reason"] == "halt"
+    assert logs
+    assert logs[0][0] == 1
+    assert logs[0][1] == [0x2A]
+
+
 def test_interpreter_still_handles_caller_after_native_segment():
     ctx_caller = "0x" + "ab" * 20
     ctx = EVMContext(caller=ctx_caller)
