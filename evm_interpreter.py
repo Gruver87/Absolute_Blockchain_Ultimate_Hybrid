@@ -106,12 +106,7 @@ class EVM:
         native.evm_memory_write_word(self.memory, offset, value)
 
     def _read_push(self, bytecode: bytes, n: int) -> int:
-        start = self.pc + 1
-        end = min(start + n, len(bytecode))
-        chunk = bytecode[start:end]
-        if len(chunk) < n:
-            chunk = chunk + b"\x00" * (n - len(chunk))
-        return int.from_bytes(chunk, "big")
+        return native.evm_read_push(bytecode, self.pc, n)
 
     def _is_jumpdest(self, bytecode: bytes, dest: int) -> bool:
         return 0 <= dest < len(bytecode) and bytecode[dest] == 0x5B
@@ -337,8 +332,8 @@ class EVM:
                 chunk = b""
                 if self.ctx.code_copy_of:
                     chunk = self.ctx.code_copy_of(addr, code_offset, size)
-                self._mem_extend(mem_offset, len(chunk))
-                self.memory[mem_offset:mem_offset + len(chunk)] = chunk
+                self._mem_extend(mem_offset, size)
+                native.evm_memory_copy(self.memory, mem_offset, chunk, 0, size)
             elif 0xA0 <= op_byte <= 0xA4:  # LOG0..LOG4
                 n_topics = op_byte - 0xA0
                 topics = [self._pop() for _ in range(n_topics)]

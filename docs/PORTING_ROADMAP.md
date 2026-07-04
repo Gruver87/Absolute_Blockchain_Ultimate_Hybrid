@@ -74,6 +74,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Optional EIP-1014 CREATE2 via `evm_create2_eip1014` + `config.evm_create2_eip1014`
 - [x] EVM compare opcodes (`EQ/LT/GT/ISZERO/BYTE`) + memory/calldata kernels in Rust
 - [x] Extended arithmetic opcodes (`SDIV/SMOD/ADDMOD/MULMOD/EXP/SIGNEXTEND`) + native MSTORE
+- [x] Native PUSH decode (`evm_read_push`) + EXTCODECOPY memory kernel
 - [ ] Full opcode dispatch in Rust (future)
 
 ### Priority 7 — Bridge hardening (future)

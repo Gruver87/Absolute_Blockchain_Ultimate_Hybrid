@@ -944,6 +944,26 @@ fn evm_memory_write_byte(
     Ok(())
 }
 
+fn evm_read_push_inner(bytecode: &[u8], pc: usize, n: usize) -> [u8; 32] {
+    let n = n.min(32);
+    let mut out = [0u8; 32];
+    if n == 0 {
+        return out;
+    }
+    let start = pc.saturating_add(1);
+    if start >= bytecode.len() {
+        return out;
+    }
+    let available = usize::min(n, bytecode.len() - start);
+    out[32 - n..32 - n + available].copy_from_slice(&bytecode[start..start + available]);
+    out
+}
+
+#[pyfunction]
+fn evm_read_push(bytecode: &[u8], pc: usize, n: usize) -> PyResult<[u8; 32]> {
+    Ok(evm_read_push_inner(bytecode, pc, n))
+}
+
 #[pyfunction]
 fn keccak256_hex(data: &[u8]) -> PyResult<String> {
     Ok(keccak256_hex_bytes(data))
@@ -1222,6 +1242,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_memory_write_byte, m)?)?;
     m.add_function(wrap_pyfunction!(evm_calldataload, m)?)?;
     m.add_function(wrap_pyfunction!(evm_memory_copy, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_read_push, m)?)?;
     m.add_function(wrap_pyfunction!(keccak256_hex, m)?)?;
     m.add_function(wrap_pyfunction!(validate_imported_block_chain, m)?)?;
     m.add_function(wrap_pyfunction!(validate_peer_header_chain, m)?)?;

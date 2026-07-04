@@ -71,6 +71,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "evm_u256",
             "evm_u256_cmp",
             "evm_memory",
+            "evm_read_push",
             "evm_keccak256_memory",
             "evm_deploy_address",
             "evm_create2_eip1014",
@@ -568,6 +569,19 @@ def evm_memory_write_byte(memory: bytearray, offset: int, value: int) -> None:
         return
     if offset < len(memory):
         memory[offset] = int(value) & 0xFF
+
+
+def evm_read_push(bytecode: bytes, pc: int, size: int) -> int:
+    pc = int(pc)
+    size = int(size)
+    if _native is not None and hasattr(_native, "evm_read_push"):
+        return _evm_u256_int(bytes(_native.evm_read_push(bytecode, pc, size)))
+    start = pc + 1
+    end = min(start + size, len(bytecode))
+    chunk = bytecode[start:end]
+    if len(chunk) < size:
+        chunk = chunk + (b"\x00" * (size - len(chunk)))
+    return int.from_bytes(chunk, "big")
 
 
 def evm_memory_copy(memory: bytearray, dest: int, src: bytes, src_offset: int, size: int) -> None:
