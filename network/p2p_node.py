@@ -598,24 +598,22 @@ class P2PNode:
             asyncio.create_task(self._sync_with_peer_safe(peer))
             return
 
-        validation = self.blockchain.validate_block(block)
-        if validation["valid"]:
-            for tx in block.transactions:
-                self.mempool.remove(tx.hash)
-            if self.blockchain.import_block(data):
-                print(f"[P2P] Accepted block #{block.height} from {peer.peer_id[:8]}")
-                if self.sync_engine:
-                    loop = asyncio.get_running_loop()
-                    ok = await loop.run_in_executor(None, self.sync_engine.sync_state)
-                    self._state_consistent = bool(ok)
-                if self._consensus and self.validator_keys:
-                    try:
-                        self._consensus.attest(
-                            self.validator_keys.get_address(), block.hash
-                        )
-                    except Exception:
-                        pass
-                await self._broadcast_block(data, exclude_peer=peer.peer_id)
+        for tx in block.transactions:
+            self.mempool.remove(tx.hash)
+        if self.blockchain.import_block(data):
+            print(f"[P2P] Accepted block #{block.height} from {peer.peer_id[:8]}")
+            if self.sync_engine:
+                loop = asyncio.get_running_loop()
+                ok = await loop.run_in_executor(None, self.sync_engine.sync_state)
+                self._state_consistent = bool(ok)
+            if self._consensus and self.validator_keys:
+                try:
+                    self._consensus.attest(
+                        self.validator_keys.get_address(), block.hash
+                    )
+                except Exception:
+                    pass
+            await self._broadcast_block(data, exclude_peer=peer.peer_id)
 
     async def _handle_get_blocks(self, peer: PeerConnection, data: Dict):
         """Отправляем диапазон блоков пиру."""

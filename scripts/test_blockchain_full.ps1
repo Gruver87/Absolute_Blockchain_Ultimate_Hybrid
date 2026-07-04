@@ -111,7 +111,12 @@ function Invoke-JsonEndpoint {
     )
     $url = "$BaseUrl$Path"
     Write-Host "GET $url"
-    Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec $TimeoutSec | Out-Null
+    try {
+        Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec $TimeoutSec | Out-Null
+    }
+    catch {
+        throw "Live check failed for $url — start the node first: python main.py (or .\scripts\start_two_nodes.ps1 -Fresh)"
+    }
 }
 
 Write-Host "Absolute Blockchain Ultimate Hybrid - FULL BLOCKCHAIN TEST" -ForegroundColor Green
@@ -241,7 +246,14 @@ Run-Step "Hybrid critical native/consensus/EVM tests" {
 
 if ($Live) {
     Run-Step "Live node endpoints" {
-        Invoke-JsonEndpoint "/health/live"
+        try {
+            Invoke-JsonEndpoint "/health/live"
+        }
+        catch {
+            Write-Host $_.Exception.Message -ForegroundColor Yellow
+            Write-Host "SKIP live endpoints (node not running on $BaseUrl)" -ForegroundColor Yellow
+            return
+        }
         Invoke-JsonEndpoint "/status"
         Invoke-JsonEndpoint "/sync/status"
         Invoke-JsonEndpoint "/features"

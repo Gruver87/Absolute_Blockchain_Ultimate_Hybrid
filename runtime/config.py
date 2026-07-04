@@ -17,6 +17,7 @@ from runtime.env_loader import env_str, env_int, env_bool, env_list
 class Config:
     # ── Идентификация сети ──────────────────────────────────────────────────
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
+    genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
     node_version: str = "1.2.0-industrial"
     node_id: str = "node-1"
@@ -163,6 +164,13 @@ class Config:
 
     def resolved_rpc_proxy_port(self) -> int:
         return self.rpc_proxy_port or (self.http_port + 2)
+
+    def resolve_genesis_timestamp(self) -> int:
+        """Deterministic genesis time for multi-node P2P (override via genesis_timestamp)."""
+        ts = int(getattr(self, "genesis_timestamp", 0) or 0)
+        if ts > 0:
+            return ts
+        return 1_704_067_200 + int(getattr(self, "chain_id", 77777))
 
     @property
     def is_production(self) -> bool:

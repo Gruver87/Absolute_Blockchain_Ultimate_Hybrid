@@ -325,7 +325,7 @@ class Blockchain:
                 height=0,
                 parent_hash=self.GENESIS_HASH,
                 miner="genesis",
-                timestamp=int(time.time()),
+                timestamp=self.config.resolve_genesis_timestamp(),
                 extra_data=(
                     f"{self.config.network_name} Genesis | "
                     f"max_supply={MAX_SUPPLY_ABS:,} ABS | founder={initials} {self.config.founder_percent}%"

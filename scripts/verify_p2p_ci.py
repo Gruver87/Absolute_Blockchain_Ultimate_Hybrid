@@ -728,6 +728,9 @@ def _verify_tx_propagation_multi(url1: str, target_urls: list[str], s1: dict) ->
     if wave < 51:
         print("SKIP: tx propagation (api_wave < 51)")
         return True
+    if str(s1.get("deployment_mode", "")).lower() == "prod":
+        print("SKIP: tx propagation (auto_sign disabled in prod; use signed raw tx)")
+        return True
 
     if not _wait_topology_healthy(url1, expected_peers=max(1, len(target_urls)), timeout=45):
         print("WARN: P2P topology not fully healthy before tx propagation")
@@ -1420,6 +1423,9 @@ def verify_adversarial(url1: str, status: dict) -> int:
     if wave < 53:
         print(f"SKIP: adversarial checks (api_wave={wave} < 53)")
         return 0
+    if str(status.get("deployment_mode", "")).lower() == "prod":
+        print("SKIP: adversarial checks (testnet/slashing drill endpoints blocked in prod)")
+        return 0
 
     try:
         fork = _api(f"{url1}/testnet/fork-status")
@@ -1988,13 +1994,25 @@ def run_prod_smoke_spawn() -> int:
             s1 = _api(f"{url1}/status")
             s2 = _api(f"{url2}/status")
             if int(s1.get("height", 0) or 0) > int(s2.get("height", 0) or 0):
-                _post_json(url2, "/sync/fast-sync", {"timeout": 120}, timeout=135)
+                sync_resp = _post_json(
+                    url2, "/sync/fast-sync", {"timeout": 120}, timeout=135
+                )
+                print(f"prod-smoke fast-sync: {sync_resp}")
                 time.sleep(6)
         except Exception as exc:
             print(f"WARN: prod-smoke initial catch-up: {exc}")
 
         rc = verify_pair(url1, url2, wait_sync_sec=300, max_mining_gap=6)
         if rc != 0:
+            for label, log_path in (("node1", log1), ("node2", log2)):
+                if os.path.isfile(log_path):
+                    try:
+                        tail = open(log_path, encoding="utf-8", errors="replace").read()[-2500:]
+                        if tail.strip():
+                            print(f"--- {label} stderr tail ---")
+                            print(tail)
+                    except Exception:
+                        pass
             return rc
         return verify_prod_post_checks(url1)
     finally:
