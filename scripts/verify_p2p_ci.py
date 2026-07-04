@@ -835,7 +835,13 @@ def _sync_timeout_for_gap(gap: int) -> float:
     return max(90.0, min(600.0, g * 8.0))
 
 
-def _catchup_lagging_node(url1: str, url2: str, s1: dict, s2: dict) -> None:
+def _catchup_lagging_node(
+    url1: str,
+    url2: str,
+    s1: dict,
+    s2: dict,
+    sync_timeout: float | None = None,
+) -> None:
     """Fast-sync + reconcile on the node behind peer height."""
     h1 = int(s1.get("height", 0) or 0)
     h2 = int(s2.get("height", 0) or 0)
@@ -843,7 +849,8 @@ def _catchup_lagging_node(url1: str, url2: str, s1: dict, s2: dict) -> None:
         _trigger_reconcile(url1, url2)
         return
     lag_url = url2 if h1 > h2 else url1
-    timeout = _sync_timeout_for_gap(abs(h1 - h2))
+    gap = abs(h1 - h2)
+    timeout = float(sync_timeout) if sync_timeout is not None else _sync_timeout_for_gap(gap)
     try:
         _post_json(lag_url, "/sync/fast-sync", {"timeout": timeout}, timeout=timeout + 15)
     except Exception:
@@ -854,7 +861,12 @@ def _catchup_lagging_node(url1: str, url2: str, s1: dict, s2: dict) -> None:
         _trigger_catchup(url1, url2, s1, s2)
 
 
-def _preflight_devnet_catchup(url1: str, url2: str, max_rounds: int = 3) -> int:
+def _preflight_devnet_catchup(
+    url1: str,
+    url2: str,
+    max_rounds: int = 3,
+    budget_sec: int = 0,
+) -> int:
     """Try fast-sync/reconcile on lagging node before P2P stability loop."""
     try:
         s1 = _api(f"{url1}/status")
@@ -864,7 +876,14 @@ def _preflight_devnet_catchup(url1: str, url2: str, max_rounds: int = 3) -> int:
     gap = abs(int(s1.get("height", 0) or 0) - int(s2.get("height", 0) or 0))
     if gap <= 0:
         return 0
-    for _ in range(max_rounds):
+    if budget_sec <= 0:
+        budget_sec = 90 if gap <= 20 else min(600, max(120, gap * 8))
+    per_timeout = min(45.0, _sync_timeout_for_gap(gap)) if gap <= 20 else _sync_timeout_for_gap(gap)
+    rounds = min(max_rounds, 3 if gap > 20 else 2)
+    deadline = time.time() + budget_sec
+    for _ in range(rounds):
+        if time.time() >= deadline:
+            break
         try:
             s1 = _api(f"{url1}/status")
             s2 = _api(f"{url2}/status")
@@ -873,10 +892,9 @@ def _preflight_devnet_catchup(url1: str, url2: str, max_rounds: int = 3) -> int:
         gap = abs(int(s1.get("height", 0) or 0) - int(s2.get("height", 0) or 0))
         if gap <= 0:
             break
-        timeout = _sync_timeout_for_gap(gap)
-        print(f"Preflight catch-up: gap={gap}, timeout={int(timeout)}s")
-        _catchup_lagging_node(url1, url2, s1, s2)
-        time.sleep(min(8, max(3, gap)))
+        print(f"Preflight catch-up: gap={gap}, timeout={int(per_timeout)}s, budget_left={int(deadline - time.time())}s")
+        _catchup_lagging_node(url1, url2, s1, s2, sync_timeout=per_timeout)
+        time.sleep(min(6, max(2, gap // 2)))
     try:
         s1 = _api(f"{url1}/status")
         s2 = _api(f"{url2}/status")
@@ -913,6 +931,9 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
         print("    .\\scripts\\start_two_nodes.ps1")
         print("  Always use --config node.example.json / node2.example.json")
         return 4
+
+    _restore_p2p_mesh([url1, url2], expected_peers=1)
+    time.sleep(2)
 
     initial_gap = abs(int(s1.get("height", 0) or 0) - int(s2.get("height", 0) or 0))
     if initial_gap > 0:

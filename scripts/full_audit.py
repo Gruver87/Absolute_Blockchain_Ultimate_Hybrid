@@ -86,11 +86,19 @@ def _run_subprocess(
         if not res.ok:
             res.critical = 1
             res.details.append(f"exit_code={proc.returncode}")
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
         res.ok = False
         res.critical = 1
         res.details.append(f"timeout after {timeout}s")
-        print(f"  [FAIL] {name}: timeout")
+        out = ((exc.stdout or "") + (exc.stderr or "")).strip()
+        if out:
+            for line in out.splitlines()[-12:]:
+                if line.strip():
+                    print(line)
+        print(f"  [FAIL] {name}: timeout after {timeout}s")
+        if "P2P" in name:
+            print("  Hint: .\\scripts\\stop_node.ps1  then  .\\scripts\\start_two_nodes.ps1 -Fresh")
+            print("  Or increase wait: .\\scripts\\test_full_project.ps1 -Live -P2P -P2PWait 600")
     except Exception as exc:
         res.ok = False
         res.critical = 1
@@ -334,6 +342,29 @@ def _http_get(url: str, timeout: float = 5.0) -> Tuple[bool, Any]:
         return False, str(exc)
 
 
+def _probe_p2p_height_gap(url1: str, url2: str) -> int:
+    """Best-effort height gap between two live nodes (0 if unknown)."""
+    try:
+        s1 = _http_get(f"{url1}/status", timeout=3.0)
+        s2 = _http_get(f"{url2}/status", timeout=3.0)
+        if not s1[0] or not s2[0]:
+            return 0
+        h1 = int((s1[1] or {}).get("height", 0) or 0)
+        h2 = int((s2[1] or {}).get("height", 0) or 0)
+        return abs(h1 - h2)
+    except Exception:
+        return 0
+
+
+def _p2p_subprocess_timeout(wait_sec: int, gap: int) -> int:
+    """Subprocess budget: stability wait + bounded preflight catch-up + margin."""
+    effective_wait = wait_sec
+    if gap > 20:
+        effective_wait = max(wait_sec, min(900, gap * 12))
+    preflight = 90 if gap <= 20 else min(600, max(120, gap * 8))
+    return effective_wait + preflight + 120
+
+
 def section_p2p_verify(live: bool, base_url: str, wait_sec: int = 300) -> AuditResult:
     """P2P mesh check; with --live and only :8080 up, skip instead of fail."""
     name = "[L] P2P VERIFY (auto cluster)"
@@ -360,10 +391,15 @@ def section_p2p_verify(live: bool, base_url: str, wait_sec: int = 300) -> AuditR
         ]
         return res
 
+    gap = _probe_p2p_height_gap(url1, url2) if (up1 and up2) else 0
+    if gap > 20:
+        print(f"  [INFO] P2P height gap={gap} — allow extra catch-up time (or .\\scripts\\start_two_nodes.ps1 -Fresh)")
+    subprocess_timeout = _p2p_subprocess_timeout(wait_sec, gap)
+
     return _run_subprocess(
         [sys.executable, "scripts/verify_p2p_ci.py", "--mode", "auto", "--wait", str(wait_sec)],
         name,
-        timeout=max(240, wait_sec + 90),
+        timeout=subprocess_timeout,
     )
 
 
@@ -493,6 +529,7 @@ def main() -> int:
     parser.add_argument("--no-tests", action="store_true", help="Skip pytest only")
     parser.add_argument("--live", action="store_true", help="Probe running node HTTP API")
     parser.add_argument("--p2p", action="store_true", help="Run verify_p2p_ci --mode auto (needs cluster)")
+    parser.add_argument("--p2p-wait", type=int, default=300, help="P2P sync wait seconds (verify_p2p_ci --wait)")
     parser.add_argument("--base-url", default="http://127.0.0.1:8080", help="Live probe base URL")
     parser.add_argument("--pytest-timeout", type=int, default=600, help="pytest timeout seconds")
     args = parser.parse_args()
@@ -566,7 +603,7 @@ def main() -> int:
         sections.append(skip)
 
     if args.p2p and not args.quick:
-        sections.append(section_p2p_verify(args.live, args.base_url.rstrip("/")))
+        sections.append(section_p2p_verify(args.live, args.base_url.rstrip("/"), wait_sec=args.p2p_wait))
     elif args.p2p:
         print("\n[SKIP] P2P verify (--quick active)")
 

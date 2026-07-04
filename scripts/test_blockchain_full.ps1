@@ -249,6 +249,8 @@ if ($Live) {
     $liveArgs = @("scripts/full_audit.py", "--live", "--no-tests", "--base-url", $BaseUrl)
     if ($P2P) {
         $liveArgs += "--p2p"
+        $liveArgs += "--p2p-wait"
+        $liveArgs += "$P2PWait"
     }
     Run-Step "Live audit" {
         python @liveArgs
