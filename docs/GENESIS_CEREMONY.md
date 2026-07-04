@@ -123,6 +123,9 @@ Fresh DB if upgrading from old non-deterministic genesis:
 python scripts/mainnet_launch_checklist.py
 python scripts/mainnet_launch_checklist.py --strict-mainnet   # before public cutover
 python scripts/mainnet_readiness.py --no-strict-audit --json
+.\scripts\pin_ceremony_hash.ps1 -CeremonyDir data/ceremony_keys
+python scripts/mainnet_readiness.py --ceremony-dir data/ceremony_keys --prod-smoke-spawn
+python scripts/mainnet_readiness.py --live --base-url http://127.0.0.1:8080
 ```
 
 ---

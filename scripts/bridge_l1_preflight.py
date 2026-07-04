@@ -34,11 +34,33 @@ def run_preflight(*, config_path: str = "node.prod.mainnet-v1.example.json") -> 
 
     from runtime.config import Config
 
-    cfg = Config.from_json(str(cfg_path))
-    cfg.deployment_mode = "prod"
-    val_errors = cfg.validate()
-    bridge_errors = [e for e in val_errors if "bridge" in e.lower() or "rpc" in e.lower() or "L1" in e]
-    errors.extend(bridge_errors)
+    placeholders = {
+        "JWT_SECRET": "Q" * 40,
+        "RPC_API_KEYS": "R" * 40,
+        "BRIDGE_ORACLE_SECRET": "S" * 40,
+        "ETH_RPC_URL": os.environ.get("ETH_RPC_URL", "") or "https://rpc.example.com",
+        "CORS_ORIGINS": "https://explorer.example.com",
+        "BRIDGE_PROBE_L1_RPC": "false",
+    }
+    saved = {key: os.environ.get(key) for key in placeholders}
+    try:
+        for key, value in placeholders.items():
+            if value:
+                os.environ[key] = value
+        cfg = Config.from_json(str(cfg_path))
+        cfg.apply_env()
+        val_errors = cfg.validate()
+        bridge_errors = [
+            e for e in val_errors
+            if "bridge" in e.lower() or "rpc" in e.lower() or "l1" in e.lower()
+        ]
+        errors.extend(bridge_errors)
+    finally:
+        for key, old in saved.items():
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
 
     if bridge_mode == "rust":
         from bridge.health import check_rust_bridge_binary

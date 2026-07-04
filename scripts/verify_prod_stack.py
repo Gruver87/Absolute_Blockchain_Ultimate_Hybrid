@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import subprocess
@@ -26,10 +27,10 @@ def check_prod_gate() -> list[str]:
     return []
 
 
-def check_config_validate() -> list[str]:
+def check_config_validate(config_name: str = "node.prod.example.json") -> list[str]:
     from runtime.config import Config
 
-    path = ROOT / "node.prod.example.json"
+    path = ROOT / config_name
     placeholders = {
         "JWT_SECRET": "Q" * 40,
         "RPC_API_KEYS": "R" * 40,
@@ -97,6 +98,47 @@ def check_docker_prod_compose() -> list[str]:
             else:
                 os.environ[key] = old
     return errors
+
+
+    return errors
+
+
+def check_mainnet_v1_config() -> list[str]:
+    placeholders = {
+        "JWT_SECRET": "Q" * 40,
+        "RPC_API_KEYS": "R" * 40,
+        "BRIDGE_ORACLE_SECRET": "S" * 40,
+        "ETH_RPC_URL": "https://rpc.example.com",
+        "CORS_ORIGINS": "https://explorer.example.com",
+        "BRIDGE_PROBE_L1_RPC": "false",
+    }
+    saved = {key: os.environ.get(key) for key in placeholders}
+    saved_pin = os.environ.pop("GENESIS_CEREMONY_HASH", None)
+    try:
+        for key, value in placeholders.items():
+            os.environ[key] = value
+        return check_config_validate("node.prod.mainnet-v1.example.json")
+    finally:
+        for key, old in saved.items():
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+        if saved_pin is not None:
+            os.environ["GENESIS_CEREMONY_HASH"] = saved_pin
+
+
+def check_prod_smoke_spawn() -> list[str]:
+    spec = importlib.util.spec_from_file_location(
+        "verify_p2p_ci", ROOT / "scripts" / "verify_p2p_ci.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    assert spec is not None and spec.loader is not None
+    spec.loader.exec_module(mod)
+    rc = int(mod.run_prod_smoke_spawn())
+    if rc != 0:
+        return [f"prod_smoke_spawn exited {rc}"]
+    return []
 
 
 def check_live_smoke(base: str) -> list[str]:

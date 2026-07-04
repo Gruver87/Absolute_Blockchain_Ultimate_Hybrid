@@ -43,7 +43,30 @@ def test_mainnet_readiness_strict_audit_blocks_until_complete(monkeypatch):
     assert meta["sections"]["genesis_ceremony"]["ready"] is True
 
 
-def test_mainnet_readiness_relaxed_audit_passes_automation():
+def test_mainnet_readiness_ceremony_hash_pin_env(monkeypatch, tmp_path):
+    gate = _load_mainnet()
+    from runtime.ceremony_keygen import generate_validator_set
+    from runtime.genesis_ceremony import build_from_paths
+
+    template = os.path.join(ROOT, "validators.manifest.mainnet-v1.example.json")
+    _manifest, _errors, manifest_path = generate_validator_set(template, str(tmp_path))
+    artifact, _ = build_from_paths(
+        os.path.join(ROOT, "node.prod.mainnet-v1.example.json"),
+        str(manifest_path),
+    )
+    monkeypatch.setenv("GENESIS_CEREMONY_HASH", artifact["ceremony_hash"])
+
+    errors, warnings, meta = gate.run_gate(
+        live=False,
+        strict_audit=False,
+        ceremony_dir=str(tmp_path),
+    )
+    assert not any("genesis_ceremony_hash_mismatch" in e for e in errors), errors
+    assert meta["sections"]["genesis_ceremony"]["ceremony_hash"] == artifact["ceremony_hash"]
+
+
+def test_mainnet_readiness_relaxed_audit_passes_automation(monkeypatch):
+    monkeypatch.delenv("GENESIS_CEREMONY_HASH", raising=False)
     gate = _load_mainnet()
     errors, warnings, meta = gate.run_gate(live=False, strict_audit=False)
     assert errors == [], errors

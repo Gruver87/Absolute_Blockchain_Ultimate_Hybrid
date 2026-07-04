@@ -8,6 +8,12 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict, List, Tuple
 
+ROOT = __import__("pathlib").Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from runtime.mainnet_constants import MAINNET_V1_CHAIN_ID
+
 
 def _fetch(url: str, timeout: float = 8.0) -> Tuple[int, Any]:
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
@@ -36,6 +42,29 @@ def run_prod_smoke(base: str = "http://127.0.0.1:8080") -> Dict[str, Any]:
             errors.append(f"/status deployment_mode={mode!r}, expected prod")
         if not node_status.get("require_native_crypto"):
             errors.append("/status require_native_crypto is false on prod node")
+        chain_id = int(node_status.get("chain_id", 0) or 0)
+        checks["chain_id_mainnet_v1"] = chain_id == MAINNET_V1_CHAIN_ID
+        if chain_id != MAINNET_V1_CHAIN_ID:
+            errors.append(f"/status chain_id={chain_id}, expected {MAINNET_V1_CHAIN_ID}")
+        if not node_status.get("state_root_strict_p2p", True):
+            errors.append("/status state_root_strict_p2p is false on prod node")
+        consensus = node_status.get("consensus") or {}
+        mode = str(consensus.get("mode", "") or "").lower()
+        checks["consensus_unified"] = mode == "unified"
+        if mode != "unified":
+            errors.append(f"/status consensus.mode={mode!r}, expected unified")
+        ceremony = node_status.get("genesis_ceremony") or {}
+        if ceremony:
+            checks["genesis_ceremony_ready"] = bool(ceremony.get("ready"))
+            if not ceremony.get("ready"):
+                errors.append(f"/status genesis_ceremony not ready: {ceremony.get('errors', [])}")
+            pinned = (__import__("os").environ.get("GENESIS_CEREMONY_HASH", "") or "").strip()
+            live_hash = str(ceremony.get("ceremony_hash", "") or "")
+            if pinned and live_hash and pinned != live_hash:
+                errors.append("genesis_ceremony_hash_mismatch: node vs GENESIS_CEREMONY_HASH env")
+        else:
+            checks["genesis_ceremony_ready"] = False
+            errors.append("/status missing genesis_ceremony block")
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         errors.append(f"/status unreachable: {exc}")
         checks["status_http"] = False

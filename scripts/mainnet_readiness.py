@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,6 +28,8 @@ def run_gate(
     live: bool = False,
     base_url: str = "http://127.0.0.1:8080",
     strict_audit: bool = True,
+    prod_smoke_spawn: bool = False,
+    ceremony_dir: str = "",
 ) -> Tuple[List[str], List[str], dict]:
     errors: List[str] = []
     warnings: List[str] = []
@@ -38,21 +41,55 @@ def run_gate(
     warnings.extend(pre_warnings)
     sections["pre_mainnet"] = {"errors": pre_errors, "warnings": pre_warnings}
 
+    manifest_path = str(ROOT / "validators.manifest.mainnet-v1.example.json")
+    config_path = str(ROOT / "node.prod.mainnet-v1.example.json")
+    saved_manifest_env = os.environ.get("VALIDATORS_MANIFEST_PATH")
+    if ceremony_dir:
+        cdir = Path(ceremony_dir)
+        if not cdir.is_absolute():
+            cdir = ROOT / cdir
+        local_manifest = cdir / "validators.manifest.json"
+        if local_manifest.is_file():
+            manifest_path = str(local_manifest)
+            os.environ["VALIDATORS_MANIFEST_PATH"] = manifest_path
+            from runtime.ceremony_keygen import verify_ceremony_directory
+
+            c_errors, c_warnings = verify_ceremony_directory(str(cdir))
+            errors.extend([f"ceremony_dir:{e}" for e in c_errors])
+            warnings.extend(c_warnings)
+        else:
+            errors.append(f"ceremony_dir:manifest_missing:{local_manifest}")
+
     prod = _load_module("verify_prod_stack", "scripts/verify_prod_stack.py")
     prod_errors = []
-    prod_errors.extend(prod.check_prod_gate())
-    prod_errors.extend(prod.check_config_validate())
-    prod_errors.extend(prod.check_docker_prod_compose())
-    if live:
-        prod_errors.extend(prod.check_live_smoke(base_url.rstrip("/")))
+    try:
+        prod_errors.extend(prod.check_prod_gate())
+        prod_errors.extend(prod.check_config_validate())
+        prod_errors.extend(prod.check_mainnet_v1_config())
+        prod_errors.extend(prod.check_docker_prod_compose())
+        if live:
+            prod_errors.extend(prod.check_live_smoke(base_url.rstrip("/")))
+        if prod_smoke_spawn:
+            prod_errors.extend(prod.check_prod_smoke_spawn())
+    finally:
+        if saved_manifest_env is None:
+            os.environ.pop("VALIDATORS_MANIFEST_PATH", None)
+        else:
+            os.environ["VALIDATORS_MANIFEST_PATH"] = saved_manifest_env
     errors.extend(prod_errors)
-    sections["prod_stack"] = {"errors": prod_errors, "live": live}
+    sections["prod_stack"] = {
+        "errors": prod_errors,
+        "live": live,
+        "prod_smoke_spawn": prod_smoke_spawn,
+    }
 
     try:
         from runtime.genesis_ceremony import build_from_paths
+
         artifact, ceremony_errors = build_from_paths(
-            str(ROOT / "node.prod.mainnet-v1.example.json"),
-            str(ROOT / "validators.manifest.mainnet-v1.example.json"),
+            config_path,
+            manifest_path,
+            strict_addresses=bool(os.environ.get("GENESIS_STRICT_MAINNET", "").lower() in ("1", "true", "yes")),
         )
         sections["genesis_ceremony"] = {
             "ready": artifact.get("ready"),
@@ -65,6 +102,20 @@ def run_gate(
         if not artifact.get("mainnet_addresses_ready", True):
             warnings.append(
                 "genesis_ceremony:placeholder_validator_addresses_in_manifest"
+            )
+        pinned = (os.environ.get("GENESIS_CEREMONY_HASH", "") or "").strip()
+        if ceremony_dir:
+            if pinned and artifact.get("ceremony_hash") != pinned:
+                errors.append("genesis_ceremony_hash_mismatch:env_vs_manifest")
+            elif not pinned:
+                warnings.append(
+                    "genesis_ceremony: set GENESIS_CEREMONY_HASH after keygen "
+                    "(scripts/pin_ceremony_hash.ps1)"
+                )
+        elif pinned:
+            warnings.append(
+                "genesis_ceremony: GENESIS_CEREMONY_HASH set without --ceremony-dir "
+                "(pin verified only with generated manifest path)"
             )
         legacy, legacy_errors = build_from_paths(
             str(ROOT / "node.prod.example.json"),
@@ -117,6 +168,16 @@ def write_report(errors: List[str], warnings: List[str], meta: dict) -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Mainnet readiness gate")
     parser.add_argument("--live", action="store_true", help="Include prod_smoke against running node")
+    parser.add_argument(
+        "--prod-smoke-spawn",
+        action="store_true",
+        help="Spawn isolated 2-node prod-profile mesh (verify_p2p_ci prod-smoke)",
+    )
+    parser.add_argument(
+        "--ceremony-dir",
+        default="",
+        help="Use generated ceremony manifest from directory (e.g. data/ceremony_keys)",
+    )
     parser.add_argument("--base-url", default="http://127.0.0.1:8080")
     parser.add_argument(
         "--no-strict-audit",
@@ -130,6 +191,8 @@ def main() -> int:
         live=args.live,
         base_url=args.base_url,
         strict_audit=not args.no_strict_audit,
+        prod_smoke_spawn=args.prod_smoke_spawn,
+        ceremony_dir=args.ceremony_dir,
     )
     report_path = write_report(errors, warnings, meta)
 

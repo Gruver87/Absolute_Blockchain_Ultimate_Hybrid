@@ -62,7 +62,8 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 - [ ] Production validator manifest + offline keygen (`scripts/genesis_ceremony_keygen.py`, verify with `--ceremony-dir`)
 - [ ] Final `chain_id` (778888) + genesis ceremony hash pinned (`GENESIS_CEREMONY_HASH`)
 - [ ] Rotate all secrets (JWT, RPC keys, bridge oracle, L1 RPC)
-- [ ] Live prod smoke: `python scripts/mainnet_readiness.py --live`
+- [ ] Live prod smoke: `python scripts/mainnet_readiness.py --live` (after docker prod or manual node)
+- [x] Isolated prod mesh: `python scripts/mainnet_readiness.py --prod-smoke-spawn`
 - [ ] DR drill + incident response runbook
 - [ ] Decision: real L1 bridge contracts **or** disable bridge in mainnet v1
 
