@@ -29,6 +29,7 @@ def test_relayer_module_imports():
     spec.loader.exec_module(mod)
     assert hasattr(mod, "process_pending")
     assert hasattr(mod, "process_l1_queue")
+    assert hasattr(mod, "_oracle_post")
 
 
 def test_relayer_l1_queue_dry_run(tmp_path, monkeypatch):

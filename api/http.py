@@ -5834,7 +5834,9 @@ def _build_l1_queue_payload(cfg) -> Dict:
 def _build_bridge_relayer_status(cfg, db) -> Dict:
     """Summary for scripts/bridge_relayer.py operators."""
     try:
-        from bridge.l1_rpc import load_l1_queue, chain_rpc_url, min_confirmations
+        from bridge.l1_rpc import load_l1_queue, min_confirmations
+        from bridge.relayer import check_relayer_readiness, relayer_require_l1_proof
+
         qpath = getattr(cfg, "bridge_l1_queue_path", "data/bridge_l1_queue.json")
         queue = load_l1_queue(qpath)
         locks = db.get_bridge_locks(limit=1000) if db and hasattr(db, "get_bridge_locks") else []
@@ -5843,10 +5845,22 @@ def _build_bridge_relayer_status(cfg, db) -> Dict:
             getattr(cfg, "bridge_oracle_secret", "")
             or __import__("os").environ.get("BRIDGE_ORACLE_SECRET", "")
         )
+        api_url = f"http://127.0.0.1:{getattr(cfg, 'http_port', 8080)}"
+        secret = getattr(cfg, "bridge_oracle_secret", "") or __import__("os").environ.get(
+            "BRIDGE_ORACLE_SECRET", ""
+        )
+        readiness = (
+            check_relayer_readiness(api_url, secret, probe_l1=False)
+            if oracle_on
+            else {"ok": False, "errors": ["oracle secret not configured"], "require_l1_proof": relayer_require_l1_proof()}
+        )
         return {
             "relayer_script": "python scripts/bridge_relayer.py --once --watch-l1",
+            "preflight_script": "python scripts/bridge_relayer.py --preflight",
             "oracle_hmac_configured": oracle_on,
-            "eth_rpc_configured": bool(chain_rpc_url("ethereum")),
+            "require_l1_proof": relayer_require_l1_proof(),
+            "blind_pending_confirm_allowed": not relayer_require_l1_proof(),
+            "readiness": readiness,
             "min_confirmations": min_confirmations(),
             "queue_path": qpath,
             "l1_outbound": len(queue.get("outbound", [])),

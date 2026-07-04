@@ -2,7 +2,7 @@
 
 > Учебный проект → промышленный профиль. Поэтапно.
 
-## Phase 1 — Deploy & trust ✅ (in progress)
+## Phase 1 — Deploy & trust ✅
 
 - [x] Config from env (`DATA_DIR`, `NODE_ID`, ports)
 - [x] `/health/live`, `/health/ready`
@@ -77,3 +77,10 @@ Observability (Grafana + Prometheus):
 python main.py
 docker compose -f docker-compose.observability.yml up -d
 ```
+
+## Phase 6 — Bridge operations ✅
+
+- [x] Relayer core module (`bridge/relayer.py`) with L1-proof fail-closed
+- [x] `python scripts/bridge_relayer.py --preflight` readiness gate
+- [x] `GET /bridge/relayer/status` includes readiness + `require_l1_proof`
+- [x] Prod: `BRIDGE_REQUIRE_L1_PROOF=true` skips blind pending confirm (use `--watch-l1`)

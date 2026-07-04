@@ -83,7 +83,9 @@ def test_relayer_processes_mock_l1_incoming(monkeypatch, bridge_env):
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
-    monkeypatch.setattr(mod, "is_tx_confirmed", lambda *a, **k: True)
+    from bridge import relayer as relayer_core
+
+    monkeypatch.setattr(relayer_core, "is_tx_confirmed", lambda *a, **k: True)
     calls = []
 
     def fake_post(base, pth, payload, sec):
@@ -98,7 +100,7 @@ def test_relayer_processes_mock_l1_incoming(monkeypatch, bridge_env):
             )
         return {"confirmed": True}
 
-    monkeypatch.setattr(mod, "_oracle_post", fake_post)
+    monkeypatch.setattr(relayer_core, "oracle_post", fake_post)
     n = mod.process_l1_queue("http://127.0.0.1:8080", secret, cfg.bridge_l1_queue_path)
     assert n == 1
     assert db.get_balance("0xrecipient") == 5.0

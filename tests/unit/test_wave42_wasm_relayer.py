@@ -145,4 +145,6 @@ def test_bridge_relayer_status_helper():
     st = _build_bridge_relayer_status(cfg, db)
     assert "pending_locks" in st
     assert "relayer_script" in st
+    assert "require_l1_proof" in st
+    assert "readiness" in st
     assert "l1_outbound" in st

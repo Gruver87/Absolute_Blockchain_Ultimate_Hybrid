@@ -88,6 +88,7 @@ jobs:
           tests/unit/test_telegram_bot_bridge.py \
           tests/unit/test_api_prod_auth.py \
           tests/unit/test_bridge_relayer.py \
+          tests/unit/test_bridge_relayer_core.py \
           -q --tb=short
 
     - name: Hybrid native and bridge critical tests
