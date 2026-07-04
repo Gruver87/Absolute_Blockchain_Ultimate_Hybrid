@@ -10,8 +10,11 @@
 # Live node already running (python main.py):
 #   .\scripts\test_blockchain_full.ps1 -Live
 #
-# Live + P2P mesh checks:
+# Live + P2P mesh (needs :8080+:8081; single :8080 skips P2P with hint):
 #   .\scripts\test_blockchain_full.ps1 -Live -P2P
+#
+# P2P only (isolated CI on :15080/:15081, no live node needed):
+#   .\scripts\test_blockchain_full.ps1 -P2P
 #
 # Docker compose validation:
 #   .\scripts\test_blockchain_full.ps1 -Docker

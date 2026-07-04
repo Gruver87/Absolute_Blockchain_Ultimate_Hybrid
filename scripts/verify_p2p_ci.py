@@ -854,6 +854,37 @@ def _catchup_lagging_node(url1: str, url2: str, s1: dict, s2: dict) -> None:
         _trigger_catchup(url1, url2, s1, s2)
 
 
+def _preflight_devnet_catchup(url1: str, url2: str, max_rounds: int = 3) -> int:
+    """Try fast-sync/reconcile on lagging node before P2P stability loop."""
+    try:
+        s1 = _api(f"{url1}/status")
+        s2 = _api(f"{url2}/status")
+    except Exception:
+        return 0
+    gap = abs(int(s1.get("height", 0) or 0) - int(s2.get("height", 0) or 0))
+    if gap <= 0:
+        return 0
+    for _ in range(max_rounds):
+        try:
+            s1 = _api(f"{url1}/status")
+            s2 = _api(f"{url2}/status")
+        except Exception:
+            break
+        gap = abs(int(s1.get("height", 0) or 0) - int(s2.get("height", 0) or 0))
+        if gap <= 0:
+            break
+        timeout = _sync_timeout_for_gap(gap)
+        print(f"Preflight catch-up: gap={gap}, timeout={int(timeout)}s")
+        _catchup_lagging_node(url1, url2, s1, s2)
+        time.sleep(min(8, max(3, gap)))
+    try:
+        s1 = _api(f"{url1}/status")
+        s2 = _api(f"{url2}/status")
+        return abs(int(s1.get("height", 0) or 0) - int(s2.get("height", 0) or 0))
+    except Exception:
+        return gap
+
+
 def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
     """Check peers, height sync, attestations on two running nodes."""
     if not _probe_health(url1):
@@ -885,8 +916,7 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
 
     initial_gap = abs(int(s1.get("height", 0) or 0) - int(s2.get("height", 0) or 0))
     if initial_gap > 0:
-        _catchup_lagging_node(url1, url2, s1, s2)
-        time.sleep(5)
+        _preflight_devnet_catchup(url1, url2)
         try:
             s1 = _api(f"{url1}/status")
             s2 = _api(f"{url2}/status")
@@ -958,7 +988,7 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
             print("  Peers linked but heights/state diverged - try:")
             print('    Invoke-RestMethod http://127.0.0.1:8081/sync/fast-sync -Method POST -Body ''{"timeout":300}'' -ContentType ''application/json''')
             print('    Invoke-RestMethod http://127.0.0.1:8081/sync/reconcile -Method POST -Body ''{"timeout":300}'' -ContentType ''application/json''')
-        print("  Or reset chain: .\\scripts\\docker_devnet.ps1 -RustBridge -Reset")
+        print("  Or reset chain: .\\scripts\\start_two_nodes.ps1 -Fresh")
         print("  Or: .\\scripts\\stop_node.ps1  then  .\\scripts\\docker_devnet.ps1 -RustBridge")
         return 2
 
@@ -1967,8 +1997,10 @@ def main() -> int:
             print(f"  node1 :8080 {'UP' if up1 else 'DOWN'}")
             print(f"  node2 :8081 {'UP' if up2 else 'DOWN'}")
             print(f"  node3 :8082 {'UP' if up3 else 'DOWN'}")
+            print("  Fix 2-node: .\\scripts\\start_two_nodes.ps1")
             print("  Fix 2-node: .\\scripts\\docker_devnet.ps1 -RustBridge")
             print("  Fix 3-node: .\\scripts\\docker_devnet_3node.ps1")
+            print("  Or run without -Live to use isolated CI on :15080/:15081")
             return 1
         else:
             mode = "ci"

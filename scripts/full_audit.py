@@ -23,6 +23,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlparse
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -333,6 +334,39 @@ def _http_get(url: str, timeout: float = 5.0) -> Tuple[bool, Any]:
         return False, str(exc)
 
 
+def section_p2p_verify(live: bool, base_url: str, wait_sec: int = 300) -> AuditResult:
+    """P2P mesh check; with --live and only :8080 up, skip instead of fail."""
+    name = "[L] P2P VERIFY (auto cluster)"
+    parsed = urlparse(base_url.rstrip("/"))
+    host = parsed.hostname or "127.0.0.1"
+    scheme = parsed.scheme or "http"
+    url1 = f"{scheme}://{host}:8080"
+    url2 = f"{scheme}://{host}:8081"
+    url3 = f"{scheme}://{host}:8082"
+
+    up1, _ = _http_get(f"{url1}/health/live", timeout=2.0)
+    up2, _ = _http_get(f"{url2}/health/live", timeout=2.0)
+    up3, _ = _http_get(f"{url3}/health/live", timeout=2.0)
+
+    if live and up1 and not up2 and not up3:
+        _banner(name)
+        res = AuditResult(name=name, ok=True, skipped=True)
+        print("  [SKIP] Single live node on :8080 — mesh P2P needs :8080 + :8081")
+        print("         2-node mesh: .\\scripts\\start_two_nodes.ps1  then -Live -P2P")
+        print("         Isolated CI P2P: .\\scripts\\test_blockchain_full.ps1 -P2P  (no -Live)")
+        res.details = [
+            "skipped: only :8080 up with --live",
+            "run start_two_nodes.ps1 for mesh P2P",
+        ]
+        return res
+
+    return _run_subprocess(
+        [sys.executable, "scripts/verify_p2p_ci.py", "--mode", "auto", "--wait", str(wait_sec)],
+        name,
+        timeout=max(240, wait_sec + 90),
+    )
+
+
 def section_live_endpoints(base: str) -> AuditResult:
     _banner(f"[F] LIVE HTTP ENDPOINTS ({base})")
     res = AuditResult(name="live_endpoints", ok=True)
@@ -532,11 +566,7 @@ def main() -> int:
         sections.append(skip)
 
     if args.p2p and not args.quick:
-        sections.append(_run_subprocess(
-            [sys.executable, "scripts/verify_p2p_ci.py", "--mode", "auto", "--wait", "120"],
-            "[L] P2P VERIFY (auto cluster)",
-            timeout=180,
-        ))
+        sections.append(section_p2p_verify(args.live, args.base_url.rstrip("/")))
     elif args.p2p:
         print("\n[SKIP] P2P verify (--quick active)")
 

@@ -792,8 +792,6 @@ class P2PNode:
 
     async def _sync_with_peer_safe(self, peer: PeerConnection):
         lock = self._peer_lock(peer.peer_id or f"{peer.host}:{peer.port}")
-        if lock.locked():
-            return
         async with lock:
             try:
                 await self._sync_with_peer(peer)
@@ -1167,25 +1165,37 @@ class P2PNode:
         """Block until lagging peers are synced (REST / devnet scripts)."""
         if not self._loop or not self._running:
             return {"ok": False, "error": "p2p not running"}
-        our_h = self.blockchain.get_height()
-        tasks = []
-        for peer in list(self.peers.values()):
-            if peer.height > our_h:
-                tasks.append(self._sync_with_peer_safe(peer))
-        if not tasks:
-            peer_max = max((p.height for p in self.peers.values()), default=our_h)
-            return {"ok": True, "height": our_h, "peer_height": peer_max, "action": "already_synced"}
+
         async def _run():
-            await asyncio.gather(*tasks, return_exceptions=True)
-            new_h = self.blockchain.get_height()
-            peer_max = max((p.height for p in self.peers.values()), default=new_h)
-            return {
-                "ok": new_h >= peer_max,
-                "height": new_h,
-                "peer_height": peer_max,
-            }
+            deadline = time.monotonic() + max(5.0, float(timeout))
+            last = {"ok": False, "height": self.blockchain.get_height(), "peer_height": 0}
+            while time.monotonic() < deadline:
+                our_h = self.blockchain.get_height()
+                peer_max = max((p.height for p in self.peers.values()), default=our_h)
+                if our_h >= peer_max:
+                    return {
+                        "ok": True,
+                        "height": our_h,
+                        "peer_height": peer_max,
+                        "action": "synced",
+                    }
+                tasks = [
+                    self._sync_with_peer_safe(peer)
+                    for peer in list(self.peers.values())
+                    if peer.height > our_h
+                ]
+                if tasks:
+                    await asyncio.gather(*tasks, return_exceptions=True)
+                new_h = self.blockchain.get_height()
+                peer_max = max((p.height for p in self.peers.values()), default=new_h)
+                last = {"ok": new_h >= peer_max, "height": new_h, "peer_height": peer_max}
+                if last["ok"]:
+                    return last
+                await asyncio.sleep(2)
+            return last
+
         try:
-            return asyncio.run_coroutine_threadsafe(_run(), self._loop).result(timeout=timeout)
+            return asyncio.run_coroutine_threadsafe(_run(), self._loop).result(timeout=timeout + 5)
         except Exception as exc:
             return {"ok": False, "error": str(exc), "height": self.blockchain.get_height()}
 
