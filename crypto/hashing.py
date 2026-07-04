@@ -20,8 +20,8 @@ class Hasher:
     
     @staticmethod
     def keccak256(data: bytes) -> str:
-        """Keccak-256 (Ethereum compatible)"""
-        return hashlib.sha3_256(data).hexdigest()
+        """Ethereum-compatible Keccak-256."""
+        return native.keccak256_hex(data)
     
     @staticmethod
     def hash_object(obj: Any) -> str:
@@ -35,7 +35,7 @@ class Hasher:
         else:
             encoded = str(obj).encode()
         
-        return hashlib.sha256(encoded).hexdigest()
+        return native.sha256_hex(encoded)
     
     @staticmethod
     def hash_transaction(tx: Dict) -> str:

@@ -6,8 +6,8 @@
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Production--hardened%20R%26D-blue)]()
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/Full%20Audit-421%20passed-brightgreen)](scripts/check_hybrid_full.ps1)
-[![Hybrid Critical](https://img.shields.io/badge/Hybrid%20Critical-63%20passed-brightgreen)](tests/unit/)
+[![Tests](https://img.shields.io/badge/Full%20Audit-433%20passed-brightgreen)](scripts/check_hybrid_full.ps1)
+[![Hybrid Critical](https://img.shields.io/badge/Hybrid%20Critical-79%20passed-brightgreen)](tests/unit/)
 [![Audit](https://img.shields.io/badge/Full%20Audit-passing-brightgreen)](scripts/check_everything.ps1)
 [![Release](https://img.shields.io/badge/Release-Hybrid%20R%26D-blue)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid)
 
@@ -24,14 +24,15 @@
 | **Entry point** | `python main.py` |
 | **Storage** | SQLite `data/blockchain.db` |
 | **Chain ID (dev)** | `77777` |
-| **Native layer** | Rust/PyO3 `abs_native`: SHA-256, Merkle, state root, secp256k1 verify |
+| **Native layer** | Rust/PyO3 `abs_native`: SHA-256, Merkle, state_root, secp256k1, header/tx/block canonical hash, P2P chain validation, Keccak-256 |
 | **Production gate** | `.\scripts\check_hybrid_full.ps1` / `bash scripts/check_hybrid_full.sh` |
 
 | Docs | Link |
 |------|------|
 | Changelog | [CHANGELOG.md](CHANGELOG.md) |
 | Honest command reference | [docs/ALL_COMMANDS.txt](docs/ALL_COMMANDS.txt) |
-| Roadmap | [docs/INDUSTRIAL_ROADMAP.md](docs/INDUSTRIAL_ROADMAP.md) |
+| Industrial roadmap | [docs/INDUSTRIAL_ROADMAP.md](docs/INDUSTRIAL_ROADMAP.md) |
+| Python↔Rust porting plan | [docs/PORTING_ROADMAP.md](docs/PORTING_ROADMAP.md) |
 | Disclaimer | [DISCLAIMER.md](DISCLAIMER.md) |
 
 ---
@@ -63,11 +64,11 @@
 | **Fork & slashing CI** | 🟢 | `/testnet/fork-status`, double-vote detection |
 | **JSON-RPC** | 🟢 | eth_* subset on port 8545, API-key protection in prod |
 | **Tokenomics model** | 🟢 | 221M ABS cap, founder D.U.P. 17.4% — enforced in code |
-| **Rust native crypto** | 🟢 Hybrid path | PyO3 `abs_native` for SHA-256, Merkle proofs, SQLite state root, secp256k1 verify |
+| **Rust native crypto** | 🟢 Hybrid path | PyO3 `abs_native`: SHA-256, Merkle, state_root, secp256k1, header/tx/block hash, P2P import validation, Keccak-256 |
 | **EVM / L2 / Bridge** | 🟡 Mixed | EVM subset and Rust bridge path are integrated; dev-only L2/offchain modules are blocked by prod profile |
 | **Production mainnet** | 🔴 Not launched | Requires external audit, live infra, validator operations, and L1 bridge RPC/secrets |
 
-**Quality gate (Jun 2026):** **`.\scripts\check_hybrid_full.ps1`** → full audit OK (`421 passed`) + hybrid critical OK (`63 passed`) · Rust/PyO3 native crypto self-test OK · Rust bridge JSON smoke-test OK
+**Quality gate (Jul 2026):** **`.\scripts\check_hybrid_full.ps1`** → hybrid critical tests + native crypto self-test + Rust bridge smoke · **377 unit tests** passing (`pytest tests/unit/ -q`)
 
 ---
 
@@ -363,4 +364,4 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 
 ---
 
-*Last update: June 2026 — API Wave 61, production profile hardening, real P2P topology/rejoin, Docker 3-node devnet, admin repair lockdown, 258 unit tests locally and 324 tests in full audit.*
+*Last update: July 2026 — Rust industrial wave (P1–P4): canonical block/tx hash, P2P import validation, real Keccak-256, peer header chain gate, 377 unit tests.*

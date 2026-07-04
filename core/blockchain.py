@@ -21,6 +21,7 @@ import time
 import threading
 from typing import List, Dict, Optional, Any
 
+from crypto import native
 from storage.database import Database
 from runtime.config import Config
 from runtime.tokenomics import genesis_balances, get_tokenomics_summary, MAX_SUPPLY_ABS
@@ -86,7 +87,15 @@ class Transaction:
 
     def _compute_hash(self) -> str:
         raw = f"{self.from_addr}{self.to_addr}{self.value}{self.nonce}{self.gas}{self.data}{self.timestamp}"
-        return hashlib.sha256(raw.encode()).hexdigest()
+        return native.transaction_hash(
+            self.from_addr,
+            self.to_addr,
+            self.value,
+            self.nonce,
+            self.gas,
+            self.data,
+            self.timestamp,
+        )
 
     def to_dict(self) -> Dict:
         return {
@@ -186,8 +195,7 @@ class Block:
                         for tx in sorted(self.transactions, key=lambda t: t.hash)
                     ],
                 }
-                canonical = CanonicalSerializer.serialize(block_dict)
-                return hashlib.sha256(canonical.encode()).hexdigest()
+                return native.block_canonical_hash(block_dict)
             except Exception:
                 pass
 
@@ -197,7 +205,7 @@ class Block:
             f"{self.height}{self.parent_hash}{self.miner}"
             f"{self.timestamp}{tx_hashes}{self.extra_data}{self.state_root}"
         )
-        return hashlib.sha256(raw.encode()).hexdigest()
+        return native.hash_text(raw)
 
     def to_dict(self) -> Dict:
         return {

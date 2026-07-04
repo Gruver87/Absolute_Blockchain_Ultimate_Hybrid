@@ -3,6 +3,7 @@ use k256::ecdsa::{Signature, VerifyingKey};
 use pyo3::prelude::*;
 use serde_json::{Map, Number, Value};
 use sha2::{Digest, Sha256};
+use tiny_keccak::{Hasher, Keccak};
 
 fn sha256_hex_bytes(data: &[u8]) -> String {
     hex::encode(Sha256::digest(data))
@@ -10,6 +11,34 @@ fn sha256_hex_bytes(data: &[u8]) -> String {
 
 fn hash_string(data: &str) -> String {
     sha256_hex_bytes(data.as_bytes())
+}
+
+fn block_header_hash_payload(
+    number: i64,
+    parent_hash: &str,
+    proposer: &str,
+    state_root: &str,
+    tx_root: &str,
+    timestamp: i64,
+    extra_data: &str,
+) -> String {
+    format!(
+        "{number}{parent_hash}{proposer}{state_root}{tx_root}{timestamp}{extra_data}"
+    )
+}
+
+fn block_header_hash_inner(
+    number: i64,
+    parent_hash: &str,
+    proposer: &str,
+    state_root: &str,
+    tx_root: &str,
+    timestamp: i64,
+    extra_data: &str,
+) -> String {
+    hash_string(&block_header_hash_payload(
+        number, parent_hash, proposer, state_root, tx_root, timestamp, extra_data,
+    ))
 }
 
 fn merkle_root_strings(items: &[String]) -> String {
@@ -177,6 +206,249 @@ fn account_payload_row(account: &Value) -> PyResult<Value> {
     Ok(Value::Object(row))
 }
 
+fn format_py_float_component(value: f64) -> String {
+    if !value.is_finite() {
+        return value.to_string();
+    }
+    let mut rendered = format!("{value}");
+    if value.fract() == 0.0
+        && !rendered.contains('.')
+        && !rendered.contains('e')
+        && !rendered.contains('E')
+    {
+        rendered.push_str(".0");
+    }
+    rendered
+}
+
+fn transaction_hash_inner(
+    from_addr: &str,
+    to_addr: &str,
+    value: f64,
+    nonce: i64,
+    gas: i64,
+    data: &str,
+    timestamp: i64,
+) -> String {
+    let raw = format!(
+        "{from_addr}{to_addr}{}{nonce}{gas}{data}{timestamp}",
+        format_py_float_component(value)
+    );
+    hash_string(&raw)
+}
+
+fn canonicalize_value(value: &Value) -> Value {
+    match value {
+        Value::Object(map) => {
+            let mut sorted = Map::new();
+            let mut keys: Vec<String> = map.keys().cloned().collect();
+            keys.sort();
+            for key in keys {
+                if let Some(item) = map.get(&key) {
+                    sorted.insert(key, canonicalize_value(item));
+                }
+            }
+            Value::Object(sorted)
+        }
+        Value::Array(items) => Value::Array(items.iter().map(canonicalize_value).collect()),
+        Value::Number(number) => {
+            if number.is_f64() {
+                let float_value = number.as_f64().unwrap_or(0.0);
+                Value::Number(Number::from((float_value * 1_000_000.0) as i64))
+            } else {
+                value.clone()
+            }
+        }
+        _ => value.clone(),
+    }
+}
+
+fn canonical_serialize_json(value: &Value) -> PyResult<String> {
+    let canonical = canonicalize_value(value);
+    serde_json::to_string(&canonical)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
+fn sort_block_transactions(block: &mut Value) {
+    let Some(transactions) = block
+        .as_object_mut()
+        .and_then(|obj| obj.get_mut("transactions"))
+        .and_then(|value| value.as_array_mut())
+    else {
+        return;
+    };
+
+    transactions.sort_by(|left, right| {
+        let left_hash = left
+            .as_object()
+            .and_then(|obj| obj.get("hash"))
+            .and_then(|value| value.as_str())
+            .unwrap_or("");
+        let right_hash = right
+            .as_object()
+            .and_then(|obj| obj.get("hash"))
+            .and_then(|value| value.as_str())
+            .unwrap_or("");
+        left_hash.cmp(right_hash)
+    });
+}
+
+fn block_canonical_hash_inner(block_json: &str) -> PyResult<String> {
+    let mut block: Value = serde_json::from_str(block_json)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    sort_block_transactions(&mut block);
+    let canonical = canonical_serialize_json(&block)?;
+    Ok(hash_string(&canonical))
+}
+
+fn keccak256_hex_bytes(data: &[u8]) -> String {
+    let mut hasher = Keccak::v256();
+    hasher.update(data);
+    let mut out = [0u8; 32];
+    hasher.finalize(&mut out);
+    hex::encode(out)
+}
+
+fn extract_canonical_transaction(tx: &Value) -> PyResult<Value> {
+    let obj = tx.as_object().ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err("transaction row must be a JSON object")
+    })?;
+
+    let hash = value_to_string(obj.get("hash").or(obj.get("tx_hash")), "");
+    let from_addr = value_to_string(obj.get("from").or(obj.get("from_addr")), "");
+    let to_addr = value_to_string(obj.get("to").or(obj.get("to_addr")), "");
+    let amount = value_to_f64(obj.get("amount").or(obj.get("value")));
+    let fee = value_to_f64(obj.get("fee"));
+    let nonce = value_to_i64(obj.get("nonce"));
+    let timestamp = value_to_i64(obj.get("timestamp"));
+
+    let mut row = Map::new();
+    row.insert("amount".to_string(), Value::Number(Number::from_f64(amount).unwrap_or(Number::from(0))));
+    row.insert("fee".to_string(), Value::Number(Number::from_f64(fee).unwrap_or(Number::from(0))));
+    row.insert("from".to_string(), Value::String(from_addr));
+    row.insert("hash".to_string(), Value::String(hash));
+    row.insert("nonce".to_string(), Value::Number(Number::from(nonce)));
+    row.insert("timestamp".to_string(), Value::Number(Number::from(timestamp)));
+    row.insert("to".to_string(), Value::String(to_addr));
+    Ok(Value::Object(row))
+}
+
+fn extract_canonical_block(block: &Value) -> PyResult<Value> {
+    let obj = block.as_object().ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err("block must be a JSON object")
+    })?;
+
+    let height = value_to_i64(obj.get("height").or(obj.get("number")));
+    let parent_hash = value_to_string(obj.get("parent_hash").or(obj.get("parent")), "");
+    let miner = value_to_string(obj.get("miner").or(obj.get("proposer")), "");
+    let timestamp = value_to_i64(obj.get("timestamp"));
+    let extra_data = value_to_string(obj.get("extra_data"), "");
+    let state_root = value_to_string(obj.get("state_root"), "");
+
+    let mut tx_rows = Vec::new();
+    if let Some(transactions) = obj.get("transactions").and_then(|value| value.as_array()) {
+        for tx in transactions {
+            tx_rows.push(extract_canonical_transaction(tx)?);
+        }
+    }
+    tx_rows.sort_by(|left, right| {
+        let left_hash = left
+            .as_object()
+            .and_then(|row| row.get("hash"))
+            .and_then(|value| value.as_str())
+            .unwrap_or("");
+        let right_hash = right
+            .as_object()
+            .and_then(|row| row.get("hash"))
+            .and_then(|value| value.as_str())
+            .unwrap_or("");
+        left_hash.cmp(right_hash)
+    });
+
+    let mut canonical = Map::new();
+    canonical.insert("extra_data".to_string(), Value::String(extra_data));
+    canonical.insert("height".to_string(), Value::Number(Number::from(height)));
+    canonical.insert("miner".to_string(), Value::String(miner));
+    canonical.insert("parent_hash".to_string(), Value::String(parent_hash));
+    canonical.insert("state_root".to_string(), Value::String(state_root));
+    canonical.insert("timestamp".to_string(), Value::Number(Number::from(timestamp)));
+    canonical.insert("transactions".to_string(), Value::Array(tx_rows));
+    Ok(Value::Object(canonical))
+}
+
+fn validate_imported_block_chain_inner(
+    blocks_json: &[String],
+    expected_parent_hash: &str,
+    start_height: i64,
+) -> PyResult<bool> {
+    let mut previous_hash = expected_parent_hash.to_string();
+    let mut previous_height = start_height;
+
+    for block_json in blocks_json {
+        let block: Value = serde_json::from_str(block_json)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        let obj = block.as_object().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err("block must be a JSON object")
+        })?;
+
+        let height = value_to_i64(obj.get("height").or(obj.get("number")));
+        let block_hash = value_to_string(obj.get("hash").or(obj.get("block_hash")), "");
+        let parent_hash = value_to_string(obj.get("parent_hash").or(obj.get("parent")), "");
+
+        if block_hash.is_empty() || height != previous_height + 1 {
+            return Ok(false);
+        }
+        if !previous_hash.is_empty() && parent_hash != previous_hash {
+            return Ok(false);
+        }
+
+        let canonical_block = extract_canonical_block(&block)?;
+        let recomputed = hash_string(&canonical_serialize_json(&canonical_block)?);
+        if recomputed != block_hash {
+            return Ok(false);
+        }
+
+        previous_hash = block_hash;
+        previous_height = height;
+    }
+
+    Ok(true)
+}
+
+fn validate_peer_header_chain_inner(
+    headers: &[(i64, String, String, String, String, String, i64, String)],
+    expected_parent_hash: &str,
+    start_height: i64,
+) -> bool {
+    let mut previous_hash = expected_parent_hash.to_string();
+    let mut previous_height = start_height;
+
+    for (number, hash, parent_hash, proposer, state_root, tx_root, timestamp, extra_data) in headers {
+        if hash.is_empty() || *number != previous_height + 1 {
+            return false;
+        }
+        if !previous_hash.is_empty() && parent_hash != &previous_hash {
+            return false;
+        }
+        let recomputed = block_header_hash_inner(
+            *number,
+            parent_hash,
+            proposer,
+            state_root,
+            tx_root,
+            *timestamp,
+            extra_data,
+        );
+        if recomputed != *hash {
+            return false;
+        }
+        previous_hash = hash.clone();
+        previous_height = *number;
+    }
+
+    true
+}
+
 fn verify_secp256k1_sha256_inner(
     message: &[u8],
     signature_der: &[u8],
@@ -206,8 +478,147 @@ fn verify_secp256k1_sha256_inner(
 }
 
 #[pyfunction]
+fn keccak256_hex(data: &[u8]) -> PyResult<String> {
+    Ok(keccak256_hex_bytes(data))
+}
+
+#[pyfunction]
+fn validate_imported_block_chain(
+    blocks_json: Vec<String>,
+    expected_parent_hash: String,
+    start_height: i64,
+) -> PyResult<bool> {
+    validate_imported_block_chain_inner(&blocks_json, &expected_parent_hash, start_height)
+}
+
+#[pyfunction]
+fn validate_peer_header_chain(
+    headers: Vec<(i64, String, String, String, String, String, i64, String)>,
+    expected_parent_hash: String,
+    start_height: i64,
+) -> PyResult<bool> {
+    Ok(validate_peer_header_chain_inner(
+        &headers,
+        &expected_parent_hash,
+        start_height,
+    ))
+}
+
+#[pyfunction]
+fn transaction_hash(
+    from_addr: String,
+    to_addr: String,
+    value: f64,
+    nonce: i64,
+    gas: i64,
+    data: String,
+    timestamp: i64,
+) -> PyResult<String> {
+    Ok(transaction_hash_inner(
+        &from_addr,
+        &to_addr,
+        value,
+        nonce,
+        gas,
+        &data,
+        timestamp,
+    ))
+}
+
+#[pyfunction]
+fn transaction_hash_batch(
+    transactions: Vec<(String, String, f64, i64, i64, String, i64)>,
+) -> PyResult<Vec<String>> {
+    Ok(transactions
+        .iter()
+        .map(|(from_addr, to_addr, value, nonce, gas, data, timestamp)| {
+            transaction_hash_inner(from_addr, to_addr, *value, *nonce, *gas, data, *timestamp)
+        })
+        .collect())
+}
+
+#[pyfunction]
+fn canonical_hash_json(obj_json: String) -> PyResult<String> {
+    let value: Value = serde_json::from_str(&obj_json)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let canonical = canonical_serialize_json(&value)?;
+    Ok(hash_string(&canonical))
+}
+
+#[pyfunction]
+fn block_canonical_hash_json(block_json: String) -> PyResult<String> {
+    block_canonical_hash_inner(&block_json)
+}
+
+#[pyfunction]
+fn block_canonical_hash_batch(block_json_items: Vec<String>) -> PyResult<Vec<String>> {
+    block_json_items
+        .iter()
+        .map(|item| block_canonical_hash_inner(item))
+        .collect()
+}
+
+#[pyfunction]
+fn hash_text(text: String) -> PyResult<String> {
+    Ok(hash_string(&text))
+}
+
+#[pyfunction]
+fn hash_text_batch(items: Vec<String>) -> PyResult<Vec<String>> {
+    Ok(items.iter().map(|item| hash_string(item)).collect())
+}
+
+#[pyfunction]
+fn block_header_hash(
+    number: i64,
+    parent_hash: String,
+    proposer: String,
+    state_root: String,
+    tx_root: String,
+    timestamp: i64,
+    extra_data: String,
+) -> PyResult<String> {
+    Ok(block_header_hash_inner(
+        number,
+        &parent_hash,
+        &proposer,
+        &state_root,
+        &tx_root,
+        timestamp,
+        &extra_data,
+    ))
+}
+
+#[pyfunction]
+fn block_header_hash_batch(
+    headers: Vec<(i64, String, String, String, String, i64, String)>,
+) -> PyResult<Vec<String>> {
+    Ok(headers
+        .iter()
+        .map(
+            |(number, parent_hash, proposer, state_root, tx_root, timestamp, extra_data)| {
+                block_header_hash_inner(
+                    *number,
+                    parent_hash,
+                    proposer,
+                    state_root,
+                    tx_root,
+                    *timestamp,
+                    extra_data,
+                )
+            },
+        )
+        .collect())
+}
+
+#[pyfunction]
 fn sha256_hex(data: &[u8]) -> PyResult<String> {
     Ok(sha256_hex_bytes(data))
+}
+
+#[pyfunction]
+fn sha256_hex_batch(items: Vec<Vec<u8>>) -> PyResult<Vec<String>> {
+    Ok(items.iter().map(|item| sha256_hex_bytes(item)).collect())
 }
 
 #[pyfunction]
@@ -286,9 +697,45 @@ fn verify_secp256k1_sha256_batch(items: Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>) -> PyR
         .collect())
 }
 
+#[pyfunction]
+fn validate_hash_chain(
+    headers: Vec<(i64, String, String)>,
+    expected_parent_hash: String,
+    start_height: i64,
+) -> PyResult<bool> {
+    let mut previous_hash = expected_parent_hash;
+    let mut previous_height = start_height;
+
+    for (height, block_hash, parent_hash) in headers {
+        if block_hash.is_empty() || height != previous_height + 1 {
+            return Ok(false);
+        }
+        if !previous_hash.is_empty() && parent_hash != previous_hash {
+            return Ok(false);
+        }
+        previous_hash = block_hash;
+        previous_height = height;
+    }
+
+    Ok(true)
+}
+
 #[pymodule]
 fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(keccak256_hex, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_imported_block_chain, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_peer_header_chain, m)?)?;
+    m.add_function(wrap_pyfunction!(transaction_hash, m)?)?;
+    m.add_function(wrap_pyfunction!(transaction_hash_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(canonical_hash_json, m)?)?;
+    m.add_function(wrap_pyfunction!(block_canonical_hash_json, m)?)?;
+    m.add_function(wrap_pyfunction!(block_canonical_hash_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(hash_text, m)?)?;
+    m.add_function(wrap_pyfunction!(hash_text_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(block_header_hash, m)?)?;
+    m.add_function(wrap_pyfunction!(block_header_hash_batch, m)?)?;
     m.add_function(wrap_pyfunction!(sha256_hex, m)?)?;
+    m.add_function(wrap_pyfunction!(sha256_hex_batch, m)?)?;
     m.add_function(wrap_pyfunction!(double_sha256_hex, m)?)?;
     m.add_function(wrap_pyfunction!(merkle_root, m)?)?;
     m.add_function(wrap_pyfunction!(generate_proof, m)?)?;
@@ -297,5 +744,6 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(state_root_from_accounts_json, m)?)?;
     m.add_function(wrap_pyfunction!(verify_secp256k1_sha256, m)?)?;
     m.add_function(wrap_pyfunction!(verify_secp256k1_sha256_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_hash_chain, m)?)?;
     Ok(())
 }

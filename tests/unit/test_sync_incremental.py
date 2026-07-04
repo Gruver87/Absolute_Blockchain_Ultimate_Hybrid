@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Incremental fast_sync: skip blocks already on disk."""
+from core.blockchain import Block
 from sync.sync_engine import SyncEngine
 
 
@@ -47,37 +48,44 @@ class _Node:
 
 
 def _chain_blocks():
-    # genesis .. #5 local; peer head at #8
     blocks = {}
-    prev = "0x00"
+    prev = "0" * 64
     for h in range(9):
-        hsh = f"0x{h:02x}"
-        blocks[hsh] = {
-            "hash": hsh,
-            "height": h,
-            "parent_hash": prev,
-            "transactions": [],
-        }
-        prev = hsh
+        block = Block(
+            height=h,
+            parent_hash=prev,
+            miner="0x" + "1" * 40,
+            transactions=[],
+            timestamp=1000 + h,
+            state_root="s" * 64,
+        )
+        data = block.to_dict()
+        blocks[data["hash"]] = data
+        prev = data["hash"]
     return blocks
 
 
 def test_download_chain_stops_at_local_height():
     blocks = _chain_blocks()
     bc = _BlockChain(height=5, blocks_by_hash=blocks)
-    peer = _Peer("0x08", height=8, peer_id="p1")
+    head = [b for b in blocks.values() if int(b["height"]) == 8][0]["hash"]
+    peer = _Peer(head, height=8, peer_id="p1")
     node = _Node([peer], bc)
     engine = SyncEngine(node=node)
 
-    chain = engine.download_chain("0x08")
+    chain = engine.download_chain(head)
     heights = [int(b["height"]) for b in chain]
     assert heights == list(range(6, 9))
+
+
+def _head_hash(blocks, height=8):
+    return [b for b in blocks.values() if int(b["height"]) == height][0]["hash"]
 
 
 def test_fast_sync_imports_only_new_blocks():
     blocks = _chain_blocks()
     bc = _BlockChain(height=5, blocks_by_hash=blocks)
-    peer = _Peer("0x08", height=8, peer_id="p1")
+    peer = _Peer(_head_hash(blocks), height=8, peer_id="p1")
     imported = []
     node = _Node([peer], bc, imported=imported)
     engine = SyncEngine(node=node)
@@ -89,7 +97,7 @@ def test_fast_sync_imports_only_new_blocks():
 def test_fast_sync_noop_when_already_synced():
     blocks = _chain_blocks()
     bc = _BlockChain(height=8, blocks_by_hash=blocks)
-    peer = _Peer("0x08", height=8, peer_id="p1")
+    peer = _Peer(_head_hash(blocks), height=8, peer_id="p1")
     imported = []
     node = _Node([peer], bc, imported=imported)
     engine = SyncEngine(node=node)
@@ -101,7 +109,7 @@ def test_fast_sync_noop_when_already_synced():
 def test_fast_sync_respects_target_block():
     blocks = _chain_blocks()
     bc = _BlockChain(height=5, blocks_by_hash=blocks)
-    peer = _Peer("0x08", height=8, peer_id="p1")
+    peer = _Peer(_head_hash(blocks), height=8, peer_id="p1")
     imported = []
     node = _Node([peer], bc, imported=imported)
     engine = SyncEngine(node=node)
@@ -112,9 +120,10 @@ def test_fast_sync_respects_target_block():
 
 def test_fast_sync_rejects_non_contiguous_download():
     blocks = _chain_blocks()
-    blocks["0x07"]["parent_hash"] = "0xnot-local-parent"
+    bad_parent = [b for b in blocks.values() if int(b["height"]) == 6][0]["hash"]
+    blocks[[b for b in blocks.values() if int(b["height"]) == 7][0]["hash"]]["parent_hash"] = bad_parent + "broken"
     bc = _BlockChain(height=5, blocks_by_hash=blocks)
-    peer = _Peer("0x08", height=8, peer_id="p1")
+    peer = _Peer(_head_hash(blocks), height=8, peer_id="p1")
     imported = []
     node = _Node([peer], bc, imported=imported)
     engine = SyncEngine(node=node)
@@ -126,7 +135,7 @@ def test_fast_sync_rejects_non_contiguous_download():
 def test_fast_sync_stops_on_import_failure():
     blocks = _chain_blocks()
     bc = _BlockChain(height=5, blocks_by_hash=blocks)
-    peer = _Peer("0x08", height=8, peer_id="p1")
+    peer = _Peer(_head_hash(blocks), height=8, peer_id="p1")
     imported = []
     node = _Node([peer], bc, imported=imported, fail_height=7)
     engine = SyncEngine(node=node)

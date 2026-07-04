@@ -4,11 +4,11 @@
 Block headers for SPV / light client verification.
 """
 
-import hashlib
 import json
 import time
 from typing import List, Dict, Optional, Any
 
+from crypto import native
 from crypto.merkle import merkle_root
 
 
@@ -38,11 +38,50 @@ class BlockHeader:
     def hash(self) -> str:
         if self._block_hash:
             return self._block_hash
-        raw = (
+        return native.block_header_hash(
+            self.number,
+            self.parent_hash,
+            self.proposer,
+            self.state_root,
+            self.tx_root,
+            self.timestamp,
+            self.extra_data,
+        )
+
+    def hash_payload(self) -> str:
+        """Legacy raw header payload used for consensus/SPV hashing."""
+        return (
             f"{self.number}{self.parent_hash}{self.proposer}"
             f"{self.state_root}{self.tx_root}{self.timestamp}{self.extra_data}"
         )
-        return hashlib.sha256(raw.encode()).hexdigest()
+
+    @staticmethod
+    def batch_hash(headers: List["BlockHeader"]) -> List[str]:
+        """Hash many headers through the native batch consensus kernel."""
+        result = ["" for _ in headers]
+        missing_indexes: List[int] = []
+        batch_input: List[tuple[int, str, str, str, str, int, str]] = []
+
+        for index, header in enumerate(headers):
+            if header._block_hash:
+                result[index] = header._block_hash
+            else:
+                missing_indexes.append(index)
+                batch_input.append((
+                    header.number,
+                    header.parent_hash,
+                    header.proposer,
+                    header.state_root,
+                    header.tx_root,
+                    header.timestamp,
+                    header.extra_data,
+                ))
+
+        if batch_input:
+            hashes = native.block_header_hash_batch(batch_input)
+            for index, header_hash in zip(missing_indexes, hashes):
+                result[index] = header_hash
+        return result
 
     def to_dict(self) -> Dict[str, Any]:
         return {

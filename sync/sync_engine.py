@@ -8,6 +8,8 @@ Sync Engine — fast catch-up for late-joining nodes
 
 from typing import List, Dict, Optional
 
+from crypto import native
+
 
 class SyncEngine:
     """
@@ -133,24 +135,17 @@ class SyncEngine:
         return str(block.get("parent_hash") or block.get("parent") or "")
 
     def _validate_downloaded_chain(self, chain: List[Dict], local_height: int) -> bool:
-        """Require a contiguous parent-linked block sequence before importing."""
+        """Require contiguous parent links and canonical block hashes before import."""
         previous_hash = ""
-        previous_height = local_height
         if chain and hasattr(self.node, "blockchain") and self.node.blockchain:
             local_head = self.node.blockchain.get_block(local_height)
             if local_head:
                 previous_hash = self._block_hash(local_head)
-        for idx, block in enumerate(chain):
-            height = self._block_height(block)
-            block_hash = self._block_hash(block)
-            parent_hash = self._parent_hash(block)
-            if not block_hash or height != previous_height + 1:
-                return False
-            if previous_hash and parent_hash != previous_hash:
-                return False
-            previous_hash = block_hash
-            previous_height = height
-        return True
+        return native.validate_imported_block_chain(
+            chain,
+            expected_parent_hash=previous_hash,
+            start_height=local_height,
+        )
 
     def download_chain(self, head: str, stop_at_height: Optional[int] = None) -> List[Dict]:
         """Walk parent chain from head; stop at a block we already have locally."""

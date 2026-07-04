@@ -4,6 +4,7 @@
 import hashlib
 import secrets
 
+from crypto import native
 from crypto.secp256k1_backend import (
     CRYPTO_AVAILABLE,
     generate_keypair,
@@ -14,9 +15,20 @@ from crypto.secp256k1_backend import (
 
 class Crypto:
     @staticmethod
+    def _keccak256_hashfunc(message: bytes):
+        """ECDSA-compatible hashfunc wrapper (`.digest()` like hashlib)."""
+        digest = native.keccak256_digest(message)
+
+        class _Digest:
+            def digest(self):
+                return digest
+
+        return _Digest()
+
+    @staticmethod
     def keccak256(data: bytes) -> bytes:
-        """SHA3-256 (used as Keccak-256 in Ethereum)"""
-        return hashlib.sha3_256(data).digest()
+        """Ethereum-compatible Keccak-256."""
+        return native.keccak256_digest(data)
 
     @staticmethod
     def generate_keypair() -> tuple:
@@ -31,7 +43,7 @@ class Crypto:
     def sign_tx(tx_hash: bytes, private_key_hex: str) -> str:
         """Sign transaction hash with private key"""
         private_key = bytes.fromhex(private_key_hex)
-        signature = sign(tx_hash, private_key, hashfunc=hashlib.sha3_256)
+        signature = sign(tx_hash, private_key, hashfunc=Crypto._keccak256_hashfunc)
         return signature.hex()
 
     @staticmethod
@@ -41,7 +53,7 @@ class Crypto:
             tx_hash,
             bytes.fromhex(signature_hex),
             bytes.fromhex(public_key_hex),
-            hashfunc=hashlib.sha3_256,
+            hashfunc=Crypto._keccak256_hashfunc,
         )
 
 

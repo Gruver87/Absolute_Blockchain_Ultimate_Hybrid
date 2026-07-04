@@ -7,6 +7,7 @@ Light client — хранит только заголовки блоков и в
 import json
 from typing import List, Dict, Optional, Any
 
+from crypto import native
 from crypto.merkle import verify_proof, generate_proof, merkle_root
 from core.block_header import BlockHeader
 
@@ -28,19 +29,58 @@ class LightClient:
         self.header_by_number[header.number] = header
         return True
 
+    def add_headers(self, headers: List[BlockHeader]) -> int:
+        """Добавить пачку заголовков с native batch hash + chain validation."""
+        candidates = sorted(
+            [h for h in headers if h.number not in self.header_by_number],
+            key=lambda item: item.number,
+        )
+        if not candidates:
+            return 0
+
+        latest = self.get_latest_header()
+        anchor_height = latest.number if latest else candidates[0].number - 1
+        anchor_parent = latest.hash() if latest else candidates[0].parent_hash
+        chain_payload = [
+            (
+                header.number,
+                header.hash(),
+                header.parent_hash,
+                header.proposer,
+                header.state_root,
+                header.tx_root,
+                header.timestamp,
+                header.extra_data,
+            )
+            for header in candidates
+        ]
+        if not native.validate_peer_header_chain(
+            chain_payload,
+            expected_parent_hash=anchor_parent,
+            start_height=anchor_height,
+        ):
+            return 0
+
+        hashes = BlockHeader.batch_hash(candidates)
+        added = 0
+        for header, header_hash in zip(candidates, hashes):
+            self.headers.append(header)
+            self.header_by_hash[header_hash] = header
+            self.header_by_number[header.number] = header
+            added += 1
+        return added
+
     def sync_from_blockchain(self, blockchain) -> int:
         """Загрузить все заголовки из локальной цепочки."""
         if not blockchain or not hasattr(blockchain, "get_height"):
             return 0
-        added = 0
         height = blockchain.get_height()
+        headers = []
         for n in range(height + 1):
             blk = blockchain.get_block(n)
             if blk:
-                hdr = BlockHeader.from_block_dict(blk)
-                if self.add_header(hdr):
-                    added += 1
-        return added
+                headers.append(BlockHeader.from_block_dict(blk))
+        return self.add_headers(headers)
 
     def get_header(self, number: int) -> Optional[BlockHeader]:
         return self.header_by_number.get(number)

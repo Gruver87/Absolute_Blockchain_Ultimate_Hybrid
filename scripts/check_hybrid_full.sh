@@ -108,6 +108,9 @@ run_step "Hybrid critical tests" python -m pytest \
   tests/unit/test_api.py \
   tests/unit/test_prod_config.py \
   tests/unit/test_bridge_health.py \
+  tests/unit/test_native_consensus_hash.py \
+  tests/unit/test_native_peer_validation.py \
+  tests/unit/test_sync_incremental.py \
   tests/unit/test_rust_bridge_cli.py \
   tests/unit/test_rust_bridge_e2e.py \
   -q
