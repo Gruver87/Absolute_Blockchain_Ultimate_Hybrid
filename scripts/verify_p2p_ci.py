@@ -2082,6 +2082,27 @@ def verify_prod_consensus_mesh(url1: str, url2: str) -> int:
     return 0
 
 
+def _wait_peer_count(url: str, min_count: int, timeout: int = 60) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            if int(_api(f"{url}/peers", timeout=8).get("count", 0) or 0) >= min_count:
+                return True
+        except Exception:
+            pass
+        time.sleep(2)
+    return False
+
+
+def _prod_smoke_bootstrap_mesh(url1: str, url2: str) -> None:
+    """Ensure prod-smoke peers are connected before catch-up/sync loops."""
+    _restore_p2p_mesh([url1, url2], expected_peers=1)
+    time.sleep(2)
+    _wait_peer_count(url1, 1, timeout=45)
+    _wait_peer_count(url2, 1, timeout=45)
+    _wait_topology_healthy(url1, expected_peers=1, timeout=45)
+
+
 def run_prod_smoke_spawn() -> int:
     """Isolated 2-node prod-profile mesh on :15180/:15181 (requires abs_native)."""
     from runtime.prod_smoke_profile import (
@@ -2110,14 +2131,15 @@ def run_prod_smoke_spawn() -> int:
     env = apply_prod_smoke_env()
     if env.get("PROD_SMOKE_ADMIN_JWT"):
         os.environ["PROD_SMOKE_ADMIN_JWT"] = env["PROD_SMOKE_ADMIN_JWT"]
-    env["MINING_ENABLED"] = ""
+    # Keep node1 mining per config; node2 is follower (mining_enabled=false in profile).
+    env.pop("MINING_ENABLED", None)
     env["PYTHONUNBUFFERED"] = "1"
     log1 = os.path.join(tmp, "node1.stderr.log")
     log2 = os.path.join(tmp, "node2.stderr.log")
     procs = []
     try:
         print(f"Prod-smoke: spawning prod-profile nodes on :15180 / :15181 (tmp={tmp})")
-        with open(log1, "w", encoding="utf-8") as err1:
+        with open(log1, "w", encoding="utf-8") as err1, open(log2, "w", encoding="utf-8") as err2:
             procs.append(
                 subprocess.Popen(
                     [sys.executable, "main.py", "--config", cfg1],
@@ -2127,12 +2149,6 @@ def run_prod_smoke_spawn() -> int:
                     stderr=err1,
                 )
             )
-        if not _wait_health(url1, max_sec=180):
-            print("FAIL: prod node1 health timeout on :15180")
-            print(f"  stderr: {log1}")
-            return 1
-
-        with open(log2, "w", encoding="utf-8") as err2:
             procs.append(
                 subprocess.Popen(
                     [sys.executable, "main.py", "--config", cfg2],
@@ -2142,6 +2158,10 @@ def run_prod_smoke_spawn() -> int:
                     stderr=err2,
                 )
             )
+        if not _wait_health(url1, max_sec=180):
+            print("FAIL: prod node1 health timeout on :15180")
+            print(f"  stderr: {log1}")
+            return 1
         if not _wait_health(url2, max_sec=180):
             print("FAIL: prod node2 health timeout on :15181")
             print(f"  stderr: {log2}")
@@ -2153,15 +2173,26 @@ def run_prod_smoke_spawn() -> int:
             except Exception as exc:
                 print(f"WARN: prod-smoke admin JWT prefetch {url}: {exc}")
 
+        _prod_smoke_bootstrap_mesh(url1, url2)
+
         try:
             s1 = _api(f"{url1}/status")
             s2 = _api(f"{url2}/status")
-            if int(s1.get("height", 0) or 0) > int(s2.get("height", 0) or 0):
+            gap = abs(int(s1.get("height", 0) or 0) - int(s2.get("height", 0) or 0))
+            if gap > 0:
+                lag_url = url2 if int(s1.get("height", 0) or 0) > int(s2.get("height", 0) or 0) else url1
                 sync_resp = _post_json(
-                    url2, "/sync/fast-sync", {"timeout": 120}, timeout=135
+                    lag_url, "/sync/fast-sync", {"timeout": 120}, timeout=135
                 )
                 print(f"prod-smoke fast-sync: {sync_resp}")
-                time.sleep(6)
+                if not sync_resp.get("success"):
+                    _post_json(lag_url, "/p2p/reconnect", {"timeout": 30}, timeout=45)
+                    time.sleep(3)
+                    sync_resp = _post_json(
+                        lag_url, "/sync/fast-sync", {"timeout": 120}, timeout=135
+                    )
+                    print(f"prod-smoke fast-sync retry: {sync_resp}")
+                time.sleep(4)
         except Exception as exc:
             print(f"WARN: prod-smoke initial catch-up: {exc}")
 

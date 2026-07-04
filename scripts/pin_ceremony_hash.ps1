@@ -9,19 +9,19 @@ Set-Location $ProjectRoot
 
 $manifest = Join-Path $CeremonyDir "validators.manifest.json"
 if (-not (Test-Path $manifest)) {
-    Write-Host "FAIL: missing $manifest — run: python scripts/genesis_ceremony_keygen.py" -ForegroundColor Red
+    Write-Host "FAIL: missing $manifest - run: python scripts/genesis_ceremony_keygen.py" -ForegroundColor Red
     exit 1
 }
 
-$args = @(
+$pyArgs = @(
     "scripts/genesis_ceremony.py",
     "--config", "node.prod.mainnet-v1.example.json",
     "--manifest", $manifest,
     "--json"
 )
-if ($StrictMainnet) { $args += "--strict-mainnet" }
+if ($StrictMainnet) { $pyArgs += "--strict-mainnet" }
 
-$json = python @args | ConvertFrom-Json
+$json = python @pyArgs | ConvertFrom-Json
 if ($json.errors -and $json.errors.Count -gt 0) {
     Write-Host "FAIL: ceremony errors:" -ForegroundColor Red
     $json.errors | ForEach-Object { Write-Host "  - $_" }
@@ -34,4 +34,4 @@ Write-Host "OK: GENESIS_CEREMONY_HASH pinned for this session" -ForegroundColor 
 Write-Host "  $hash"
 Write-Host ""
 Write-Host "Persist in deploy shell / docker-compose:"
-Write-Host "  `$env:GENESIS_CEREMONY_HASH = `"$hash`""
+Write-Host ('  $env:GENESIS_CEREMONY_HASH = "' + $hash + '"')

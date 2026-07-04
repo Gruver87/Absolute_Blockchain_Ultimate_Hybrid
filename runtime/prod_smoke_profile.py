@@ -77,6 +77,13 @@ def apply_prod_smoke_env(base: Dict[str, str] | None = None) -> Dict[str, str]:
     env = dict(base or os.environ)
     env.update(prod_smoke_secret_env())
     env.pop("TELEGRAM_BOT_TOKEN", None)
+    # Isolated smoke must not inherit deploy/ceremony pins from the parent shell.
+    for key in (
+        "VALIDATORS_MANIFEST_PATH",
+        "GENESIS_CEREMONY_HASH",
+        "GENESIS_STRICT_MAINNET",
+    ):
+        env.pop(key, None)
     return env
 
 
