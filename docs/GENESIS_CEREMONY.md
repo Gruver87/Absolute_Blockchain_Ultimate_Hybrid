@@ -20,7 +20,7 @@ Automated builder: `runtime/genesis_ceremony.py` / `scripts/genesis_ceremony.py`
 
 ### 1. Prepare validator manifest
 
-Edit `validators.manifest.example.json` → production file (e.g. `validators.mainnet.json`):
+Edit `validators.manifest.mainnet-v1.example.json` (template) or your production file (e.g. `validators.mainnet.json`):
 
 - Public addresses only — **no private keys**
 - `mines`, `stake`, `shard_id` per operator agreement
@@ -53,6 +53,16 @@ Record and publish out-of-band:
 | `validator_set_hash` | Hash of canonical validator set |
 | `genesis_alloc_hash` | Genesis balance allocation |
 | `ceremony_hash` | Combined ceremony fingerprint |
+
+Pin the ceremony at deploy time so nodes refuse a mismatched manifest:
+
+```powershell
+$env:GENESIS_CEREMONY_HASH = "<ceremony_hash from step 2>"
+# Docker prod:
+$env:GENESIS_STRICT_MAINNET = "true"   # after real validator addresses are in manifest
+```
+
+`docker-compose.prod.yml` forwards `GENESIS_CEREMONY_HASH` and `GENESIS_STRICT_MAINNET` into the node container. `/status` exposes `genesis_ceremony.ready`, `ceremony_hash`, and `mainnet_addresses_ready`.
 
 ### 4. Genesis block verification
 

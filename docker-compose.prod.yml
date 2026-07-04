@@ -2,6 +2,8 @@
 # Usage:
 #   $env:JWT_SECRET="<random>"; $env:RPC_API_KEYS="<key>"; $env:BRIDGE_ORACLE_SECRET="<random>"
 #   $env:CORS_ORIGINS="https://explorer.example.com"; $env:ETH_RPC_URL="https://..."
+#   $env:GENESIS_CEREMONY_HASH="<ceremony_hash from genesis_ceremony.py>"
+#   $env:GENESIS_STRICT_MAINNET="true"   # optional: reject placeholder validator addresses
 #   .\scripts\docker_prod.ps1
 #   python scripts/prod_smoke.py http://127.0.0.1:8080
 
@@ -30,6 +32,8 @@ x-abs-prod-env: &abs-prod-env
   REQUIRE_WALLET_FILE: "true"
   CORS_ORIGINS: ${CORS_ORIGINS:?set CORS_ORIGINS before starting prod}
   RATE_LIMIT_RPM: "120"
+  GENESIS_CEREMONY_HASH: ${GENESIS_CEREMONY_HASH:-}
+  GENESIS_STRICT_MAINNET: ${GENESIS_STRICT_MAINNET:-false}
 
 services:
   node:
