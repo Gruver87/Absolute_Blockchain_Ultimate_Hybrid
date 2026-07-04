@@ -183,6 +183,47 @@ class EVM:
         addr = out.get("address") or ""
         return self.ctx.addr_int(addr) if addr else 0
 
+    def _native_pure_available(self) -> bool:
+        return hasattr(native, "evm_run_pure_until_host") and hasattr(native, "evm_opcode_is_host")
+
+    def _apply_native_segment(self, seg: Dict[str, Any]) -> str:
+        self.pc = int(seg["pc"])
+        self.gas_used = int(seg["gas_used"])
+        self.running = bool(seg["running"])
+        self.reverted = bool(seg["reverted"])
+        self.return_data = bytes(seg["return_data"])
+        self.stack = [int(x) for x in seg["stack"]]
+        self.memory = bytearray(seg["memory"])
+        return str(seg["stop_reason"])
+
+    def _try_native_pure_segment(self, bytecode: bytes, jumpdest_table: bytes) -> Optional[str]:
+        if not self._native_pure_available():
+            return None
+        if native.evm_opcode_is_host(bytecode[self.pc]):
+            return None
+        seg = native.evm_run_pure_until_host(
+            bytecode,
+            self.pc,
+            self.gas_limit,
+            self.gas_used,
+            self.stack,
+            self.memory,
+            jumpdest_table,
+            self.ctx.calldata,
+            self.return_data,
+            native.evm_host_context_from_evm(self.ctx),
+            self.storage,
+        )
+        reason = self._apply_native_segment(seg)
+        if reason == "error":
+            err = seg.get("error") or "evm error"
+            if err == "invalid_jump" or "invalid_jump" in str(err):
+                raise RuntimeError(f"invalid jump destination: {self.pc}")
+            raise RuntimeError(str(err))
+        if reason == "out_of_gas":
+            raise RuntimeError(f"out_of_gas (used={self.gas_used}, limit={self.gas_limit})")
+        return reason
+
     def execute_bytecode(self, bytecode: bytes) -> Dict[str, Any]:
         self.pc = 0
         self.stack = []
@@ -196,6 +237,13 @@ class EVM:
         jumpdest_table = native.evm_build_jumpdest_table(bytecode)
 
         while self.pc < len(bytecode) and self.running:
+            native_reason = self._try_native_pure_segment(bytecode, jumpdest_table)
+            if native_reason is not None:
+                if native_reason in ("halt", "return", "revert"):
+                    break
+                if native_reason not in ("host", "handoff"):
+                    continue
+
             op_byte = bytecode[self.pc]
             op_name = self._opcode_name(op_byte)
             if not (0xA0 <= op_byte <= 0xA4):

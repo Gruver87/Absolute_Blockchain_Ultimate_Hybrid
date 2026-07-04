@@ -78,6 +78,8 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Jumpdest bitmap + EIP-150 call gas cap + address masking in Rust
 - [x] Native stack DUP/SWAP + memory slice for CALL/CREATE calldata
 - [x] Native bytecode scan + gas remaining; validator sync with all interpreter opcodes
+- [x] Pure-opcode segment runner (`evm_run_pure_until_host`) + interpreter host-boundary loop
+- [x] Native env opcodes + SLOAD/SSTORE in pure runner (static host context)
 - [ ] Full opcode dispatch in Rust (future)
 
 ### Priority 7 — Bridge hardening (future)

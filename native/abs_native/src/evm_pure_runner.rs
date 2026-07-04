@@ -1,0 +1,902 @@
+use primitive_types::U256;
+use pyo3::prelude::*;
+use pyo3::types::{PyByteArray, PyDict, PyList};
+
+use crate::{
+    evm_calldataload_inner, evm_is_jumpdest_inner, evm_keccak256_memory_inner,
+    evm_memory_read_word_inner, evm_memory_slice_inner, evm_read_push_inner,
+    evm_u256_addmod_inner, evm_u256_exp_inner, evm_u256_mulmod_inner, evm_u256_sdiv_inner,
+    evm_u256_signextend_inner, evm_u256_smod_inner, u256_from_be32, u256_to_be32,
+};
+
+const U256_MASK: U256 = U256::MAX;
+const MAX_PURE_STEPS: usize = 8192;
+
+pub fn evm_opcode_is_bridge(op: u8) -> bool {
+    matches!(op, 0x31 | 0x3B | 0x3C | 0x40)
+}
+
+pub fn evm_opcode_is_host(op: u8) -> bool {
+    matches!(op, 0xF0 | 0xF1 | 0xF2 | 0xF4 | 0xF5 | 0xFA | 0xFF)
+        || (0xA0..=0xA4).contains(&op)
+}
+
+fn opcode_stops_segment(op: u8, host_bridge: Option<&Bound<'_, PyAny>>) -> bool {
+    evm_opcode_is_host(op) || (evm_opcode_is_bridge(op) && host_bridge.is_none())
+}
+
+struct EvmStaticContext {
+    address: U256,
+    caller: U256,
+    origin: U256,
+    value: U256,
+    timestamp: U256,
+    block_number: U256,
+    chain_id: U256,
+}
+
+fn parse_static_context(host_context: Option<&Bound<'_, PyDict>>) -> PyResult<EvmStaticContext> {
+    let Some(ctx) = host_context else {
+        return Ok(EvmStaticContext {
+            address: U256::zero(),
+            caller: U256::zero(),
+            origin: U256::zero(),
+            value: U256::zero(),
+            timestamp: U256::zero(),
+            block_number: U256::zero(),
+            chain_id: U256::zero(),
+        });
+    };
+    Ok(EvmStaticContext {
+        address: dict_get_u256(ctx, "address")?,
+        caller: dict_get_u256(ctx, "caller")?,
+        origin: dict_get_u256(ctx, "origin")?,
+        value: dict_get_u256(ctx, "value")?,
+        timestamp: dict_get_u256(ctx, "timestamp")?,
+        block_number: dict_get_u256(ctx, "block_number")?,
+        chain_id: dict_get_u256(ctx, "chain_id")?,
+    })
+}
+
+fn py_to_u256(obj: Bound<'_, PyAny>) -> PyResult<U256> {
+    let bytes_obj = obj.call_method1("to_bytes", (32, "big"))?;
+    let bytes: Vec<u8> = bytes_obj.extract()?;
+    let mut buf = [0u8; 32];
+    let start = 32usize.saturating_sub(bytes.len());
+    buf[start..].copy_from_slice(&bytes);
+    Ok(U256::from_big_endian(&buf))
+}
+
+fn dict_get_u256(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<U256> {
+    match dict.get_item(key)? {
+        Some(value) => py_to_u256(value),
+        None => Ok(U256::zero()),
+    }
+}
+
+fn u256_to_py_int(py: Python<'_>, value: U256) -> PyResult<PyObject> {
+    let builtins = py.import_bound("builtins")?;
+    let int_cls = builtins.getattr("int")?;
+    let bytes = u256_to_be32(value);
+    Ok(int_cls
+        .call_method1("from_bytes", (bytes.as_slice(), "big"))?
+        .into())
+}
+
+fn storage_load(storage: Option<&Bound<'_, PyDict>>, key: U256) -> PyResult<U256> {
+    let Some(dict) = storage else {
+        return Err(pyo3::exceptions::PyRuntimeError::new_err("storage_unavailable"));
+    };
+    let py = dict.py();
+    let key_obj = u256_to_py_int(py, key)?;
+    match dict.get_item(key_obj)? {
+        Some(value) => py_to_u256(value),
+        None => Ok(U256::zero()),
+    }
+}
+
+fn storage_store(storage: Option<&Bound<'_, PyDict>>, key: U256, value: U256) -> PyResult<()> {
+    let Some(dict) = storage else {
+        return Err(pyo3::exceptions::PyRuntimeError::new_err("storage_unavailable"));
+    };
+    let py = dict.py();
+    let key_obj = u256_to_py_int(py, key)?;
+    if value.is_zero() {
+        let _ = dict.del_item(key_obj);
+    } else {
+        dict.set_item(key_obj, u256_to_py_int(py, value)?)?;
+    }
+    Ok(())
+}
+
+fn word_to_address(word: U256) -> String {
+    let mask = (U256::one() << 160) - U256::one();
+    format!("0x{:040x}", word & mask)
+}
+
+fn py_to_u256_or_int(obj: Bound<'_, PyAny>) -> PyResult<U256> {
+    if let Ok(v) = obj.extract::<u64>() {
+        return Ok(U256::from(v));
+    }
+    py_to_u256(obj)
+}
+
+fn bridge_balance(bridge: &Bound<'_, PyAny>, who: U256) -> PyResult<U256> {
+    let addr = word_to_address(who);
+    let result = bridge.call_method1("balance", (addr,))?;
+    py_to_u256_or_int(result)
+}
+
+fn bridge_code_size(bridge: &Bound<'_, PyAny>, who: U256) -> PyResult<U256> {
+    let addr = word_to_address(who);
+    let result = bridge.call_method1("code_size", (addr,))?;
+    py_to_u256_or_int(result)
+}
+
+fn bridge_code_copy(
+    bridge: &Bound<'_, PyAny>,
+    who: U256,
+    code_offset: usize,
+    size: usize,
+) -> PyResult<Vec<u8>> {
+    let addr = word_to_address(who);
+    let result = bridge.call_method1("code_copy", (addr, code_offset, size))?;
+    result.extract::<Vec<u8>>()
+}
+
+fn bridge_block_hash(bridge: &Bound<'_, PyAny>, block_num: U256) -> PyResult<U256> {
+    let result = bridge.call_method1("block_hash", (block_num.as_u64(),))?;
+    py_to_u256_or_int(result)
+}
+
+fn evm_u256_div_inner(a: U256, b: U256) -> U256 {
+    if b.is_zero() {
+        U256::zero()
+    } else {
+        a / b
+    }
+}
+
+fn evm_u256_mod_inner(a: U256, b: U256) -> U256 {
+    if b.is_zero() {
+        U256::zero()
+    } else {
+        a % b
+    }
+}
+
+fn evm_u256_bool_word(truthy: bool) -> U256 {
+    if truthy {
+        U256::one()
+    } else {
+        U256::zero()
+    }
+}
+
+fn evm_u256_eq_inner(a: U256, b: U256) -> U256 {
+    evm_u256_bool_word(a == b)
+}
+
+fn evm_u256_lt_inner(a: U256, b: U256) -> U256 {
+    evm_u256_bool_word(a < b)
+}
+
+fn evm_u256_gt_inner(a: U256, b: U256) -> U256 {
+    evm_u256_bool_word(a > b)
+}
+
+fn evm_u256_iszero_inner(v: U256) -> U256 {
+    evm_u256_bool_word(v.is_zero())
+}
+
+fn evm_u256_byte_inner(index: u32, value: U256) -> U256 {
+    if index >= 32 {
+        return U256::zero();
+    }
+    let shift = 8 * (31 - index);
+    let byte = if shift >= 256 {
+        0
+    } else {
+        ((value >> shift).low_u32() & 0xff) as u64
+    };
+    U256::from(byte)
+}
+
+fn gas_cost(op: u8) -> u64 {
+    match op {
+        0x00 => 0,
+        0x01 | 0x03 => 3,
+        0x02 => 5,
+        0x04 | 0x05 | 0x06 | 0x07 => 5,
+        0x08 => 8,
+        0x09 => 8,
+        0x0A => 10,
+        0x0B => 5,
+        0x10 | 0x11 | 0x12 | 0x14 | 0x15 | 0x16 | 0x17 | 0x19 | 0x1A | 0x1B | 0x1C => 3,
+        0x20 => 30,
+        0x35 | 0x37 | 0x39 | 0x3E => 3,
+        0x36 | 0x3D => 2,
+        0x38 => 2,
+        0x50 => 2,
+        0x51 | 0x52 | 0x53 => 3,
+        0x56 => 8,
+        0x57 => 10,
+        0x5A | 0x5F => 2,
+        0x5B => 1,
+        0x30 | 0x32 | 0x33 | 0x34 | 0x42 | 0x43 | 0x45 | 0x46 => 2,
+        0x31 => 400,
+        0x3B | 0x3C => 700,
+        0x40 => 20,
+        0x54 => 200,
+        0x55 => 5000,
+        0xF3 | 0xFD => 0,
+        0xFE => 0,
+        _ if (0x60..=0x7F).contains(&op) => 3,
+        _ if (0x80..=0x8F).contains(&op) => 3,
+        _ if (0x90..=0x9F).contains(&op) => 3,
+        _ => 3,
+    }
+}
+
+fn consume_gas(gas_used: &mut u64, gas_limit: u64, cost: u64) -> Result<(), &'static str> {
+    if *gas_used + cost > gas_limit {
+        Err("out_of_gas")
+    } else {
+        *gas_used += cost;
+        Ok(())
+    }
+}
+
+fn mem_extend(memory: &mut Vec<u8>, offset: usize, size: usize) {
+    let need = offset.saturating_add(size);
+    if need > memory.len() {
+        memory.resize(need, 0);
+    }
+}
+
+fn stack_pop(stack: &mut Vec<U256>) -> PyResult<U256> {
+    stack
+        .pop()
+        .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("stack_underflow"))
+}
+
+fn stack_push(stack: &mut Vec<U256>, value: U256) {
+    stack.push(value & U256_MASK);
+}
+
+fn stack_dup(stack: &mut Vec<U256>, depth: usize) -> PyResult<()> {
+    if depth == 0 || depth > stack.len() {
+        return Err(pyo3::exceptions::PyRuntimeError::new_err("stack_underflow"));
+    }
+    stack_push(stack, stack[stack.len() - depth]);
+    Ok(())
+}
+
+fn stack_swap(stack: &mut Vec<U256>, depth: usize) -> PyResult<()> {
+    if depth == 0 || depth >= stack.len() {
+        return Err(pyo3::exceptions::PyRuntimeError::new_err("stack_underflow"));
+    }
+    let top = stack.len() - 1;
+    let other = stack.len() - 1 - depth;
+    stack.swap(top, other);
+    Ok(())
+}
+
+fn stack_from_py(list: &Bound<'_, PyList>) -> PyResult<Vec<U256>> {
+    let mut stack = Vec::with_capacity(list.len());
+    for i in 0..list.len() {
+        let item = list.get_item(i)?;
+        let bytes_obj = item.call_method1("to_bytes", (32, "big"))?;
+        let bytes: Vec<u8> = bytes_obj.extract()?;
+        let mut buf = [0u8; 32];
+        let start = 32usize.saturating_sub(bytes.len());
+        buf[start..].copy_from_slice(&bytes);
+        stack.push(U256::from_big_endian(&buf));
+    }
+    Ok(stack)
+}
+
+fn stack_to_pylist<'py>(py: Python<'py>, stack: &[U256]) -> PyResult<Bound<'py, PyList>> {
+    let builtins = py.import_bound("builtins")?;
+    let int_cls = builtins.getattr("int")?;
+    let out = PyList::empty_bound(py);
+    for value in stack {
+        let bytes = u256_to_be32(*value);
+        let obj = int_cls.call_method1("from_bytes", (bytes.as_slice(), "big"))?;
+        out.append(obj)?;
+    }
+    Ok(out)
+}
+
+fn write_word(memory: &mut Vec<u8>, offset: usize, value: U256) {
+    mem_extend(memory, offset, 32);
+    memory[offset..offset + 32].copy_from_slice(&u256_to_be32(value));
+}
+
+fn memory_copy(memory: &mut Vec<u8>, dest: usize, src: &[u8], src_offset: usize, size: usize) {
+    mem_extend(memory, dest, size);
+    for i in 0..size {
+        let byte = src.get(src_offset + i).copied().unwrap_or(0);
+        memory[dest + i] = byte;
+    }
+}
+
+fn result_dict(
+    py: Python<'_>,
+    pc: usize,
+    gas_used: u64,
+    running: bool,
+    reverted: bool,
+    return_data: Vec<u8>,
+    stop_reason: &str,
+    host_opcode: Option<u8>,
+    error: Option<String>,
+    steps: usize,
+    stack: Bound<'_, PyList>,
+    memory: Bound<'_, PyByteArray>,
+) -> PyResult<PyObject> {
+    let dict = PyDict::new_bound(py);
+    dict.set_item("pc", pc)?;
+    dict.set_item("gas_used", gas_used)?;
+    dict.set_item("running", running)?;
+    dict.set_item("reverted", reverted)?;
+    dict.set_item("return_data", return_data)?;
+    dict.set_item("stop_reason", stop_reason)?;
+    dict.set_item("host_opcode", host_opcode)?;
+    dict.set_item("error", error)?;
+    dict.set_item("steps", steps)?;
+    dict.set_item("stack", stack)?;
+    dict.set_item("memory", memory)?;
+    Ok(dict.into())
+}
+
+fn run_pure_segment_inner(
+    py: Python<'_>,
+    bytecode: &[u8],
+    pc: usize,
+    gas_limit: u64,
+    gas_used: u64,
+    stack_py: &Bound<'_, PyList>,
+    memory_py: &Bound<'_, PyByteArray>,
+    jumpdest_table: &[u8],
+    calldata: &[u8],
+    return_data_in: &[u8],
+    host_context: Option<&Bound<'_, PyDict>>,
+    storage: Option<&Bound<'_, PyDict>>,
+) -> PyResult<PyObject> {
+    if pc >= bytecode.len() {
+        let stack = stack_to_pylist(py, &stack_from_py(stack_py)?)?;
+        return result_dict(
+            py,
+            pc,
+            gas_used,
+            false,
+            false,
+            Vec::new(),
+            "halt",
+            None,
+            None,
+            0,
+            stack,
+            memory_py.clone(),
+        );
+    }
+
+    let mut stack = stack_from_py(stack_py)?;
+    let mut memory = unsafe { memory_py.as_bytes() }.to_vec();
+    let mut pc = pc;
+    let mut gas_used = gas_used;
+    let mut running = true;
+    let mut reverted = false;
+    let mut return_data = return_data_in.to_vec();
+    let mut steps = 0usize;
+    let mut handoff = false;
+    let static_ctx = parse_static_context(host_context)?;
+
+    while pc < bytecode.len() && running && steps < MAX_PURE_STEPS {
+        let op = bytecode[pc];
+        if opcode_stops_segment(op, host_bridge) {
+            break;
+        }
+
+        if (op == 0x54 || op == 0x55) && storage.is_none() {
+            handoff = true;
+            break;
+        }
+
+        let cost = gas_cost(op);
+        if let Err(reason) = consume_gas(&mut gas_used, gas_limit, cost) {
+            running = false;
+            let stack = stack_to_pylist(py, &stack)?;
+            let memory_out = PyByteArray::new_bound(py, &memory);
+            return result_dict(
+                py,
+                pc,
+                gas_used,
+                running,
+                reverted,
+                return_data,
+                reason,
+                None,
+                Some(reason.to_string()),
+                steps,
+                stack,
+                memory_out,
+            );
+        }
+
+        steps += 1;
+
+        let step_result: PyResult<Option<bool>> = (|| -> PyResult<Option<bool>> {
+            match op {
+                0x00 => {
+                    running = false;
+                    Ok(Some(false))
+                }
+                0x01 => {
+                    let a = stack_pop(&mut stack)?;
+                    let b = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, (a.overflowing_add(b).0) & U256_MASK);
+                    Ok(Some(false))
+                }
+                0x02 => {
+                    let a = stack_pop(&mut stack)?;
+                    let b = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, (a.overflowing_mul(b).0) & U256_MASK);
+                    Ok(Some(false))
+                }
+                0x03 => {
+                    let a = stack_pop(&mut stack)?;
+                    let b = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, (a.overflowing_sub(b).0) & U256_MASK);
+                    Ok(Some(false))
+                }
+                0x04 => {
+                    let a = stack_pop(&mut stack)?;
+                    let b = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, evm_u256_div_inner(a, b));
+                    Ok(Some(false))
+                }
+                0x05 => {
+                    let a = stack_pop(&mut stack)?;
+                    let b = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, evm_u256_sdiv_inner(a, b));
+                    Ok(Some(false))
+                }
+                0x06 => {
+                    let a = stack_pop(&mut stack)?;
+                    let b = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, evm_u256_mod_inner(a, b));
+                    Ok(Some(false))
+                }
+                0x07 => {
+                    let a = stack_pop(&mut stack)?;
+                    let b = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, evm_u256_smod_inner(a, b));
+                    Ok(Some(false))
+                }
+                0x08 => {
+                    let modulo = stack_pop(&mut stack)?;
+                    let b = stack_pop(&mut stack)?;
+                    let a = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, evm_u256_addmod_inner(a, b, modulo));
+                    Ok(Some(false))
+                }
+                0x09 => {
+                    let modulo = stack_pop(&mut stack)?;
+                    let b = stack_pop(&mut stack)?;
+                    let a = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, evm_u256_mulmod_inner(a, b, modulo));
+                    Ok(Some(false))
+                }
+                0x0A => {
+                    let exp = stack_pop(&mut stack)?;
+                    let base = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, evm_u256_exp_inner(base, exp));
+                    Ok(Some(false))
+                }
+                0x0B => {
+                    let k = stack_pop(&mut stack)?;
+                    let x = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, evm_u256_signextend_inner(k.as_u32(), x));
+                    Ok(Some(false))
+                }
+                0x10 => {
+                    let a = stack_pop(&mut stack)?;
+                    let b = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, a & b);
+                    Ok(Some(false))
+                }
+                0x11 => {
+                    let a = stack_pop(&mut stack)?;
+                    let b = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, a | b);
+                    Ok(Some(false))
+                }
+                0x12 => {
+                    let a = stack_pop(&mut stack)?;
+                    let b = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, a ^ b);
+                    Ok(Some(false))
+                }
+                0x14 => {
+                    let a = stack_pop(&mut stack)?;
+                    let b = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, evm_u256_eq_inner(a, b));
+                    Ok(Some(false))
+                }
+                0x15 => {
+                    let v = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, evm_u256_iszero_inner(v));
+                    Ok(Some(false))
+                }
+                0x16 => {
+                    let a = stack_pop(&mut stack)?;
+                    let b = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, evm_u256_lt_inner(a, b));
+                    Ok(Some(false))
+                }
+                0x17 => {
+                    let a = stack_pop(&mut stack)?;
+                    let b = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, evm_u256_gt_inner(a, b));
+                    Ok(Some(false))
+                }
+                0x19 => {
+                    let v = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, !v);
+                    Ok(Some(false))
+                }
+                0x1A => {
+                    let i = stack_pop(&mut stack)?;
+                    let x = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, evm_u256_byte_inner(i.as_u32(), x));
+                    Ok(Some(false))
+                }
+                0x1B => {
+                    let shift = stack_pop(&mut stack)?;
+                    let v = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, v << shift.as_u32());
+                    Ok(Some(false))
+                }
+                0x1C => {
+                    let shift = stack_pop(&mut stack)?;
+                    let v = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, v >> shift.as_u32());
+                    Ok(Some(false))
+                }
+                0x20 => {
+                    let offset = stack_pop(&mut stack)?.as_usize();
+                    let size = stack_pop(&mut stack)?.as_usize();
+                    mem_extend(&mut memory, offset, size);
+                    let digest = evm_keccak256_memory_inner(&memory, offset, size);
+                    stack_push(&mut stack, u256_from_be32(digest));
+                    Ok(Some(false))
+                }
+                0x35 => {
+                    let offset = stack_pop(&mut stack)?.as_usize();
+                    let word = evm_calldataload_inner(calldata, offset);
+                    stack_push(&mut stack, u256_from_be32(word));
+                    Ok(Some(false))
+                }
+                0x36 => {
+                    stack_push(&mut stack, U256::from(calldata.len()));
+                    Ok(Some(false))
+                }
+                0x37 => {
+                    let dest = stack_pop(&mut stack)?.as_usize();
+                    let offset = stack_pop(&mut stack)?.as_usize();
+                    let size = stack_pop(&mut stack)?.as_usize();
+                    memory_copy(&mut memory, dest, calldata, offset, size);
+                    Ok(Some(false))
+                }
+                0x38 => {
+                    stack_push(&mut stack, U256::from(bytecode.len()));
+                    Ok(Some(false))
+                }
+                0x39 => {
+                    let dest = stack_pop(&mut stack)?.as_usize();
+                    let offset = stack_pop(&mut stack)?.as_usize();
+                    let size = stack_pop(&mut stack)?.as_usize();
+                    memory_copy(&mut memory, dest, bytecode, offset, size);
+                    Ok(Some(false))
+                }
+                0x3D => {
+                    stack_push(&mut stack, U256::from(return_data.len()));
+                    Ok(Some(false))
+                }
+                0x3E => {
+                    let dest = stack_pop(&mut stack)?.as_usize();
+                    let offset = stack_pop(&mut stack)?.as_usize();
+                    let size = stack_pop(&mut stack)?.as_usize();
+                    memory_copy(&mut memory, dest, return_data_in, offset, size);
+                    Ok(Some(false))
+                }
+                0x30 => {
+                    stack_push(&mut stack, static_ctx.address);
+                    Ok(Some(false))
+                }
+                0x32 => {
+                    stack_push(&mut stack, static_ctx.origin);
+                    Ok(Some(false))
+                }
+                0x33 => {
+                    stack_push(&mut stack, static_ctx.caller);
+                    Ok(Some(false))
+                }
+                0x34 => {
+                    stack_push(&mut stack, static_ctx.value);
+                    Ok(Some(false))
+                }
+                0x42 => {
+                    stack_push(&mut stack, static_ctx.timestamp);
+                    Ok(Some(false))
+                }
+                0x43 => {
+                    stack_push(&mut stack, static_ctx.block_number);
+                    Ok(Some(false))
+                }
+                0x45 => {
+                    stack_push(&mut stack, U256::from(gas_limit));
+                    Ok(Some(false))
+                }
+                0x46 => {
+                    stack_push(&mut stack, static_ctx.chain_id);
+                    Ok(Some(false))
+                }
+                0x31 => {
+                    let who = stack_pop(&mut stack)?;
+                    let bridge = host_bridge.ok_or_else(|| {
+                        pyo3::exceptions::PyRuntimeError::new_err("host_bridge_unavailable")
+                    })?;
+                    stack_push(&mut stack, bridge_balance(bridge, who)?);
+                    Ok(Some(false))
+                }
+                0x3B => {
+                    let who = stack_pop(&mut stack)?;
+                    let bridge = host_bridge.ok_or_else(|| {
+                        pyo3::exceptions::PyRuntimeError::new_err("host_bridge_unavailable")
+                    })?;
+                    stack_push(&mut stack, bridge_code_size(bridge, who)?);
+                    Ok(Some(false))
+                }
+                0x3C => {
+                    let code_offset = stack_pop(&mut stack)?.as_usize();
+                    let mem_offset = stack_pop(&mut stack)?.as_usize();
+                    let size = stack_pop(&mut stack)?.as_usize();
+                    let who = stack_pop(&mut stack)?;
+                    let bridge = host_bridge.ok_or_else(|| {
+                        pyo3::exceptions::PyRuntimeError::new_err("host_bridge_unavailable")
+                    })?;
+                    let chunk = bridge_code_copy(bridge, who, mem_offset, size)?;
+                    memory_copy(&mut memory, code_offset, &chunk, 0, size);
+                    Ok(Some(false))
+                }
+                0x40 => {
+                    let block_num = stack_pop(&mut stack)?;
+                    let bridge = host_bridge.ok_or_else(|| {
+                        pyo3::exceptions::PyRuntimeError::new_err("host_bridge_unavailable")
+                    })?;
+                    stack_push(&mut stack, bridge_block_hash(bridge, block_num)?);
+                    Ok(Some(false))
+                }
+                0x50 => {
+                    stack_pop(&mut stack)?;
+                    Ok(Some(false))
+                }
+                0x51 => {
+                    let offset = stack_pop(&mut stack)?.as_usize();
+                    mem_extend(&mut memory, offset, 32);
+                    let word = evm_memory_read_word_inner(&memory, offset);
+                    stack_push(&mut stack, u256_from_be32(word));
+                    Ok(Some(false))
+                }
+                0x52 => {
+                    let offset = stack_pop(&mut stack)?.as_usize();
+                    let value = stack_pop(&mut stack)?;
+                    write_word(&mut memory, offset, value);
+                    Ok(Some(false))
+                }
+                0x53 => {
+                    let offset = stack_pop(&mut stack)?.as_usize();
+                    let value = stack_pop(&mut stack)?;
+                    mem_extend(&mut memory, offset, 1);
+                    memory[offset] = (value.as_u32() & 0xff) as u8;
+                    Ok(Some(false))
+                }
+                0x54 => {
+                    let key = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, storage_load(storage, key)?);
+                    Ok(Some(false))
+                }
+                0x55 => {
+                    let key = stack_pop(&mut stack)?;
+                    let value = stack_pop(&mut stack)?;
+                    storage_store(storage, key, value)?;
+                    Ok(Some(false))
+                }
+                0x56 => {
+                    let dest = stack_pop(&mut stack)?.as_usize();
+                    if !evm_is_jumpdest_inner(jumpdest_table, dest, bytecode.len()) {
+                        Err(pyo3::exceptions::PyRuntimeError::new_err("invalid_jump"))
+                    } else {
+                        pc = dest;
+                        Ok(Some(true))
+                    }
+                }
+                0x57 => {
+                    let dest = stack_pop(&mut stack)?.as_usize();
+                    let cond = stack_pop(&mut stack)?;
+                    if !cond.is_zero() {
+                        if !evm_is_jumpdest_inner(jumpdest_table, dest, bytecode.len()) {
+                            Err(pyo3::exceptions::PyRuntimeError::new_err("invalid_jump"))
+                        } else {
+                            pc = dest;
+                            Ok(Some(true))
+                        }
+                    } else {
+                        Ok(Some(false))
+                    }
+                }
+                0x5A => {
+                    stack_push(
+                        &mut stack,
+                        U256::from(gas_limit.saturating_sub(gas_used)),
+                    );
+                    Ok(Some(false))
+                }
+                0x5B => Ok(Some(false)),
+                0x5F => {
+                    stack_push(&mut stack, U256::zero());
+                    Ok(Some(false))
+                }
+                0xF3 => {
+                    let offset = stack_pop(&mut stack)?.as_usize();
+                    let size = stack_pop(&mut stack)?.as_usize();
+                    return_data = evm_memory_slice_inner(&memory, offset, size);
+                    running = false;
+                    Ok(Some(false))
+                }
+                0xFD => {
+                    let offset = stack_pop(&mut stack)?.as_usize();
+                    let size = stack_pop(&mut stack)?.as_usize();
+                    return_data = evm_memory_slice_inner(&memory, offset, size);
+                    reverted = true;
+                    running = false;
+                    Ok(Some(false))
+                }
+                0xFE => Err(pyo3::exceptions::PyRuntimeError::new_err("invalid_opcode")),
+                op if (0x60..=0x7F).contains(&op) => {
+                    let n = (op - 0x5F) as usize;
+                    let word = evm_read_push_inner(bytecode, pc, n);
+                    stack_push(&mut stack, u256_from_be32(word));
+                    pc += n;
+                    Ok(Some(false))
+                }
+                op if (0x80..=0x8F).contains(&op) => {
+                    stack_dup(&mut stack, (op - 0x7F) as usize)?;
+                    Ok(Some(false))
+                }
+                op if (0x90..=0x9F).contains(&op) => {
+                    stack_swap(&mut stack, (op - 0x8F) as usize)?;
+                    Ok(Some(false))
+                }
+                _ => Ok(None),
+            }
+        })();
+
+        match step_result {
+            Ok(None) => {
+                handoff = true;
+                break;
+            }
+            Ok(Some(true)) => continue,
+            Ok(Some(false)) => {}
+            Err(err) => {
+                let error_msg = err.to_string();
+                running = false;
+                let stop = if error_msg.contains("out_of_gas") {
+                    "out_of_gas"
+                } else {
+                    "error"
+                };
+                let stack = stack_to_pylist(py, &stack)?;
+                let memory_out = PyByteArray::new_bound(py, &memory);
+                return result_dict(
+                    py,
+                    pc,
+                    gas_used,
+                    running,
+                    reverted,
+                    return_data,
+                    stop,
+                    None,
+                    Some(error_msg),
+                    steps,
+                    stack,
+                    memory_out,
+                );
+            }
+        }
+
+        pc += 1;
+    }
+
+    let stop_reason = if handoff {
+        "handoff"
+    } else if pc < bytecode.len() && opcode_stops_segment(bytecode[pc], host_bridge) {
+        "host"
+    } else if !running {
+        if reverted {
+            "revert"
+        } else if !return_data.is_empty() {
+            "return"
+        } else {
+            "halt"
+        }
+    } else {
+        "halt"
+    };
+
+    let host_opcode = if stop_reason == "host" {
+        Some(bytecode[pc])
+    } else {
+        None
+    };
+
+    let stack = stack_to_pylist(py, &stack)?;
+    let memory_out = PyByteArray::new_bound(py, &memory);
+    result_dict(
+        py,
+        pc,
+        gas_used,
+        running,
+        reverted,
+        return_data,
+        stop_reason,
+        host_opcode,
+        None,
+        steps,
+        stack,
+        memory_out,
+    )
+}
+
+#[pyfunction]
+#[pyo3(name = "evm_opcode_is_host")]
+pub fn evm_opcode_is_host_py(op: u8) -> PyResult<bool> {
+    Ok(evm_opcode_is_host(op))
+}
+
+#[pyfunction]
+#[pyo3(name = "evm_run_pure_until_host")]
+#[pyo3(signature = (bytecode, pc, gas_limit, gas_used, stack, memory, jumpdest_table, calldata, return_data, host_context=None, storage=None))]
+pub fn evm_run_pure_until_host_py(
+    py: Python<'_>,
+    bytecode: Vec<u8>,
+    pc: usize,
+    gas_limit: u64,
+    gas_used: u64,
+    stack: &Bound<'_, PyList>,
+    memory: &Bound<'_, PyByteArray>,
+    jumpdest_table: Vec<u8>,
+    calldata: Vec<u8>,
+    return_data: Vec<u8>,
+    host_context: Option<&Bound<'_, PyDict>>,
+    storage: Option<&Bound<'_, PyDict>>,
+) -> PyResult<PyObject> {
+    run_pure_segment_inner(
+        py,
+        &bytecode,
+        pc,
+        gas_limit,
+        gas_used,
+        stack,
+        memory,
+        &jumpdest_table,
+        &calldata,
+        &return_data,
+        host_context,
+        storage,
+    )
+}

@@ -1,3 +1,5 @@
+mod evm_pure_runner;
+
 use k256::ecdsa::signature::hazmat::PrehashVerifier;
 use k256::ecdsa::{Signature, VerifyingKey};
 use primitive_types::{U256, U512};
@@ -319,17 +321,17 @@ fn keccak256_digest_bytes(data: &[u8]) -> [u8; 32] {
     out
 }
 
-fn u256_from_be32(bytes: [u8; 32]) -> U256 {
+pub(crate) fn u256_from_be32(bytes: [u8; 32]) -> U256 {
     U256::from_big_endian(&bytes)
 }
 
-fn u256_to_be32(value: U256) -> [u8; 32] {
+pub(crate) fn u256_to_be32(value: U256) -> [u8; 32] {
     let mut out = [0u8; 32];
     value.to_big_endian(&mut out);
     out
 }
 
-fn evm_keccak256_memory_inner(memory: &[u8], offset: usize, size: usize) -> [u8; 32] {
+pub(crate) fn evm_keccak256_memory_inner(memory: &[u8], offset: usize, size: usize) -> [u8; 32] {
     if size == 0 {
         return keccak256_digest_bytes(&[]);
     }
@@ -703,7 +705,7 @@ fn u256_negate(v: U256) -> U256 {
     (!v).overflowing_add(U256::one()).0
 }
 
-fn evm_u256_sdiv_inner(a: U256, b: U256) -> U256 {
+pub(crate) fn evm_u256_sdiv_inner(a: U256, b: U256) -> U256 {
     if b.is_zero() {
         return U256::zero();
     }
@@ -720,7 +722,7 @@ fn evm_u256_sdiv_inner(a: U256, b: U256) -> U256 {
     quot
 }
 
-fn evm_u256_smod_inner(a: U256, b: U256) -> U256 {
+pub(crate) fn evm_u256_smod_inner(a: U256, b: U256) -> U256 {
     if b.is_zero() {
         return U256::zero();
     }
@@ -732,7 +734,7 @@ fn evm_u256_smod_inner(a: U256, b: U256) -> U256 {
     rem
 }
 
-fn evm_u256_addmod_inner(a: U256, b: U256, modulo: U256) -> U256 {
+pub(crate) fn evm_u256_addmod_inner(a: U256, b: U256, modulo: U256) -> U256 {
     if modulo.is_zero() {
         return U256::zero();
     }
@@ -740,7 +742,7 @@ fn evm_u256_addmod_inner(a: U256, b: U256, modulo: U256) -> U256 {
     U256::try_from(sum % U512::from(modulo)).unwrap_or(U256::zero())
 }
 
-fn evm_u256_mulmod_inner(a: U256, b: U256, modulo: U256) -> U256 {
+pub(crate) fn evm_u256_mulmod_inner(a: U256, b: U256, modulo: U256) -> U256 {
     if modulo.is_zero() {
         return U256::zero();
     }
@@ -748,7 +750,7 @@ fn evm_u256_mulmod_inner(a: U256, b: U256, modulo: U256) -> U256 {
     U256::try_from(prod % U512::from(modulo)).unwrap_or(U256::zero())
 }
 
-fn evm_u256_exp_inner(base: U256, exp: U256) -> U256 {
+pub(crate) fn evm_u256_exp_inner(base: U256, exp: U256) -> U256 {
     if exp.is_zero() {
         return if base.is_zero() {
             U256::zero()
@@ -772,7 +774,7 @@ fn evm_u256_exp_inner(base: U256, exp: U256) -> U256 {
     result
 }
 
-fn evm_u256_signextend_inner(k: u32, x: U256) -> U256 {
+pub(crate) fn evm_u256_signextend_inner(k: u32, x: U256) -> U256 {
     if k >= 32 {
         return x;
     }
@@ -868,7 +870,7 @@ fn evm_u256_byte(index: u32, word: [u8; 32]) -> PyResult<[u8; 32]> {
     Ok(u256_to_be32(U256::from(byte)))
 }
 
-fn evm_memory_read_word_inner(memory: &[u8], offset: usize) -> [u8; 32] {
+pub(crate) fn evm_memory_read_word_inner(memory: &[u8], offset: usize) -> [u8; 32] {
     let mut out = [0u8; 32];
     if offset < memory.len() {
         let end = usize::min(offset + 32, memory.len());
@@ -882,7 +884,7 @@ fn evm_memory_read_word(memory: &[u8], offset: usize) -> PyResult<[u8; 32]> {
     Ok(evm_memory_read_word_inner(memory, offset))
 }
 
-fn evm_calldataload_inner(calldata: &[u8], offset: usize) -> [u8; 32] {
+pub(crate) fn evm_calldataload_inner(calldata: &[u8], offset: usize) -> [u8; 32] {
     let mut out = [0u8; 32];
     if offset < calldata.len() {
         let end = usize::min(offset + 32, calldata.len());
@@ -944,7 +946,7 @@ fn evm_memory_write_byte(
     Ok(())
 }
 
-fn evm_read_push_inner(bytecode: &[u8], pc: usize, n: usize) -> [u8; 32] {
+pub(crate) fn evm_read_push_inner(bytecode: &[u8], pc: usize, n: usize) -> [u8; 32] {
     let n = n.min(32);
     let mut out = [0u8; 32];
     if n == 0 {
@@ -981,7 +983,7 @@ fn evm_build_jumpdest_table_inner(bytecode: &[u8]) -> Vec<u8> {
     table
 }
 
-fn evm_is_jumpdest_inner(table: &[u8], dest: usize, bytecode_len: usize) -> bool {
+pub(crate) fn evm_is_jumpdest_inner(table: &[u8], dest: usize, bytecode_len: usize) -> bool {
     if dest >= bytecode_len {
         return false;
     }
@@ -1015,7 +1017,7 @@ fn evm_call_gas_cap(remaining: u64, requested: u64) -> PyResult<u64> {
     }
 }
 
-fn evm_memory_slice_inner(memory: &[u8], offset: usize, size: usize) -> Vec<u8> {
+pub(crate) fn evm_memory_slice_inner(memory: &[u8], offset: usize, size: usize) -> Vec<u8> {
     let mut out = vec![0u8; size];
     if offset < memory.len() {
         let copied = usize::min(size, memory.len() - offset);
@@ -1442,6 +1444,8 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_stack_swap, m)?)?;
     m.add_function(wrap_pyfunction!(evm_scan_bytecode, m)?)?;
     m.add_function(wrap_pyfunction!(evm_gas_remaining, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_pure_runner::evm_opcode_is_host_py, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_pure_runner::evm_run_pure_until_host_py, m)?)?;
     m.add_function(wrap_pyfunction!(keccak256_hex, m)?)?;
     m.add_function(wrap_pyfunction!(validate_imported_block_chain, m)?)?;
     m.add_function(wrap_pyfunction!(validate_peer_header_chain, m)?)?;
