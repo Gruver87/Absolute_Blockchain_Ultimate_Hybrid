@@ -51,8 +51,8 @@ def run_gate(
     try:
         from runtime.genesis_ceremony import build_from_paths
         artifact, ceremony_errors = build_from_paths(
-            str(ROOT / "node.prod.example.json"),
-            str(ROOT / "validators.manifest.example.json"),
+            str(ROOT / "node.prod.mainnet-v1.example.json"),
+            str(ROOT / "validators.manifest.mainnet-v1.example.json"),
         )
         sections["genesis_ceremony"] = {
             "ready": artifact.get("ready"),
@@ -65,6 +65,15 @@ def run_gate(
         if not artifact.get("mainnet_addresses_ready", True):
             warnings.append(
                 "genesis_ceremony:placeholder_validator_addresses_in_manifest"
+            )
+        legacy, legacy_errors = build_from_paths(
+            str(ROOT / "node.prod.example.json"),
+            str(ROOT / "validators.manifest.example.json"),
+        )
+        if not legacy.get("mainnet_addresses_ready", True):
+            warnings.append(
+                "genesis_ceremony:node.prod.example.json still uses placeholder manifest "
+                f"(count={legacy.get('placeholder_validator_count', 0)})"
             )
     except Exception as exc:
         errors.append(f"genesis_ceremony:{exc}")

@@ -173,3 +173,49 @@ def build_from_paths(
         strict_addresses=strict_addresses,
     )
     return artifact, list(artifact.get("errors") or [])
+
+
+def config_dict_from_config(config: Any) -> Dict[str, Any]:
+    return {
+        "network_name": getattr(config, "network_name", "Absolute"),
+        "chain_id": int(getattr(config, "chain_id", 0) or 0),
+        "deployment_mode": getattr(config, "deployment_mode", "dev"),
+        "founder_address": getattr(config, "founder_address", ""),
+    }
+
+
+def verify_live_manifest(
+    config: Any,
+    *,
+    strict_addresses: bool = False,
+    expected_ceremony_hash: str = "",
+) -> Tuple[List[str], Dict[str, Any]]:
+    """Validate on-disk manifest for a running node config."""
+    import os
+
+    manifest_path = str(getattr(config, "validators_manifest_path", "") or "").strip()
+    errors: List[str] = []
+    if not manifest_path:
+        errors.append("validators_manifest_path_missing")
+        return errors, {}
+    if not os.path.isfile(manifest_path):
+        errors.append(f"validators_manifest_missing:{manifest_path}")
+        return errors, {}
+
+    manifest = load_manifest(manifest_path)
+    errors.extend(validate_manifest_for_mainnet(manifest, strict_addresses=strict_addresses))
+    artifact = build_ceremony_artifact(
+        config_dict_from_config(config),
+        manifest,
+        manifest_path,
+        getattr(config, "founder_address", ""),
+        strict_addresses=strict_addresses,
+    )
+    if not artifact.get("mainnet_addresses_ready", True) and strict_addresses:
+        errors.append("placeholder_validator_addresses_in_manifest")
+
+    pinned = str(expected_ceremony_hash or os.environ.get("GENESIS_CEREMONY_HASH", "") or "").strip()
+    if pinned and artifact.get("ceremony_hash") != pinned:
+        errors.append("genesis_ceremony_hash_mismatch")
+
+    return errors, artifact

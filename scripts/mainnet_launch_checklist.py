@@ -50,7 +50,7 @@ def run_launch_checklist(*, strict_mainnet: bool = False) -> tuple[list[str], li
 
     artifact, ceremony_errors = build_from_paths(
         str(ROOT / "node.prod.mainnet-v1.example.json"),
-        str(ROOT / "validators.manifest.example.json"),
+        str(ROOT / "validators.manifest.mainnet-v1.example.json"),
         strict_addresses=strict_mainnet,
     )
     if ceremony_errors:

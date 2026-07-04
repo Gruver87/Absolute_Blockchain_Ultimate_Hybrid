@@ -1024,6 +1024,30 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "canonical_head": None,
                     "attestation_count": 0,
                 }
+                genesis_ceremony_info = {"ready": False, "mainnet_addresses_ready": False}
+                manifest_path = getattr(cfg, "validators_manifest_path", "") or ""
+                if manifest_path and os.path.isfile(manifest_path):
+                    try:
+                        from runtime.genesis_ceremony import verify_live_manifest
+
+                        _cerr, artifact = verify_live_manifest(cfg, strict_addresses=False)
+                        genesis_ceremony_info = {
+                            "ready": len(_cerr) == 0,
+                            "mainnet_addresses_ready": bool(
+                                artifact.get("mainnet_addresses_ready", False)
+                            ),
+                            "ceremony_hash": artifact.get("ceremony_hash"),
+                            "validator_set_hash": artifact.get("validator_set_hash"),
+                            "validators_count": artifact.get("validators_count", 0),
+                            "manifest_path": manifest_path,
+                            "errors": _cerr[:5],
+                        }
+                    except Exception as exc:
+                        genesis_ceremony_info = {
+                            "ready": False,
+                            "error": str(exc),
+                            "manifest_path": manifest_path,
+                        }
                 ca = self.__class__.consensus_adapter
                 if ca and hasattr(ca, "get_stats"):
                     try:
@@ -1070,6 +1094,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "bridge_locks_total": len(bridge_locks),
                     "deployment_mode": getattr(cfg, "deployment_mode", "dev"),
                     "consensus": consensus_info,
+                    "genesis_ceremony": genesis_ceremony_info,
                     "state_root_strict_p2p": bool(
                         getattr(cfg, "state_root_strict_p2p", True)
                     ),

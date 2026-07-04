@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "description": "Mainnet v1 public validator set template — replace addresses with ceremony-approved keys before launch.",
+  "validators": [
+    {
+      "index": 1,
+      "node_id": "mainnet-v1-validator-1",
+      "address": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1",
+      "public_key": "",
+      "mines": true,
+      "stake": 5000,
+      "shard_id": 0
+    },
+    {
+      "index": 2,
+      "node_id": "mainnet-v1-validator-2",
+      "address": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb2",
+      "public_key": "",
+      "mines": true,
+      "stake": 3000,
+      "shard_id": 0
+    },
+    {
+      "index": 3,
+      "node_id": "mainnet-v1-validator-3",
+      "address": "0xccccccccccccccccccccccccccccccccccccccc3",
+      "public_key": "",
+      "mines": false,
+      "stake": 2000,
+      "shard_id": 1
+    }
+  ]
+}

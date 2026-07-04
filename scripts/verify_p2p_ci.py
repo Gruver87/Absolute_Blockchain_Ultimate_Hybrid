@@ -455,6 +455,20 @@ def _restore_p2p_mesh(urls: list[str], expected_peers: int = 2) -> None:
                 pass
         time.sleep(5)
         try:
+            peers_ok = 0
+            for url in urls:
+                peers = _api(f"{url}/peers", timeout=8)
+                if int(peers.get("count", 0) or 0) >= expected_peers:
+                    peers_ok += 1
+            if peers_ok >= len(urls):
+                print(
+                    f"OK: post-verify mesh restored peers>={expected_peers} "
+                    f"on {peers_ok}/{len(urls)} nodes"
+                )
+                return
+        except Exception:
+            pass
+        try:
             mesh = _api(f"{urls[0]}/testnet/mesh", timeout=8)
             peer_count = int(mesh.get("peer_count", 0) or 0)
             if peer_count >= expected_peers and bool(mesh.get("mesh_healthy")):
@@ -465,11 +479,37 @@ def _restore_p2p_mesh(urls: list[str], expected_peers: int = 2) -> None:
                 return
         except Exception:
             pass
+        try:
+            topo = _api(f"{urls[0]}/p2p/topology", timeout=8)
+            peer_count = int(topo.get("peer_count", 0) or 0)
+            if peer_count >= expected_peers and bool(topo.get("topology_healthy")):
+                print(
+                    f"OK: post-verify mesh restored peer_count={peer_count} "
+                    f"topology_healthy={topo.get('topology_healthy')}"
+                )
+                return
+        except Exception:
+            pass
     try:
         topo = _api(f"{urls[0]}/p2p/topology", timeout=8)
+        peer_count = int(topo.get("peer_count", 0) or 0)
+        topology_healthy = bool(topo.get("topology_healthy"))
+        peers_ok = 0
+        for url in urls:
+            try:
+                if int(_api(f"{url}/peers", timeout=8).get("count", 0) or 0) >= expected_peers:
+                    peers_ok += 1
+            except Exception:
+                pass
+        if (peer_count >= expected_peers and topology_healthy) or peers_ok >= len(urls):
+            print(
+                f"OK: post-verify mesh restored peer_count={peer_count} "
+                f"topology_healthy={topology_healthy} peers_ok={peers_ok}/{len(urls)}"
+            )
+            return
         print(
-            f"WARN: post-verify mesh not fully restored peer_count={topo.get('peer_count')} "
-            f"topology_healthy={topo.get('topology_healthy')}"
+            f"WARN: post-verify mesh not fully restored peer_count={peer_count} "
+            f"topology_healthy={topology_healthy}"
         )
     except Exception:
         print("WARN: post-verify mesh restore status unavailable")

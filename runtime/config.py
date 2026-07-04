@@ -498,6 +498,21 @@ class Config:
                         )
                 except Exception as e:
                     errors.append(f"prod L1 RPC reachability probe failed: {e}")
+        if self.is_production:
+            if not self.validators_manifest_path:
+                errors.append("prod mode requires validators_manifest_path")
+            else:
+                try:
+                    from runtime.genesis_ceremony import verify_live_manifest
+
+                    strict = env_bool("GENESIS_STRICT_MAINNET", False)
+                    manifest_errors, _artifact = verify_live_manifest(
+                        self,
+                        strict_addresses=strict,
+                    )
+                    errors.extend([f"validators_manifest:{e}" for e in manifest_errors])
+                except Exception as e:
+                    errors.append(f"validators_manifest:check_failed:{e}")
         return errors
 
     def __repr__(self) -> str:
