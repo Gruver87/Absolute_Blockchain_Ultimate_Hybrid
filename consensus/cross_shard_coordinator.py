@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import threading
 import time
 from typing import Callable, Dict, List, Optional, Set
@@ -12,14 +13,68 @@ from typing import Callable, Dict, List, Optional, Set
 class CrossShardCoordinator:
     """Track shard ACKs for cross-shard transfers and plan resharding epochs."""
 
-    def __init__(self, num_shards: int = 4) -> None:
+    def __init__(self, num_shards: int = 4, validator_quorum: float = 2 / 3) -> None:
         self.num_shards = max(1, int(num_shards))
+        self.validator_quorum = max(0.5, min(1.0, float(validator_quorum)))
         self._lock = threading.Lock()
         self._acks: Dict[str, Set[int]] = {}
         self._required: Dict[str, Set[int]] = {}
+        self._validator_acks: Dict[str, Dict[int, Set[str]]] = {}
+        self._shard_validators: Dict[int, Set[str]] = {}
         self._reshard_plan: Optional[dict] = None
         self._migration_queue: List[dict] = []
         self._shard_overrides: Dict[str, int] = {}
+
+    def quorum_size(self, committee_size: int) -> int:
+        n = max(0, int(committee_size))
+        if n <= 0:
+            return 0
+        return max(1, math.ceil(n * self.validator_quorum))
+
+    def register_shard_validator(self, shard_id: int, validator_id: str) -> None:
+        vid = (validator_id or "").strip()
+        if not vid:
+            return
+        with self._lock:
+            self._shard_validators.setdefault(int(shard_id), set()).add(vid)
+
+    def load_shard_committees(self, committees: Dict[int, List[str]]) -> int:
+        """Bulk load {shard_id: [validator_id, ...]}. Returns validator count."""
+        added = 0
+        with self._lock:
+            for shard_id, members in (committees or {}).items():
+                bucket = self._shard_validators.setdefault(int(shard_id), set())
+                for member in members or []:
+                    vid = str(member or "").strip()
+                    if vid and vid not in bucket:
+                        bucket.add(vid)
+                        added += 1
+        return added
+
+    def load_validators_from_manifest(self, manifest: dict, num_shards: Optional[int] = None) -> int:
+        """Assign manifest validators to shards (explicit shard_id or hash of node_id)."""
+        n = max(1, int(num_shards or self.num_shards))
+        committees: Dict[int, List[str]] = {}
+        for row in manifest.get("validators") or []:
+            if not isinstance(row, dict):
+                continue
+            vid = str(row.get("node_id") or row.get("address") or "").strip()
+            if not vid:
+                continue
+            if row.get("shard_id") is not None:
+                shard = int(row["shard_id"]) % n
+            else:
+                digest = hashlib.sha256(vid.encode()).hexdigest()
+                shard = int(digest, 16) % n
+            committees.setdefault(shard, []).append(vid)
+        return self.load_shard_committees(committees)
+
+    def shard_committee(self, shard_id: int) -> Set[str]:
+        with self._lock:
+            return set(self._shard_validators.get(int(shard_id), set()))
+
+    def has_shard_committee(self, shard_id: int) -> bool:
+        return bool(self.shard_committee(shard_id))
 
     def required_shards(self, from_shard: int, to_shard: int) -> Set[int]:
         return {int(from_shard), int(to_shard)}
@@ -28,26 +83,86 @@ class CrossShardCoordinator:
         with self._lock:
             self._required[tx_id] = self.required_shards(from_shard, to_shard)
             self._acks.setdefault(tx_id, set())
+            self._validator_acks.pop(tx_id, None)
+
+    def _validator_shard_quorum_met_unlocked(self, tx_id: str, shard_id: int) -> bool:
+        committee = self._shard_validators.get(int(shard_id), set())
+        if not committee:
+            return int(shard_id) in self._acks.get(tx_id, set())
+        acks = self._validator_acks.get(tx_id, {}).get(int(shard_id), set())
+        return len(acks) >= self.quorum_size(len(committee))
+
+    def _quorum_reached_unlocked(self, tx_id: str) -> bool:
+        req = self._required.get(tx_id)
+        if not req:
+            return False
+        for sid in req:
+            if not self._validator_shard_quorum_met_unlocked(tx_id, sid):
+                return False
+        return True
+
+    def record_validator_ack(self, tx_id: str, shard_id: int, validator_id: str) -> bool:
+        vid = (validator_id or "").strip()
+        if not vid:
+            return False
+        with self._lock:
+            req = self._required.get(tx_id)
+            if not req or int(shard_id) not in req:
+                return False
+            committee = self._shard_validators.get(int(shard_id), set())
+            if committee and vid not in committee:
+                return False
+            per_shard = self._validator_acks.setdefault(tx_id, {}).setdefault(int(shard_id), set())
+            per_shard.add(vid)
+            if self._validator_shard_quorum_met_unlocked(tx_id, int(shard_id)):
+                self._acks.setdefault(tx_id, set()).add(int(shard_id))
+            return self._quorum_reached_unlocked(tx_id)
 
     def record_ack(self, tx_id: str, shard_id: int) -> bool:
         with self._lock:
             req = self._required.get(tx_id)
             if not req:
                 return False
-            self._acks.setdefault(tx_id, set()).add(int(shard_id))
-            return self._acks[tx_id] >= req
+            sid = int(shard_id)
+            if self._shard_validators.get(sid):
+                return False
+            self._acks.setdefault(tx_id, set()).add(sid)
+            return self._quorum_reached_unlocked(tx_id)
 
     def quorum_reached(self, tx_id: str) -> bool:
         with self._lock:
-            req = self._required.get(tx_id)
-            if not req:
-                return False
-            return self._acks.get(tx_id, set()) >= req
+            return self._quorum_reached_unlocked(tx_id)
+
+    def quorum_status(self, tx_id: str) -> dict:
+        with self._lock:
+            req = set(self._required.get(tx_id, set()))
+            shards = []
+            for sid in sorted(req):
+                committee = sorted(self._shard_validators.get(sid, set()))
+                acks = sorted(self._validator_acks.get(tx_id, {}).get(sid, set()))
+                need = self.quorum_size(len(committee)) if committee else 1
+                shards.append({
+                    "shard_id": sid,
+                    "committee_size": len(committee),
+                    "acks": len(acks),
+                    "required_acks": need,
+                    "validator_acks": acks,
+                    "committee": committee,
+                    "met": self._validator_shard_quorum_met_unlocked(tx_id, sid),
+                })
+            return {
+                "tx_id": tx_id,
+                "required_shards": sorted(req),
+                "quorum_reached": self._quorum_reached_unlocked(tx_id) if req else False,
+                "validator_quorum": self.validator_quorum,
+                "shards": shards,
+            }
 
     def clear(self, tx_id: str) -> None:
         with self._lock:
             self._acks.pop(tx_id, None)
             self._required.pop(tx_id, None)
+            self._validator_acks.pop(tx_id, None)
 
     def plan_reshard(self, new_num_shards: int, effective_epoch: int) -> dict:
         new_num_shards = max(1, int(new_num_shards))
@@ -224,8 +339,14 @@ class CrossShardCoordinator:
 
     def status(self) -> dict:
         with self._lock:
+            committees = {
+                str(sid): len(members)
+                for sid, members in self._shard_validators.items()
+            }
             return {
                 "num_shards": self.num_shards,
+                "validator_quorum": self.validator_quorum,
+                "shard_committees": committees,
                 "pending_quorums": len(self._required),
                 "reshard_plan": dict(self._reshard_plan) if self._reshard_plan else None,
                 "pending_migrations": len([r for r in self._migration_queue if r.get("status") == "pending"]),

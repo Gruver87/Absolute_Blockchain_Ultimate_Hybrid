@@ -48,6 +48,7 @@ def snapshot_public_set(manifest: Dict[str, Any]) -> List[Dict[str, Any]]:
             "stake": float(row.get("stake", 0) or 0),
             "mines": bool(row.get("mines", True)),
             "public_key": str(row.get("public_key", "") or ""),
+            "shard_id": row.get("shard_id"),
             "source": "manifest",
         })
     return out

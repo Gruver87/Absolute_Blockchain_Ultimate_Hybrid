@@ -254,6 +254,7 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/mempool", "summary": "Pending transactions"},
     {"method": "GET", "path": "/mempool/audit", "summary": "Mempool fee stats and validation flags"},
     {"method": "GET", "path": "/sharding/pending", "summary": "Pending cross-shard transactions"},
+    {"method": "GET", "path": "/sharding/cross-shard/quorum/{tx_id}", "summary": "Cross-shard validator quorum status"},
     {"method": "GET", "path": "/peers", "summary": "Connected P2P peers (alias)"},
     {"method": "GET", "path": "/network/peers", "summary": "Connected P2P peers"},
     {"method": "GET", "path": "/p2p/topology", "summary": "Live P2P topology and rejoin candidates (Wave 61)"},
@@ -1709,7 +1710,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 for tx_id in getattr(sharding, "pending_cross_txs", []):
                     tx = sharding.cross_shard_txs.get(tx_id)
                     if tx:
-                        pending.append({
+                        row = {
                             "tx_id": tx.tx_id,
                             "from_shard": tx.from_shard,
                             "to_shard": tx.to_shard,
@@ -1717,12 +1718,30 @@ class RESTHandler(BaseHTTPRequestHandler):
                             "to_addr": tx.to_addr,
                             "amount": tx.amount,
                             "status": tx.status,
-                        })
+                        }
+                        if hasattr(sharding, "cross_shard_quorum_status"):
+                            row["quorum"] = sharding.cross_shard_quorum_status(tx.tx_id)
+                        pending.append(row)
                 self._json({
                     "enabled": True,
                     "count": len(pending),
                     "pending": pending,
                 })
+
+            elif path.startswith("/sharding/cross-shard/quorum/"):
+                sharding = self.__class__.sharding
+                tx_id = path.rsplit("/", 1)[-1]
+                if not sharding or not tx_id:
+                    self._error(400, "tx_id required")
+                    return
+                if not hasattr(sharding, "cross_shard_quorum_status"):
+                    self._error(503, "cross-shard quorum not available")
+                    return
+                status = sharding.cross_shard_quorum_status(tx_id)
+                if not status:
+                    self._error(404, "quorum session not found")
+                    return
+                self._json({"enabled": True, "quorum": status})
 
             elif path == "/sharding/reshard/status":
                 sharding = self.__class__.sharding
@@ -4921,6 +4940,31 @@ class RESTHandler(BaseHTTPRequestHandler):
                 limit = int(body.get("limit", 20) or 20)
                 result = sh.process_reshard_migrations(limit=limit)
                 self._json({"success": True, **result})
+
+            elif path == "/sharding/committees/load":
+                sh = self.__class__.sharding
+                if not sh or not hasattr(sh, "load_shard_committees"):
+                    self._error(503, "Sharding coordinator not enabled"); return
+                manifest = body.get("manifest")
+                committees = body.get("committees")
+                loaded = 0
+                if isinstance(manifest, dict) and hasattr(sh, "load_validators_from_manifest"):
+                    loaded = sh.load_validators_from_manifest(manifest)
+                elif isinstance(committees, dict):
+                    parsed = {
+                        int(k): [str(v) for v in vals]
+                        for k, vals in committees.items()
+                        if isinstance(vals, list)
+                    }
+                    loaded = sh.load_shard_committees(parsed)
+                else:
+                    self._error(400, "committees or manifest object required"); return
+                coord = getattr(sh, "coordinator", None)
+                self._json({
+                    "success": True,
+                    "loaded": loaded,
+                    "coordinator": coord.status() if coord and hasattr(coord, "status") else None,
+                })
 
             # ── Smart account: request/approve recovery ───────────────────────
             elif path == "/smart-account/request-recovery":

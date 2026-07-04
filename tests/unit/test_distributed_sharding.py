@@ -61,6 +61,66 @@ def test_distributed_cross_shard_two_dbs(tmp_path):
     assert src.cross_shard_txs[tx_id].status == "confirmed"
 
 
+def test_distributed_cross_shard_validator_quorum(tmp_path):
+    db0 = Database(str(tmp_path / "q0.db"))
+    db0.initialize()
+    db1 = Database(str(tmp_path / "q1.db"))
+    db1.initialize()
+
+    sender, recipient, from_shard, to_shard = _cross_shard_pair(2)
+    db0.set_balance(sender, 50.0)
+
+    committees = {
+        from_shard: ["src-v1", "src-v2", "src-v3"],
+        to_shard: ["dst-v1", "dst-v2", "dst-v3"],
+    }
+    src = ShardingManager(
+        num_shards=2,
+        db=db0,
+        assigned_shard_id=from_shard,
+        node_id="shard-src",
+        validator_id="src-v1",
+        mode="distributed",
+    )
+    src.load_shard_committees(committees)
+    dst = ShardingManager(
+        num_shards=2,
+        db=db1,
+        assigned_shard_id=to_shard,
+        node_id="shard-dst",
+        validator_id="dst-v1",
+        mode="distributed",
+    )
+    dst.load_shard_committees(committees)
+
+    _, tx_id = src.add_transaction({"from": sender, "to": recipient, "value": 10.0, "nonce": 0})
+    assert tx_id
+    assert src.cross_shard_txs[tx_id].status == "debited"
+    assert src.coordinator.quorum_reached(tx_id) is False
+
+    src.coordinator.record_validator_ack(tx_id, from_shard, "src-v2")
+    assert src.coordinator.quorum_reached(tx_id) is False
+
+    payload = src.export_cross_shard_payload(tx_id)
+    assert dst.receive_cross_shard_credit(payload) is True
+    assert db1.get_balance(recipient) == 10.0
+    assert dst.coordinator.quorum_reached(tx_id) is False
+
+    dst.coordinator.record_validator_ack(tx_id, to_shard, "dst-v2")
+    src.receive_cross_shard_ack({
+        "tx_id": tx_id,
+        "shard_id": to_shard,
+        "validator_id": "dst-v1",
+    })
+    assert src.coordinator.quorum_reached(tx_id) is False
+    assert src.receive_cross_shard_ack({
+        "tx_id": tx_id,
+        "shard_id": to_shard,
+        "validator_id": "dst-v2",
+    }) is True
+    assert src.cross_shard_txs[tx_id].status == "confirmed"
+
+
 def test_distributed_rejects_foreign_sender(tmp_path):
     db = Database(str(tmp_path / "s.db"))
     db.initialize()

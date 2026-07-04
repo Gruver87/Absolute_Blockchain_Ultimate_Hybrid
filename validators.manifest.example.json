@@ -8,7 +8,8 @@
       "address": "0x0000000000000000000000000000000000000001",
       "public_key": "",
       "mines": true,
-      "stake": 5000
+      "stake": 5000,
+      "shard_id": 0
     },
     {
       "index": 2,
@@ -16,7 +17,8 @@
       "address": "0x0000000000000000000000000000000000000002",
       "public_key": "",
       "mines": true,
-      "stake": 3000
+      "stake": 3000,
+      "shard_id": 0
     },
     {
       "index": 3,
@@ -24,7 +26,8 @@
       "address": "0x0000000000000000000000000000000000000003",
       "public_key": "",
       "mines": false,
-      "stake": 2000
+      "stake": 2000,
+      "shard_id": 1
     }
   ]
 }

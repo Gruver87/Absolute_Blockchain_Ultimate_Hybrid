@@ -42,6 +42,7 @@ class ShardingManager:
         db=None,
         assigned_shard_id: int = -1,
         node_id: str = "",
+        validator_id: str = "",
         mode: str = "routing",
     ):
         self.num_shards = max(1, int(num_shards))
@@ -53,6 +54,7 @@ class ShardingManager:
         self._db = db
         self.assigned_shard_id = int(assigned_shard_id)
         self.node_id = node_id or ""
+        self.validator_id = (validator_id or node_id or "").strip()
         self.mode = (mode or "routing").lower()
         self._gossip_fn: Optional[Callable[[dict], None]] = None
         self.coordinator = None
@@ -70,6 +72,31 @@ class ShardingManager:
     def set_gossip_callback(self, fn: Optional[Callable[[dict], None]]) -> None:
         """Optional hook (P2P) to broadcast cross-shard payloads."""
         self._gossip_fn = fn
+
+    def load_shard_committees(self, committees: Dict[int, List[str]]) -> int:
+        if not self.coordinator:
+            return 0
+        return self.coordinator.load_shard_committees(committees)
+
+    def load_validators_from_manifest(self, manifest: dict) -> int:
+        if not self.coordinator:
+            return 0
+        return self.coordinator.load_validators_from_manifest(manifest, self.num_shards)
+
+    def _record_shard_ack(self, tx_id: str, shard_id: int) -> bool:
+        if not self.coordinator:
+            return True
+        if self.coordinator.has_shard_committee(shard_id):
+            vid = self.validator_id or self.node_id
+            if not vid:
+                return False
+            return self.coordinator.record_validator_ack(tx_id, shard_id, vid)
+        return self.coordinator.record_ack(tx_id, shard_id)
+
+    def cross_shard_quorum_status(self, tx_id: str) -> Optional[dict]:
+        if not self.coordinator:
+            return None
+        return self.coordinator.quorum_status(tx_id)
 
     def is_distributed(self) -> bool:
         return self.mode == "distributed" and self.assigned_shard_id >= 0
@@ -162,7 +189,7 @@ class ShardingManager:
             if self._debit_cross_shard_source(cross_tx):
                 cross_tx.status = "debited"
                 if self.coordinator:
-                    self.coordinator.record_ack(tx_id, from_shard)
+                    self._record_shard_ack(tx_id, from_shard)
                 self._gossip_cross_shard(tx_id)
             else:
                 cross_tx.status = "failed"
@@ -240,7 +267,22 @@ class ShardingManager:
             if tx_id in self.pending_cross_txs:
                 self.pending_cross_txs.remove(tx_id)
             if self.coordinator:
-                self.coordinator.clear(tx_id)
+                self._record_shard_ack(tx_id, to_shard)
+                if self.coordinator.quorum_reached(tx_id):
+                    self.coordinator.clear(tx_id)
+                elif self._gossip_fn and self.coordinator.has_shard_committee(to_shard):
+                    vid = self.validator_id or self.node_id
+                    if vid:
+                        try:
+                            self._gossip_fn({
+                                "type": "cross_shard_ack",
+                                "tx_id": tx_id,
+                                "shard_id": to_shard,
+                                "validator_id": vid,
+                                "status": "validator_ack",
+                            })
+                        except Exception:
+                            pass
         return True
 
     def receive_cross_shard_ack(self, payload: dict) -> bool:
@@ -258,7 +300,11 @@ class ShardingManager:
                 return False
             if self.coordinator:
                 shard_id = int(payload.get("shard_id", tx.to_shard))
-                self.coordinator.record_ack(tx_id, shard_id)
+                validator_id = str(payload.get("validator_id", "") or "").strip()
+                if validator_id:
+                    self.coordinator.record_validator_ack(tx_id, shard_id, validator_id)
+                else:
+                    self._record_shard_ack(tx_id, shard_id)
                 if not self.coordinator.quorum_reached(tx_id):
                     return True
                 self.coordinator.clear(tx_id)
