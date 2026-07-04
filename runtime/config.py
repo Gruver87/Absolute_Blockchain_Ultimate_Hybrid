@@ -423,6 +423,18 @@ class Config:
                 errors.append("prod bridge requires at least one L1 RPC URL (ETH_RPC_URL/BSC_RPC_URL/POLYGON_RPC_URL)")
             if not self.bridge_require_l1_proof:
                 errors.append("prod bridge requires BRIDGE_REQUIRE_L1_PROOF=true")
+            if env_bool("BRIDGE_PROBE_L1_RPC", False):
+                try:
+                    from bridge.l1_rpc import probe_configured_l1_rpcs
+
+                    probe = probe_configured_l1_rpcs()
+                    if not probe.get("ok"):
+                        errors.append(
+                            "prod L1 RPC reachability probe failed: "
+                            + str(probe.get("error") or probe)
+                        )
+                except Exception as e:
+                    errors.append(f"prod L1 RPC reachability probe failed: {e}")
         return errors
 
     def __repr__(self) -> str:

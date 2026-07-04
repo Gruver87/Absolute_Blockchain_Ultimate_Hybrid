@@ -46,3 +46,27 @@ def test_is_tx_confirmed_mock(monkeypatch):
 def test_get_tx_confirmations_pending(monkeypatch):
     monkeypatch.setattr(l1_rpc, "_rpc_call", lambda *a, **k: None)
     assert l1_rpc.get_tx_confirmations("http://rpc", "0xabc") == 0
+
+
+def test_probe_l1_rpc_url_ok(monkeypatch):
+    monkeypatch.setattr(l1_rpc, "_rpc_call", lambda url, method, params, timeout=15: "0x2a")
+    probe = l1_rpc.probe_l1_rpc_url("http://rpc")
+    assert probe["ok"] is True
+    assert probe["block_number"] == 42
+
+
+def test_probe_configured_l1_rpcs_partial_failure(monkeypatch):
+    monkeypatch.setenv("ETH_RPC_URL", "http://eth")
+    monkeypatch.setenv("BSC_RPC_URL", "http://bsc")
+    monkeypatch.delenv("POLYGON_RPC_URL", raising=False)
+
+    def fake_rpc(url, method, params, timeout=15):
+        if url == "http://eth":
+            return "0x10"
+        raise RuntimeError("offline")
+
+    monkeypatch.setattr(l1_rpc, "_rpc_call", fake_rpc)
+    result = l1_rpc.probe_configured_l1_rpcs()
+    assert result["ok"] is False
+    assert result["probes"]["ETH_RPC_URL"]["ok"] is True
+    assert "offline" in result["probes"]["BSC_RPC_URL"]["error"]

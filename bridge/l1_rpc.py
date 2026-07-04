@@ -10,6 +10,51 @@ import urllib.request
 from typing import Any, Dict, Optional
 
 
+_L1_RPC_ENV_KEYS = ("ETH_RPC_URL", "BSC_RPC_URL", "POLYGON_RPC_URL")
+
+
+def configured_l1_rpc_urls() -> Dict[str, str]:
+    """Non-empty L1 RPC URLs from environment (env key -> URL)."""
+    out: Dict[str, str] = {}
+    for key in _L1_RPC_ENV_KEYS:
+        url = os.environ.get(key, "").strip()
+        if url:
+            out[key] = url
+    return out
+
+
+def probe_l1_rpc_url(rpc_url: str, timeout: float = 5.0) -> Dict[str, Any]:
+    """Lightweight eth_blockNumber probe for startup / config validation."""
+    if not rpc_url:
+        return {"ok": False, "error": "empty rpc url", "url": rpc_url}
+    try:
+        result = _rpc_call(rpc_url, "eth_blockNumber", [], timeout=timeout)
+        block = _parse_hex_int(result)
+        if block <= 0:
+            return {
+                "ok": False,
+                "error": f"unexpected block number {block}",
+                "url": rpc_url,
+            }
+        return {"ok": True, "url": rpc_url, "block_number": block}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "url": rpc_url}
+
+
+def probe_configured_l1_rpcs(timeout: float = 5.0) -> Dict[str, Any]:
+    """Probe every configured L1 RPC URL; succeeds only if all respond."""
+    urls = configured_l1_rpc_urls()
+    if not urls:
+        return {"ok": False, "error": "no L1 RPC URLs configured", "probes": {}}
+    probes = {key: probe_l1_rpc_url(url, timeout=timeout) for key, url in urls.items()}
+    failed = [key for key, probe in probes.items() if not probe.get("ok")]
+    ok = not failed
+    err = None
+    if not ok:
+        err = "; ".join(f"{key}: {probes[key].get('error')}" for key in failed)
+    return {"ok": ok, "error": err, "probes": probes}
+
+
 def chain_rpc_url(chain: str) -> str:
     """Resolve RPC URL from env: ETH_RPC_URL, POLYGON_RPC_URL, etc."""
     aliases = {

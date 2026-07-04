@@ -161,6 +161,29 @@ def test_prod_bridge_requires_l1_rpc_and_proof_flag(monkeypatch):
     assert not any("BRIDGE_REQUIRE_L1_PROOF" in e for e in errs)
 
 
+def test_prod_bridge_l1_rpc_probe_when_enabled(monkeypatch):
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.bridge_enabled = True
+    cfg.bridge_mode = "rust"
+    cfg.rust_bridge_path = __file__
+    cfg.require_wallet_file = False
+    cfg.rpc_api_key_required = False
+    cfg.bridge_oracle_secret = "x" * 32
+    cfg.bridge_require_l1_proof = True
+    monkeypatch.setenv("JWT_SECRET", "y" * 32)
+    monkeypatch.setenv("ETH_RPC_URL", "https://rpc.example.com")
+    monkeypatch.setenv("BRIDGE_PROBE_L1_RPC", "true")
+
+    monkeypatch.setattr(
+        "bridge.l1_rpc.probe_configured_l1_rpcs",
+        lambda timeout=5.0: {"ok": False, "error": "ETH_RPC_URL: timeout"},
+    )
+
+    errs = cfg.validate()
+    assert any("L1 RPC reachability probe failed" in e for e in errs)
+
+
 def test_non_dev_public_bind_requires_auth_and_cors():
     cfg = Config()
     cfg.deployment_mode = "staging"

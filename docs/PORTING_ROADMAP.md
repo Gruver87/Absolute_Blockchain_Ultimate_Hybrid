@@ -90,7 +90,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Prod config validates rust bridge binary smoke-test (`config.validate`)
 - [x] Prod requires L1 RPC URLs + `BRIDGE_REQUIRE_L1_PROOF`
 - [x] Runtime bridge health in `/metrics` and API overview
-- [ ] Live L1 RPC reachability probe at startup (optional; needs network)
+- [x] Live L1 RPC reachability probe at startup (opt-in: `BRIDGE_PROBE_L1_RPC=true`)
 
 ## Process per module
 
