@@ -30,6 +30,7 @@ REQUIRED_TRUE = [
     "require_signatures",
     "enforce_proposer",
     "verify_peer_state_root",
+    "state_root_strict_p2p",
     "rpc_api_key_required",
     "jwt_enforce_admin",
     "require_wallet_file",

@@ -177,15 +177,24 @@ class RustBridge:
 
         # Выбираем режим
         if self._mode == "rust":
-            tx_hash = self._call_rust("bridge", {
+            rust_args = {
                 "from_chain": "absolute",
                 "to_chain": to_chain,
                 "from_addr": from_addr,
                 "to_addr": to_addr,
                 "amount": net_amount,
-            })
-            if not tx_hash:
-                return {"error": "rust bridge call failed"}
+            }
+            if l1_tx_hash:
+                rust_args["l1_tx_hash"] = l1_tx_hash
+                if not self._call_rust_ok("lock", rust_args):
+                    return {"error": "rust L1 lock verification failed"}
+                tx_hash = l1_tx_hash
+            elif self._is_prod:
+                tx_hash = self._mint_abs_lock_hash(from_addr, to_chain, to_addr, net_amount)
+            else:
+                tx_hash = self._call_rust("bridge", rust_args)
+                if not tx_hash:
+                    return {"error": "rust bridge call failed"}
         elif self._mode == "simulator":
             if not self._simulator:
                 return {"error": "simulator bridge not available"}
@@ -409,13 +418,22 @@ class RustBridge:
                 from_chain=event.get("from_chain", ""),
             )
 
-    def confirm_lock(self, tx_hash: str) -> Dict:
+    def confirm_lock(self, tx_hash: str, l1_tx_hash: str = "") -> Dict:
         """Confirm outbound bridge lock (oracle / admin). No balance change — funds already locked."""
         locks = self.db.get_bridge_locks(limit=1000)
         for lock in locks:
             if lock["tx_hash"] == tx_hash and lock["status"] == "pending":
                 if self._mode == "rust":
-                    if not self._call_rust_ok("confirm", {"tx_hash": tx_hash}):
+                    proof_tx = l1_tx_hash or self._lookup_outbound_l1_hash(tx_hash)
+                    rust_args = {"tx_hash": tx_hash}
+                    if proof_tx:
+                        rust_args["l1_tx_hash"] = proof_tx
+                    elif self._is_prod and getattr(self.config, "bridge_require_l1_proof", False):
+                        return {
+                            "confirmed": False,
+                            "error": "l1_tx_hash required for outbound confirm in production",
+                        }
+                    if not self._call_rust_ok("confirm", rust_args):
                         return {"confirmed": False, "error": "rust confirm failed"}
                 elif self._mode != "simulator":
                     return {"confirmed": False, "error": "bridge unavailable: rust binary missing or bridge mode invalid"}
@@ -487,6 +505,39 @@ class RustBridge:
                 return candidate
         return None
 
+    def _mint_abs_lock_hash(
+        self,
+        from_addr: str,
+        to_chain: str,
+        to_addr: str,
+        net_amount: float,
+    ) -> str:
+        """Deterministic ABS-side lock receipt (not a synthetic L1 tx hash)."""
+        from crypto import native
+
+        ts = int(time.time())
+        chain_id = int(getattr(self.config, "chain_id", 0) or 0)
+        digest = native.hash_text(
+            f"abs_bridge_lock|{chain_id}|{from_addr}|{to_chain}|{to_addr}|{net_amount}|{ts}"
+        )
+        return f"0x{digest}"
+
+    def _lookup_outbound_l1_hash(self, abs_tx_hash: str) -> str:
+        from bridge.l1_rpc import load_l1_queue
+
+        path = getattr(self.config, "bridge_l1_queue_path", "data/bridge_l1_queue.json")
+        queue = load_l1_queue(path)
+        for entry in queue.get("outbound", []):
+            if entry.get("abs_tx_hash") == abs_tx_hash or entry.get("tx_hash") == abs_tx_hash:
+                return str(entry.get("l1_tx_hash") or "")
+        return ""
+
+    def _rust_subprocess_env(self) -> Dict[str, str]:
+        env = dict(os.environ)
+        if self._is_prod:
+            env.pop("BRIDGE_ALLOW_SYNTHETIC", None)
+        return env
+
     def _call_rust(self, command: str, args: Dict) -> Optional[str]:
         """Вызывает Rust-бинарник через subprocess и возвращает tx_hash."""
         out = self._call_rust_raw(command, args)
@@ -514,6 +565,7 @@ class RustBridge:
                 input=payload.encode(),
                 capture_output=True,
                 timeout=10,
+                env=self._rust_subprocess_env(),
             )
             if result.returncode == 0:
                 return json.loads(result.stdout.decode())

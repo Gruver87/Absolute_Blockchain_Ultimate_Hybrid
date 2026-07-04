@@ -452,12 +452,16 @@ class Config:
             if (public_http or public_rpc) and "*" in self.cors_origins:
                 errors.append("non-dev public bind forbids wildcard CORS_ORIGINS")
         if self.is_production:
+            if not self.state_root_strict_p2p:
+                errors.append("prod mode requires state_root_strict_p2p=true")
             jwt_secret = os.environ.get("JWT_SECRET") or getattr(self, "jwt_secret", "")
             if not jwt_secret:
                 errors.append("prod mode requires JWT_SECRET")
             elif weak_secret(jwt_secret):
                 errors.append("prod JWT_SECRET is placeholder or too short")
         if self.is_production and self.bridge_enabled:
+            if env_bool("BRIDGE_ALLOW_SYNTHETIC", False):
+                errors.append("prod bridge forbids BRIDGE_ALLOW_SYNTHETIC (local dev only)")
             if self.bridge_mode == "rust":
                 try:
                     from bridge.health import check_rust_bridge_binary

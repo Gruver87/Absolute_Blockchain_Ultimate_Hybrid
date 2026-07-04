@@ -17,6 +17,7 @@
   "require_native_crypto": true,
   "enforce_proposer": true,
   "verify_peer_state_root": true,
+  "state_root_strict_p2p": true,
   "state_root_legacy_cutoff_height": 0,
   "bridge_enabled": false,
   "bridge_mode": "rust",

@@ -15,7 +15,6 @@ Absolute Blockchain — ядро цепочки блоков.
   - execution/block_validator.py: валидация блоков из P2P
 """
 
-import hashlib
 import json
 import time
 import threading
@@ -170,42 +169,30 @@ class Block:
 
     def _compute_tx_root(self) -> str:
         """Merkle root транзакций блока (для SPV / light client)."""
-        try:
-            from crypto.merkle import merkle_root
-            items = [tx.hash for tx in self.transactions] if self.transactions else []
-            return merkle_root(items) if items else merkle_root(["empty"])
-        except Exception:
-            return hashlib.sha256(b"empty").hexdigest()
+        from crypto.merkle import merkle_root
+
+        items = [tx.hash for tx in self.transactions] if self.transactions else []
+        return merkle_root(items) if items else merkle_root(["empty"])
 
     def _compute_hash(self) -> str:
         """Детерминированный хэш блока через CanonicalSerializer."""
-        if _CANONICAL_AVAILABLE:
-            try:
-                block_dict = {
-                    "height": self.height,
-                    "parent_hash": self.parent_hash,
-                    "miner": self.miner,
-                    "timestamp": self.timestamp,
-                    "extra_data": self.extra_data,
-                    "state_root": self.state_root,
-                    "transactions": [
-                        {"hash": tx.hash, "from": tx.from_addr, "to": tx.to_addr,
-                         "amount": tx.value, "fee": tx.fee, "nonce": tx.nonce,
-                         "timestamp": tx.timestamp}
-                        for tx in sorted(self.transactions, key=lambda t: t.hash)
-                    ],
-                }
-                return native.block_canonical_hash(block_dict)
-            except Exception:
-                pass
-
-        # Fallback: simple hash
-        tx_hashes = "".join(tx.hash for tx in self.transactions)
-        raw = (
-            f"{self.height}{self.parent_hash}{self.miner}"
-            f"{self.timestamp}{tx_hashes}{self.extra_data}{self.state_root}"
-        )
-        return native.hash_text(raw)
+        if not _CANONICAL_AVAILABLE:
+            raise RuntimeError("canonical block hash unavailable (CanonicalSerializer missing)")
+        block_dict = {
+            "height": self.height,
+            "parent_hash": self.parent_hash,
+            "miner": self.miner,
+            "timestamp": self.timestamp,
+            "extra_data": self.extra_data,
+            "state_root": self.state_root,
+            "transactions": [
+                {"hash": tx.hash, "from": tx.from_addr, "to": tx.to_addr,
+                 "amount": tx.value, "fee": tx.fee, "nonce": tx.nonce,
+                 "timestamp": tx.timestamp}
+                for tx in sorted(self.transactions, key=lambda t: t.hash)
+            ],
+        }
+        return native.block_canonical_hash(block_dict)
 
     def to_dict(self) -> Dict:
         return {

@@ -17,6 +17,7 @@
   "require_native_crypto": true,
   "enforce_proposer": true,
   "verify_peer_state_root": true,
+  "state_root_strict_p2p": true,
   "bridge_enabled": true,
   "bridge_mode": "rust",
   "rust_bridge_path": "bridge/abs_bridge_bin",
