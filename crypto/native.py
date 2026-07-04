@@ -310,13 +310,31 @@ def keccak256_hex(data: bytes) -> str:
     """Ethereum-compatible Keccak-256."""
     if _native is not None and hasattr(_native, "keccak256_hex"):
         return str(_native.keccak256_hex(data))
-    return hashlib.sha3_256(data).hexdigest()
+    if _REQUIRE_NATIVE:
+        raise RuntimeError(_NATIVE_REQUIRED_MSG)
+    try:
+        from Crypto.Hash import keccak as _keccak
+
+        digest = _keccak.new(digest_bits=256)
+        digest.update(data)
+        return digest.hexdigest()
+    except ImportError:
+        raise RuntimeError(
+            "keccak256_hex requires abs_native (pip install -e native/abs_native) "
+            "or pycryptodome; hashlib.sha3_256 is NOT Ethereum Keccak"
+        )
 
 
 def keccak256_digest(data: bytes) -> bytes:
     if _native is not None and hasattr(_native, "keccak256_digest"):
         return bytes(_native.keccak256_digest(data))
     return bytes.fromhex(keccak256_hex(data))
+
+
+def recover_eth_address_keccak(prehash: bytes, r: bytes, s: bytes, rec_id: int) -> str:
+    if _native is not None and hasattr(_native, "recover_eth_address_keccak"):
+        return str(_native.recover_eth_address_keccak(prehash, r, s, int(rec_id)))
+    raise RuntimeError("recover_eth_address_keccak requires abs_native")
 
 
 EVM_U256_MASK = (1 << 256) - 1
@@ -407,6 +425,36 @@ def evm_u256_shr(value: int, shift: int) -> int:
     shift = int(shift) & EVM_U256_MASK
     if _native is not None and hasattr(_native, "evm_u256_shr"):
         return _evm_u256_int(bytes(_native.evm_u256_shr(_evm_u256_bytes(value), int(shift))))
+    return value >> shift
+
+
+def evm_u256_slt(left: int, right: int) -> int:
+    if _native is not None and hasattr(_native, "evm_u256_slt"):
+        return _evm_u256_int(
+            bytes(_native.evm_u256_slt(_evm_u256_bytes(left), _evm_u256_bytes(right)))
+        )
+    left &= EVM_U256_MASK
+    right &= EVM_U256_MASK
+    sign = 1 << 255
+    left_neg = left >= sign
+    right_neg = right >= sign
+    if left_neg == right_neg:
+        truthy = left < right
+    else:
+        truthy = left_neg
+    return 1 if truthy else 0
+
+
+def evm_u256_sar(value: int, shift: int) -> int:
+    shift = int(shift) & EVM_U256_MASK
+    if _native is not None and hasattr(_native, "evm_u256_sar"):
+        return _evm_u256_int(bytes(_native.evm_u256_sar(_evm_u256_bytes(value), int(shift))))
+    value &= EVM_U256_MASK
+    if shift >= 256:
+        return EVM_U256_MASK if value >= (1 << 255) else 0
+    if value >= (1 << 255):
+        mask = EVM_U256_MASK << (256 - shift) & EVM_U256_MASK
+        return (value >> shift) | mask
     return value >> shift
 
 
@@ -721,11 +769,11 @@ def _evm_opcode_supported_python(op: int) -> bool:
 
 _EVM_SUPPORTED_SINGLE_OPCODES = {
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
-    0x10, 0x11, 0x12, 0x14, 0x15, 0x16, 0x17, 0x19, 0x1A, 0x1B, 0x1C,
+    0x10, 0x11, 0x12, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D,
     0x20,
-    0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39,
-    0x3B, 0x3C, 0x3D, 0x3E, 0x40, 0x42, 0x43, 0x45, 0x46,
-    0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x5A, 0x5B, 0x5F,
+    0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A,
+    0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48,
+    0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5A, 0x5B, 0x5F,
     0xA0, 0xA1, 0xA2, 0xA3, 0xA4,
     0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xFA, 0xFD, 0xFE, 0xFF,
 }
@@ -744,7 +792,7 @@ _EVM_HOST_OPCODES = frozenset({
     *range(0xA0, 0xA5),
 })
 
-_EVM_BRIDGE_OPCODES = frozenset({0x31, 0x3B, 0x3C, 0x40})
+_EVM_BRIDGE_OPCODES = frozenset({0x31, 0x3B, 0x3C, 0x3F, 0x40})
 
 
 def evm_host_context_from_evm(ctx) -> dict:
@@ -757,6 +805,10 @@ def evm_host_context_from_evm(ctx) -> dict:
         "timestamp": int(ctx.timestamp),
         "block_number": int(ctx.block_number),
         "chain_id": int(ctx.chain_id),
+        "base_fee": int(getattr(ctx, "base_fee", 0) or 0),
+        "gas_price": int(getattr(ctx, "gas_price", 0) or 0),
+        "difficulty": int(getattr(ctx, "difficulty", 0) or 0),
+        "coinbase": ctx.addr_int(getattr(ctx, "coinbase", "") or ""),
     }
     hooks = {}
     if ctx.balance_of:
@@ -765,6 +817,16 @@ def evm_host_context_from_evm(ctx) -> dict:
         hooks["code_size"] = ctx.code_size_of
     if ctx.code_copy_of:
         hooks["code_copy"] = ctx.code_copy_of
+    if ctx.code_size_of or ctx.code_copy_of:
+        def _code_hash(addr):
+            size = int(ctx.code_size_of(addr)) if ctx.code_size_of else 0
+            if size <= 0:
+                return 0
+            code = ctx.code_copy_of(addr, 0, size) if ctx.code_copy_of else b""
+            if not code:
+                return 0
+            return int.from_bytes(keccak256_digest(code), "big")
+        hooks["code_hash"] = _code_hash
     if ctx.block_hash_of:
         hooks["block_hash"] = ctx.block_hash_of
     if hooks:

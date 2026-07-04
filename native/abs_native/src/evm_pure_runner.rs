@@ -6,7 +6,8 @@ use crate::{
     evm_calldataload_inner, evm_is_jumpdest_inner, evm_keccak256_memory_inner,
     evm_memory_read_word_inner, evm_memory_slice_inner, evm_read_push_inner,
     evm_u256_addmod_inner, evm_u256_exp_inner, evm_u256_mulmod_inner, evm_u256_sdiv_inner,
-    evm_u256_signextend_inner, evm_u256_smod_inner, u256_from_be32, u256_to_be32,
+    evm_u256_sar_inner, evm_u256_signextend_inner, evm_u256_slt_inner, evm_u256_smod_inner,
+    keccak256_digest_bytes, u256_from_be32, u256_to_be32,
 };
 
 const U256_MASK: U256 = U256::MAX;
@@ -14,7 +15,7 @@ const MAX_PURE_STEPS: usize = 8192;
 const MAX_FULL_STEPS: usize = 10_000_000;
 
 pub fn evm_opcode_is_bridge(op: u8) -> bool {
-    matches!(op, 0x31 | 0x3B | 0x3C | 0x40)
+    matches!(op, 0x31 | 0x3B | 0x3C | 0x3F | 0x40)
 }
 
 pub fn evm_opcode_is_host(op: u8) -> bool {
@@ -123,6 +124,10 @@ struct EvmStaticContext {
     timestamp: U256,
     block_number: U256,
     chain_id: U256,
+    base_fee: U256,
+    gas_price: U256,
+    difficulty: U256,
+    coinbase: U256,
 }
 
 fn parse_static_context(host_context: Option<&Bound<'_, PyDict>>) -> PyResult<EvmStaticContext> {
@@ -135,6 +140,10 @@ fn parse_static_context(host_context: Option<&Bound<'_, PyDict>>) -> PyResult<Ev
             timestamp: U256::zero(),
             block_number: U256::zero(),
             chain_id: U256::zero(),
+            base_fee: U256::zero(),
+            gas_price: U256::zero(),
+            difficulty: U256::zero(),
+            coinbase: U256::zero(),
         });
     };
     Ok(EvmStaticContext {
@@ -145,6 +154,10 @@ fn parse_static_context(host_context: Option<&Bound<'_, PyDict>>) -> PyResult<Ev
         timestamp: dict_get_u256(ctx, "timestamp")?,
         block_number: dict_get_u256(ctx, "block_number")?,
         chain_id: dict_get_u256(ctx, "chain_id")?,
+        base_fee: dict_get_u256(ctx, "base_fee")?,
+        gas_price: dict_get_u256(ctx, "gas_price")?,
+        difficulty: dict_get_u256(ctx, "difficulty")?,
+        coinbase: dict_get_u256(ctx, "coinbase")?,
     })
 }
 
@@ -420,6 +433,33 @@ fn resolve_block_hash(
     Err(pyo3::exceptions::PyRuntimeError::new_err("bridge_unavailable"))
 }
 
+fn resolve_full_code(
+    host_context: Option<&Bound<'_, PyDict>>,
+    host_bridge: Option<&Bound<'_, PyAny>>,
+    who: U256,
+) -> PyResult<Vec<u8>> {
+    if let Some(result) = inline_code_bytes(host_context, who) {
+        return result;
+    }
+    let size = resolve_code_size(host_context, host_bridge, who)?.as_usize();
+    if size == 0 {
+        return Ok(Vec::new());
+    }
+    resolve_code_copy(host_context, host_bridge, who, 0, size)
+}
+
+fn resolve_code_hash(
+    host_context: Option<&Bound<'_, PyDict>>,
+    host_bridge: Option<&Bound<'_, PyAny>>,
+    who: U256,
+) -> PyResult<U256> {
+    let code = resolve_full_code(host_context, host_bridge, who)?;
+    if code.is_empty() {
+        return Ok(U256::zero());
+    }
+    Ok(u256_from_be32(keccak256_digest_bytes(&code)))
+}
+
 fn evm_u256_div_inner(a: U256, b: U256) -> U256 {
     if b.is_zero() {
         U256::zero()
@@ -473,6 +513,14 @@ fn evm_u256_byte_inner(index: u32, value: U256) -> U256 {
     U256::from(byte)
 }
 
+fn evm_memory_active_bytes(len: usize) -> usize {
+    if len == 0 {
+        0
+    } else {
+        ((len + 31) / 32) * 32
+    }
+}
+
 fn gas_cost(op: u8) -> u64 {
     match op {
         0x00 => 0,
@@ -483,7 +531,7 @@ fn gas_cost(op: u8) -> u64 {
         0x09 => 8,
         0x0A => 10,
         0x0B => 5,
-        0x10 | 0x11 | 0x12 | 0x14 | 0x15 | 0x16 | 0x17 | 0x19 | 0x1A | 0x1B | 0x1C => 3,
+        0x10 | 0x11 | 0x12 | 0x14 | 0x15 | 0x16 | 0x17 | 0x18 | 0x19 | 0x1A | 0x1B | 0x1C | 0x1D => 3,
         0x20 => 30,
         0x35 | 0x37 | 0x39 | 0x3E => 3,
         0x36 | 0x3D => 2,
@@ -492,8 +540,12 @@ fn gas_cost(op: u8) -> u64 {
         0x51 | 0x52 | 0x53 => 3,
         0x56 => 8,
         0x57 => 10,
-        0x5A | 0x5F => 2,
+        0x5A | 0x5F | 0x58 | 0x59 => 2,
         0x5B => 1,
+        0x47 => 5,
+        0x48 => 2,
+        0x3A | 0x41 | 0x44 => 2,
+        0x3F => 700,
         0x30 | 0x32 | 0x33 | 0x34 | 0x42 | 0x43 | 0x45 | 0x46 => 2,
         0x31 => 400,
         0x3B | 0x3C => 700,
@@ -824,6 +876,12 @@ fn run_pure_segment_inner(
                     stack_push(&mut stack, evm_u256_gt_inner(a, b));
                     Ok(Some(false))
                 }
+                0x18 => {
+                    let a = stack_pop(&mut stack)?;
+                    let b = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, evm_u256_slt_inner(a, b));
+                    Ok(Some(false))
+                }
                 0x19 => {
                     let v = stack_pop(&mut stack)?;
                     stack_push(&mut stack, !v);
@@ -845,6 +903,12 @@ fn run_pure_segment_inner(
                     let shift = stack_pop(&mut stack)?;
                     let v = stack_pop(&mut stack)?;
                     stack_push(&mut stack, v >> shift.as_u32());
+                    Ok(Some(false))
+                }
+                0x1D => {
+                    let shift = stack_pop(&mut stack)?;
+                    let v = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, evm_u256_sar_inner(v, shift.as_u32()));
                     Ok(Some(false))
                 }
                 0x20 => {
@@ -926,6 +990,29 @@ fn run_pure_segment_inner(
                     stack_push(&mut stack, static_ctx.chain_id);
                     Ok(Some(false))
                 }
+                0x47 => {
+                    stack_push(
+                        &mut stack,
+                        resolve_balance(host_context, host_bridge, static_ctx.address)?,
+                    );
+                    Ok(Some(false))
+                }
+                0x48 => {
+                    stack_push(&mut stack, static_ctx.base_fee);
+                    Ok(Some(false))
+                }
+                0x3A => {
+                    stack_push(&mut stack, static_ctx.gas_price);
+                    Ok(Some(false))
+                }
+                0x41 => {
+                    stack_push(&mut stack, static_ctx.coinbase);
+                    Ok(Some(false))
+                }
+                0x44 => {
+                    stack_push(&mut stack, static_ctx.difficulty);
+                    Ok(Some(false))
+                }
                 0x31 => {
                     let who = stack_pop(&mut stack)?;
                     stack_push(
@@ -939,6 +1026,14 @@ fn run_pure_segment_inner(
                     stack_push(
                         &mut stack,
                         resolve_code_size(host_context, host_bridge, who)?,
+                    );
+                    Ok(Some(false))
+                }
+                0x3F => {
+                    let who = stack_pop(&mut stack)?;
+                    stack_push(
+                        &mut stack,
+                        resolve_code_hash(host_context, host_bridge, who)?,
                     );
                     Ok(Some(false))
                 }
@@ -1031,6 +1126,17 @@ fn run_pure_segment_inner(
                     Ok(Some(false))
                 }
                 0x5B => Ok(Some(false)),
+                0x58 => {
+                    stack_push(&mut stack, U256::from(pc));
+                    Ok(Some(false))
+                }
+                0x59 => {
+                    stack_push(
+                        &mut stack,
+                        U256::from(evm_memory_active_bytes(memory.len())),
+                    );
+                    Ok(Some(false))
+                }
                 0x5F => {
                     stack_push(&mut stack, U256::zero());
                     Ok(Some(false))

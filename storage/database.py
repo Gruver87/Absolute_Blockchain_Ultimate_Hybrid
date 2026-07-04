@@ -270,6 +270,8 @@ class Database:
                 timestamp        INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_evm_logs_contract ON evm_logs(contract_address);
+            CREATE INDEX IF NOT EXISTS idx_evm_logs_block ON evm_logs(block_height);
+            CREATE INDEX IF NOT EXISTS idx_evm_logs_tx ON evm_logs(tx_hash);
 
             CREATE TABLE IF NOT EXISTS oracle_feeds (
                 feed_id       TEXT PRIMARY KEY,
@@ -1606,27 +1608,83 @@ class Database:
         contract_address: str = "",
         limit: int = 100,
     ) -> List[Dict]:
+        return self.query_evm_logs(
+            addresses=[contract_address] if contract_address else None,
+            limit=limit,
+        )
+
+    def get_evm_logs_by_tx(self, tx_hash: str) -> List[Dict]:
+        if not tx_hash:
+            return []
         with self.lock:
-            if contract_address:
-                rows = self.conn.execute(
-                    """SELECT * FROM evm_logs WHERE contract_address=?
-                       ORDER BY id DESC LIMIT ?""",
-                    (contract_address, int(limit)),
-                ).fetchall()
-            else:
-                rows = self.conn.execute(
-                    "SELECT * FROM evm_logs ORDER BY id DESC LIMIT ?",
-                    (int(limit),),
-                ).fetchall()
-            out = []
-            for r in rows:
-                item = dict(r)
-                try:
-                    item["topics"] = json.loads(item.get("topics") or "[]")
-                except Exception:
-                    item["topics"] = []
-                out.append(item)
-            return out
+            rows = self.conn.execute(
+                """SELECT * FROM evm_logs WHERE tx_hash=?
+                   ORDER BY log_index ASC, id ASC""",
+                (tx_hash,),
+            ).fetchall()
+            return self._rows_to_evm_logs(rows)
+
+    def query_evm_logs(
+        self,
+        from_block: int = 0,
+        to_block: Optional[int] = None,
+        addresses: Optional[List[str]] = None,
+        topics: Optional[List] = None,
+        limit: int = 10_000,
+    ) -> List[Dict]:
+        """Query persisted EVM logs (eth_getLogs-style filter)."""
+        to_block = 2**63 - 1 if to_block is None else int(to_block)
+        from_block = max(0, int(from_block))
+        clauses = ["block_height >= ?", "block_height <= ?"]
+        params: List = [from_block, to_block]
+        if addresses:
+            normalized = [self._normalize_address(a) for a in addresses if a]
+            if normalized:
+                placeholders = ",".join("?" for _ in normalized)
+                clauses.append(f"contract_address IN ({placeholders})")
+                params.extend(normalized)
+        sql = (
+            "SELECT * FROM evm_logs WHERE "
+            + " AND ".join(clauses)
+            + " ORDER BY block_height ASC, log_index ASC, id ASC LIMIT ?"
+        )
+        params.append(int(limit))
+        with self.lock:
+            rows = self.conn.execute(sql, params).fetchall()
+        logs = self._rows_to_evm_logs(rows)
+        if topics:
+            logs = [row for row in logs if self._evm_log_topics_match(row.get("topics", []), topics)]
+        return logs
+
+    @staticmethod
+    def _rows_to_evm_logs(rows) -> List[Dict]:
+        out = []
+        for r in rows:
+            item = dict(r)
+            try:
+                item["topics"] = json.loads(item.get("topics") or "[]")
+            except Exception:
+                item["topics"] = []
+            out.append(item)
+        return out
+
+    @staticmethod
+    def _evm_log_topics_match(log_topics: List, filter_topics: List) -> bool:
+        if not filter_topics:
+            return True
+        for i, rule in enumerate(filter_topics):
+            if rule is None:
+                continue
+            if i >= len(log_topics):
+                return False
+            log_topic = str(log_topics[i]).lower()
+            if isinstance(rule, (list, tuple)):
+                allowed = {str(t).lower() for t in rule if t is not None}
+                if log_topic not in allowed:
+                    return False
+            elif log_topic != str(rule).lower():
+                return False
+        return True
 
     def save_oracle_feed(
         self,

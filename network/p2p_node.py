@@ -51,6 +51,8 @@ MSG_ATTESTATION = "attestation"
 MSG_STATE_ROOT_REQUEST = "state_root_request"
 MSG_STATE_ROOT_RESPONSE = "state_root_response"
 MSG_VALIDATOR_REGISTER = "validator_register"
+MSG_CROSS_SHARD_TX = "cross_shard_tx"
+MSG_CROSS_SHARD_ACK = "cross_shard_ack"
 
 
 class PeerConnection:
@@ -131,6 +133,7 @@ class P2PNode:
         self._consensus = None
         self.validator_keys = None
         self._state_consistent = True
+        self._sharding = None
 
         # Подписка на события шины — транслируем в сеть
         if self.bus:
@@ -166,6 +169,18 @@ class P2PNode:
         """Wire consensus for attestation gossip and fork choice."""
         self._consensus = consensus
         self.validator_keys = validator_keys
+
+    def set_sharding(self, sharding) -> None:
+        """Wire distributed sharding for cross-shard gossip."""
+        self._sharding = sharding
+        if sharding is not None and hasattr(sharding, "set_gossip_callback"):
+            sharding.set_gossip_callback(self._schedule_cross_shard_gossip)
+
+    def _schedule_cross_shard_gossip(self, payload: Dict) -> None:
+        if self._loop and self._running:
+            asyncio.run_coroutine_threadsafe(
+                self.broadcast_cross_shard_tx(payload), self._loop
+            )
 
     def get_block(self, block_hash: str) -> Optional[Dict]:
         """For SyncEngine.download_chain()."""
@@ -472,6 +487,12 @@ class P2PNode:
                         f"[P2P] State root mismatch vs {peer.peer_id[:8]}: "
                         f"local={local_root[:12]} peer={peer_root[:12]}"
                     )
+
+        elif msg_type == MSG_CROSS_SHARD_TX:
+            await self._handle_cross_shard_tx(peer, data)
+
+        elif msg_type == MSG_CROSS_SHARD_ACK:
+            await self._handle_cross_shard_ack(peer, data)
 
     async def _handle_validator_register(self, peer: PeerConnection, data: Dict):
         """Register peer validator in local consensus when announced."""
@@ -841,6 +862,9 @@ class P2PNode:
                         current = int(h) + 1
                         imported_any = True
                     else:
+                        fail_h = int(
+                            block_data.get("height", block_data.get("number", current)) or current
+                        )
                         parent_hash = block_data.get("parent_hash", "")
                         ancestor = None
                         if hasattr(self.blockchain, "find_ancestor_height"):
@@ -855,7 +879,7 @@ class P2PNode:
                             our_height = ancestor
                             current = ancestor + 1
                             break
-                        print(f"[P2P] Import failed at #{current}, aborting batch")
+                        print(f"[P2P] Import failed at #{fail_h}, aborting batch")
                         break
                 except Exception as e:
                     print(f"[P2P] Sync block error at #{current}: {e}")
@@ -1195,6 +1219,32 @@ class P2PNode:
             if pid != exclude_peer:
                 tasks.append(peer.send(MSG_NEW_BLOCK, block_data))
                 tasks.append(peer.send(MSG_STATUS, status))
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def _handle_cross_shard_tx(self, peer: PeerConnection, data: Dict):
+        if not self._sharding or not isinstance(data, dict):
+            return
+        credited = False
+        if hasattr(self._sharding, "receive_cross_shard_credit"):
+            credited = bool(self._sharding.receive_cross_shard_credit(data))
+        if credited:
+            await peer.send(MSG_CROSS_SHARD_ACK, {
+                "tx_id": data.get("tx_id", ""),
+                "to_shard": data.get("to_shard"),
+                "status": "confirmed",
+            })
+
+    async def _handle_cross_shard_ack(self, peer: PeerConnection, data: Dict):
+        if not self._sharding or not isinstance(data, dict):
+            return
+        if hasattr(self._sharding, "receive_cross_shard_ack"):
+            self._sharding.receive_cross_shard_ack(data)
+
+    async def broadcast_cross_shard_tx(self, payload: Dict):
+        if not isinstance(payload, dict):
+            return
+        tasks = [peer.send(MSG_CROSS_SHARD_TX, payload) for peer in self.peers.values()]
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 

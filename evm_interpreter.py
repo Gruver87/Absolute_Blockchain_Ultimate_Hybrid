@@ -28,6 +28,10 @@ class EVMContext:
     block_number: int = 0
     timestamp: int = 0
     chain_id: int = 77777
+    base_fee: int = 0
+    gas_price: int = 0
+    difficulty: int = 0
+    coinbase: str = ""
     balance_of: Optional[Callable[[str], int]] = None
     code_size_of: Optional[Callable[[str], int]] = None
     code_copy_of: Optional[Callable[[str, int, int], bytes]] = None
@@ -63,7 +67,9 @@ class EVM:
         "CODESIZE": 2, "CODECOPY": 3, "CHAINID": 2, "GASLIMIT": 2, "GAS": 2, "PUSH0": 2,
         "SHA3": 30, "RETURN": 0, "REVERT": 0, "JUMPDEST": 1,
         "AND": 3, "OR": 3, "XOR": 3, "NOT": 3, "LT": 3, "GT": 3,
-        "EQ": 3, "ISZERO": 3, "BYTE": 3, "SHL": 3, "SHR": 3,
+        "EQ": 3, "ISZERO": 3, "BYTE": 3, "SHL": 3, "SHR": 3, "SLT": 3, "SAR": 3,
+        "GASPRICE": 2, "EXTCODEHASH": 700, "COINBASE": 2, "DIFFICULTY": 2,
+        "SELFBALANCE": 5, "BASEFEE": 2, "PC": 2, "MSIZE": 2,
         "CALL": 700, "CALLCODE": 700, "DELEGATECALL": 700, "STATICCALL": 700,
         "BLOCKHASH": 20,
         "CREATE": 32000, "CREATE2": 32000,
@@ -371,6 +377,9 @@ class EVM:
             elif op_byte == 0x17:
                 a, b = self._pop(), self._pop()
                 self._push(native.evm_u256_gt(a, b))
+            elif op_byte == 0x18:
+                a, b = self._pop(), self._pop()
+                self._push(native.evm_u256_slt(a, b))
             elif op_byte == 0x19:
                 self._push(native.evm_u256_not(self._pop()))
             elif op_byte == 0x1A:
@@ -382,6 +391,9 @@ class EVM:
             elif op_byte == 0x1C:
                 shift, v = self._pop(), self._pop()
                 self._push(native.evm_u256_shr(v, shift))
+            elif op_byte == 0x1D:
+                shift, v = self._pop(), self._pop()
+                self._push(native.evm_u256_sar(v, shift))
             elif op_byte == 0x20:  # SHA3
                 offset, size = self._pop(), self._pop()
                 self._mem_extend(offset, size)
@@ -417,6 +429,19 @@ class EVM:
                 dest, offset, size = self._pop(), self._pop(), self._pop()
                 self._mem_extend(dest, size)
                 native.evm_memory_copy(self.memory, dest, self.bytecode, offset, size)
+            elif op_byte == 0x3A:  # GASPRICE
+                self._push(int(self.ctx.gas_price))
+            elif op_byte == 0x3F:  # EXTCODEHASH
+                who = self._pop()
+                addr = self._word_to_addr(who)
+                code_hash = 0
+                if self.ctx.code_size_of and self.ctx.code_copy_of:
+                    size = int(self.ctx.code_size_of(addr))
+                    if size > 0:
+                        code = self.ctx.code_copy_of(addr, 0, size)
+                        if code:
+                            code_hash = int.from_bytes(native.keccak256_digest(code), "big")
+                self._push(code_hash)
             elif op_byte == 0x3D:  # RETURNDATASIZE
                 self._push(len(self.return_data))
             elif op_byte == 0x3E:  # RETURNDATACOPY
@@ -466,10 +491,21 @@ class EVM:
                 self._push(self.ctx.timestamp)
             elif op_byte == 0x43:  # NUMBER
                 self._push(self.ctx.block_number)
+            elif op_byte == 0x41:  # COINBASE
+                self._push(self.ctx.addr_int(self.ctx.coinbase))
+            elif op_byte == 0x44:  # DIFFICULTY / PREVRANDAO
+                self._push(int(self.ctx.difficulty))
             elif op_byte == 0x45:  # GASLIMIT
                 self._push(self.gas_limit)
             elif op_byte == 0x46:  # CHAINID
                 self._push(self.ctx.chain_id)
+            elif op_byte == 0x47:  # SELFBALANCE
+                bal = 0
+                if self.ctx.balance_of and self.ctx.address:
+                    bal = int(self.ctx.balance_of(self.ctx.address))
+                self._push(bal)
+            elif op_byte == 0x48:  # BASEFEE
+                self._push(int(self.ctx.base_fee))
             elif op_byte == 0x50:  # POP
                 self._pop()
             elif op_byte == 0x51:
@@ -509,6 +545,11 @@ class EVM:
                 self._push(native.evm_gas_remaining(self.gas_limit, self.gas_used))
             elif op_byte == 0x5B:  # JUMPDEST
                 pass
+            elif op_byte == 0x58:  # PC
+                self._push(self.pc)
+            elif op_byte == 0x59:  # MSIZE
+                ln = len(self.memory)
+                self._push(0 if ln == 0 else ((ln + 31) // 32) * 32)
             elif op_byte == 0x5F:  # PUSH0
                 self._push(0)
             elif 0x80 <= op_byte <= 0x8F:  # DUP1..DUP16
@@ -619,17 +660,20 @@ class EVM:
             0x05: "SDIV", 0x06: "MOD", 0x07: "SMOD", 0x08: "ADDMOD", 0x09: "MULMOD",
             0x0A: "EXP", 0x0B: "SIGNEXTEND",
             0x10: "AND", 0x11: "OR", 0x12: "XOR", 0x14: "EQ",
-            0x15: "ISZERO", 0x16: "LT", 0x17: "GT", 0x19: "NOT", 0x1A: "BYTE",
-            0x1B: "SHL", 0x1C: "SHR", 0x20: "SHA3", 0x30: "ADDRESS",
+            0x15: "ISZERO", 0x16: "LT", 0x17: "GT", 0x18: "SLT", 0x19: "NOT", 0x1A: "BYTE",
+            0x1B: "SHL", 0x1C: "SHR", 0x1D: "SAR", 0x20: "SHA3", 0x30: "ADDRESS",
             0x31: "BALANCE", 0x32: "ORIGIN", 0x33: "CALLER", 0x34: "CALLVALUE",
             0x35: "CALLDATALOAD", 0x36: "CALLDATASIZE", 0x37: "CALLDATACOPY",
-            0x38: "CODESIZE", 0x39: "CODECOPY", 0x3B: "EXTCODESIZE", 0x3C: "EXTCODECOPY",
+            0x38: "CODESIZE", 0x39: "CODECOPY", 0x3A: "GASPRICE", 0x3B: "EXTCODESIZE", 0x3C: "EXTCODECOPY",
+            0x3F: "EXTCODEHASH",
             0x40: "BLOCKHASH",
             0x3D: "RETURNDATASIZE", 0x3E: "RETURNDATACOPY",
-            0x42: "TIMESTAMP", 0x43: "NUMBER", 0x45: "GASLIMIT", 0x46: "CHAINID",
+            0x42: "TIMESTAMP", 0x43: "NUMBER", 0x41: "COINBASE", 0x44: "DIFFICULTY",
+            0x45: "GASLIMIT", 0x46: "CHAINID",
+            0x47: "SELFBALANCE", 0x48: "BASEFEE",
             0x50: "POP", 0x51: "MLOAD",
             0x52: "MSTORE", 0x53: "MSTORE8", 0x54: "SLOAD", 0x55: "SSTORE",
-            0x56: "JUMP", 0x57: "JUMPI", 0x5A: "GAS", 0x5B: "JUMPDEST", 0x5F: "PUSH0",
+            0x56: "JUMP", 0x57: "JUMPI", 0x58: "PC", 0x59: "MSIZE", 0x5A: "GAS", 0x5B: "JUMPDEST", 0x5F: "PUSH0",
             0xA0: "LOG0", 0xFF: "SELFDESTRUCT",
             0xF0: "CREATE", 0xF5: "CREATE2",
             0xF1: "CALL", 0xF2: "CALLCODE", 0xF4: "DELEGATECALL", 0xFA: "STATICCALL",

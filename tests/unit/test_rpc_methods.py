@@ -94,6 +94,41 @@ def test_rpc_rejects_fake_raw_tx(rpc_env):
     assert "error" in body
 
 
+def test_rpc_eth_get_logs_with_filter(rpc_env):
+    url, bc, mp, cfg = rpc_env
+    contract = "0x" + "de" * 20
+    bc.db.save_evm_logs(
+        contract,
+        [{"topics": ["0xabc"], "data": "c0ffee"}],
+        block_height=bc.get_height(),
+        tx_hash="0xfeed",
+    )
+    logs = _rpc(url, "eth_getLogs", [{"fromBlock": "0x0", "toBlock": "latest", "address": contract}])
+    assert len(logs) == 1
+    assert logs[0]["address"].lower() == contract.lower()
+    assert logs[0]["data"] in ("0xc0ffee", "c0ffee")
+    assert logs[0]["topics"] == ["0xabc"]
+
+
+def test_rpc_wallet_compat_methods(rpc_env):
+    url, bc, mp, cfg = rpc_env
+    assert _rpc(url, "eth_chainId") == hex(cfg.chain_id)
+    assert _rpc(url, "eth_protocolVersion") == hex(65)
+    assert _rpc(url, "eth_hashrate") == "0x0"
+    assert _rpc(url, "eth_getUncleCountByBlockNumber", ["latest"]) == "0x0"
+    assert _rpc(url, "eth_getLogs", [{}]) == []
+    gas = int(_rpc(url, "eth_estimateGas", [{"to": "0x" + "ab" * 20}]), 16)
+    assert gas >= 21_000
+    fee_hist = _rpc(url, "eth_feeHistory", [hex(2), "latest", []])
+    assert "baseFeePerGas" in fee_hist
+    assert len(fee_hist["baseFeePerGas"]) == 2
+    blk = _rpc(url, "eth_getBlockByNumber", ["latest", False])
+    assert blk is not None
+    for field in ("stateRoot", "gasLimit", "transactionsRoot", "miner"):
+        assert field in blk
+    assert _rpc(url, "eth_getStorageAt", ["0x" + "00" * 20, "0x0"]) == "0x0"
+
+
 def test_prod_rpc_requires_key_and_restricts_cors(tmp_path):
     cfg = Config()
     cfg.deployment_mode = "prod"

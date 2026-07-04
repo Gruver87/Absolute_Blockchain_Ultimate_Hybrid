@@ -1,7 +1,7 @@
 mod evm_pure_runner;
 
 use k256::ecdsa::signature::hazmat::PrehashVerifier;
-use k256::ecdsa::{Signature, VerifyingKey};
+use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
 use primitive_types::{U256, U512};
 use pyo3::prelude::*;
 use pyo3::types::{PyByteArray, PyList};
@@ -313,12 +313,51 @@ fn keccak256_hex_bytes(data: &[u8]) -> String {
     hex::encode(out)
 }
 
-fn keccak256_digest_bytes(data: &[u8]) -> [u8; 32] {
+pub(crate) fn keccak256_digest_bytes(data: &[u8]) -> [u8; 32] {
     let mut hasher = Keccak::v256();
     hasher.update(data);
     let mut out = [0u8; 32];
     hasher.finalize(&mut out);
     out
+}
+
+fn recover_eth_address_keccak_inner(
+    prehash: &[u8; 32],
+    r: &[u8],
+    s: &[u8],
+    rec_id: u8,
+) -> Result<String, String> {
+    if r.len() != 32 || s.len() != 32 {
+        return Err("bad_signature_length".into());
+    }
+    let mut sig_bytes = [0u8; 64];
+    sig_bytes[..32].copy_from_slice(r);
+    sig_bytes[32..].copy_from_slice(s);
+    let mut signature = Signature::from_slice(&sig_bytes).map_err(|e| e.to_string())?;
+    signature = signature.normalize_s().unwrap_or(signature);
+    let rid = RecoveryId::from_byte(rec_id).ok_or_else(|| "bad_recovery_id".to_string())?;
+    let vk = VerifyingKey::recover_from_prehash(prehash, &signature, rid)
+        .map_err(|e| e.to_string())?;
+    let point = vk.to_encoded_point(false);
+    let pub_bytes = &point.as_bytes()[1..];
+    let hash = keccak256_digest_bytes(pub_bytes);
+    Ok(format!("0x{}", hex::encode(&hash[12..])))
+}
+
+#[pyfunction]
+fn recover_eth_address_keccak(
+    prehash: &[u8],
+    r: Vec<u8>,
+    s: Vec<u8>,
+    rec_id: u8,
+) -> PyResult<String> {
+    if prehash.len() != 32 {
+        return Err(pyo3::exceptions::PyValueError::new_err("prehash_must_be_32_bytes"));
+    }
+    let mut hash = [0u8; 32];
+    hash.copy_from_slice(prehash);
+    recover_eth_address_keccak_inner(&hash, &r, &s, rec_id)
+        .map_err(pyo3::exceptions::PyValueError::new_err)
 }
 
 pub(crate) fn u256_from_be32(bytes: [u8; 32]) -> U256 {
@@ -687,6 +726,50 @@ fn evm_u256_shl(a: [u8; 32], shift: u32) -> PyResult<[u8; 32]> {
 #[pyfunction]
 fn evm_u256_shr(a: [u8; 32], shift: u32) -> PyResult<[u8; 32]> {
     Ok(u256_to_be32(u256_from_be32(a) >> shift))
+}
+
+pub(crate) fn evm_u256_slt_inner(a: U256, b: U256) -> U256 {
+    let a_neg = u256_is_negative(a);
+    let b_neg = u256_is_negative(b);
+    let truthy = if a_neg == b_neg {
+        a < b
+    } else {
+        a_neg
+    };
+    if truthy {
+        U256::one()
+    } else {
+        U256::zero()
+    }
+}
+
+pub(crate) fn evm_u256_sar_inner(value: U256, shift: u32) -> U256 {
+    if shift >= 256 {
+        return if u256_is_negative(value) {
+            U256::MAX
+        } else {
+            U256::zero()
+        };
+    }
+    if u256_is_negative(value) {
+        let fill = U256::MAX << (256 - shift);
+        (value >> shift) | fill
+    } else {
+        value >> shift
+    }
+}
+
+#[pyfunction]
+fn evm_u256_slt(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(u256_to_be32(evm_u256_slt_inner(
+        u256_from_be32(a),
+        u256_from_be32(b),
+    )))
+}
+
+#[pyfunction]
+fn evm_u256_sar(a: [u8; 32], shift: u32) -> PyResult<[u8; 32]> {
+    Ok(u256_to_be32(evm_u256_sar_inner(u256_from_be32(a), shift)))
 }
 
 fn u256_is_negative(v: U256) -> bool {
@@ -1078,10 +1161,12 @@ fn evm_opcode_supported(op: u8) -> bool {
             | 0x15
             | 0x16
             | 0x17
+            | 0x18
             | 0x19
             | 0x1A
             | 0x1B
             | 0x1C
+            | 0x1D
             | 0x20
             | 0x30
             | 0x31
@@ -1093,15 +1178,21 @@ fn evm_opcode_supported(op: u8) -> bool {
             | 0x37
             | 0x38
             | 0x39
+            | 0x3A
             | 0x3B
             | 0x3C
             | 0x3D
             | 0x3E
+            | 0x3F
             | 0x40
+            | 0x41
             | 0x42
             | 0x43
+            | 0x44
             | 0x45
             | 0x46
+            | 0x47
+            | 0x48
             | 0x50
             | 0x51
             | 0x52
@@ -1110,6 +1201,8 @@ fn evm_opcode_supported(op: u8) -> bool {
             | 0x55
             | 0x56
             | 0x57
+            | 0x58
+            | 0x59
             | 0x5A
             | 0x5B
             | 0x5F
@@ -1424,6 +1517,8 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_u256_not, m)?)?;
     m.add_function(wrap_pyfunction!(evm_u256_shl, m)?)?;
     m.add_function(wrap_pyfunction!(evm_u256_shr, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_slt, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_sar, m)?)?;
     m.add_function(wrap_pyfunction!(evm_u256_lt, m)?)?;
     m.add_function(wrap_pyfunction!(evm_u256_gt, m)?)?;
     m.add_function(wrap_pyfunction!(evm_u256_eq, m)?)?;
@@ -1449,6 +1544,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_pure_runner::evm_run_until_halt_py, m)?)?;
     m.add_function(wrap_pyfunction!(evm_pure_runner::evm_run_pure_until_host_py, m)?)?;
     m.add_function(wrap_pyfunction!(keccak256_hex, m)?)?;
+    m.add_function(wrap_pyfunction!(recover_eth_address_keccak, m)?)?;
     m.add_function(wrap_pyfunction!(validate_imported_block_chain, m)?)?;
     m.add_function(wrap_pyfunction!(validate_peer_header_chain, m)?)?;
     m.add_function(wrap_pyfunction!(transaction_hash, m)?)?;

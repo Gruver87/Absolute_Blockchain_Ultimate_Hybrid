@@ -507,7 +507,7 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
         if method == "eth_getTransactionReceipt":
             tx_hash = params[0] if params else ""
             tx = bc.get_transaction(tx_hash)
-            return _format_receipt(tx)
+            return _format_receipt(tx, bc)
 
         # ── EVM ────────────────────────────────────────────────────────────
         if method == "eth_call":
@@ -523,14 +523,92 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
         if method == "eth_estimateGas":
             tx_obj = params[0] if params else {}
             to_addr = tx_obj.get("to", "")
-            data = tx_obj.get("data", "")
+            data = tx_obj.get("data", tx_obj.get("input", ""))
             if evm_adapter and to_addr:
                 gas = evm_adapter.estimate_gas(to_addr, data)
-                return hex(gas)
-            return hex(cfg.base_gas_price)
+                return hex(max(21_000, int(gas or 0)))
+            return hex(21_000)
 
         if method == "eth_gasPrice":
             return hex(int(cfg.gas_price_wei * 10**18))
+
+        if method == "eth_maxPriorityFeePerGas":
+            return hex(int(getattr(cfg, "priority_fee_wei", 0) or 0))
+
+        if method == "eth_feeHistory":
+            block_count = int(params[0], 16) if params else 1
+            block_count = max(1, min(block_count, 1024))
+            tip = _resolve_block_by_tag(bc, params[1] if len(params) > 1 else "latest")
+            tip_h = int(tip.get("height", bc.get_height())) if tip else bc.get_height()
+            oldest = max(0, tip_h - block_count + 1)
+            base = hex(int(cfg.gas_price_wei * 10**18))
+            return {
+                "oldestBlock": hex(oldest),
+                "baseFeePerGas": [base] * block_count,
+                "gasUsedRatio": [0.5] * block_count,
+                "reward": [["0x0"]] * block_count,
+            }
+
+        if method == "eth_accounts":
+            if wallet and getattr(wallet, "address", ""):
+                return [wallet.address]
+            miner = getattr(cfg, "miner_address", "") or ""
+            return [miner] if miner else []
+
+        if method == "eth_coinbase":
+            return getattr(cfg, "miner_address", "") or "0x0"
+
+        if method == "eth_hashrate":
+            return "0x0"
+
+        if method == "eth_protocolVersion":
+            return hex(65)
+
+        if method == "eth_getStorageAt":
+            address = params[0] if params else ""
+            slot_raw = params[1] if len(params) > 1 else "0x0"
+            slot = int(slot_raw, 16) if str(slot_raw).startswith("0x") else int(slot_raw)
+            account = bc.db.get_account(address) if bc else None
+            storage = {}
+            if account and account.get("storage"):
+                try:
+                    storage = json.loads(account["storage"])
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    storage = {}
+            val = storage.get(str(slot), storage.get(slot, 0))
+            return hex(int(val or 0))
+
+        if method == "eth_getBlockTransactionCountByHash":
+            block_hash = params[0] if params else ""
+            blk = bc.db.get_block_by_hash(block_hash) if bc else None
+            if not blk:
+                return hex(0)
+            txs = blk.get("transactions", [])
+            return hex(len(txs) if isinstance(txs, list) else int(blk.get("tx_count", 0) or 0))
+
+        if method == "eth_getTransactionByBlockNumberAndIndex":
+            tag = params[0] if params else "latest"
+            idx = int(params[1], 16) if len(params) > 1 and str(params[1]).startswith("0x") else int(params[1] if len(params) > 1 else 0)
+            blk = _resolve_block_by_tag(bc, tag)
+            return _format_tx(_tx_at_block_index(bc, blk, idx))
+
+        if method == "eth_getTransactionByBlockHashAndIndex":
+            block_hash = params[0] if params else ""
+            idx = int(params[1], 16) if len(params) > 1 and str(params[1]).startswith("0x") else int(params[1] if len(params) > 1 else 0)
+            blk = bc.db.get_block_by_hash(block_hash) if bc else None
+            return _format_tx(_tx_at_block_index(bc, blk, idx))
+
+        if method == "eth_getUncleCountByBlockNumber":
+            return hex(0)
+
+        if method == "eth_getUncleCountByBlockHash":
+            return hex(0)
+
+        if method == "eth_getLogs":
+            filt = params[0] if params else {}
+            if not isinstance(filt, dict):
+                raise ValueError("eth_getLogs expects object filter")
+            return _handle_eth_get_logs(filt, bc)
 
         # ── Мемпул ────────────────────────────────────────────────────────
         if method == "eth_getMempoolSize":
@@ -2976,8 +3054,8 @@ class RESTHandler(BaseHTTPRequestHandler):
             # ── Sharding: register node, mine block ───────────────────────────
             elif path == "/sharding/nodes":
                 sh = self.__class__.sharding
-                if sh and hasattr(sh, "nodes"):
-                    self._json({"nodes": list(sh.nodes.keys()) if isinstance(sh.nodes, dict) else sh.nodes})
+                if sh and hasattr(sh, "list_nodes"):
+                    self._json({"nodes": sh.list_nodes(), "enabled": True})
                 else:
                     self._json({"nodes": [], "enabled": bool(sh)})
 
@@ -5121,18 +5199,36 @@ class RESTHandler(BaseHTTPRequestHandler):
 def _format_block(blk: Optional[Dict], full_tx: bool = False) -> Optional[Dict]:
     if not blk:
         return None
+    state_root = blk.get("state_root", "") or ""
+    if state_root and not str(state_root).startswith("0x"):
+        state_root = "0x" + str(state_root)
+    txs = blk.get("transactions", [])
+    tx_hashes = [
+        tx.get("hash", "") if isinstance(tx, dict) else str(tx)
+        for tx in (txs if isinstance(txs, list) else [])
+    ]
     return {
         "number": hex(blk.get("height", 0)),
         "hash": blk.get("hash", blk.get("block_hash", "")),
         "parentHash": blk.get("parent_hash", ""),
-        "timestamp": hex(blk.get("timestamp", 0)),
-        "miner": blk.get("miner", ""),
+        "nonce": "0x0000000000000000",
+        "sha3Uncles": "0x" + "0" * 64,
+        "logsBloom": "0x" + "0" * 512,
+        "transactionsRoot": "0x" + "0" * 64,
+        "stateRoot": state_root or ("0x" + "0" * 64),
+        "receiptsRoot": "0x" + "0" * 64,
+        "miner": blk.get("miner", blk.get("proposer", "")),
+        "difficulty": "0x0",
+        "totalDifficulty": "0x0",
+        "extraData": "0x",
+        "size": hex(256 + len(tx_hashes) * 32),
+        "gasLimit": hex(30_000_000),
         "gasUsed": hex(blk.get("gas_used", 0)),
-        "transactions": blk.get("transactions", []) if full_tx else
-                        [tx.get("hash", "") if isinstance(tx, dict) else tx
-                         for tx in blk.get("transactions", [])],
+        "timestamp": hex(blk.get("timestamp", 0)),
+        "uncles": [],
+        "transactions": txs if full_tx else tx_hashes,
         "totalBurned": blk.get("total_burned", 0.0),
-        "txCount": blk.get("tx_count", 0),
+        "txCount": blk.get("tx_count", len(tx_hashes)),
     }
 
 
@@ -5153,19 +5249,109 @@ def _format_tx(tx: Optional[Dict]) -> Optional[Dict]:
     }
 
 
-def _format_receipt(tx: Optional[Dict]) -> Optional[Dict]:
+def _format_receipt(tx: Optional[Dict], bc=None) -> Optional[Dict]:
     if not tx:
         return None
+    tx_hash = tx.get("hash", tx.get("tx_hash", ""))
+    logs: List[Dict] = []
+    if bc and hasattr(bc, "db") and hasattr(bc.db, "get_evm_logs_by_tx"):
+        logs = [
+            _format_eth_log(row, bc)
+            for row in bc.db.get_evm_logs_by_tx(tx_hash)
+        ]
     return {
-        "transactionHash": tx.get("hash", tx.get("tx_hash", "")),
+        "transactionHash": tx_hash,
         "blockNumber": hex(tx.get("block_height", 0)),
         "from": tx.get("from_addr", tx.get("from", "")),
         "to": tx.get("to_addr", tx.get("to", "")),
         "status": hex(tx.get("status", 1)),
         "gasUsed": hex(tx.get("gas_used", tx.get("gas", 21000))),
-        "logs": [],
+        "logs": logs,
         "burned": tx.get("burned", 0.0),
     }
+
+
+def _resolve_block_tag_to_height(bc, tag) -> int:
+    if tag in (None, "", "earliest"):
+        return 0
+    if tag in ("latest", "pending"):
+        return int(bc.get_height()) if bc else 0
+    try:
+        return int(tag, 16) if str(tag).startswith("0x") else int(tag)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _normalize_log_data(data) -> str:
+    raw = str(data or "")
+    if not raw or raw == "0x":
+        return "0x"
+    return raw if raw.startswith("0x") else "0x" + raw
+
+
+def _tx_index_in_block(bc, block_height: int, tx_hash: str) -> int:
+    if not bc or not tx_hash:
+        return 0
+    blk = bc.get_block(int(block_height))
+    if not blk:
+        return 0
+    txs = blk.get("transactions", [])
+    if not isinstance(txs, list):
+        return 0
+    target = tx_hash.lower()
+    for idx, entry in enumerate(txs):
+        if isinstance(entry, dict):
+            h = str(entry.get("hash", entry.get("tx_hash", ""))).lower()
+        else:
+            h = str(entry).lower()
+        if h == target:
+            return idx
+    return 0
+
+
+def _format_eth_log(row: Dict, bc=None) -> Dict:
+    block_height = int(row.get("block_height", 0))
+    block_hash = ""
+    if bc:
+        blk = bc.get_block(block_height)
+        if blk:
+            block_hash = blk.get("hash", blk.get("block_hash", ""))
+    tx_hash = row.get("tx_hash", "")
+    topics = row.get("topics", [])
+    if not isinstance(topics, list):
+        topics = []
+    return {
+        "removed": False,
+        "logIndex": hex(int(row.get("log_index", 0))),
+        "transactionIndex": hex(_tx_index_in_block(bc, block_height, tx_hash)),
+        "transactionHash": tx_hash,
+        "blockHash": block_hash,
+        "blockNumber": hex(block_height),
+        "address": row.get("contract_address", ""),
+        "data": _normalize_log_data(row.get("data", "")),
+        "topics": topics,
+    }
+
+
+def _handle_eth_get_logs(filt: Dict, bc) -> List[Dict]:
+    if not bc or not hasattr(bc, "db") or not hasattr(bc.db, "query_evm_logs"):
+        return []
+    from_block = _resolve_block_tag_to_height(bc, filt.get("fromBlock", "0x0"))
+    to_block = _resolve_block_tag_to_height(bc, filt.get("toBlock", "latest"))
+    if to_block < from_block:
+        return []
+    address = filt.get("address")
+    addresses = None
+    if address:
+        addresses = address if isinstance(address, list) else [address]
+    topics = filt.get("topics")
+    rows = bc.db.query_evm_logs(
+        from_block=from_block,
+        to_block=to_block,
+        addresses=addresses,
+        topics=topics,
+    )
+    return [_format_eth_log(row, bc) for row in rows]
 
 
 def _resolve_block_by_tag(bc, tag: str) -> Optional[Dict]:
@@ -5179,6 +5365,21 @@ def _resolve_block_by_tag(bc, tag: str) -> Optional[Dict]:
         return bc.get_block(height)
     except (TypeError, ValueError):
         return None
+
+
+def _tx_at_block_index(bc, blk: Optional[Dict], index: int) -> Optional[Dict]:
+    if not bc or not blk or index < 0:
+        return None
+    txs = blk.get("transactions", [])
+    if not isinstance(txs, list) or index >= len(txs):
+        return None
+    entry = txs[index]
+    if isinstance(entry, dict):
+        return entry
+    tx_hash = str(entry)
+    if hasattr(bc, "get_transaction"):
+        return bc.get_transaction(tx_hash)
+    return None
 
 
 def _parse_tx_value(value_raw) -> float:
@@ -6225,11 +6426,18 @@ def _handle_send_tx_with_wallet(tx_obj: Dict, bc, mp, cfg, wallet=None) -> str:
 
 
 def _handle_send_tx(raw_hex: str, bc, mp, cfg) -> str:
-    """Принимает raw hex транзакцию и добавляет в мемпул."""
+    """Принимает raw hex транзакцию (Ethereum RLP или dev JSON) и добавляет в мемпул."""
     if not raw_hex:
         raise ValueError("empty_raw_transaction")
+    raw = bytes.fromhex(str(raw_hex).replace("0x", ""))
+    if not raw:
+        raise ValueError("empty_raw_transaction")
     try:
-        raw = bytes.fromhex(str(raw_hex).replace("0x", ""))
+        from crypto.eth_tx import decode_raw_transaction
+        return _handle_send_tx_obj(decode_raw_transaction(raw), bc, mp, cfg)
+    except (ValueError, RuntimeError):
+        pass
+    try:
         decoded = json.loads(raw.decode())
         if not isinstance(decoded, dict):
             raise ValueError("raw_tx_must_decode_to_object")

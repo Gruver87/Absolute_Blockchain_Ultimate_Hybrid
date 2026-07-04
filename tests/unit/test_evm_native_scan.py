@@ -6,8 +6,8 @@ from execution.evm_bytecode_validator import validate_bytecode_hex
 
 
 def test_scan_rejects_unknown_opcode():
-    issues = native.evm_scan_bytecode(bytes([0x44, 0x00]))
-    assert issues == [(0, 0x44)]
+    issues = native.evm_scan_bytecode(bytes([0x0C, 0x00]))
+    assert issues == [(0, 0x0C)]
 
 
 def test_scan_accepts_exp_opcode():

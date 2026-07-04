@@ -28,6 +28,15 @@ class EvmHostBridge:
             return bytes(chunk or b"")
         return b""
 
+    def code_hash(self, addr: str) -> int:
+        size = self.code_size(addr)
+        if size <= 0:
+            return 0
+        code = self.code_copy(addr, 0, size)
+        if not code:
+            return 0
+        return int.from_bytes(native.keccak256_digest(code), "big")
+
     def block_hash(self, block_num: int) -> int:
         if self._ctx.block_hash_of:
             return int(self._ctx.block_hash_of(int(block_num)))

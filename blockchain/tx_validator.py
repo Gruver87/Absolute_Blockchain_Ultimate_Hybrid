@@ -71,9 +71,13 @@ class TransactionValidator:
 
         signature = tx.get("signature", "")
         public_key = tx.get("public_key", "")
-        if require_signature and not signature:
+        eth_signed = bool(tx.get("eth_signed"))
+        if require_signature and not signature and not eth_signed:
             return False, "Signature required"
-        if signature:
+        if eth_signed:
+            if not cls._verify_signature(tx, signature, chain_id):
+                return False, "Invalid signature"
+        elif signature:
             if not public_key:
                 return False, "public_key required with signature"
             if not cls._verify_signature(tx, signature, chain_id):
@@ -98,6 +102,12 @@ class TransactionValidator:
 
     @classmethod
     def _verify_signature(cls, tx: dict, signature: str, chain_id: int) -> bool:
+        if tx.get("eth_signed"):
+            try:
+                from crypto.eth_tx import verify_eth_transaction_dict
+                return verify_eth_transaction_dict(tx)
+            except Exception:
+                return False
         try:
             from crypto.wallet import verify_transaction_signature
             raw_value = tx.get("value", tx.get("amount", 0))

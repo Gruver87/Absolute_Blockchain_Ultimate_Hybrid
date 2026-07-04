@@ -2,6 +2,27 @@
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location (Split-Path -Parent $ProjectRoot)
 
+function Import-DotEnvFile {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return $false }
+    Get-Content $Path | ForEach-Object {
+        $line = $_.Trim()
+        if (-not $line -or $line.StartsWith("#") -or -not $line.Contains("=")) { return }
+        $parts = $line.Split("=", 2)
+        $key = $parts[0].Trim()
+        $val = $parts[1].Trim().Trim('"').Trim("'")
+        if ($key -and -not [Environment]::GetEnvironmentVariable($key)) {
+            [Environment]::SetEnvironmentVariable($key, $val, "Process")
+        }
+    }
+    return $true
+}
+
+$dotEnv = Join-Path (Get-Location) ".env"
+if (Import-DotEnvFile $dotEnv) {
+    Write-Host "Loaded $dotEnv" -ForegroundColor DarkGray
+}
+
 $missing = @()
 foreach ($name in @("JWT_SECRET", "RPC_API_KEYS", "BRIDGE_ORACLE_SECRET", "CORS_ORIGINS", "ETH_RPC_URL")) {
     if (-not [Environment]::GetEnvironmentVariable($name)) {
@@ -10,19 +31,23 @@ foreach ($name in @("JWT_SECRET", "RPC_API_KEYS", "BRIDGE_ORACLE_SECRET", "CORS_
 }
 if ($missing.Count -gt 0) {
     Write-Host "Missing required prod env vars: $($missing -join ', ')" -ForegroundColor Red
-    Write-Host "Example:" -ForegroundColor Gray
-    Write-Host "  Set JWT_SECRET to a generated long value (32+ chars)" -ForegroundColor Gray
-    Write-Host "  Set RPC_API_KEYS to a generated API key" -ForegroundColor Gray
-    Write-Host "  Set BRIDGE_ORACLE_SECRET to a generated long value" -ForegroundColor Gray
-    Write-Host "  Set CORS_ORIGINS to your HTTPS explorer origin" -ForegroundColor Gray
-    Write-Host "  Set ETH_RPC_URL to your Ethereum JSON-RPC endpoint" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "Quick setup (generates .env + data\wallet.json):" -ForegroundColor Cyan
+    Write-Host "  .\scripts\setup_prod_env.ps1" -ForegroundColor White
+    Write-Host ""
+    Write-Host "Or set manually in this PowerShell session:" -ForegroundColor Gray
+    Write-Host '  $env:JWT_SECRET = "your_jwt_secret_here"' -ForegroundColor Gray
+    Write-Host '  $env:RPC_API_KEYS = "your_rpc_api_key_here"' -ForegroundColor Gray
+    Write-Host '  $env:BRIDGE_ORACLE_SECRET = "your_bridge_oracle_secret"' -ForegroundColor Gray
+    Write-Host '  $env:CORS_ORIGINS = "https://your-explorer.example.com"' -ForegroundColor Gray
+    Write-Host '  $env:ETH_RPC_URL = "https://your-ethereum-rpc"' -ForegroundColor Gray
     exit 1
 }
 
 $walletPath = Join-Path (Get-Location) "data\wallet.json"
 if (-not (Test-Path $walletPath)) {
     Write-Host "Prod wallet is required: $walletPath" -ForegroundColor Red
-    Write-Host "Create or mount data\wallet.json before starting production." -ForegroundColor Gray
+    Write-Host "Run: .\scripts\setup_prod_env.ps1" -ForegroundColor Cyan
     exit 1
 }
 

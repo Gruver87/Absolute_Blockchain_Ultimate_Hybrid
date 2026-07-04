@@ -21,8 +21,13 @@ def test_accepts_log0_opcode():
     assert v["valid"] is True
 
 
-def test_rejects_difficulty_opcode():
+def test_accepts_difficulty_opcode():
     v = validate_bytecode_hex("0x4400")
+    assert v["valid"] is True
+
+
+def test_rejects_unknown_opcode():
+    v = validate_bytecode_hex("0x0c00")
     assert v["valid"] is False
 
 

@@ -616,6 +616,11 @@ class NodeOrchestrator:
 
         # 8. Мост
         self.bridge = RustBridge(config, self.db, self.bus) if config.bridge_enabled else None
+        if config.bridge_enabled and getattr(config, "bridge_mode", "rust") == "simulator":
+            print(
+                "[Node] WARN: bridge_mode=simulator is dev/test only - "
+                "set BRIDGE_MODE=rust for real L1 cross-chain path"
+            )
 
         # 9. NFT маркетплейс
         self.nft = NFTMarketplace(db=self.db, bus=self.bus)
@@ -625,11 +630,25 @@ class NodeOrchestrator:
         self.zk = ZKProofSystem() if getattr(config, "feature_zk", True) else None
         print("[Node] ZK Proof System: ready" if self.zk else "[Node] ZK Proof System: disabled")
 
-        # 11. Dynamic Sharding (4 shards: Genesis, Finance, Governance, Identity)
+        # 11. Dynamic Sharding
         if _SHARDING_AVAILABLE and getattr(config, "feature_sharding", True):
-            self.sharding = ShardingManager(num_shards=4, db=self.db)
-            self.sharding.register_node(config.miner_address or "node-0")
-            print(f"[Node] Sharding: {self.sharding.num_shards} shards active")
+            self.sharding = ShardingManager(
+                num_shards=getattr(config, "num_shards", 4),
+                db=self.db,
+                assigned_shard_id=getattr(config, "assigned_shard_id", -1),
+                node_id=config.node_id,
+                mode=getattr(config, "shard_mode", "routing"),
+            )
+            shard_id = getattr(config, "assigned_shard_id", -1)
+            reg_shard = shard_id if shard_id >= 0 else None
+            self.sharding.register_node(config.node_id, reg_shard)
+            if self.p2p and hasattr(self.p2p, "set_sharding"):
+                self.p2p.set_sharding(self.sharding)
+            mode = "distributed" if self.sharding.is_distributed() else "routing"
+            print(
+                f"[Node] Sharding: {self.sharding.num_shards} shards ({mode}"
+                f"{f', assigned={shard_id}' if shard_id >= 0 else ''})"
+            )
         else:
             self.sharding = None
 
@@ -1348,6 +1367,12 @@ class NodeOrchestrator:
 
             if not self.consensus.should_produce_block():
                 continue
+
+            if self.sharding and hasattr(self.sharding, "process_cross_shard_transactions"):
+                try:
+                    self.sharding.process_cross_shard_transactions()
+                except Exception:
+                    pass
 
             # ── Proposer: solo operational wallet OR RANDAO when multiple validators ──
             proposer = None

@@ -103,6 +103,29 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Docker prod: node + relayer sidecar
 - [x] Grafana panels for native crypto / bridge / L1 RPC metrics
 
+### Priority 9 — Industrialization (simulators → real network) 🔄
+
+- [x] `.env.example` default `BRIDGE_MODE=rust` (simulator explicit opt-in)
+- [x] Keccak fallback: no wrong `sha3_256`; require native or pycryptodome
+- [x] `node.industrial.json` / `node2.industrial.json` — prod-like devnet profile
+- [x] `start_two_nodes.ps1 -Industrial` — native crypto + rust bridge + no L2 demos
+- [x] JSON-RPC wallet wave: `eth_accounts`, `eth_getStorageAt`, `eth_feeHistory`, MetaMask block fields
+- [x] Solidity 0.8+ opcodes: `SLT`, `SAR`, `PC`, `MSIZE`, `SELFBALANCE`, `BASEFEE` (native + Python fallback)
+- [x] Block/env opcodes: `GASPRICE`, `COINBASE`, `DIFFICULTY`, `EXTCODEHASH`
+- [x] `evm_u256_slt` signed-compare fix (both-negative operands)
+- [x] `eth_sendRawTransaction`: RLP decode (legacy + EIP-1559) + native `recover_eth_address_keccak`
+- [x] Tests: `test_evm_extended_opcodes.py`, `test_eth_raw_tx.py`
+- [ ] Full EVM opcode coverage (Ethereum mainnet compatibility)
+- [x] Distributed sharding MVP: `shard_mode=distributed`, `assigned_shard_id`, separate DBs, P2P `cross_shard_tx`/`cross_shard_ack`
+- [x] `node.shard0.json` / `node.shard1.json`, `scripts/start_shard_devnet.ps1`
+- [x] Tests: `test_distributed_sharding.py`
+- [ ] Full cross-shard consensus / resharding
+- [ ] Validator key ops (HSM/KMS, public validator set registry)
+- [ ] JSON-RPC `eth_*` completeness for wallets/dApps (`eth_sendRawTransaction` RLP + `eth_getLogs` filters done)
+- [ ] External security audit before public mainnet
+- [ ] Optional PyO3 bridge helper (CLI sufficient today)
+- Dev-only (keep blocked in prod): `bridge_mode=simulator`, `mock_l1_rpc`, `feature_wasm/plasma/lightning/pq/zk`
+
 ## Process per module
 
 1. Python tests + golden vectors first.

@@ -3,10 +3,9 @@ import hashlib
 import threading
 import time
 import json
-from typing import Dict, List, Optional, Any
+from typing import Callable, Dict, List, Optional, Any
 from dataclasses import dataclass, field
-from collections import defaultdict
-import random
+
 
 @dataclass
 class Shard:
@@ -19,6 +18,7 @@ class Shard:
     last_hash: str = "0" * 64
     state_root: str = "0" * 64
 
+
 @dataclass
 class CrossShardTransaction:
     """Transaction between different shards"""
@@ -27,27 +27,54 @@ class CrossShardTransaction:
     to_shard: int
     from_addr: str
     to_addr: str
-    amount: int
-    status: str  # pending, confirmed, failed
+    amount: float
+    status: str  # pending, debited, confirmed, failed
     created_at: float
     confirmed_at: Optional[float] = None
 
-class ShardingManager:
-    """Complete sharding system for blockchain scalability"""
 
-    def __init__(self, num_shards: int = 4, db=None):
-        self.num_shards = num_shards
+class ShardingManager:
+    """Sharding: routing (single-DB labels) or distributed (per-node shard ownership)."""
+
+    def __init__(
+        self,
+        num_shards: int = 4,
+        db=None,
+        assigned_shard_id: int = -1,
+        node_id: str = "",
+        mode: str = "routing",
+    ):
+        self.num_shards = max(1, int(num_shards))
         self.shards: Dict[int, Shard] = {}
         self.cross_shard_txs: Dict[str, CrossShardTransaction] = {}
         self.pending_cross_txs: List[str] = []
         self.node_to_shard: Dict[str, int] = {}
         self.shard_lock = threading.Lock()
         self._db = db
+        self.assigned_shard_id = int(assigned_shard_id)
+        self.node_id = node_id or ""
+        self.mode = (mode or "routing").lower()
+        self._gossip_fn: Optional[Callable[[dict], None]] = None
         self._initialize_shards()
 
     def set_database(self, db) -> None:
         """Attach chain database for real balance lookups."""
         self._db = db
+
+    def set_gossip_callback(self, fn: Optional[Callable[[dict], None]]) -> None:
+        """Optional hook (P2P) to broadcast cross-shard payloads."""
+        self._gossip_fn = fn
+
+    def is_distributed(self) -> bool:
+        return self.mode == "distributed" and self.assigned_shard_id >= 0
+
+    def owns_shard(self, shard_id: int) -> bool:
+        if not self.is_distributed():
+            return True
+        return int(shard_id) == self.assigned_shard_id
+
+    def owns_address(self, address: str) -> bool:
+        return self.owns_shard(self.get_shard_for_address(address))
 
     def _initialize_shards(self):
         """Initialize shards"""
@@ -56,7 +83,7 @@ class ShardingManager:
             self.shards[i] = Shard(
                 id=i,
                 name=shard_names[i % len(shard_names)],
-                nodes=[]
+                nodes=[],
             )
 
     def get_shard_for_address(self, address: str) -> int:
@@ -66,36 +93,169 @@ class ShardingManager:
 
     def get_shard_for_transaction(self, tx: dict) -> int:
         """Determine shard for transaction"""
-        from_addr = tx.get('from', '')
+        from_addr = tx.get("from", tx.get("from_addr", ""))
         return self.get_shard_for_address(from_addr)
 
+    @staticmethod
+    def _tx_amount(tx: dict) -> float:
+        raw = tx.get("value", tx.get("amount", 0))
+        if isinstance(raw, str) and raw.startswith("0x"):
+            return float(int(raw, 16))
+        return float(raw)
+
     def add_transaction(self, tx: dict) -> tuple:
-        """Add transaction to appropriate shard"""
-        from_shard = self.get_shard_for_address(tx.get('from', ''))
-        to_shard = self.get_shard_for_address(tx.get('to', ''))
+        """Add transaction to appropriate shard."""
+        from_addr = tx.get("from", tx.get("from_addr", ""))
+        to_addr = tx.get("to", tx.get("to_addr", ""))
+        from_shard = self.get_shard_for_address(from_addr)
+        to_shard = self.get_shard_for_address(to_addr)
+
+        if self.is_distributed() and not self.owns_shard(from_shard):
+            raise ValueError(
+                f"foreign_shard_sender: shard {from_shard} not owned by node "
+                f"(assigned={self.assigned_shard_id})"
+            )
 
         if from_shard == to_shard:
             with self.shard_lock:
                 self.shards[from_shard].transactions.append(tx)
             return from_shard, None
-        else:
-            tx_id = hashlib.sha256(json.dumps(tx, sort_keys=True).encode()).hexdigest()[:16]
-            cross_tx = CrossShardTransaction(
-                tx_id=tx_id,
-                from_shard=from_shard,
-                to_shard=to_shard,
-                from_addr=tx.get('from', ''),
-                to_addr=tx.get('to', ''),
-                amount=int(tx.get('value', '0x0'), 16) if isinstance(tx.get('value'), str) else tx.get('value', 0),
-                status="pending",
-                created_at=time.time()
-            )
+
+        amount = self._tx_amount(tx)
+        tx_id = hashlib.sha256(
+            json.dumps(
+                {
+                    "from": from_addr,
+                    "to": to_addr,
+                    "value": amount,
+                    "nonce": tx.get("nonce", 0),
+                },
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()[:16]
+        cross_tx = CrossShardTransaction(
+            tx_id=tx_id,
+            from_shard=from_shard,
+            to_shard=to_shard,
+            from_addr=from_addr,
+            to_addr=to_addr,
+            amount=amount,
+            status="pending",
+            created_at=time.time(),
+        )
+        with self.shard_lock:
             self.cross_shard_txs[tx_id] = cross_tx
             self.pending_cross_txs.append(tx_id)
-            return from_shard, tx_id
+
+        if self.is_distributed() and self.owns_shard(from_shard):
+            if self._debit_cross_shard_source(cross_tx):
+                cross_tx.status = "debited"
+                self._gossip_cross_shard(tx_id)
+            else:
+                cross_tx.status = "failed"
+                self.pending_cross_txs.remove(tx_id)
+        elif not self.is_distributed():
+            self.process_cross_shard_transactions()
+
+        return from_shard, tx_id
+
+    def _debit_cross_shard_source(self, tx: CrossShardTransaction) -> bool:
+        if not self._validate_cross_shard_tx(tx):
+            return False
+        self._db.update_balance(tx.from_addr, -float(tx.amount))
+        return True
+
+    def _gossip_cross_shard(self, tx_id: str) -> None:
+        if not self._gossip_fn:
+            return
+        payload = self.export_cross_shard_payload(tx_id)
+        if payload:
+            try:
+                self._gossip_fn(payload)
+            except Exception:
+                pass
+
+    def export_cross_shard_payload(self, tx_id: str) -> Optional[dict]:
+        tx = self.cross_shard_txs.get(tx_id)
+        if not tx:
+            return None
+        return {
+            "tx_id": tx.tx_id,
+            "from_shard": tx.from_shard,
+            "to_shard": tx.to_shard,
+            "from_addr": tx.from_addr,
+            "to_addr": tx.to_addr,
+            "amount": tx.amount,
+            "status": tx.status,
+            "source_node": self.node_id,
+        }
+
+    def receive_cross_shard_credit(self, payload: dict) -> bool:
+        """Dest-shard node: credit recipient after P2P gossip."""
+        if not isinstance(payload, dict):
+            return False
+        to_shard = int(payload.get("to_shard", -1))
+        if not self.owns_shard(to_shard):
+            return False
+        tx_id = str(payload.get("tx_id", ""))
+        if not tx_id:
+            return False
+        with self.shard_lock:
+            existing = self.cross_shard_txs.get(tx_id)
+            if existing and existing.status == "confirmed":
+                return True
+            amount = float(payload.get("amount", 0))
+            to_addr = payload.get("to_addr", "")
+            if amount <= 0 or not to_addr:
+                return False
+            if not self._db or not hasattr(self._db, "update_balance"):
+                return False
+            self._db.update_balance(to_addr, amount)
+            cross_tx = existing or CrossShardTransaction(
+                tx_id=tx_id,
+                from_shard=int(payload.get("from_shard", 0)),
+                to_shard=to_shard,
+                from_addr=payload.get("from_addr", ""),
+                to_addr=to_addr,
+                amount=amount,
+                status="confirmed",
+                created_at=time.time(),
+            )
+            cross_tx.status = "confirmed"
+            cross_tx.confirmed_at = time.time()
+            self.cross_shard_txs[tx_id] = cross_tx
+            if tx_id in self.pending_cross_txs:
+                self.pending_cross_txs.remove(tx_id)
+        return True
+
+    def receive_cross_shard_ack(self, payload: dict) -> bool:
+        """Source-shard node: mark cross-shard transfer confirmed."""
+        if not isinstance(payload, dict):
+            return False
+        tx_id = str(payload.get("tx_id", ""))
+        if not tx_id:
+            return False
+        with self.shard_lock:
+            tx = self.cross_shard_txs.get(tx_id)
+            if not tx:
+                return False
+            if not self.owns_shard(tx.from_shard):
+                return False
+            tx.status = "confirmed"
+            tx.confirmed_at = time.time()
+            if tx_id in self.pending_cross_txs:
+                self.pending_cross_txs.remove(tx_id)
+        return True
 
     def process_cross_shard_transactions(self):
-        """Process pending cross-shard transactions with real L1 balance moves."""
+        """Legacy routing mode: debit+credit on one DB. Distributed: gossip debited."""
+        if self.is_distributed():
+            for tx_id in self.pending_cross_txs[:]:
+                tx = self.cross_shard_txs.get(tx_id)
+                if tx and tx.status == "debited":
+                    self._gossip_cross_shard(tx_id)
+            return
+
         for tx_id in self.pending_cross_txs[:]:
             tx = self.cross_shard_txs[tx_id]
             if self._validate_cross_shard_tx(tx):
@@ -128,6 +288,8 @@ class ShardingManager:
         """Balance for address (logical shard routing; funds live on L1 state)."""
         if shard_id is None:
             shard_id = self.get_shard_for_address(address)
+        if self.is_distributed() and not self.owns_shard(shard_id):
+            return 0.0
         if self._db and hasattr(self._db, "get_balance"):
             return float(self._db.get_balance(address))
         return 0.0
@@ -143,26 +305,39 @@ class ShardingManager:
             "nodes": len(shard.nodes),
             "transactions": len(shard.transactions),
             "block_height": shard.block_height,
-            "last_hash": shard.last_hash
+            "last_hash": shard.last_hash,
+            "owned_by_node": self.owns_shard(shard_id),
         }
 
     def get_all_shards_state(self) -> dict:
         """Get state of all shards"""
         return {
             "num_shards": self.num_shards,
+            "mode": self.mode,
+            "assigned_shard_id": self.assigned_shard_id,
+            "node_id": self.node_id,
             "shards": [self.get_shard_state(i) for i in range(self.num_shards)],
             "pending_cross_txs": len(self.pending_cross_txs),
-            "total_cross_txs": len(self.cross_shard_txs)
+            "total_cross_txs": len(self.cross_shard_txs),
         }
 
-    def register_node(self, node_id: str, shard_id: int = None):
+    def register_node(self, node_id: str, shard_id: int = None) -> bool:
         """Register a node to a shard"""
         if shard_id is None:
             shard_id = hash(node_id) % self.num_shards
+        shard_id = int(shard_id) % self.num_shards
         self.node_to_shard[node_id] = shard_id
-        self.shards[shard_id].nodes.append(node_id)
+        if node_id not in self.shards[shard_id].nodes:
+            self.shards[shard_id].nodes.append(node_id)
+        return True
 
-    def mine_shard_block(self, shard_id: int) -> Optional[dict]:
+    def list_nodes(self) -> List[dict]:
+        return [
+            {"node_id": node_id, "shard_id": shard_id}
+            for node_id, shard_id in self.node_to_shard.items()
+        ]
+
+    def mine_shard_block(self, shard_id: int, miner: str = "") -> Optional[dict]:
         """Mine a block for a specific shard"""
         shard = self.shards.get(shard_id)
         if not shard or not shard.transactions:
@@ -174,40 +349,50 @@ class ShardingManager:
         block = {
             "height": shard.block_height,
             "shard_id": shard_id,
+            "miner": miner,
             "transactions": transactions,
             "prev_hash": shard.last_hash,
             "timestamp": time.time(),
-            "state_root": hashlib.sha256(json.dumps(transactions).encode()).hexdigest()[:16]
+            "state_root": hashlib.sha256(json.dumps(transactions).encode()).hexdigest()[:16],
         }
 
-        block_string = f"{block['height']}{block['shard_id']}{block['transactions']}{block['prev_hash']}{block['timestamp']}"
-        block['hash'] = hashlib.sha256(block_string.encode()).hexdigest()[:16]
+        block_string = (
+            f"{block['height']}{block['shard_id']}{block['transactions']}"
+            f"{block['prev_hash']}{block['timestamp']}"
+        )
+        block["hash"] = hashlib.sha256(block_string.encode()).hexdigest()[:16]
 
         shard.block_height += 1
-        shard.last_hash = block['hash']
+        shard.last_hash = block["hash"]
 
         return block
 
     def get_stats(self) -> dict:
         """Get sharding statistics"""
+        tier = "distributed" if self.is_distributed() else "routing"
         return {
             "enabled": True,
-            "tier": "routing",
+            "tier": tier,
+            "mode": self.mode,
+            "assigned_shard_id": self.assigned_shard_id,
+            "node_id": self.node_id,
             "balance_source": "chain_state" if self._db else "unavailable",
             "total_shards": self.num_shards,
             "total_transactions": sum(len(s.transactions) for s in self.shards.values()),
             "total_cross_shard_txs": len(self.cross_shard_txs),
             "pending_cross_shard_txs": len(self.pending_cross_txs),
+            "registered_nodes": len(self.node_to_shard),
             "shard_details": [
                 {
                     "id": s.id,
                     "name": s.name,
                     "nodes": len(s.nodes),
                     "txs": len(s.transactions),
-                    "height": s.block_height
+                    "height": s.block_height,
+                    "owned": self.owns_shard(s.id),
                 }
                 for s in self.shards.values()
-            ]
+            ],
         }
 
 

@@ -24,8 +24,7 @@ def test_extcodesize_opcode_valid():
 
 def test_invalid_opcode_rejected():
     from execution.evm_bytecode_validator import validate_bytecode_hex
-    # DIFFICULTY = 0x44
-    v = validate_bytecode_hex("0x4400")
+    v = validate_bytecode_hex("0x0c00")
     assert v["valid"] is False
 
 
@@ -54,7 +53,7 @@ def test_mempool_rejects_unsupported_deploy_bytecode():
         value=0,
         nonce=0,
         gas=21000,
-        data="0x4400",  # DIFFICULTY opcode 0x44 + STOP
+        data="0x0c00",
     )
     check = bc.validate_transaction(tx)
     assert check["valid"] is False

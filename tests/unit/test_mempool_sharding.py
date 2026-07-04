@@ -43,7 +43,7 @@ def sharding_api(sharding_config):
     bc = Blockchain(sharding_config, db, bus)
     mp = Mempool(max_size=1000, min_fee=0.001)
     mp.set_blockchain(bc)
-    sh = ShardingManager(num_shards=4)
+    sh = ShardingManager(num_shards=4, db=db)
     sh.register_node("shard-test-node")
     server = create_http_server(bc, mp, db, sharding_config, sharding=sh, bus=bus)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -131,12 +131,14 @@ def test_tx_send_cross_shard_pending(sharding_api):
     assert status == 200
     assert data["cross_shard"] is True
     assert data["cross_shard_tx_id"]
+    tx_id = data["cross_shard_tx_id"]
+    assert sh.cross_shard_txs[tx_id].status == "confirmed"
+    assert db.get_balance(sender) == 98.0
+    assert db.get_balance(recipient) == 2.0
     pending_status, pending_body = _get(f"{base}/sharding/pending")
     pending = json.loads(pending_body)
     assert pending_status == 200
-    assert pending["count"] >= 1
-    ids = [p["tx_id"] for p in pending["pending"]]
-    assert data["cross_shard_tx_id"] in ids
+    assert pending["count"] == 0
 
 
 def test_sharding_stats_enabled_flag(sharding_api):

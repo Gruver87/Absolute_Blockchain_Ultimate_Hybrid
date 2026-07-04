@@ -87,6 +87,9 @@ class Config:
     feature_nft: bool = True
     feature_zk: bool = True
     feature_sharding: bool = True
+    num_shards: int = 4
+    assigned_shard_id: int = -1          # distributed: 0..N-1; -1 = legacy routing coordinator
+    shard_mode: str = "routing"          # routing | distributed
     feature_oracles: bool = True
     feature_wasm: bool = True
     feature_plasma: bool = True
@@ -235,6 +238,9 @@ class Config:
         self.feature_nft = env_bool("FEATURE_NFT", self.feature_nft)
         self.feature_zk = env_bool("FEATURE_ZK", self.feature_zk)
         self.feature_sharding = env_bool("FEATURE_SHARDING", self.feature_sharding)
+        self.num_shards = env_int("NUM_SHARDS", self.num_shards)
+        self.assigned_shard_id = env_int("ASSIGNED_SHARD_ID", self.assigned_shard_id)
+        self.shard_mode = env_str("SHARD_MODE", self.shard_mode).lower()
         self.feature_oracles = env_bool("FEATURE_ORACLES", self.feature_oracles)
         self.feature_wasm = env_bool("FEATURE_WASM", self.feature_wasm)
         self.feature_plasma = env_bool("FEATURE_PLASMA", self.feature_plasma)
