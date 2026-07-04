@@ -44,14 +44,28 @@ def run_gate(
     manifest_path = str(ROOT / "validators.manifest.mainnet-v1.example.json")
     config_path = str(ROOT / "node.prod.mainnet-v1.example.json")
     saved_manifest_env = os.environ.get("VALIDATORS_MANIFEST_PATH")
+    saved_ceremony_hash = os.environ.get("GENESIS_CEREMONY_HASH")
+    deploy_meta_path = ROOT / "data" / "ceremony_deploy.json"
+    deploy_meta_loaded = False
+    if ceremony_dir and deploy_meta_path.is_file():
+        try:
+            deploy_meta = json.loads(deploy_meta_path.read_text(encoding="utf-8"))
+            if deploy_meta.get("ceremony_hash"):
+                os.environ["GENESIS_CEREMONY_HASH"] = str(deploy_meta["ceremony_hash"])
+            os.environ["VALIDATORS_MANIFEST_PATH"] = "data/validators.manifest.json"
+            manifest_path = str(ROOT / "data" / "validators.manifest.json")
+            deploy_meta_loaded = True
+        except (OSError, json.JSONDecodeError, TypeError):
+            pass
     if ceremony_dir:
         cdir = Path(ceremony_dir)
         if not cdir.is_absolute():
             cdir = ROOT / cdir
         local_manifest = cdir / "validators.manifest.json"
         if local_manifest.is_file():
-            manifest_path = str(local_manifest)
-            os.environ["VALIDATORS_MANIFEST_PATH"] = manifest_path
+            if not deploy_meta_loaded:
+                manifest_path = str(local_manifest)
+                os.environ["VALIDATORS_MANIFEST_PATH"] = manifest_path
             from runtime.ceremony_keygen import verify_ceremony_directory
 
             c_errors, c_warnings = verify_ceremony_directory(str(cdir))
@@ -62,20 +76,14 @@ def run_gate(
 
     prod = _load_module("verify_prod_stack", "scripts/verify_prod_stack.py")
     prod_errors = []
-    try:
-        prod_errors.extend(prod.check_prod_gate())
-        prod_errors.extend(prod.check_config_validate())
-        prod_errors.extend(prod.check_mainnet_v1_config())
-        prod_errors.extend(prod.check_docker_prod_compose())
-        if live:
-            prod_errors.extend(prod.check_live_smoke(base_url.rstrip("/")))
-        if prod_smoke_spawn:
-            prod_errors.extend(prod.check_prod_smoke_spawn())
-    finally:
-        if saved_manifest_env is None:
-            os.environ.pop("VALIDATORS_MANIFEST_PATH", None)
-        else:
-            os.environ["VALIDATORS_MANIFEST_PATH"] = saved_manifest_env
+    prod_errors.extend(prod.check_prod_gate())
+    prod_errors.extend(prod.check_config_validate())
+    prod_errors.extend(prod.check_mainnet_v1_config())
+    prod_errors.extend(prod.check_docker_prod_compose())
+    if live:
+        prod_errors.extend(prod.check_live_smoke(base_url.rstrip("/")))
+    if prod_smoke_spawn:
+        prod_errors.extend(prod.check_prod_smoke_spawn())
     errors.extend(prod_errors)
     sections["prod_stack"] = {
         "errors": prod_errors,
@@ -83,6 +91,7 @@ def run_gate(
         "prod_smoke_spawn": prod_smoke_spawn,
     }
 
+    pinned_ceremony_hash = (os.environ.get("GENESIS_CEREMONY_HASH", "") or "").strip()
     try:
         from runtime.genesis_ceremony import build_from_paths
 
@@ -103,16 +112,15 @@ def run_gate(
             warnings.append(
                 "genesis_ceremony:placeholder_validator_addresses_in_manifest"
             )
-        pinned = (os.environ.get("GENESIS_CEREMONY_HASH", "") or "").strip()
         if ceremony_dir:
-            if pinned and artifact.get("ceremony_hash") != pinned:
+            if pinned_ceremony_hash and artifact.get("ceremony_hash") != pinned_ceremony_hash:
                 errors.append("genesis_ceremony_hash_mismatch:env_vs_manifest")
-            elif not pinned:
+            elif not pinned_ceremony_hash:
                 warnings.append(
                     "genesis_ceremony: set GENESIS_CEREMONY_HASH after keygen "
                     "(scripts/pin_ceremony_hash.ps1)"
                 )
-        elif pinned:
+        elif pinned_ceremony_hash:
             warnings.append(
                 "genesis_ceremony: GENESIS_CEREMONY_HASH set without --ceremony-dir "
                 "(pin verified only with generated manifest path)"
@@ -129,6 +137,15 @@ def run_gate(
     except Exception as exc:
         errors.append(f"genesis_ceremony:{exc}")
         sections["genesis_ceremony"] = {"errors": [str(exc)]}
+    finally:
+        if saved_manifest_env is None:
+            os.environ.pop("VALIDATORS_MANIFEST_PATH", None)
+        else:
+            os.environ["VALIDATORS_MANIFEST_PATH"] = saved_manifest_env
+        if saved_ceremony_hash is None:
+            os.environ.pop("GENESIS_CEREMONY_HASH", None)
+        else:
+            os.environ["GENESIS_CEREMONY_HASH"] = saved_ceremony_hash
 
     try:
         from runtime.external_audit import evaluate

@@ -23,6 +23,35 @@ function Import-DotEnvFile {
     return $true
 }
 
+function Test-LocalNodeBlocksDockerProd {
+    param([int]$ExpectedChainId = 778888)
+    try {
+        $status = Invoke-RestMethod -Uri "http://127.0.0.1:8080/status" -TimeoutSec 3
+        $mode = [string]$status.deployment_mode
+        $chainId = [int]$status.chain_id
+        if ($mode -ne "prod" -or $chainId -ne $ExpectedChainId) {
+            $network = [string]$status.network_name
+            Write-Host "FAIL: port 8080 is already used by another node ($network, chain $chainId, mode $mode)." -ForegroundColor Red
+            Write-Host "Stop the local dev node before Docker prod (close its terminal or stop the python process)." -ForegroundColor Yellow
+            Write-Host "Then rerun: .\scripts\docker_prod.ps1" -ForegroundColor Cyan
+            return $false
+        }
+    } catch {
+        # Port free or not yet serving /status — OK for Docker bind.
+    }
+    return $true
+}
+
+function Test-HostReachesDockerProd {
+    param([int]$ExpectedChainId = 778888)
+    try {
+        $status = Invoke-RestMethod -Uri "http://127.0.0.1:8080/status" -TimeoutSec 3
+        return ([string]$status.deployment_mode -eq "prod" -and [int]$status.chain_id -eq $ExpectedChainId)
+    } catch {
+        return $false
+    }
+}
+
 $dotEnv = Join-Path (Get-Location) ".env"
 if (Import-DotEnvFile $dotEnv) {
     Write-Host "Loaded $dotEnv" -ForegroundColor DarkGray
@@ -95,6 +124,8 @@ Write-Host "Running production gate..." -ForegroundColor Cyan
 python scripts/prod_gate.py
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+if (-not (Test-LocalNodeBlocksDockerProd)) { exit 1 }
+
 Write-Host "Recreating prod stack (volume abs-prod-data + ceremony file mounts)..." -ForegroundColor Cyan
 docker compose -f docker-compose.prod.yml down 2>$null
 docker compose -f docker-compose.prod.yml up --build -d
@@ -128,24 +159,34 @@ if (-not $ready) {
     docker compose -f docker-compose.prod.yml logs node --tail 40
 } else {
     Write-Host "Node ready." -ForegroundColor Green
-    $liveArgs = @("scripts/prod_smoke.py", "http://127.0.0.1:8080")
-    python @liveArgs
+    if (-not (Test-HostReachesDockerProd)) {
+        Write-Host "WARN: host http://127.0.0.1:8080 does not reach Docker prod (local dev node may still be bound)." -ForegroundColor Yellow
+        Write-Host "Running prod smoke inside the container instead." -ForegroundColor DarkGray
+        docker compose -f docker-compose.prod.yml exec -T node python scripts/prod_smoke.py http://127.0.0.1:8080
+    } else {
+        $liveArgs = @("scripts/prod_smoke.py", "http://127.0.0.1:8080")
+        python @liveArgs
+    }
     if ($LASTEXITCODE -ne 0) {
         Write-Host "WARN: prod smoke failed - inspect bridge/L1 RPC configuration" -ForegroundColor Yellow
     }
-    $readinessArgs = @(
-        "scripts/mainnet_readiness.py",
-        "--live",
-        "--base-url", "http://127.0.0.1:8080",
-        "--no-strict-audit"
-    )
-    if ($CeremonyDir) {
-        $readinessArgs += @("--ceremony-dir", $CeremonyDir)
-    }
-    python @readinessArgs
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "WARN: mainnet live readiness failed" -ForegroundColor Yellow
-        exit $LASTEXITCODE
+    if (Test-HostReachesDockerProd) {
+        $readinessArgs = @(
+            "scripts/mainnet_readiness.py",
+            "--live",
+            "--base-url", "http://127.0.0.1:8080",
+            "--no-strict-audit"
+        )
+        if ($CeremonyDir) {
+            $readinessArgs += @("--ceremony-dir", $CeremonyDir)
+        }
+        python @readinessArgs
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "WARN: mainnet live readiness failed" -ForegroundColor Yellow
+            exit $LASTEXITCODE
+        }
+    } else {
+        Write-Host "SKIP: mainnet live readiness (stop local dev node on :8080 and rerun)" -ForegroundColor Yellow
     }
 }
 
