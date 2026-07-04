@@ -121,6 +121,57 @@ def test_distributed_cross_shard_validator_quorum(tmp_path):
     assert src.cross_shard_txs[tx_id].status == "confirmed"
 
 
+def test_validator_ack_gossip_fanout(tmp_path):
+    db0 = Database(str(tmp_path / "g0.db"))
+    db0.initialize()
+    sender, recipient, from_shard, to_shard = _cross_shard_pair(2)
+    db0.set_balance(sender, 20.0)
+
+    gossip_log = []
+    committees = {from_shard: ["v1", "v2", "v3"]}
+    src = ShardingManager(
+        num_shards=2,
+        db=db0,
+        assigned_shard_id=from_shard,
+        node_id="relay-node",
+        validator_id="v1",
+        mode="distributed",
+    )
+    src.load_shard_committees(committees)
+    src.set_gossip_callback(lambda p: gossip_log.append(dict(p)))
+
+    _, tx_id = src.add_transaction({"from": sender, "to": recipient, "value": 5.0, "nonce": 0})
+    assert any(p.get("type") == "cross_shard_ack" for p in gossip_log)
+
+    peer = ShardingManager(
+        num_shards=2,
+        db=db0,
+        assigned_shard_id=from_shard,
+        node_id="peer-node",
+        validator_id="v2",
+        mode="distributed",
+    )
+    peer.load_shard_committees(committees)
+    peer.cross_shard_txs[tx_id] = src.cross_shard_txs[tx_id]
+    peer.coordinator.begin(tx_id, from_shard, to_shard)
+    peer.set_gossip_callback(lambda p: gossip_log.append(dict(p)))
+
+    peer.receive_cross_shard_ack({
+        "tx_id": tx_id,
+        "shard_id": from_shard,
+        "validator_id": "v1",
+    })
+    assert peer.coordinator.quorum_reached(tx_id) is False
+    peer.coordinator.record_ack(tx_id, to_shard)
+    assert peer.submit_cross_shard_validator_ack(tx_id, from_shard, "v2") is True
+    assert peer.coordinator.quorum_reached(tx_id) is True
+    relay_count = sum(
+        1 for p in gossip_log
+        if p.get("type") == "cross_shard_ack" and p.get("validator_id") == "v2"
+    )
+    assert relay_count >= 1
+
+
 def test_distributed_rejects_foreign_sender(tmp_path):
     db = Database(str(tmp_path / "s.db"))
     db.initialize()

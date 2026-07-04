@@ -4941,6 +4941,19 @@ class RESTHandler(BaseHTTPRequestHandler):
                 result = sh.process_reshard_migrations(limit=limit)
                 self._json({"success": True, **result})
 
+            elif path == "/sharding/cross-shard/ack":
+                sh = self.__class__.sharding
+                if not sh or not hasattr(sh, "submit_cross_shard_validator_ack"):
+                    self._error(503, "Sharding coordinator not enabled"); return
+                tx_id = str(body.get("tx_id", "") or "").strip()
+                shard_id = int(body.get("shard_id", body.get("to_shard", -1)) or -1)
+                validator_id = str(body.get("validator_id", "") or "").strip()
+                if not tx_id or shard_id < 0:
+                    self._error(400, "tx_id and shard_id required"); return
+                ok = sh.submit_cross_shard_validator_ack(tx_id, shard_id, validator_id)
+                quorum = sh.cross_shard_quorum_status(tx_id) if hasattr(sh, "cross_shard_quorum_status") else None
+                self._json({"success": ok, "quorum": quorum})
+
             elif path == "/sharding/committees/load":
                 sh = self.__class__.sharding
                 if not sh or not hasattr(sh, "load_shard_committees"):

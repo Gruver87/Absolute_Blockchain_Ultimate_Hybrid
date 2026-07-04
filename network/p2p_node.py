@@ -183,6 +183,10 @@ class P2PNode:
                 asyncio.run_coroutine_threadsafe(
                     self.broadcast_shard_migration(payload), self._loop
                 )
+            elif isinstance(payload, dict) and payload.get("type") == "cross_shard_ack":
+                asyncio.run_coroutine_threadsafe(
+                    self.broadcast_cross_shard_ack(payload), self._loop
+                )
             else:
                 asyncio.run_coroutine_threadsafe(
                     self.broadcast_cross_shard_tx(payload), self._loop
@@ -1247,17 +1251,32 @@ class P2PNode:
         if hasattr(self._sharding, "receive_cross_shard_credit"):
             credited = bool(self._sharding.receive_cross_shard_credit(data))
         if credited:
-            await peer.send(MSG_CROSS_SHARD_ACK, {
+            ack = {
                 "tx_id": data.get("tx_id", ""),
+                "shard_id": data.get("to_shard"),
                 "to_shard": data.get("to_shard"),
                 "status": "confirmed",
-            })
+            }
+            if self._sharding and hasattr(self._sharding, "validator_id"):
+                vid = getattr(self._sharding, "validator_id", "") or getattr(
+                    self._sharding, "node_id", ""
+                )
+                if vid:
+                    ack["validator_id"] = vid
+            await peer.send(MSG_CROSS_SHARD_ACK, ack)
 
     async def _handle_cross_shard_ack(self, peer: PeerConnection, data: Dict):
         if not self._sharding or not isinstance(data, dict):
             return
         if hasattr(self._sharding, "receive_cross_shard_ack"):
             self._sharding.receive_cross_shard_ack(data)
+
+    async def broadcast_cross_shard_ack(self, payload: Dict):
+        if not isinstance(payload, dict):
+            return
+        tasks = [peer.send(MSG_CROSS_SHARD_ACK, payload) for peer in self.peers.values()]
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     async def broadcast_cross_shard_tx(self, payload: Dict):
         if not isinstance(payload, dict):

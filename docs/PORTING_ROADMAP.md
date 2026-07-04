@@ -123,7 +123,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Cross-shard 2PC quorum coordinator + resharding planner (`consensus/cross_shard_coordinator.py`)
 - [x] Live resharding migrations: discover/apply API, P2P `shard_migration`, coordinator debit/credit
 - [x] Multi-validator per-shard quorum (2/3 committee ACKs, manifest `shard_id`, `/sharding/cross-shard/quorum/{tx_id}`)
-- [ ] Cross-shard committee gossip ACK fan-out at scale
+- [x] Cross-shard committee gossip ACK fan-out (`MSG_CROSS_SHARD_ACK`, relay dedup, `POST /sharding/cross-shard/ack`)
 - [x] Public validator set registry: `validators.manifest.example.json`, `runtime/validator_loader.py`, `/validators/registry`, prod gate
 - [x] Validator key provider interface: local wallet + external HSM/KMS HTTP signer (`VALIDATOR_KEY_PROVIDER`)
 - [x] Validator AWS KMS provider (`VALIDATOR_KEY_PROVIDER=aws_kms`, `AWS_KMS_KEY_ID`)

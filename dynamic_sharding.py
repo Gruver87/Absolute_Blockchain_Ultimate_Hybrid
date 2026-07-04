@@ -57,6 +57,8 @@ class ShardingManager:
         self.validator_id = (validator_id or node_id or "").strip()
         self.mode = (mode or "routing").lower()
         self._gossip_fn: Optional[Callable[[dict], None]] = None
+        self._seen_validator_acks: set = set()
+        self._relayed_validator_acks: set = set()
         self.coordinator = None
         try:
             from consensus.cross_shard_coordinator import CrossShardCoordinator
@@ -83,6 +85,55 @@ class ShardingManager:
             return 0
         return self.coordinator.load_validators_from_manifest(manifest, self.num_shards)
 
+    def _ack_key(self, tx_id: str, shard_id: int, validator_id: str) -> str:
+        return f"{tx_id}:{int(shard_id)}:{validator_id}"
+
+    def _gossip_validator_ack(self, tx_id: str, shard_id: int, validator_id: str) -> None:
+        """Fan-out validator ACK to P2P mesh (deduplicated per node)."""
+        vid = (validator_id or "").strip()
+        if not vid or not self._gossip_fn:
+            return
+        key = self._ack_key(tx_id, shard_id, vid)
+        if key in self._seen_validator_acks:
+            return
+        self._seen_validator_acks.add(key)
+        self._emit_validator_ack_gossip(tx_id, shard_id, vid)
+
+    def _relay_validator_ack(self, tx_id: str, shard_id: int, validator_id: str) -> None:
+        """Relay a peer ACK once (committee mesh fan-out)."""
+        vid = (validator_id or "").strip()
+        if not vid or not self._gossip_fn:
+            return
+        key = self._ack_key(tx_id, shard_id, vid)
+        if key in self._relayed_validator_acks:
+            return
+        self._relayed_validator_acks.add(key)
+        self._emit_validator_ack_gossip(tx_id, shard_id, vid)
+
+    def _emit_validator_ack_gossip(self, tx_id: str, shard_id: int, validator_id: str) -> None:
+        try:
+            self._gossip_fn({
+                "type": "cross_shard_ack",
+                "tx_id": tx_id,
+                "shard_id": int(shard_id),
+                "validator_id": validator_id,
+                "status": "validator_ack",
+                "source_node": self.node_id,
+            })
+        except Exception:
+            pass
+
+    def submit_cross_shard_validator_ack(
+        self, tx_id: str, shard_id: int, validator_id: str = ""
+    ) -> bool:
+        """Committee peer signs ACK without re-applying debit/credit."""
+        vid = (validator_id or self.validator_id or self.node_id or "").strip()
+        if not vid or not self.coordinator:
+            return False
+        recorded = self.coordinator.record_validator_ack(tx_id, int(shard_id), vid)
+        self._gossip_validator_ack(tx_id, int(shard_id), vid)
+        return recorded
+
     def _record_shard_ack(self, tx_id: str, shard_id: int) -> bool:
         if not self.coordinator:
             return True
@@ -90,8 +141,11 @@ class ShardingManager:
             vid = self.validator_id or self.node_id
             if not vid:
                 return False
-            return self.coordinator.record_validator_ack(tx_id, shard_id, vid)
-        return self.coordinator.record_ack(tx_id, shard_id)
+            ok = self.coordinator.record_validator_ack(tx_id, shard_id, vid)
+            self._gossip_validator_ack(tx_id, shard_id, vid)
+            return ok
+        ok = self.coordinator.record_ack(tx_id, shard_id)
+        return ok
 
     def cross_shard_quorum_status(self, tx_id: str) -> Optional[dict]:
         if not self.coordinator:
@@ -270,23 +324,10 @@ class ShardingManager:
                 self._record_shard_ack(tx_id, to_shard)
                 if self.coordinator.quorum_reached(tx_id):
                     self.coordinator.clear(tx_id)
-                elif self._gossip_fn and self.coordinator.has_shard_committee(to_shard):
-                    vid = self.validator_id or self.node_id
-                    if vid:
-                        try:
-                            self._gossip_fn({
-                                "type": "cross_shard_ack",
-                                "tx_id": tx_id,
-                                "shard_id": to_shard,
-                                "validator_id": vid,
-                                "status": "validator_ack",
-                            })
-                        except Exception:
-                            pass
         return True
 
     def receive_cross_shard_ack(self, payload: dict) -> bool:
-        """Source-shard node: mark cross-shard transfer confirmed after quorum."""
+        """Record validator or shard ACK from P2P gossip (source or dest shard)."""
         if not isinstance(payload, dict):
             return False
         tx_id = str(payload.get("tx_id", ""))
@@ -296,22 +337,34 @@ class ShardingManager:
             tx = self.cross_shard_txs.get(tx_id)
             if not tx:
                 return False
-            if not self.owns_shard(tx.from_shard):
+            shard_id = int(payload.get("shard_id", payload.get("to_shard", tx.to_shard)))
+            validator_id = str(payload.get("validator_id", "") or "").strip()
+            owns_from = self.owns_shard(tx.from_shard)
+            owns_to = self.owns_shard(tx.to_shard)
+            if not owns_from and not owns_to:
                 return False
+
             if self.coordinator:
-                shard_id = int(payload.get("shard_id", tx.to_shard))
-                validator_id = str(payload.get("validator_id", "") or "").strip()
                 if validator_id:
-                    self.coordinator.record_validator_ack(tx_id, shard_id, validator_id)
-                else:
+                    key = self._ack_key(tx_id, shard_id, validator_id)
+                    if key not in self._seen_validator_acks:
+                        self._seen_validator_acks.add(key)
+                        self.coordinator.record_validator_ack(tx_id, shard_id, validator_id)
+                    self._relay_validator_ack(tx_id, shard_id, validator_id)
+                elif owns_from:
                     self._record_shard_ack(tx_id, shard_id)
-                if not self.coordinator.quorum_reached(tx_id):
-                    return True
-                self.coordinator.clear(tx_id)
-            tx.status = "confirmed"
-            tx.confirmed_at = time.time()
-            if tx_id in self.pending_cross_txs:
-                self.pending_cross_txs.remove(tx_id)
+
+                if owns_from and self.coordinator.quorum_reached(tx_id):
+                    self.coordinator.clear(tx_id)
+                    tx.status = "confirmed"
+                    tx.confirmed_at = time.time()
+                    if tx_id in self.pending_cross_txs:
+                        self.pending_cross_txs.remove(tx_id)
+            elif owns_from:
+                tx.status = "confirmed"
+                tx.confirmed_at = time.time()
+                if tx_id in self.pending_cross_txs:
+                    self.pending_cross_txs.remove(tx_id)
         return True
 
     def process_cross_shard_transactions(self):
