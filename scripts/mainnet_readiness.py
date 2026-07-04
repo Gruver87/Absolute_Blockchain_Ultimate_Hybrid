@@ -61,6 +61,14 @@ def run_gate(live: bool = False, base_url: str = "http://127.0.0.1:8080") -> Tup
         errors.append(f"genesis_ceremony:{exc}")
         sections["genesis_ceremony"] = {"errors": [str(exc)]}
 
+    try:
+        from runtime.external_audit import evaluate
+        audit_warnings, _, audit_summary = evaluate()
+        warnings.extend(audit_warnings)
+        sections["external_audit"] = audit_summary
+    except Exception as exc:
+        warnings.append(f"external_audit:{exc}")
+
     return errors, warnings, {
         "external_checklist": checklist,
         "sections": sections,

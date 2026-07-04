@@ -23,5 +23,9 @@ def test_mainnet_readiness_passes():
     errors, warnings, meta = gate.run_gate(live=False)
     assert errors == [], errors
     assert "external_checklist" in meta
+    assert meta["sections"]["genesis_ceremony"]["ready"] is True
+    assert "external_audit" in meta["sections"]
+    assert meta["sections"]["external_audit"]["all_complete"] is False
+    assert len(warnings) >= 1
     path = gate.write_report(errors, warnings, meta)
     assert path.is_file()

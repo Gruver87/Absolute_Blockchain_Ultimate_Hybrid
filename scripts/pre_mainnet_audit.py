@@ -14,17 +14,7 @@ from typing import List, Tuple
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-EXTERNAL_CHECKLIST = [
-    "External penetration test scheduled",
-    "Third-party smart-contract / L1 security audit completed",
-    "Bridge L1 RPC keys rotated from dev placeholders",
-    "Validator keys not stored in node.json / git",
-    "Production validator manifest published (no runtime key derivation)",
-    "CORS and RPC API keys reviewed for production origins",
-    "Incident response runbook documented",
-    "Disaster recovery drill for multi-node devnet completed",
-]
-
+from runtime.external_audit import DEFAULT_CHECKLIST as EXTERNAL_CHECKLIST
 
 def _load_prod_gate():
     spec = importlib.util.spec_from_file_location("prod_gate", ROOT / "scripts" / "prod_gate.py")
@@ -64,6 +54,8 @@ def run_checks() -> Tuple[List[str], List[str], List[str]]:
         "scripts/mainnet_readiness.py",
         "scripts/genesis_ceremony.py",
         "runtime/genesis_ceremony.py",
+        "scripts/external_audit_tracker.py",
+        "runtime/external_audit.py",
         "consensus/cross_shard_coordinator.py",
         "runtime/validator_key_provider.py",
         "docs/PORTING_ROADMAP.md",
