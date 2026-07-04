@@ -140,6 +140,14 @@ Run-Step "Static production gate" {
     python scripts/prod_gate.py
 }
 
+Run-Step "Pre-mainnet audit" {
+    python scripts/pre_mainnet_audit.py
+}
+
+Run-Step "Native bridge helper" {
+    python scripts/native_bridge_helper.py status
+}
+
 Run-Step "Rust bridge binary" {
     $bin = Get-RustBridgeBinary
     if ($BuildRust -or -not $bin) {
@@ -207,6 +215,15 @@ Run-Step "Hybrid critical native/consensus/EVM tests" {
         tests/unit/test_sync_incremental.py `
         tests/unit/test_rust_bridge_cli.py `
         tests/unit/test_rust_bridge_e2e.py `
+        tests/unit/test_validator_loader.py `
+        tests/unit/test_eth_filters.py `
+        tests/unit/test_eth_ws_subscriptions.py `
+        tests/unit/test_evm_cancun_opcodes.py `
+        tests/unit/test_evm_blob_opcodes.py `
+        tests/unit/test_cross_shard_coordinator.py `
+        tests/unit/test_live_resharding.py `
+        tests/unit/test_distributed_sharding.py `
+        tests/unit/test_validator_key_provider.py `
         -q
 }
 

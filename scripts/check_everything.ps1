@@ -54,6 +54,10 @@ Run-Step "Static production gate" {
     python scripts/prod_gate.py
 }
 
+Run-Step "Pre-mainnet audit" {
+    python scripts/pre_mainnet_audit.py
+}
+
 Run-Step "Production stack verification" {
     python scripts/verify_prod_stack.py
 }

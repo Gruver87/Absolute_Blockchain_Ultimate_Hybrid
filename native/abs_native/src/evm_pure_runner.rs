@@ -1,6 +1,7 @@
 use primitive_types::U256;
 use pyo3::prelude::*;
 use pyo3::types::{PyByteArray, PyDict, PyList};
+use std::collections::HashMap;
 
 use crate::{
     evm_calldataload_inner, evm_is_jumpdest_inner, evm_keccak256_memory_inner,
@@ -162,7 +163,7 @@ fn parse_static_context(host_context: Option<&Bound<'_, PyDict>>) -> PyResult<Ev
         gas_price: dict_get_u256(ctx, "gas_price")?,
         difficulty: dict_get_u256(ctx, "difficulty")?,
         coinbase: dict_get_u256(ctx, "coinbase")?,
-        blob_base_fee: dict_get_u256(ctx, "blob_base_fee"),
+        blob_base_fee: dict_get_u256(ctx, "blob_base_fee")?,
         blob_hashes: dict_get_u256_list(ctx, "blob_hashes")?,
     })
 }
@@ -568,6 +569,9 @@ fn gas_cost(op: u8) -> u64 {
         0x40 => 20,
         0x54 => 200,
         0x55 => 5000,
+        0x5C | 0x5D => 100,
+        0x5E => 3,
+        0x49 | 0x4A => 2,
         0xF0 | 0xF5 => 32000,
         0xF1 | 0xF2 | 0xF4 | 0xFA => 700,
         0xFF => 5000,
@@ -663,6 +667,18 @@ fn memory_copy(memory: &mut Vec<u8>, dest: usize, src: &[u8], src_offset: usize,
     }
 }
 
+fn memory_copy_within(memory: &mut Vec<u8>, dest: usize, src: usize, size: usize) {
+    if size == 0 {
+        return;
+    }
+    mem_extend(memory, dest.max(src), size);
+    if dest == src {
+        return;
+    }
+    let chunk = memory[src..src + size].to_vec();
+    memory[dest..dest + size].copy_from_slice(&chunk);
+}
+
 fn result_dict(
     py: Python<'_>,
     pc: usize,
@@ -736,6 +752,7 @@ fn run_pure_segment_inner(
     let mut steps = 0usize;
     let mut handoff = false;
     let static_ctx = parse_static_context(host_context)?;
+    let mut transient: HashMap<U256, U256> = HashMap::new();
 
     while pc < bytecode.len() && running && steps < max_steps {
         let op = bytecode[pc];
@@ -1162,6 +1179,34 @@ fn run_pure_segment_inner(
                     Ok(Some(false))
                 }
                 0x5B => Ok(Some(false)),
+                0x5C => {
+                    let key = stack_pop(&mut stack)?;
+                    let value = transient.get(&key).copied().unwrap_or(U256::zero());
+                    stack_push(&mut stack, value);
+                    Ok(Some(false))
+                }
+                0x5D => {
+                    let key = stack_pop(&mut stack)?;
+                    let value = stack_pop(&mut stack)?;
+                    if value.is_zero() {
+                        transient.remove(&key);
+                    } else {
+                        transient.insert(key, value);
+                    }
+                    Ok(Some(false))
+                }
+                0x5E => {
+                    let length = stack_pop(&mut stack)?.as_usize();
+                    let src = stack_pop(&mut stack)?.as_usize();
+                    let dest = stack_pop(&mut stack)?.as_usize();
+                    let words = ((length + 31) / 32) as u64;
+                    if consume_gas(&mut gas_used, gas_limit, 3 * words).is_err() {
+                        running = false;
+                    } else {
+                        memory_copy_within(&mut memory, dest, src, length);
+                    }
+                    Ok(Some(false))
+                }
                 0x58 => {
                     stack_push(&mut stack, U256::from(pc));
                     Ok(Some(false))
