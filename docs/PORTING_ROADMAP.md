@@ -112,19 +112,22 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] JSON-RPC wallet wave: `eth_accounts`, `eth_getStorageAt`, `eth_feeHistory`, MetaMask block fields
 - [x] Solidity 0.8+ opcodes: `SLT`, `SAR`, `PC`, `MSIZE`, `SELFBALANCE`, `BASEFEE` (native + Python fallback)
 - [x] Block/env opcodes: `GASPRICE`, `COINBASE`, `DIFFICULTY`, `EXTCODEHASH`
+- [x] Cancun opcodes: `SGT`, `TLOAD`, `TSTORE`, `MCOPY` (Python + native pure runner SGT)
 - [x] `evm_u256_slt` signed-compare fix (both-negative operands)
 - [x] `eth_sendRawTransaction`: RLP decode (legacy + EIP-1559) + native `recover_eth_address_keccak`
 - [x] Tests: `test_evm_extended_opcodes.py`, `test_eth_raw_tx.py`
-- [ ] Full EVM opcode coverage (Ethereum mainnet compatibility)
+- [ ] Full EVM opcode coverage (blob/EOF opcodes remain optional)
 - [x] Distributed sharding MVP: `shard_mode=distributed`, `assigned_shard_id`, separate DBs, P2P `cross_shard_tx`/`cross_shard_ack`
 - [x] `node.shard0.json` / `node.shard1.json`, `scripts/start_shard_devnet.ps1`
 - [x] Tests: `test_distributed_sharding.py`
-- [ ] Full cross-shard consensus / resharding
+- [x] Cross-shard 2PC quorum coordinator + resharding planner (`consensus/cross_shard_coordinator.py`)
+- [ ] Full cross-shard consensus / live resharding migrations
 - [x] Public validator set registry: `validators.manifest.example.json`, `runtime/validator_loader.py`, `/validators/registry`, prod gate
-- [ ] Validator key ops (HSM/KMS — long-term)
+- [x] Validator key provider interface: local wallet + external HSM/KMS HTTP signer (`VALIDATOR_KEY_PROVIDER`)
+- [ ] Validator key ops (cloud HSM integration — long-term)
 - [x] JSON-RPC `eth_getLogs` filters + `eth_sendRawTransaction` RLP
 - [x] JSON-RPC polling filters: `eth_newFilter`, `eth_getFilterChanges`, `eth_getFilterLogs`, block/pending filters
-- [ ] JSON-RPC WebSocket subscriptions (`eth_subscribe`)
+- [x] JSON-RPC WebSocket subscriptions (`eth_subscribe` / `eth_unsubscribe`: newHeads, logs, newPendingTransactions)
 - [ ] External security audit before public mainnet
 - [ ] Optional PyO3 bridge helper (CLI sufficient today)
 - Dev-only (keep blocked in prod): `bridge_mode=simulator`, `mock_l1_rpc`, `feature_wasm/plasma/lightning/pq/zk`

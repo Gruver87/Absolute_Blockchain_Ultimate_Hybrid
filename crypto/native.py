@@ -445,6 +445,14 @@ def evm_u256_slt(left: int, right: int) -> int:
     return 1 if truthy else 0
 
 
+def evm_u256_sgt(left: int, right: int) -> int:
+    if _native is not None and hasattr(_native, "evm_u256_sgt"):
+        return _evm_u256_int(
+            bytes(_native.evm_u256_sgt(_evm_u256_bytes(left), _evm_u256_bytes(right)))
+        )
+    return evm_u256_slt(right, left)
+
+
 def evm_u256_sar(value: int, shift: int) -> int:
     shift = int(shift) & EVM_U256_MASK
     if _native is not None and hasattr(_native, "evm_u256_sar"):

@@ -522,6 +522,12 @@ class NodeOrchestrator:
             config.miner_address = "0x" + _hl.sha256(
                 f"miner-{config.p2p_port}".encode()
             ).hexdigest()[:40]
+
+        try:
+            from runtime.validator_key_provider import build_validator_key_provider
+            self.validator_key_provider = build_validator_key_provider(self.wallet)
+        except Exception:
+            self.validator_key_provider = None
             print(f"[Node] Auto-generated miner address: {config.miner_address}")
 
         self._apply_genesis_allocation()
@@ -693,9 +699,13 @@ class NodeOrchestrator:
             print("[Node] Post-Quantum Crypto: SPHINCS+ interface available (backend required)")
 
         # 16. WebSocket server (real-time browser events on :8546)
-        self.ws_server = WebSocketServer(event_bus=self.bus,
-                                         host=getattr(config, "ws_host", "0.0.0.0"),
-                                         port=getattr(config, "ws_port", 8546))
+        self.ws_server = WebSocketServer(
+            event_bus=self.bus,
+            host=getattr(config, "ws_host", "0.0.0.0"),
+            port=getattr(config, "ws_port", 8546),
+            blockchain=self.blockchain,
+            config=config,
+        )
 
         # 17. MiniVM Contract Manager + Assembler
         if _MINIVM_CONTRACTS_AVAILABLE:

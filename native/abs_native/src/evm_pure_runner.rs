@@ -853,6 +853,12 @@ fn run_pure_segment_inner(
                     stack_push(&mut stack, a ^ b);
                     Ok(Some(false))
                 }
+                0x13 => {
+                    let a = stack_pop(&mut stack)?;
+                    let b = stack_pop(&mut stack)?;
+                    stack_push(&mut stack, evm_u256_slt_inner(b, a));
+                    Ok(Some(false))
+                }
                 0x14 => {
                     let a = stack_pop(&mut stack)?;
                     let b = stack_pop(&mut stack)?;

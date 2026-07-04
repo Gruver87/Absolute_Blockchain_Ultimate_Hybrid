@@ -55,6 +55,13 @@ class ShardingManager:
         self.node_id = node_id or ""
         self.mode = (mode or "routing").lower()
         self._gossip_fn: Optional[Callable[[dict], None]] = None
+        self.coordinator = None
+        if self.is_distributed():
+            try:
+                from consensus.cross_shard_coordinator import CrossShardCoordinator
+                self.coordinator = CrossShardCoordinator(self.num_shards)
+            except ImportError:
+                self.coordinator = None
         self._initialize_shards()
 
     def set_database(self, db) -> None:
@@ -146,10 +153,14 @@ class ShardingManager:
         with self.shard_lock:
             self.cross_shard_txs[tx_id] = cross_tx
             self.pending_cross_txs.append(tx_id)
+        if self.coordinator:
+            self.coordinator.begin(tx_id, from_shard, to_shard)
 
         if self.is_distributed() and self.owns_shard(from_shard):
             if self._debit_cross_shard_source(cross_tx):
                 cross_tx.status = "debited"
+                if self.coordinator:
+                    self.coordinator.record_ack(tx_id, from_shard)
                 self._gossip_cross_shard(tx_id)
             else:
                 cross_tx.status = "failed"
@@ -226,10 +237,12 @@ class ShardingManager:
             self.cross_shard_txs[tx_id] = cross_tx
             if tx_id in self.pending_cross_txs:
                 self.pending_cross_txs.remove(tx_id)
+            if self.coordinator:
+                self.coordinator.clear(tx_id)
         return True
 
     def receive_cross_shard_ack(self, payload: dict) -> bool:
-        """Source-shard node: mark cross-shard transfer confirmed."""
+        """Source-shard node: mark cross-shard transfer confirmed after quorum."""
         if not isinstance(payload, dict):
             return False
         tx_id = str(payload.get("tx_id", ""))
@@ -241,6 +254,12 @@ class ShardingManager:
                 return False
             if not self.owns_shard(tx.from_shard):
                 return False
+            if self.coordinator:
+                shard_id = int(payload.get("shard_id", tx.to_shard))
+                self.coordinator.record_ack(tx_id, shard_id)
+                if not self.coordinator.quorum_reached(tx_id):
+                    return True
+                self.coordinator.clear(tx_id)
             tx.status = "confirmed"
             tx.confirmed_at = time.time()
             if tx_id in self.pending_cross_txs:
@@ -382,6 +401,7 @@ class ShardingManager:
             "total_cross_shard_txs": len(self.cross_shard_txs),
             "pending_cross_shard_txs": len(self.pending_cross_txs),
             "registered_nodes": len(self.node_to_shard),
+            "coordinator": self.coordinator.status() if self.coordinator else None,
             "shard_details": [
                 {
                     "id": s.id,

@@ -67,9 +67,10 @@ class EVM:
         "CODESIZE": 2, "CODECOPY": 3, "CHAINID": 2, "GASLIMIT": 2, "GAS": 2, "PUSH0": 2,
         "SHA3": 30, "RETURN": 0, "REVERT": 0, "JUMPDEST": 1,
         "AND": 3, "OR": 3, "XOR": 3, "NOT": 3, "LT": 3, "GT": 3,
-        "EQ": 3, "ISZERO": 3, "BYTE": 3, "SHL": 3, "SHR": 3, "SLT": 3, "SAR": 3,
+        "EQ": 3, "ISZERO": 3, "BYTE": 3, "SHL": 3, "SHR": 3, "SLT": 3, "SGT": 3, "SAR": 3,
         "GASPRICE": 2, "EXTCODEHASH": 700, "COINBASE": 2, "DIFFICULTY": 2,
         "SELFBALANCE": 5, "BASEFEE": 2, "PC": 2, "MSIZE": 2,
+        "TLOAD": 100, "TSTORE": 100, "MCOPY": 3,
         "CALL": 700, "CALLCODE": 700, "DELEGATECALL": 700, "STATICCALL": 700,
         "BLOCKHASH": 20,
         "CREATE": 32000, "CREATE2": 32000,
@@ -81,6 +82,7 @@ class EVM:
         self.stack: List[int] = []
         self.memory = bytearray()
         self.storage: Dict[int, int] = {}
+        self.transient_storage: Dict[int, int] = {}
         self.gas_used = 0
         self.gas_limit = gas_limit
         self.pc = 0
@@ -366,6 +368,9 @@ class EVM:
             elif op_byte == 0x12:
                 a, b = self._pop(), self._pop()
                 self._push(native.evm_u256_xor(a, b))
+            elif op_byte == 0x13:
+                a, b = self._pop(), self._pop()
+                self._push(native.evm_u256_sgt(a, b))
             elif op_byte == 0x14:
                 a, b = self._pop(), self._pop()
                 self._push(native.evm_u256_eq(a, b))
@@ -545,6 +550,25 @@ class EVM:
                 self._push(native.evm_gas_remaining(self.gas_limit, self.gas_used))
             elif op_byte == 0x5B:  # JUMPDEST
                 pass
+            elif op_byte == 0x5C:  # TLOAD
+                key = self._pop()
+                self._push(self.transient_storage.get(key, 0))
+            elif op_byte == 0x5D:  # TSTORE
+                key, value = self._pop(), self._pop()
+                if native.evm_u256_iszero(value):
+                    self.transient_storage.pop(key, None)
+                else:
+                    self.transient_storage[key] = value
+            elif op_byte == 0x5E:  # MCOPY
+                length = self._pop()
+                src = self._pop()
+                dest = self._pop()
+                size = int(length)
+                self._consume_gas("MCOPY", extra=3 * ((size + 31) // 32))
+                self._mem_extend(dest, size)
+                self._mem_extend(src, size)
+                chunk = bytes(self.memory[src:src + size])
+                native.evm_memory_copy(self.memory, dest, chunk, 0, size)
             elif op_byte == 0x58:  # PC
                 self._push(self.pc)
             elif op_byte == 0x59:  # MSIZE
@@ -659,7 +683,7 @@ class EVM:
             0x00: "STOP", 0x01: "ADD", 0x02: "MUL", 0x03: "SUB", 0x04: "DIV",
             0x05: "SDIV", 0x06: "MOD", 0x07: "SMOD", 0x08: "ADDMOD", 0x09: "MULMOD",
             0x0A: "EXP", 0x0B: "SIGNEXTEND",
-            0x10: "AND", 0x11: "OR", 0x12: "XOR", 0x14: "EQ",
+            0x10: "AND", 0x11: "OR", 0x12: "XOR", 0x13: "SGT", 0x14: "EQ",
             0x15: "ISZERO", 0x16: "LT", 0x17: "GT", 0x18: "SLT", 0x19: "NOT", 0x1A: "BYTE",
             0x1B: "SHL", 0x1C: "SHR", 0x1D: "SAR", 0x20: "SHA3", 0x30: "ADDRESS",
             0x31: "BALANCE", 0x32: "ORIGIN", 0x33: "CALLER", 0x34: "CALLVALUE",
@@ -673,7 +697,8 @@ class EVM:
             0x47: "SELFBALANCE", 0x48: "BASEFEE",
             0x50: "POP", 0x51: "MLOAD",
             0x52: "MSTORE", 0x53: "MSTORE8", 0x54: "SLOAD", 0x55: "SSTORE",
-            0x56: "JUMP", 0x57: "JUMPI", 0x58: "PC", 0x59: "MSIZE", 0x5A: "GAS", 0x5B: "JUMPDEST", 0x5F: "PUSH0",
+            0x56: "JUMP", 0x57: "JUMPI", 0x58: "PC", 0x59: "MSIZE", 0x5A: "GAS", 0x5B: "JUMPDEST",
+            0x5C: "TLOAD", 0x5D: "TSTORE", 0x5E: "MCOPY", 0x5F: "PUSH0",
             0xA0: "LOG0", 0xFF: "SELFDESTRUCT",
             0xF0: "CREATE", 0xF5: "CREATE2",
             0xF1: "CALL", 0xF2: "CALLCODE", 0xF4: "DELEGATECALL", 0xFA: "STATICCALL",

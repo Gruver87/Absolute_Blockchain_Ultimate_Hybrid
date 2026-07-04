@@ -1,6 +1,10 @@
 """
 WebSocket server — broadcasts blockchain events in real-time to browser clients.
 Port 8766  (ws://localhost:8766)
+
+Supports:
+  - Legacy ping/pong + NEW_BLOCK / NEW_TX events
+  - Ethereum JSON-RPC: eth_subscribe / eth_unsubscribe (newHeads, logs, newPendingTransactions)
 """
 import asyncio
 import json
@@ -27,12 +31,29 @@ from network.ws_events import normalize_block_event, normalize_tx_event
 class WebSocketServer:
     """Asyncio WebSocket server that broadcasts chain events to browser clients."""
 
-    def __init__(self, event_bus=None, host: str = "0.0.0.0", port: int = 8546):
+    def __init__(
+        self,
+        event_bus=None,
+        host: str = "0.0.0.0",
+        port: int = 8546,
+        blockchain=None,
+        config=None,
+    ):
         self.host = host
         self.port = port
         self._clients: set = set()
+        self._conn_ids: dict = {}
+        self._next_conn_id = 1
         self._running = False
         self._loop = None
+        self.blockchain = blockchain
+        self.config = config
+
+        try:
+            from api.eth_ws_subscriptions import EthWsSubscriptionManager
+            self._eth_subs = EthWsSubscriptionManager()
+        except ImportError:
+            self._eth_subs = None
 
         if event_bus:
             reg = getattr(event_bus, "subscribe", None) or getattr(event_bus, "on", None)
@@ -41,6 +62,12 @@ class WebSocketServer:
                 reg("tx.new", self._on_tx)
                 reg("tx.applied", self._on_tx)
                 reg("consensus.attestation", self._on_attestation)
+
+    def set_runtime_refs(self, blockchain=None, config=None) -> None:
+        if blockchain is not None:
+            self.blockchain = blockchain
+        if config is not None:
+            self.config = config
 
     # ── Event handlers (called from other threads) ────────────────────────────
 
@@ -53,6 +80,18 @@ class WebSocketServer:
             "ts": time.time(),
         }
         self._schedule(msg)
+        if self._eth_subs and self._loop and self._loop.is_running() and isinstance(block, dict):
+            try:
+                from api.http import _format_block, _handle_eth_get_logs
+                self._eth_subs.on_new_block(
+                    block,
+                    _format_block,
+                    _handle_eth_get_logs,
+                    self.blockchain,
+                    self._schedule_eth_notification,
+                )
+            except Exception as exc:
+                logger.debug("[WS] eth subscription block notify: %s", exc)
 
     def _on_tx(self, tx):
         data = normalize_tx_event(tx)
@@ -63,6 +102,8 @@ class WebSocketServer:
             "ts": time.time(),
         }
         self._schedule(msg)
+        if self._eth_subs and data.get("block") == "pending":
+            self._eth_subs.on_new_tx(data, self._schedule_eth_notification)
 
     def _on_attestation(self, att):
         if not isinstance(att, dict):
@@ -78,6 +119,23 @@ class WebSocketServer:
             "ts": time.time(),
         }
         self._schedule(msg)
+
+    def _ws_for_conn(self, conn_id: int):
+        for ws, cid in self._conn_ids.items():
+            if cid == conn_id:
+                return ws
+        return None
+
+    def _schedule_eth_notification(self, sub_id: int, payload: dict) -> None:
+        if not self._eth_subs or not self._loop or not self._loop.is_running():
+            return
+        row = self._eth_subs.get_subscription(sub_id)
+        if not row:
+            return
+        ws = self._ws_for_conn(row.get("conn_id"))
+        if ws is None:
+            return
+        asyncio.run_coroutine_threadsafe(self._send_json(ws, payload), self._loop)
 
     def _schedule(self, msg: dict):
         if self._loop and self._loop.is_running():
@@ -97,15 +155,72 @@ class WebSocketServer:
                 dead.add(ws)
         self._clients -= dead
 
+    async def _send_json(self, websocket, payload: dict):
+        try:
+            await websocket.send(json.dumps(payload, default=str))
+        except Exception:
+            pass
+
+    async def _handle_json_rpc(self, websocket, conn_id: int, data: dict):
+        method = data.get("method", "")
+        if method not in ("eth_subscribe", "eth_unsubscribe", "eth_chainId"):
+            return False
+        if not self._eth_subs:
+            await self._send_json(
+                websocket,
+                {
+                    "jsonrpc": "2.0",
+                    "id": data.get("id"),
+                    "error": {"code": -32601, "message": "eth subscriptions unavailable"},
+                },
+            )
+            return True
+        try:
+            from api.http import _format_block, _handle_eth_get_logs
+            result = self._eth_subs.handle_rpc(
+                conn_id,
+                method,
+                data.get("params") or [],
+                _format_block,
+                _handle_eth_get_logs,
+                self.blockchain,
+            )
+            await self._send_json(
+                websocket,
+                {"jsonrpc": "2.0", "id": data.get("id"), "result": result},
+            )
+        except ValueError as exc:
+            await self._send_json(
+                websocket,
+                {
+                    "jsonrpc": "2.0",
+                    "id": data.get("id"),
+                    "error": {"code": -32602, "message": str(exc)},
+                },
+            )
+        except Exception as exc:
+            await self._send_json(
+                websocket,
+                {
+                    "jsonrpc": "2.0",
+                    "id": data.get("id"),
+                    "error": {"code": -32000, "message": str(exc)},
+                },
+            )
+        return True
+
     # ── Connection handler ────────────────────────────────────────────────────
 
     async def _handler(self, websocket):
         self._clients.add(websocket)
+        conn_id = self._next_conn_id
+        self._next_conn_id += 1
+        self._conn_ids[websocket] = conn_id
         logger.info(f"[WS] client connected ({len(self._clients)} total)")
         try:
             await websocket.send(json.dumps({
                 "type": "connected",
-                "message": "Absolute Blockchain WebSocket API v1",
+                "message": "Absolute Blockchain WebSocket API v1 (eth_subscribe supported)",
                 "ts": time.time(),
             }))
             async for raw in websocket:
@@ -113,12 +228,18 @@ class WebSocketServer:
                     data = json.loads(raw)
                     if data.get("type") == "ping":
                         await websocket.send(json.dumps({"type": "pong", "ts": time.time()}))
+                        continue
+                    if await self._handle_json_rpc(websocket, conn_id, data):
+                        continue
                 except Exception:
                     pass
         except Exception:
             pass
         finally:
             self._clients.discard(websocket)
+            self._conn_ids.pop(websocket, None)
+            if self._eth_subs:
+                self._eth_subs.drop_connection(conn_id)
             logger.debug(f"[WS] client disconnected ({len(self._clients)} remaining)")
 
     # ── Start / Stop ──────────────────────────────────────────────────────────
