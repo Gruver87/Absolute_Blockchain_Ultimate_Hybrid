@@ -2,7 +2,10 @@
 # Add -Mainnet for prod stack + pre-mainnet combined gate.
 param(
     [switch]$FullNativeBuild,
-    [switch]$Mainnet
+    [switch]$Mainnet,
+    [string]$CeremonyDir = "",
+    [switch]$ProdSmokeSpawn,
+    [switch]$Live
 )
 
 $args = @("-SkipNativeBuild")
@@ -13,7 +16,17 @@ if ($FullNativeBuild) {
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 if ($Mainnet) {
-    python "$PSScriptRoot\mainnet_readiness.py"
+    $pyArgs = @("scripts/mainnet_readiness.py")
+    if ($CeremonyDir) {
+        $pyArgs += @("--ceremony-dir", $CeremonyDir)
+    }
+    if ($ProdSmokeSpawn) {
+        $pyArgs += "--prod-smoke-spawn"
+    }
+    if ($Live) {
+        $pyArgs += @("--live", "--base-url", "http://127.0.0.1:8080")
+    }
+    python @pyArgs
     exit $LASTEXITCODE
 }
 exit 0

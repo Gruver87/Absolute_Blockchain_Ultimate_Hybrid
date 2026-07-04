@@ -1,4 +1,8 @@
 # Start Docker prod profile (node + L1 relayer sidecar)
+param(
+    [string]$CeremonyDir = ""
+)
+
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location (Split-Path -Parent $ProjectRoot)
 
@@ -21,6 +25,12 @@ function Import-DotEnvFile {
 $dotEnv = Join-Path (Get-Location) ".env"
 if (Import-DotEnvFile $dotEnv) {
     Write-Host "Loaded $dotEnv" -ForegroundColor DarkGray
+}
+
+if ($CeremonyDir) {
+    & "$ProjectRoot\scripts\deploy_ceremony_prod.ps1" -CeremonyDir $CeremonyDir
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    $env:VALIDATORS_MANIFEST_PATH = "data/validators.manifest.json"
 }
 
 $missing = @()
@@ -48,6 +58,7 @@ $walletPath = Join-Path (Get-Location) "data\wallet.json"
 if (-not (Test-Path $walletPath)) {
     Write-Host "Prod wallet is required: $walletPath" -ForegroundColor Red
     Write-Host "Run: .\scripts\setup_prod_env.ps1" -ForegroundColor Cyan
+    Write-Host "Or:  .\scripts\deploy_ceremony_prod.ps1 -CeremonyDir data/ceremony_keys" -ForegroundColor Cyan
     exit 1
 }
 
@@ -85,9 +96,24 @@ if (-not $ready) {
     Write-Host "WARN: node not ready yet - check logs: docker compose -f docker-compose.prod.yml logs node" -ForegroundColor Yellow
 } else {
     Write-Host "Node ready." -ForegroundColor Green
-    python scripts/prod_smoke.py http://127.0.0.1:8080
+    $liveArgs = @("scripts/prod_smoke.py", "http://127.0.0.1:8080")
+    python @liveArgs
     if ($LASTEXITCODE -ne 0) {
         Write-Host "WARN: prod smoke failed - inspect bridge/L1 RPC configuration" -ForegroundColor Yellow
+    }
+    $readinessArgs = @(
+        "scripts/mainnet_readiness.py",
+        "--live",
+        "--base-url", "http://127.0.0.1:8080",
+        "--no-strict-audit"
+    )
+    if ($CeremonyDir) {
+        $readinessArgs += @("--ceremony-dir", $CeremonyDir)
+    }
+    python @readinessArgs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "WARN: mainnet live readiness failed" -ForegroundColor Yellow
+        exit $LASTEXITCODE
     }
 }
 

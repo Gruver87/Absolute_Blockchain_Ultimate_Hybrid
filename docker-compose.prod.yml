@@ -34,6 +34,7 @@ x-abs-prod-env: &abs-prod-env
   RATE_LIMIT_RPM: "120"
   GENESIS_CEREMONY_HASH: ${GENESIS_CEREMONY_HASH:-}
   GENESIS_STRICT_MAINNET: ${GENESIS_STRICT_MAINNET:-false}
+  VALIDATORS_MANIFEST_PATH: ${VALIDATORS_MANIFEST_PATH:-validators.manifest.mainnet-v1.example.json}
 
 services:
   node:
