@@ -145,7 +145,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Release gate `-Mainnet` flag: `scripts/release_gate.ps1 -Mainnet`
 - [ ] External security audit before public mainnet (third-party firm)
 - [ ] Public mainnet genesis + validator set ceremony
-- [ ] EIP-4844 blob transaction type in `eth_sendRawTransaction` (opcodes done; tx envelope optional)
+- [x] EIP-4844 blob transaction type in `eth_sendRawTransaction` (type 0x03 decode + verify)
 - [ ] EOF container format (EVM object format — optional)
 
 ## Process per module

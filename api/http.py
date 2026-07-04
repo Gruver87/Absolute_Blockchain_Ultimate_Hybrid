@@ -6628,6 +6628,12 @@ def _handle_send_tx_obj(tx_obj: Dict, bc, mp, cfg) -> str:
         public_key=tx_obj.get("public_key", ""),
         tx_hash=tx_obj.get("hash", ""),
     )
+    if tx_obj.get("blob_hashes"):
+        tx.blob_hashes = list(tx_obj.get("blob_hashes") or [])
+    if tx_obj.get("maxFeePerBlobGas") is not None:
+        tx.max_fee_per_blob_gas = int(tx_obj.get("maxFeePerBlobGas", 0))
+    if tx_obj.get("eth_tx_type"):
+        tx.eth_tx_type = str(tx_obj.get("eth_tx_type"))
 
     validation = bc.validate_transaction(tx)
     if not validation["valid"]:

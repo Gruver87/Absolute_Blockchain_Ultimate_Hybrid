@@ -157,6 +157,74 @@ def _decode_eip1559(raw: bytes) -> Dict[str, Any]:
     }
 
 
+def _decode_blob_hashes(raw_list) -> List[bytes]:
+    if not raw_list:
+        return []
+    if not isinstance(raw_list, list):
+        raise ValueError("blob_hashes_not_list")
+    out: List[bytes] = []
+    for item in raw_list:
+        h = _scalar_bytes(item)
+        if len(h) != 32:
+            raise ValueError("blob_hash_length")
+        out.append(h)
+    return out
+
+
+def _decode_eip4844(raw: bytes) -> Dict[str, Any]:
+    """EIP-4844 blob transaction (type 0x03)."""
+    payload, _ = decode(raw, 1)
+    if not isinstance(payload, list) or len(payload) != 14:
+        raise ValueError("eip4844_field_count")
+    chain_id = item_to_int(payload[0])
+    nonce = item_to_int(payload[1])
+    max_priority = item_to_int(payload[2])
+    max_fee = item_to_int(payload[3])
+    gas_limit = item_to_int(payload[4])
+    to_raw = _scalar_bytes(payload[5])
+    value = item_to_int(payload[6])
+    data = _scalar_bytes(payload[7])
+    access_list = payload[8]
+    _decode_access_list(access_list)
+    max_fee_per_blob_gas = item_to_int(payload[9])
+    blob_hashes_raw = _decode_blob_hashes(payload[10])
+    y_parity = item_to_int(payload[11])
+    r = _scalar_bytes(payload[12])
+    s = _scalar_bytes(payload[13])
+    signing_body = [
+        chain_id, nonce, max_priority, max_fee, gas_limit,
+        to_raw, value, data, access_list, max_fee_per_blob_gas, payload[10],
+    ]
+    signing_hash = native.keccak256_digest(b"\x03" + encode(signing_body))
+    v = y_parity + 35 + 2 * chain_id if chain_id else y_parity + 27
+    from_addr = _recover_address(signing_hash, y_parity, r, s, None)
+    blob_hashes_hex = ["0x" + h.hex() for h in blob_hashes_raw]
+    blob_hashes_int = [int.from_bytes(h, "big") for h in blob_hashes_raw]
+    return {
+        "from": from_addr,
+        "to": _addr_from_bytes(to_raw),
+        "value": value,
+        "nonce": nonce,
+        "gas": gas_limit,
+        "gasPrice": max_fee,
+        "maxFeePerGas": max_fee,
+        "maxPriorityFeePerGas": max_priority,
+        "maxFeePerBlobGas": max_fee_per_blob_gas,
+        "blob_versioned_hashes": blob_hashes_hex,
+        "blob_hashes": blob_hashes_int,
+        "data": "0x" + data.hex() if data else "0x",
+        "chain_id": chain_id,
+        "eth_signed": True,
+        "eth_tx_type": "eip4844",
+        "signature": r.hex() + s.hex() + format(y_parity, "x"),
+        "public_key": "",
+        "eth_v": v,
+        "eth_y_parity": y_parity,
+        "eth_r": r.hex(),
+        "eth_s": s.hex(),
+    }
+
+
 def decode_raw_transaction(raw: bytes | str) -> Dict[str, Any]:
     if isinstance(raw, str):
         raw = bytes.fromhex(raw.replace("0x", ""))
@@ -164,7 +232,9 @@ def decode_raw_transaction(raw: bytes | str) -> Dict[str, Any]:
         raise ValueError("empty_raw_transaction")
     if raw[0] == 0x02:
         return _decode_eip1559(raw)
-    if raw[0] in (0x01, 0x03, 0x04):
+    if raw[0] == 0x03:
+        return _decode_eip4844(raw)
+    if raw[0] in (0x01, 0x04):
         raise ValueError(f"unsupported_typed_tx:{raw[0]:#x}")
     item = decode_single(raw)
     if not isinstance(item, list):
@@ -195,6 +265,27 @@ def verify_eth_transaction_dict(tx: dict) -> bool:
                 [],
             ]
             signing_hash = native.keccak256_digest(b"\x02" + encode(signing_body))
+            y_parity = int(tx.get("eth_y_parity", 0))
+            recovered = _recover_address(signing_hash, y_parity, r, s, None)
+        elif tx_type == "eip4844":
+            blob_raw = [
+                bytes.fromhex(str(h).replace("0x", ""))
+                for h in (tx.get("blob_versioned_hashes") or [])
+            ]
+            signing_body = [
+                chain_id,
+                int(tx.get("nonce", 0)),
+                int(tx.get("maxPriorityFeePerGas", 0)),
+                int(tx.get("maxFeePerGas", tx.get("gasPrice", 0))),
+                int(tx.get("gas", 0)),
+                to_raw,
+                int(tx.get("value", 0)),
+                data,
+                [],
+                int(tx.get("maxFeePerBlobGas", 0)),
+                blob_raw,
+            ]
+            signing_hash = native.keccak256_digest(b"\x03" + encode(signing_body))
             y_parity = int(tx.get("eth_y_parity", 0))
             recovered = _recover_address(signing_hash, y_parity, r, s, None)
         else:
