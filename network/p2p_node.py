@@ -171,6 +171,38 @@ class P2PNode:
         self._consensus = consensus
         self.validator_keys = validator_keys
 
+    def _consensus_adapter(self):
+        return self._consensus or getattr(self.blockchain, "consensus_adapter", None)
+
+    def _feed_fork_choice(self, block_data: Dict) -> None:
+        """Register block in LMD-GHOST tree (competing forks at same height)."""
+        if not isinstance(block_data, dict):
+            return
+        ca = self._consensus_adapter()
+        if not ca or not hasattr(ca, "add_block_to_fork_choice"):
+            return
+        ca.add_block_to_fork_choice({
+            "hash": block_data.get("hash", ""),
+            "parent_hash": block_data.get("parent_hash", ""),
+            "number": int(block_data.get("height", block_data.get("number", 0)) or 0),
+        })
+
+    def _ghost_canonical_head(self) -> Optional[str]:
+        ca = self._consensus_adapter()
+        if ca and hasattr(ca, "get_canonical_head"):
+            return ca.get_canonical_head()
+        return None
+
+    def _peer_with_head(self, head_hash: str) -> Optional[PeerConnection]:
+        target = (head_hash or "").strip().lower()
+        if not target:
+            return None
+        for peer in self.peers.values():
+            peer_head = (peer.head or "").strip().lower()
+            if peer_head == target or target in peer_head or peer_head in target:
+                return peer
+        return None
+
     def set_sharding(self, sharding) -> None:
         """Wire distributed sharding for cross-shard gossip."""
         self._sharding = sharding
@@ -588,12 +620,20 @@ class P2PNode:
         if existing:
             if existing.get("hash") == block.hash:
                 return
+            self._feed_fork_choice(data)
+            self._feed_fork_choice(existing)
+            ghost_head = self._ghost_canonical_head()
+            local_head = self.head() or ""
+            if ghost_head and ghost_head.lower() != local_head.lower():
+                if await self._reconcile_to_head_hash(ghost_head, peer_hint=peer):
+                    return
             print(
                 f"[P2P] Fork block #{block.height} from {peer.peer_id[:8]} — reconciling"
             )
             await self._reconcile_fork_at_peer(peer)
             return
 
+        self._feed_fork_choice(data)
         if block.height > local_h + 1:
             asyncio.create_task(self._sync_with_peer_safe(peer))
             return
@@ -912,27 +952,44 @@ class P2PNode:
 
         await self._sync_mempool_with_peer(peer)
 
-    async def _reconcile_fork_at_peer(self, peer: PeerConnection) -> bool:
-        """Same height, different head — reorg to peer canonical block."""
-        peer_head = peer.head or ""
+    async def _reconcile_to_head_hash(
+        self,
+        target_head: str,
+        peer_hint: Optional[PeerConnection] = None,
+    ) -> bool:
+        """Reorg to target head hash (GHOST canonical or peer tip)."""
+        target_head = (target_head or "").strip()
+        if not target_head:
+            return False
         local_head = self.head() or ""
-        if not peer_head or peer_head == local_head:
+        if local_head and (
+            local_head == target_head
+            or local_head.lower() == target_head.lower()
+        ):
             return True
 
-        print(
-            f"[P2P] Fork at #{peer.height}: "
-            f"local={local_head[:12]} peer={peer_head[:12]}"
-        )
-        peer_block = await self._request_block_by_hash(peer, peer_head)
+        peer = peer_hint if peer_hint and (peer_hint.head or "") == target_head else None
+        if peer is None:
+            peer = self._peer_with_head(target_head)
+
+        peer_block = None
+        if peer:
+            peer_block = await self._request_block_by_hash(peer, target_head)
         if not peer_block:
-            print("[P2P] Could not fetch peer head block for reconcile")
+            for candidate in self.peers.values():
+                peer_block = await self._request_block_by_hash(candidate, target_head)
+                if peer_block:
+                    peer = candidate
+                    break
+        if not peer_block:
+            print(f"[P2P] Could not fetch head block {target_head[:12]} for reconcile")
             return False
 
-        block_h = int(peer_block.get("height", peer_block.get("number", peer.height)))
+        block_h = int(peer_block.get("height", peer_block.get("number", 0)))
         parent_hash = peer_block.get("parent_hash", "")
         ancestor = self.blockchain.find_ancestor_height(parent_hash)
         if ancestor is None:
-            print("[P2P] No common ancestor for peer head")
+            print("[P2P] No common ancestor for target head")
             return False
 
         rollback_to = min(ancestor, block_h - 1)
@@ -951,14 +1008,34 @@ class P2PNode:
         if not self.blockchain.reorg_to_ancestor(rollback_to):
             return False
         if not self.blockchain.import_block(peer_block):
-            print("[P2P] Failed to import peer head after reorg")
+            print("[P2P] Failed to import target head after reorg")
             return False
 
-        peer.height = block_h
-        peer.head = peer_block.get("hash", peer_head)
-        if peer.height > self.blockchain.get_height():
+        if peer:
+            peer.height = block_h
+            peer.head = peer_block.get("hash", target_head)
+        if peer and block_h > self.blockchain.get_height():
             await self._sync_with_peer_safe(peer)
+        print(f"[P2P] Reorg complete — head={target_head[:12]} height=#{block_h}")
         return True
+
+    async def _reconcile_fork_at_peer(self, peer: PeerConnection) -> bool:
+        """Same height, different head — reorg to GHOST canonical or peer head."""
+        ghost_head = self._ghost_canonical_head()
+        local_head = self.head() or ""
+        if ghost_head and ghost_head.lower() != local_head.lower():
+            if await self._reconcile_to_head_hash(ghost_head, peer_hint=peer):
+                return True
+
+        peer_head = peer.head or ""
+        if not peer_head or peer_head == local_head:
+            return True
+
+        print(
+            f"[P2P] Fork at #{peer.height}: "
+            f"local={local_head[:12]} peer={peer_head[:12]}"
+        )
+        return await self._reconcile_to_head_hash(peer_head, peer_hint=peer)
 
     async def reconcile_peers(self) -> Dict:
         """Align chain tips with connected peers (height + head + state_root)."""
@@ -971,7 +1048,14 @@ class P2PNode:
                     entry["ok"] = True
                     entry["action"] = "catch_up"
                 elif peer.height == self.blockchain.get_height():
-                    if (peer.head or "") != (self.head() or ""):
+                    local_head = self.head() or ""
+                    ghost_head = self._ghost_canonical_head()
+                    if ghost_head and ghost_head.lower() != local_head.lower():
+                        entry["ok"] = await self._reconcile_to_head_hash(
+                            ghost_head, peer_hint=peer
+                        )
+                        entry["action"] = "ghost_reorg"
+                    elif (peer.head or "") != local_head:
                         entry["ok"] = await self._reconcile_fork_at_peer(peer)
                         entry["action"] = "fork_reorg"
                     else:
@@ -996,6 +1080,7 @@ class P2PNode:
             "state_consistent": self._state_consistent,
             "height": self.blockchain.get_height(),
             "head": self.head() or "",
+            "ghost_head": self._ghost_canonical_head() or "",
             "state_root": self.blockchain.get_state_root() if self.blockchain else "",
         }
 
