@@ -72,6 +72,8 @@ def native_crypto_status(required: bool = False) -> dict:
             "evm_u256_cmp",
             "evm_memory",
             "evm_read_push",
+            "evm_jumpdest",
+            "evm_call_gas",
             "evm_keccak256_memory",
             "evm_deploy_address",
             "evm_create2_eip1014",
@@ -582,6 +584,50 @@ def evm_read_push(bytecode: bytes, pc: int, size: int) -> int:
     if len(chunk) < size:
         chunk = chunk + (b"\x00" * (size - len(chunk)))
     return int.from_bytes(chunk, "big")
+
+
+def evm_build_jumpdest_table(bytecode: bytes) -> bytes:
+    if _native is not None and hasattr(_native, "evm_build_jumpdest_table"):
+        return bytes(_native.evm_build_jumpdest_table(bytecode))
+    table = bytearray((len(bytecode) + 7) // 8)
+    pc = 0
+    while pc < len(bytecode):
+        op = bytecode[pc]
+        if op == 0x5B:
+            table[pc // 8] |= 1 << (pc % 8)
+        if 0x60 <= op <= 0x7F:
+            pc += 1 + (op - 0x5F)
+        else:
+            pc += 1
+    return bytes(table)
+
+
+def evm_is_jumpdest(table: bytes, dest: int, bytecode_len: int) -> bool:
+    dest = int(dest)
+    bytecode_len = int(bytecode_len)
+    if dest < 0 or dest >= bytecode_len:
+        return False
+    if _native is not None and hasattr(_native, "evm_is_jumpdest"):
+        return bool(_native.evm_is_jumpdest(table, dest, bytecode_len))
+    return bool((table[dest // 8] >> (dest % 8)) & 1)
+
+
+def evm_word_to_address(word: int) -> str:
+    word &= EVM_U256_MASK
+    if _native is not None and hasattr(_native, "evm_word_to_address"):
+        return str(_native.evm_word_to_address(_evm_u256_bytes(word)))
+    return "0x" + format(word & ((1 << 160) - 1), "040x")
+
+
+def evm_call_gas_cap(remaining: int, requested: int) -> int:
+    remaining = max(0, int(remaining))
+    requested = max(0, int(requested))
+    if _native is not None and hasattr(_native, "evm_call_gas_cap"):
+        return int(_native.evm_call_gas_cap(remaining, requested))
+    cap = remaining * 63 // 64
+    if requested <= 0:
+        return cap
+    return min(requested, cap)
 
 
 def evm_memory_copy(memory: bytearray, dest: int, src: bytes, src_offset: int, size: int) -> None:

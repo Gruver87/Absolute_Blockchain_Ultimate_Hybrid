@@ -75,6 +75,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] EVM compare opcodes (`EQ/LT/GT/ISZERO/BYTE`) + memory/calldata kernels in Rust
 - [x] Extended arithmetic opcodes (`SDIV/SMOD/ADDMOD/MULMOD/EXP/SIGNEXTEND`) + native MSTORE
 - [x] Native PUSH decode (`evm_read_push`) + EXTCODECOPY memory kernel
+- [x] Jumpdest bitmap + EIP-150 call gas cap + address masking in Rust
 - [ ] Full opcode dispatch in Rust (future)
 
 ### Priority 7 — Bridge hardening (future)

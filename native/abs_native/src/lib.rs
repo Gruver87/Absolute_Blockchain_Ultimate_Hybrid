@@ -964,6 +964,57 @@ fn evm_read_push(bytecode: &[u8], pc: usize, n: usize) -> PyResult<[u8; 32]> {
     Ok(evm_read_push_inner(bytecode, pc, n))
 }
 
+fn evm_build_jumpdest_table_inner(bytecode: &[u8]) -> Vec<u8> {
+    let mut table = vec![0u8; (bytecode.len() + 7) / 8];
+    let mut pc = 0usize;
+    while pc < bytecode.len() {
+        let op = bytecode[pc];
+        if op == 0x5B {
+            table[pc / 8] |= 1u8 << (pc % 8);
+        }
+        if (0x60..=0x7F).contains(&op) {
+            pc += 1 + (op - 0x5F) as usize;
+        } else {
+            pc += 1;
+        }
+    }
+    table
+}
+
+fn evm_is_jumpdest_inner(table: &[u8], dest: usize, bytecode_len: usize) -> bool {
+    if dest >= bytecode_len {
+        return false;
+    }
+    (table[dest / 8] >> (dest % 8)) & 1 == 1
+}
+
+#[pyfunction]
+fn evm_build_jumpdest_table(bytecode: &[u8]) -> PyResult<Vec<u8>> {
+    Ok(evm_build_jumpdest_table_inner(bytecode))
+}
+
+#[pyfunction]
+fn evm_is_jumpdest(table: &[u8], dest: usize, bytecode_len: usize) -> PyResult<bool> {
+    Ok(evm_is_jumpdest_inner(table, dest, bytecode_len))
+}
+
+#[pyfunction]
+fn evm_word_to_address(word: [u8; 32]) -> PyResult<String> {
+    let value = u256_from_be32(word);
+    let mask = (U256::one() << 160) - U256::one();
+    Ok(format!("0x{:040x}", value & mask))
+}
+
+#[pyfunction]
+fn evm_call_gas_cap(remaining: u64, requested: u64) -> PyResult<u64> {
+    let cap = remaining.saturating_mul(63) / 64;
+    if requested == 0 {
+        Ok(cap)
+    } else {
+        Ok(cap.min(requested))
+    }
+}
+
 #[pyfunction]
 fn keccak256_hex(data: &[u8]) -> PyResult<String> {
     Ok(keccak256_hex_bytes(data))
@@ -1243,6 +1294,10 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_calldataload, m)?)?;
     m.add_function(wrap_pyfunction!(evm_memory_copy, m)?)?;
     m.add_function(wrap_pyfunction!(evm_read_push, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_build_jumpdest_table, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_is_jumpdest, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_word_to_address, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_call_gas_cap, m)?)?;
     m.add_function(wrap_pyfunction!(keccak256_hex, m)?)?;
     m.add_function(wrap_pyfunction!(validate_imported_block_chain, m)?)?;
     m.add_function(wrap_pyfunction!(validate_peer_header_chain, m)?)?;

@@ -108,17 +108,16 @@ class EVM:
     def _read_push(self, bytecode: bytes, n: int) -> int:
         return native.evm_read_push(bytecode, self.pc, n)
 
-    def _is_jumpdest(self, bytecode: bytes, dest: int) -> bool:
-        return 0 <= dest < len(bytecode) and bytecode[dest] == 0x5B
+    def _is_jumpdest(self, bytecode: bytes, dest: int, table: bytes) -> bool:
+        return native.evm_is_jumpdest(table, dest, len(bytecode))
 
     @staticmethod
     def _word_to_addr(word: int) -> str:
-        return "0x" + format(word & ((1 << 160) - 1), "040x")
+        return native.evm_word_to_address(word)
 
     def _write_return_to_memory(self, ret_offset: int, ret_size: int, data: bytes) -> None:
         self._mem_extend(ret_offset, ret_size)
-        chunk = data[:ret_size]
-        self.memory[ret_offset:ret_offset + len(chunk)] = chunk
+        native.evm_memory_copy(self.memory, ret_offset, data, 0, ret_size)
 
     def _available_gas(self, requested: int) -> int:
         remaining = max(0, self.gas_limit - self.gas_used)
@@ -129,10 +128,7 @@ class EVM:
     def _call_gas_cap(self, requested: int) -> int:
         """EIP-150: at most 63/64 of remaining gas may be forwarded."""
         remaining = max(0, self.gas_limit - self.gas_used)
-        cap = remaining * 63 // 64
-        if requested <= 0:
-            return cap
-        return min(requested, cap)
+        return native.evm_call_gas_cap(remaining, requested)
 
     def _charge_subcall_gas(self, sub_gas: int) -> None:
         if sub_gas > 0:
@@ -197,6 +193,7 @@ class EVM:
         self.trace = []
         self.logs = []
         self.bytecode = bytecode
+        jumpdest_table = native.evm_build_jumpdest_table(bytecode)
 
         while self.pc < len(bytecode) and self.running:
             op_byte = bytecode[self.pc]
@@ -386,14 +383,14 @@ class EVM:
                     self.storage[key] = value
             elif op_byte == 0x56:
                 dest = self._pop()
-                if not self._is_jumpdest(bytecode, dest):
+                if not self._is_jumpdest(bytecode, dest, jumpdest_table):
                     raise RuntimeError(f"invalid jump destination: {dest}")
                 self.pc = dest
                 continue
             elif op_byte == 0x57:
                 dest, cond = self._pop(), self._pop()
                 if cond != 0:
-                    if not self._is_jumpdest(bytecode, dest):
+                    if not self._is_jumpdest(bytecode, dest, jumpdest_table):
                         raise RuntimeError(f"invalid jump destination: {dest}")
                     self.pc = dest
                     continue
