@@ -2,7 +2,7 @@ use k256::ecdsa::signature::hazmat::PrehashVerifier;
 use k256::ecdsa::{Signature, VerifyingKey};
 use primitive_types::{U256, U512};
 use pyo3::prelude::*;
-use pyo3::types::PyByteArray;
+use pyo3::types::{PyByteArray, PyList};
 use serde_json::{Map, Number, Value};
 use sha2::{Digest, Sha256};
 use tiny_keccak::{Hasher, Keccak};
@@ -1015,6 +1015,46 @@ fn evm_call_gas_cap(remaining: u64, requested: u64) -> PyResult<u64> {
     }
 }
 
+fn evm_memory_slice_inner(memory: &[u8], offset: usize, size: usize) -> Vec<u8> {
+    let mut out = vec![0u8; size];
+    if offset < memory.len() {
+        let copied = usize::min(size, memory.len() - offset);
+        out[..copied].copy_from_slice(&memory[offset..offset + copied]);
+    }
+    out
+}
+
+#[pyfunction]
+fn evm_memory_slice(memory: &[u8], offset: usize, size: usize) -> PyResult<Vec<u8>> {
+    Ok(evm_memory_slice_inner(memory, offset, size))
+}
+
+#[pyfunction]
+fn evm_stack_dup(stack: &Bound<'_, PyList>, depth: usize) -> PyResult<()> {
+    let len = stack.len();
+    if depth == 0 || depth > len {
+        return Err(pyo3::exceptions::PyValueError::new_err("stack underflow"));
+    }
+    let item = stack.get_item(len - depth)?;
+    stack.append(item)?;
+    Ok(())
+}
+
+#[pyfunction]
+fn evm_stack_swap(stack: &Bound<'_, PyList>, depth: usize) -> PyResult<()> {
+    let len = stack.len();
+    if depth == 0 || depth >= len {
+        return Err(pyo3::exceptions::PyValueError::new_err("stack underflow"));
+    }
+    let top = len - 1;
+    let other = len - 1 - depth;
+    let top_item = stack.get_item(top)?;
+    let other_item = stack.get_item(other)?;
+    stack.set_item(top, other_item)?;
+    stack.set_item(other, top_item)?;
+    Ok(())
+}
+
 #[pyfunction]
 fn keccak256_hex(data: &[u8]) -> PyResult<String> {
     Ok(keccak256_hex_bytes(data))
@@ -1298,6 +1338,9 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_is_jumpdest, m)?)?;
     m.add_function(wrap_pyfunction!(evm_word_to_address, m)?)?;
     m.add_function(wrap_pyfunction!(evm_call_gas_cap, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_memory_slice, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_stack_dup, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_stack_swap, m)?)?;
     m.add_function(wrap_pyfunction!(keccak256_hex, m)?)?;
     m.add_function(wrap_pyfunction!(validate_imported_block_chain, m)?)?;
     m.add_function(wrap_pyfunction!(validate_peer_header_chain, m)?)?;

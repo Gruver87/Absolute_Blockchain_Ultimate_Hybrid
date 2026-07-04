@@ -145,7 +145,7 @@ class EVM:
             self.return_data = b""
             return 0
         self._mem_extend(args_offset, args_size)
-        call_data = bytes(self.memory[args_offset:args_offset + args_size])
+        call_data = native.evm_memory_slice(bytes(self.memory), args_offset, args_size)
         to_addr = self._word_to_addr(to_word)
         call_gas = self._call_gas_cap(gas)
         if value > 0 and not static and not delegate:
@@ -174,7 +174,7 @@ class EVM:
         if not self.ctx.contract_create:
             return 0
         self._mem_extend(offset, size)
-        init_code = bytes(self.memory[offset:offset + size])
+        init_code = native.evm_memory_slice(bytes(self.memory), offset, size)
         out = self.ctx.contract_create(init_code, value, self.ctx, salt)
         sub_gas = int(out.get("gas_used", 0) or 0)
         self._charge_subcall_gas(sub_gas)
@@ -377,8 +377,9 @@ class EVM:
                 self._push(self.storage.get(key, 0))
             elif op_byte == 0x55:
                 key, value = self._pop(), self._pop()
-                if value == 0 and key in self.storage:
-                    del self.storage[key]
+                if native.evm_u256_iszero(value):
+                    if key in self.storage:
+                        del self.storage[key]
                 else:
                     self.storage[key] = value
             elif op_byte == 0x56:
@@ -402,17 +403,10 @@ class EVM:
                 self._push(0)
             elif 0x80 <= op_byte <= 0x8F:  # DUP1..DUP16
                 n = op_byte - 0x7F
-                if len(self.stack) < n:
-                    raise RuntimeError("stack underflow")
-                self._push(self.stack[-n])
+                native.evm_stack_dup(self.stack, n)
             elif 0x90 <= op_byte <= 0x9F:  # SWAP1..SWAP16
                 n = op_byte - 0x8F
-                if len(self.stack) < n + 1:
-                    raise RuntimeError("stack underflow")
-                a = self.stack[-1]
-                b = self.stack[-1 - n]
-                self.stack[-1] = b
-                self.stack[-1 - n] = a
+                native.evm_stack_swap(self.stack, n)
             elif op_byte == 0xF0:  # CREATE
                 size = self._pop()
                 offset = self._pop()

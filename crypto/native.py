@@ -74,6 +74,8 @@ def native_crypto_status(required: bool = False) -> dict:
             "evm_read_push",
             "evm_jumpdest",
             "evm_call_gas",
+            "evm_stack",
+            "evm_memory_slice",
             "evm_keccak256_memory",
             "evm_deploy_address",
             "evm_create2_eip1014",
@@ -628,6 +630,44 @@ def evm_call_gas_cap(remaining: int, requested: int) -> int:
     if requested <= 0:
         return cap
     return min(requested, cap)
+
+
+def evm_memory_slice(memory: bytes, offset: int, size: int) -> bytes:
+    offset = int(offset)
+    size = int(size)
+    if _native is not None and hasattr(_native, "evm_memory_slice"):
+        return bytes(_native.evm_memory_slice(memory, offset, size))
+    end = offset + size
+    chunk = memory[offset:end] if offset < len(memory) else b""
+    if len(chunk) < size:
+        chunk = chunk + (b"\x00" * (size - len(chunk)))
+    return bytes(chunk)
+
+
+def evm_stack_dup(stack: list, depth: int) -> None:
+    depth = int(depth)
+    if _native is not None and hasattr(_native, "evm_stack_dup"):
+        try:
+            _native.evm_stack_dup(stack, depth)
+        except Exception as exc:
+            raise RuntimeError("stack underflow") from exc
+        return
+    if depth <= 0 or depth > len(stack):
+        raise RuntimeError("stack underflow")
+    stack.append(stack[-depth])
+
+
+def evm_stack_swap(stack: list, depth: int) -> None:
+    depth = int(depth)
+    if _native is not None and hasattr(_native, "evm_stack_swap"):
+        try:
+            _native.evm_stack_swap(stack, depth)
+        except Exception as exc:
+            raise RuntimeError("stack underflow") from exc
+        return
+    if depth <= 0 or depth >= len(stack):
+        raise RuntimeError("stack underflow")
+    stack[-1], stack[-1 - depth] = stack[-1 - depth], stack[-1]
 
 
 def evm_memory_copy(memory: bytearray, dest: int, src: bytes, src_offset: int, size: int) -> None:
