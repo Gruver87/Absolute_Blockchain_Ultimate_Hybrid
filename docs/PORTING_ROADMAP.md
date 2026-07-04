@@ -128,12 +128,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Validator key provider interface: local wallet + external HSM/KMS HTTP signer (`VALIDATOR_KEY_PROVIDER`)
 - [x] Validator AWS KMS provider (`VALIDATOR_KEY_PROVIDER=aws_kms`, `AWS_KMS_KEY_ID`)
 - [x] Validator GCP KMS provider (`VALIDATOR_KEY_PROVIDER=gcp_kms`, `GCP_KMS_KEY_VERSION`)
+- [x] Validator GCP Cloud HSM provider (`VALIDATOR_KEY_PROVIDER=gcp_cloudhsm`, HSM protection_level gate)
 - [x] P2P catch-up hardening: `catch_up_sync` retry loop, `verify_p2p_ci` devnet preflight, live audit skip/extend
-- [ ] Validator key ops (GCP CloudHSM hardware — long-term)
+- [ ] Validator key ops (AWS CloudHSM PKCS#11 proxy — long-term)
 - [x] JSON-RPC `eth_getLogs` filters + `eth_sendRawTransaction` RLP
 - [x] JSON-RPC polling filters: `eth_newFilter`, `eth_getFilterChanges`, `eth_getFilterLogs`, block/pending filters
 - [x] JSON-RPC WebSocket subscriptions (`eth_subscribe` / `eth_unsubscribe`: newHeads, logs, newPendingTransactions)
-- [x] Pre-mainnet audit runner: `scripts/pre_mainnet_audit.py` (static gate + external checklist)
+- [x] Pre-mainnet audit runner: `scripts/pre_mainnet_audit.py` (static gate + JSON report + external checklist)
 - [ ] External security audit before public mainnet (third-party firm)
 - [x] PyO3 bridge helper CLI: `scripts/native_bridge_helper.py`
 - Dev-only (keep blocked in prod): `bridge_mode=simulator`, `mock_l1_rpc`, `feature_wasm/plasma/lightning/pq/zk`

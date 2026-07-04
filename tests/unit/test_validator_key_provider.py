@@ -67,6 +67,46 @@ def test_build_provider_modes(monkeypatch):
     )
     from runtime.validator_key_provider import GcpKmsKeyProvider
     assert isinstance(build_validator_key_provider(wallet), GcpKmsKeyProvider)
+    monkeypatch.setenv("VALIDATOR_KEY_PROVIDER", "gcp_cloudhsm")
+    from runtime.validator_key_provider import GcpCloudHsmKeyProvider
+    assert isinstance(build_validator_key_provider(wallet), GcpCloudHsmKeyProvider)
+
+
+def test_gcp_cloudhsm_rejects_software_key(monkeypatch):
+    from runtime.validator_key_provider import GcpCloudHsmKeyProvider
+
+    provider = GcpCloudHsmKeyProvider(
+        "projects/p/locations/global/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1"
+    )
+    fake_client = MagicMock()
+    fake_version = MagicMock()
+    fake_version.protection_level = "SOFTWARE"
+    fake_client.get_crypto_key_version.return_value = fake_version
+    fake_kms = MagicMock()
+    fake_kms.KeyManagementServiceClient.return_value = fake_client
+
+    with patch.dict("sys.modules", {"google": MagicMock(), "google.cloud": MagicMock(kms=fake_kms)}):
+        with pytest.raises(RuntimeError, match="gcp_key_not_hsm_backed"):
+            provider.sign_message(b"payload")
+
+
+def test_gcp_cloudhsm_signs_hsm_key(monkeypatch):
+    from runtime.validator_key_provider import GcpCloudHsmKeyProvider
+
+    provider = GcpCloudHsmKeyProvider(
+        "projects/p/locations/global/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1"
+    )
+    fake_client = MagicMock()
+    fake_version = MagicMock()
+    fake_version.protection_level = "HSM"
+    fake_client.get_crypto_key_version.return_value = fake_version
+    fake_client.asymmetric_sign.return_value = MagicMock(signature=b"\x02" * 64)
+    fake_kms = MagicMock()
+    fake_kms.KeyManagementServiceClient.return_value = fake_client
+
+    with patch.dict("sys.modules", {"google": MagicMock(), "google.cloud": MagicMock(kms=fake_kms)}):
+        sig = provider.sign_message(b"payload")
+    assert sig == b"\x02" * 64
 
 
 def test_gcp_kms_provider_signs(monkeypatch):

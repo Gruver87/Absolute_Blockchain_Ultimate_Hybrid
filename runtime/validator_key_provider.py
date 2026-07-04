@@ -128,14 +128,17 @@ class GcpKmsKeyProvider:
         self.key_version = (key_version or "").strip()
         self._pubkey = ""
 
+    def _kms_client(self):
+        from google.cloud import kms
+        return kms.KeyManagementServiceClient()
+
     def sign_message(self, message: bytes) -> bytes:
         if not self.key_version:
             raise RuntimeError("gcp_kms_key_version_missing")
         try:
-            from google.cloud import kms
+            client = self._kms_client()
         except ImportError as exc:
             raise RuntimeError("google_cloud_kms_required") from exc
-        client = kms.KeyManagementServiceClient()
         digest = __import__("hashlib").sha256(message).digest()
         response = client.asymmetric_sign(
             request={
@@ -152,6 +155,34 @@ class GcpKmsKeyProvider:
         return self._pubkey
 
 
+class GcpCloudHsmKeyProvider(GcpKmsKeyProvider):
+    """GCP KMS key with HSM protection level (Cloud HSM cluster backed)."""
+
+    def __init__(self, key_version: str) -> None:
+        super().__init__(key_version)
+        self._hsm_verified = False
+
+    def _ensure_hsm_protection(self) -> None:
+        if self._hsm_verified:
+            return
+        try:
+            client = self._kms_client()
+        except ImportError as exc:
+            raise RuntimeError("google_cloud_kms_required") from exc
+        version = client.get_crypto_key_version(name=self.key_version)
+        level = getattr(version, "protection_level", None)
+        level_name = str(getattr(level, "name", level) or "").upper()
+        if level_name != "HSM" and level != 2:
+            raise RuntimeError(
+                f"gcp_key_not_hsm_backed: protection_level={level_name or level}"
+            )
+        self._hsm_verified = True
+
+    def sign_message(self, message: bytes) -> bytes:
+        self._ensure_hsm_protection()
+        return super().sign_message(message)
+
+
 def build_validator_key_provider(wallet=None) -> ValidatorKeyProvider:
     mode = (os.environ.get("VALIDATOR_KEY_PROVIDER", "local") or "local").strip().lower()
     if mode == "external":
@@ -165,4 +196,7 @@ def build_validator_key_provider(wallet=None) -> ValidatorKeyProvider:
     if mode in ("gcp_kms", "google_kms"):
         key_version = _gcp_kms_key_version_from_env()
         return GcpKmsKeyProvider(key_version)
+    if mode in ("gcp_cloudhsm", "gcp_hsm", "cloudhsm"):
+        key_version = _gcp_kms_key_version_from_env()
+        return GcpCloudHsmKeyProvider(key_version)
     return LocalWalletKeyProvider(wallet)
