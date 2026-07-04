@@ -29,3 +29,5 @@ data:
   RUST_BRIDGE_PATH: "bridge/abs_bridge_bin"
   BRIDGE_AUTO_CONFIRM_SEC: "0"
   BRIDGE_REQUIRE_L1_PROOF: "true"
+  BRIDGE_PROBE_L1_RPC: "true"
+  BRIDGE_L1_QUEUE_PATH: "/app/data/bridge_l1_queue.json"

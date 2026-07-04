@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""Live production stack smoke checks (HTTP endpoints)."""
+from __future__ import annotations
+
+import json
+import sys
+import urllib.error
+import urllib.request
+from typing import Any, Dict, List, Tuple
+
+
+def _fetch(url: str, timeout: float = 8.0) -> Tuple[int, Any]:
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        raw = resp.read().decode()
+        try:
+            return resp.status, json.loads(raw)
+        except json.JSONDecodeError:
+            return resp.status, raw
+
+
+def run_prod_smoke(base: str = "http://127.0.0.1:8080") -> Dict[str, Any]:
+    """Return {ok, errors, checks} for a running prod node."""
+    base = base.rstrip("/")
+    errors: List[str] = []
+    checks: Dict[str, bool] = {}
+
+    try:
+        status, ready = _fetch(f"{base}/health/ready")
+        checks["health_ready_http"] = status == 200
+        checks["health_ready_body"] = ready.get("status") == "ready"
+        if status != 200 or ready.get("status") != "ready":
+            errors.append(f"/health/ready not ready: status={status} body={ready!r}")
+        rust = (ready.get("rust_bridge") or {})
+        if rust.get("required") and not rust.get("ok"):
+            errors.append(f"rust bridge not ok: {rust}")
+        l1 = (ready.get("l1_rpc") or {})
+        if l1.get("required") and not l1.get("ok"):
+            errors.append(f"l1 rpc not ok: {l1}")
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        errors.append(f"/health/ready unreachable: {exc}")
+        checks["health_ready_http"] = False
+
+    try:
+        status, bridge = _fetch(f"{base}/bridge")
+        checks["bridge_http"] = status == 200
+        mode = bridge.get("mode")
+        checks["bridge_rust_mode"] = mode == "rust"
+        if mode != "rust":
+            errors.append(f"/bridge mode={mode!r}, expected rust")
+        l1 = bridge.get("l1_rpc") or {}
+        if l1.get("required") and not l1.get("ok"):
+            errors.append(f"/bridge l1_rpc not ok: {l1}")
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        errors.append(f"/bridge unreachable: {exc}")
+        checks["bridge_http"] = False
+
+    try:
+        status, relayer = _fetch(f"{base}/bridge/relayer/status")
+        checks["relayer_status_http"] = status == 200
+        if not relayer.get("oracle_hmac_configured"):
+            errors.append("relayer status: oracle HMAC not configured on node")
+        if relayer.get("require_l1_proof") and relayer.get("blind_pending_confirm_allowed"):
+            errors.append("relayer: blind pending confirm must be disabled in L1-proof mode")
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        errors.append(f"/bridge/relayer/status unreachable: {exc}")
+        checks["relayer_status_http"] = False
+
+    try:
+        req = urllib.request.Request(f"{base}/metrics")
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            text = resp.read().decode()
+        checks["metrics_http"] = resp.status == 200
+        for needle in ("abs_native_crypto_self_test", "abs_rust_bridge_ok", "abs_l1_rpc_ok"):
+            if needle not in text:
+                errors.append(f"/metrics missing {needle}")
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        errors.append(f"/metrics unreachable: {exc}")
+        checks["metrics_http"] = False
+
+    return {"ok": not errors, "errors": errors, "checks": checks, "base": base}
+
+
+def main() -> int:
+    base = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8080"
+    report = run_prod_smoke(base)
+    if report["ok"]:
+        print(f"OK: prod smoke {base}")
+        return 0
+    print(f"FAIL: prod smoke {base}")
+    for err in report["errors"]:
+        print(f"  - {err}")
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

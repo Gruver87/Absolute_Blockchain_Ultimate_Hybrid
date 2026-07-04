@@ -178,6 +178,8 @@ Run-Step "Hybrid critical native/consensus/EVM tests" {
         tests/unit/test_prod_config.py `
         tests/unit/test_bridge_health.py `
         tests/unit/test_bridge_relayer_core.py `
+        tests/unit/test_prod_compose.py `
+        tests/unit/test_prod_smoke.py `
         tests/unit/test_native_consensus_hash.py `
         tests/unit/test_native_peer_validation.py `
         tests/unit/test_evm_keccak_native.py `

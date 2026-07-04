@@ -7,3 +7,4 @@ resources:
   - redis.yaml
   - statefulset.yaml
   - service.yaml
+  - relayer-deployment.yaml

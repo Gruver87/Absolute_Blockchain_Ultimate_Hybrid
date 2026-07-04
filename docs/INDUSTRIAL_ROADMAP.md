@@ -84,3 +84,6 @@ docker compose -f docker-compose.observability.yml up -d
 - [x] `python scripts/bridge_relayer.py --preflight` readiness gate
 - [x] `GET /bridge/relayer/status` includes readiness + `require_l1_proof`
 - [x] Prod: `BRIDGE_REQUIRE_L1_PROOF=true` skips blind pending confirm (use `--watch-l1`)
+- [x] Docker prod stack: node + relayer sidecar (`docker-compose.prod.yml`)
+- [x] K8s relayer deployment (`deploy/k8s/relayer-deployment.yaml`)
+- [x] Live prod smoke gate (`scripts/prod_smoke.py`)

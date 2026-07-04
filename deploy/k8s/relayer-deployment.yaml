@@ -1,0 +1,62 @@
+# Bridge relayer — polls L1 queue and posts oracle-signed callbacks to the node HTTP API.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: abs-bridge-relayer
+  namespace: absolute-chain
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: abs-bridge-relayer
+  template:
+    metadata:
+      labels:
+        app: abs-bridge-relayer
+    spec:
+      containers:
+        - name: relayer
+          image: absolute-blockchain:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - scripts/bridge_relayer.py
+            - --interval
+            - "30"
+            - --watch-l1
+            - --api
+            - http://abs-http.absolute-chain.svc.cluster.local:8080
+          envFrom:
+            - configMapRef:
+                name: abs-node-config
+            - secretRef:
+                name: abs-node-secrets
+          env:
+            - name: ABS_API_URL
+              value: http://abs-http.absolute-chain.svc.cluster.local:8080
+            - name: BRIDGE_L1_QUEUE_PATH
+              value: /app/data/bridge_l1_queue.json
+          volumeMounts:
+            - name: relayer-data
+              mountPath: /app/data
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - scripts/bridge_relayer.py
+                - --preflight
+                - --api
+                - http://abs-http.absolute-chain.svc.cluster.local:8080
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 15
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      volumes:
+        - name: relayer-data
+          emptyDir: {}
