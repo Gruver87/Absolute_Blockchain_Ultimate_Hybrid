@@ -144,9 +144,9 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Mainnet readiness gate: `scripts/mainnet_readiness.py` / `.ps1` (prod stack + pre-mainnet audit)
 - [x] Release gate `-Mainnet` flag: `scripts/release_gate.ps1 -Mainnet`
 - [ ] External security audit before public mainnet (third-party firm)
-- [ ] Public mainnet genesis + validator set ceremony
+- [x] Public mainnet genesis + validator set ceremony (`genesis_ceremony.py`, `GET /chain/genesis/ceremony`)
 - [x] EIP-4844 blob transaction type in `eth_sendRawTransaction` (type 0x03 decode + verify)
-- [ ] EOF container format (EVM object format — optional)
+- [x] EOF container rejected at deploy (`eof_container_not_supported`; full EOF VM optional)
 
 ## Process per module
 

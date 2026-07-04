@@ -44,6 +44,23 @@ def run_gate(live: bool = False, base_url: str = "http://127.0.0.1:8080") -> Tup
     errors.extend(prod_errors)
     sections["prod_stack"] = {"errors": prod_errors, "live": live}
 
+    try:
+        from runtime.genesis_ceremony import build_from_paths
+        artifact, ceremony_errors = build_from_paths(
+            str(ROOT / "node.prod.example.json"),
+            str(ROOT / "validators.manifest.example.json"),
+        )
+        sections["genesis_ceremony"] = {
+            "ready": artifact.get("ready"),
+            "ceremony_hash": artifact.get("ceremony_hash"),
+            "errors": ceremony_errors,
+        }
+        if ceremony_errors:
+            errors.extend([f"genesis_ceremony:{e}" for e in ceremony_errors])
+    except Exception as exc:
+        errors.append(f"genesis_ceremony:{exc}")
+        sections["genesis_ceremony"] = {"errors": [str(exc)]}
+
     return errors, warnings, {
         "external_checklist": checklist,
         "sections": sections,

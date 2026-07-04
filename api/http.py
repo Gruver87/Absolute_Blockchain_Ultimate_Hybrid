@@ -262,6 +262,7 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/testnet/mesh", "summary": "P2P mesh health (3-node testnet)"},
     {"method": "GET", "path": "/testnet/fork-status", "summary": "Fork heads, gaps, slashing summary (Wave 53)"},
     {"method": "GET", "path": "/slashing/events", "summary": "Persisted slash events from SQLite"},
+    {"method": "GET", "path": "/chain/genesis/ceremony", "summary": "Mainnet genesis ceremony artifact"},
     {"method": "GET", "path": "/chain/consistency/harness", "summary": "State consistency harness (Wave 54)"},
     {"method": "POST", "path": "/chain/consistency/repair", "summary": "Replay chain if live state drifted from tip"},
     {"method": "GET", "path": "/testnet/validators", "summary": "5-validator set health and proposer rotation (Wave 55)"},
@@ -2852,6 +2853,44 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json({"validators": {}, "enabled": bool(se)})
 
             # ── Validator Registry ────────────────────────────────────────────
+            elif path == "/chain/genesis/ceremony":
+                cfg = self.__class__.config
+                manifest_path = (
+                    getattr(cfg, "validators_manifest_path", "")
+                    or getattr(self.__class__, "validators_manifest_path", "")
+                    or ""
+                )
+                if not manifest_path or not os.path.isfile(manifest_path):
+                    self._json({
+                        "enabled": False,
+                        "ready": False,
+                        "error": "validators_manifest_missing",
+                    })
+                    return
+                try:
+                    from runtime.genesis_ceremony import build_ceremony_artifact, load_manifest
+                    manifest = load_manifest(manifest_path)
+                    config_dict = {
+                        "network_name": getattr(cfg, "network_name", "Absolute"),
+                        "chain_id": int(getattr(cfg, "chain_id", 0) or 0),
+                        "deployment_mode": getattr(cfg, "deployment_mode", "dev"),
+                        "founder_address": getattr(cfg, "founder_address", ""),
+                    }
+                    artifact = build_ceremony_artifact(
+                        config_dict,
+                        manifest,
+                        manifest_path,
+                        config_dict.get("founder_address", ""),
+                    )
+                    bc = self.__class__.blockchain
+                    if bc and hasattr(bc, "get_height"):
+                        artifact["live_height"] = bc.get_height()
+                        if hasattr(bc, "get_state_root"):
+                            artifact["live_state_root"] = bc.get_state_root()
+                    self._json({"enabled": True, "ceremony": artifact})
+                except Exception as exc:
+                    self._json({"enabled": False, "ready": False, "error": str(exc)})
+
             elif path == "/validators/registry":
                 vr = self.__class__.validator_registry
                 db = self.__class__.db

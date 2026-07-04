@@ -15,6 +15,13 @@ def test_blockhash_and_callcode_supported():
     assert validate_bytecode_hex("0xf200")["valid"] is True
 
 
+def test_eof_container_rejected():
+    from execution.evm_bytecode_validator import validate_bytecode_hex
+    result = validate_bytecode_hex("0xEF006000")
+    assert result["valid"] is False
+    assert result["error"] == "eof_container_not_supported"
+
+
 def test_blockhash_returns_zero_for_future_block():
     from execution.evm_adapter import EVMAdapter
     from runtime.config import Config

@@ -62,6 +62,20 @@ def validate_bytecode_hex(raw: str) -> Dict:
         return {"valid": False, "error": str(e), "size": 0, "unsupported": []}
     if not code:
         return {"valid": False, "error": "empty_bytecode", "size": 0, "unsupported": []}
+    if len(code) >= 2 and code[0] == 0xEF and code[1] == 0x00:
+        return {
+            "valid": False,
+            "error": "eof_container_not_supported",
+            "size": len(code),
+            "unsupported": [],
+        }
+    if code[0] == 0xEF:
+        return {
+            "valid": False,
+            "error": "legacy_bytecode_may_not_start_with_0xef",
+            "size": len(code),
+            "unsupported": [],
+        }
     ok, issues = scan_bytecode(code)
     return {
         "valid": ok,
