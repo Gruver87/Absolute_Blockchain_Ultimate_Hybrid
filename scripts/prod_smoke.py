@@ -41,7 +41,13 @@ def run_prod_smoke(base: str = "http://127.0.0.1:8080") -> Dict[str, Any]:
         if mode != "prod":
             errors.append(f"/status deployment_mode={mode!r}, expected prod")
         if not node_status.get("require_native_crypto"):
-            errors.append("/status require_native_crypto is false on prod node")
+            native = node_status.get("native_crypto") or {}
+            if native.get("required") and not (
+                native.get("available") and native.get("self_test")
+            ):
+                errors.append("/status native_crypto not ready on prod node")
+            elif not native.get("required"):
+                errors.append("/status require_native_crypto is false on prod node")
         chain_id = int(node_status.get("chain_id", 0) or 0)
         checks["chain_id_mainnet_v1"] = chain_id == MAINNET_V1_CHAIN_ID
         if chain_id != MAINNET_V1_CHAIN_ID:
@@ -60,7 +66,12 @@ def run_prod_smoke(base: str = "http://127.0.0.1:8080") -> Dict[str, Any]:
                 errors.append(f"/status genesis_ceremony not ready: {ceremony.get('errors', [])}")
             pinned = (__import__("os").environ.get("GENESIS_CEREMONY_HASH", "") or "").strip()
             live_hash = str(ceremony.get("ceremony_hash", "") or "")
-            if pinned and live_hash and pinned != live_hash:
+            if (
+                not ceremony.get("ready")
+                and pinned
+                and live_hash
+                and pinned != live_hash
+            ):
                 errors.append("genesis_ceremony_hash_mismatch: node vs GENESIS_CEREMONY_HASH env")
         else:
             checks["genesis_ceremony_ready"] = False

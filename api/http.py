@@ -1093,6 +1093,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "bridge_pending": bridge_pending,
                     "bridge_locks_total": len(bridge_locks),
                     "deployment_mode": getattr(cfg, "deployment_mode", "dev"),
+                    "require_native_crypto": bool(getattr(cfg, "require_native_crypto", False)),
                     "consensus": consensus_info,
                     "genesis_ceremony": genesis_ceremony_info,
                     "state_root_strict_p2p": bool(

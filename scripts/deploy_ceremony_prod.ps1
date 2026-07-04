@@ -6,6 +6,7 @@ param(
 
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $ProjectRoot
+. "$ProjectRoot\scripts\ceremony_env.ps1"
 
 python scripts/deploy_ceremony_prod.py --ceremony-dir $CeremonyDir --validator-index $ValidatorIndex
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -18,4 +19,5 @@ if (-not (Test-Path $metaPath)) {
 $meta = Get-Content $metaPath -Raw | ConvertFrom-Json
 $env:VALIDATORS_MANIFEST_PATH = "data/validators.manifest.json"
 $env:GENESIS_CEREMONY_HASH = $meta.ceremony_hash
-Write-Host "OK: VALIDATORS_MANIFEST_PATH and GENESIS_CEREMONY_HASH set for this session" -ForegroundColor Green
+Sync-CeremonyDeployEnv -ProjectRoot $ProjectRoot -CeremonyHash $meta.ceremony_hash
+Write-Host "OK: VALIDATORS_MANIFEST_PATH and GENESIS_CEREMONY_HASH set for this session (+ .env if present)" -ForegroundColor Green

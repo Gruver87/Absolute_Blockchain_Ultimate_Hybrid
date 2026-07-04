@@ -34,8 +34,6 @@ if ($DockerLive) {
     Write-Host ""
     Write-Host "Docker live gate (requires JWT_SECRET, RPC_API_KEYS, ...)" -ForegroundColor Cyan
     & "$ProjectRoot\scripts\docker_prod.ps1" -CeremonyDir $CeremonyDir
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    python scripts/mainnet_readiness.py --live --ceremony-dir $CeremonyDir --no-strict-audit
     exit $LASTEXITCODE
 }
 

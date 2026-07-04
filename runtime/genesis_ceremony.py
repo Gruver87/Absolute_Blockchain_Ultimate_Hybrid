@@ -7,7 +7,7 @@ import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from runtime.mainnet_constants import (
     is_ceremony_template_address,
@@ -105,7 +105,7 @@ def build_ceremony_artifact(
     config: Dict[str, Any],
     manifest: Dict[str, Any],
     manifest_path: str = "",
-    founder_address: str = "",
+    founder_address: Optional[str] = None,
     *,
     strict_addresses: bool = False,
 ) -> Dict[str, Any]:
@@ -116,7 +116,10 @@ def build_ceremony_artifact(
         for row in manifest_entries(manifest)
         if _is_placeholder_validator_address(str(row.get("address", "")))
     ]
-    founder = founder_address or str(config.get("founder_address", "") or "")
+    if founder_address is None:
+        founder = str(config.get("founder_address", "") or "")
+    else:
+        founder = founder_address
     tokenomics = get_tokenomics_summary(founder or None)
     artifact = {
         "version": 1,
@@ -161,7 +164,7 @@ def load_config_dict(path: str) -> Dict[str, Any]:
 def build_from_paths(
     config_path: str,
     manifest_path: str,
-    founder_address: str = "",
+    founder_address: Optional[str] = None,
     *,
     strict_addresses: bool = False,
 ) -> Tuple[Dict[str, Any], List[str]]:
@@ -206,11 +209,12 @@ def verify_live_manifest(
 
     manifest = load_manifest(manifest_path)
     errors.extend(validate_manifest_for_mainnet(manifest, strict_addresses=strict_addresses))
+    # Ceremony pin uses genesis alloc at DEFAULT/ceremony founder, not runtime wallet.
     artifact = build_ceremony_artifact(
         config_dict_from_config(config),
         manifest,
         manifest_path,
-        getattr(config, "founder_address", ""),
+        "",
         strict_addresses=strict_addresses,
     )
     if not artifact.get("mainnet_addresses_ready", True) and strict_addresses:

@@ -134,3 +134,23 @@ def test_apply_env_secrets_restores_validators_manifest_path(monkeypatch):
     assert cfg.validators_manifest_path == "data/validators.manifest.json"
     cfg.apply_env_secrets()
     assert cfg.validators_manifest_path == "data/ceremony/validators.manifest.json"
+
+
+def test_verify_live_manifest_ignores_runtime_wallet_founder_for_pin():
+    from runtime.genesis_ceremony import build_from_paths, verify_live_manifest
+
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.chain_id = MAINNET_V1_CHAIN_ID
+    cfg.validators_manifest_path = "validators.manifest.mainnet-v1.example.json"
+    cfg.founder_address = "0x4be79298925ed3b49f6155d732cbaa466bef63af"
+    artifact, _ = build_from_paths(
+        "node.prod.mainnet-v1.example.json",
+        "validators.manifest.mainnet-v1.example.json",
+    )
+    errors, live = verify_live_manifest(
+        cfg,
+        expected_ceremony_hash=artifact["ceremony_hash"],
+    )
+    assert errors == [], errors
+    assert live["ceremony_hash"] == artifact["ceremony_hash"]
