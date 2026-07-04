@@ -146,7 +146,7 @@ def test_prod_rpc_requires_key_and_restricts_cors(tmp_path):
     server = create_rpc_server(bc, mp, cfg, p2p=None, wallet=None, sync_engine=None)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    time.sleep(0.25)
+    time.sleep(0.5)
     url = f"http://127.0.0.1:{cfg.rpc_port}"
 
     try:

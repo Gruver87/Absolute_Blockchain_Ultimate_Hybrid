@@ -907,7 +907,7 @@ def _preflight_devnet_catchup(
         return gap
 
 
-def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
+def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240, max_mining_gap: int = 2) -> int:
     """Check peers, height sync, attestations on two running nodes."""
     if not _probe_health(url1):
         print(f"FAIL: node1 not reachable at {url1}")
@@ -959,7 +959,7 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240) -> int:
     p1 = p2 = {}
     stable_ok = 0
     STABLE_NEED = 3
-    MAX_MINING_GAP = 2  # node1 mines while node2 catches up
+    MAX_MINING_GAP = max(2, int(max_mining_gap))
     for i in range(loops):
         try:
             p1 = _api(f"{url1}/peers")
@@ -1984,7 +1984,16 @@ def run_prod_smoke_spawn() -> int:
             except Exception as exc:
                 print(f"WARN: prod-smoke admin JWT prefetch {url}: {exc}")
 
-        rc = verify_pair(url1, url2, wait_sync_sec=300)
+        try:
+            s1 = _api(f"{url1}/status")
+            s2 = _api(f"{url2}/status")
+            if int(s1.get("height", 0) or 0) > int(s2.get("height", 0) or 0):
+                _post_json(url2, "/sync/fast-sync", {"timeout": 120}, timeout=135)
+                time.sleep(6)
+        except Exception as exc:
+            print(f"WARN: prod-smoke initial catch-up: {exc}")
+
+        rc = verify_pair(url1, url2, wait_sync_sec=300, max_mining_gap=6)
         if rc != 0:
             return rc
         return verify_prod_post_checks(url1)

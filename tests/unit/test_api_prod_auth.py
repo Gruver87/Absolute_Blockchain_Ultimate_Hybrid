@@ -222,13 +222,16 @@ def test_prod_blocks_dev_and_testnet_endpoints(tmp_path, monkeypatch):
         for endpoint in (
             "/devnet/faucet",
             "/testnet/mesh",
-            "/chain/consistency/harness",
         ):
             st, body = _get(f"{base}{endpoint}")
             assert st == 403, endpoint
             assert "production" in body.get("error", "")
 
         st, body = _post(f"{base}/testnet/reorg-exercise", {})
+        assert st == 403
+        assert "production" in body.get("error", "")
+
+        st, body = _post(f"{base}/chain/consistency/repair", {})
         assert st == 403
         assert "production" in body.get("error", "")
 
@@ -253,6 +256,19 @@ def test_prod_blocks_dev_and_testnet_endpoints(tmp_path, monkeypatch):
         st, body = _get(f"{base}/crypto/eth-address")
         assert st == 403
         assert "production" in body.get("error", "")
+    finally:
+        server.shutdown()
+        db.close()
+        os.remove(path)
+
+
+def test_prod_harness_get_allowed_for_monitoring(tmp_path, monkeypatch):
+    base, server, db, path = _start_prod_server(tmp_path, monkeypatch)
+    try:
+        st, body = _get(f"{base}/chain/consistency/harness")
+        assert st == 200
+        assert body.get("canonical_state_root_source") == "blockchain.database"
+        assert "harness_healthy" in body
     finally:
         server.shutdown()
         db.close()
