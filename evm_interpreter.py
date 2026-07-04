@@ -218,27 +218,27 @@ class EVM:
                 self._push(self._read_push(bytecode, n))
                 self.pc += n
             elif op_byte == 0x01:
-                self._push(self._pop() + self._pop())
+                self._push(native.evm_u256_add(self._pop(), self._pop()))
             elif op_byte == 0x02:
-                self._push(self._pop() * self._pop())
+                self._push(native.evm_u256_mul(self._pop(), self._pop()))
             elif op_byte == 0x03:
                 a, b = self._pop(), self._pop()
-                self._push(a - b)
+                self._push(native.evm_u256_sub(a, b))
             elif op_byte == 0x04:
                 a, b = self._pop(), self._pop()
-                self._push(0 if b == 0 else a // b)
+                self._push(native.evm_u256_div(a, b))
             elif op_byte == 0x06:
                 a, b = self._pop(), self._pop()
-                self._push(0 if b == 0 else a % b)
+                self._push(native.evm_u256_mod(a, b))
             elif op_byte == 0x10:
                 a, b = self._pop(), self._pop()
-                self._push(a & b)
+                self._push(native.evm_u256_and(a, b))
             elif op_byte == 0x11:
                 a, b = self._pop(), self._pop()
-                self._push(a | b)
+                self._push(native.evm_u256_or(a, b))
             elif op_byte == 0x12:
                 a, b = self._pop(), self._pop()
-                self._push(a ^ b)
+                self._push(native.evm_u256_xor(a, b))
             elif op_byte == 0x14:
                 a, b = self._pop(), self._pop()
                 self._push(1 if a == b else 0)
@@ -251,7 +251,7 @@ class EVM:
                 a, b = self._pop(), self._pop()
                 self._push(1 if a > b else 0)
             elif op_byte == 0x19:
-                self._push((~self._pop()) & ((1 << 256) - 1))
+                self._push(native.evm_u256_not(self._pop()))
             elif op_byte == 0x1A:
                 i, x = self._pop(), self._pop()
                 if i >= 32:
@@ -260,15 +260,15 @@ class EVM:
                     self._push((x >> (8 * (31 - i))) & 0xFF)
             elif op_byte == 0x1B:
                 shift, v = self._pop(), self._pop()
-                self._push((v << shift) & ((1 << 256) - 1))
+                self._push(native.evm_u256_shl(v, shift))
             elif op_byte == 0x1C:
                 shift, v = self._pop(), self._pop()
-                self._push(v >> shift)
+                self._push(native.evm_u256_shr(v, shift))
             elif op_byte == 0x20:  # SHA3
                 offset, size = self._pop(), self._pop()
                 self._mem_extend(offset, size)
-                data = bytes(self.memory[offset:offset + size])
-                self._push(int.from_bytes(native.keccak256_digest(data), "big"))
+                digest = native.evm_keccak256_memory(bytes(self.memory), offset, size)
+                self._push(int.from_bytes(digest, "big"))
             elif op_byte == 0x30:  # ADDRESS
                 self._push(self.ctx.addr_int(self.ctx.address))
             elif op_byte == 0x31:  # BALANCE

@@ -23,7 +23,7 @@ except ImportError:
 
 # --- ECDSA signature verification (crypto/wallet.py) ---
 try:
-    from crypto.wallet import verify_transaction_signature
+    from crypto.wallet import verify_transaction_signature, verify_transaction_signatures_batch
     _ECDSA_AVAILABLE = True
 except ImportError:
     _ECDSA_AVAILABLE = False
@@ -107,6 +107,20 @@ def _validate_mempool_tx(tx: MempoolTransaction, min_fee: float) -> Tuple[bool, 
     return True, "ok"
 
 
+def _mempool_tx_verify_dict(tx: MempoolTransaction, chain_id: int) -> Dict:
+    return {
+        "from": tx.from_addr,
+        "to": tx.to_addr,
+        "value": int(tx.amount) if tx.amount == int(tx.amount) else tx.amount,
+        "nonce": tx.nonce,
+        "chain_id": chain_id,
+        "signature": tx.signature,
+        "public_key": tx.public_key,
+        "data": tx.data or "",
+        "gas_limit": int(tx.gas or 21_000),
+    }
+
+
 class Mempool:
     """Пул транзакций с сортировкой по комиссии и полной валидацией."""
 
@@ -129,7 +143,7 @@ class Mempool:
                 blockchain.config, "require_signatures", False
             )
 
-    def add(self, tx: MempoolTransaction) -> bool:
+    def add(self, tx: MempoolTransaction, signature_preverified: bool = False) -> bool:
         """Добавить транзакцию с полной валидацией."""
         with self.lock:
             if tx.tx_hash in self.transactions:
@@ -145,7 +159,7 @@ class Mempool:
             tx.require_signatures = self.require_signatures
 
             # ECDSA signature check
-            if not tx.has_valid_signature():
+            if not signature_preverified and not tx.has_valid_signature():
                 self._rejected_count += 1
                 return False
 
@@ -172,6 +186,55 @@ class Mempool:
                 self._cleanup()
             self.transactions[tx.tx_hash] = tx
             return True
+
+    def verify_signatures_batch(self, txs: List[MempoolTransaction]) -> List[bool]:
+        """Batch ECDSA gate for gossip/import bursts via native secp256k1."""
+        results = [False for _ in txs]
+        if not txs:
+            return results
+
+        require = self.require_signatures
+        verify_payloads: List[Dict] = []
+        verify_indexes: List[int] = []
+
+        for index, tx in enumerate(txs):
+            tx._chain_id = self.chain_id
+            tx.require_signatures = require
+            if not tx.signature:
+                results[index] = not require
+                continue
+            if not tx.public_key:
+                results[index] = False
+                continue
+            verify_payloads.append(_mempool_tx_verify_dict(tx, self.chain_id))
+            verify_indexes.append(index)
+
+        if verify_payloads and _ECDSA_AVAILABLE:
+            verified = verify_transaction_signatures_batch(verify_payloads)
+            for index, ok in zip(verify_indexes, verified):
+                results[index] = bool(ok)
+
+        return results
+
+    def add_batch(self, txs: List[MempoolTransaction]) -> Tuple[int, int]:
+        """Add many txs with one native signature batch verify pass."""
+        if not txs:
+            return 0, 0
+
+        signature_flags = self.verify_signatures_batch(txs)
+        added = 0
+        rejected = 0
+        for tx, signature_ok in zip(txs, signature_flags):
+            if not signature_ok:
+                with self.lock:
+                    self._rejected_count += 1
+                rejected += 1
+                continue
+            if self.add(tx, signature_preverified=True):
+                added += 1
+            else:
+                rejected += 1
+        return added, rejected
 
     def add_raw(self, tx: MempoolTransaction) -> bool:
         """Добавить транзакцию без строгой валидации адресов (для internal/genesis txs)."""

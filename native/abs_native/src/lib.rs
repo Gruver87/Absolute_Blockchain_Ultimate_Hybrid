@@ -1,5 +1,6 @@
 use k256::ecdsa::signature::hazmat::PrehashVerifier;
 use k256::ecdsa::{Signature, VerifyingKey};
+use primitive_types::U256;
 use pyo3::prelude::*;
 use serde_json::{Map, Number, Value};
 use sha2::{Digest, Sha256};
@@ -309,6 +310,36 @@ fn keccak256_hex_bytes(data: &[u8]) -> String {
     hex::encode(out)
 }
 
+fn keccak256_digest_bytes(data: &[u8]) -> [u8; 32] {
+    let mut hasher = Keccak::v256();
+    hasher.update(data);
+    let mut out = [0u8; 32];
+    hasher.finalize(&mut out);
+    out
+}
+
+fn u256_from_be32(bytes: [u8; 32]) -> U256 {
+    U256::from_big_endian(&bytes)
+}
+
+fn u256_to_be32(value: U256) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    value.to_big_endian(&mut out);
+    out
+}
+
+fn evm_keccak256_memory_inner(memory: &[u8], offset: usize, size: usize) -> [u8; 32] {
+    if size == 0 {
+        return keccak256_digest_bytes(&[]);
+    }
+    let mut data = vec![0u8; size];
+    if offset < memory.len() {
+        let copied = usize::min(size, memory.len() - offset);
+        data[..copied].copy_from_slice(&memory[offset..offset + copied]);
+    }
+    keccak256_digest_bytes(&data)
+}
+
 fn extract_canonical_transaction(tx: &Value) -> PyResult<Value> {
     let obj = tx.as_object().ok_or_else(|| {
         pyo3::exceptions::PyValueError::new_err("transaction row must be a JSON object")
@@ -475,6 +506,96 @@ fn verify_secp256k1_sha256_inner(
 
     let digest = Sha256::digest(message);
     verifying_key.verify_prehash(&digest, &signature).is_ok()
+}
+
+#[pyfunction]
+fn keccak256_digest(data: &[u8]) -> PyResult<[u8; 32]> {
+    Ok(keccak256_digest_bytes(data))
+}
+
+#[pyfunction]
+fn keccak256_digest_batch(items: Vec<Vec<u8>>) -> PyResult<Vec<[u8; 32]>> {
+    Ok(items.iter().map(|item| keccak256_digest_bytes(item)).collect())
+}
+
+#[pyfunction]
+fn evm_keccak256_memory(memory: &[u8], offset: usize, size: usize) -> PyResult<[u8; 32]> {
+    Ok(evm_keccak256_memory_inner(memory, offset, size))
+}
+
+#[pyfunction]
+fn evm_u256_add(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(u256_to_be32(
+        u256_from_be32(a)
+            .overflowing_add(u256_from_be32(b))
+            .0,
+    ))
+}
+
+#[pyfunction]
+fn evm_u256_mul(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(u256_to_be32(
+        u256_from_be32(a)
+            .overflowing_mul(u256_from_be32(b))
+            .0,
+    ))
+}
+
+#[pyfunction]
+fn evm_u256_sub(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(u256_to_be32(
+        u256_from_be32(a)
+            .overflowing_sub(u256_from_be32(b))
+            .0,
+    ))
+}
+
+#[pyfunction]
+fn evm_u256_div(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
+    let denom = u256_from_be32(b);
+    if denom.is_zero() {
+        return Ok([0u8; 32]);
+    }
+    Ok(u256_to_be32(u256_from_be32(a) / denom))
+}
+
+#[pyfunction]
+fn evm_u256_mod(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
+    let denom = u256_from_be32(b);
+    if denom.is_zero() {
+        return Ok([0u8; 32]);
+    }
+    Ok(u256_to_be32(u256_from_be32(a) % denom))
+}
+
+#[pyfunction]
+fn evm_u256_and(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(u256_to_be32(u256_from_be32(a) & u256_from_be32(b)))
+}
+
+#[pyfunction]
+fn evm_u256_or(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(u256_to_be32(u256_from_be32(a) | u256_from_be32(b)))
+}
+
+#[pyfunction]
+fn evm_u256_xor(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(u256_to_be32(u256_from_be32(a) ^ u256_from_be32(b)))
+}
+
+#[pyfunction]
+fn evm_u256_not(a: [u8; 32]) -> PyResult<[u8; 32]> {
+    Ok(u256_to_be32(!u256_from_be32(a)))
+}
+
+#[pyfunction]
+fn evm_u256_shl(a: [u8; 32], shift: u32) -> PyResult<[u8; 32]> {
+    Ok(u256_to_be32(u256_from_be32(a) << shift))
+}
+
+#[pyfunction]
+fn evm_u256_shr(a: [u8; 32], shift: u32) -> PyResult<[u8; 32]> {
+    Ok(u256_to_be32(u256_from_be32(a) >> shift))
 }
 
 #[pyfunction]
@@ -722,6 +843,20 @@ fn validate_hash_chain(
 
 #[pymodule]
 fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(keccak256_digest, m)?)?;
+    m.add_function(wrap_pyfunction!(keccak256_digest_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_keccak256_memory, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_add, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_mul, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_sub, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_div, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_mod, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_and, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_or, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_xor, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_not, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_shl, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_u256_shr, m)?)?;
     m.add_function(wrap_pyfunction!(keccak256_hex, m)?)?;
     m.add_function(wrap_pyfunction!(validate_imported_block_chain, m)?)?;
     m.add_function(wrap_pyfunction!(validate_peer_header_chain, m)?)?;

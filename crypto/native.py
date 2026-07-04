@@ -67,6 +67,8 @@ def native_crypto_status(required: bool = False) -> dict:
             "block_canonical_hash",
             "canonical_hash_json",
             "keccak256",
+            "evm_u256",
+            "evm_keccak256_memory",
             "validate_imported_block_chain",
             "validate_peer_header_chain",
             "merkle",
@@ -275,7 +277,110 @@ def keccak256_hex(data: bytes) -> str:
 
 
 def keccak256_digest(data: bytes) -> bytes:
+    if _native is not None and hasattr(_native, "keccak256_digest"):
+        return bytes(_native.keccak256_digest(data))
     return bytes.fromhex(keccak256_hex(data))
+
+
+EVM_U256_MASK = (1 << 256) - 1
+
+
+def _evm_u256_bytes(value: int) -> bytes:
+    return int(value & EVM_U256_MASK).to_bytes(32, "big")
+
+
+def _evm_u256_int(value: bytes) -> int:
+    return int.from_bytes(value, "big")
+
+
+def _evm_u256_binop(name: str, left: int, right: int) -> int:
+    if _native is not None and hasattr(_native, name):
+        result = getattr(_native, name)(_evm_u256_bytes(left), _evm_u256_bytes(right))
+        return _evm_u256_int(bytes(result))
+    left &= EVM_U256_MASK
+    right &= EVM_U256_MASK
+    if name == "evm_u256_add":
+        return (left + right) & EVM_U256_MASK
+    if name == "evm_u256_mul":
+        return (left * right) & EVM_U256_MASK
+    if name == "evm_u256_sub":
+        return (left - right) & EVM_U256_MASK
+    if name == "evm_u256_div":
+        return 0 if right == 0 else left // right
+    if name == "evm_u256_mod":
+        return 0 if right == 0 else left % right
+    if name == "evm_u256_and":
+        return left & right
+    if name == "evm_u256_or":
+        return left | right
+    if name == "evm_u256_xor":
+        return left ^ right
+    raise ValueError(f"unsupported EVM binop: {name}")
+
+
+def evm_u256_add(left: int, right: int) -> int:
+    return _evm_u256_binop("evm_u256_add", left, right)
+
+
+def evm_u256_mul(left: int, right: int) -> int:
+    return _evm_u256_binop("evm_u256_mul", left, right)
+
+
+def evm_u256_sub(left: int, right: int) -> int:
+    return _evm_u256_binop("evm_u256_sub", left, right)
+
+
+def evm_u256_div(left: int, right: int) -> int:
+    return _evm_u256_binop("evm_u256_div", left, right)
+
+
+def evm_u256_mod(left: int, right: int) -> int:
+    return _evm_u256_binop("evm_u256_mod", left, right)
+
+
+def evm_u256_and(left: int, right: int) -> int:
+    return _evm_u256_binop("evm_u256_and", left, right)
+
+
+def evm_u256_or(left: int, right: int) -> int:
+    return _evm_u256_binop("evm_u256_or", left, right)
+
+
+def evm_u256_xor(left: int, right: int) -> int:
+    return _evm_u256_binop("evm_u256_xor", left, right)
+
+
+def evm_u256_not(value: int) -> int:
+    value &= EVM_U256_MASK
+    if _native is not None and hasattr(_native, "evm_u256_not"):
+        return _evm_u256_int(bytes(_native.evm_u256_not(_evm_u256_bytes(value))))
+    return (~value) & EVM_U256_MASK
+
+
+def evm_u256_shl(value: int, shift: int) -> int:
+    value &= EVM_U256_MASK
+    shift = int(shift) & EVM_U256_MASK
+    if _native is not None and hasattr(_native, "evm_u256_shl"):
+        return _evm_u256_int(bytes(_native.evm_u256_shl(_evm_u256_bytes(value), int(shift))))
+    return (value << shift) & EVM_U256_MASK
+
+
+def evm_u256_shr(value: int, shift: int) -> int:
+    value &= EVM_U256_MASK
+    shift = int(shift) & EVM_U256_MASK
+    if _native is not None and hasattr(_native, "evm_u256_shr"):
+        return _evm_u256_int(bytes(_native.evm_u256_shr(_evm_u256_bytes(value), int(shift))))
+    return value >> shift
+
+
+def evm_keccak256_memory(memory: bytes, offset: int, size: int) -> bytes:
+    if _native is not None and hasattr(_native, "evm_keccak256_memory"):
+        return bytes(_native.evm_keccak256_memory(memory, int(offset), int(size)))
+    end = int(offset) + int(size)
+    data = memory[int(offset):end] if int(offset) < len(memory) else b""
+    if len(data) < int(size):
+        data = data + (b"\x00" * (int(size) - len(data)))
+    return keccak256_digest(data)
 
 
 def validate_imported_block_chain(

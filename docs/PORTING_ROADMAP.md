@@ -63,10 +63,16 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [ ] PyO3 bridge helper (optional; CLI sufficient today)
 - Dev-only: `bridge/mock_l1_rpc.py`, `bridge/dev_bridge_adapter.py` — **blocked in prod**
 
-### Priority 6 — EVM execution (future)
+### Priority 6 — EVM execution (in progress)
 
-- [ ] Hot opcode paths in Rust; Python VM orchestration
-- [ ] Keccak-256 in `abs_native` (today: Python hashlib)
+- [x] EVM SHA3 opcode → native Ethereum Keccak-256
+- [x] `evm_u256_*` arithmetic/bitwise kernels in Rust
+- [x] `evm_keccak256_memory` for SHA3 memory slices
+- [x] Mempool `add_batch` + `verify_signatures_batch` via native secp256k1
+- [ ] Full opcode dispatch in Rust (future)
+- [ ] CREATE2 / contract deploy hot path
+
+### Priority 7 — Bridge hardening (future)
 
 ## Process per module
 
