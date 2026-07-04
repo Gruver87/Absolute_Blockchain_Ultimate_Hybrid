@@ -59,7 +59,7 @@ def apply_public_manifest(node, path: str) -> int:
     if not path or not os.path.isfile(path):
         return 0
     manifest = load_manifest(path)
-    if node.config.is_production() and manifest_requires_runtime_key_derivation(manifest):
+    if node.config.is_production and manifest_requires_runtime_key_derivation(manifest):
         raise RuntimeError(
             "production validator manifest must list explicit 0x addresses "
             "(devnet key derivation is blocked)"

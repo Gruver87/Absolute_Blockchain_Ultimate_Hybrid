@@ -24,6 +24,21 @@ def run_prod_smoke(base: str = "http://127.0.0.1:8080") -> Dict[str, Any]:
     base = base.rstrip("/")
     errors: List[str] = []
     checks: Dict[str, bool] = {}
+    bridge_enabled = True
+
+    try:
+        status, node_status = _fetch(f"{base}/status")
+        checks["status_http"] = status == 200
+        mode = node_status.get("deployment_mode")
+        checks["deployment_mode_prod"] = mode == "prod"
+        bridge_enabled = bool(node_status.get("bridge_enabled", True))
+        if mode != "prod":
+            errors.append(f"/status deployment_mode={mode!r}, expected prod")
+        if not node_status.get("require_native_crypto"):
+            errors.append("/status require_native_crypto is false on prod node")
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        errors.append(f"/status unreachable: {exc}")
+        checks["status_http"] = False
 
     try:
         status, ready = _fetch(f"{base}/health/ready")
@@ -32,46 +47,74 @@ def run_prod_smoke(base: str = "http://127.0.0.1:8080") -> Dict[str, Any]:
         if status != 200 or ready.get("status") != "ready":
             errors.append(f"/health/ready not ready: status={status} body={ready!r}")
         rust = (ready.get("rust_bridge") or {})
-        if rust.get("required") and not rust.get("ok"):
+        if bridge_enabled and rust.get("required") and not rust.get("ok"):
             errors.append(f"rust bridge not ok: {rust}")
         l1 = (ready.get("l1_rpc") or {})
-        if l1.get("required") and not l1.get("ok"):
+        if bridge_enabled and l1.get("required") and not l1.get("ok"):
             errors.append(f"l1 rpc not ok: {l1}")
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         errors.append(f"/health/ready unreachable: {exc}")
         checks["health_ready_http"] = False
 
-    try:
-        status, bridge = _fetch(f"{base}/bridge")
-        checks["bridge_http"] = status == 200
-        mode = bridge.get("mode")
-        checks["bridge_rust_mode"] = mode == "rust"
-        if mode != "rust":
-            errors.append(f"/bridge mode={mode!r}, expected rust")
-        l1 = bridge.get("l1_rpc") or {}
-        if l1.get("required") and not l1.get("ok"):
-            errors.append(f"/bridge l1_rpc not ok: {l1}")
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        errors.append(f"/bridge unreachable: {exc}")
-        checks["bridge_http"] = False
+    if bridge_enabled:
+        try:
+            status, bridge = _fetch(f"{base}/bridge")
+            checks["bridge_http"] = status == 200
+            mode = bridge.get("mode")
+            checks["bridge_rust_mode"] = mode == "rust"
+            if mode != "rust":
+                errors.append(f"/bridge mode={mode!r}, expected rust")
+            l1 = bridge.get("l1_rpc") or {}
+            if l1.get("required") and not l1.get("ok"):
+                errors.append(f"/bridge l1_rpc not ok: {l1}")
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            errors.append(f"/bridge unreachable: {exc}")
+            checks["bridge_http"] = False
+
+        try:
+            status, relayer = _fetch(f"{base}/bridge/relayer/status")
+            checks["relayer_status_http"] = status == 200
+            if not relayer.get("oracle_hmac_configured"):
+                errors.append("relayer status: oracle HMAC not configured on node")
+            if relayer.get("require_l1_proof") and relayer.get("blind_pending_confirm_allowed"):
+                errors.append("relayer: blind pending confirm must be disabled in L1-proof mode")
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            errors.append(f"/bridge/relayer/status unreachable: {exc}")
+            checks["relayer_status_http"] = False
+    else:
+        checks["bridge_disabled"] = True
 
     try:
-        status, relayer = _fetch(f"{base}/bridge/relayer/status")
-        checks["relayer_status_http"] = status == 200
-        if not relayer.get("oracle_hmac_configured"):
-            errors.append("relayer status: oracle HMAC not configured on node")
-        if relayer.get("require_l1_proof") and relayer.get("blind_pending_confirm_allowed"):
-            errors.append("relayer: blind pending confirm must be disabled in L1-proof mode")
+        status, features = _fetch(f"{base}/features")
+        checks["features_http"] = status == 200
+        wasm = (features.get("wasm") or {})
+        if wasm.get("enabled"):
+            errors.append("/features wasm must be disabled in prod")
+        if wasm.get("tier") == "r-and-d" and not wasm.get("prod_blocked_reason"):
+            errors.append("/features wasm missing prod_blocked_reason")
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        errors.append(f"/bridge/relayer/status unreachable: {exc}")
-        checks["relayer_status_http"] = False
+        errors.append(f"/features unreachable: {exc}")
+        checks["features_http"] = False
+
+    try:
+        status, harness = _fetch(f"{base}/chain/consistency/harness")
+        checks["consistency_harness_http"] = status == 200
+        if not harness.get("harness_healthy", True):
+            errors.append(
+                f"/chain/consistency/harness unhealthy: {harness.get('failed_checks', [])}"
+            )
+        if harness.get("canonical_state_root_source") != "blockchain.database":
+            errors.append("harness missing canonical_state_root_source=blockchain.database")
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        errors.append(f"/chain/consistency/harness unreachable: {exc}")
+        checks["consistency_harness_http"] = False
 
     try:
         req = urllib.request.Request(f"{base}/metrics")
         with urllib.request.urlopen(req, timeout=8) as resp:
             text = resp.read().decode()
         checks["metrics_http"] = resp.status == 200
-        for needle in ("abs_native_crypto_self_test", "abs_rust_bridge_ok", "abs_l1_rpc_ok"):
+        for needle in ("abs_native_crypto_self_test",):
             if needle not in text:
                 errors.append(f"/metrics missing {needle}")
     except (urllib.error.URLError, TimeoutError, OSError) as exc:

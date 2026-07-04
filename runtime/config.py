@@ -308,6 +308,25 @@ class Config:
 
         return self
 
+    def apply_env_secrets(self) -> "Config":
+        """Re-apply credential fields from env after JSON load (secrets stay out of node JSON)."""
+        rpc_keys = env_list("RPC_API_KEYS")
+        if rpc_keys:
+            self.rpc_api_keys = rpc_keys
+        oracle_secret = env_str("BRIDGE_ORACLE_SECRET", "")
+        if oracle_secret:
+            self.bridge_oracle_secret = oracle_secret
+        origins = env_list("CORS_ORIGINS")
+        if origins:
+            self.cors_origins = origins
+        rust_path = env_str("RUST_BRIDGE_PATH", "")
+        if rust_path:
+            self.rust_bridge_path = rust_path
+        l1_queue = env_str("BRIDGE_L1_QUEUE_PATH", "")
+        if l1_queue:
+            self.bridge_l1_queue_path = l1_queue
+        return self
+
     def validate(self) -> List[str]:
         """Возвращает список ошибок конфигурации (пустой = OK)."""
         errors = []

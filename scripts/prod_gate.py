@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PROD_FILES = [
     "docker/node.prod.json",
     "node.prod.example.json",
+    "node.prod.mainnet-v1.example.json",
 ]
 
 BLOCKED_FEATURES = [

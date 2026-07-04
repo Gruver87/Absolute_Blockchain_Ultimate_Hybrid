@@ -260,3 +260,25 @@ def test_prometheus_alerts_include_rust_bridge_readiness():
     assert "abs_rust_bridge_required == 1 and abs_rust_bridge_ok == 0" in alerts
     assert "AbsoluteL1RpcDown" in alerts
     assert "abs_l1_rpc_required == 1 and abs_l1_rpc_ok == 0" in alerts
+
+
+def test_apply_env_secrets_restores_rpc_keys_after_json_merge():
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "node.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "deployment_mode": "prod",
+                    "rpc_api_key_required": True,
+                    "chain_id": 778888,
+                },
+                f,
+            )
+        cfg = Config.from_json(path)
+        assert cfg.rpc_api_keys == []
+        os.environ["RPC_API_KEYS"] = "prod-test-key-" + ("K" * 32)
+        try:
+            cfg.apply_env_secrets()
+            assert cfg.rpc_api_keys == ["prod-test-key-" + ("K" * 32)]
+        finally:
+            os.environ.pop("RPC_API_KEYS", None)

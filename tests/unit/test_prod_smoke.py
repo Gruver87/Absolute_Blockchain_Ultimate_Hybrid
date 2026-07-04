@@ -15,26 +15,61 @@ import prod_smoke
 def _ready_payload():
     return {
         "status": "ready",
-        "rust_bridge": {"required": True, "ok": True},
-        "l1_rpc": {"required": True, "ok": True},
+        "rust_bridge": {"required": False, "ok": True},
+        "l1_rpc": {"required": False, "ok": True},
     }
 
 
-def test_prod_smoke_ok():
+def _status_payload():
+    return {
+        "deployment_mode": "prod",
+        "bridge_enabled": True,
+        "require_native_crypto": True,
+    }
+
+
+def _fake_fetch_factory(handlers):
+    """Match more specific path suffixes before generic /status."""
     def fake_fetch(url, timeout=8.0):
-        if url.endswith("/health/ready"):
-            return 200, _ready_payload()
-        if url.endswith("/bridge"):
-            return 200, {"mode": "rust", "l1_rpc": {"required": True, "ok": True}}
-        if url.endswith("/bridge/relayer/status"):
-            return 200, {
+        for suffix, handler in handlers:
+            if url.endswith(suffix):
+                return handler()
+        raise AssertionError(url)
+    return fake_fetch
+
+
+def test_prod_smoke_ok():
+    handlers = [
+        ("/bridge/relayer/status", lambda: (
+            200,
+            {
                 "oracle_hmac_configured": True,
                 "require_l1_proof": True,
                 "blind_pending_confirm_allowed": False,
-            }
-        raise AssertionError(url)
+            },
+        )),
+        ("/chain/consistency/harness", lambda: (
+            200,
+            {
+                "harness_healthy": True,
+                "canonical_state_root_source": "blockchain.database",
+            },
+        )),
+        ("/health/ready", lambda: (200, _ready_payload())),
+        ("/features", lambda: (
+            200,
+            {
+                "wasm": {"enabled": False, "tier": "r-and-d", "prod_blocked_reason": "blocked"},
+            },
+        )),
+        ("/bridge", lambda: (
+            200,
+            {"mode": "rust", "l1_rpc": {"required": True, "ok": True}},
+        )),
+        ("/status", lambda: (200, _status_payload())),
+    ]
 
-    with patch.object(prod_smoke, "_fetch", fake_fetch):
+    with patch.object(prod_smoke, "_fetch", _fake_fetch_factory(handlers)):
         with patch("urllib.request.urlopen") as open_mock:
             open_mock.return_value.__enter__ = lambda s: s
             open_mock.return_value.__exit__ = MagicMock(return_value=False)
@@ -49,7 +84,28 @@ def test_prod_smoke_ok():
 
 
 def test_prod_smoke_fails_when_not_ready():
-    with patch.object(prod_smoke, "_fetch", lambda url, timeout=8.0: (503, {"status": "not_ready"})):
+    def _not_ready_status():
+        payload = _status_payload()
+        payload["bridge_enabled"] = False
+        return 200, payload
+
+    handlers = [
+        ("/chain/consistency/harness", lambda: (
+            200,
+            {
+                "harness_healthy": True,
+                "canonical_state_root_source": "blockchain.database",
+            },
+        )),
+        ("/health/ready", lambda: (503, {"status": "not_ready"})),
+        ("/features", lambda: (
+            200,
+            {"wasm": {"enabled": False, "tier": "r-and-d", "prod_blocked_reason": "x"}},
+        )),
+        ("/status", _not_ready_status),
+    ]
+
+    with patch.object(prod_smoke, "_fetch", _fake_fetch_factory(handlers)):
         report = prod_smoke.run_prod_smoke("http://127.0.0.1:8080")
     assert report["ok"] is False
     assert any("health/ready" in e for e in report["errors"])

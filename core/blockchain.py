@@ -1100,7 +1100,7 @@ class Blockchain:
         return self.db.get_transaction(tx_hash)
 
     def get_state_root(self) -> str:
-        """Текущий state root из реальных балансов SQLite."""
+        """Canonical L1 state root from SQLite balances (consensus/P2P path)."""
         return self._compute_state_root_from_db()
 
     def get_stats(self) -> Dict:

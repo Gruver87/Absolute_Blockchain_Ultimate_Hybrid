@@ -64,6 +64,10 @@ def _admin_token(base_url: str, timeout: float = 10) -> str:
     cached = _ADMIN_TOKENS.get(base)
     if cached:
         return cached
+    smoke = os.environ.get("PROD_SMOKE_ADMIN_JWT", "").strip()
+    if smoke:
+        _ADMIN_TOKENS[base] = smoke
+        return smoke
     token_resp = _api(f"{base}/auth/token?address=verifier-admin", timeout=timeout)
     token = str(token_resp.get("token") or "")
     if not token:
@@ -1876,6 +1880,107 @@ def run_ci3_spawn() -> int:
                 proc.kill()
 
 
+def verify_prod_post_checks(url: str) -> int:
+    """Prod profile HTTP policy checks after P2P sync."""
+    errors = []
+    try:
+        st = _api(f"{url}/status")
+        if st.get("deployment_mode") != "prod":
+            errors.append(f"deployment_mode={st.get('deployment_mode')}")
+        if int(st.get("chain_id", 0) or 0) == 77777:
+            errors.append("prod smoke uses devnet chain_id 77777")
+    except Exception as exc:
+        errors.append(f"status: {exc}")
+    try:
+        feats = _api(f"{url}/features")
+        wasm = feats.get("wasm") or {}
+        if wasm.get("enabled"):
+            errors.append("wasm enabled in prod")
+    except Exception as exc:
+        errors.append(f"features: {exc}")
+    try:
+        harness = _api(f"{url}/chain/consistency/harness")
+        if not harness.get("harness_healthy", True):
+            errors.append(f"harness failed: {harness.get('failed_checks')}")
+        if harness.get("canonical_state_root_source") != "blockchain.database":
+            errors.append("harness canonical_state_root_source mismatch")
+    except Exception as exc:
+        errors.append(f"harness: {exc}")
+    if errors:
+        print("FAIL: prod post-checks")
+        for err in errors:
+            print(f"  - {err}")
+        return 14
+    print("OK: prod post-checks passed")
+    return 0
+
+
+def run_prod_smoke_spawn() -> int:
+    """Isolated 2-node prod-profile mesh on :15180/:15181 (requires abs_native)."""
+    from runtime.prod_smoke_profile import (
+        apply_prod_smoke_env,
+        native_available,
+        write_prod_pair_configs,
+    )
+
+    if not native_available():
+        print("SKIP: prod-smoke requires abs_native wheel (ABS_REQUIRE_NATIVE_CRYPTO)")
+        return 0
+
+    tmp = tempfile.mkdtemp(prefix="abs_prod_smoke_")
+    cfg1, cfg2, url1, url2 = write_prod_pair_configs(tmp, bridge_enabled=False)
+    env = apply_prod_smoke_env()
+    if env.get("PROD_SMOKE_ADMIN_JWT"):
+        os.environ["PROD_SMOKE_ADMIN_JWT"] = env["PROD_SMOKE_ADMIN_JWT"]
+    env["MINING_ENABLED"] = ""
+    log1 = os.path.join(tmp, "node1.stderr.log")
+    log2 = os.path.join(tmp, "node2.stderr.log")
+    procs = []
+    try:
+        print(f"Prod-smoke: spawning prod-profile nodes on :15180 / :15181 (tmp={tmp})")
+        with open(log1, "w", encoding="utf-8") as err1:
+            procs.append(
+                subprocess.Popen(
+                    [sys.executable, "main.py", "--config", cfg1],
+                    cwd=ROOT,
+                    env=env,
+                    stdout=subprocess.DEVNULL,
+                    stderr=err1,
+                )
+            )
+        if not _wait_health(url1, max_sec=180):
+            print("FAIL: prod node1 health timeout on :15180")
+            print(f"  stderr: {log1}")
+            return 1
+
+        with open(log2, "w", encoding="utf-8") as err2:
+            procs.append(
+                subprocess.Popen(
+                    [sys.executable, "main.py", "--config", cfg2],
+                    cwd=ROOT,
+                    env=env,
+                    stdout=subprocess.DEVNULL,
+                    stderr=err2,
+                )
+            )
+        if not _wait_health(url2, max_sec=180):
+            print("FAIL: prod node2 health timeout on :15181")
+            print(f"  stderr: {log2}")
+            return 1
+
+        rc = verify_pair(url1, url2, wait_sync_sec=240)
+        if rc != 0:
+            return rc
+        return verify_prod_post_checks(url1)
+    finally:
+        for proc in procs:
+            proc.terminate()
+            try:
+                proc.wait(timeout=12)
+            except Exception:
+                proc.kill()
+
+
 def run_ci_spawn() -> int:
     """Isolated two-node test on high ports (does not touch devnet :8080)."""
     tmp = tempfile.mkdtemp(prefix="abs_p2p_ci_")
@@ -1985,6 +2090,7 @@ def main() -> int:
             "ci-bridge",
             "ci-bridge-relayer",
             "ci-adversarial",
+            "prod-smoke",
         ),
         default="auto",
         help="auto; devnet/devnet3/devnet5; ci/ci3",
@@ -2044,6 +2150,9 @@ def main() -> int:
     if mode == "devnet":
         print(f"Devnet mode: checking {args.url1} and {args.url2}")
         return verify_pair(args.url1, args.url2, wait_sync_sec=args.wait)
+
+    if mode == "prod-smoke":
+        return run_prod_smoke_spawn()
 
     if mode == "ci-fork":
         return run_ci_fork_spawn()

@@ -234,6 +234,8 @@ Run-Step "Hybrid critical native/consensus/EVM tests" {
         tests/unit/test_genesis_ceremony.py `
         tests/unit/test_evm_prod_deploy_salt.py `
         tests/unit/test_bridge_prod_chains.py `
+        tests/unit/test_prod_smoke_profile.py `
+        tests/unit/test_prod_boot_e2e.py `
         -q
 }
 

@@ -49,6 +49,8 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 4. **Bridge** — Solana rejected in prod rust path; L1 chains: ethereum, bsc, polygon, absolute.
 5. **Rust bridge** — uses `l1_tx_hash` when provided instead of synthetic hash for confirm/incoming.
 6. **Prod configs** — `chain_id: 778888` placeholder (replace at genesis ceremony).
+7. **Prod smoke** — `python scripts/verify_p2p_ci.py --mode prod-smoke` (2-node prod mesh on :15180/:15181).
+8. **Mainnet v1 profile** — `node.prod.mainnet-v1.example.json` (`bridge_enabled: false` until real L1 contracts).
 
 ---
 

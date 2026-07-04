@@ -961,7 +961,7 @@ class NodeOrchestrator:
                 from runtime.validator_loader import apply_public_manifest
                 apply_public_manifest(self, _public_manifest)
             except Exception as _pm:
-                if config.is_production():
+                if config.is_production:
                     raise
                 print(f"[Node] Public validator manifest note: {_pm}")
 
@@ -1790,6 +1790,9 @@ def build_config(args: argparse.Namespace) -> Config:
             if not key.startswith("_"):
                 setattr(config, key, value)
         print(f"[Config] Loaded from: {args.config}")
+
+    # Credentials from env must survive JSON merge (node JSON does not store secrets).
+    config.apply_env_secrets()
 
     # 3) CLI — высший приоритет
     if args.port:
