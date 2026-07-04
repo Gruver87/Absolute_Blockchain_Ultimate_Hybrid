@@ -151,6 +151,8 @@ if [[ -z "$bin" ]]; then
 fi
 run_step "Rust bridge status" bash -c "printf '%s' '{\"command\":\"status\",\"args\":{}}' | '$bin' | python -c \"import json,sys; d=json.load(sys.stdin); assert d.get('status')=='ready', d; print('OK bridge:', d.get('status'), d.get('source'))\""
 
+run_step "Production stack verification" python scripts/verify_prod_stack.py
+
 if [[ "$NO_CLEAN" != "1" ]]; then
   run_step "Clean generated Python cache" clear_python_cache
 fi

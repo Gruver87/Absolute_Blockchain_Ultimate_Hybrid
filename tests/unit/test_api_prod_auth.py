@@ -173,6 +173,38 @@ def test_prod_oracle_confirm_lock_with_hmac(tmp_path, monkeypatch):
         os.remove(path)
 
 
+def test_prod_oracle_l1_queue_sync_with_hmac(tmp_path, monkeypatch):
+    base, server, db, path = _start_prod_server(tmp_path, monkeypatch)
+    try:
+        queue_path = str(tmp_path / "l1_queue.json")
+        RESTHandler.config.bridge_l1_queue_path = queue_path
+        payload = {
+            "outbound": [{"abs_tx_hash": "0xabc", "l1_tx_hash": "0xdef", "chain": "ethereum"}],
+            "incoming": [],
+        }
+        raw = json.dumps(payload).encode()
+        sig = sign_payload("oracle-secret-wave28", raw)
+        st, body = _post(
+            f"{base}/bridge/oracle/l1-queue-sync",
+            payload,
+            headers={"X-Bridge-Oracle-Signature": sig},
+        )
+        assert st == 200
+        assert body.get("success") is True
+        assert body.get("outbound") == 1
+
+        st, q = _get(f"{base}/bridge/l1-queue")
+        assert st == 200
+        assert q.get("queue", {}).get("outbound")[0]["abs_tx_hash"] == "0xabc"
+
+        st, _body = _post(f"{base}/bridge/oracle/l1-queue-sync", payload)
+        assert st == 401
+    finally:
+        server.shutdown()
+        db.close()
+        os.remove(path)
+
+
 def test_prod_auth_token_get_disabled(tmp_path, monkeypatch):
     base, server, db, path = _start_prod_server(tmp_path, monkeypatch)
     try:

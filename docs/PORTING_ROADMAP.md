@@ -93,6 +93,16 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Live L1 RPC reachability probe at startup (opt-in: `BRIDGE_PROBE_L1_RPC=true`)
 - [x] L1 RPC health in `/health/ready`, `/metrics`, and Prometheus alerts
 
+### Priority 8 — Operational tooling ✅
+
+- [x] Full test entry: `scripts/test_all.ps1` / `test_all.sh`
+- [x] Production stack gate: `scripts/verify_prod_stack.py`
+- [x] Live prod smoke: `scripts/prod_smoke.py`
+- [x] Release gate: `scripts/release_gate.ps1`
+- [x] Multi-node P2P smoke: `scripts/multi_node_smoke.ps1` / `.sh`
+- [x] Docker prod: node + relayer sidecar
+- [x] Grafana panels for native crypto / bridge / L1 RPC metrics
+
 ## Process per module
 
 1. Python tests + golden vectors first.

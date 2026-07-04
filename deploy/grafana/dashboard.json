@@ -55,6 +55,37 @@
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
       "targets": [{"expr": "abs_errors_total", "legendFormat": "{{node_id}}"}]
+    },
+    {
+      "id": 8,
+      "title": "Native Crypto Self-Test",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 20},
+      "targets": [{"expr": "abs_native_crypto_self_test"}]
+    },
+    {
+      "id": 9,
+      "title": "Rust Bridge OK",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 20},
+      "targets": [{"expr": "abs_rust_bridge_ok"}]
+    },
+    {
+      "id": 10,
+      "title": "L1 RPC OK",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 20},
+      "targets": [{"expr": "abs_l1_rpc_ok"}]
+    },
+    {
+      "id": 11,
+      "title": "Bridge / L1 Required Flags",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "targets": [
+        {"expr": "abs_rust_bridge_required", "legendFormat": "bridge_required"},
+        {"expr": "abs_l1_rpc_required", "legendFormat": "l1_required"}
+      ]
     }
   ]
 }
