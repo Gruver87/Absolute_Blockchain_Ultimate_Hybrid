@@ -6,6 +6,14 @@
 
 ---
 
+## [1.2.12] — 2026-07-05
+
+### Fixed
+
+- Docker backup: mount chain volume read-write (node1 stopped); open RocksDB read-only for checkpoint
+
+---
+
 ## [1.2.11] — 2026-07-05
 
 ### Fixed

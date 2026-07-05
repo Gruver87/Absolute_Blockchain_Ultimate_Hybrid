@@ -125,11 +125,12 @@ function Invoke-DockerMesh1Backup {
         docker run --rm `
             -w /app `
             --entrypoint python `
-            -v "$($ctx.Volume):/app/data:ro" `
+            -v "$($ctx.Volume):/app/data" `
             -v "${absLocalDest}:/backup" `
             -v "${inlineScript}:${scriptInContainer}:ro" `
             -e "BACKUP_DEST=/backup" `
             -e "DATA_DIR=/app/data" `
+            -e "READ_ONLY=1" `
             $ctx.Image `
             $scriptInContainer
         if ($LASTEXITCODE -ne 0) {

@@ -23,20 +23,22 @@ def _truthy(name: str) -> bool:
 def _open_engine(chainstore: str):
     import abs_native  # type: ignore
 
-    read_only = _truthy("READ_ONLY")
-    kwargs = {
-        "create_if_missing": False,
-        "sync_writes": False,
-    }
-    if read_only:
-        kwargs["read_only"] = True
+    prefer_ro = not _truthy("READ_WRITE")
+    if _truthy("READ_ONLY"):
+        prefer_ro = True
+
+    base = {"create_if_missing": False, "sync_writes": False}
+    if prefer_ro:
+        try:
+            return abs_native.RocksEngine(chainstore, read_only=True, **base)
+        except TypeError:
+            pass
     try:
-        return abs_native.RocksEngine(chainstore, **kwargs)
+        return abs_native.RocksEngine(chainstore, **base)
     except TypeError as exc:
-        if read_only:
+        if prefer_ro:
             print(
-                "FAIL: read_only not supported by container abs_native; "
-                "omit -Live or rebuild prod image",
+                "FAIL: read_only not supported; rebuild prod image or set READ_WRITE=1",
                 file=sys.stderr,
             )
             raise SystemExit(1) from exc
