@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import threading
 import time
 from contextlib import contextmanager
@@ -189,7 +190,8 @@ class RocksChainStore:
 
     def backup_to(self, dest_path: str) -> bool:
         try:
-            os.makedirs(dest_path, exist_ok=True)
+            if os.path.isdir(dest_path):
+                shutil.rmtree(dest_path)
             self._engine.checkpoint(dest_path)
             return True
         except Exception as exc:

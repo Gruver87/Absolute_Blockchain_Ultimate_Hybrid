@@ -61,9 +61,13 @@ jobs:
       if: matrix.python-version == '3.12'
       run: python scripts/runbook_check.py
 
-    - name: DR backup drill
+    - name: DR backup drill (SQLite)
       if: matrix.python-version == '3.12'
       run: python scripts/backup_db_drill.py
+
+    - name: DR backup drill (RocksDB)
+      if: matrix.python-version == '3.12'
+      run: python scripts/backup_rocks_drill.py
 
     - name: Genesis ceremony artifact (mainnet-v1 profile)
       if: matrix.python-version == '3.12'
@@ -164,6 +168,9 @@ jobs:
           tests/unit/test_evm_host_bridge.py \
           tests/unit/test_evm_prod_handoff.py \
           tests/unit/test_sync_incremental.py \
+          tests/unit/test_rocks_store.py \
+          tests/unit/test_rocks_blockchain_integration.py \
+          tests/unit/test_chain_backup.py \
           -q
 
     - name: Docker prod image build (smoke)

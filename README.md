@@ -35,6 +35,7 @@
 | Mainnet gap (honest) | [docs/MAINNET_GAP_ANALYSIS.md](docs/MAINNET_GAP_ANALYSIS.md) |
 | Bridge L1 cutover | [docs/BRIDGE_L1_MAINNET.md](docs/BRIDGE_L1_MAINNET.md) |
 | Docker images (GHCR) | [docs/DOCKER_IMAGES.md](docs/DOCKER_IMAGES.md) |
+| RocksDB storage | [docs/STORAGE_ROCKSDB.md](docs/STORAGE_ROCKSDB.md) |
 | Honest command reference | [docs/COMMANDS_REFERENCE.md](docs/COMMANDS_REFERENCE.md) |
 
 ---
@@ -290,6 +291,10 @@ docker compose -p abs-prod-mesh3 -f docker-compose.prod.3node.yml down -v
 .\scripts\probe_mesh_nodes.ps1 -ProdMesh
 Invoke-RestMethod http://127.0.0.1:18180/chain/consistency/harness
 docker compose -f docker-compose.observability.yml up -d   # Prometheus :9090, Grafana :3000
+
+# Backup prod mesh node1 (RocksDB checkpoint)
+.\scripts\backup_chainstore.ps1 -DockerMesh1
+# See docs/STORAGE_ROCKSDB.md for restore + DR drills
 ```
 
 ### Run

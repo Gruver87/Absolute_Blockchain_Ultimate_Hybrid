@@ -6,6 +6,22 @@
 
 ---
 
+## [1.2.3] — 2026-07-05
+
+### Added
+
+- `docs/STORAGE_ROCKSDB.md` — honest hybrid RocksDB architecture + roadmap
+- `storage/chain_backup.py` — backup/restore for Rocks chainstore and SQLite
+- `scripts/backup_chainstore.py`, `restore_chainstore.py`, `backup_chainstore.ps1`
+- `scripts/backup_rocks_drill.py` — CI DR drill for RocksDB
+- `tests/unit/test_chain_backup.py`
+
+### Changed
+
+- CI: `backup_rocks_drill.py` + rocks unit tests in hybrid critical gate
+
+---
+
 ## [1.2.2] — 2026-07-05
 
 ### Added
