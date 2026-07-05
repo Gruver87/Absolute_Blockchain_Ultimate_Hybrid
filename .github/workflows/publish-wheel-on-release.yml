@@ -4,6 +4,9 @@ on:
   release:
     types: [created]
 
+permissions:
+  contents: write
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -34,11 +37,14 @@ jobs:
           python -m maturin build --release --out target/wheels
 
       - name: Publish to PyPI
-        if: ${{ secrets.PYPI_API_TOKEN != '' }}
         env:
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
           TWINE_USERNAME: __token__
         run: |
+          if [ -z "$TWINE_PASSWORD" ]; then
+            echo "Skip PyPI upload (PYPI_API_TOKEN not configured)"
+            exit 0
+          fi
           python -m pip install --upgrade pip twine
           python -m twine upload native/abs_native/target/wheels/*.whl -u "$TWINE_USERNAME" -p "$TWINE_PASSWORD"
 
