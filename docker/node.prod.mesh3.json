@@ -12,6 +12,7 @@
   "rpc_port": 8545,
   "ws_port": 8766,
   "bootstrap_peers": ["node1:5000", "node2:5000"],
+  "follower_genesis_sync": true,
   "mining_enabled": false,
   "require_signatures": true,
   "require_native_crypto": true,

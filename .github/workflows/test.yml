@@ -190,6 +190,10 @@ jobs:
       if: matrix.python-version == '3.12'
       run: python scripts/industrial_gate.py
 
+    - name: K8s prod manifest gate
+      if: matrix.python-version == '3.12'
+      run: python scripts/k8s_prod_gate.py
+
     - name: Mainnet launch checklist (code gates)
       if: matrix.python-version == '3.12'
       run: python scripts/mainnet_launch_checklist.py

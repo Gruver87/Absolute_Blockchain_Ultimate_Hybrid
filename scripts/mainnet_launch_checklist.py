@@ -56,12 +56,14 @@ def run_launch_checklist(
     strict_mainnet: bool = False,
     strict_keys: bool = False,
     ceremony_dir: str = "",
+    bridge_cutover: bool = False,
 ) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
 
     steps = [
         ("prod_gate.py", "Production static gate"),
+        ("k8s_prod_gate.py", "Kubernetes prod gate"),
         ("runbook_check.py", "Incident runbook"),
         ("backup_db_drill.py", "DR backup drill"),
         ("evm_opcode_parity_gate.py", "EVM opcode parity"),
@@ -115,6 +117,24 @@ def run_launch_checklist(
     if rc != 0:
         errors.append("bridge_l1_preflight failed")
 
+    if bridge_cutover:
+        import subprocess
+
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "bridge_l1_cutover.py"),
+                "--config",
+                "node.prod.mainnet-v1.bridge.example.json",
+            ],
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            detail = (proc.stdout or proc.stderr or "").strip()
+            errors.append(f"bridge_l1_cutover failed: {detail or proc.returncode}")
+
     rc, _ = _run_script("industrial_gate.py")
     if rc != 0:
         errors.append("industrial_gate failed")
@@ -153,6 +173,11 @@ def main() -> int:
         default="",
         help="Verify generated ceremony dir (data/ceremony_keys) when set",
     )
+    parser.add_argument(
+        "--bridge-cutover",
+        action="store_true",
+        help="Run bridge L1 cutover static gate (bridge-enabled prod profile)",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
@@ -160,6 +185,7 @@ def main() -> int:
         strict_mainnet=args.strict_mainnet,
         strict_keys=args.strict_keys,
         ceremony_dir=args.ceremony_dir,
+        bridge_cutover=args.bridge_cutover,
     )
     payload = {"ok": not errors, "errors": errors, "warnings": warnings}
 

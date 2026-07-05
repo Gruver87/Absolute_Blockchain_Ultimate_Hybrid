@@ -299,6 +299,9 @@ class Blockchain:
     # ── Genesis ──────────────────────────────────────────────────────────────
 
     def _ensure_genesis(self):
+        if getattr(self.config, "follower_genesis_sync", False) and self.db.get_last_block() is None:
+            print("[Blockchain] follower_genesis_sync: waiting for leader genesis via P2P")
+            return
         if self.db.get_last_block() is None:
             founder = (
                 getattr(self.config, "founder_address", "")

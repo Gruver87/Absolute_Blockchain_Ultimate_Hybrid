@@ -6,6 +6,7 @@ metadata:
 spec:
   serviceName: abs-p2p
   replicas: 3
+  podManagementPolicy: OrderedReady
   selector:
     matchLabels:
       app: abs-node
@@ -16,8 +17,9 @@ spec:
     spec:
       containers:
         - name: node
-          image: absolute-blockchain:latest
+          image: absolute-blockchain-prod:latest
           imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "/app/deploy/k8s/entrypoint.sh"]
           ports:
             - name: http
               containerPort: 8080
@@ -40,18 +42,24 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /app/data
+            - name: node-config
+              mountPath: /app/config
+              readOnly: true
           livenessProbe:
             httpGet:
               path: /health/live
               port: http
-            initialDelaySeconds: 20
+            initialDelaySeconds: 30
             periodSeconds: 30
+            timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /health/ready
               port: http
-            initialDelaySeconds: 15
+            initialDelaySeconds: 20
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
           resources:
             requests:
               memory: "512Mi"
@@ -59,6 +67,13 @@ spec:
             limits:
               memory: "2Gi"
               cpu: "1000m"
+      volumes:
+        - name: node-config
+          configMap:
+            name: abs-node-json
+            items:
+              - key: node.prod.k8s.json
+                path: node.prod.k8s.json
   volumeClaimTemplates:
     - metadata:
         name: data
@@ -66,4 +81,4 @@ spec:
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:
-            storage: 5Gi
+            storage: 20Gi

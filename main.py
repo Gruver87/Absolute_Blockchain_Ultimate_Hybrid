@@ -1202,6 +1202,12 @@ class NodeOrchestrator:
 
         # P2P сервер
         tasks.append(asyncio.create_task(self.p2p.start(), name="P2PServer"))
+        if getattr(self.config, "follower_genesis_sync", False):
+            tasks.append(
+                asyncio.create_task(
+                    self._follower_genesis_sync_loop(), name="FollowerGenesisSync"
+                )
+            )
         if self._attestation_validator and self.p2p:
             tasks.append(asyncio.create_task(
                 self._announce_validator_loop(), name="ValidatorAnnounce"
@@ -1390,6 +1396,37 @@ class NodeOrchestrator:
         print("[Node] Goodbye.")
 
     # ── Цикл майнинга ────────────────────────────────────────────────────────
+
+    async def _follower_genesis_sync_loop(self):
+        """Prod followers: import block #0 from bootstrap peers before serving RPC."""
+        if not getattr(self.config, "follower_genesis_sync", False):
+            return
+        if self.blockchain.get_last_block() is not None:
+            return
+        if not self.config.bootstrap_peers:
+            print("[Node] follower_genesis_sync requires bootstrap_peers")
+            if self.config.is_production:
+                self._running = False
+            return
+
+        print("[Node] follower_genesis_sync: waiting for leader genesis...")
+        deadline = time.time() + 180
+        while self._running and time.time() < deadline:
+            if self.blockchain.get_last_block() is not None:
+                print("[Node] follower genesis ready")
+                return
+            if self.sync_engine and self.p2p:
+                try:
+                    if len(getattr(self.p2p, "peers", {}) or {}) > 0:
+                        self.sync_engine.fast_sync()
+                except Exception as exc:
+                    print(f"[Node] follower genesis sync: {exc}")
+            await asyncio.sleep(3)
+
+        if self.blockchain.get_last_block() is None:
+            print("[Node] FATAL: follower_genesis_sync timeout without leader genesis")
+            if self.config.is_production:
+                self._running = False
 
     async def _mining_loop(self):
         """

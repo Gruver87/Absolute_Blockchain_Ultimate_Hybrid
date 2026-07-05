@@ -4,7 +4,11 @@ metadata:
   name: abs-node-config
   namespace: absolute-chain
 data:
-  DEPLOYMENT_MODE: "staging"
+  DEPLOYMENT_MODE: "prod"
+  CHAIN_ID: "778888"
+  DB_ENGINE: "rocksdb"
+  ROCKSDB_SYNC: "FULL"
+  DATA_DIR: "/app/data"
   HTTP_PORT: "8080"
   RPC_PORT: "8545"
   P2P_PORT: "5000"
@@ -13,14 +17,13 @@ data:
   RPC_HOST: "0.0.0.0"
   P2P_HOST: "0.0.0.0"
   WS_HOST: "0.0.0.0"
-  DATA_DIR: "/app/data"
   METRICS_ENABLED: "true"
   ABS_REQUIRE_NATIVE_CRYPTO: "true"
   REDIS_RATE_LIMIT: "true"
   REDIS_URL: "redis://abs-redis:6379/0"
   RATE_LIMIT_RPM: "120"
-  # Подключение к seed-ноде (pod-0) для остальных реплик
   BOOTSTRAP_PEERS: "abs-node-0.abs-p2p.absolute-chain.svc.cluster.local:5000"
+  FOLLOWER_GENESIS_SYNC: "true"
   CORS_ORIGINS: "https://explorer.example.com"
   ENABLE_CORS_RPC_PROXY: "false"
   JWT_ENFORCE_ADMIN: "true"
@@ -29,5 +32,65 @@ data:
   RUST_BRIDGE_PATH: "bridge/abs_bridge_bin"
   BRIDGE_AUTO_CONFIRM_SEC: "0"
   BRIDGE_REQUIRE_L1_PROOF: "true"
-  BRIDGE_PROBE_L1_RPC: "true"
+  BRIDGE_PROBE_L1_RPC: "false"
+  BRIDGE_ENABLED: "false"
   BRIDGE_L1_QUEUE_PATH: "/app/data/bridge_l1_queue.json"
+  VALIDATORS_MANIFEST_PATH: "data/validators.manifest.json"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: abs-node-json
+  namespace: absolute-chain
+data:
+  node.prod.k8s.json: |
+    {
+      "node_id": "k8s-abs-node",
+      "network_name": "Absolute Mainnet",
+      "chain_id": 778888,
+      "deployment_mode": "prod",
+      "http_host": "0.0.0.0",
+      "rpc_host": "0.0.0.0",
+      "ws_host": "0.0.0.0",
+      "p2p_host": "0.0.0.0",
+      "p2p_port": 5000,
+      "http_port": 8080,
+      "rpc_port": 8545,
+      "ws_port": 8766,
+      "bootstrap_peers": ["abs-node-0.abs-p2p.absolute-chain.svc.cluster.local:5000"],
+      "follower_genesis_sync": true,
+      "mining_enabled": false,
+      "require_signatures": true,
+      "require_native_crypto": true,
+      "enforce_proposer": true,
+      "verify_peer_state_root": true,
+      "state_root_strict_p2p": true,
+      "bridge_enabled": false,
+      "bridge_mode": "rust",
+      "bridge_require_l1_proof": true,
+      "evm_create2_eip1014": true,
+      "evm_require_deploy_salt": true,
+      "rate_limit_rpm": 120,
+      "rpc_api_key_required": true,
+      "jwt_enforce_admin": true,
+      "require_wallet_file": true,
+      "consensus_mode": "unified",
+      "feature_zk": false,
+      "feature_sharding": false,
+      "feature_oracles": false,
+      "feature_wasm": false,
+      "feature_plasma": false,
+      "feature_lightning": false,
+      "feature_pq": false,
+      "feature_mev": false,
+      "feature_ai_agents": false,
+      "sqlite_synchronous": "FULL",
+      "db_engine": "rocksdb",
+      "rocksdb_sync": "FULL",
+      "log_json": true,
+      "enable_cors_rpc_proxy": false,
+      "cors_origins": ["https://explorer.example.com"],
+      "db_path": "data/blockchain.db",
+      "log_file": "data/node.log",
+      "validators_manifest_path": "data/validators.manifest.json"
+    }

@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 PROD_FILES = [
     "docker/node.prod.json",
@@ -15,6 +16,11 @@ PROD_FILES = [
     "docker/node.prod.mesh3.json",
     "node.prod.example.json",
     "node.prod.mainnet-v1.example.json",
+    "node.prod.mainnet-v1.bridge.example.json",
+]
+
+BRIDGE_PROD_FILES = [
+    "node.prod.mainnet-v1.bridge.example.json",
 ]
 
 BLOCKED_FEATURES = [
@@ -52,6 +58,8 @@ def load_json(path: str) -> dict:
 
 
 def check_file(path: str) -> list[str]:
+    from runtime.mainnet_constants import MAINNET_V1_CHAIN_ID
+
     cfg = load_json(path)
     errors: list[str] = []
 
@@ -85,6 +93,16 @@ def check_file(path: str) -> list[str]:
             f"{path}: chain_id {DEVNET_CHAIN_ID} is devnet default; "
             "assign unique mainnet chain_id before public launch"
         )
+    elif chain_id != MAINNET_V1_CHAIN_ID:
+        errors.append(
+            f"{path}: chain_id {chain_id} must be MAINNET_V1_CHAIN_ID ({MAINNET_V1_CHAIN_ID})"
+        )
+
+    if path in BRIDGE_PROD_FILES:
+        if not cfg.get("bridge_enabled"):
+            errors.append(f"{path}: bridge_enabled must be true for bridge cutover profile")
+        if not cfg.get("bridge_probe_l1_rpc"):
+            errors.append(f"{path}: bridge_probe_l1_rpc must be true for bridge cutover profile")
 
     mode = str(cfg.get("consensus_mode", "auto") or "auto").strip().lower()
     if mode == "parallel":

@@ -76,6 +76,7 @@ class Config:
 
     # ── P2P ─────────────────────────────────────────────────────────────────
     bootstrap_peers: List[str] = field(default_factory=list)
+    follower_genesis_sync: bool = False  # prod followers: import genesis from peers, no local mint
     max_peers: int = 50
     testnet_expected_peers: int = 1     # mesh health threshold (3-node devnet: 2 on hub)
     testnet_expected_validators: int = 0  # Wave 55: 5-validator devnet
@@ -289,6 +290,9 @@ class Config:
         peers = env_list("BOOTSTRAP_PEERS")
         if peers:
             self.bootstrap_peers = peers
+        self.follower_genesis_sync = env_bool(
+            "FOLLOWER_GENESIS_SYNC", self.follower_genesis_sync
+        )
 
         manifest_path = env_str("VALIDATORS_MANIFEST_PATH", "")
         if manifest_path:

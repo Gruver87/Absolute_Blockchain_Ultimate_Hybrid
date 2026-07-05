@@ -220,9 +220,15 @@ class SyncEngine:
 
         target_h = best_peer_h if target_block > 0 else None
         to_import = []
+        needs_genesis = (
+            hasattr(self.node, "blockchain")
+            and self.node.blockchain is not None
+            and self.node.blockchain.db.get_last_block() is None
+        )
+        import_floor = -1 if needs_genesis else local_h
         for block in chain:
             height = self._block_height(block)
-            if height <= local_h:
+            if height <= import_floor:
                 continue
             if target_h is not None and height > target_h:
                 continue
