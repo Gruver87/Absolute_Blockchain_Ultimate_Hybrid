@@ -28,6 +28,7 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir maturin
 
 WORKDIR /build/native/abs_native
 COPY native/abs_native/Cargo.toml native/abs_native/Cargo.lock ./
+RUN mkdir -p src && printf 'use pyo3::prelude::*;\n#[pymodule]\nfn abs_native(_py: Python, _m: &Bound<PyModule>) -> PyResult<()> { Ok(()) }\n' > src/lib.rs
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     cargo fetch --locked

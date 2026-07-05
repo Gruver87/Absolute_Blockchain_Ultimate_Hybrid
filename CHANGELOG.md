@@ -6,6 +6,15 @@
 
 ---
 
+## [1.2.9] — 2026-07-05
+
+### Fixed
+
+- Docker mesh backup uses `docker run` + existing node1 image/volume (no `compose run` rebuild)
+- `Dockerfile.prod` — dummy `src/lib.rs` before `cargo fetch` for abs_native layer cache
+
+---
+
 ## [1.2.8] — 2026-07-05
 
 ### Fixed

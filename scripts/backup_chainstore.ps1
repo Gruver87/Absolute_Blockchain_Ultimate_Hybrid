@@ -11,6 +11,49 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $Root
 
+function Get-MeshNode1Context {
+    param([string]$ComposeFile)
+
+    $cid = docker compose -p $ComposeProject -f $ComposeFile ps -aq node1 2>$null
+    if ($cid) {
+        $cid = ($cid | Select-Object -First 1).Trim()
+    }
+    if (-not $cid) {
+        Write-Host "FAIL: node1 container not found (start prod mesh first)" -ForegroundColor Red
+        exit 1
+    }
+
+    $image = (docker inspect -f "{{.Config.Image}}" $cid).Trim()
+    if (-not $image) {
+        $image = (docker inspect -f "{{.Image}}" $cid).Trim()
+    }
+    if (-not $image) {
+        Write-Host "FAIL: cannot resolve node1 image" -ForegroundColor Red
+        exit 1
+    }
+
+    $volume = ""
+    $mountJson = docker inspect -f "{{json .Mounts}}" $cid
+    if ($mountJson) {
+        $mounts = $mountJson | ConvertFrom-Json
+        foreach ($mount in $mounts) {
+            if ($mount.Destination -eq "/app/data" -and $mount.Name) {
+                $volume = $mount.Name
+                break
+            }
+        }
+    }
+    if (-not $volume) {
+        $volume = "${ComposeProject}_abs-prod-mesh1-data"
+    }
+
+    return @{
+        ContainerId = $cid
+        Image       = $image
+        Volume      = $volume
+    }
+}
+
 function Invoke-DockerMesh1Backup {
     param(
         [string]$LocalDest,
@@ -25,13 +68,14 @@ function Invoke-DockerMesh1Backup {
         exit 1
     }
 
+    $ctx = Get-MeshNode1Context -ComposeFile $composeFile
     $absLocalDest = (New-Item -ItemType Directory -Force -Path $LocalDest).FullName
     $scriptBody = Get-Content -Raw -Path $inlineScript
 
     if ($TryLive) {
-        $cid = docker compose -p $ComposeProject -f $composeFile ps -q node1
-        if (-not $cid) {
-            Write-Host "FAIL: node1 container not running" -ForegroundColor Red
+        $runningId = docker compose -p $ComposeProject -f $composeFile ps -q node1 --status running
+        if (-not $runningId) {
+            Write-Host "FAIL: node1 not running (required for -Live)" -ForegroundColor Red
             exit 1
         }
         Write-Host "Live backup (read-only RocksDB open)..." -ForegroundColor Cyan
@@ -43,7 +87,7 @@ function Invoke-DockerMesh1Backup {
             -e "READ_ONLY=1" `
             node1 -
         if ($LASTEXITCODE -eq 0) {
-            docker cp "${cid}:${containerDest}/." $absLocalDest
+            docker cp "$($ctx.ContainerId):${containerDest}/." $absLocalDest
             docker compose -p $ComposeProject -f $composeFile exec -T node1 `
                 rm -rf $containerDest 2>$null | Out-Null
             return
@@ -59,13 +103,15 @@ function Invoke-DockerMesh1Backup {
     }
 
     try {
-        Write-Host "One-off checkpoint backup (stdin pipe)..." -ForegroundColor Cyan
-        $scriptBody | docker compose -p $ComposeProject -f $composeFile run --rm --no-deps `
+        Write-Host ("One-off checkpoint via existing image " + $ctx.Image + " (no rebuild)...") -ForegroundColor Cyan
+        $scriptBody | docker run --rm `
             --entrypoint python `
+            -v "$($ctx.Volume):/app/data:ro" `
             -v "${absLocalDest}:/backup" `
             -e "BACKUP_DEST=/backup" `
             -e "DATA_DIR=/app/data" `
-            node1 -
+            $ctx.Image `
+            -
         if ($LASTEXITCODE -ne 0) {
             Write-Host "FAIL: in-container backup" -ForegroundColor Red
             exit 1

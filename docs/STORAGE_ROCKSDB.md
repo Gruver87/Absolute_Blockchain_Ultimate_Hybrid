@@ -77,7 +77,7 @@ python scripts/restore_chainstore.py --backup-dir backups/my-snapshot --data-dir
 
 Uses a stdin-piped inline script (`docker_backup_in_container.py`) so backup works **without rebuilding** the prod image after v1.2.3.
 
-Default: **brief node1 stop** (~10s) + one-off checkpoint (avoids RocksDB `LOCK` conflict). Optional `-Live` tries read-only open while node1 runs (needs rebuilt image with `read_only` RocksEngine).
+Default: **brief node1 stop** + `docker run` on the **existing node1 image** (no `compose run` / rebuild). Optional `-Live` tries read-only open while node1 runs.
 
 ```powershell
 .\scripts\backup_chainstore.ps1 -DockerMesh1
