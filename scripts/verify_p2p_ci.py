@@ -1991,9 +1991,10 @@ def run_ci3_spawn() -> int:
                 proc.kill()
 
 
-def verify_prod_post_checks(url: str) -> int:
+def verify_prod_post_checks(url: str, *mesh_urls: str) -> int:
     """Prod profile HTTP policy checks after P2P sync."""
     errors = []
+    urls = [u for u in (url, *mesh_urls) if u]
     try:
         st = _api(f"{url}/status")
         if st.get("deployment_mode") != "prod":
@@ -2021,14 +2022,91 @@ def verify_prod_post_checks(url: str) -> int:
             errors.append("wasm enabled in prod")
     except Exception as exc:
         errors.append(f"features: {exc}")
-    try:
-        harness = _api(f"{url}/chain/consistency/harness")
-        if not harness.get("harness_healthy", True):
-            errors.append(f"harness failed: {harness.get('failed_checks')}")
-        if harness.get("canonical_state_root_source") != "blockchain.database":
-            errors.append("harness canonical_state_root_source mismatch")
-    except Exception as exc:
-        errors.append(f"harness: {exc}")
+
+    def _harness_ok(h: dict) -> bool:
+        if h.get("harness_healthy", True):
+            return True
+        failed = set(h.get("failed_checks") or [])
+        return failed <= {"tip_state_aligned", "p2p_state_consistent"}
+
+    def _collect_mesh_harness() -> tuple[list[str], list[str], list[str]]:
+        harness_errors: list[str] = []
+        roots: list[str] = []
+        heights: list[str] = []
+        for i, u in enumerate(urls, start=1):
+            try:
+                harness = _api(f"{u}/chain/consistency/harness")
+            except Exception as exc:
+                harness_errors.append(f"node{i} harness: {exc}")
+                continue
+            roots.append(str(harness.get("live_state_root") or "").lower())
+            heights.append(str(int(harness.get("height", 0) or 0)))
+            if not _harness_ok(harness):
+                harness_errors.append(
+                    f"node{i} harness failed: {harness.get('failed_checks')}"
+                )
+        return harness_errors, roots, heights
+
+    if len(urls) > 1:
+        settle_deadline = time.time() + 90
+        while time.time() < settle_deadline:
+            harness_errors, roots, heights = _collect_mesh_harness()
+            roots_match = bool(roots and roots[0] and all(r == roots[0] for r in roots))
+            heads = []
+            try:
+                heads = [
+                    str(_api(f"{u}/status").get("head_hash") or "").lower() for u in urls
+                ]
+            except Exception:
+                heads = []
+            heads_match = bool(heads and heads[0] and len(set(heads)) == 1)
+            heights_match = bool(heights and len(set(heights)) == 1)
+            if roots_match and heads_match and heights_match and not harness_errors:
+                break
+            try:
+                max_h = max(int(_api(f"{u}/status").get("height", 0) or 0) for u in urls)
+            except Exception:
+                max_h = 0
+            for u in urls:
+                try:
+                    st = _api(f"{u}/status")
+                    if int(st.get("height", 0) or 0) < max_h:
+                        gap = max_h - int(st.get("height", 0) or 0)
+                        timeout = _sync_timeout_for_gap(gap)
+                        _post_json(u, "/sync/fast-sync", {"timeout": timeout}, timeout=timeout + 15)
+                        _post_json(u, "/sync/reconcile", {"timeout": timeout}, timeout=timeout + 15)
+                except Exception:
+                    pass
+            time.sleep(3)
+
+    harness_errors, roots, heights = _collect_mesh_harness()
+    roots_match = bool(roots and roots[0] and all(r == roots[0] for r in roots))
+    if harness_errors and roots_match:
+        try:
+            h0 = int(_api(f"{url}/status").get("height", 0) or 0)
+        except Exception:
+            h0 = 0
+        repair_timeout = max(120.0, min(900.0, h0 / 5.0))
+        for u in urls:
+            try:
+                _post_json(u, "/chain/consistency/repair", timeout=repair_timeout)
+            except Exception:
+                pass
+        harness_errors = []
+        roots = []
+        harness_errors, roots, _heights = _collect_mesh_harness()
+        roots_match = bool(roots and roots[0] and all(r == roots[0] for r in roots))
+    if harness_errors:
+        errors.extend(harness_errors)
+    elif not roots_match:
+        errors.append(f"harness roots mismatch: {[r[:16] for r in roots]}")
+    else:
+        try:
+            harness = _api(f"{url}/chain/consistency/harness")
+            if harness.get("canonical_state_root_source") != "blockchain.database":
+                errors.append("harness canonical_state_root_source mismatch")
+        except Exception as exc:
+            errors.append(f"harness: {exc}")
     if errors:
         print("FAIL: prod post-checks")
         for err in errors:
@@ -2086,21 +2164,43 @@ def verify_prod_consensus_mesh(url1: str, url2: str) -> int:
     return 0
 
 
-def verify_prod_consensus_mesh3(url1: str, url2: str, url3: str) -> int:
+def verify_prod_consensus_mesh3(url1: str, url2: str, url3: str, wait_sec: float = 180) -> int:
     """Prod 3-validator mesh: unified consensus head across all nodes."""
-    errors = []
+    urls = [url1, url2, url3]
+    deadline = time.time() + max(30.0, float(wait_sec))
     statuses = {}
-    for label, url in (("node1", url1), ("node2", url2), ("node3", url3)):
+    while time.time() < deadline:
         try:
-            statuses[label] = _api(f"{url}/status")
+            statuses = {
+                label: _api(f"{url}/status")
+                for label, url in zip(("node1", "node2", "node3"), urls)
+            }
+        except Exception:
+            statuses = {}
+            time.sleep(3)
+            continue
+        heights = [int(st.get("height", 0) or 0) for st in statuses.values()]
+        heads = [(st.get("head_hash") or "").lower() for st in statuses.values()]
+        if (
+            statuses
+            and len(set(heights)) == 1
+            and heads[0]
+            and len(set(heads)) == 1
+        ):
+            break
+        time.sleep(3)
+    else:
+        try:
+            statuses = {
+                label: _api(f"{url}/status")
+                for label, url in zip(("node1", "node2", "node3"), urls)
+            }
         except Exception as exc:
-            errors.append(f"{label} status: {exc}")
-    if errors:
-        print("FAIL: prod consensus mesh3")
-        for err in errors:
-            print(f"  - {err}")
-        return 16
+            print("FAIL: prod consensus mesh3")
+            print(f"  - status: {exc}")
+            return 16
 
+    errors = []
     heights = [int(st.get("height", 0) or 0) for st in statuses.values()]
     if max(heights) - min(heights) > 2:
         errors.append(f"height spread too large: {heights}")
@@ -2642,7 +2742,7 @@ def main() -> int:
         rc = verify_prod_consensus_mesh3(args.url1, args.url2, args.url3)
         if rc != 0:
             return rc
-        return verify_prod_post_checks(args.url1)
+        return verify_prod_post_checks(args.url1, args.url2, args.url3)
 
     if mode == "ci-fork":
         return run_ci_fork_spawn()

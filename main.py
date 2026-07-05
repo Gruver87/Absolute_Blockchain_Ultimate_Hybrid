@@ -342,6 +342,8 @@ class NodeOrchestrator:
             except Exception:
                 pass
 
+        self._pin_chain_founder_address()
+
         # 3. Мемпул
         self.mempool = Mempool(max_size=10_000, min_fee=config.base_fee() * 0.5)
 
@@ -585,15 +587,6 @@ class NodeOrchestrator:
                 self.db, founder, epoch_size=getattr(config, "epoch_size", 32)
             )
             self.blockchain.pool_locks = self.pool_locks
-            h = self.blockchain.get_height()
-            if h > 0 and config.mining_enabled:
-                from consensus.epoch import EpochManager as _EpCatch
-                _ep = _EpCatch(epoch_size=getattr(config, "epoch_size", 32))
-                catch = self.pool_locks.catch_up_epochs(_ep.get_epoch(h))
-                if catch.get("staking_released_total", 0) > 0:
-                    print(f"[Node] Staking catch-up: +{catch['staking_released_total']:,.0f} ABS released")
-            elif h > 0 and not config.mining_enabled:
-                print("[Node] Staking catch-up skipped (follower node)")
             print("[Node] PoolLockManager: ecosystem/treasury/staking locks active")
         except Exception as _pl_err:
             self.pool_locks = None
@@ -614,9 +607,6 @@ class NodeOrchestrator:
         if self.evm:
             print("[Node] EVM: enabled")
         self.blockchain.evm = self.evm
-
-        if self.blockchain.get_height() >= 0:
-            self.blockchain.ensure_state_at_tip()
 
         # 7. P2P
         self.p2p = P2PNode(config, self.blockchain, self.mempool, self.bus)
@@ -1113,6 +1103,7 @@ class NodeOrchestrator:
         else:
             self.sync_engine = None
 
+        self._finalize_boot_state()
         print("[Node] All components initialized.")
 
     # ── SyncEngine node interface ─────────────────────────────────────────────
@@ -1372,6 +1363,62 @@ class NodeOrchestrator:
         except Exception as exc:
             print(f"[Node] Genesis allocation note: {exc}")
 
+    def _pin_chain_founder_address(self) -> None:
+        """Mesh followers must replay genesis with the miner's founder, not local wallet."""
+        pinned = ""
+        try:
+            pinned = str(self.db.get_meta("genesis_founder") or "").strip()
+        except Exception:
+            pinned = ""
+        if not pinned:
+            try:
+                tok = self.db.get_meta("tokenomics")
+                if isinstance(tok, dict):
+                    pinned = str((tok.get("founder") or {}).get("address", "") or "").strip()
+            except Exception:
+                pinned = ""
+        manifest = getattr(self.config, "validators_manifest_path", "") or ""
+        if not pinned and manifest and os.path.isfile(manifest):
+            try:
+                from runtime.validator_loader import manifest_founder_address
+
+                pinned = manifest_founder_address(manifest)
+            except Exception:
+                pinned = ""
+        if pinned:
+            if (
+                getattr(self.config, "founder_address", "")
+                and self.config.founder_address.lower() != pinned.lower()
+            ):
+                print(
+                    f"[Node] Founder pinned to genesis/manifest: {pinned[:12]}… "
+                    f"(local wallet is signing-only)"
+                )
+            self.config.founder_address = pinned
+
+    def _finalize_boot_state(self) -> None:
+        """Align live state with tip metadata after all boot-time DB mutations."""
+        if self.blockchain.get_height() >= 0:
+            self.blockchain.ensure_state_at_tip()
+        if not self.pool_locks:
+            return
+        h = self.blockchain.get_height()
+        if h <= 0 or not self.config.mining_enabled:
+            if h > 0 and not self.config.mining_enabled:
+                print("[Node] Staking catch-up skipped (follower node)")
+            return
+        try:
+            from consensus.epoch import EpochManager as _EpCatch
+            _ep = _EpCatch(epoch_size=getattr(self.config, "epoch_size", 32))
+            catch = self.pool_locks.catch_up_epochs(_ep.get_epoch(h))
+            if catch.get("staking_released_total", 0) > 0:
+                print(
+                    f"[Node] Staking catch-up: +{catch['staking_released_total']:,.0f} "
+                    f"ABS released (pool meta only)"
+                )
+        except Exception as _catch_err:
+            print(f"[Node] Staking catch-up note: {_catch_err}")
+
     # ── Остановка ────────────────────────────────────────────────────────────
 
     def stop(self):
@@ -1442,6 +1489,32 @@ class NodeOrchestrator:
             if not self.consensus.should_produce_block():
                 continue
 
+            _min_mesh_peers = int(getattr(self.config, "mesh_min_peers_before_mine", 0) or 0)
+            if _min_mesh_peers > 0 and self.p2p:
+                peers = getattr(self.p2p, "peers", {}) or {}
+                if len(peers) < _min_mesh_peers:
+                    continue
+                local_h = self.blockchain.get_height()
+                local_root = str(self.blockchain.get_state_root() or "").strip().lower()
+                mesh_ready = True
+                try:
+                    wire_roots = await self.p2p.request_peer_state_roots()
+                except Exception:
+                    wire_roots = []
+                if len(wire_roots) < _min_mesh_peers:
+                    mesh_ready = False
+                for entry in wire_roots:
+                    eh = int(entry.get("height", 0) or 0)
+                    pr = str(entry.get("state_root") or "").strip().lower()
+                    if eh < local_h:
+                        mesh_ready = False
+                        break
+                    if eh == local_h and pr and pr != local_root:
+                        mesh_ready = False
+                        break
+                if not mesh_ready:
+                    continue
+
             if self.sharding and hasattr(self.sharding, "process_cross_shard_transactions"):
                 try:
                     self.sharding.process_cross_shard_transactions()
@@ -1477,6 +1550,18 @@ class NodeOrchestrator:
                             k: v
                             for k, v in validators_dict.items()
                             if k.lower() in _mine_only
+                        }
+                    # Docker prod mesh: only node1 mines; followers use follower_genesis_sync.
+                    if (
+                        validators_dict
+                        and self.config.mining_enabled
+                        and not getattr(self.config, "follower_genesis_sync", False)
+                        and _signing
+                    ):
+                        validators_dict = {
+                            k: v
+                            for k, v in validators_dict.items()
+                            if k.lower() == _signing.lower()
                         }
                     if validators_dict:
                         slot = getattr(self.consensus, "engine", None)

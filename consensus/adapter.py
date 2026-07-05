@@ -232,25 +232,25 @@ class ConsensusAdapter:
 
     # ── Аттестации ───────────────────────────────────────────────────────────
 
-    def attest(self, validator_addr: str, block_hash: str) -> bool:
+    def attest(self, validator_addr: str, block_hash: str, slot: int | None = None) -> bool:
         """Аттестация блока от валидатора. Проверяет на double-vote (slashing)."""
-        slot = self.engine.current_slot
+        slot_n = int(self.engine.current_slot if slot is None else slot)
 
         # LMD-GHOST + slashing check
         if self.slashing_engine:
-            ok = self.slashing_engine.on_attestation(validator_addr, block_hash, slot)
+            ok = self.slashing_engine.on_attestation(validator_addr, block_hash, slot_n)
             if not ok:
                 print(f"[Consensus] Attestation rejected (slashing): {validator_addr[:12]}...")
                 return False
 
-        ok = self.engine.attest(validator_addr, slot, block_hash)
+        ok = self.engine.attest(validator_addr, slot_n, block_hash)
         if ok:
             if self.validator_registry:
                 self.validator_registry.record_vote(validator_addr)
             if self.bus:
                 self.bus.emit("consensus.attestation", {
                     "validator": validator_addr,
-                    "slot": slot,
+                    "slot": slot_n,
                     "block_hash": block_hash,
                 })
         return ok

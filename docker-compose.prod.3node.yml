@@ -50,6 +50,7 @@ services:
     environment:
       <<: *abs-prod-env
       NODE_ID: docker-prod-mesh-1
+      MESH_MIN_PEERS_BEFORE_MINE: "2"
     volumes:
       - abs-prod-mesh1-data:/app/data
       - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro
@@ -83,6 +84,10 @@ services:
       - |
         set -e
         if [ "$$SKIP_DB_SEED" = "1" ]; then exit 0; fi
+        if [ ! -d /seed-from/chainstore ]; then
+          echo "FAIL: leader has no chainstore to seed"
+          exit 1
+        fi
         if [ -d /seed-from/chainstore ]; then
           rm -rf /seed-to/chainstore
           cp -a /seed-from/chainstore /seed-to/
@@ -112,6 +117,10 @@ services:
       - |
         set -e
         if [ "$$SKIP_DB_SEED" = "1" ]; then exit 0; fi
+        if [ ! -d /seed-from/chainstore ]; then
+          echo "FAIL: leader has no chainstore to seed"
+          exit 1
+        fi
         if [ -d /seed-from/chainstore ]; then
           rm -rf /seed-to/chainstore
           cp -a /seed-from/chainstore /seed-to/

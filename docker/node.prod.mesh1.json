@@ -13,6 +13,7 @@
   "ws_port": 8766,
   "bootstrap_peers": [],
   "mining_enabled": true,
+  "mesh_min_peers_before_mine": 2,
   "require_signatures": true,
   "require_native_crypto": true,
   "enforce_proposer": true,

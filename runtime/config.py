@@ -77,6 +77,7 @@ class Config:
     # ── P2P ─────────────────────────────────────────────────────────────────
     bootstrap_peers: List[str] = field(default_factory=list)
     follower_genesis_sync: bool = False  # prod followers: import genesis from peers, no local mint
+    mesh_min_peers_before_mine: int = 0   # prod mesh hub: wait for N peers before forging
     max_peers: int = 50
     testnet_expected_peers: int = 1     # mesh health threshold (3-node devnet: 2 on hub)
     testnet_expected_validators: int = 0  # Wave 55: 5-validator devnet
@@ -237,6 +238,9 @@ class Config:
         self.log_level = env_str("LOG_LEVEL", self.log_level)
         self.log_json = env_bool("LOG_JSON", self.log_json)
         self.mining_enabled = env_bool("MINING_ENABLED", self.mining_enabled)
+        self.mesh_min_peers_before_mine = env_int(
+            "MESH_MIN_PEERS_BEFORE_MINE", self.mesh_min_peers_before_mine
+        )
         self.require_signatures = env_bool(
             "REQUIRE_SIGNATURES",
             self.require_signatures if not self.is_production else True,

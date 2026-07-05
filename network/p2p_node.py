@@ -529,6 +529,8 @@ class P2PNode:
                         f"[P2P] State root mismatch vs {peer.peer_id[:8]}: "
                         f"local={local_root[:12]} peer={peer_root[:12]}"
                     )
+                elif peer_h == self.blockchain.get_height() and peer_root and peer_root == local_root:
+                    self._state_consistent = True
 
         elif msg_type == MSG_CROSS_SHARD_TX:
             await self._handle_cross_shard_tx(peer, data)
@@ -584,9 +586,11 @@ class P2PNode:
         block_hash = data.get("target_hash", "")
         if not validator or not block_hash:
             return
+        slot_raw = data.get("slot")
+        slot = int(slot_raw) if slot_raw is not None else None
         consensus = self._consensus
         if consensus and hasattr(consensus, "attest"):
-            if consensus.attest(validator, block_hash):
+            if consensus.attest(validator, block_hash, slot=slot):
                 await self._relay_attestation(data, exclude_peer=peer.peer_id)
 
     async def _relay_attestation(self, attestation: Dict, exclude_peer: str = ""):
@@ -648,8 +652,12 @@ class P2PNode:
                 self._state_consistent = bool(ok)
             if self._consensus and self.validator_keys:
                 try:
+                    # Match proposer attestation slot (block forged at slot height-1).
+                    attest_slot = max(0, int(block.height) - 1)
                     self._consensus.attest(
-                        self.validator_keys.get_address(), block.hash
+                        self.validator_keys.get_address(),
+                        block.hash,
+                        slot=attest_slot,
                     )
                 except Exception:
                     pass

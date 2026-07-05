@@ -4,6 +4,8 @@ param(
     [switch]$Bridge
 )
 
+$ComposeProject = "abs-prod-single"
+
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Split-Path -Parent $ScriptDir
 Set-Location $ProjectRoot
@@ -68,7 +70,7 @@ function Resolve-DockerProdPorts {
             return $default
         }
         Write-Host "Port 8080 is used by $($status8080.network_name) (chain $chainId) - mapping Docker prod to 18080/18545." -ForegroundColor Yellow
-        return @{ Http = 18080; Rpc = 18545; P2p = 15000; Ws = 18766 }
+        return @{ Http = 18080; Rpc = 18545; P2p = 15010; Ws = 18766 }
     }
     return $default
 }
@@ -182,8 +184,10 @@ $env:ABS_DOCKER_WS_PORT = [string]$ports.Ws
 $baseUrl = "http://127.0.0.1:$($ports.Http)"
 
 Write-Host "Recreating prod stack on HTTP $($ports.Http), RPC $($ports.Rpc)..." -ForegroundColor Cyan
-docker compose -f docker-compose.prod.yml down --remove-orphans 2>$null
-$composeArgs = @("-f", "docker-compose.prod.yml", "up", "--build", "-d", "--force-recreate")
+# Legacy default compose project (pre abs-prod-single split)
+docker compose -f docker-compose.prod.yml down 2>$null
+docker compose -p $ComposeProject -f docker-compose.prod.yml down 2>$null
+$composeArgs = @("-p", $ComposeProject, "-f", "docker-compose.prod.yml", "up", "--build", "-d", "--force-recreate")
 if ($Bridge) {
     $env:BRIDGE_ENABLED = "true"
     $env:BRIDGE_PROBE_L1_RPC = "true"
@@ -221,7 +225,7 @@ while ((Get-Date) -lt $deadline) {
 
 if (-not $ready) {
     Write-Host "WARN: node not ready yet - check logs: docker compose -f docker-compose.prod.yml logs node" -ForegroundColor Yellow
-    docker compose -f docker-compose.prod.yml logs node --tail 40
+    docker compose -p $ComposeProject -f docker-compose.prod.yml logs node --tail 40
     exit 1
 }
 
@@ -250,8 +254,8 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ("Prod node:  " + $baseUrl + "  RPC http://127.0.0.1:" + $ports.Rpc) -ForegroundColor Green
 if ($Bridge) {
-    Write-Host 'Relayer:   docker compose -f docker-compose.prod.yml --profile bridge logs -f relayer' -ForegroundColor Gray
+    Write-Host "Relayer:   docker compose -p $ComposeProject -f docker-compose.prod.yml --profile bridge logs -f relayer" -ForegroundColor Gray
 } else {
     Write-Host 'Bridge:    disabled (mainnet-v1 default). Use -Bridge for L1 cutover lab.' -ForegroundColor Gray
 }
-Write-Host 'All logs:  docker compose -f docker-compose.prod.yml logs -f' -ForegroundColor Gray
+Write-Host "All logs:  docker compose -p $ComposeProject -f docker-compose.prod.yml logs -f" -ForegroundColor Gray

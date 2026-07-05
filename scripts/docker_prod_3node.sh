@@ -69,19 +69,27 @@ until curl -sf "http://127.0.0.1:18180/health/ready" >/dev/null; do
 done
 
 if [[ "$NO_CLONE_DB" -eq 0 ]]; then
+  pre_h="$(curl -sf "http://127.0.0.1:18180/status" | python -c "import sys,json; print(int(json.load(sys.stdin).get('height',0)))" 2>/dev/null || echo "")"
+  if [[ -n "$pre_h" && "$pre_h" -gt 1 ]]; then
+    echo "FAIL: node1 height=$pre_h before seed (expected <=1). Mining ran before mesh peers." >&2
+    exit 1
+  fi
+  [[ -n "$pre_h" ]] && echo "OK: node1 height=$pre_h before seed"
   echo "Stopping node1 for consistent RocksDB seed..."
   docker compose -f "$COMPOSE_FILE" stop node1
   docker compose -f "$COMPOSE_FILE" --profile seed run --rm node2-db-seed
   docker compose -f "$COMPOSE_FILE" --profile seed run --rm node3-db-seed
-  docker compose -f "$COMPOSE_FILE" start node1
-  deadline=$((SECONDS + 120))
-  until curl -sf "http://127.0.0.1:18180/health/ready" >/dev/null; do
-    [[ "$SECONDS" -lt "$deadline" ]] || exit 1
-    sleep 3
-  done
 fi
 
-docker compose -f "$COMPOSE_FILE" up -d --force-recreate node2 node3
+echo "Starting 3-node mesh together (avoid solo mining before followers)..."
+docker compose -f "$COMPOSE_FILE" up -d --force-recreate node1 node2 node3
+
+echo "Waiting for node1..."
+deadline=$((SECONDS + 180))
+until curl -sf "http://127.0.0.1:18180/health/ready" >/dev/null; do
+  [[ "$SECONDS" -lt "$deadline" ]] || { docker compose -f "$COMPOSE_FILE" logs node1 --tail 40; exit 1; }
+  sleep 3
+done
 
 for port in 18181 18182; do
   deadline=$((SECONDS + 120))

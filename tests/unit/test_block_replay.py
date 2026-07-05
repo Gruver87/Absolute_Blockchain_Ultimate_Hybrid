@@ -69,3 +69,25 @@ def test_second_node_imports_block_state(tmp_path):
     assert node_b.import_block(exported)
     assert node_b.get_balance(recv) == 5.0
     assert node_b.get_height() == blk.height
+
+
+def test_ensure_state_repairs_stale_tip_metadata(tmp_path):
+    """Stale tip state_root (genesis-era) is repaired when accounts are canonical."""
+    cfg = Config()
+    cfg.db_path = str(tmp_path / "stale.db")
+    db = Database(cfg.db_path)
+    db.initialize()
+    proposer = "0x" + "aa" * 20
+    cfg.miner_address = proposer
+    bc = Blockchain(cfg, db, EventBus())
+    assert bc.add_block(bc.create_block([], proposer))
+    tip = bc.get_height()
+    live = bc.get_state_root()
+    genesis_root = db.get_block(0)["state_root"]
+    assert live != genesis_root
+    corrupt = dict(db.get_block(tip))
+    corrupt["state_root"] = genesis_root
+    corrupt["hash"] = Block.from_dict(corrupt)._compute_hash()
+    db.save_block(corrupt)
+    assert bc.ensure_state_at_tip()
+    assert db.get_block(tip)["state_root"] == live

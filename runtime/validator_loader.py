@@ -16,6 +16,26 @@ def load_manifest(path: str) -> Dict[str, Any]:
     return data
 
 
+def manifest_founder_address(path: str = "", manifest: Dict[str, Any] | None = None) -> str:
+    """Founder pool address for genesis/replay — validator index 1 in public manifests."""
+    data = manifest
+    if data is None:
+        if not path or not os.path.isfile(path):
+            return ""
+        data = load_manifest(path)
+    for row in manifest_entries(data):
+        if int(row.get("index", 0) or 0) == 1:
+            addr = str(row.get("address", "") or "").strip()
+            if addr.startswith("0x") and len(addr) == 42:
+                return addr
+    rows = manifest_entries(data)
+    if rows:
+        addr = str(rows[0].get("address", "") or "").strip()
+        if addr.startswith("0x") and len(addr) == 42:
+            return addr
+    return ""
+
+
 def manifest_entries(manifest: Dict[str, Any]) -> List[Dict[str, Any]]:
     rows = []
     for row in manifest.get("validators") or []:
@@ -73,12 +93,13 @@ def apply_public_manifest(node, path: str) -> int:
             continue
         stake = float(row.get("stake", getattr(node.config, "min_stake", 1000)))
         key = addr.lower()
+        if key in existing:
+            continue
         node.consensus.add_validator(addr, stake)
         if hasattr(node.db, "save_validator"):
             node.db.save_validator(addr, stake)
-        if key not in existing:
-            existing.add(key)
-            added += 1
+        existing.add(key)
+        added += 1
         if getattr(node, "validator_registry", None) and hasattr(
             node.validator_registry, "register_validator"
         ):

@@ -14,6 +14,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host ""
 Write-Host "2/2: bridge cutover node + relayer (18080/18545, Infura Mainnet)" -ForegroundColor DarkGray
+# Bridge P2P must not collide with mesh (15001-15003) or legacy single-node binds on 15000.
+$env:ABS_DOCKER_P2P_PORT = "15010"
 & "$ScriptDir\docker_prod.ps1" -Bridge
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

@@ -4929,6 +4929,16 @@ class RESTHandler(BaseHTTPRequestHandler):
                 harness = _build_state_consistency_harness(
                     self.__class__.p2p, bc, cfg, self.__class__.db
                 )
+                p2p = self.__class__.p2p
+                if p2p and hasattr(p2p, "_state_consistent") and harness.get("harness_healthy"):
+                    p2p._state_consistent = True
+                elif p2p and hasattr(p2p, "_state_consistent"):
+                    se = getattr(self.__class__, "sync_engine", None)
+                    if se and hasattr(se, "sync_state"):
+                        try:
+                            p2p._state_consistent = bool(se.sync_state())
+                        except Exception:
+                            pass
                 self._json({
                     "success": bool(repaired),
                     "repaired": bool(repaired),

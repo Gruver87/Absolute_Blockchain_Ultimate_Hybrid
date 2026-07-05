@@ -303,11 +303,7 @@ class Blockchain:
             print("[Blockchain] follower_genesis_sync: waiting for leader genesis via P2P")
             return
         if self.db.get_last_block() is None:
-            founder = (
-                getattr(self.config, "founder_address", "")
-                or self.config.miner_address
-                or ""
-            )
+            founder = self._resolve_genesis_founder()
             alloc = genesis_balances(founder or None)
             initials = getattr(self.config, "founder_initials", "D.U.P.")
             total_minted = 0.0
@@ -334,6 +330,7 @@ class Blockchain:
                 pass
             try:
                 self.db.set_meta("genesis_alloc_applied", True)
+                self.db.set_meta("genesis_founder", founder)
             except Exception:
                 pass
             print(
@@ -345,6 +342,73 @@ class Blockchain:
         else:
             self._align_genesis_state_root_if_needed()
 
+    def _resolve_genesis_founder(self) -> str:
+        """Same founder resolution as _ensure_genesis (replay must match mint)."""
+        return (
+            getattr(self.config, "founder_address", "")
+            or self.config.miner_address
+            or ""
+        )
+
+    def _pinned_genesis_founder(self) -> str:
+        """Founder used when genesis was minted — must not follow per-node wallets."""
+        try:
+            pinned = self.db.get_meta("genesis_founder")
+            if pinned:
+                return str(pinned).strip()
+        except Exception:
+            pass
+        try:
+            tok = self.db.get_meta("tokenomics")
+            if isinstance(tok, dict):
+                addr = str((tok.get("founder") or {}).get("address", "") or "").strip()
+                if addr:
+                    return addr
+        except Exception:
+            pass
+        manifest = getattr(self.config, "validators_manifest_path", "") or ""
+        if manifest:
+            try:
+                from runtime.validator_loader import manifest_founder_address
+
+                addr = manifest_founder_address(manifest)
+                if addr:
+                    return addr
+            except Exception:
+                pass
+        return self._resolve_genesis_founder()
+
+    def _align_block_state_root_metadata(self, height: int, state_root: str) -> bool:
+        """Repair stale state_root/hash when live account state is already canonical."""
+        blk = self.db.get_block(int(height))
+        if not blk:
+            return False
+        live = str(state_root or "").strip()
+        if not live or str(blk.get("state_root") or "").strip() == live:
+            return True
+        row = dict(blk)
+        row["state_root"] = live
+        block = Block.from_dict(row)
+        row["hash"] = block._compute_hash()
+        self.db.save_block(row)
+        print(f"[Blockchain] Block #{int(height)} state_root aligned ({live[:16]}…)")
+        return True
+
+    def _sync_tip_state_root_metadata(self) -> bool:
+        """Ensure tip block header state_root matches live DB (metadata only)."""
+        h = self.get_height()
+        if h < 0:
+            return True
+        live = str(self._compute_state_root_from_db() or "").strip()
+        if not live:
+            return True
+        blk = self.db.get_block(h)
+        if not blk:
+            return True
+        if str(blk.get("state_root") or "").strip() == live:
+            return True
+        return self._align_block_state_root_metadata(h, live)
+
     def _align_genesis_state_root_if_needed(self) -> None:
         """Fix genesis header when tip is still 0 (minted state vs empty state_root)."""
         if self.get_height() != 0:
@@ -355,12 +419,7 @@ class Blockchain:
         live = self._compute_state_root_from_db()
         if (blk.get("state_root") or "") == live:
             return
-        row = dict(blk)
-        row["state_root"] = live
-        genesis = Block.from_dict(row)
-        genesis.hash = genesis._compute_hash()
-        self.db.save_block(genesis.to_dict())
-        print(f"[Blockchain] Genesis state_root aligned ({live[:16]}…)")
+        self._align_block_state_root_metadata(0, live)
 
     def set_state_root_baseline(self, height: int) -> None:
         """Blocks at or below baseline may use legacy warn-on-drift on P2P import."""
@@ -520,7 +579,7 @@ class Blockchain:
                         block.to_dict(),
                         tx_dicts,
                         burned_amount=block.total_burned,
-                        burn_address=self.config.burn_address if block.total_burned > 0 else "",
+                        burn_address="",
                     )
             except Exception as e:
                 if (
@@ -994,13 +1053,11 @@ class Blockchain:
             if ancestor_height > tip:
                 return True
 
-            founder = (
-                getattr(self.config, "founder_address", "")
-                or ""
-            )
+            founder = self._pinned_genesis_founder()
             alloc = genesis_balances(founder or None)
 
             try:
+                repair_meta: tuple[int, str] | None = None
                 with self.db.atomic():
                     cut = int(ancestor_height)
                     replay_only = cut >= tip
@@ -1025,9 +1082,15 @@ class Blockchain:
                     replay_root = self._compute_state_root_from_db()
                     ancestor_block = self.db.get_block(cut)
                     if ancestor_block:
-                        expected = ancestor_block.get("state_root", "")
+                        expected = str(ancestor_block.get("state_root") or "").strip()
                         if expected and expected != replay_root:
-                            raise RuntimeError("reorg_state_root_mismatch")
+                            if replay_only:
+                                repair_meta = (cut, replay_root)
+                            else:
+                                raise RuntimeError("reorg_state_root_mismatch")
+
+                if repair_meta is not None:
+                    self._align_block_state_root_metadata(repair_meta[0], repair_meta[1])
 
                 action = "State replay" if replay_only else "Reorg"
                 print(f"[Blockchain] {action} complete at height #{ancestor_height}")
@@ -1058,7 +1121,8 @@ class Blockchain:
                 f"[Blockchain] State drift at tip #{h} "
                 f"(live={current[:16]}… expected={expected[:16]}…) — replaying"
             )
-            return self.reorg_to_ancestor(h)
+            ok = self.reorg_to_ancestor(h)
+            return ok
 
     def _validate_block_structure(self, block: Block) -> Dict:
         """Height/parent/hash checks before state execution."""

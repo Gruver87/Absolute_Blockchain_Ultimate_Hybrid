@@ -79,6 +79,7 @@ python scripts/prod_gate.py
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $composeFile = "docker-compose.prod.3node.yml"
+$ComposeProject = "abs-prod-mesh3"
 if ($NoCloneDb) {
     $env:SKIP_DB_SEED = "1"
 } else {
@@ -86,11 +87,11 @@ if ($NoCloneDb) {
 }
 
 Write-Host "Recreating prod 3-node mesh (18180/18181/18182)..." -ForegroundColor Cyan
-docker compose -f $composeFile down -v --remove-orphans 2>$null
-docker compose -f $composeFile build node1 node2 node3
+docker compose -p $ComposeProject -f $composeFile down -v --remove-orphans 2>$null
+docker compose -p $ComposeProject -f $composeFile build node1 node2 node3
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-docker compose -f $composeFile up -d --force-recreate node1
+docker compose -p $ComposeProject -f $composeFile up -d --force-recreate node1
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "Waiting for node1..." -ForegroundColor Gray
@@ -103,27 +104,47 @@ while ((Get-Date) -lt $deadline) {
     } catch { Start-Sleep -Seconds 5 }
 }
 if (-not $ready1) {
-    docker compose -f $composeFile logs node1 --tail 40
+    docker compose -p $ComposeProject -f $composeFile logs node1 --tail 40
     exit 1
 }
 
 if (-not $NoCloneDb) {
-    Write-Host "Stopping node1 for consistent RocksDB seed..." -ForegroundColor Gray
-    docker compose -f $composeFile stop node1 | Out-Null
-    docker compose -f $composeFile --profile seed run --rm node2-db-seed | Out-Null
-    docker compose -f $composeFile --profile seed run --rm node3-db-seed | Out-Null
-    docker compose -f $composeFile start node1 | Out-Null
-    $deadline = (Get-Date).AddMinutes(2)
-    while ((Get-Date) -lt $deadline) {
-        try {
-            $resp = Invoke-WebRequest -Uri "http://127.0.0.1:18180/health/ready" -UseBasicParsing -TimeoutSec 5
-            if ($resp.StatusCode -eq 200) { break }
-        } catch { Start-Sleep -Seconds 3 }
+    try {
+        $preSeed = Invoke-RestMethod -Uri "http://127.0.0.1:18180/status" -TimeoutSec 5
+        $preH = [int]($preSeed.height)
+        if ($preH -gt 1) {
+            Write-Host "FAIL: node1 height=$preH before seed (expected <=1). Mining ran before mesh peers." -ForegroundColor Red
+            exit 1
+        }
+        Write-Host "OK: node1 height=$preH before seed" -ForegroundColor DarkGray
+    } catch {
+        Write-Host "WARN: could not read node1 height before seed" -ForegroundColor Yellow
     }
+    Write-Host "Stopping node1 for consistent RocksDB seed..." -ForegroundColor Gray
+    docker compose -p $ComposeProject -f $composeFile stop node1 | Out-Null
+    docker compose -p $ComposeProject -f $composeFile --profile seed run --rm node2-db-seed
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    docker compose -p $ComposeProject -f $composeFile --profile seed run --rm node3-db-seed
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
-docker compose -f $composeFile up -d --force-recreate node2 node3
+Write-Host "Starting 3-node mesh together (avoid solo mining before followers)..." -ForegroundColor Gray
+docker compose -p $ComposeProject -f $composeFile up -d --force-recreate node1 node2 node3
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+Write-Host "Waiting for node1 HTTP..." -ForegroundColor Gray
+$deadline = (Get-Date).AddMinutes(3)
+$ready1 = $false
+while ((Get-Date) -lt $deadline) {
+    try {
+        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:18180/health/ready" -UseBasicParsing -TimeoutSec 5
+        if ($resp.StatusCode -eq 200) { $ready1 = $true; break }
+    } catch { Start-Sleep -Seconds 3 }
+}
+if (-not $ready1) {
+    docker compose -p $ComposeProject -f $composeFile logs node1 --tail 40
+    exit 1
+}
 
 Write-Host "Waiting for node2/node3 HTTP..." -ForegroundColor Gray
 foreach ($port in @(18181, 18182)) {
@@ -144,9 +165,9 @@ foreach ($port in @(18181, 18182)) {
 Write-Host "Waiting for 3-node mesh sync..." -ForegroundColor Cyan
 python scripts/verify_p2p_ci.py --mode prod-mesh3-live --url1 http://127.0.0.1:18180 --url2 http://127.0.0.1:18181 --url3 http://127.0.0.1:18182 --wait 360
 if ($LASTEXITCODE -ne 0) {
-    docker compose -f $composeFile logs node1 --tail 20
-    docker compose -f $composeFile logs node2 --tail 20
-    docker compose -f $composeFile logs node3 --tail 20
+    docker compose -p $ComposeProject -f $composeFile logs node1 --tail 20
+    docker compose -p $ComposeProject -f $composeFile logs node2 --tail 20
+    docker compose -p $ComposeProject -f $composeFile logs node3 --tail 20
     exit $LASTEXITCODE
 }
 
