@@ -29,6 +29,15 @@ sqlite
 rocksdb
 ```
 
+## Branches
+
+| Branch | Role |
+|--------|------|
+| **`main`** | Default on GitHub — keep in sync with `master` |
+| **`master`** | Primary development branch (local default) |
+
+After push: `git push origin master && git push origin master:main`
+
 ## Current release
 
 | Field | Value |
