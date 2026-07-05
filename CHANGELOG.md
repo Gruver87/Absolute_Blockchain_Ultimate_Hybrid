@@ -6,6 +6,16 @@
 
 ---
 
+## [1.2.16] — 2026-07-06
+
+### Fixed
+
+- Prod mesh followers crash-loop: `require_wallet_file` vs watch-only synced follower (height > 1)
+- `docker_prod_3node.ps1/.sh`: `-KeepVolumes` auto-skips DB seed; no-seed path starts all 3 nodes together
+- Prod mesh script: node2/node3 wait `/health/ready` (5 min), logs on failure
+
+---
+
 ## [1.2.15] — 2026-07-05
 
 ### Fixed

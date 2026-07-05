@@ -107,6 +107,12 @@ if ($NoCloneDb) {
     Remove-Item Env:SKIP_DB_SEED -ErrorAction SilentlyContinue
 }
 
+if ($KeepVolumes -and -not $NoCloneDb) {
+    Write-Host "KeepVolumes: skipping DB seed (preserved RocksDB volumes)" -ForegroundColor Yellow
+    $NoCloneDb = $true
+    $env:SKIP_DB_SEED = "1"
+}
+
 Write-Host "Recreating prod 3-node mesh (18180/18181/18182)..." -ForegroundColor Cyan
 if ($SkipBuild) {
     Write-Host "SkipBuild: using existing Docker image (no compose build)" -ForegroundColor Yellow
@@ -125,24 +131,28 @@ if (-not $SkipBuild) {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
-docker compose -p $ComposeProject -f $composeFile up -d --force-recreate node1
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+if ($NoCloneDb) {
+    Write-Host "Starting 3-node mesh (no DB seed)..." -ForegroundColor Gray
+    docker compose -p $ComposeProject -f $composeFile up -d --force-recreate node1 node2 node3
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+} else {
+    docker compose -p $ComposeProject -f $composeFile up -d --force-recreate node1
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-Write-Host "Waiting for node1..." -ForegroundColor Gray
-$deadline = (Get-Date).AddMinutes(3)
-$ready1 = $false
-while ((Get-Date) -lt $deadline) {
-    try {
-        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:18180/health/ready" -UseBasicParsing -TimeoutSec 5
-        if ($resp.StatusCode -eq 200) { $ready1 = $true; break }
-    } catch { Start-Sleep -Seconds 5 }
-}
-if (-not $ready1) {
-    docker compose -p $ComposeProject -f $composeFile logs node1 --tail 40
-    exit 1
-}
+    Write-Host "Waiting for node1..." -ForegroundColor Gray
+    $deadline = (Get-Date).AddMinutes(3)
+    $ready1 = $false
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $resp = Invoke-WebRequest -Uri "http://127.0.0.1:18180/health/ready" -UseBasicParsing -TimeoutSec 5
+            if ($resp.StatusCode -eq 200) { $ready1 = $true; break }
+        } catch { Start-Sleep -Seconds 5 }
+    }
+    if (-not $ready1) {
+        docker compose -p $ComposeProject -f $composeFile logs node1 --tail 40
+        exit 1
+    }
 
-if (-not $NoCloneDb) {
     try {
         $preSeed = Invoke-RestMethod -Uri "http://127.0.0.1:18180/status" -TimeoutSec 5
         $preH = [int]($preSeed.height)
@@ -160,11 +170,11 @@ if (-not $NoCloneDb) {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     docker compose -p $ComposeProject -f $composeFile --profile seed run --rm node3-db-seed
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-}
 
-Write-Host "Starting 3-node mesh together (avoid solo mining before followers)..." -ForegroundColor Gray
-docker compose -p $ComposeProject -f $composeFile up -d --force-recreate node1 node2 node3
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    Write-Host "Starting 3-node mesh together (avoid solo mining before followers)..." -ForegroundColor Gray
+    docker compose -p $ComposeProject -f $composeFile up -d --force-recreate node1 node2 node3
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
 
 Write-Host "Waiting for node1 HTTP..." -ForegroundColor Gray
 $deadline = (Get-Date).AddMinutes(3)
@@ -181,17 +191,21 @@ if (-not $ready1) {
 }
 
 Write-Host "Waiting for node2/node3 HTTP..." -ForegroundColor Gray
+$portToService = @{ 18181 = "node2"; 18182 = "node3" }
 foreach ($port in @(18181, 18182)) {
-    $deadline = (Get-Date).AddMinutes(2)
+    $deadline = (Get-Date).AddMinutes(5)
     $ready = $false
     while ((Get-Date) -lt $deadline) {
         try {
-            $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$port/health/live" -UseBasicParsing -TimeoutSec 5
+            $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$port/health/ready" -UseBasicParsing -TimeoutSec 5
             if ($resp.StatusCode -eq 200) { $ready = $true; break }
         } catch { Start-Sleep -Seconds 3 }
     }
     if (-not $ready) {
-        Write-Host "FAIL: mesh node not reachable on port $port" -ForegroundColor Red
+        $svc = $portToService[$port]
+        Write-Host "FAIL: mesh node not reachable on port $port (/health/ready)" -ForegroundColor Red
+        docker compose -p $ComposeProject -f $composeFile ps -a
+        docker compose -p $ComposeProject -f $composeFile logs $svc --tail 60
         exit 1
     }
 }

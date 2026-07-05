@@ -457,8 +457,19 @@ class NodeOrchestrator:
                 except Exception as _pke:
                     print(f"[Node] WALLET_PRIVATE_KEY invalid ({_pke})")
         if config.require_wallet_file and self.wallet is None:
-            raise RuntimeError(
-                f"Production mode requires wallet with private_key at: {_wallet_path}"
+            _synced_prod_follower = (
+                not config.mining_enabled
+                and getattr(config, "follower_genesis_sync", False)
+                and _chain_h_boot > 1
+                and os.path.exists(_wallet_path)
+            )
+            if not _synced_prod_follower:
+                raise RuntimeError(
+                    f"Production mode requires wallet with private_key at: {_wallet_path}"
+                )
+            print(
+                f"[Node] Prod synced follower: wallet.json present (watch-only, "
+                f"height={_chain_h_boot})"
             )
         if _WALLET_AVAILABLE and self.wallet is None and not config.require_wallet_file:
             if config.miner_address and os.path.exists(_wallet_path):
