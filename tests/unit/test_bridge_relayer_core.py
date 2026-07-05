@@ -109,6 +109,7 @@ def test_relayer_preflight_ok(monkeypatch):
         "bridge.health.check_l1_rpc_health",
         lambda cfg, timeout=3.0: {"required": True, "configured": True, "ok": True},
     )
+    monkeypatch.setattr(relayer, "relayer_require_l1_proof", lambda: False)
     out = relayer.check_relayer_readiness("http://127.0.0.1:8080", "x" * 32)
     assert out["ok"] is True
     assert out["require_l1_proof"] is False

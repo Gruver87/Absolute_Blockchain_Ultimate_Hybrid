@@ -28,7 +28,7 @@ def _rust_bin():
 @pytest.fixture
 def rust_bridge_env(monkeypatch):
     """Isolated rust bridge — no L1 RPC from host .env."""
-    for key in ("ETH_RPC_URL", "BSC_RPC_URL", "POLYGON_RPC_URL", "BRIDGE_MIN_CONFIRMATIONS"):
+    for key in ("ETH_RPC_URL", "BSC_RPC_URL", "POLYGON_RPC_URL", "BRIDGE_REQUIRE_L1_PROOF"):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("BRIDGE_ALLOW_SYNTHETIC", "1")
     fd, path = tempfile.mkstemp(suffix=".db")

@@ -23,10 +23,17 @@ def _bridge_bin():
     pytest.skip("bridge/abs_bridge_bin not built — run scripts/build_bridge.sh")
 
 
+def _synthetic_bridge_env():
+    env = {**os.environ, "BRIDGE_ALLOW_SYNTHETIC": "1"}
+    for key in ("ETH_RPC_URL", "BSC_RPC_URL", "POLYGON_RPC_URL", "BRIDGE_REQUIRE_L1_PROOF"):
+        env.pop(key, None)
+    return env
+
+
 def test_rust_bridge_cli_returns_tx_hash():
     exe = _bridge_bin()
     payload = json.dumps({"command": "bridge", "args": {"amount": 10}}).encode()
-    env = {**os.environ, "BRIDGE_ALLOW_SYNTHETIC": "1"}
+    env = _synthetic_bridge_env()
     proc = subprocess.run([exe], input=payload, capture_output=True, timeout=10, env=env)
     assert proc.returncode == 0, proc.stderr.decode()
     out = json.loads(proc.stdout.decode())
@@ -53,7 +60,7 @@ def test_rust_bridge_cli_incoming_command():
         "command": "incoming",
         "args": {"tx_hash": "0xabc", "recipient": "0x1", "amount": 5, "from_chain": "ethereum"},
     }).encode()
-    env = {**os.environ, "BRIDGE_ALLOW_SYNTHETIC": "1"}
+    env = _synthetic_bridge_env()
     proc = subprocess.run([exe], input=payload, capture_output=True, timeout=10, env=env)
     assert proc.returncode == 0, proc.stderr.decode()
     out = json.loads(proc.stdout.decode())

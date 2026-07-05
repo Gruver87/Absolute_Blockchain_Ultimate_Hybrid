@@ -536,6 +536,9 @@ class RustBridge:
         env = dict(os.environ)
         if self._is_prod:
             env.pop("BRIDGE_ALLOW_SYNTHETIC", None)
+        elif str(env.get("BRIDGE_ALLOW_SYNTHETIC", "")).lower() in ("1", "true", "yes", "on"):
+            for key in ("ETH_RPC_URL", "BSC_RPC_URL", "POLYGON_RPC_URL", "BRIDGE_REQUIRE_L1_PROOF"):
+                env.pop(key, None)
         return env
 
     def _call_rust(self, command: str, args: Dict) -> Optional[str]:

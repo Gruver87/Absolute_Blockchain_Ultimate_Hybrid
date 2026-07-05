@@ -137,7 +137,7 @@ if (-not $SkipNativeBuild) {
 }
 
 Run-Step "Native crypto self-test" {
-    python -c 'from crypto import native; st=native.native_crypto_status(required=True); assert st["available"] and st["self_test"], st; print("OK native:", st)'
+    python -c "from crypto import native; st=native.native_crypto_status(required=True); assert st['available'] and st['self_test'], st; print('OK native:', st)"
 }
 
 Run-Step "Secrets scan" {

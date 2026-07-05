@@ -49,7 +49,7 @@ def run_gate(
     saved_ceremony_hash = os.environ.get("GENESIS_CEREMONY_HASH")
     deploy_meta_path = ROOT / "data" / "ceremony_deploy.json"
     deploy_meta_loaded = False
-    if ceremony_dir and deploy_meta_path.is_file():
+    if not ceremony_dir and deploy_meta_path.is_file():
         try:
             deploy_meta = json.loads(deploy_meta_path.read_text(encoding="utf-8"))
             if deploy_meta.get("ceremony_hash"):

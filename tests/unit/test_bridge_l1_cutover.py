@@ -36,6 +36,7 @@ def test_cutover_gate_fails_on_placeholder_rpc(monkeypatch):
 
 def test_cutover_gate_static_ok_with_valid_rpc(monkeypatch):
     monkeypatch.setenv("ETH_RPC_URL", "https://mainnet.infura.io/v3/testkey")
+    monkeypatch.delenv("BRIDGE_ALLOW_SYNTHETIC", raising=False)
     with patch("bridge.health.check_rust_bridge_binary", return_value={"ok": True}):
         errors, _warnings, meta = run_cutover_gate(probe_l1=False)
     assert not any("rust_bridge" in e for e in errors), errors
@@ -85,6 +86,7 @@ def test_cutover_live_bridge_disabled_clear_error(monkeypatch):
 
 def test_cutover_live_uses_prod_smoke(monkeypatch):
     monkeypatch.setenv("ETH_RPC_URL", "https://mainnet.infura.io/v3/testkey")
+    monkeypatch.delenv("BRIDGE_ALLOW_SYNTHETIC", raising=False)
     fake_report = {
         "ok": True,
         "errors": [],

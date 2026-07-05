@@ -94,6 +94,15 @@ def apply_public_manifest(node, path: str) -> int:
         stake = float(row.get("stake", getattr(node.config, "min_stake", 1000)))
         key = addr.lower()
         if key in existing:
+            current = next(
+                (v for v in (node.db.get_validators(active_only=False) or []) if v.get("address", "").lower() == key),
+                None,
+            )
+            current_stake = float((current or {}).get("stake", 0) or 0)
+            if stake != current_stake:
+                node.consensus.add_validator(addr, stake)
+                if hasattr(node.db, "save_validator"):
+                    node.db.save_validator(addr, stake)
             continue
         node.consensus.add_validator(addr, stake)
         if hasattr(node.db, "save_validator"):
