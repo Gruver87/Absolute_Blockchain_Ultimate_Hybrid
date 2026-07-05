@@ -32,6 +32,8 @@ def test_prod_mesh_compose_has_three_nodes():
     assert "node3:" in text
     assert "prod_mesh/wallets/validator-1.wallet.json" in text
     assert "BRIDGE_ENABLED" in text
+    assert "ABS_PROD_IMAGE" in text
+    assert "Dockerfile.prod" in text
 
 
 def test_k8s_includes_relayer_deployment():

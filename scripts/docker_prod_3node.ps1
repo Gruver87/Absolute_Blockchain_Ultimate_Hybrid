@@ -3,7 +3,9 @@ param(
     [string]$CeremonyDir = "data/ceremony_keys",
     [switch]$NoCloneDb,
     [switch]$SkipBuild,
-    [switch]$KeepVolumes
+    [switch]$KeepVolumes,
+    [switch]$PullLatest,
+    [string]$ProdImage = "ghcr.io/gruver87/abs-blockchain-node:latest"
 )
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -84,6 +86,21 @@ $composeFile = "docker-compose.prod.3node.yml"
 $ComposeProject = "abs-prod-mesh3"
 $env:DOCKER_BUILDKIT = "1"
 $env:COMPOSE_DOCKER_CLI_BUILD = "1"
+
+if ($PullLatest) {
+    Write-Host "PullLatest: pulling $ProdImage" -ForegroundColor Cyan
+    docker pull $ProdImage
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "FAIL: could not pull $ProdImage" -ForegroundColor Red
+        Write-Host "  Image is published after CI workflow 'Docker prod image' succeeds on master." -ForegroundColor Yellow
+        Write-Host "  Check: https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions" -ForegroundColor Yellow
+        Write-Host "  Or build locally: .\scripts\docker_prod_3node.ps1" -ForegroundColor Yellow
+        exit 1
+    }
+    $env:ABS_PROD_IMAGE = $ProdImage
+    $SkipBuild = $true
+}
+
 if ($NoCloneDb) {
     $env:SKIP_DB_SEED = "1"
 } else {

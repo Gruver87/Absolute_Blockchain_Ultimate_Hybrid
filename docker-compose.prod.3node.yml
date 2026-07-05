@@ -35,11 +35,15 @@ x-abs-prod-env: &abs-prod-env
   GENESIS_STRICT_MAINNET: ${GENESIS_STRICT_MAINNET:-false}
   VALIDATORS_MANIFEST_PATH: data/validators.manifest.json
 
+x-prod-node-build: &prod-node-build
+  image: ${ABS_PROD_IMAGE:-abs-blockchain-prod:local}
+  build:
+    context: .
+    dockerfile: Dockerfile.prod
+
 services:
   node1:
-    build:
-      context: .
-      dockerfile: Dockerfile.prod
+    <<: *prod-node-build
     hostname: abs-prod-mesh-1
     command: ["python", "main.py", "--config", "docker/node.prod.mesh1.json"]
     ports:
@@ -138,9 +142,7 @@ services:
       - abs-prod-mesh
 
   node2:
-    build:
-      context: .
-      dockerfile: Dockerfile.prod
+    <<: *prod-node-build
     hostname: abs-prod-mesh-2
     command: ["python", "main.py", "--config", "docker/node.prod.mesh2.json"]
     ports:
@@ -176,9 +178,7 @@ services:
     restart: unless-stopped
 
   node3:
-    build:
-      context: .
-      dockerfile: Dockerfile.prod
+    <<: *prod-node-build
     hostname: abs-prod-mesh-3
     command: ["python", "main.py", "--config", "docker/node.prod.mesh3.json"]
     ports:

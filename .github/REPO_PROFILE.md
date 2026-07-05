@@ -42,9 +42,9 @@ Local push: `.\scripts\push_origin.ps1` or `git push origin master`.
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.2.1` |
-| **Title** | `v1.2.1 — Devnet ops & mainnet-v1 clarity` |
-| **Notes file** | [RELEASE_NOTES_v1.2.1.md](../RELEASE_NOTES_v1.2.1.md) |
+| **Tag** | `v1.2.2` |
+| **Title** | `v1.2.2 — Docker GHCR + fast mesh ops` |
+| **Notes file** | [CHANGELOG.md](../CHANGELOG.md#122--2026-07-05) |
 | **Tests** | 698 passed, 1 skipped (`pytest tests/ -q`) |
 | **API wave** | 61 |
 

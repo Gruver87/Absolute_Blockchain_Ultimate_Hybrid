@@ -1,19 +1,36 @@
-# Devnet image with Rust bridge CLI baked in (node1 rust mode)
+# syntax=docker/dockerfile:1
+# Devnet image with Rust bridge CLI + abs_native (BuildKit cache enabled).
 FROM rust:1-bookworm AS bridge-builder
 WORKDIR /build
 COPY bridge/rust_bridge/Cargo.toml bridge/rust_bridge/Cargo.lock ./
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    cargo fetch --locked
 COPY bridge/rust_bridge/src ./src
-RUN cargo build --release
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/target \
+    cargo build --release --locked
+
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
      python3 python3-pip \
      clang libclang-dev cmake pkg-config \
      libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev \
   && rm -rf /var/lib/apt/lists/*
-COPY native/abs_native /build/native/abs_native
-RUN python3 -m pip install --break-system-packages --no-cache-dir maturin \
-  && cd /build/native/abs_native \
-  && python3 -m maturin build --release --out /wheels
+RUN python3 -m pip install --break-system-packages --no-cache-dir maturin
+
+WORKDIR /build/native/abs_native
+COPY native/abs_native/Cargo.toml native/abs_native/Cargo.lock ./
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    cargo fetch --locked
+COPY native/abs_native/pyproject.toml native/abs_native/Cargo.toml native/abs_native/Cargo.lock ./
+COPY native/abs_native/src ./src
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/native/abs_native/target \
+    python3 -m maturin build --release --out /wheels
 
 FROM python:3.13-slim
 

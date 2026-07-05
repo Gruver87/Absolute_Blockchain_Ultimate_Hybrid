@@ -34,6 +34,7 @@
 | Release v1.2.1 | [RELEASE_NOTES_v1.2.1.md](RELEASE_NOTES_v1.2.1.md) |
 | Mainnet gap (honest) | [docs/MAINNET_GAP_ANALYSIS.md](docs/MAINNET_GAP_ANALYSIS.md) |
 | Bridge L1 cutover | [docs/BRIDGE_L1_MAINNET.md](docs/BRIDGE_L1_MAINNET.md) |
+| Docker images (GHCR) | [docs/DOCKER_IMAGES.md](docs/DOCKER_IMAGES.md) |
 | Honest command reference | [docs/COMMANDS_REFERENCE.md](docs/COMMANDS_REFERENCE.md) |
 
 ---
@@ -267,6 +268,9 @@ $env:DOCKER_BUILDKIT = "1"
 
 # Repeat start (existing image, keep RocksDB volumes)
 .\scripts\docker_prod_3node.ps1 -SkipBuild -KeepVolumes -NoCloneDb
+
+# Use CI-built image from GHCR (after Actions workflow succeeds on master)
+.\scripts\docker_prod_3node.ps1 -PullLatest -KeepVolumes -NoCloneDb
 
 # Or one-liner
 .\scripts\quick_restore.ps1 -KeepData

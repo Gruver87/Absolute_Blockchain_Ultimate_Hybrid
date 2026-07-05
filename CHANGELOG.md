@@ -6,6 +6,22 @@
 
 ---
 
+## [1.2.2] — 2026-07-05
+
+### Added
+
+- `.github/workflows/docker-prod-image.yml` — BuildKit + GHA cache; publishes `ghcr.io/gruver87/abs-blockchain-node` on master/tags
+- `-PullLatest` / `--pull-latest` for prod mesh scripts (uses GHCR image via `ABS_PROD_IMAGE`)
+- `docs/DOCKER_IMAGES.md` — honest Docker/GHCR ops guide
+- BuildKit cache layers in `Dockerfile.devnet-rust` (same pattern as prod)
+
+### Changed
+
+- `docker-compose.prod.3node.yml` — `ABS_PROD_IMAGE` override for prebuilt images
+- Prod mesh README section — GHCR pull path documented
+
+---
+
 ## [1.2.1] — 2026-07-05
 
 ### Added

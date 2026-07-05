@@ -8,12 +8,16 @@ CEREMONY_DIR="${CEREMONY_DIR:-data/ceremony_keys}"
 NO_CLONE_DB=0
 SKIP_BUILD=0
 KEEP_VOLUMES=0
+PULL_LATEST=0
+PROD_IMAGE="${PROD_IMAGE:-ghcr.io/gruver87/abs-blockchain-node:latest}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --ceremony-dir) CEREMONY_DIR="$2"; shift 2 ;;
     --no-clone-db) NO_CLONE_DB=1; shift ;;
     --skip-build) SKIP_BUILD=1; shift ;;
     --keep-volumes) KEEP_VOLUMES=1; shift ;;
+    --pull-latest) PULL_LATEST=1; shift ;;
+    --prod-image) PROD_IMAGE="$2"; shift 2 ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -57,6 +61,18 @@ COMPOSE_FILE="docker-compose.prod.3node.yml"
 COMPOSE_PROJECT="abs-prod-mesh3"
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
+
+if [[ "$PULL_LATEST" -eq 1 ]]; then
+  echo "PullLatest: pulling $PROD_IMAGE"
+  docker pull "$PROD_IMAGE" || {
+    echo "FAIL: could not pull $PROD_IMAGE" >&2
+    echo "  Image is published after CI workflow 'Docker prod image' succeeds on master." >&2
+    exit 1
+  }
+  export ABS_PROD_IMAGE="$PROD_IMAGE"
+  SKIP_BUILD=1
+fi
+
 if [[ "$NO_CLONE_DB" -eq 1 ]]; then
   export SKIP_DB_SEED=1
 else
