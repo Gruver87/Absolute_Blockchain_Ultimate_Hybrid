@@ -43,6 +43,16 @@ def _open_engine(chainstore: str):
         raise
 
 
+def _prepare_backup_dest(dest_root: str, out_chain: str) -> None:
+    """Clear prior backup files without removing a bind-mounted dest_root."""
+    os.makedirs(dest_root, exist_ok=True)
+    if os.path.isdir(out_chain):
+        shutil.rmtree(out_chain)
+    manifest = os.path.join(dest_root, "backup_manifest.json")
+    if os.path.isfile(manifest):
+        os.remove(manifest)
+
+
 def main() -> int:
     data_dir = os.environ.get("DATA_DIR", "/app/data").strip()
     dest_root = os.environ.get("BACKUP_DEST", "").strip()
@@ -62,9 +72,7 @@ def main() -> int:
         return 1
 
     out_chain = os.path.join(dest_root, "chainstore")
-    if os.path.isdir(dest_root):
-        shutil.rmtree(dest_root)
-    os.makedirs(dest_root, exist_ok=True)
+    _prepare_backup_dest(dest_root, out_chain)
 
     engine = _open_engine(chainstore)
     engine.checkpoint(out_chain)

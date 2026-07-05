@@ -6,6 +6,14 @@
 
 ---
 
+## [1.2.11] — 2026-07-05
+
+### Fixed
+
+- Docker backup: do not `rmtree` bind-mounted `/backup` (EBUSY on Windows Docker)
+
+---
+
 ## [1.2.10] — 2026-07-05
 
 ### Fixed
