@@ -750,9 +750,18 @@ class RocksChainStore:
     def reorg_truncate_above(self, height: int) -> None:
         self._drop_root_acc()
         cut = int(height)
-        for key, _value in self._scan_prefix(kc.prefix_block_heights()):
-            if kc.unpack_u64(key[1:9]) > cut:
-                self._raw_delete(key)
+        for key, value in list(self._scan_prefix(kc.prefix_block_heights())):
+            h = kc.unpack_u64(key[1:9])
+            if h <= cut:
+                continue
+            try:
+                block = json.loads(value.decode("utf-8"))
+                block_hash = block.get("hash", block.get("block_hash", "")) or ""
+                if block_hash:
+                    self._raw_delete(kc.key_block_hash_to_height(block_hash))
+            except Exception:
+                pass
+            self._raw_delete(key)
         for key, _value in list(self._scan_prefix(kc.P_BLOCK_TX)):
             if len(key) >= 9 and kc.unpack_u64(key[1:9]) > cut:
                 self._raw_delete(key)
@@ -779,6 +788,12 @@ class RocksChainStore:
         for key, value in list(self._scan_prefix(kc.P_STATE_ROOT_MM)):
             if len(key) >= 9 and kc.unpack_u64(key[1:9]) > cut:
                 self._raw_delete(key)
+        tip = self.get_block(cut)
+        if tip:
+            self._touch_live_state_root_meta(tip)
+        else:
+            for meta_key in ("live_state_root", "live_state_root_height", "state_root"):
+                self._raw_delete(kc.key_meta(meta_key))
 
     def truncate_chain_state(self, height: int) -> int:
         with self.atomic():

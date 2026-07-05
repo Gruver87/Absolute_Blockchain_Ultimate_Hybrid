@@ -41,6 +41,15 @@ def _clone_rocks_directory(source: str, dest: str) -> None:
         raise FileNotFoundError(f"source chainstore not found: {src}")
     if dst.exists():
         shutil.rmtree(dst)
+    try:
+        import abs_native  # type: ignore
+
+        if hasattr(abs_native, "RocksEngine"):
+            engine = abs_native.RocksEngine(str(src), create_if_missing=False, sync_writes=False)
+            engine.checkpoint(str(dst))
+            return
+    except Exception:
+        pass
     shutil.copytree(src, dst)
 
 

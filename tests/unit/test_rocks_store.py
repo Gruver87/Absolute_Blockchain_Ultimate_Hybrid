@@ -149,6 +149,36 @@ def test_state_root_mismatch_audit_on_rocks(rocks):
     assert rows[0]["expected_root"] == "a" * 64
 
 
+def test_reorg_refreshes_live_state_root_meta(rocks):
+    from runtime.tokenomics import genesis_balances
+
+    founder = "0x" + "c" * 40
+    for addr, amount in genesis_balances(founder).items():
+        rocks.set_balance(addr, float(amount))
+    roots = []
+    for h in range(1, 4):
+        root = rocks.compute_state_root()
+        roots.append(root)
+        rocks.persist_block_atomic(
+            {
+                "height": h,
+                "hash": hex(h)[2:].zfill(64),
+                "parent_hash": "0" * 64,
+                "timestamp": 1700000000 + h,
+                "miner": founder,
+                "state_root": root,
+                "transactions": [],
+            },
+            [],
+        )
+    assert rocks.get_live_state_root_meta() == (roots[-1], 3)
+    with rocks.atomic():
+        rocks.reorg_truncate_above(1)
+    assert rocks.get_chain_tip() == 1
+    assert rocks.get_block_by_hash(hex(3)[2:].zfill(64)) is None
+    assert rocks.get_live_state_root_meta() == (roots[0], 1)
+
+
 def test_reorg_truncate_and_reset(rocks):
     for h in range(1, 4):
         rocks.persist_block_atomic(
