@@ -115,7 +115,7 @@ function Invoke-JsonEndpoint {
         Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec $TimeoutSec | Out-Null
     }
     catch {
-        throw "Live check failed for $url — start the node first: python main.py (or .\scripts\start_two_nodes.ps1 -Fresh)"
+        throw "Live check failed for $url - start the node first: python main.py (or .\scripts\start_two_nodes.ps1 -Fresh)"
     }
 }
 
@@ -137,7 +137,7 @@ if (-not $SkipNativeBuild) {
 }
 
 Run-Step "Native crypto self-test" {
-    python -c "from crypto import native; st=native.native_crypto_status(required=True); assert st['available'] and st['self_test'], st; print('OK native:', st)"
+    python -c 'from crypto import native; st=native.native_crypto_status(required=True); assert st["available"] and st["self_test"], st; print("OK native:", st)'
 }
 
 Run-Step "Secrets scan" {
@@ -207,6 +207,9 @@ Run-Step "Hybrid critical native/consensus/EVM tests" {
         tests/unit/test_verify_prod_stack.py `
         tests/unit/test_native_consensus_hash.py `
         tests/unit/test_native_peer_validation.py `
+        tests/unit/test_rocks_store.py `
+        tests/unit/test_hybrid_bridge.py `
+        tests/unit/test_rocks_blockchain_integration.py `
         tests/unit/test_evm_keccak_native.py `
         tests/unit/test_evm_native_u256.py `
         tests/unit/test_evm_native_cmp_memory.py `
