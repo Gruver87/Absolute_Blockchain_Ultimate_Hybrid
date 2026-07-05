@@ -29,6 +29,11 @@ def compute_db_state_root(accounts: List[Dict[str, Any]]) -> str:
     return native.state_root_from_accounts_json(_canonical_accounts_json(accounts))
 
 
+def compute_state_root_from_blobs(account_blobs: List[bytes]) -> str:
+    """Fast path for RocksDB: hash account JSON blobs without Python row materialization."""
+    return native.state_root_from_account_blobs(account_blobs)
+
+
 def compute_state_engine_root(accounts: Dict[str, Any]) -> str:
     """
     Legacy in-memory StateEngine root.

@@ -135,8 +135,8 @@ def migrate(source_db: str, dest_chainstore: str, *, sync: str = "FULL") -> dict
 
         stats["source_tip"] = int(src.get_chain_tip() or 0)
         stats["dest_tip"] = int(rocks.get_chain_tip() or 0)
-        stats["source_state_root"] = compute_db_state_root(src.get_all_accounts())
-        stats["dest_state_root"] = compute_db_state_root(rocks.get_all_accounts())
+        stats["source_state_root"] = src.compute_state_root()
+        stats["dest_state_root"] = rocks.compute_state_root()
         stats["source_total_burned"] = float(src.get_total_burned() or 0.0)
         stats["dest_total_burned"] = float(rocks.get_total_burned() or 0.0)
         return stats

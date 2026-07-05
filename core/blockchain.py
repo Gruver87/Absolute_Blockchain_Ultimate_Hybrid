@@ -593,6 +593,8 @@ class Blockchain:
         return reward
 
     def _compute_state_root_from_db(self) -> str:
+        if hasattr(self.db, "compute_state_root"):
+            return self.db.compute_state_root()
         return compute_db_state_root(self.db.get_all_accounts())
 
     # ── Применение транзакции ────────────────────────────────────────────────

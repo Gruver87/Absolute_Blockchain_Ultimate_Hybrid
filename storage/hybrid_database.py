@@ -95,6 +95,9 @@ class HybridDatabase:
     def get_all_accounts(self) -> List[Dict]:
         return self._core.get_all_accounts()
 
+    def compute_state_root(self) -> str:
+        return self._core.compute_state_root()
+
     def get_balance(self, address: str) -> float:
         return self._core.get_balance(address)
 

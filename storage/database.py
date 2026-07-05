@@ -666,6 +666,11 @@ class Database:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    def compute_state_root(self) -> str:
+        from execution.state_root import compute_db_state_root
+
+        return compute_db_state_root(self.get_all_accounts())
+
     def get_block(self, height: int) -> Optional[Dict]:
         with self.lock:
             row = self.conn.execute(

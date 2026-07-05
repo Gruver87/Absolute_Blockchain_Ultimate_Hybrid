@@ -61,6 +61,22 @@ def test_installed_abs_native_state_root_matches_python_kernel_when_available():
     )
 
 
+def test_state_root_from_account_blobs_matches_canonical():
+    import json
+
+    from crypto import native
+    from execution.state_root import compute_db_state_root, compute_state_root_from_blobs
+
+    accounts = _accounts()
+    blobs = [
+        json.dumps(row, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        for row in accounts
+    ]
+    assert compute_state_root_from_blobs(blobs) == compute_db_state_root(accounts)
+    if native.native_available() and hasattr(__import__("abs_native"), "state_root_from_account_blobs"):
+        assert native.state_root_from_account_blobs(blobs) == compute_db_state_root(accounts)
+
+
 def test_legacy_state_engine_root_keeps_32_char_contract():
     accounts = {
         "alice": AccountState(balance=100, nonce=0),

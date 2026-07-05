@@ -1190,6 +1190,16 @@ def state_root_from_accounts_json(accounts_json: str) -> str:
     return _python_state_root_from_accounts(accounts)
 
 
+def state_root_from_account_blobs(blobs: List[bytes]) -> str:
+    if _native is not None and hasattr(_native, "state_root_from_account_blobs"):
+        return _native.state_root_from_account_blobs(list(blobs))
+    _require_native_kernel("state_root_from_account_blobs")
+    accounts = [json.loads(blob.decode("utf-8")) for blob in blobs]
+    return _python_state_root_from_accounts(
+        sorted(accounts, key=lambda row: str(row.get("address", "")))
+    )
+
+
 def verify_secp256k1_sha256(
     message: bytes, signature_der: bytes, public_key_xy: bytes
 ) -> Optional[bool]:

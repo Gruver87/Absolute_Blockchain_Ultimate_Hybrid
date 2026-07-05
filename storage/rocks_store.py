@@ -290,6 +290,13 @@ class RocksChainStore:
             out.append(json.loads(value.decode("utf-8")))
         return sorted(out, key=lambda r: str(r.get("address", "")))
 
+    def compute_state_root(self) -> str:
+        """Canonical state root via native scan of account blobs (no Python dict churn)."""
+        from execution.state_root import compute_state_root_from_blobs
+
+        blobs = [value for _key, value in self._scan_prefix(kc.prefix_accounts())]
+        return compute_state_root_from_blobs(blobs)
+
     def reset_accounts_from_alloc(
         self, alloc: Dict[str, float], *, _in_atomic: bool = False
     ) -> None:
@@ -636,6 +643,9 @@ class RocksChainStore:
         self._insert_block(block)
         block_hash = block.get("hash", block.get("block_hash", ""))
         block_height = int(block.get("height", block.get("number", 0)) or 0)
+        state_root = block.get("state_root", "")
+        if state_root:
+            self._raw_put(kc.key_meta("state_root"), str(state_root).encode("utf-8"))
         for tx in transactions:
             self._insert_transaction(tx)
             self._insert_tx_receipt(tx, block_hash, block_height)
