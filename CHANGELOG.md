@@ -6,6 +6,15 @@
 
 ---
 
+## [1.2.13] — 2026-07-05
+
+### Fixed
+
+- Backup manifest `chain_tip` read from checkpoint copy (was silently 0)
+- Verify skips strict tip match when manifest tip is 0 (unknown)
+
+---
+
 ## [1.2.12] — 2026-07-05
 
 ### Fixed

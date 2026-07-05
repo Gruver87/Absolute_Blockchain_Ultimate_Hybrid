@@ -205,6 +205,48 @@ def restore_chainstore(backup_dir: str, data_dir: str, *, force: bool = False) -
     return manifest
 
 
+def read_chain_tip(chainstore_or_data_dir: str) -> int:
+    """Read chain tip from a Rocks chainstore path or nested data directory."""
+    try:
+        engine, chainstore, storage_root = resolve_storage(chainstore_or_data_dir)
+    except FileNotFoundError:
+        return 0
+
+    if engine == "rocksdb":
+        path = chainstore
+        try:
+            from storage.rocks_store import RocksChainStore
+
+            store = RocksChainStore(
+                path, synchronous="FULL", block_cache_mb=0, write_buffer_mb=0
+            )
+            store.initialize()
+            try:
+                return int(store.get_chain_tip() or 0)
+            finally:
+                store.close()
+        except Exception:
+            return 0
+
+    db_name = (
+        "blockchain.db"
+        if os.path.isfile(os.path.join(storage_root, "blockchain.db"))
+        else "chain.db"
+    )
+    from storage.database import Database
+
+    db_path = os.path.join(storage_root, db_name)
+    try:
+        db = Database(db_path)
+        db.initialize()
+        try:
+            return int(db.get_chain_tip() or 0)
+        finally:
+            db.close()
+    except Exception:
+        return 0
+
+
 def verify_chain_tip(data_dir: str, expected_tip: int | None = None) -> int:
     from runtime.config import Config
     from storage.factory import open_database
@@ -233,6 +275,10 @@ def verify_chain_tip(data_dir: str, expected_tip: int | None = None) -> int:
 
     if not genesis:
         return 2
-    if expected_tip is not None and tip != int(expected_tip):
+    if (
+        expected_tip is not None
+        and int(expected_tip) > 0
+        and tip != int(expected_tip)
+    ):
         return 3
     return 0

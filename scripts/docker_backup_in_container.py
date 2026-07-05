@@ -85,21 +85,21 @@ def main() -> int:
 
     tip = 0
     try:
-        from runtime.config import Config
-        from storage.factory import open_database
+        from storage.chain_backup import read_chain_tip
 
-        cfg = Config()
-        cfg.db_path = chainstore
-        cfg.db_engine = "rocksdb"
-        cfg.rocksdb_sync = "FULL"
-        db = open_database(cfg)
-        db.initialize()
-        try:
-            tip = int(db.get_chain_tip() or 0)
-        finally:
-            db.close()
+        tip = read_chain_tip(out_chain)
     except Exception:
-        pass
+        try:
+            from storage.rocks_store import RocksChainStore
+
+            store = RocksChainStore(out_chain, synchronous="FULL")
+            store.initialize()
+            try:
+                tip = int(store.get_chain_tip() or 0)
+            finally:
+                store.close()
+        except Exception:
+            tip = 0
 
     manifest = {
         "engine": "rocksdb",
