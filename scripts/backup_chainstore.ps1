@@ -37,10 +37,11 @@ function Invoke-DockerMesh1Backup {
         Write-Host "Live backup (read-only RocksDB open)..." -ForegroundColor Cyan
         $containerDest = "/tmp/chain-backup-live"
         $scriptBody | docker compose -p $ComposeProject -f $composeFile exec -T `
+            --entrypoint python `
             -e "BACKUP_DEST=$containerDest" `
             -e "DATA_DIR=/app/data" `
             -e "READ_ONLY=1" `
-            node1 python -
+            node1 -
         if ($LASTEXITCODE -eq 0) {
             docker cp "${cid}:${containerDest}/." $absLocalDest
             docker compose -p $ComposeProject -f $composeFile exec -T node1 `
@@ -60,10 +61,11 @@ function Invoke-DockerMesh1Backup {
     try {
         Write-Host "One-off checkpoint backup (stdin pipe)..." -ForegroundColor Cyan
         $scriptBody | docker compose -p $ComposeProject -f $composeFile run --rm --no-deps `
+            --entrypoint python `
             -v "${absLocalDest}:/backup" `
             -e "BACKUP_DEST=/backup" `
             -e "DATA_DIR=/app/data" `
-            node1 python -
+            node1 -
         if ($LASTEXITCODE -ne 0) {
             Write-Host "FAIL: in-container backup" -ForegroundColor Red
             exit 1
@@ -81,9 +83,13 @@ if ($DockerMesh1) {
     Write-Host "Backing up docker prod mesh node1..." -ForegroundColor Cyan
     $ts = Get-Date -Format "yyyyMMdd-HHmmss"
     $localDest = if ($Dest) { $Dest } else { Join-Path "backups" "prod-mesh1-$ts" }
-    Invoke-DockerMesh1Backup -LocalDest $localDest -TryLive:$Live
+    Invoke-DockerMesh1Backup -LocalDest $localDest -TryLive:([bool]$Live)
     Write-Host "OK: backup copied to $localDest" -ForegroundColor Green
     exit 0
+}
+
+if (-not $DataDir) {
+    $DataDir = "data"
 }
 
 $pyArgs = @("scripts/backup_chainstore.py", "--data-dir", $DataDir)

@@ -19,9 +19,11 @@ try {
     if ($DockerMesh1) {
         Write-Host "Step 1: backup prod mesh node1..." -ForegroundColor Cyan
         $backupDest = Join-Path "backups" "dr-rehearsal-$ts"
-        $backupArgs = @("-DockerMesh1", "-Dest", $backupDest)
-        if ($Live) { $backupArgs += "-Live" }
-        & "$Root\scripts\backup_chainstore.ps1" @backupArgs
+        if ($Live) {
+            & "$Root\scripts\backup_chainstore.ps1" -DockerMesh1 -Dest $backupDest -Live
+        } else {
+            & "$Root\scripts\backup_chainstore.ps1" -DockerMesh1 -Dest $backupDest
+        }
         if ($LASTEXITCODE -ne 0) { exit 1 }
         $BackupDir = $backupDest
     } elseif (-not $BackupDir) {

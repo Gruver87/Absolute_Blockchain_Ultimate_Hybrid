@@ -6,6 +6,15 @@
 
 ---
 
+## [1.2.8] — 2026-07-05
+
+### Fixed
+
+- `dr_restore_rehearsal.ps1` — explicit `-DockerMesh1` call (array splat broke switch binding on PS 5.1)
+- Docker backup uses `--entrypoint python` (avoid main.py swallowing stdin pipe)
+
+---
+
 ## [1.2.7] — 2026-07-05
 
 ### Fixed
