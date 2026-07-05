@@ -17,10 +17,19 @@ if (Test-Path $dotEnv) {
         $parts = $line.Split("=", 2)
         $key = $parts[0].Trim()
         $val = $parts[1].Trim().Trim('"').Trim("'")
-        if ($key -and -not [Environment]::GetEnvironmentVariable($key)) {
+        if ($key) {
             [Environment]::SetEnvironmentVariable($key, $val, "Process")
         }
     }
+}
+
+if (-not $BaseUrl) {
+    try {
+        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:18080/health/live" -UseBasicParsing -TimeoutSec 3
+        if ($resp.StatusCode -eq 200) {
+            $BaseUrl = "http://127.0.0.1:18080"
+        }
+    } catch { }
 }
 
 $argsList = @("scripts/bridge_l1_cutover.py", "--config", $Config)

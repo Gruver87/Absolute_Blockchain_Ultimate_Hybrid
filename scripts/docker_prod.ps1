@@ -18,7 +18,7 @@ function Import-DotEnvFile {
         $parts = $line.Split("=", 2)
         $key = $parts[0].Trim()
         $val = $parts[1].Trim().Trim('"').Trim("'")
-        if ($key -and -not [Environment]::GetEnvironmentVariable($key)) {
+        if ($key) {
             [Environment]::SetEnvironmentVariable($key, $val, "Process")
         }
     }
@@ -121,7 +121,8 @@ if ($missing.Count -gt 0) {
 
 function Test-PlaceholderEthRpc {
     param([string]$Url)
-    return ($Url -match '(?i)(ваш-ethereum|your-ethereum|your-mainnet|changeme|placeholder|todo|example\.com$|rpc\.example)')
+    $result = python -c "import sys; from bridge.l1_rpc import is_placeholder_l1_rpc_url; print('1' if is_placeholder_l1_rpc_url(sys.argv[1]) else '0')" $Url 2>$null
+    return ($result -eq "1")
 }
 
 $ethRpc = [Environment]::GetEnvironmentVariable("ETH_RPC_URL")
@@ -133,6 +134,30 @@ if (Test-PlaceholderEthRpc $ethRpc) {
         exit 1
     }
     Write-Host "WARN: ETH_RPC_URL is a placeholder; OK for local smoke while BRIDGE_PROBE_L1_RPC=false." -ForegroundColor Yellow
+}
+
+function Test-L1RpcReachable {
+    param([string]$Url)
+    $json = python -c "import json,sys; from bridge.l1_rpc import probe_l1_rpc_url; print(json.dumps(probe_l1_rpc_url(sys.argv[1], timeout=8.0)))" $Url 2>&1
+    try {
+        return $json | ConvertFrom-Json
+    } catch {
+        return [pscustomobject]@{ ok = $false; error = "$json" }
+    }
+}
+
+if ($Bridge -or $probeL1 -match '^(?i)(1|true|yes|on)$') {
+    Write-Host "Probing ETH_RPC_URL (eth_blockNumber)..." -ForegroundColor Cyan
+    $l1Probe = Test-L1RpcReachable $ethRpc
+    if (-not $l1Probe.ok) {
+        Write-Host "FAIL: L1 RPC probe failed: $($l1Probe.error)" -ForegroundColor Red
+        if ("$($l1Probe.error)" -match '401') {
+            Write-Host "  Infura 401 = invalid API key. Use Project -> API Key from infura.io (32 hex chars)." -ForegroundColor Yellow
+        }
+        Write-Host '  .\scripts\setup_prod_env.ps1 -Force -EthRpcUrl "https://mainnet.infura.io/v3/<API_KEY>"' -ForegroundColor Cyan
+        exit 1
+    }
+    Write-Host "OK: L1 RPC reachable (block $($l1Probe.block_number))" -ForegroundColor Green
 }
 
 $walletPath = Join-Path (Get-Location) "data\wallet.json"

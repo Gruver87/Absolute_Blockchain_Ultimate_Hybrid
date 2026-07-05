@@ -18,7 +18,7 @@ function Import-DotEnvFile {
         $parts = $line.Split("=", 2)
         $key = $parts[0].Trim()
         $val = $parts[1].Trim().Trim('"').Trim("'")
-        if ($key -and -not [Environment]::GetEnvironmentVariable($key)) {
+        if ($key) {
             [Environment]::SetEnvironmentVariable($key, $val, "Process")
         }
     }
@@ -27,7 +27,8 @@ function Import-DotEnvFile {
 
 function Test-PlaceholderEthRpc {
     param([string]$Url)
-    return ($Url -match '(?i)(ваш-ethereum|your-ethereum|your-mainnet|changeme|placeholder|todo|example\.com$|rpc\.example)')
+    $result = python -c "import sys; from bridge.l1_rpc import is_placeholder_l1_rpc_url; print('1' if is_placeholder_l1_rpc_url(sys.argv[1]) else '0')" $Url 2>$null
+    return ($result -eq "1")
 }
 
 $dotEnv = Join-Path (Get-Location) ".env"

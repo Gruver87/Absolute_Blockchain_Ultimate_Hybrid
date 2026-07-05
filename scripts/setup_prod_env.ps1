@@ -41,6 +41,57 @@ if (-not $EthRpcUrl) {
     exit 1
 }
 
+function Test-EthRpcUrlReady {
+    param([string]$Url)
+    $json = python -c @"
+import json, re, sys
+url = sys.argv[1]
+errors = []
+if not url.strip():
+    errors.append('ETH_RPC_URL is empty')
+elif not all(ord(c) < 128 for c in url):
+    errors.append('ETH_RPC_URL must be ASCII only - paste the API key from infura.io, not placeholder text like NOVYI_KLYUCH or VSTAVTE_32_HEX')
+from bridge.l1_rpc import is_placeholder_l1_rpc_url, probe_l1_rpc_url
+if url.strip() and is_placeholder_l1_rpc_url(url):
+    errors.append('placeholder URL — use a real provider key (Infura Project API Key, Alchemy, etc.)')
+m = re.search(r'infura\.io/v3/([^/?\s]+)', url, re.I)
+if m:
+    key = m.group(1)
+    if len(key) != 32 or not re.fullmatch(r'[0-9a-fA-F]+', key):
+        errors.append(f'Infura API key must be 32 hex characters (got len={len(key)})')
+if errors:
+    print(json.dumps({'ok': False, 'errors': errors}))
+    raise SystemExit(0)
+probe = probe_l1_rpc_url(url.strip(), timeout=12.0)
+out = {'ok': bool(probe.get('ok')), 'errors': [], 'block': probe.get('block_number')}
+if not out['ok']:
+    err = str(probe.get('error') or 'probe failed')
+    out['errors'] = [err]
+    if '401' in err:
+        out['errors'].append('Infura 401: API key invalid or revoked — copy a fresh key from infura.io')
+print(json.dumps(out))
+"@ $Url 2>&1
+    try {
+        return $json | ConvertFrom-Json
+    } catch {
+        return [pscustomobject]@{ ok = $false; errors = @("$json") }
+    }
+}
+
+Write-Host "Validating ETH_RPC_URL (format + eth_blockNumber)..." -ForegroundColor Cyan
+$rpcCheck = Test-EthRpcUrlReady $EthRpcUrl
+if (-not $rpcCheck.ok) {
+    Write-Host "FAIL: ETH_RPC_URL rejected:" -ForegroundColor Red
+    foreach ($err in $rpcCheck.errors) {
+        Write-Host "  - $err" -ForegroundColor Red
+    }
+    Write-Host ""
+    Write-Host "Get Infura key: https://infura.io -> your project -> API Keys -> copy 32-char key" -ForegroundColor Yellow
+    Write-Host 'Then: .\scripts\setup_prod_env.ps1 -Force -EthRpcUrl "https://mainnet.infura.io/v3/paste_key_here"' -ForegroundColor Cyan
+    exit 1
+}
+Write-Host "OK: L1 RPC reachable (block $($rpcCheck.block))" -ForegroundColor Green
+
 $walletPath = Join-Path $Root "data\wallet.json"
 if (-not (Test-Path $walletPath)) {
     New-Item -ItemType Directory -Force -Path (Split-Path $walletPath) | Out-Null
@@ -67,7 +118,8 @@ Set-Content -Path $envPath -Value $content -Encoding UTF8
 Write-Host "Wrote $envPath" -ForegroundColor Green
 Write-Host ""
 Write-Host "Next:" -ForegroundColor Cyan
-Write-Host "  .\scripts\docker_prod.ps1" -ForegroundColor White
+Write-Host "  .\scripts\docker_prod.ps1          # mainnet without bridge" -ForegroundColor White
+Write-Host "  .\scripts\docker_prod.ps1 -Bridge    # L1 bridge cutover lab" -ForegroundColor White
 Write-Host ""
 Write-Host "RPC key (save it):" -ForegroundColor Gray
 Write-Host "  $rpcKey" -ForegroundColor Gray

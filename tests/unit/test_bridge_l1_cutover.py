@@ -42,6 +42,47 @@ def test_cutover_gate_static_ok_with_valid_rpc(monkeypatch):
     assert meta["ok"] is True
 
 
+def test_resolve_live_base_url_prefers_docker_prod_without_bridge():
+    from bridge_l1_cutover import resolve_live_base_url
+
+    payload = json.dumps(
+        {
+            "deployment_mode": "prod",
+            "chain_id": 778888,
+            "bridge_enabled": False,
+        }
+    ).encode()
+
+    class _Resp:
+        def read(self):
+            return payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    with patch("urllib.request.urlopen", return_value=_Resp()):
+        assert resolve_live_base_url() == "http://127.0.0.1:18080"
+
+
+def test_cutover_live_bridge_disabled_clear_error(monkeypatch):
+    monkeypatch.setenv("ETH_RPC_URL", "https://mainnet.infura.io/v3/testkey")
+    with patch("bridge.health.check_rust_bridge_binary", return_value={"ok": True}), patch(
+        "bridge_l1_cutover._fetch_status",
+        return_value={"deployment_mode": "prod", "chain_id": 778888, "bridge_enabled": False},
+    ):
+        errors, _warnings, meta = run_cutover_gate(
+            live=True,
+            base_url="http://127.0.0.1:18080",
+            probe_l1=False,
+        )
+    assert any("bridge_enabled=false" in e for e in errors)
+    assert not any("oracle" in e.lower() for e in errors)
+    assert meta["base_url"] == "http://127.0.0.1:18080"
+
+
 def test_cutover_live_uses_prod_smoke(monkeypatch):
     monkeypatch.setenv("ETH_RPC_URL", "https://mainnet.infura.io/v3/testkey")
     fake_report = {
@@ -50,6 +91,9 @@ def test_cutover_live_uses_prod_smoke(monkeypatch):
         "checks": {"bridge_rust_mode": True},
     }
     with patch("bridge.health.check_rust_bridge_binary", return_value={"ok": True}), patch(
+        "bridge_l1_cutover._fetch_status",
+        return_value={"deployment_mode": "prod", "chain_id": 778888, "bridge_enabled": True},
+    ), patch(
         "prod_smoke.run_prod_smoke", return_value=fake_report
     ), patch(
         "subprocess.run",

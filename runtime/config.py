@@ -368,6 +368,12 @@ class Config:
         l1_queue = env_str("BRIDGE_L1_QUEUE_PATH", "")
         if l1_queue:
             self.bridge_l1_queue_path = l1_queue
+        if "BRIDGE_ENABLED" in os.environ:
+            self.bridge_enabled = env_bool("BRIDGE_ENABLED", self.bridge_enabled)
+        if "BRIDGE_REQUIRE_L1_PROOF" in os.environ:
+            self.bridge_require_l1_proof = env_bool(
+                "BRIDGE_REQUIRE_L1_PROOF", self.bridge_require_l1_proof
+            )
         return self
 
     def validate(self) -> List[str]:

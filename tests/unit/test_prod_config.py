@@ -284,6 +284,18 @@ def test_prometheus_alerts_include_rust_bridge_readiness():
     assert "abs_l1_rpc_required == 1 and abs_l1_rpc_ok == 0" in alerts
 
 
+def test_apply_env_secrets_restores_bridge_enabled_after_json_merge(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "node.prod.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"deployment_mode": "prod", "bridge_enabled": False}, f)
+        cfg = Config.from_json(path)
+        assert cfg.bridge_enabled is False
+        monkeypatch.setenv("BRIDGE_ENABLED", "true")
+        cfg.apply_env_secrets()
+        assert cfg.bridge_enabled is True
+
+
 def test_apply_env_secrets_restores_rpc_keys_after_json_merge():
     with tempfile.TemporaryDirectory() as tmp:
         path = os.path.join(tmp, "node.json")

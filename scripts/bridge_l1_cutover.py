@@ -29,6 +29,8 @@ def resolve_live_base_url(preferred: str = "") -> str:
         return preferred.rstrip("/")
     from runtime.mainnet_constants import MAINNET_V1_CHAIN_ID
 
+    bridge_ready = ""
+    prod_ready = ""
     for port in (18080, 8080):
         base = f"http://127.0.0.1:{port}"
         try:
@@ -37,12 +39,19 @@ def resolve_live_base_url(preferred: str = "") -> str:
             if (
                 str(data.get("deployment_mode", "")) == "prod"
                 and int(data.get("chain_id", 0) or 0) == MAINNET_V1_CHAIN_ID
-                and bool(data.get("bridge_enabled", False))
             ):
-                return base
+                if not prod_ready:
+                    prod_ready = base
+                if bool(data.get("bridge_enabled", False)):
+                    bridge_ready = base
         except (urllib.error.URLError, TimeoutError, OSError, ValueError):
             continue
-    return "http://127.0.0.1:8080"
+    return bridge_ready or prod_ready or "http://127.0.0.1:18080"
+
+
+def _fetch_status(base_url: str) -> Dict[str, Any]:
+    with urllib.request.urlopen(f"{base_url.rstrip('/')}/status", timeout=5) as resp:
+        return json.loads(resp.read().decode())
 
 
 def check_live_bridge_cutover(base_url: str) -> Tuple[List[str], List[str]]:
@@ -50,6 +59,19 @@ def check_live_bridge_cutover(base_url: str) -> Tuple[List[str], List[str]]:
     errors: List[str] = []
     warnings: List[str] = []
     base = base_url.rstrip("/")
+
+    try:
+        status = _fetch_status(base)
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
+        errors.append(f"cannot read /status from {base}: {exc}")
+        return errors, warnings
+
+    if not bool(status.get("bridge_enabled", False)):
+        errors.append(
+            "node has bridge_enabled=false — set a real ETH_RPC_URL in .env, then run "
+            ".\\scripts\\docker_prod.ps1 -Bridge (or docker compose --profile bridge)"
+        )
+        return errors, warnings
 
     sys.path.insert(0, str(ROOT / "scripts"))
     import prod_smoke
@@ -59,10 +81,8 @@ def check_live_bridge_cutover(base_url: str) -> Tuple[List[str], List[str]]:
         low = err.lower()
         if any(token in low for token in ("bridge", "relayer", "l1", "rust bridge")):
             errors.append(err)
-    if not report.get("checks", {}).get("bridge_rust_mode") and report.get("checks", {}).get(
-        "bridge_disabled"
-    ):
-        errors.append("live: bridge_enabled expected on cutover node (/status)")
+    if not report.get("checks", {}).get("bridge_rust_mode"):
+        errors.append("live: /bridge mode must be rust on cutover node")
 
     try:
         proc = __import__("subprocess").run(
@@ -147,6 +167,19 @@ def main() -> int:
             print("RESULT: FAIL")
             for err in errors:
                 print(f"  - {err}")
+            if any("401" in e for e in errors):
+                print()
+                print("Infura 401 = invalid API key. Dashboard -> Project -> API Key (32 hex characters).")
+                print('  .\\scripts\\setup_prod_env.ps1 -Force -EthRpcUrl "https://mainnet.infura.io/v3/<API_KEY>"')
+            if any("placeholder" in e.lower() for e in errors):
+                print()
+                print("Fix ETH_RPC_URL (real Ethereum JSON-RPC, not rpc.example.com):")
+                print('  .\\scripts\\setup_prod_env.ps1 -Force -EthRpcUrl "https://<your-provider>"')
+                print("  .\\scripts\\docker_prod.ps1 -Bridge")
+                print("  .\\scripts\\bridge_l1_cutover.ps1 -ProbeL1 -BaseUrl http://127.0.0.1:18080")
+            if args.live and any("bridge_enabled=false" in e for e in errors):
+                print()
+                print("Live cutover requires bridge-enabled prod node on :18080 (see above).")
         else:
             print("RESULT: OK — static cutover checks passed")
         if warnings:
