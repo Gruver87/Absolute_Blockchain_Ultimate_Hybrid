@@ -110,6 +110,31 @@ def test_compute_state_root_uses_incremental_accumulator(rocks):
     assert root2 == compute_state_root_from_blobs(blobs)
 
 
+def test_persist_block_atomic_keeps_accumulator_in_sync(rocks):
+    from runtime.tokenomics import genesis_balances
+
+    founder = "0x" + "e" * 40
+    for addr, amount in genesis_balances(founder).items():
+        rocks.set_balance(addr, float(amount))
+    before = rocks.compute_state_root()
+
+    block = {
+        "height": 1,
+        "hash": "f" * 64,
+        "parent_hash": "0" * 64,
+        "timestamp": 1700000001,
+        "miner": founder,
+        "state_root": before,
+        "tx_count": 0,
+        "transactions": [],
+    }
+    rocks.update_balance("0x" + "1" * 40, 5.0)
+    block["state_root"] = rocks.compute_state_root()
+    assert rocks.persist_block_atomic(block, [])
+    assert rocks.get_live_state_root_meta() == (block["state_root"], 1)
+    assert rocks.compute_state_root() == block["state_root"]
+
+
 def test_reorg_truncate_and_reset(rocks):
     for h in range(1, 4):
         rocks.persist_block_atomic(

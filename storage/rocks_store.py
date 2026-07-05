@@ -223,6 +223,19 @@ class RocksChainStore:
             "recorded_at": int(time.time()),
         }
         self._raw_put(kc.key_proposer_audit(height), json.dumps(audit).encode("utf-8"))
+        self._touch_live_state_root_meta(block)
+
+    def _touch_live_state_root_meta(self, block: Dict) -> None:
+        state_root = str(block.get("state_root", "") or "").strip()
+        if not state_root:
+            return
+        height = int(block.get("height", block.get("number", 0)) or 0)
+        self._raw_put(kc.key_meta("state_root"), state_root.encode("utf-8"))
+        self._raw_put(kc.key_meta("live_state_root"), state_root.encode("utf-8"))
+        self._raw_put(
+            kc.key_meta("live_state_root_height"),
+            str(height).encode("utf-8"),
+        )
 
     def save_block(self, block: Dict) -> bool:
         with self._write_lock:
@@ -355,6 +368,17 @@ class RocksChainStore:
         for _key, value in rows:
             out.append(json.loads(value.decode("utf-8")))
         return sorted(out, key=lambda r: str(r.get("address", "")))
+
+    def get_live_state_root_meta(self) -> tuple[str, int]:
+        """Cached root from last committed block header (observability fast path)."""
+        raw_root = self._raw_get(kc.key_meta("live_state_root"))
+        raw_h = self._raw_get(kc.key_meta("live_state_root_height"))
+        root = raw_root.decode("utf-8") if raw_root else ""
+        try:
+            height = int(raw_h.decode("utf-8")) if raw_h else -1
+        except Exception:
+            height = -1
+        return root, height
 
     def compute_state_root(self) -> str:
         """Canonical state root via native accumulator or account blob scan."""
@@ -713,9 +737,6 @@ class RocksChainStore:
         self._insert_block(block)
         block_hash = block.get("hash", block.get("block_hash", ""))
         block_height = int(block.get("height", block.get("number", 0)) or 0)
-        state_root = block.get("state_root", "")
-        if state_root:
-            self._raw_put(kc.key_meta("state_root"), str(state_root).encode("utf-8"))
         for tx in transactions:
             self._insert_transaction(tx)
             self._insert_tx_receipt(tx, block_hash, block_height)
@@ -727,6 +748,7 @@ class RocksChainStore:
     # ── truncate / reorg ────────────────────────────────────────────────
 
     def reorg_truncate_above(self, height: int) -> None:
+        self._drop_root_acc()
         cut = int(height)
         for key, _value in self._scan_prefix(kc.prefix_block_heights()):
             if kc.unpack_u64(key[1:9]) > cut:

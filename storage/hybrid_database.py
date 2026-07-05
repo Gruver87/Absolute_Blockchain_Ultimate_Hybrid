@@ -98,6 +98,11 @@ class HybridDatabase:
     def compute_state_root(self) -> str:
         return self._core.compute_state_root()
 
+    def get_live_state_root_meta(self) -> tuple[str, int]:
+        if hasattr(self._core, "get_live_state_root_meta"):
+            return self._core.get_live_state_root_meta()
+        return "", -1
+
     def get_balance(self, address: str) -> float:
         return self._core.get_balance(address)
 
