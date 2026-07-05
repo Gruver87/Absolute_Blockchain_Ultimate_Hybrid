@@ -1,6 +1,7 @@
-# Start Docker prod profile (node + L1 relayer sidecar)
+# Start Docker prod profile (mainnet-v1 node; optional bridge relayer sidecar)
 param(
-    [string]$CeremonyDir = ""
+    [string]$CeremonyDir = "",
+    [switch]$Bridge
 )
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -118,11 +119,17 @@ if ($missing.Count -gt 0) {
     exit 1
 }
 
+function Test-PlaceholderEthRpc {
+    param([string]$Url)
+    return ($Url -match '(?i)(ваш-ethereum|your-ethereum|your-mainnet|changeme|placeholder|todo|example\.com$|rpc\.example)')
+}
+
 $ethRpc = [Environment]::GetEnvironmentVariable("ETH_RPC_URL")
 $probeL1 = [Environment]::GetEnvironmentVariable("BRIDGE_PROBE_L1_RPC")
-if ($ethRpc -match '(?i)(ваш-ethereum|your-ethereum|your-mainnet|changeme|placeholder|todo|example\.com$|rpc\.example)') {
-    if ($probeL1 -match '^(?i)(1|true|yes|on)$') {
-        Write-Host "FAIL: ETH_RPC_URL looks like a placeholder; set a real RPC or BRIDGE_PROBE_L1_RPC=false." -ForegroundColor Red
+if (Test-PlaceholderEthRpc $ethRpc) {
+    if ($probeL1 -match '^(?i)(1|true|yes|on)$' -or $Bridge) {
+        Write-Host "FAIL: real ETH_RPC_URL required when bridge/L1 probe is enabled (placeholder detected)." -ForegroundColor Red
+        Write-Host "  .\scripts\setup_prod_env.ps1 -EthRpcUrl `"https://your-real-ethereum-rpc`"" -ForegroundColor Cyan
         exit 1
     }
     Write-Host "WARN: ETH_RPC_URL is a placeholder; OK for local smoke while BRIDGE_PROBE_L1_RPC=false." -ForegroundColor Yellow
@@ -151,7 +158,17 @@ $baseUrl = "http://127.0.0.1:$($ports.Http)"
 
 Write-Host "Recreating prod stack on HTTP $($ports.Http), RPC $($ports.Rpc)..." -ForegroundColor Cyan
 docker compose -f docker-compose.prod.yml down 2>$null
-docker compose -f docker-compose.prod.yml up --build -d --force-recreate
+$composeArgs = @("-f", "docker-compose.prod.yml", "up", "--build", "-d", "--force-recreate")
+if ($Bridge) {
+    $env:BRIDGE_ENABLED = "true"
+    $env:BRIDGE_PROBE_L1_RPC = "true"
+    Write-Host "Bridge profile: relayer sidecar + BRIDGE_ENABLED=true" -ForegroundColor DarkGray
+    docker compose --profile bridge @composeArgs
+} else {
+    $env:BRIDGE_ENABLED = "false"
+    $env:BRIDGE_PROBE_L1_RPC = "false"
+    docker compose @composeArgs
+}
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Docker failed - start Docker Desktop and retry." -ForegroundColor Red
     exit $LASTEXITCODE
@@ -207,5 +224,9 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host ("Prod node:  " + $baseUrl + "  RPC http://127.0.0.1:" + $ports.Rpc) -ForegroundColor Green
-Write-Host 'Relayer:   docker compose -f docker-compose.prod.yml logs -f relayer' -ForegroundColor Gray
+if ($Bridge) {
+    Write-Host 'Relayer:   docker compose -f docker-compose.prod.yml --profile bridge logs -f relayer' -ForegroundColor Gray
+} else {
+    Write-Host 'Bridge:    disabled (mainnet-v1 default). Use -Bridge for L1 cutover lab.' -ForegroundColor Gray
+}
 Write-Host 'All logs:  docker compose -f docker-compose.prod.yml logs -f' -ForegroundColor Gray

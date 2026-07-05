@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Production Docker/K8s manifest checks."""
 
+import json
 from pathlib import Path
 
 
@@ -10,10 +11,27 @@ ROOT = Path(__file__).resolve().parents[2]
 def test_prod_compose_includes_relayer_sidecar():
     text = (ROOT / "docker-compose.prod.yml").read_text(encoding="utf-8")
     assert "relayer:" in text
+    assert "profiles:" in text
+    assert "- bridge" in text
+    assert "BRIDGE_ENABLED" in text
     assert "BRIDGE_REQUIRE_L1_PROOF" in text
     assert "condition: service_healthy" in text
     assert "bridge_relayer.py" in text
     assert "ABS_REQUIRE_NATIVE_CRYPTO" in text
+
+
+def test_docker_prod_node_bridge_disabled_by_default():
+    cfg = json.loads((ROOT / "docker" / "node.prod.json").read_text(encoding="utf-8"))
+    assert cfg.get("bridge_enabled") is False
+
+
+def test_prod_mesh_compose_has_three_nodes():
+    text = (ROOT / "docker-compose.prod.3node.yml").read_text(encoding="utf-8")
+    assert "node1:" in text
+    assert "node2:" in text
+    assert "node3:" in text
+    assert "prod_mesh/wallets/validator-1.wallet.json" in text
+    assert "BRIDGE_ENABLED" in text
 
 
 def test_k8s_includes_relayer_deployment():

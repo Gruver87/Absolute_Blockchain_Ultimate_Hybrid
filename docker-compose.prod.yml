@@ -22,6 +22,7 @@ x-abs-prod-env: &abs-prod-env
   BRIDGE_AUTO_CONFIRM_SEC: "0"
   BRIDGE_REQUIRE_L1_PROOF: "true"
   BRIDGE_PROBE_L1_RPC: ${BRIDGE_PROBE_L1_RPC:-false}
+  BRIDGE_ENABLED: ${BRIDGE_ENABLED:-false}
   BRIDGE_L1_QUEUE_PATH: /app/data/bridge_l1_queue.json
   ETH_RPC_URL: ${ETH_RPC_URL:?set ETH_RPC_URL before starting prod bridge}
   JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET before starting prod}
@@ -72,6 +73,8 @@ services:
     restart: unless-stopped
 
   relayer:
+    profiles:
+      - bridge
     build:
       context: .
       dockerfile: Dockerfile.prod

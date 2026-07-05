@@ -29,6 +29,7 @@ def run_gate(
     base_url: str = "http://127.0.0.1:8080",
     strict_audit: bool = True,
     prod_smoke_spawn: bool = False,
+    prod_mesh3_spawn: bool = False,
     ceremony_dir: str = "",
     bridge_cutover: bool = False,
 ) -> Tuple[List[str], List[str], dict]:
@@ -81,15 +82,19 @@ def run_gate(
     prod_errors.extend(prod.check_config_validate())
     prod_errors.extend(prod.check_mainnet_v1_config())
     prod_errors.extend(prod.check_docker_prod_compose())
+    prod_errors.extend(prod.check_docker_prod_mesh_compose())
     if live:
         prod_errors.extend(prod.check_live_smoke(base_url.rstrip("/")))
     if prod_smoke_spawn:
         prod_errors.extend(prod.check_prod_smoke_spawn())
+    if prod_mesh3_spawn:
+        prod_errors.extend(prod.check_prod_mesh3_spawn(ceremony_dir=ceremony_dir))
     errors.extend(prod_errors)
     sections["prod_stack"] = {
         "errors": prod_errors,
         "live": live,
         "prod_smoke_spawn": prod_smoke_spawn,
+        "prod_mesh3_spawn": prod_mesh3_spawn,
     }
 
     pinned_ceremony_hash = (os.environ.get("GENESIS_CEREMONY_HASH", "") or "").strip()
@@ -209,6 +214,11 @@ def main() -> int:
         help="Spawn isolated 2-node prod-profile mesh (verify_p2p_ci prod-smoke)",
     )
     parser.add_argument(
+        "--prod-mesh3-spawn",
+        action="store_true",
+        help="Spawn isolated 3-node ceremony prod mesh (verify_p2p_ci prod-mesh3)",
+    )
+    parser.add_argument(
         "--ceremony-dir",
         default="",
         help="Use generated ceremony manifest from directory (e.g. data/ceremony_keys)",
@@ -232,6 +242,7 @@ def main() -> int:
         base_url=args.base_url,
         strict_audit=not args.no_strict_audit,
         prod_smoke_spawn=args.prod_smoke_spawn,
+        prod_mesh3_spawn=args.prod_mesh3_spawn,
         ceremony_dir=args.ceremony_dir,
         bridge_cutover=args.bridge_cutover,
     )

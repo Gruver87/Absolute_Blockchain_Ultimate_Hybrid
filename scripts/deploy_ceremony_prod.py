@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from runtime.ceremony_deploy import deploy_ceremony_files
+from runtime.ceremony_deploy import deploy_ceremony_files, deploy_ceremony_mesh
 
 
 def main() -> int:
@@ -22,6 +22,11 @@ def main() -> int:
     )
     parser.add_argument("--validator-index", type=int, default=1)
     parser.add_argument(
+        "--mesh",
+        action="store_true",
+        help="Deploy all validator wallets to data/prod_mesh/ for 3-node prod mesh",
+    )
+    parser.add_argument(
         "--config",
         default="node.prod.mainnet-v1.example.json",
         help="Node config used for ceremony hash",
@@ -29,11 +34,19 @@ def main() -> int:
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
-    result, errors = deploy_ceremony_files(
-        args.ceremony_dir,
-        root=ROOT,
-        validator_index=args.validator_index,
-        node_config=args.config,
+    result, errors = (
+        deploy_ceremony_mesh(
+            args.ceremony_dir,
+            root=ROOT,
+            node_config=args.config,
+        )
+        if args.mesh
+        else deploy_ceremony_files(
+            args.ceremony_dir,
+            root=ROOT,
+            validator_index=args.validator_index,
+            node_config=args.config,
+        )
     )
     if args.json:
         print(json.dumps({"ok": not errors, "result": result, "errors": errors}, indent=2))
@@ -44,8 +57,12 @@ def main() -> int:
                 print(f"  - {err}")
         else:
             print("OK: ceremony deployed to data/")
+            if args.mesh:
+                print(f"  mesh dir : {result.get('mesh_dir')}")
+                print(f"  wallets  : {len(result.get('wallet_paths') or {})} validators")
+            else:
+                print(f"  wallet   : {result.get('wallet_path')}")
             print(f"  manifest : {result.get('manifest_path')}")
-            print(f"  wallet   : {result.get('wallet_path')}")
             print(f"  ceremony_hash: {result.get('ceremony_hash')}")
             print("")
             print("Set for prod node / docker:")

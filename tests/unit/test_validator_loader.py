@@ -96,6 +96,24 @@ def test_apply_public_manifest_registers_db_and_registry():
         assert len(node._public_validator_set) == 2
 
 
+def test_apply_public_manifest_upgrades_existing_validator_stake():
+    from runtime.validator_loader import apply_public_manifest
+
+    addr = "0x" + "1" * 40
+    with tempfile.TemporaryDirectory() as tmp:
+        path = _write_manifest(
+            tmp,
+            [{"index": 1, "address": addr, "stake": 5000}],
+        )
+        node = _FakeNode()
+        node.consensus.add_validator(addr, 1000)
+        node.db = _FakeDB([{"address": addr, "stake": 1000, "active": True}])
+        added = apply_public_manifest(node, path)
+        assert added == 0
+        assert node.consensus.validators[addr] == 5000
+        assert node.db.saved[-1] == (addr, 5000)
+
+
 def test_apply_public_manifest_blocks_dev_derivation_in_prod():
     from runtime.validator_loader import apply_public_manifest
 

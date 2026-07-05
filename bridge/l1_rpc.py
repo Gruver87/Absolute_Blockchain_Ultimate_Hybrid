@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -12,6 +13,20 @@ from typing import Any, Dict, Optional
 
 
 _L1_RPC_ENV_KEYS = ("ETH_RPC_URL", "BSC_RPC_URL", "POLYGON_RPC_URL")
+_PLACEHOLDER_RPC = re.compile(
+    r"(?i)(ваш-ethereum|your-ethereum|your-mainnet|changeme|placeholder|todo|rpc\.example$|example\.com$)"
+)
+
+
+def is_placeholder_l1_rpc_url(url: str) -> bool:
+    from runtime.secret_utils import is_placeholder_secret
+
+    url = (url or "").strip()
+    if not url:
+        return True
+    if is_placeholder_secret(url):
+        return True
+    return bool(_PLACEHOLDER_RPC.search(url))
 
 
 def configured_l1_rpc_urls() -> Dict[str, str]:

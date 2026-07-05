@@ -22,3 +22,5 @@ def test_verify_prod_stack_static_ok():
 def test_docker_compose_prod_has_relayer():
     text = (ROOT / "docker-compose.prod.yml").read_text(encoding="utf-8")
     assert "relayer:" in text
+    assert "profiles:" in text
+    assert "- bridge" in text

@@ -1,6 +1,6 @@
 {
-  "node_id": "docker-prod-node-1",
-  "network_name": "Absolute Docker Prod",
+  "node_id": "docker-prod-mesh-1",
+  "network_name": "Absolute Docker Prod Mesh",
   "chain_id": 778888,
   "deployment_mode": "prod",
   "http_host": "0.0.0.0",

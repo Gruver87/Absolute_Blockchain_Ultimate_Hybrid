@@ -489,18 +489,31 @@ class Config:
                 errors.append("prod bridge requires at least one L1 RPC URL (ETH_RPC_URL/BSC_RPC_URL/POLYGON_RPC_URL)")
             if not self.bridge_require_l1_proof:
                 errors.append("prod bridge requires BRIDGE_REQUIRE_L1_PROOF=true")
-            if env_bool("BRIDGE_PROBE_L1_RPC", False):
-                try:
-                    from bridge.l1_rpc import probe_configured_l1_rpcs
+            from bridge.health import should_probe_l1_rpc
 
-                    probe = probe_configured_l1_rpcs()
-                    if not probe.get("ok"):
+            if should_probe_l1_rpc(self):
+                from bridge.l1_rpc import (
+                    configured_l1_rpc_urls,
+                    is_placeholder_l1_rpc_url,
+                    probe_configured_l1_rpcs,
+                )
+
+                for key, url in configured_l1_rpc_urls().items():
+                    if is_placeholder_l1_rpc_url(url):
                         errors.append(
-                            "prod L1 RPC reachability probe failed: "
-                            + str(probe.get("error") or probe)
+                            f"prod bridge {key} is a placeholder URL; "
+                            "set a real L1 RPC endpoint before enabling bridge"
                         )
-                except Exception as e:
-                    errors.append(f"prod L1 RPC reachability probe failed: {e}")
+                if not any("placeholder URL" in e for e in errors):
+                    try:
+                        probe = probe_configured_l1_rpcs()
+                        if not probe.get("ok"):
+                            errors.append(
+                                "prod L1 RPC reachability probe failed: "
+                                + str(probe.get("error") or probe)
+                            )
+                    except Exception as e:
+                        errors.append(f"prod L1 RPC reachability probe failed: {e}")
         if self.is_production:
             if not self.validators_manifest_path:
                 errors.append("prod mode requires validators_manifest_path")

@@ -192,7 +192,7 @@ def test_prod_bridge_l1_rpc_probe_when_enabled(monkeypatch):
     cfg.bridge_oracle_secret = "x" * 32
     cfg.bridge_require_l1_proof = True
     monkeypatch.setenv("JWT_SECRET", "y" * 32)
-    monkeypatch.setenv("ETH_RPC_URL", "https://rpc.example.com")
+    monkeypatch.setenv("ETH_RPC_URL", "https://mainnet.infura.io/v3/testkey")
     monkeypatch.setenv("BRIDGE_PROBE_L1_RPC", "true")
 
     monkeypatch.setattr(
@@ -202,6 +202,28 @@ def test_prod_bridge_l1_rpc_probe_when_enabled(monkeypatch):
 
     errs = cfg.validate()
     assert any("L1 RPC reachability probe failed" in e for e in errs)
+
+
+def test_prod_bridge_rejects_placeholder_l1_rpc(monkeypatch):
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.bridge_enabled = True
+    cfg.bridge_mode = "rust"
+    cfg.rust_bridge_path = __file__
+    cfg.require_wallet_file = False
+    cfg.rpc_api_key_required = False
+    cfg.bridge_oracle_secret = "x" * 32
+    cfg.bridge_require_l1_proof = True
+    monkeypatch.setenv("JWT_SECRET", "y" * 32)
+    monkeypatch.setenv("ETH_RPC_URL", "https://rpc.example.com")
+    monkeypatch.setenv("BRIDGE_PROBE_L1_RPC", "true")
+    monkeypatch.setattr(
+        "bridge.health.check_rust_bridge_binary",
+        lambda path: {"ok": True, "path": path},
+    )
+
+    errs = cfg.validate()
+    assert any("placeholder URL" in e for e in errs)
 
 
 def test_non_dev_public_bind_requires_auth_and_cors():

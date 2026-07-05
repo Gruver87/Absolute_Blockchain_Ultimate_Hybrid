@@ -13,6 +13,26 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
+def resolve_launch_manifest_path(
+    ceremony_dir: str = "",
+    *,
+    prefer_deployed: bool = False,
+) -> Path:
+    """Ceremony/deploy manifest for strict gates; template example otherwise."""
+    if ceremony_dir:
+        cdir = Path(ceremony_dir)
+        if not cdir.is_absolute():
+            cdir = ROOT / cdir
+        candidate = cdir / "validators.manifest.json"
+        if candidate.is_file():
+            return candidate
+    if prefer_deployed:
+        deployed = ROOT / "data" / "validators.manifest.json"
+        if deployed.is_file():
+            return deployed
+    return ROOT / "validators.manifest.mainnet-v1.example.json"
+
+
 def _run_script(rel: str, attr: str = "main") -> tuple[int, str]:
     path = ROOT / "scripts" / rel
     spec = importlib.util.spec_from_file_location(rel.replace("/", "_"), path)
@@ -53,9 +73,13 @@ def run_launch_checklist(
 
     from runtime.genesis_ceremony import build_from_paths
 
+    manifest_path = resolve_launch_manifest_path(
+        ceremony_dir,
+        prefer_deployed=bool(ceremony_dir) or strict_keys or strict_mainnet,
+    )
     artifact, ceremony_errors = build_from_paths(
         str(ROOT / "node.prod.mainnet-v1.example.json"),
-        str(ROOT / "validators.manifest.mainnet-v1.example.json"),
+        str(manifest_path),
         strict_addresses=strict_mainnet,
     )
     if ceremony_errors:
@@ -66,7 +90,6 @@ def run_launch_checklist(
             f"(count={artifact.get('placeholder_validator_count', 0)})"
         )
 
-    manifest_path = ROOT / "validators.manifest.mainnet-v1.example.json"
     if strict_keys:
         from runtime.ceremony_keygen import validate_manifest_public_keys
         from runtime.validator_loader import load_manifest

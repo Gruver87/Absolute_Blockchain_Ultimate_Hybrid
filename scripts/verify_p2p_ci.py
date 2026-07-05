@@ -26,6 +26,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -2082,6 +2083,50 @@ def verify_prod_consensus_mesh(url1: str, url2: str) -> int:
     return 0
 
 
+def verify_prod_consensus_mesh3(url1: str, url2: str, url3: str) -> int:
+    """Prod 3-validator mesh: unified consensus head across all nodes."""
+    errors = []
+    statuses = {}
+    for label, url in (("node1", url1), ("node2", url2), ("node3", url3)):
+        try:
+            statuses[label] = _api(f"{url}/status")
+        except Exception as exc:
+            errors.append(f"{label} status: {exc}")
+    if errors:
+        print("FAIL: prod consensus mesh3")
+        for err in errors:
+            print(f"  - {err}")
+        return 16
+
+    heights = [int(st.get("height", 0) or 0) for st in statuses.values()]
+    if max(heights) - min(heights) > 2:
+        errors.append(f"height spread too large: {heights}")
+
+    heads = [(st.get("head_hash") or "").lower() for st in statuses.values()]
+    if not all(heads):
+        errors.append("missing head_hash on one or more nodes")
+    elif len(set(heads)) > 1:
+        errors.append(f"head_hash mismatch {[h[:16] for h in heads]}")
+
+    for label, st in statuses.items():
+        cons = st.get("consensus") or {}
+        if cons.get("mode") != "unified":
+            errors.append(f"{label} consensus.mode={cons.get('mode')}")
+        if not cons.get("unified_path"):
+            errors.append(f"{label} unified_path=false")
+
+    if errors:
+        print("FAIL: prod consensus mesh3")
+        for err in errors:
+            print(f"  - {err}")
+        return 16
+
+    print(
+        f"OK: prod consensus mesh3 unified heights={heights} head={heads[0][:16]}"
+    )
+    return 0
+
+
 def _wait_peer_count(url: str, min_count: int, timeout: int = 60) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -2101,6 +2146,17 @@ def _prod_smoke_bootstrap_mesh(url1: str, url2: str) -> None:
     _wait_peer_count(url1, 1, timeout=45)
     _wait_peer_count(url2, 1, timeout=45)
     _wait_topology_healthy(url1, expected_peers=1, timeout=45)
+
+
+def _prod_mesh3_bootstrap_mesh(url1: str, url2: str, url3: str) -> None:
+    """Ensure prod mesh3 peers are connected before catch-up/sync loops."""
+    urls = [url1, url2, url3]
+    _restore_p2p_mesh(urls, expected_peers=2)
+    time.sleep(2)
+    _wait_peer_count(url1, 2, timeout=60)
+    _wait_peer_count(url2, 1, timeout=60)
+    _wait_peer_count(url3, 1, timeout=60)
+    _wait_topology_healthy(url1, expected_peers=2, timeout=60)
 
 
 def run_prod_smoke_spawn() -> int:
@@ -2221,6 +2277,162 @@ def run_prod_smoke_spawn() -> int:
                 proc.kill()
 
 
+def run_prod_mesh3_spawn(ceremony_dir: str = "") -> int:
+    """Isolated 3-node prod mesh on :15280-15282 with ceremony wallets."""
+    from runtime.prod_smoke_profile import (
+        PROD_MESH3_HTTP_PORTS,
+        PROD_MESH3_P2P_PORTS,
+        apply_prod_smoke_env,
+        native_available,
+        write_prod_mesh3_configs,
+    )
+
+    if not native_available():
+        print("SKIP: prod-mesh3 requires abs_native wheel (ABS_REQUIRE_NATIVE_CRYPTO)")
+        return 0
+
+    from runtime.prod_smoke_profile import ensure_smoke_ports_free
+
+    busy = ensure_smoke_ports_free(
+        ports=tuple(PROD_MESH3_HTTP_PORTS + PROD_MESH3_P2P_PORTS)
+    )
+    if busy:
+        print(f"FAIL: prod-mesh3 ports busy: {busy}")
+        return 1
+
+    tmp = tempfile.mkdtemp(prefix="abs_prod_mesh3_")
+    try:
+        cfg1, cfg2, cfg3, url1, url2, url3 = write_prod_mesh3_configs(
+            tmp,
+            ceremony_dir=ceremony_dir,
+            bridge_enabled=False,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"FAIL: prod-mesh3 ceremony setup: {exc}")
+        print("  Run: python scripts/genesis_ceremony_keygen.py --out-dir data/ceremony_keys_ci")
+        return 1
+
+    env = apply_prod_smoke_env()
+    if env.get("PROD_SMOKE_ADMIN_JWT"):
+        os.environ["PROD_SMOKE_ADMIN_JWT"] = env["PROD_SMOKE_ADMIN_JWT"]
+    env.pop("MINING_ENABLED", None)
+    env["PYTHONUNBUFFERED"] = "1"
+    logs = [os.path.join(tmp, f"node{i}.stderr.log") for i in (1, 2, 3)]
+    cfgs = [cfg1, cfg2, cfg3]
+    urls = [url1, url2, url3]
+    procs = []
+
+    def _node_data_dir(cfg_path: str) -> Path:
+        with open(cfg_path, encoding="utf-8") as f:
+            cfg = json.load(f)
+        db_path = Path(cfg.get("db_path", "data/chain.db"))
+        if not db_path.is_absolute():
+            db_path = Path(cfg_path).resolve().parent / db_path
+        return db_path.parent
+
+    def _seed_follower_dbs(leader_cfg: str, follower_cfgs: list[str]) -> None:
+        leader_dir = _node_data_dir(leader_cfg)
+        leader_db = leader_dir / "chain.db"
+        if not leader_db.is_file():
+            return
+        for follower in follower_cfgs:
+            target_dir = _node_data_dir(follower)
+            target_dir.mkdir(parents=True, exist_ok=True)
+            for suffix in ("", "-wal", "-shm"):
+                src = leader_dir / f"chain.db{suffix}"
+                if src.is_file():
+                    shutil.copy2(src, target_dir / f"chain.db{suffix}")
+
+    try:
+        print(f"Prod-mesh3: spawning ceremony mesh on :15280-15282 (tmp={tmp})")
+        log1 = logs[0]
+        with open(log1, "w", encoding="utf-8") as err1:
+            procs.append(
+                subprocess.Popen(
+                    [sys.executable, "main.py", "--config", cfg1],
+                    cwd=ROOT,
+                    env=env,
+                    stdout=subprocess.DEVNULL,
+                    stderr=err1,
+                )
+            )
+        if not _wait_health(url1, max_sec=180):
+            print(f"FAIL: prod-mesh3 health timeout on {url1}")
+            print(f"  stderr: {log1}")
+            return 1
+        for _ in range(30):
+            try:
+                if int(_api(f"{url1}/status").get("height", 0) or 0) >= 1:
+                    break
+            except Exception:
+                pass
+            time.sleep(2)
+
+        _seed_follower_dbs(cfg1, [cfg2, cfg3])
+        for cfg, log_path in zip(cfgs[1:], logs[1:]):
+            err = open(log_path, "w", encoding="utf-8")
+            procs.append(
+                subprocess.Popen(
+                    [sys.executable, "main.py", "--config", cfg],
+                    cwd=ROOT,
+                    env=env,
+                    stdout=subprocess.DEVNULL,
+                    stderr=err,
+                )
+            )
+            time.sleep(2)
+
+        for url, log_path in zip(urls[1:], logs[1:]):
+            if not _wait_health(url, max_sec=180):
+                print(f"FAIL: prod-mesh3 health timeout on {url}")
+                print(f"  stderr: {log_path}")
+                return 1
+
+        for url in urls:
+            try:
+                _admin_token(url)
+            except Exception as exc:
+                print(f"WARN: prod-mesh3 admin JWT prefetch {url}: {exc}")
+
+        _prod_mesh3_bootstrap_mesh(url1, url2, url3)
+
+        stable = False
+        for _ in range(40):
+            try:
+                statuses = [_api(f"{u}/status") for u in urls]
+                heights = [int(s.get("height", 0) or 0) for s in statuses]
+                heads = [(s.get("head_hash") or "").lower() for s in statuses]
+                if min(heights) >= 1 and max(heights) - min(heights) <= 1:
+                    if heads[0] and len(set(heads)) == 1:
+                        stable = True
+                        break
+            except Exception:
+                pass
+            time.sleep(3)
+        if not stable:
+            print("FAIL: prod-mesh3 nodes did not reach common head after bootstrap")
+            for i, url in enumerate(urls, start=1):
+                try:
+                    st = _api(f"{url}/status")
+                    print(f"  node{i} height={st.get('height')} head={(st.get('head_hash') or '')[:16]}")
+                except Exception as exc:
+                    print(f"  node{i} status error: {exc}")
+            return 2
+
+        rc = verify_prod_consensus_mesh3(url1, url2, url3)
+        if rc != 0:
+            return rc
+        print("OK: prod-mesh3 ceremony spawn passed")
+        return 0
+    finally:
+        for proc in procs:
+            proc.terminate()
+            try:
+                proc.wait(timeout=12)
+            except Exception:
+                proc.kill()
+
+
 def run_ci_spawn() -> int:
     """Isolated two-node test on high ports (does not touch devnet :8080)."""
     tmp = tempfile.mkdtemp(prefix="abs_p2p_ci_")
@@ -2331,6 +2543,8 @@ def main() -> int:
             "ci-bridge-relayer",
             "ci-adversarial",
             "prod-smoke",
+            "prod-mesh3",
+            "prod-mesh3-live",
         ),
         default="auto",
         help="auto; devnet/devnet3/devnet5; ci/ci3",
@@ -2345,6 +2559,11 @@ def main() -> int:
         type=int,
         default=240,
         help="seconds to wait for stable P2P sync (devnet mode)",
+    )
+    parser.add_argument(
+        "--ceremony-dir",
+        default="",
+        help="Ceremony directory for prod-mesh3 spawn (default: data/ceremony_keys_ci)",
     )
     args = parser.parse_args()
 
@@ -2393,6 +2612,19 @@ def main() -> int:
 
     if mode == "prod-smoke":
         return run_prod_smoke_spawn()
+
+    if mode == "prod-mesh3":
+        return run_prod_mesh3_spawn(ceremony_dir=args.ceremony_dir)
+
+    if mode == "prod-mesh3-live":
+        print(f"Prod-mesh3-live: checking {args.url1} {args.url2} {args.url3}")
+        rc = verify_triple(args.url1, args.url2, args.url3, wait_sync_sec=args.wait)
+        if rc != 0:
+            return rc
+        rc = verify_prod_consensus_mesh3(args.url1, args.url2, args.url3)
+        if rc != 0:
+            return rc
+        return verify_prod_post_checks(args.url1)
 
     if mode == "ci-fork":
         return run_ci_fork_spawn()

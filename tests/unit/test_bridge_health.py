@@ -40,7 +40,9 @@ def test_rust_bridge_health_rejects_invalid_json(monkeypatch, tmp_path):
     assert "invalid JSON" in out["error"]
 
 
-def test_l1_rpc_health_without_urls():
+def test_l1_rpc_health_without_urls(monkeypatch):
+    for key in ("ETH_RPC_URL", "BSC_RPC_URL", "POLYGON_RPC_URL"):
+        monkeypatch.delenv(key, raising=False)
     out = health.check_l1_rpc_health()
     assert out["configured"] is False
     assert out["ok"] is True

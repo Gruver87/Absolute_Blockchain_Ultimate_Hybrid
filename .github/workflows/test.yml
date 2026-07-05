@@ -65,6 +65,14 @@ jobs:
           --config node.prod.mainnet-v1.example.json \
           --manifest validators.manifest.mainnet-v1.example.json
 
+    - name: Ceremony keygen (CI strict gates)
+      if: matrix.python-version == '3.12'
+      run: |
+        python scripts/genesis_ceremony_keygen.py \
+          --out-dir data/ceremony_keys_ci \
+          --config node.prod.mainnet-v1.example.json \
+          --template validators.manifest.mainnet-v1.example.json
+
     - name: Syntax check (compile all active modules)
       run: |
         python -c "
@@ -134,6 +142,7 @@ jobs:
           tests/unit/test_p2p_ghost_head.py \
           tests/unit/test_external_audit_automation.py \
           tests/unit/test_mainnet_launch_checklist.py \
+          tests/unit/test_bridge_l1_cutover.py \
           tests/unit/test_mempool_batch_signatures.py \
           tests/unit/test_evm_keccak_native.py \
           tests/unit/test_evm_native_u256.py \
@@ -177,6 +186,21 @@ jobs:
     - name: Mainnet launch checklist (code gates)
       if: matrix.python-version == '3.12'
       run: python scripts/mainnet_launch_checklist.py
+
+    - name: Mainnet launch checklist (strict ceremony + keys)
+      if: matrix.python-version == '3.12'
+      run: |
+        python scripts/mainnet_launch_checklist.py \
+          --strict-mainnet \
+          --strict-keys \
+          --ceremony-dir data/ceremony_keys_ci
+
+    - name: Prod mesh3 spawn (ceremony 3-validator)
+      if: runner.os == 'Linux' && matrix.python-version == '3.12'
+      env:
+        PYTHONUTF8: "1"
+      run: |
+        python scripts/verify_p2p_ci.py --mode prod-mesh3 --ceremony-dir data/ceremony_keys_ci
 
     - name: Prod-profile P2P smoke (Linux)
       if: runner.os == 'Linux' && matrix.python-version == '3.12'

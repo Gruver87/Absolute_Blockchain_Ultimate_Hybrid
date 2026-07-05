@@ -100,6 +100,44 @@ def check_docker_prod_compose() -> list[str]:
     return errors
 
 
+def check_docker_prod_mesh_compose() -> list[str]:
+    compose = ROOT / "docker-compose.prod.3node.yml"
+    if not compose.is_file():
+        return ["docker-compose.prod.3node.yml missing"]
+    text = compose.read_text(encoding="utf-8")
+    errors: list[str] = []
+    for needle in ("node1:", "node2:", "node3:", "prod_mesh/wallets", "ABS_REQUIRE_NATIVE_CRYPTO"):
+        if needle not in text:
+            errors.append(f"docker-compose.prod.3node.yml missing {needle}")
+    compose_env = {
+        "JWT_SECRET": "Q" * 40,
+        "RPC_API_KEYS": "R" * 40,
+        "BRIDGE_ORACLE_SECRET": "S" * 40,
+        "ETH_RPC_URL": "https://rpc.example.com",
+        "CORS_ORIGINS": "https://explorer.example.com",
+    }
+    saved = {key: os.environ.get(key) for key in compose_env}
+    try:
+        os.environ.update(compose_env)
+        proc = subprocess.run(
+            ["docker", "compose", "-f", str(compose), "config", "--quiet"],
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if proc.returncode != 0:
+            errors.append(proc.stderr.strip() or "docker compose prod.3node config failed")
+    except FileNotFoundError:
+        pass
+    except subprocess.TimeoutExpired:
+        errors.append("docker compose prod.3node config timed out")
+    finally:
+        for key, old in saved.items():
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
     return errors
 
 
@@ -138,6 +176,19 @@ def check_prod_smoke_spawn() -> list[str]:
     rc = int(mod.run_prod_smoke_spawn())
     if rc != 0:
         return [f"prod_smoke_spawn exited {rc}"]
+    return []
+
+
+def check_prod_mesh3_spawn(ceremony_dir: str = "") -> list[str]:
+    spec = importlib.util.spec_from_file_location(
+        "verify_p2p_ci", ROOT / "scripts" / "verify_p2p_ci.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    assert spec is not None and spec.loader is not None
+    spec.loader.exec_module(mod)
+    rc = int(mod.run_prod_mesh3_spawn(ceremony_dir=ceremony_dir))
+    if rc != 0:
+        return [f"prod_mesh3_spawn exited {rc}"]
     return []
 
 

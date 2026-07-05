@@ -13,8 +13,10 @@ from runtime.prod_smoke_profile import (
     PROD_SMOKE_CHAIN_ID,
     apply_prod_smoke_env,
     prod_node_config,
+    write_prod_mesh3_configs,
     write_prod_pair_configs,
 )
+from runtime.ceremony_keygen import generate_validator_set
 
 
 def test_prod_node_config_has_industrial_flags():
@@ -102,3 +104,34 @@ def test_mainnet_v1_example_disables_bridge():
     assert data["bridge_enabled"] is False
     assert data["deployment_mode"] == "prod"
     assert data["chain_id"] == PROD_SMOKE_CHAIN_ID
+
+
+def test_write_prod_mesh3_configs_binds_ceremony_wallets(tmp_path):
+    template = {
+        "version": 1,
+        "validators": [
+            {"index": 1, "node_id": "v1", "address": "0x1", "mines": True, "stake": 5000},
+            {"index": 2, "node_id": "v2", "address": "0x2", "mines": True, "stake": 3000},
+            {"index": 3, "node_id": "v3", "address": "0x3", "mines": False, "stake": 2000},
+        ],
+    }
+    template_path = tmp_path / "template.json"
+    template_path.write_text(json.dumps(template), encoding="utf-8")
+    ceremony_dir = tmp_path / "ceremony"
+    generate_validator_set(str(template_path), str(ceremony_dir))
+    cfg1, cfg2, cfg3, url1, url2, url3 = write_prod_mesh3_configs(
+        str(tmp_path / "mesh"),
+        ceremony_dir=str(ceremony_dir),
+    )
+    assert url1.endswith(":15280")
+    assert url3.endswith(":15282")
+    with open(cfg1, encoding="utf-8") as f:
+        n1 = json.load(f)
+    with open(cfg3, encoding="utf-8") as f:
+        n3 = json.load(f)
+    assert n1["mining_enabled"] is True
+    assert n3["mining_enabled"] is False
+    with open(cfg2, encoding="utf-8") as f:
+        n2 = json.load(f)
+    assert n2["mining_enabled"] is False
+    assert n1["node_id"] == "prod-mesh3-1"

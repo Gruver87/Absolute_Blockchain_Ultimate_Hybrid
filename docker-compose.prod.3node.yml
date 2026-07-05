@@ -1,0 +1,199 @@
+# Three-node production mesh (mainnet-v1 ceremony manifest + per-validator wallets)
+# Usage:
+#   .\scripts\docker_prod_3node.ps1 -CeremonyDir data/ceremony_keys
+
+x-abs-prod-env: &abs-prod-env
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
+  DEPLOYMENT_MODE: prod
+  CHAIN_ID: "778888"
+  HTTP_HOST: "0.0.0.0"
+  RPC_HOST: "0.0.0.0"
+  WS_HOST: "0.0.0.0"
+  P2P_HOST: "0.0.0.0"
+  ABS_REQUIRE_NATIVE_CRYPTO: "true"
+  BRIDGE_MODE: rust
+  RUST_BRIDGE_PATH: bridge/abs_bridge_bin
+  BRIDGE_AUTO_CONFIRM_SEC: "0"
+  BRIDGE_REQUIRE_L1_PROOF: "true"
+  BRIDGE_PROBE_L1_RPC: ${BRIDGE_PROBE_L1_RPC:-false}
+  BRIDGE_ENABLED: ${BRIDGE_ENABLED:-false}
+  BRIDGE_L1_QUEUE_PATH: /app/data/bridge_l1_queue.json
+  ETH_RPC_URL: ${ETH_RPC_URL:?set ETH_RPC_URL before starting prod mesh}
+  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET before starting prod}
+  RPC_API_KEYS: ${RPC_API_KEYS:?set RPC_API_KEYS before starting prod}
+  BRIDGE_ORACLE_SECRET: ${BRIDGE_ORACLE_SECRET:?set BRIDGE_ORACLE_SECRET before starting prod}
+  RPC_API_KEY_REQUIRED: "true"
+  JWT_ENFORCE_ADMIN: "true"
+  REQUIRE_WALLET_FILE: "true"
+  CORS_ORIGINS: ${CORS_ORIGINS:?set CORS_ORIGINS before starting prod}
+  RATE_LIMIT_RPM: "120"
+  GENESIS_CEREMONY_HASH: ${GENESIS_CEREMONY_HASH:-}
+  GENESIS_STRICT_MAINNET: ${GENESIS_STRICT_MAINNET:-false}
+  VALIDATORS_MANIFEST_PATH: data/validators.manifest.json
+
+services:
+  node1:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    hostname: abs-prod-mesh-1
+    command: ["python", "main.py", "--config", "docker/node.prod.mesh1.json"]
+    ports:
+      - "${ABS_MESH_HTTP_PORT_1:-18180}:8080"
+      - "${ABS_MESH_RPC_PORT_1:-18546}:8545"
+      - "${ABS_MESH_P2P_PORT_1:-15001}:5000"
+      - "${ABS_MESH_WS_PORT_1:-18767}:8766"
+    environment:
+      <<: *abs-prod-env
+      NODE_ID: docker-prod-mesh-1
+    volumes:
+      - abs-prod-mesh1-data:/app/data
+      - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro
+      - ./data/prod_mesh/wallets/validator-1.wallet.json:/app/data/wallet.json:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=5)",
+        ]
+      interval: 20s
+      timeout: 8s
+      retries: 8
+      start_period: 90s
+    networks:
+      - abs-prod-mesh
+    restart: unless-stopped
+
+  node2-db-seed:
+    image: alpine:3.20
+    profiles: ["seed"]
+    volumes:
+      - abs-prod-mesh1-data:/seed-from
+      - abs-prod-mesh2-data:/seed-to
+    environment:
+      SKIP_DB_SEED: ${SKIP_DB_SEED:-0}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        if [ "$$SKIP_DB_SEED" = "1" ]; then exit 0; fi
+        if [ ! -f /seed-from/blockchain.db ]; then exit 0; fi
+        apk add --no-cache sqlite >/dev/null
+        sqlite3 /seed-from/blockchain.db "PRAGMA wal_checkpoint(TRUNCATE);"
+        rm -f /seed-to/blockchain.db /seed-to/blockchain.db-shm /seed-to/blockchain.db-wal
+        cp /seed-from/blockchain.db /seed-to/blockchain.db
+        echo "node2 DB seeded from node1"
+    restart: "no"
+    networks:
+      - abs-prod-mesh
+
+  node3-db-seed:
+    image: alpine:3.20
+    profiles: ["seed"]
+    volumes:
+      - abs-prod-mesh1-data:/seed-from
+      - abs-prod-mesh3-data:/seed-to
+    environment:
+      SKIP_DB_SEED: ${SKIP_DB_SEED:-0}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        if [ "$$SKIP_DB_SEED" = "1" ]; then exit 0; fi
+        if [ ! -f /seed-from/blockchain.db ]; then exit 0; fi
+        apk add --no-cache sqlite >/dev/null
+        sqlite3 /seed-from/blockchain.db "PRAGMA wal_checkpoint(TRUNCATE);"
+        rm -f /seed-to/blockchain.db /seed-to/blockchain.db-shm /seed-to/blockchain.db-wal
+        cp /seed-from/blockchain.db /seed-to/blockchain.db
+        echo "node3 DB seeded from node1"
+    restart: "no"
+    networks:
+      - abs-prod-mesh
+
+  node2:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    hostname: abs-prod-mesh-2
+    command: ["python", "main.py", "--config", "docker/node.prod.mesh2.json"]
+    ports:
+      - "${ABS_MESH_HTTP_PORT_2:-18181}:8080"
+      - "${ABS_MESH_RPC_PORT_2:-18547}:8545"
+      - "${ABS_MESH_P2P_PORT_2:-15002}:5000"
+      - "${ABS_MESH_WS_PORT_2:-18768}:8766"
+    environment:
+      <<: *abs-prod-env
+      NODE_ID: docker-prod-mesh-2
+      BOOTSTRAP_PEERS: node1:5000
+    volumes:
+      - abs-prod-mesh2-data:/app/data
+      - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro
+      - ./data/prod_mesh/wallets/validator-2.wallet.json:/app/data/wallet.json:ro
+    depends_on:
+      node1:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=5)",
+        ]
+      interval: 20s
+      timeout: 8s
+      retries: 8
+      start_period: 90s
+    networks:
+      - abs-prod-mesh
+    restart: unless-stopped
+
+  node3:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    hostname: abs-prod-mesh-3
+    command: ["python", "main.py", "--config", "docker/node.prod.mesh3.json"]
+    ports:
+      - "${ABS_MESH_HTTP_PORT_3:-18182}:8080"
+      - "${ABS_MESH_RPC_PORT_3:-18548}:8545"
+      - "${ABS_MESH_P2P_PORT_3:-15003}:5000"
+      - "${ABS_MESH_WS_PORT_3:-18769}:8766"
+    environment:
+      <<: *abs-prod-env
+      NODE_ID: docker-prod-mesh-3
+      BOOTSTRAP_PEERS: node1:5000,node2:5000
+    volumes:
+      - abs-prod-mesh3-data:/app/data
+      - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro
+      - ./data/prod_mesh/wallets/validator-3.wallet.json:/app/data/wallet.json:ro
+    depends_on:
+      node1:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=5)",
+        ]
+      interval: 20s
+      timeout: 8s
+      retries: 8
+      start_period: 90s
+    networks:
+      - abs-prod-mesh
+    restart: unless-stopped
+
+volumes:
+  abs-prod-mesh1-data:
+  abs-prod-mesh2-data:
+  abs-prod-mesh3-data:
+
+networks:
+  abs-prod-mesh:
+    driver: bridge

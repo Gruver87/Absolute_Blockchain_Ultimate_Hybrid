@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import sys
 import urllib.error
 import urllib.request
@@ -16,20 +15,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 _BRIDGE_CONFIG = "node.prod.mainnet-v1.bridge.example.json"
-_PLACEHOLDER_RPC = re.compile(
-    r"(?i)(ваш-ethereum|your-ethereum|your-mainnet|changeme|placeholder|todo|rpc\.example$|example\.com$)"
-)
 
 
 def is_placeholder_rpc_url(url: str) -> bool:
-    from runtime.secret_utils import is_placeholder_secret
+    from bridge.l1_rpc import is_placeholder_l1_rpc_url
 
-    url = (url or "").strip()
-    if not url:
-        return True
-    if is_placeholder_secret(url):
-        return True
-    return bool(_PLACEHOLDER_RPC.search(url))
+    return is_placeholder_l1_rpc_url(url)
 
 
 def resolve_live_base_url(preferred: str = "") -> str:

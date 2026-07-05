@@ -19,6 +19,11 @@ PROD_SMOKE_CHAIN_ID = MAINNET_V1_CHAIN_ID
 PROD_SMOKE_HTTP_PORTS = (15180, 15181)
 PROD_SMOKE_P2P_PORTS = (15100, 15101)
 
+PROD_MESH3_HTTP_PORTS = (15280, 15281, 15282)
+PROD_MESH3_P2P_PORTS = (15200, 15201, 15202)
+PROD_MESH3_RPC_PORTS = (15245, 15246, 15247)
+PROD_MESH3_WS_PORTS = (15266, 15267, 15268)
+
 
 def ensure_smoke_ports_free(
     ports: tuple[int, ...] | None = None,
@@ -263,6 +268,82 @@ def write_prod_pair_configs(
     with open(cfg2, "w", encoding="utf-8") as f:
         json.dump(n2, f, indent=2)
     return cfg1, cfg2, "http://127.0.0.1:15180", "http://127.0.0.1:15181"
+
+
+def resolve_ceremony_dir(ceremony_dir: str = "") -> Path:
+    """Ceremony dir for prod mesh (explicit path, data/ceremony_keys, or CI dir)."""
+    if ceremony_dir:
+        cdir = Path(ceremony_dir)
+        if not cdir.is_absolute():
+            cdir = ROOT / cdir
+        return cdir
+    for candidate in (ROOT / "data" / "ceremony_keys", ROOT / "data" / "ceremony_keys_ci"):
+        if (candidate / "validators.manifest.json").is_file():
+            return candidate
+    return ROOT / "data" / "ceremony_keys"
+
+
+def write_prod_mesh3_configs(
+    tmp: str,
+    ceremony_dir: str = "",
+    *,
+    bridge_enabled: bool = False,
+) -> Tuple[str, str, str, str, str, str]:
+    """Three prod nodes with distinct ceremony wallets (ports :15280-15282)."""
+    from runtime.validator_loader import manifest_entries
+
+    cdir = resolve_ceremony_dir(ceremony_dir)
+    manifest_src = cdir / "validators.manifest.json"
+    if not manifest_src.is_file():
+        raise FileNotFoundError(f"ceremony manifest missing: {manifest_src}")
+
+    root = Path(tmp)
+    root.mkdir(parents=True, exist_ok=True)
+    manifest_path = root / "validators.manifest.json"
+    shutil.copy2(manifest_src, manifest_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    rows = sorted(manifest_entries(manifest), key=lambda r: int(r.get("index", 0) or 0))[:3]
+    if len(rows) < 3:
+        raise ValueError(f"ceremony mesh requires 3 validators, found {len(rows)}")
+
+    primary_miner_index = next(
+        (int(r.get("index", 0) or 0) for r in rows if bool(r.get("mines", True))),
+        int(rows[0].get("index", 1) or 1),
+    )
+    for row in manifest.get("validators") or []:
+        if not isinstance(row, dict):
+            continue
+        idx = int(row.get("index", 0) or 0)
+        row["mines"] = idx == primary_miner_index
+    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    cfgs: list[str] = []
+    urls: list[str] = []
+    for i, row in enumerate(rows):
+        index = int(row.get("index", 0) or 0)
+        wallet_src = cdir / "wallets" / f"validator-{index}.wallet.json"
+        if not wallet_src.is_file():
+            raise FileNotFoundError(f"ceremony wallet missing: {wallet_src}")
+        bootstrap = [f"127.0.0.1:{PROD_MESH3_P2P_PORTS[j]}" for j in range(i)]
+        cfg = prod_node_config(
+            tmp,
+            node_id=f"prod-mesh3-{index}",
+            http_port=PROD_MESH3_HTTP_PORTS[i],
+            p2p_port=PROD_MESH3_P2P_PORTS[i],
+            rpc_port=PROD_MESH3_RPC_PORTS[i],
+            ws_port=PROD_MESH3_WS_PORTS[i],
+            bootstrap_peers=bootstrap,
+            mining_enabled=index == primary_miner_index,
+            bridge_enabled=bridge_enabled,
+            validators_manifest_path=str(manifest_path),
+            wallet_source=wallet_src,
+        )
+        cfg_path = os.path.join(tmp, f"prod-mesh3-{index}.json")
+        with open(cfg_path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+        cfgs.append(cfg_path)
+        urls.append(f"http://127.0.0.1:{PROD_MESH3_HTTP_PORTS[i]}")
+    return cfgs[0], cfgs[1], cfgs[2], urls[0], urls[1], urls[2]
 
 
 def native_available() -> bool:

@@ -1410,6 +1410,15 @@ class NodeOrchestrator:
             _multi_validator_devnet = int(
                 getattr(self.config, "testnet_expected_validators", 0) or 0
             ) >= 3
+            from runtime.devnet_validators import (
+                mining_validator_addresses,
+                resolve_manifest_path,
+            )
+            _mf = getattr(self.config, "validators_manifest_path", "") or ""
+            if not (_mf and os.path.isfile(_mf)):
+                _mf = resolve_manifest_path(self.config) if _multi_validator_devnet else ""
+            _founder = getattr(self.config, "founder_address", "") or ""
+            _mine_only = mining_validator_addresses(_mf, _founder) if _mf else set()
             if _signing and self.wallet and len(_active_vals) <= 1:
                 proposer = _signing
 
@@ -1418,20 +1427,12 @@ class NodeOrchestrator:
                 try:
                     validators_dict = {v["address"]: v.get("stake", 100)
                                        for v in (self.db.get_validators() or [])}
-                    if validators_dict and _multi_validator_devnet:
-                        from runtime.devnet_validators import (
-                            mining_validator_addresses,
-                            resolve_manifest_path,
-                        )
-                        _mf = resolve_manifest_path(self.config)
-                        _founder = getattr(self.config, "founder_address", "") or ""
-                        _mine_only = mining_validator_addresses(_mf, _founder)
-                        if _mine_only:
-                            validators_dict = {
-                                k: v
-                                for k, v in validators_dict.items()
-                                if k.lower() in _mine_only
-                            }
+                    if validators_dict and _mine_only:
+                        validators_dict = {
+                            k: v
+                            for k, v in validators_dict.items()
+                            if k.lower() in _mine_only
+                        }
                     if validators_dict:
                         slot = getattr(self.consensus, "engine", None)
                         slot_n = getattr(slot, "current_slot", 0) if slot else 0
@@ -1447,15 +1448,7 @@ class NodeOrchestrator:
             if not proposer:
                 proposer = self.config.miner_address or "genesis"
 
-            if _multi_validator_devnet:
-                from runtime.devnet_validators import (
-                    mining_validator_addresses,
-                    resolve_manifest_path,
-                )
-                _mf = resolve_manifest_path(self.config)
-                _founder = getattr(self.config, "founder_address", "") or ""
-                _mine_only = mining_validator_addresses(_mf, _founder)
-                if _mine_only and proposer.lower() not in _mine_only:
+            if _mine_only and proposer.lower() not in _mine_only:
                     _eligible = [
                         v["address"]
                         for v in (_active_vals or [])

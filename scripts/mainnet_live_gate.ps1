@@ -37,7 +37,9 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($DockerLive) {
     Write-Host ""
     Write-Host "Docker live gate (requires JWT_SECRET, RPC_API_KEYS, ...)" -ForegroundColor Cyan
-    & "$ProjectRoot\scripts\docker_prod.ps1" -CeremonyDir $CeremonyDir
+    $dockerArgs = @("-CeremonyDir", $CeremonyDir)
+    if ($BridgeCutover) { $dockerArgs += "-Bridge" }
+    & "$ProjectRoot\scripts\docker_prod.ps1" @dockerArgs
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     if ($BridgeCutover) {
         Write-Host ""
@@ -51,3 +53,4 @@ if ($DockerLive) {
 Write-Host ""
 Write-Host "OK: mainnet live gate (isolated prod-smoke) passed" -ForegroundColor Green
 Write-Host "Next: .\scripts\docker_prod.ps1 -CeremonyDir $CeremonyDir" -ForegroundColor Gray
+Write-Host "      .\scripts\docker_prod_3node.ps1 -CeremonyDir $CeremonyDir" -ForegroundColor Gray
