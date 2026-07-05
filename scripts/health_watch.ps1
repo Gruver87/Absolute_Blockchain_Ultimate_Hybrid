@@ -16,6 +16,11 @@ if ($ProdMesh) {
     $Ports = @(18180, 18181, 18182)
 }
 
+# Short runs: default 300s interval means only one poll before DurationMin ends.
+if ($DurationMin -gt 0 -and -not $PSBoundParameters.ContainsKey("IntervalSec")) {
+    $IntervalSec = [Math]::Max(10, [Math]::Min(60, [int](($DurationMin * 60) / 3)))
+}
+
 $logDir = Split-Path -Parent $LogFile
 if ($logDir -and -not (Test-Path $logDir)) {
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -69,9 +74,12 @@ while ($true) {
             continue
         }
         $line = "OK port $($r.Port) height=$($r.Height) peers=$($r.Peers) p2p=$($r.P2P) aligned=$($r.Aligned) failed=$($r.Failed)"
+        $p2pWarn = ($r.P2P -in @("solo", "under_mesh", "stale"))
         if ($r.Aligned -eq $false -or ($r.Failed -and [int]$r.Failed -gt 0)) {
             $failures += $line
             Write-Log "WARN $line" "Yellow"
+        } elseif ($p2pWarn) {
+            Write-Log "OK $line (p2p not full mesh; chain OK)" "Yellow"
         } else {
             Write-Log $line "Green"
         }
@@ -85,5 +93,14 @@ while ($true) {
         Write-Log "health_watch done (duration ${DurationMin}m)" "Cyan"
         break
     }
-    Start-Sleep -Seconds $IntervalSec
+    $sleepFor = $IntervalSec
+    if ($end) {
+        $remaining = [int](($end - (Get-Date)).TotalSeconds)
+        if ($remaining -le 0) {
+            Write-Log "health_watch done (duration ${DurationMin}m)" "Cyan"
+            break
+        }
+        if ($remaining -lt $sleepFor) { $sleepFor = $remaining }
+    }
+    Start-Sleep -Seconds $sleepFor
 }
