@@ -440,6 +440,28 @@ def section_live_endpoints(base: str) -> AuditResult:
             print(f"  [OK] {path}")
             if path == "/status" and isinstance(data, dict):
                 api_wave = int(data.get("api_wave", 0) or 0)
+                sync = str(data.get("p2p_sync_status", "") or "")
+                peers = int(data.get("peers_connected", data.get("peers", 0)) or 0)
+                gap = int(data.get("peer_sync_gap", 0) or 0)
+                if sync in ("solo", "single_peer_dev"):
+                    print(f"  [INFO] P2P mode={sync} — mesh tests need start_two_nodes or docker mesh")
+                elif sync == "single_peer_stale":
+                    print(
+                        f"  [WARN] Stale peer connected (gap={gap}) — "
+                        "stop other nodes: .\\scripts\\stop_node.ps1 or docker compose down"
+                    )
+                    res.warnings += 1
+                elif sync in ("under_mesh", "under_mesh_lagging"):
+                    need = int(data.get("mesh_min_peers", 2) or 2)
+                    print(
+                        f"  [WARN] Prod mesh needs >={need} peers (connected={peers}, gap={gap}) — "
+                        ".\\scripts\\docker_prod_3node.ps1"
+                    )
+                    res.warnings += 1
+                elif sync == "catching_up":
+                    print(f"  [INFO] P2P catching up (gap={gap}) — wait or run sync")
+                elif sync == "aligned":
+                    print(f"  [OK] P2P aligned (peers={peers})")
         else:
             print(f"  [FAIL] {path} — {data}")
             res.ok = False

@@ -203,6 +203,52 @@ def _rust_bridge_health(cfg) -> Dict:
         out["ok"] = bool(out.get("ok")) and bool(l1.get("ok"))
     return out
 
+
+def _derive_p2p_sync_status(
+    *,
+    peer_count: int,
+    peer_gap: int,
+    state_consistent: bool,
+    deployment_mode: str,
+    mesh_min_peers: int,
+) -> str:
+    """Human-readable mesh sync state for dashboard and audits."""
+    mesh_need = max(2, int(mesh_min_peers or 0))
+    mode = (deployment_mode or "dev").strip().lower()
+    if peer_count <= 0:
+        return "solo"
+    if mode == "prod" and peer_count < mesh_need:
+        return "under_mesh_lagging" if peer_gap > 0 else "under_mesh"
+    if peer_count < mesh_need:
+        return "single_peer_stale" if peer_gap > 20 else "single_peer_dev"
+    if peer_gap == 0 and state_consistent:
+        return "aligned"
+    if peer_gap > 20:
+        return "catching_up"
+    if not state_consistent or peer_gap > 0:
+        return "inconsistent"
+    return "aligned"
+
+
+def _bridge_disabled_reason(cfg) -> str:
+    """Explain why bridge is off (dashboard / ops). Empty when bridge is enabled."""
+    if getattr(cfg, "bridge_enabled", False):
+        return ""
+    env_val = os.environ.get("BRIDGE_ENABLED", "").strip().lower()
+    if env_val in ("0", "false", "no", "off"):
+        return "BRIDGE_ENABLED=false in environment"
+    chain_id = int(getattr(cfg, "chain_id", 0) or 0)
+    mode = (getattr(cfg, "deployment_mode", "dev") or "dev").strip().lower()
+    if mode == "prod" and chain_id == 778888:
+        return (
+            "mainnet-v1 cutover: bridge off until L1 contracts deployed "
+            "(enable: setup_prod_env + docker_prod.ps1 -Bridge)"
+        )
+    if mode == "prod":
+        return "prod profile: set BRIDGE_ENABLED=true with real L1 RPC and oracle secret"
+    return "disabled in node config (bridge_enabled=false)"
+
+
 # Devnet / probes: не считаем в rate limit (start_two_nodes, devnet_status, K8s)
 _RATE_LIMIT_EXEMPT_PATHS = frozenset({
     "/status",
@@ -1061,6 +1107,16 @@ class RESTHandler(BaseHTTPRequestHandler):
                         })
                     except Exception:
                         pass
+                peer_count = p2p.peer_count() if p2p else 0
+                mesh_min_peers = int(getattr(cfg, "mesh_min_peers_before_mine", 0) or 0)
+                state_consistent = getattr(p2p, "_state_consistent", True) if p2p else True
+                p2p_sync_status = _derive_p2p_sync_status(
+                    peer_count=peer_count,
+                    peer_gap=peer_gap,
+                    state_consistent=state_consistent,
+                    deployment_mode=getattr(cfg, "deployment_mode", "dev"),
+                    mesh_min_peers=mesh_min_peers,
+                )
                 self._json({
                     "status": "running",
                     "node_version": cfg.node_version,
@@ -1069,7 +1125,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "chain_id": cfg.chain_id,
                     "height": bc.get_height(),
                     "head_hash": head_hash,
-                    "peers": p2p.peer_count() if p2p else 0,
+                    "peers": peer_count,
+                    "peers_connected": peer_count,
+                    "validators_registered": len(validators),
+                    "mesh_min_peers": mesh_min_peers,
+                    "p2p_sync_status": p2p_sync_status,
                     "mempool_size": mp.get_size(),
                     "mempool_stats": mp_stats,
                     "sharding": sharding_info,
@@ -1090,6 +1150,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "evm_enabled": cfg.evm_enabled,
                     "bridge_enabled": cfg.bridge_enabled,
                     "bridge_mode": getattr(cfg, "bridge_mode", "unknown"),
+                    "bridge_disabled_reason": _bridge_disabled_reason(cfg),
                     "bridge_pending": bridge_pending,
                     "bridge_locks_total": len(bridge_locks),
                     "deployment_mode": getattr(cfg, "deployment_mode", "dev"),
@@ -1143,7 +1204,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "node_id": getattr(cfg, "node_id", "node-1"),
                     "peer_sync_gap": peer_gap,
                     "peer_heights": peer_heights,
-                    "state_consistent": getattr(p2p, "_state_consistent", True) if p2p else True,
+                    "state_consistent": state_consistent,
                     "health": {
                         "live": "/health/live",
                         "ready": "/health/ready",
@@ -2513,7 +2574,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json({"agents": am.get_all_agents() if am else []})
 
             # ── Cross-Chain Bridge ────────────────────────────────────────────
-            elif path == "/bridge":
+            elif path in ("/bridge", "/bridge/status"):
                 self._json(_build_bridge_overview(
                     self.__class__.bridge,
                     self.__class__.cross_bridge,

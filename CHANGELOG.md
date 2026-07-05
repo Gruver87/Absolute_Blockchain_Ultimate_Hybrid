@@ -6,6 +6,30 @@
 
 ---
 
+## [1.2.1] — 2026-07-05
+
+### Added
+
+- `GET /status` — `p2p_sync_status`, `peers_connected`, `validators_registered`, `mesh_min_peers`, `bridge_disabled_reason`
+- `GET /bridge/status` — alias for bridge overview
+- `scripts/probe_mesh_nodes.ps1` — multi-port mesh/bridge/features probe
+- `LightClient.sync_headers_from_peers()` for untrusted peer headers
+- `tests/unit/test_light_client_sync.py`
+
+### Fixed
+
+- Light client local bootstrap: `sync_from_blockchain()` uses trusted sequential `add_header()` (was failing peer validation on local DB → “0 headers synced”)
+- Explorer dashboard: contextual P2P badges; deployment mode row; bridge off reason
+- `scripts/full_audit.py`: solo/stale/under-mesh warnings instead of generic “inconsistent”
+- `setup_prod_env.ps1`: explicit `BRIDGE_ENABLED=false` for mainnet-v1 cutover policy
+
+### Docs
+
+- README: deployment matrix, chain IDs 77777 vs 778888, test count 698, probe script
+- [RELEASE_NOTES_v1.2.1.md](RELEASE_NOTES_v1.2.1.md)
+
+---
+
 ## [1.2.0-industrial] — Wave 37–63 (июнь 2026)
 
 ### Wave 63 — Admin lockdown for node repair endpoints

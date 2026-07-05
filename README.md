@@ -4,12 +4,12 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Production--hardened%20R%26D-blue)]()
+[![Status](https://img.shields.io/badge/Status-Devnet--ready%20%7C%20Mainnet--prep-blue)]()
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/Full%20Audit-433%20passed-brightgreen)](scripts/check_hybrid_full.ps1)
-[![Hybrid Critical](https://img.shields.io/badge/Hybrid%20Critical-79%20passed-brightgreen)](tests/unit/)
+[![Tests](https://img.shields.io/badge/pytest-698%20passed-brightgreen)](scripts/check_hybrid_full.ps1)
+[![Hybrid Critical](https://img.shields.io/badge/unit-632%20passed-brightgreen)](tests/unit/)
 [![Audit](https://img.shields.io/badge/Full%20Audit-passing-brightgreen)](scripts/check_everything.ps1)
-[![Release](https://img.shields.io/badge/Release-Hybrid%20R%26D-blue)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid)
+[![Release](https://img.shields.io/badge/Release-v1.2.1-blue)](RELEASE_NOTES_v1.2.1.md)
 
 **Repo:** [github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid)
 
@@ -18,22 +18,23 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | `1.2.0-industrial` |
+| **Version** | `1.2.0-industrial` (release **v1.2.1** ops/docs) |
 | **Author** | **ULADZIMIR DABRANSKI** |
-| **API Wave** | 61; check GET /status fields: api_wave, core_real |
+| **API Wave** | 61; check GET /status fields: `api_wave`, `core_real`, `p2p_sync_status` |
 | **Entry point** | `python main.py` |
-| **Storage** | SQLite `data/blockchain.db` |
-| **Chain ID (dev)** | `77777` |
+| **Storage** | SQLite or RocksDB (`db_engine` in config) |
+| **Chain ID (dev)** | `77777` — Docker devnet / local default |
+| **Chain ID (mainnet-v1 prep)** | `778888` — prod profile only; not a launched public mainnet |
 | **Native layer** | Rust/PyO3 `abs_native`: SHA-256, Merkle, state_root, secp256k1, header/tx/block canonical hash, P2P chain validation, Keccak-256 |
 | **Production gate** | `.\scripts\check_hybrid_full.ps1` / `bash scripts/check_hybrid_full.sh` |
 
 | Docs | Link |
 |------|------|
 | Changelog | [CHANGELOG.md](CHANGELOG.md) |
-| Honest command reference | [docs/ALL_COMMANDS.txt](docs/ALL_COMMANDS.txt) |
-| Industrial roadmap | [docs/INDUSTRIAL_ROADMAP.md](docs/INDUSTRIAL_ROADMAP.md) |
-| Python↔Rust porting plan | [docs/PORTING_ROADMAP.md](docs/PORTING_ROADMAP.md) |
-| Disclaimer | [DISCLAIMER.md](DISCLAIMER.md) |
+| Release v1.2.1 | [RELEASE_NOTES_v1.2.1.md](RELEASE_NOTES_v1.2.1.md) |
+| Mainnet gap (honest) | [docs/MAINNET_GAP_ANALYSIS.md](docs/MAINNET_GAP_ANALYSIS.md) |
+| Bridge L1 cutover | [docs/BRIDGE_L1_MAINNET.md](docs/BRIDGE_L1_MAINNET.md) |
+| Honest command reference | [docs/COMMANDS_REFERENCE.md](docs/COMMANDS_REFERENCE.md) |
 
 ---
 
@@ -66,9 +67,29 @@
 | **Tokenomics model** | 🟢 | 221M ABS cap, founder D.U.P. 17.4% — enforced in code |
 | **Rust native crypto** | 🟢 Hybrid path | PyO3 `abs_native`: SHA-256, Merkle, state_root, secp256k1, header/tx/block hash, P2P import validation, Keccak-256 |
 | **EVM / L2 / Bridge** | 🟡 Mixed | EVM subset and Rust bridge path are integrated; dev-only L2/offchain modules are blocked by prod profile |
-| **Production mainnet** | 🔴 Not launched | Requires external audit, live infra, validator operations, and L1 bridge RPC/secrets |
+| **Production mainnet** | 🔴 Not launched | External audit, validator ops, L1 bridge cutover; prod profile is **preparation**, not live mainnet |
 
-**Quality gate (Jul 2026):** **`.\scripts\check_hybrid_full.ps1`** → hybrid critical tests + native crypto self-test + Rust bridge smoke · **377 unit tests** passing (`pytest tests/unit/ -q`)
+**Quality gate (Jul 2026):** **`.\scripts\check_hybrid_full.ps1`** → native crypto + bridge smoke + pytest · **`698 passed, 1 skipped`** (`pytest tests/ -q`)
+
+---
+
+## Deployment modes (read before interpreting Dashboard)
+
+| What you run | Chain ID | Typical Dashboard | Bridge |
+|--------------|----------|-------------------|--------|
+| `python main.py` (dev `.env`) | 77777 | solo or 1 peer | ON if configured |
+| `docker_devnet_5validator.ps1` | 77777 | peers 4/5, `aligned` | ON on node1 (`:8080`) |
+| `python main.py` + prod `.env` | **778888** | often **solo** if no mesh | **OFF** by default (mainnet-v1 cutover) |
+| `docker_prod_3node.ps1` | **778888** | peers ≥2, `aligned` | **OFF** until `-Bridge` lab |
+
+**Common false alarm:** Dashboard on `:8080` shows `Peers 1/5 · single peer (dev)` while Docker mesh runs on `:8081`–`:8084` — you are viewing **one process**, not the mesh. Use:
+
+```powershell
+.\scripts\probe_mesh_nodes.ps1              # devnet5 ports
+.\scripts\probe_mesh_nodes.ps1 -ProdMesh    # prod 3-node
+```
+
+Do **not** mix local `python main.py` with Docker on the same host ports (`:8080`, `:5000`, `:8545`).
 
 ---
 
@@ -81,10 +102,12 @@
 | Docker 2-node mesh | ✅ | `.\scripts\docker_devnet.ps1` |
 | Docker 3-node testnet (Wave 52) | ✅ | `.\scripts\docker_devnet_3node.ps1` |
 | Docker 5-validator devnet (Wave 55) | ✅ | `.\scripts\docker_devnet_5validator.ps1` |
+| Prod 3-node mesh (mainnet-v1 prep) | ✅ | `.\scripts\docker_prod_3node.ps1` |
+| Mesh / bridge probe | ✅ | `.\scripts\probe_mesh_nodes.ps1` |
 | P2P sync verification | ✅ | `python scripts/verify_p2p_ci.py --mode devnet3` |
 | Full project audit (one command) | ✅ | `.\scripts\check_everything.ps1` |
 | Unit + integration tests | ✅ | `pytest tests/ -q` |
-| Cross-chain bridge | ✅ Hardened path | Rust bridge + required L1 proof/RPC in prod; Python simulator is explicit dev/test-only |
+| Cross-chain bridge | 🟡 Cutover | **Dev:** rust path on node1. **Prod (778888):** `bridge_enabled=false` until L1 contracts; enable via `docker_prod.ps1 -Bridge` |
 | NFT marketplace | ✅ Dev module | Persisted in SQLite |
 | Lightning / Plasma / WASM / Will | ✅ Dev module | Available through L2 status endpoint; prod-blocked where unsafe |
 | Oracles (prices + weather) | ✅ Dev module | Price/weather feeds; external keys stay in .env |
@@ -279,16 +302,13 @@ Single script — secrets scan, production gate, syntax, tokenomics, Waves 52–
 
 ```powershell
 pytest tests/ -q
-pytest tests/unit/ -q                              # 258 passed, 1 skipped
-python scripts/verify_p2p_ci.py --mode devnet3 --wait 300    # 3-node mesh
-python scripts/verify_p2p_ci.py --mode devnet3-recovery --wait 300    # node restart/rejoin
-python scripts/verify_p2p_ci.py --mode devnet5    # 5-validator mesh
-python scripts/verify_p2p_ci.py --mode ci-bridge-relayer
-curl.exe http://localhost:8080/health/live
+pytest tests/unit/ -q                              # 632 passed, 1 skipped
+python scripts/verify_p2p_ci.py --mode devnet3 --wait 300
+python scripts/verify_p2p_ci.py --mode devnet5
+.\scripts\probe_mesh_nodes.ps1
 curl.exe http://localhost:8080/status
-curl.exe http://localhost:8080/p2p/topology
-curl.exe http://localhost:8080/testnet/validators
-curl.exe http://localhost:8080/chain/consistency/harness
+curl.exe http://localhost:8080/bridge/status
+curl.exe http://localhost:8080/features
 ```
 
 ---
@@ -337,8 +357,9 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 |-------|-----|
 | Connection closed right after Docker up | Wait for `/status` or run `docker_devnet.ps1` |
 | `api_wave` &lt; 60 in Docker | `docker compose -f docker-compose.devnet-rust.yml build --no-cache node1` + recreate |
-| Ports busy | `.\scripts\stop_node.ps1` |
-| Docker `:8080/:8082` shows `node-1` or `501` | A local `python main.py` is intercepting host ports; stop it before Docker devnet |
+| Ports busy / solo while mesh expected | `.\scripts\stop_node.ps1`; do not run local `main.py` on same ports as Docker |
+| Dashboard `Bridge off` on prod | **Intentional** — mainnet-v1 cutover; see `bridge_disabled_reason` in `/status` |
+| Two networks on one machine | chain 77777 (Docker :8081+) vs 778888 (local prod :8080) — use `probe_mesh_nodes.ps1` |
 | Docker not running | Start Docker Desktop |
 
 ---
@@ -364,4 +385,4 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 
 ---
 
-*Last update: July 2026 — Rust industrial wave (P1–P4): canonical block/tx hash, P2P import validation, real Keccak-256, peer header chain gate, 377 unit tests.*
+*Last update: July 2026 — v1.2.1: mesh probe, P2P status API, mainnet-v1 bridge cutover docs, 698 pytest.*

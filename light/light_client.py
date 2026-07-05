@@ -71,15 +71,24 @@ class LightClient:
         return added
 
     def sync_from_blockchain(self, blockchain) -> int:
-        """Загрузить все заголовки из локальной цепочки."""
+        """Load headers from the local canonical chain (trusted DB replay)."""
         if not blockchain or not hasattr(blockchain, "get_height"):
             return 0
-        height = blockchain.get_height()
-        headers = []
-        for n in range(height + 1):
-            blk = blockchain.get_block(n)
-            if blk:
-                headers.append(BlockHeader.from_block_dict(blk))
+        height = int(blockchain.get_height() or 0)
+        added = 0
+        for number in range(height + 1):
+            block = blockchain.get_block(number)
+            if not block:
+                continue
+            if self.add_header(BlockHeader.from_block_dict(block)):
+                added += 1
+        return added
+
+    def sync_headers_from_peers(self, peer_headers: List[Dict]) -> int:
+        """Import peer header chain (untrusted — validated in add_headers)."""
+        if not peer_headers:
+            return 0
+        headers = [BlockHeader.from_dict(item) for item in peer_headers]
         return self.add_headers(headers)
 
     def get_header(self, number: int) -> Optional[BlockHeader]:
