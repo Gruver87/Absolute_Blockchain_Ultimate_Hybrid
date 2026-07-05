@@ -37,6 +37,13 @@ def test_prod_node_config_has_industrial_flags():
     assert cfg["evm_create2_eip1014"] is True
     assert cfg["bridge_enabled"] is False
     assert cfg["feature_wasm"] is False
+    from runtime.prod_smoke_profile import rocks_engine_available
+
+    if rocks_engine_available():
+        assert cfg["db_engine"] == "rocksdb"
+        assert cfg["db_path"].endswith("chainstore")
+    else:
+        assert cfg["db_engine"] == "sqlite"
 
 
 def test_prod_smoke_config_validates_with_secrets():

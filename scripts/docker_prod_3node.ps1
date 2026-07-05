@@ -85,7 +85,7 @@ if ($NoCloneDb) {
 }
 
 Write-Host "Recreating prod 3-node mesh (18180/18181/18182)..." -ForegroundColor Cyan
-docker compose -f $composeFile down 2>$null
+docker compose -f $composeFile down --remove-orphans 2>$null
 docker compose -f $composeFile build node1 node2 node3
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

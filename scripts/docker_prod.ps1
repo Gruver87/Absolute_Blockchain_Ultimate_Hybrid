@@ -157,7 +157,7 @@ $env:ABS_DOCKER_WS_PORT = [string]$ports.Ws
 $baseUrl = "http://127.0.0.1:$($ports.Http)"
 
 Write-Host "Recreating prod stack on HTTP $($ports.Http), RPC $($ports.Rpc)..." -ForegroundColor Cyan
-docker compose -f docker-compose.prod.yml down 2>$null
+docker compose -f docker-compose.prod.yml down --remove-orphans 2>$null
 $composeArgs = @("-f", "docker-compose.prod.yml", "up", "--build", "-d", "--force-recreate")
 if ($Bridge) {
     $env:BRIDGE_ENABLED = "true"

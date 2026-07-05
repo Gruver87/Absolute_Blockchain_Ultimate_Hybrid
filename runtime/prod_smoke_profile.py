@@ -154,6 +154,42 @@ def _write_smoke_manifest(path: Path, miner_addr: str) -> str:
     return str(path)
 
 
+def native_available() -> bool:
+    try:
+        from crypto import native as nc
+        if not nc.native_available():
+            return False
+        st = nc.native_crypto_status(required=False)
+        return bool(st.get("self_test"))
+    except Exception:
+        return False
+
+
+def rocks_engine_available() -> bool:
+    try:
+        import abs_native  # type: ignore
+
+        return hasattr(abs_native, "RocksEngine")
+    except Exception:
+        return False
+
+
+def prod_storage_fields(data_dir: Path) -> Dict[str, Any]:
+    """Prod isolated spawn storage: RocksDB when native engine is built."""
+    if rocks_engine_available():
+        return {
+            "db_engine": "rocksdb",
+            "rocksdb_sync": "FULL",
+            "db_path": str(data_dir / "chainstore"),
+            "sqlite_synchronous": "FULL",
+        }
+    return {
+        "db_engine": "sqlite",
+        "sqlite_synchronous": "FULL",
+        "db_path": str(data_dir / "chain.db"),
+    }
+
+
 def prod_node_config(
     tmp: str,
     *,
@@ -213,13 +249,12 @@ def prod_node_config(
         "feature_pq": False,
         "feature_mev": False,
         "feature_ai_agents": False,
-        "sqlite_synchronous": "FULL",
         "log_json": False,
         "enable_cors_rpc_proxy": False,
         "cors_origins": ["https://explorer.example.com"],
         "validators_manifest_path": manifest,
-        "db_path": str(data_dir / "chain.db"),
         "log_file": str(data_dir / "node.log"),
+        **prod_storage_fields(data_dir),
     }
 
 
@@ -345,13 +380,3 @@ def write_prod_mesh3_configs(
         urls.append(f"http://127.0.0.1:{PROD_MESH3_HTTP_PORTS[i]}")
     return cfgs[0], cfgs[1], cfgs[2], urls[0], urls[1], urls[2]
 
-
-def native_available() -> bool:
-    try:
-        from crypto import native as nc
-        if not nc.native_available():
-            return False
-        st = nc.native_crypto_status(required=False)
-        return bool(st.get("self_test"))
-    except Exception:
-        return False

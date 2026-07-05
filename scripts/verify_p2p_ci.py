@@ -2331,17 +2331,21 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "") -> int:
         return db_path.parent
 
     def _seed_follower_dbs(leader_cfg: str, follower_cfgs: list[str]) -> None:
+        from storage.chain_clone import clone_chain_data
+
         leader_dir = _node_data_dir(leader_cfg)
-        leader_db = leader_dir / "chain.db"
-        if not leader_db.is_file():
+        has_chain = (
+            (leader_dir / "chainstore").is_dir()
+            or (leader_dir / "chain.db").is_file()
+            or (leader_dir / "blockchain.db").is_file()
+        )
+        if not has_chain:
             return
         for follower in follower_cfgs:
             target_dir = _node_data_dir(follower)
             target_dir.mkdir(parents=True, exist_ok=True)
-            for suffix in ("", "-wal", "-shm"):
-                src = leader_dir / f"chain.db{suffix}"
-                if src.is_file():
-                    shutil.copy2(src, target_dir / f"chain.db{suffix}")
+            engine = clone_chain_data(str(leader_dir), str(target_dir))
+            print(f"  seeded {target_dir.name} from {leader_dir.name} ({engine})")
 
     try:
         print(f"Prod-mesh3: spawning ceremony mesh on :15280-15282 (tmp={tmp})")

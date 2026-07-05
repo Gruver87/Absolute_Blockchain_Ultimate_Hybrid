@@ -10,6 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 PROD_FILES = [
     "docker/node.prod.json",
+    "docker/node.prod.mesh1.json",
+    "docker/node.prod.mesh2.json",
+    "docker/node.prod.mesh3.json",
     "node.prod.example.json",
     "node.prod.mainnet-v1.example.json",
 ]
@@ -86,6 +89,9 @@ def check_file(path: str) -> list[str]:
     mode = str(cfg.get("consensus_mode", "auto") or "auto").strip().lower()
     if mode == "parallel":
         errors.append(f"{path}: consensus_mode=parallel forbidden in prod (use unified or auto)")
+
+    if path.startswith("docker/") and cfg.get("db_engine", "sqlite") != "rocksdb":
+        errors.append(f"{path}: db_engine must be rocksdb for docker prod profiles")
 
     return errors
 

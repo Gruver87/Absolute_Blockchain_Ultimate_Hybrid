@@ -68,6 +68,11 @@ def clone_chain_data(source_data_dir: str, dest_data_dir: str) -> str:
         _clone_sqlite_file(str(sqlite_src), str(dst_dir / "blockchain.db"))
         return "sqlite"
 
+    legacy_src = src_dir / "chain.db"
+    if legacy_src.is_file():
+        _clone_sqlite_file(str(legacy_src), str(dst_dir / "chain.db"))
+        return "sqlite"
+
     raise FileNotFoundError(
-        f"no chainstore/ or blockchain.db under {src_dir}"
+        f"no chainstore/, blockchain.db, or chain.db under {src_dir}"
     )
