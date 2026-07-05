@@ -37,9 +37,17 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($DockerLive) {
     Write-Host ""
     Write-Host "Docker live gate (requires JWT_SECRET, RPC_API_KEYS, ...)" -ForegroundColor Cyan
-    $dockerArgs = @("-CeremonyDir", $CeremonyDir)
-    if ($BridgeCutover) { $dockerArgs += "-Bridge" }
-    & "$ProjectRoot\scripts\docker_prod.ps1" @dockerArgs
+    if ($CeremonyDir) {
+        if ($BridgeCutover) {
+            & "$ProjectRoot\scripts\docker_prod.ps1" -CeremonyDir $CeremonyDir -Bridge
+        } else {
+            & "$ProjectRoot\scripts\docker_prod.ps1" -CeremonyDir $CeremonyDir
+        }
+    } elseif ($BridgeCutover) {
+        & "$ProjectRoot\scripts\docker_prod.ps1" -Bridge
+    } else {
+        & "$ProjectRoot\scripts\docker_prod.ps1"
+    }
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     if ($BridgeCutover) {
         Write-Host ""
