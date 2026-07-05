@@ -45,6 +45,21 @@ docker compose -f docker-compose.observability.yml up -d
 - `AbsoluteHighErrorRate` — рост ошибок
 - `AbsoluteRustBridgeDown` — production Rust bridge не прошёл JSON smoke-test
 
+Prometheus **оценивает** правила; для Telegram/email нужен **Alertmanager** (ещё не в compose) или внешний uptime.
+
+### Локальный health watch (без Alertmanager)
+
+```powershell
+# Prod mesh :18180-18182, лог в logs/health_watch.log
+.\scripts\health_watch.ps1 -ProdMesh -IntervalSec 300
+
+# С webhook (Slack-compatible JSON), env или параметр:
+$env:HEALTH_WEBHOOK_URL = "https://hooks.slack.com/services/..."
+.\scripts\health_watch.ps1 -ProdMesh -DurationMin 1440
+```
+
+Проверяет: `/health/ready`, `/status`, `/chain/consistency/harness` на каждом порту.
+
 ## JSON-логи
 
 ```bash

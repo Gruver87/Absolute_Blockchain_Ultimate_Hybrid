@@ -6,6 +6,25 @@
 
 ---
 
+## [1.2.15] — 2026-07-05
+
+### Fixed
+
+- CI: remove unused `numpy` import in `features/postquantum.py` (test collection)
+- CI: Docker prod image pushes **GHCR only** (no Docker Hub `abs-blockchain-prod:ci` 401)
+- CI: `publish-wheel-on-release.yml` invalid `if: secrets.*` syntax
+
+### Added
+
+- `scripts/health_watch.ps1` — prod mesh poll + optional webhook
+
+### Changed
+
+- `MAINNET_GAP_ANALYSIS.md`, `INCIDENT_RESPONSE.md`, `REPO_PROFILE.md` — RocksDB DR, 703 tests, CI refs
+- `OBSERVABILITY.md`, README — health watch docs
+
+---
+
 ## [1.2.14] — 2026-07-05
 
 ### Added

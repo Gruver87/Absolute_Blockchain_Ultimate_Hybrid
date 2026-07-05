@@ -46,15 +46,19 @@ jobs:
           context: .
           file: Dockerfile.prod
           push: ${{ github.event_name != 'pull_request' }}
-          load: true
-          tags: |
-            ${{ env.CI_TAG }}
-            ${{ steps.meta.outputs.tags }}
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: ${{ github.event_name == 'pull_request' && env.CI_TAG || steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Smoke test image
         run: |
-          docker run --rm ${{ env.CI_TAG }} python -c \
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            IMG="${{ env.CI_TAG }}"
+          else
+            docker pull "${{ env.IMAGE_NAME }}:latest"
+            IMG="${{ env.IMAGE_NAME }}:latest"
+          fi
+          docker run --rm "$IMG" python -c \
             "import abs_native; assert hasattr(abs_native, 'RocksEngine'); print('abs_native OK')"

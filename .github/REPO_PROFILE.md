@@ -4,7 +4,7 @@ Use in **Settings → General → About** and release tags.
 
 | Field | Value |
 |-------|-------|
-| **Description** | Hybrid Python/Rust L1 node: P2P mesh devnet, REST/JSON-RPC explorer, PoS-style consensus, ABS tokenomics model, Rust bridge path. Devnet-ready; mainnet-v1 prep (chain 778888) — not a launched public mainnet. |
+| **Description** | Hybrid Python/Rust L1 node: P2P mesh devnet, REST/JSON-RPC explorer, ABS tokenomics model, Rust bridge path. Devnet-ready; mainnet-v1 prep (778888) — not a launched public mainnet. |
 | **Website** | https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid#readme |
 | **Topics** | `blockchain` `python` `rust` `p2p` `rest-api` `json-rpc` `evm` `docker` `kubernetes` `blockchain-node` `devnet` `tokenomics` |
 
@@ -42,20 +42,24 @@ Local push: `.\scripts\push_origin.ps1` or `git push origin master`.
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.2.2` |
-| **Title** | `v1.2.2 — Docker GHCR + fast mesh ops` |
-| **Notes file** | [CHANGELOG.md](../CHANGELOG.md#122--2026-07-05) |
-| **Tests** | 698 passed, 1 skipped (`pytest tests/ -q`) |
+| **Tag** | `v1.2.14` (code may be ahead; see CHANGELOG) |
+| **Title** | `v1.2.14 — CI badges, architecture, security audit` |
+| **Notes file** | [CHANGELOG.md](../CHANGELOG.md) |
+| **Tests** | 703 collected (`pytest tests/ --collect-only`) |
+| **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |
 
 ## Previous tags (historical)
 
+- `v1.2.4` — RocksDB tuning & DR rehearsal
+- `v1.2.3` — RocksDB backup & restore
+- `v1.2.2` — Docker GHCR + fast mesh ops
+- `v1.2.1` — Devnet ops & mainnet-v1 clarity
 - `v1.2.0-industrial` — Waves 37–63, industrial profile
-- `v61.x` — API wave milestones
 - `v1.0-educational` — early educational profile
 
 ## Honest positioning (for release body)
 
-- **Is:** production-hardened R&D node, multi-node Docker devnet, prod fail-closed config gates
+- **Is:** production-hardened R&D node, multi-node Docker devnet, prod fail-closed config gates, RocksDB DR
 - **Is not:** live public mainnet, audited DeFi, listed ABS token, investment product
 - **Bridge on prod:** off by default until L1 cutover (`BRIDGE_ENABLED=false`, see `docs/BRIDGE_L1_MAINNET.md`)

@@ -34,7 +34,7 @@ jobs:
           python -m maturin build --release --out target/wheels
 
       - name: Publish to PyPI
-        if: secrets.PYPI_API_TOKEN != ''
+        if: ${{ secrets.PYPI_API_TOKEN != '' }}
         env:
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
           TWINE_USERNAME: __token__

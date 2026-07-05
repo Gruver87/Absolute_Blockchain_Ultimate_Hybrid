@@ -19,8 +19,6 @@ import math
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
-import numpy as np
-
 
 # ============================================================================
 # ТИПЫ АЛГОРИТМОВ

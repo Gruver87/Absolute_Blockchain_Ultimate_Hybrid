@@ -1,7 +1,7 @@
 # Incident Response Runbook — Absolute Blockchain
 
 **Version:** 1.0  
-**Updated:** 2026-07-04  
+**Updated:** 2026-07-05  
 **Scope:** Absolute Blockchain Ultimate Hybrid (L1 node, P2P, bridge, prod profile)
 
 This runbook is the operational playbook for production and staging incidents.  
@@ -116,18 +116,40 @@ If bridge enabled:
 
 ## Disaster recovery (DB)
 
+### SQLite (devnet default)
+
 **Backup (online):**
 ```powershell
 python scripts/backup_db.py --source data/blockchain.db --dest backups/chain-$(Get-Date -Format yyyyMMdd-HHmm).db
 ```
 
-**Drill (verify backup integrity):**
+**Drill:**
 ```powershell
 python scripts/backup_db_drill.py
 python scripts/backup_db_drill.py --source data/blockchain.db
 ```
 
-**Restore procedure:**
+### RocksDB (prod mesh)
+
+**Backup:**
+```powershell
+.\scripts\backup_chainstore.ps1 -DockerMesh1
+# or local: python scripts/backup_chainstore.py --data-dir data --dest backups/snap-1
+```
+
+**DR rehearsal (does not touch live volume):**
+```powershell
+.\scripts\dr_restore_rehearsal.ps1 -DockerMesh1
+```
+
+**Restore (destructive on target):**
+```powershell
+python scripts/restore_chainstore.py --backup-dir backups/snap-1 --data-dir data --force --verify
+```
+
+See [STORAGE_ROCKSDB.md](STORAGE_ROCKSDB.md).
+
+### Restore procedure (all engines)
 
 1. Stop node: `.\scripts\stop_node.ps1`
 2. Move corrupted DB aside; copy backup to `data/blockchain.db`
@@ -155,6 +177,9 @@ python scripts/industrial_gate.py
 python scripts/prod_gate.py
 python scripts/verify_p2p_ci.py --mode prod-smoke
 python scripts/backup_db_drill.py
+python scripts/backup_rocks_drill.py
+.\scripts\dr_restore_rehearsal.ps1 -DockerMesh1
+.\scripts\health_watch.ps1 -ProdMesh -IntervalSec 300
 python scripts/mainnet_readiness.py --no-strict-audit --json
 python scripts/external_audit_tracker.py --sync-automated
 ```

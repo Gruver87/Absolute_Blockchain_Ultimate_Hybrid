@@ -9,7 +9,7 @@
 [![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
 [![Local gate](https://img.shields.io/badge/local%20gate-check__hybrid__full-lightgrey)](scripts/check_hybrid_full.ps1)
-[![Release](https://img.shields.io/badge/Release-v1.2.13-blue)](RELEASE_NOTES_v1.2.3.md)
+[![Release](https://img.shields.io/badge/Release-v1.2.15-blue)](RELEASE_NOTES_v1.2.15.md)
 
 **Repo:** [github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · **Branch:** `master`
 
@@ -38,6 +38,8 @@
 | Bridge L1 cutover | [docs/BRIDGE_L1_MAINNET.md](docs/BRIDGE_L1_MAINNET.md) |
 | Docker images (GHCR) | [docs/DOCKER_IMAGES.md](docs/DOCKER_IMAGES.md) |
 | RocksDB storage | [docs/STORAGE_ROCKSDB.md](docs/STORAGE_ROCKSDB.md) |
+| Incident response | [docs/INCIDENT_RESPONSE.md](docs/INCIDENT_RESPONSE.md) |
+| Observability | [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) |
 | Honest command reference | [docs/COMMANDS_REFERENCE.md](docs/COMMANDS_REFERENCE.md) |
 
 ---
@@ -92,6 +94,15 @@ flowchart TB
 
 Full diagram (prod vs dev modules): **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**  
 Public testnet checklist (not live): **[docs/PUBLIC_TESTNET.md](docs/PUBLIC_TESTNET.md)**
+
+### Storage & DR (prod mesh)
+
+| Action | Command |
+|--------|---------|
+| Backup node1 | `.\scripts\backup_chainstore.ps1 -DockerMesh1` |
+| DR rehearsal | `.\scripts\dr_restore_rehearsal.ps1 -DockerMesh1` |
+| Restore | `python scripts/restore_chainstore.py --backup-dir ... --data-dir data --force --verify` |
+| Health watch | `.\scripts\health_watch.ps1 -ProdMesh` (optional `$env:HEALTH_WEBHOOK_URL`) |
 
 ---
 

@@ -1,7 +1,7 @@
 # Mainnet Gap Analysis — Industrial Blockchain Readiness
 
 **Project:** Absolute Blockchain Ultimate Hybrid  
-**Updated:** 2026-07-04  
+**Updated:** 2026-07-05  
 **Positioning:** Production-hardened R&D stack → path to public mainnet
 
 This document is the honest engineering checklist after a full repository scan.  
@@ -14,7 +14,8 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 | Layer | Status | Notes |
 |-------|--------|-------|
 | L1 blocks, balances, burn, 221M cap | Real | `core/blockchain.py`, `runtime/tokenomics.py` |
-| SQLite persistence + WAL prod mode | Real | `storage/database.py`, `sqlite_synchronous=FULL` |
+| SQLite persistence + WAL prod mode | Real | Devnet default; **prod uses RocksDB** (`db_engine=rocksdb`) |
+| RocksDB hybrid (prod hot path) | Real | `storage/hybrid_database.py`, DR rehearsal verified |
 | P2P mesh 2/3/5 nodes | Verified CI | `network/p2p_node.py`, `verify_p2p_ci.py` |
 | Native crypto (Rust PyO3) | Real | `native/abs_native`, `ABS_REQUIRE_NATIVE_CRYPTO` |
 | State root + P2P import validation | Real | Wave 50–54 |
@@ -64,7 +65,7 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 - [ ] Rotate all secrets (JWT, RPC keys, bridge oracle, L1 RPC)
 - [ ] Live prod smoke: `python scripts/mainnet_readiness.py --live` (after docker prod or manual node)
 - [x] Isolated prod mesh: `python scripts/mainnet_readiness.py --prod-smoke-spawn`
-- [ ] DR drill + incident response runbook
+- [x] DR drill + incident response runbook (`dr_restore_rehearsal.ps1 -DockerMesh1`, `docs/INCIDENT_RESPONSE.md`)
 - [ ] Decision: real L1 bridge contracts **or** disable bridge in mainnet v1
 
 ---
@@ -77,7 +78,7 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 | State | Unify `Database` / `ImmutableStateManager` / `StateEngine` |
 | Consensus | Single canonical fork-choice + finality path |
 | Bridge | On-chain lock/mint contracts + monitored relayer (not proof-only) |
-| Storage | Plan beyond SQLite for high-throughput mainnet (or document limits) |
+| Storage | RocksDB prod + backup/restore scripts; aux.db scope documented |
 | Tests | E2E prod boot CI, prod P2P mesh, live `prod_smoke` in pipeline |
 | Tests | ✅ CI: `industrial_gate.py`, prod boot E2E, `verify_p2p_ci --mode prod-smoke` |
 
