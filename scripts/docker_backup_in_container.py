@@ -10,6 +10,33 @@ import sys
 import time
 
 
+def _truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
+
+
+def _open_engine(chainstore: str):
+    import abs_native  # type: ignore
+
+    read_only = _truthy("READ_ONLY")
+    kwargs = {
+        "create_if_missing": False,
+        "sync_writes": False,
+    }
+    if read_only:
+        kwargs["read_only"] = True
+    try:
+        return abs_native.RocksEngine(chainstore, **kwargs)
+    except TypeError as exc:
+        if read_only:
+            print(
+                "FAIL: read_only not supported by container abs_native; "
+                "omit -Live or rebuild prod image",
+                file=sys.stderr,
+            )
+            raise SystemExit(1) from exc
+        raise
+
+
 def main() -> int:
     data_dir = os.environ.get("DATA_DIR", "/app/data").strip()
     dest_root = os.environ.get("BACKUP_DEST", "").strip()
@@ -23,7 +50,7 @@ def main() -> int:
         return 1
 
     try:
-        import abs_native  # type: ignore
+        import abs_native  # type: ignore  # noqa: F401
     except Exception as exc:
         print(f"FAIL: abs_native unavailable ({exc})", file=sys.stderr)
         return 1
@@ -33,11 +60,7 @@ def main() -> int:
         shutil.rmtree(dest_root)
     os.makedirs(dest_root, exist_ok=True)
 
-    engine = abs_native.RocksEngine(
-        chainstore,
-        create_if_missing=False,
-        sync_writes=False,
-    )
+    engine = _open_engine(chainstore)
     engine.checkpoint(out_chain)
 
     aux_src = os.path.join(chainstore, "aux.db")

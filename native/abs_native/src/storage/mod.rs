@@ -60,13 +60,14 @@ const STORAGE_PROPERTY_KEYS: &[&str] = &[
 #[pymethods]
 impl RocksEngine {
     #[new]
-    #[pyo3(signature = (path, *, create_if_missing=true, sync_writes=false, block_cache_mb=0, write_buffer_mb=0))]
+    #[pyo3(signature = (path, *, create_if_missing=true, sync_writes=false, block_cache_mb=0, write_buffer_mb=0, read_only=false))]
     fn new(
         path: &str,
         create_if_missing: bool,
         sync_writes: bool,
         block_cache_mb: u32,
         write_buffer_mb: u32,
+        read_only: bool,
     ) -> PyResult<Self> {
         let mut opts = Options::default();
         opts.create_if_missing(create_if_missing);
@@ -87,7 +88,13 @@ impl RocksEngine {
             opts.set_write_buffer_size((write_buffer_mb as usize) * 1024 * 1024);
         }
 
-        let db = DB::open(&opts, path).map_err(|e| PyErr::new::<pyo3::exceptions::PyOSError, _>(e.to_string()))?;
+        let db = if read_only {
+            opts.create_if_missing(false);
+            DB::open_for_read_only(&opts, path, false)
+        } else {
+            DB::open(&opts, path)
+        }
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyOSError, _>(e.to_string()))?;
         Ok(Self {
             db: Arc::new(db),
             sync_writes,

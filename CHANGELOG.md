@@ -6,6 +6,19 @@
 
 ---
 
+## [1.2.7] — 2026-07-05
+
+### Fixed
+
+- Docker mesh backup: stop node1 briefly + one-off checkpoint (RocksDB LOCK while node running)
+- Optional `-Live` read-only checkpoint when prod image includes `read_only` RocksEngine
+
+### Changed
+
+- `RocksEngine` — `read_only=True` opens DB with `open_for_read_only` for live backups
+
+---
+
 ## [1.2.6] — 2026-07-05
 
 ### Fixed
