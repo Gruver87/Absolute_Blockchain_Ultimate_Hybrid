@@ -1,4 +1,4 @@
-# DR restore rehearsal — verify backup without touching live data.
+# DR restore rehearsal - verify backup without touching live data.
 param(
     [string]$DataDir = "data",
     [string]$BackupDir = "",
@@ -33,7 +33,7 @@ try {
     python scripts/restore_chainstore.py --backup-dir $BackupDir --data-dir $restoreTarget --force --verify
     if ($LASTEXITCODE -ne 0) { exit 1 }
 
-    Write-Host "OK: DR rehearsal passed — backup=$BackupDir restored=$restoreTarget" -ForegroundColor Green
+    Write-Host ("OK: DR rehearsal passed backup=" + $BackupDir + " restored=" + $restoreTarget) -ForegroundColor Green
     exit 0
 }
 finally {

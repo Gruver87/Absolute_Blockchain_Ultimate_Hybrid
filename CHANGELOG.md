@@ -6,6 +6,18 @@
 
 ---
 
+## [1.2.5] — 2026-07-05
+
+### Fixed
+
+- `scripts/dr_restore_rehearsal.ps1` — ASCII-only strings (Windows PowerShell 5.1 parse error on em-dash)
+
+### Added
+
+- `scripts/bench_storage_commit.py` — SQLite vs RocksDB commit latency benchmark
+
+---
+
 ## [1.2.4] — 2026-07-05
 
 ### Added

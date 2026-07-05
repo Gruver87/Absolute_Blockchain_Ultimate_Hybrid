@@ -110,14 +110,14 @@ Then set `DB_ENGINE=rocksdb` / `"db_engine": "rocksdb"` in config.
 - [x] Prod mesh on RocksDB
 - [x] Backup/restore scripts + CI rocks drill
 - [ ] 24–48 h soak: `docker_prod_3node.ps1` + restart with `-SkipBuild -KeepVolumes`
-- [ ] Documented DR restore rehearsal on test volume (`scripts/dr_restore_rehearsal.ps1`)
+- [x] Documented DR restore rehearsal on test volume (`scripts/dr_restore_rehearsal.ps1`)
 
 ### P1 — Hybrid completion
 
 - [x] Document permanent aux scope (see below)
 - [x] Rocks tuning env vars + LSM property introspection in `get_stats()`
+- [x] Benchmark script `scripts/bench_storage_commit.py` (run locally; numbers vary by disk)
 - [ ] Migrate optional aux tables into Rocks CF (NFT, evm_logs, …)
-- [ ] Benchmark: block commit latency vs SQLite devnet (publish numbers in this doc)
 
 ### P2 — Rust storage depth
 
@@ -170,6 +170,10 @@ pytest tests/unit/test_rocks_store.py tests/unit/test_rocks_blockchain_integrati
 
 # DR
 python scripts/backup_rocks_drill.py
+python scripts/bench_storage_commit.py --blocks 20
+
+# DR rehearsal (PowerShell, ASCII-safe)
+.\scripts\dr_restore_rehearsal.ps1 -DataDir data
 ```
 
 ---
