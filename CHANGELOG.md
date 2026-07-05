@@ -6,6 +6,16 @@
 
 ---
 
+## [1.2.10] — 2026-07-05
+
+### Fixed
+
+- Docker mesh backup: bind-mount script file instead of stdin pipe (PowerShell on Windows)
+- Verify `backup_manifest.json` + `chainstore/` before declaring backup OK
+- Resolve node1 image by ID (`docker inspect .Image`) for reliable `docker run`
+
+---
+
 ## [1.2.9] — 2026-07-05
 
 ### Fixed

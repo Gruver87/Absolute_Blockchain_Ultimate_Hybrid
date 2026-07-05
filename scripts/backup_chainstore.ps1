@@ -11,6 +11,21 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $Root
 
+function Test-BackupManifest {
+    param([string]$BackupDir)
+
+    $manifest = Join-Path $BackupDir "backup_manifest.json"
+    if (-not (Test-Path $manifest)) {
+        Write-Host "FAIL: backup incomplete (missing backup_manifest.json in $BackupDir)" -ForegroundColor Red
+        exit 1
+    }
+    $chainstore = Join-Path $BackupDir "chainstore"
+    if (-not (Test-Path $chainstore)) {
+        Write-Host "FAIL: backup incomplete (missing chainstore/ in $BackupDir)" -ForegroundColor Red
+        exit 1
+    }
+}
+
 function Get-MeshNode1Context {
     param([string]$ComposeFile)
 
@@ -23,10 +38,9 @@ function Get-MeshNode1Context {
         exit 1
     }
 
-    $image = (docker inspect -f "{{.Config.Image}}" $cid).Trim()
-    if (-not $image) {
-        $image = (docker inspect -f "{{.Image}}" $cid).Trim()
-    }
+    $imageId = (docker inspect -f "{{.Image}}" $cid).Trim()
+    $imageTag = (docker inspect -f "{{.Config.Image}}" $cid).Trim()
+    $image = if ($imageId) { $imageId } else { $imageTag }
     if (-not $image) {
         Write-Host "FAIL: cannot resolve node1 image" -ForegroundColor Red
         exit 1
@@ -50,6 +64,7 @@ function Get-MeshNode1Context {
     return @{
         ContainerId = $cid
         Image       = $image
+        ImageTag    = $imageTag
         Volume      = $volume
     }
 }
@@ -70,7 +85,7 @@ function Invoke-DockerMesh1Backup {
 
     $ctx = Get-MeshNode1Context -ComposeFile $composeFile
     $absLocalDest = (New-Item -ItemType Directory -Force -Path $LocalDest).FullName
-    $scriptBody = Get-Content -Raw -Path $inlineScript
+    $scriptInContainer = "/tmp/abs_backup_inline.py"
 
     if ($TryLive) {
         $runningId = docker compose -p $ComposeProject -f $composeFile ps -q node1 --status running
@@ -80,16 +95,18 @@ function Invoke-DockerMesh1Backup {
         }
         Write-Host "Live backup (read-only RocksDB open)..." -ForegroundColor Cyan
         $containerDest = "/tmp/chain-backup-live"
-        $scriptBody | docker compose -p $ComposeProject -f $composeFile exec -T `
-            --entrypoint python `
+        docker cp $inlineScript "$($ctx.ContainerId):${scriptInContainer}"
+        if ($LASTEXITCODE -ne 0) { exit 1 }
+        docker compose -p $ComposeProject -f $composeFile exec -T `
             -e "BACKUP_DEST=$containerDest" `
             -e "DATA_DIR=/app/data" `
             -e "READ_ONLY=1" `
-            node1 -
+            node1 python $scriptInContainer
         if ($LASTEXITCODE -eq 0) {
             docker cp "$($ctx.ContainerId):${containerDest}/." $absLocalDest
+            Test-BackupManifest -BackupDir $absLocalDest
             docker compose -p $ComposeProject -f $composeFile exec -T node1 `
-                rm -rf $containerDest 2>$null | Out-Null
+                rm -rf $containerDest $scriptInContainer 2>$null | Out-Null
             return
         }
         Write-Host "Live backup failed; falling back to brief node1 stop..." -ForegroundColor Yellow
@@ -103,19 +120,23 @@ function Invoke-DockerMesh1Backup {
     }
 
     try {
-        Write-Host ("One-off checkpoint via existing image " + $ctx.Image + " (no rebuild)...") -ForegroundColor Cyan
-        $scriptBody | docker run --rm `
+        $label = if ($ctx.ImageTag) { $ctx.ImageTag } else { $ctx.Image.Substring(0, [Math]::Min(19, $ctx.Image.Length)) }
+        Write-Host ("One-off checkpoint via " + $label + " (bind-mount script, no rebuild)...") -ForegroundColor Cyan
+        docker run --rm `
+            -w /app `
             --entrypoint python `
             -v "$($ctx.Volume):/app/data:ro" `
             -v "${absLocalDest}:/backup" `
+            -v "${inlineScript}:${scriptInContainer}:ro" `
             -e "BACKUP_DEST=/backup" `
             -e "DATA_DIR=/app/data" `
             $ctx.Image `
-            -
+            $scriptInContainer
         if ($LASTEXITCODE -ne 0) {
             Write-Host "FAIL: in-container backup" -ForegroundColor Red
             exit 1
         }
+        Test-BackupManifest -BackupDir $absLocalDest
     }
     finally {
         if ($wasRunning) {

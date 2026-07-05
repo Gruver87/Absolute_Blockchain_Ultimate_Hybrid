@@ -8,6 +8,12 @@ import os
 import shutil
 import sys
 import time
+from pathlib import Path
+
+# Prod image WORKDIR is /app; script may be invoked from a bind mount path.
+_APP = Path("/app")
+if _APP.is_dir() and str(_APP) not in sys.path:
+    sys.path.insert(0, str(_APP))
 
 
 def _truthy(name: str) -> bool:
