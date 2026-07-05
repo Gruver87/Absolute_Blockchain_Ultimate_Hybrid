@@ -18,6 +18,53 @@ html_src  = read("web/explorer/index.html")
 cfg_src   = read("runtime/config.py")
 tok_src   = read("runtime/tokenomics.py")
 
+INTEGRATION_SCAN = (
+    "main.py",
+    "api/http.py",
+    "bridge/abs_bridge.py",
+    "bridge/relayer.py",
+    "bridge/health.py",
+    "core/blockchain.py",
+    "execution/evm_adapter.py",
+    "runtime/config.py",
+)
+integration_src = "\n".join(read(p) for p in INTEGRATION_SCAN)
+
+DEPRECATED_MODULES = {
+    "node_persistent.py": "deprecated alias -> main.py",
+}
+
+API_ONLY_PREFIXES = (
+    "/chain/",
+    "/native/",
+    "/oracles/",
+    "/l2/",
+    "/bridge/oracle/",
+    "/bridge/l1-",
+    "/bridge/relayer/",
+    "/testnet/",
+    "/admin/",
+    "/metrics",
+    "/sync/",
+    "/debug/",
+)
+
+
+def _module_referenced(path: str, blob: str) -> bool:
+    norm = path.replace("\\", "/")
+    mod = norm.removesuffix(".py").replace("/", ".")
+    stem = mod.rsplit(".", 1)[-1]
+    markers = (mod, stem, norm, f"from {mod}", f"import {mod}")
+    return any(m in blob for m in markers)
+
+
+def _is_api_only_endpoint(ep: str) -> bool:
+    ep_c = (ep or "").rstrip("/") or "/"
+    return any(
+        ep_c == prefix.rstrip("/") or ep_c.startswith(prefix)
+        for prefix in API_ONLY_PREFIXES
+    )
+
 issues = []
 warnings = []
 
@@ -175,13 +222,21 @@ for ep in all_eps:
     not_covered.append(ep)
 
 print(f"  Total endpoints : {len(all_eps)}")
-print(f"  Web covered     : {len(all_eps) - len(not_covered)}")
-print(f"  NOT covered     : {len(not_covered)}")
-for ep in not_covered[:15]:
+web_covered = len(all_eps) - len(not_covered)
+api_only_eps = [ep for ep in not_covered if _is_api_only_endpoint(ep)]
+web_gaps = [ep for ep in not_covered if not _is_api_only_endpoint(ep)]
+print(f"  Web covered     : {web_covered}")
+print(f"  API-only (OK)   : {len(api_only_eps)}")
+print(f"  UI gaps         : {len(web_gaps)}")
+for ep in api_only_eps[:8]:
+    print(f"    [API-ONLY] {ep}")
+if len(api_only_eps) > 8:
+    print(f"    ... and {len(api_only_eps) - 8} more API-only")
+for ep in web_gaps[:15]:
     print(f"    [NO WEB] {ep}")
     warn("WEB", ep)
-if len(not_covered) > 15:
-    print(f"    ... and {len(not_covered)-15} more")
+if len(web_gaps) > 15:
+    print(f"    ... and {len(web_gaps) - 15} more")
 
 # Phantom JS calls (no matching API)
 phantom = []
@@ -266,6 +321,9 @@ feature_map = {
 
 not_integrated = []
 for path, tag in sorted(feature_map.items()):
+    if path in DEPRECATED_MODULES:
+        print(f"  [OK] DEPRECATED: {path} ({DEPRECATED_MODULES[path]})")
+        continue
     exists = os.path.exists(os.path.join(BASE, path))
     if not exists:
         print(f"  [FILE MISSING] {path}")
@@ -275,7 +333,8 @@ for path, tag in sorted(feature_map.items()):
     classes = re.findall(r"^class (\w+)", src, re.MULTILINE)
     in_main = any(c in main_src for c in classes) or tag.lower() in main_src.lower() or path.split("/")[-1].replace(".py","") in main_src
     in_http = any(c in http_src for c in classes) or tag.lower() in http_src.lower()
-    if not (in_main or in_http):
+    in_runtime = _module_referenced(path, integration_src)
+    if not (in_main or in_http or in_runtime):
         not_integrated.append((path, classes[:2]))
         print(f"  [NOT INTEGRATED] {path} ({classes[:2]})")
         warn("INTEGRATION", f"{path}")
