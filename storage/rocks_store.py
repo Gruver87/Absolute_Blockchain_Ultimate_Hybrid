@@ -69,6 +69,11 @@ class RocksChainStore:
 
     def initialize(self) -> None:
         self._ensure_schema()
+        if not self.get_meta("tx_addr_index_v1"):
+            with self._write_lock:
+                for row in self._iter_transaction_rows():
+                    self._insert_tx_indexes(row)
+                self.set_meta("tx_addr_index_v1", True)
 
     # ── low-level I/O ─────────────────────────────────────────────────────
 
@@ -476,6 +481,63 @@ class RocksChainStore:
         self._raw_put(kc.key_tx(tx_hash), payload)
         if row["block_height"]:
             self._raw_put(kc.key_block_tx(row["block_height"], tx_hash), b"\x01")
+        self._insert_tx_indexes(row)
+
+    def _insert_tx_indexes(self, row: Dict) -> None:
+        tx_hash = row.get("hash", row.get("tx_hash", "")) or ""
+        if not tx_hash:
+            return
+        bh = int(row.get("block_height", 0) or 0)
+        from_addr = row.get("from_addr", "")
+        to_addr = row.get("to_addr", "")
+        if from_addr:
+            self._raw_put(kc.key_tx_from_index(from_addr, bh, tx_hash), b"\x01")
+        if to_addr:
+            self._raw_put(kc.key_tx_to_index(to_addr, bh, tx_hash), b"\x01")
+
+    def _delete_tx_indexes(self, row: Dict) -> None:
+        tx_hash = row.get("hash", row.get("tx_hash", "")) or ""
+        if not tx_hash:
+            return
+        bh = int(row.get("block_height", 0) or 0)
+        from_addr = row.get("from_addr", "")
+        to_addr = row.get("to_addr", "")
+        if from_addr:
+            self._raw_delete(kc.key_tx_from_index(from_addr, bh, tx_hash))
+        if to_addr:
+            self._raw_delete(kc.key_tx_to_index(to_addr, bh, tx_hash))
+
+    def _tx_hash_from_index_key(self, key: bytes, prefix: bytes) -> str:
+        body = key[len(prefix) :]
+        if len(body) < 8 + 32:
+            return ""
+        return "0x" + body[8:].hex()
+
+    def _rows_from_address_index(
+        self, addr: str, direction: str
+    ) -> List[Dict]:
+        addr = SqliteDatabase._normalize_address(addr)
+        prefixes: List[bytes] = []
+        if direction in ("all", "sent"):
+            prefixes.append(kc.prefix_tx_from(addr))
+        if direction in ("all", "received"):
+            prefixes.append(kc.prefix_tx_to(addr))
+        seen: set[str] = set()
+        rows: List[Dict] = []
+        for prefix in prefixes:
+            for key, _marker in self._scan_prefix(prefix):
+                tx_hash = self._tx_hash_from_index_key(key, prefix)
+                if not tx_hash or tx_hash in seen:
+                    continue
+                seen.add(tx_hash)
+                raw = self._raw_get(kc.key_tx(tx_hash))
+                if raw:
+                    rows.append(json.loads(raw.decode("utf-8")))
+        rows.sort(
+            key=lambda r: (int(r.get("block_height", 0)), int(r.get("timestamp", 0))),
+            reverse=True,
+        )
+        return rows
 
     def _insert_tx_receipt(self, tx: Dict, block_hash: str, block_height: int) -> None:
         tx_hash = tx.get("hash", tx.get("tx_hash", "")) or ""
@@ -552,13 +614,22 @@ class RocksChainStore:
     def get_receipts_by_block(self, block_height: int) -> List[Dict]:
         height = int(block_height)
         out: List[Dict] = []
-        for _key, value in self._scan_prefix(kc.P_TX_RECEIPT):
-            try:
-                row = json.loads(value.decode("utf-8"))
-            except Exception:
-                continue
-            if int(row.get("block_height", 0) or 0) == height:
-                out.append(self._format_receipt_row(row))
+        for tx in self.get_transactions_in_block(height):
+            tx_hash = tx.get("hash", tx.get("tx_hash", "")) or ""
+            rcpt = self.get_tx_receipt(tx_hash) if tx_hash else None
+            if rcpt:
+                out.append(self._format_receipt_row(rcpt))
+            else:
+                out.append(
+                    self._format_receipt_row(
+                        {
+                            **tx,
+                            "tx_hash": tx_hash,
+                            "block_hash": "",
+                            "created_at": tx.get("timestamp", 0),
+                        }
+                    )
+                )
         out.sort(key=lambda r: int(r.get("timestamp", 0)))
         return out
 
@@ -578,19 +649,17 @@ class RocksChainStore:
         self, address: str, direction: str = "all"
     ) -> int:
         addr = SqliteDatabase._normalize_address(address)
-        count = 0
-        for row in self._iter_transaction_rows():
-            from_addr = SqliteDatabase._normalize_address(row.get("from_addr", ""))
-            to_addr = SqliteDatabase._normalize_address(row.get("to_addr", ""))
-            if direction == "sent":
-                if from_addr == addr:
-                    count += 1
-            elif direction == "received":
-                if to_addr == addr:
-                    count += 1
-            elif from_addr == addr or to_addr == addr:
-                count += 1
-        return count
+        if direction == "sent":
+            return len(self._scan_prefix(kc.prefix_tx_from(addr)))
+        if direction == "received":
+            return len(self._scan_prefix(kc.prefix_tx_to(addr)))
+        hashes: set[str] = set()
+        for prefix in (kc.prefix_tx_from(addr), kc.prefix_tx_to(addr)):
+            for key, _marker in self._scan_prefix(prefix):
+                tx_hash = self._tx_hash_from_index_key(key, prefix)
+                if tx_hash:
+                    hashes.add(tx_hash)
+        return len(hashes)
 
     def get_transactions_by_address(
         self,
@@ -602,21 +671,7 @@ class RocksChainStore:
         addr = SqliteDatabase._normalize_address(address)
         limit = max(1, min(int(limit), 200))
         offset = max(0, int(offset))
-        matched: List[Dict] = []
-        for row in self._iter_transaction_rows():
-            from_addr = SqliteDatabase._normalize_address(row.get("from_addr", ""))
-            to_addr = SqliteDatabase._normalize_address(row.get("to_addr", ""))
-            if direction == "sent" and from_addr != addr:
-                continue
-            if direction == "received" and to_addr != addr:
-                continue
-            if direction not in ("sent", "received") and from_addr != addr and to_addr != addr:
-                continue
-            matched.append(row)
-        matched.sort(
-            key=lambda r: (int(r.get("block_height", 0)), int(r.get("timestamp", 0))),
-            reverse=True,
-        )
+        matched = self._rows_from_address_index(addr, direction)
         page = matched[offset : offset + limit]
         return [self._serialize_tx_row(row, addr) for row in page]
 
@@ -627,13 +682,10 @@ class RocksChainStore:
         total = self.count_transactions_by_address(addr, "all")
         blocks_proposed = 0
         last_h: int | None = None
-        for row in self._iter_transaction_rows():
-            from_addr = SqliteDatabase._normalize_address(row.get("from_addr", ""))
-            to_addr = SqliteDatabase._normalize_address(row.get("to_addr", ""))
-            if from_addr == addr or to_addr == addr:
-                bh = int(row.get("block_height", 0) or 0)
-                if last_h is None or bh > last_h:
-                    last_h = bh
+        for row in self._rows_from_address_index(addr, "all"):
+            bh = int(row.get("block_height", 0) or 0)
+            if last_h is None or bh > last_h:
+                last_h = bh
         for _key, value in self._scan_prefix(kc.P_PROPOSER_AUDIT):
             try:
                 audit = json.loads(value.decode("utf-8"))
@@ -771,6 +823,7 @@ class RocksChainStore:
             except Exception:
                 continue
             if int(row.get("block_height", 0) or 0) > cut:
+                self._delete_tx_indexes(row)
                 self._raw_delete(key)
         for key, value in list(self._scan_prefix(kc.P_TX_RECEIPT)):
             try:

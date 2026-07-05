@@ -19,6 +19,8 @@ P_BURN = b"\x41"
 P_PROPOSER_AUDIT = b"\x42"
 P_STATE_ROOT_MM = b"\x43"
 P_TX_PROP = b"\x44"
+P_TX_FROM = b"\x06"
+P_TX_TO = b"\x07"
 P_BRIDGE_LOCK = b"\x50"
 P_BRIDGE_CREDIT = b"\x51"
 
@@ -59,6 +61,36 @@ def key_tx(tx_hash: str) -> bytes:
 
 def key_block_tx(height: int, tx_hash: str) -> bytes:
     return P_BLOCK_TX + pack_u64(height) + key_tx(tx_hash)[1:]
+
+
+def _tx_hash_body(tx_hash: str) -> bytes:
+    return key_tx(tx_hash)[len(P_TX) :]
+
+
+def key_tx_from_index(address: str, block_height: int, tx_hash: str) -> bytes:
+    return (
+        P_TX_FROM
+        + normalize_address_key(address).encode("utf-8")
+        + pack_u64(int(block_height))
+        + _tx_hash_body(tx_hash)
+    )
+
+
+def key_tx_to_index(address: str, block_height: int, tx_hash: str) -> bytes:
+    return (
+        P_TX_TO
+        + normalize_address_key(address).encode("utf-8")
+        + pack_u64(int(block_height))
+        + _tx_hash_body(tx_hash)
+    )
+
+
+def prefix_tx_from(address: str) -> bytes:
+    return P_TX_FROM + normalize_address_key(address).encode("utf-8")
+
+
+def prefix_tx_to(address: str) -> bytes:
+    return P_TX_TO + normalize_address_key(address).encode("utf-8")
 
 
 def normalize_address_key(address: str) -> str:

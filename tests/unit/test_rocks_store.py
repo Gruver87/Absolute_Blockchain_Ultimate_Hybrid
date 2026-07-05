@@ -218,6 +218,92 @@ def test_hybrid_factory(tmp_path):
     db.close()
 
 
+def test_address_tx_index_direction_and_pagination(rocks):
+    for i, (fr, to) in enumerate(
+        [
+            ("0xaaa", "0xbbb"),
+            ("0xbbb", "0xccc"),
+            ("0xaaa", "0xccc"),
+        ],
+        start=1,
+    ):
+        rocks.persist_block_atomic(
+            {
+                "height": i,
+                "hash": hex(i)[2:].zfill(64),
+                "parent_hash": "0" * 64,
+                "timestamp": 100 + i,
+                "miner": "0x" + "1" * 40,
+                "tx_count": 1,
+                "transactions": [],
+            },
+            [
+                {
+                    "hash": hex(i + 100)[2:].zfill(64),
+                    "block_height": i,
+                    "from_addr": fr,
+                    "to_addr": to,
+                    "value": float(i),
+                    "fee": 0.01,
+                    "burned": 0.0,
+                    "gas_used": 21000,
+                    "status": 1,
+                    "timestamp": 100 + i,
+                }
+            ],
+        )
+
+    sent = rocks.get_transactions_by_address("0xaaa", direction="sent")
+    assert len(sent) == 2
+    assert all(t["direction"] == "sent" for t in sent)
+
+    recv = rocks.get_transactions_by_address("0xbbb", direction="received")
+    assert len(recv) == 1
+    assert recv[0]["direction"] == "received"
+
+    page = rocks.get_transactions_by_address("0xaaa", limit=1, offset=1)
+    assert len(page) == 1
+
+    act = rocks.get_address_activity("0xaaa")
+    assert act["sent_count"] == 2
+    assert act["received_count"] == 0
+    assert act["tx_count"] == 2
+    assert act["last_tx_height"] == 3
+
+
+def test_reorg_removes_address_tx_indexes(rocks):
+    rocks.persist_block_atomic(
+        {
+            "height": 1,
+            "hash": "a" * 64,
+            "parent_hash": "0" * 64,
+            "timestamp": 1700000001,
+            "miner": "0x" + "1" * 40,
+            "transactions": [],
+        },
+        [
+            {
+                "hash": "b" * 64,
+                "block_height": 1,
+                "from_addr": "0x" + "2" * 40,
+                "to_addr": "0x" + "3" * 40,
+                "value": 1.0,
+                "gas": 21000,
+                "fee": 0.1,
+                "burned": 0.0,
+                "nonce": 0,
+                "status": 1,
+                "timestamp": 1700000002,
+            }
+        ],
+    )
+    sender = "0x" + "2" * 40
+    assert rocks.count_transactions_by_address(sender, "sent") == 1
+    with rocks.atomic():
+        rocks.reorg_truncate_above(0)
+    assert rocks.count_transactions_by_address(sender, "sent") == 0
+
+
 def test_sqlite_to_rocks_migration(tmp_path):
     from storage.database import Database
 

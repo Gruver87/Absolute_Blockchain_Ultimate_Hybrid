@@ -4,9 +4,29 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Test-RocksBuildPrereqs {
+    if (Get-Command llvm-ar -ErrorAction SilentlyContinue) { return $true }
+    if (Get-Command lib.exe -ErrorAction SilentlyContinue) { return $true }
+    $llvmAr = @(
+        "${env:ProgramFiles}\LLVM\bin\llvm-ar.exe",
+        "${env:ProgramFiles(x86)}\LLVM\bin\llvm-ar.exe"
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($llvmAr) {
+        $llvmBin = Split-Path $llvmAr -Parent
+        $env:PATH = "$llvmBin;$env:PATH"
+        return $true
+    }
+    Write-Host "WARN: LLVM/MSVC binutils not found. Install LLVM (winget install LLVM.LLVM) for RocksDB native build." -ForegroundColor Yellow
+    return $false
+}
+
 $crate = Join-Path $ProjectRoot "native\abs_native"
 Push-Location $crate
 try {
+    if (-not (Test-RocksBuildPrereqs)) {
+        Write-Host "Skipping maturin build - RocksEngine will be unavailable on this host." -ForegroundColor Yellow
+        exit 0
+    }
     python -m pip install --upgrade maturin
     $wheelDir = Join-Path $crate "target\wheels"
     python -m maturin build --release --out $wheelDir
