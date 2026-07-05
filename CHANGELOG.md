@@ -6,6 +6,20 @@
 
 ---
 
+## [1.2.14] — 2026-07-05
+
+### Added
+
+- `docs/ARCHITECTURE.md` — honest mermaid architecture (prod vs dev paths)
+- `docs/PUBLIC_TESTNET.md` — public testnet go-live checklist (not live)
+- `.github/workflows/security-audit.yml` — pip-audit on `requirements.txt`
+
+### Changed
+
+- README: GitHub Actions CI badges (tests, docker, security), architecture section, v1.2.13 refs, 703 tests
+
+---
+
 ## [1.2.13] — 2026-07-05
 
 ### Fixed

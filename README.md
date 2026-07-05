@@ -4,12 +4,12 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Devnet--ready%20%7C%20Mainnet--prep-blue)]()
+[![Tests CI](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/test.yml)
+[![Docker CI](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/docker-prod-image.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/docker-prod-image.yml)
+[![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/pytest-698%20passed-brightgreen)](scripts/check_hybrid_full.ps1)
-[![Hybrid Critical](https://img.shields.io/badge/unit-632%20passed-brightgreen)](tests/unit/)
-[![Audit](https://img.shields.io/badge/Full%20Audit-passing-brightgreen)](scripts/check_everything.ps1)
-[![Release](https://img.shields.io/badge/Release-v1.2.1-blue)](RELEASE_NOTES_v1.2.1.md)
+[![Local gate](https://img.shields.io/badge/local%20gate-check__hybrid__full-lightgrey)](scripts/check_hybrid_full.ps1)
+[![Release](https://img.shields.io/badge/Release-v1.2.13-blue)](RELEASE_NOTES_v1.2.3.md)
 
 **Repo:** [github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · **Branch:** `master`
 
@@ -18,7 +18,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | `1.2.0-industrial` (release **v1.2.1** ops/docs) |
+| **Version** | `1.2.0-industrial` (release **v1.2.13** storage/DR) |
 | **Author** | **ULADZIMIR DABRANSKI** |
 | **API Wave** | 61; check GET /status fields: `api_wave`, `core_real`, `p2p_sync_status` |
 | **Entry point** | `python main.py` |
@@ -31,7 +31,9 @@
 | Docs | Link |
 |------|------|
 | Changelog | [CHANGELOG.md](CHANGELOG.md) |
-| Release v1.2.1 | [RELEASE_NOTES_v1.2.1.md](RELEASE_NOTES_v1.2.1.md) |
+| Architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Public testnet (plan) | [docs/PUBLIC_TESTNET.md](docs/PUBLIC_TESTNET.md) |
+| Release notes | [RELEASE_NOTES_v1.2.3.md](RELEASE_NOTES_v1.2.3.md) · [v1.2.4](RELEASE_NOTES_v1.2.4.md) |
 | Mainnet gap (honest) | [docs/MAINNET_GAP_ANALYSIS.md](docs/MAINNET_GAP_ANALYSIS.md) |
 | Bridge L1 cutover | [docs/BRIDGE_L1_MAINNET.md](docs/BRIDGE_L1_MAINNET.md) |
 | Docker images (GHCR) | [docs/DOCKER_IMAGES.md](docs/DOCKER_IMAGES.md) |
@@ -71,7 +73,25 @@
 | **EVM / L2 / Bridge** | 🟡 Mixed | EVM subset and Rust bridge path are integrated; dev-only L2/offchain modules are blocked by prod profile |
 | **Production mainnet** | 🔴 Not launched | External audit, validator ops, L1 bridge cutover; prod profile is **preparation**, not live mainnet |
 
-**Quality gate (Jul 2026):** **`.\scripts\check_hybrid_full.ps1`** → native crypto + bridge smoke + pytest · **`698 passed, 1 skipped`** (`pytest tests/ -q`)
+**Quality gate (Jul 2026):** CI badges above · local **`.\scripts\check_hybrid_full.ps1`** → native crypto + bridge smoke + pytest · **`703` tests** in suite (`pytest tests/ --collect-only`)
+
+---
+
+## Architecture (short)
+
+```mermaid
+flowchart TB
+  EX[Explorer / wallets] --> API[REST + JSON-RPC]
+  API --> ORCH[NodeOrchestrator Python]
+  ORCH --> P2P[P2P mesh]
+  ORCH --> CONS[Consensus]
+  ORCH --> BC[Blockchain]
+  BC --> STORE[(RocksDB prod / SQLite dev)]
+  BC --> RUST[abs_native Rust crypto + state_root]
+```
+
+Full diagram (prod vs dev modules): **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**  
+Public testnet checklist (not live): **[docs/PUBLIC_TESTNET.md](docs/PUBLIC_TESTNET.md)**
 
 ---
 
@@ -343,7 +363,7 @@ Single script — secrets scan, production gate, syntax, tokenomics, Waves 52–
 
 ```powershell
 pytest tests/ -q
-pytest tests/unit/ -q                              # 632 passed, 1 skipped
+pytest tests/unit/ -q
 python scripts/verify_p2p_ci.py --mode devnet3 --wait 300
 python scripts/verify_p2p_ci.py --mode devnet5
 .\scripts\probe_mesh_nodes.ps1
@@ -426,4 +446,4 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 
 ---
 
-*Last update: July 2026 — v1.2.1: mesh probe, P2P status API, mainnet-v1 bridge cutover docs, 698 pytest.*
+*Last update: July 2026 — v1.2.13: RocksDB DR, CI badges, architecture docs, pip-audit workflow.*
