@@ -256,6 +256,38 @@ Start production only after generating real secrets and mounting `data/wallet.js
 
 This is still **not** a public audited mainnet by itself. Before real funds or public validators, run an independent security audit, operate external L1 RPC infrastructure, deploy validator/key management, and test an actual multi-node environment.
 
+### Prod 3-node mesh (mainnet-v1 prep)
+
+Requires `.env` from `.\scripts\setup_prod_env.ps1` and ceremony keys in `data\ceremony_keys`.
+
+```powershell
+# First run (BuildKit + full image build, ~2–5 min)
+$env:DOCKER_BUILDKIT = "1"
+.\scripts\docker_prod_3node.ps1
+
+# Repeat start (existing image, keep RocksDB volumes)
+.\scripts\docker_prod_3node.ps1 -SkipBuild -KeepVolumes -NoCloneDb
+
+# Or one-liner
+.\scripts\quick_restore.ps1 -KeepData
+
+# Full reset (wipe volumes + rebuild)
+docker compose -p abs-prod-mesh3 -f docker-compose.prod.3node.yml down -v
+.\scripts\docker_prod_3node.ps1
+```
+
+| Node | Explorer | RPC |
+|------|----------|-----|
+| mesh-1 | http://127.0.0.1:18180 | :18545 |
+| mesh-2 | http://127.0.0.1:18181 | :18546 |
+| mesh-3 | http://127.0.0.1:18182 | :18547 |
+
+```powershell
+.\scripts\probe_mesh_nodes.ps1 -ProdMesh
+Invoke-RestMethod http://127.0.0.1:18180/chain/consistency/harness
+docker compose -f docker-compose.observability.yml up -d   # Prometheus :9090, Grafana :3000
+```
+
 ### Run
 
 ```bash

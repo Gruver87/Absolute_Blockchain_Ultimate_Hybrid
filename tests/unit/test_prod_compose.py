@@ -47,6 +47,8 @@ def test_dockerfile_prod_requires_native_crypto():
     text = (ROOT / "Dockerfile.prod").read_text(encoding="utf-8")
     assert "ABS_REQUIRE_NATIVE_CRYPTO=true" in text
     assert "/health/ready" in text
+    assert "type=cache" in text
+    assert "cargo fetch" in text
 
 
 def test_prod_gate_requires_rocksdb_on_all_prod_profiles():

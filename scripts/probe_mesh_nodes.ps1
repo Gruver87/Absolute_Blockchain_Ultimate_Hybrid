@@ -6,7 +6,7 @@ param(
 
 $ErrorActionPreference = "Continue"
 if ($ProdMesh) {
-    $Ports = @(8080, 8081, 8082)
+    $Ports = @(18180, 18181, 18182)
 }
 
 function Get-Json($Url) {

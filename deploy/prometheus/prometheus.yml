@@ -13,3 +13,13 @@ scrape_configs:
           - host.docker.internal:8080
         labels:
           node_id: local-dev
+
+  - job_name: absolute-prod-mesh3
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:18180
+          - host.docker.internal:18181
+          - host.docker.internal:18182
+        labels:
+          profile: prod-mesh3

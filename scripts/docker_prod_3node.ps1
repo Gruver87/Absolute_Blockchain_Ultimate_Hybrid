@@ -1,7 +1,9 @@
 # Three-node production mesh (ceremony manifest + per-validator wallets)
 param(
     [string]$CeremonyDir = "data/ceremony_keys",
-    [switch]$NoCloneDb
+    [switch]$NoCloneDb,
+    [switch]$SkipBuild,
+    [switch]$KeepVolumes
 )
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -80,6 +82,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $composeFile = "docker-compose.prod.3node.yml"
 $ComposeProject = "abs-prod-mesh3"
+$env:DOCKER_BUILDKIT = "1"
+$env:COMPOSE_DOCKER_CLI_BUILD = "1"
 if ($NoCloneDb) {
     $env:SKIP_DB_SEED = "1"
 } else {
@@ -87,9 +91,22 @@ if ($NoCloneDb) {
 }
 
 Write-Host "Recreating prod 3-node mesh (18180/18181/18182)..." -ForegroundColor Cyan
-docker compose -p $ComposeProject -f $composeFile down -v --remove-orphans 2>$null
-docker compose -p $ComposeProject -f $composeFile build node1 node2 node3
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+if ($SkipBuild) {
+    Write-Host "SkipBuild: using existing Docker image (no compose build)" -ForegroundColor Yellow
+}
+if ($KeepVolumes) {
+    Write-Host "KeepVolumes: docker down without -v (RocksDB data preserved)" -ForegroundColor Yellow
+}
+
+if ($KeepVolumes) {
+    docker compose -p $ComposeProject -f $composeFile down --remove-orphans 2>$null
+} else {
+    docker compose -p $ComposeProject -f $composeFile down -v --remove-orphans 2>$null
+}
+if (-not $SkipBuild) {
+    docker compose -p $ComposeProject -f $composeFile build node1 node2 node3
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
 
 docker compose -p $ComposeProject -f $composeFile up -d --force-recreate node1
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

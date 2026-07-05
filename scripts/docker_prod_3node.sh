@@ -6,10 +6,14 @@ cd "$ROOT"
 
 CEREMONY_DIR="${CEREMONY_DIR:-data/ceremony_keys}"
 NO_CLONE_DB=0
+SKIP_BUILD=0
+KEEP_VOLUMES=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --ceremony-dir) CEREMONY_DIR="$2"; shift 2 ;;
     --no-clone-db) NO_CLONE_DB=1; shift ;;
+    --skip-build) SKIP_BUILD=1; shift ;;
+    --keep-volumes) KEEP_VOLUMES=1; shift ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -50,6 +54,9 @@ echo "Running production gate..."
 python scripts/prod_gate.py
 
 COMPOSE_FILE="docker-compose.prod.3node.yml"
+COMPOSE_PROJECT="abs-prod-mesh3"
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
 if [[ "$NO_CLONE_DB" -eq 1 ]]; then
   export SKIP_DB_SEED=1
 else
@@ -57,14 +64,22 @@ else
 fi
 
 echo "Recreating prod 3-node mesh (18180/18181/18182)..."
-docker compose -f "$COMPOSE_FILE" down -v --remove-orphans || true
-docker compose -f "$COMPOSE_FILE" build node1 node2 node3
-docker compose -f "$COMPOSE_FILE" up -d --force-recreate node1
+[[ "$SKIP_BUILD" -eq 1 ]] && echo "SkipBuild: using existing Docker image"
+[[ "$KEEP_VOLUMES" -eq 1 ]] && echo "KeepVolumes: docker down without -v"
+if [[ "$KEEP_VOLUMES" -eq 1 ]]; then
+  docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" down --remove-orphans || true
+else
+  docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" down -v --remove-orphans || true
+fi
+if [[ "$SKIP_BUILD" -eq 0 ]]; then
+  docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" build node1 node2 node3
+fi
+docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" up -d --force-recreate node1
 
 echo "Waiting for node1..."
 deadline=$((SECONDS + 180))
 until curl -sf "http://127.0.0.1:18180/health/ready" >/dev/null; do
-  [[ "$SECONDS" -lt "$deadline" ]] || { docker compose -f "$COMPOSE_FILE" logs node1 --tail 40; exit 1; }
+  [[ "$SECONDS" -lt "$deadline" ]] || { docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" logs node1 --tail 40; exit 1; }
   sleep 5
 done
 
@@ -76,18 +91,18 @@ if [[ "$NO_CLONE_DB" -eq 0 ]]; then
   fi
   [[ -n "$pre_h" ]] && echo "OK: node1 height=$pre_h before seed"
   echo "Stopping node1 for consistent RocksDB seed..."
-  docker compose -f "$COMPOSE_FILE" stop node1
-  docker compose -f "$COMPOSE_FILE" --profile seed run --rm node2-db-seed
-  docker compose -f "$COMPOSE_FILE" --profile seed run --rm node3-db-seed
+  docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" stop node1
+  docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --profile seed run --rm node2-db-seed
+  docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" --profile seed run --rm node3-db-seed
 fi
 
 echo "Starting 3-node mesh together (avoid solo mining before followers)..."
-docker compose -f "$COMPOSE_FILE" up -d --force-recreate node1 node2 node3
+docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" up -d --force-recreate node1 node2 node3
 
 echo "Waiting for node1..."
 deadline=$((SECONDS + 180))
 until curl -sf "http://127.0.0.1:18180/health/ready" >/dev/null; do
-  [[ "$SECONDS" -lt "$deadline" ]] || { docker compose -f "$COMPOSE_FILE" logs node1 --tail 40; exit 1; }
+  [[ "$SECONDS" -lt "$deadline" ]] || { docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" logs node1 --tail 40; exit 1; }
   sleep 3
 done
 
