@@ -6,6 +6,18 @@
 
 ---
 
+## [1.2.6] — 2026-07-05
+
+### Fixed
+
+- `backup_chainstore.ps1 -DockerMesh1` — stdin-piped checkpoint backup (no `/app/scripts/` in old prod images)
+
+### Added
+
+- `scripts/docker_backup_in_container.py` — minimal in-container backup via `docker exec python -`
+
+---
+
 ## [1.2.5] — 2026-07-05
 
 ### Fixed
