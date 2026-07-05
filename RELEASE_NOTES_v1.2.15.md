@@ -16,5 +16,7 @@ Fix red GitHub Actions on master; sync mainnet gap docs; add local health watch 
 
 ## Test plan
 
-- [ ] GitHub Actions: Blockchain Tests + Docker prod image green on master
+- [x] Docker prod image CI green on master
+- [x] Security audit CI green on master
+- [ ] Blockchain Tests (long prod-mesh spawn job; check Actions)
 - [ ] `.\scripts\health_watch.ps1 -ProdMesh -DurationMin 1`
