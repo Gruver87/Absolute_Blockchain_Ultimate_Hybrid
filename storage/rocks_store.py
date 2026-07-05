@@ -40,6 +40,8 @@ class RocksChainStore:
         db_path: str = "data/chainstore",
         *,
         synchronous: str = "FULL",
+        block_cache_mb: int = 0,
+        write_buffer_mb: int = 0,
     ):
         if not _rocks_available():
             raise RuntimeError(
@@ -51,6 +53,8 @@ class RocksChainStore:
         self.db_path = db_path
         sync = (synchronous or "FULL").upper()
         self.synchronous = sync
+        self.block_cache_mb = int(block_cache_mb or 0)
+        self.write_buffer_mb = int(write_buffer_mb or 0)
         self._write_lock = threading.RLock()
         self._pending_batch: Any | None = None
         os.makedirs(db_path, exist_ok=True)
@@ -58,6 +62,8 @@ class RocksChainStore:
             db_path,
             create_if_missing=True,
             sync_writes=sync in ("FULL", "EXTRA", "STRICT"),
+            block_cache_mb=self.block_cache_mb,
+            write_buffer_mb=self.write_buffer_mb,
         )
         self._schema_version = "rocksdb-chain-v1"
         self._root_acc: Any | None = None
@@ -1056,14 +1062,30 @@ class RocksChainStore:
         self._raw_put(key, json.dumps(row).encode("utf-8"))
 
     def get_stats(self) -> Dict:
-        return {
+        stats = {
             "height": self.get_chain_tip(),
             "total_transactions": len(self._scan_prefix(kc.P_TX)),
             "total_accounts": len(self._scan_prefix(kc.prefix_accounts())),
             "total_burned": self.get_total_burned(),
             "total_supply": self.get_total_supply(),
             "engine": self.engine,
+            "rocksdb_tuning": {
+                "block_cache_mb": self.block_cache_mb,
+                "write_buffer_mb": self.write_buffer_mb,
+                "sync": self.synchronous,
+            },
         }
+        if hasattr(self._engine, "storage_properties"):
+            try:
+                stats["rocksdb_properties"] = dict(self._engine.storage_properties())
+            except Exception:
+                pass
+        if hasattr(self._engine, "tuning_config"):
+            try:
+                stats["rocksdb_tuning"].update(dict(self._engine.tuning_config()))
+            except Exception:
+                pass
+        return stats
 
     def save_slash_event(self, validator: str, reason: str, epoch: int, penalty: int) -> None:
         events = self.get_meta("slash_events", []) or []

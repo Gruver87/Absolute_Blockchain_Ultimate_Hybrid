@@ -110,12 +110,13 @@ Then set `DB_ENGINE=rocksdb` / `"db_engine": "rocksdb"` in config.
 - [x] Prod mesh on RocksDB
 - [x] Backup/restore scripts + CI rocks drill
 - [ ] 24–48 h soak: `docker_prod_3node.ps1` + restart with `-SkipBuild -KeepVolumes`
-- [ ] Documented DR restore rehearsal on test volume
+- [ ] Documented DR restore rehearsal on test volume (`scripts/dr_restore_rehearsal.ps1`)
 
 ### P1 — Hybrid completion
 
-- [ ] Migrate aux tables (NFT, evm_logs, checkpoints, propagation) into Rocks CF or document permanent aux scope
-- [ ] Rocks tuning: block cache, write buffers, compaction metrics
+- [x] Document permanent aux scope (see below)
+- [x] Rocks tuning env vars + LSM property introspection in `get_stats()`
+- [ ] Migrate optional aux tables into Rocks CF (NFT, evm_logs, …)
 - [ ] Benchmark: block commit latency vs SQLite devnet (publish numbers in this doc)
 
 ### P2 — Rust storage depth
@@ -129,6 +130,28 @@ Then set `DB_ENGINE=rocksdb` / `"db_engine": "rocksdb"` in config.
 - Full Python storage rewrite in Rust
 - Sharded Rocks per shard before stable single-chain mainnet
 - non-root Docker user + Rocks volumes on Windows (needs separate test)
+
+---
+
+## Aux.db scope (honest, v1.2.4)
+
+**In Rocks (hot path):** blocks, accounts, transactions, validators, meta, bridge locks/credits, receipts, proposer audit, state-root mismatch log.
+
+**Stays in SQLite aux (cold / dev modules):** NFT, EVM logs, lightning/plasma, wasm/ai agents, oracle feeds, mev/reorg diagnostics, tx propagation events, legacy minivm tables. These are accessed via `HybridDatabase.__getattr__` → `_aux` and are **not required** for prod mainnet-v1 consensus or bridge L1 cutover.
+
+Migration of aux rows into Rocks CF is **optional P1+** — not a mainnet blocker while prod gate keeps `db_engine=rocksdb` on the Rocks core.
+
+---
+
+## Rocks tuning (prod)
+
+| Env / config | Default | Notes |
+|--------------|---------|-------|
+| `ROCKSDB_SYNC` | `FULL` | Durable WAL on prod |
+| `ROCKSDB_BLOCK_CACHE_MB` | `256` | LRU block cache; `0` = Rocks default |
+| `ROCKSDB_WRITE_BUFFER_MB` | `64` | Memtable size; `0` = Rocks default |
+
+`GET /stats` (via `db.get_stats()`) includes `rocksdb_tuning` and live `rocksdb_properties` (memtable size, SST bytes, compactions) when native wheel supports it.
 
 ---
 

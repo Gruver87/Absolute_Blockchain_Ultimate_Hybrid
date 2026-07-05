@@ -53,6 +53,8 @@ class Config:
     db_path: str = "data/blockchain.db"
     db_engine: str = "sqlite"           # sqlite | rocksdb (prod mainnet)
     rocksdb_sync: str = "FULL"          # normal | full — durable WAL/fsync
+    rocksdb_block_cache_mb: int = 256   # 0 = RocksDB default
+    rocksdb_write_buffer_mb: int = 64   # 0 = RocksDB default
     db_wal_mode: bool = True            # WAL для производительности SQLite
 
     # ── Майнинг / Консенсус ─────────────────────────────────────────────────
@@ -222,6 +224,12 @@ class Config:
 
         self.db_engine = env_str("DB_ENGINE", self.db_engine).strip().lower()
         self.rocksdb_sync = env_str("ROCKSDB_SYNC", self.rocksdb_sync).strip().upper()
+        self.rocksdb_block_cache_mb = env_int(
+            "ROCKSDB_BLOCK_CACHE_MB", self.rocksdb_block_cache_mb
+        )
+        self.rocksdb_write_buffer_mb = env_int(
+            "ROCKSDB_WRITE_BUFFER_MB", self.rocksdb_write_buffer_mb
+        )
         self.resolve_storage_paths()
 
         self.node_id = env_str("NODE_ID", self.node_id)

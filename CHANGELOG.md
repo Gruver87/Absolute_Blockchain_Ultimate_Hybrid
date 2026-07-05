@@ -6,6 +6,21 @@
 
 ---
 
+## [1.2.4] — 2026-07-05
+
+### Added
+
+- RocksDB tuning: `ROCKSDB_BLOCK_CACHE_MB`, `ROCKSDB_WRITE_BUFFER_MB` → native `RocksEngine`
+- LSM property introspection in `get_stats()` (`rocksdb_properties`)
+- `scripts/dr_restore_rehearsal.ps1` — temp restore verify without touching live data
+- `RELEASE_NOTES_v1.2.3.md`
+
+### Changed
+
+- `docs/STORAGE_ROCKSDB.md` — aux.db permanent scope + tuning table
+
+---
+
 ## [1.2.3] — 2026-07-05
 
 ### Added

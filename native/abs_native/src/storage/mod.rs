@@ -1,8 +1,9 @@
 //! RocksDB engine for Absolute chain storage (LSM, concurrent reads).
 
 use pyo3::prelude::*;
-use pyo3::types::PyBytes;
-use rocksdb::{Direction, IteratorMode, Options, WriteBatch, WriteOptions, DB};
+use pyo3::types::{PyBytes, PyDict};
+use rocksdb::{BlockBasedOptions, Cache, Direction, IteratorMode, Options, WriteBatch, WriteOptions, DB};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 #[pyclass]
@@ -40,23 +41,59 @@ impl RocksWriteBatch {
 pub struct RocksEngine {
     db: Arc<DB>,
     sync_writes: bool,
+    block_cache_mb: u32,
+    write_buffer_mb: u32,
+    _block_cache: Option<Arc<Cache>>,
 }
+
+const STORAGE_PROPERTY_KEYS: &[&str] = &[
+    "rocksdb.estimate-num-keys",
+    "rocksdb.cur-size-all-mem-tables",
+    "rocksdb.estimate-table-readers-mem",
+    "rocksdb.total-sst-files-size",
+    "rocksdb.live-sst-files-size",
+    "rocksdb.num-immutable-mem-table",
+    "rocksdb.num-running-compactions",
+    "rocksdb.num-running-flushes",
+];
 
 #[pymethods]
 impl RocksEngine {
     #[new]
-    #[pyo3(signature = (path, *, create_if_missing=true, sync_writes=false))]
-    fn new(path: &str, create_if_missing: bool, sync_writes: bool) -> PyResult<Self> {
+    #[pyo3(signature = (path, *, create_if_missing=true, sync_writes=false, block_cache_mb=0, write_buffer_mb=0))]
+    fn new(
+        path: &str,
+        create_if_missing: bool,
+        sync_writes: bool,
+        block_cache_mb: u32,
+        write_buffer_mb: u32,
+    ) -> PyResult<Self> {
         let mut opts = Options::default();
         opts.create_if_missing(create_if_missing);
         opts.create_missing_column_families(false);
         opts.set_max_open_files(512);
         opts.set_bytes_per_sync(1_048_576);
         opts.set_wal_bytes_per_sync(1_048_576);
+
+        let mut block_cache = None;
+        if block_cache_mb > 0 {
+            let cache = Cache::new_lru_cache((block_cache_mb as usize) * 1024 * 1024);
+            let mut block_opts = BlockBasedOptions::default();
+            block_opts.set_block_cache(&cache);
+            opts.set_block_based_table_factory(&block_opts);
+            block_cache = Some(Arc::new(cache));
+        }
+        if write_buffer_mb > 0 {
+            opts.set_write_buffer_size((write_buffer_mb as usize) * 1024 * 1024);
+        }
+
         let db = DB::open(&opts, path).map_err(|e| PyErr::new::<pyo3::exceptions::PyOSError, _>(e.to_string()))?;
         Ok(Self {
             db: Arc::new(db),
             sync_writes,
+            block_cache_mb,
+            write_buffer_mb,
+            _block_cache: block_cache,
         })
     }
 
@@ -126,6 +163,24 @@ impl RocksEngine {
             .to_str()
             .unwrap_or("")
             .to_string())
+    }
+
+    fn tuning_config(&self) -> PyResult<HashMap<String, u32>> {
+        let mut out = HashMap::new();
+        out.insert("block_cache_mb".to_string(), self.block_cache_mb);
+        out.insert("write_buffer_mb".to_string(), self.write_buffer_mb);
+        out.insert("sync_writes".to_string(), if self.sync_writes { 1 } else { 0 });
+        Ok(out)
+    }
+
+    fn storage_properties<'py>(&self, py: Python<'py>) -> PyResult<Py<PyDict>> {
+        let dict = PyDict::new_bound(py);
+        for key in STORAGE_PROPERTY_KEYS {
+            if let Ok(Some(value)) = self.db.property_value(*key) {
+                dict.set_item(*key, value)?;
+            }
+        }
+        Ok(dict.unbind())
     }
 }
 

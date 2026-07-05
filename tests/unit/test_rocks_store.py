@@ -433,4 +433,21 @@ def test_sqlite_to_rocks_migration(tmp_path):
         capture_output=True,
         text=True,
     )
-    assert proc.returncode == 0, proc.stderr or proc.stdout
+    assert proc.returncode == 0
+
+
+def test_rocksdb_tuning_and_properties(tmp_path):
+    from storage.rocks_store import RocksChainStore
+
+    path = str(tmp_path / "tuned")
+    store = RocksChainStore(
+        path, synchronous="FULL", block_cache_mb=32, write_buffer_mb=16
+    )
+    store.initialize()
+    stats = store.get_stats()
+    assert stats["rocksdb_tuning"]["block_cache_mb"] == 32
+    assert stats["rocksdb_tuning"]["write_buffer_mb"] == 16
+    if hasattr(store._engine, "storage_properties"):
+        props = dict(store._engine.storage_properties())
+        assert isinstance(props, dict)
+    store.close()

@@ -26,7 +26,12 @@ class HybridDatabase:
         sqlite_sync = getattr(config, "sqlite_synchronous", "NORMAL")
         self.db_path = chain_path
         self.synchronous = rocks_sync
-        self._core = RocksChainStore(chain_path, synchronous=rocks_sync)
+        self._core = RocksChainStore(
+            chain_path,
+            synchronous=rocks_sync,
+            block_cache_mb=int(getattr(config, "rocksdb_block_cache_mb", 0) or 0),
+            write_buffer_mb=int(getattr(config, "rocksdb_write_buffer_mb", 0) or 0),
+        )
         self._aux = SqliteDatabase(aux_path, synchronous=sqlite_sync)
         self._aux.initialize()
 
