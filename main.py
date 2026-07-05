@@ -615,7 +615,7 @@ class NodeOrchestrator:
             print("[Node] EVM: enabled")
         self.blockchain.evm = self.evm
 
-        if self.blockchain.get_height() > 0:
+        if self.blockchain.get_height() >= 0:
             self.blockchain.ensure_state_at_tip()
 
         # 7. P2P

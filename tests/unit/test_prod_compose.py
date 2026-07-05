@@ -47,3 +47,24 @@ def test_dockerfile_prod_requires_native_crypto():
     text = (ROOT / "Dockerfile.prod").read_text(encoding="utf-8")
     assert "ABS_REQUIRE_NATIVE_CRYPTO=true" in text
     assert "/health/ready" in text
+
+
+def test_prod_gate_requires_rocksdb_on_all_prod_profiles():
+    import subprocess
+    import sys
+
+    proc = subprocess.run(
+        [sys.executable, "scripts/prod_gate.py"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    for name in (
+        "node.prod.example.json",
+        "node.prod.mainnet-v1.example.json",
+        "docker/node.prod.json",
+        "docker/node.prod.mesh1.json",
+    ):
+        cfg = json.loads((ROOT / name).read_text(encoding="utf-8"))
+        assert cfg.get("db_engine") == "rocksdb", name

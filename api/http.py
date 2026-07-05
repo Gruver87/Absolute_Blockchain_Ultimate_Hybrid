@@ -5894,12 +5894,12 @@ def _build_state_consistency_harness(p2p, bc, cfg, db=None) -> Dict:
         {
             "id": "no_recent_mismatches",
             "ok": len(mismatches) == 0,
-            "detail": "no state_root_mismatches in SQLite audit",
+            "detail": "no state_root_mismatches in chain audit",
         },
         {
             "id": "accounts_present",
             "ok": account_count > 0 or height <= 0,
-            "detail": "SQLite accounts table populated",
+            "detail": "chain accounts populated",
         },
         {
             "id": "supply_within_cap",

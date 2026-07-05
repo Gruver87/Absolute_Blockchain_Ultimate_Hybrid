@@ -135,6 +135,20 @@ def test_persist_block_atomic_keeps_accumulator_in_sync(rocks):
     assert rocks.compute_state_root() == block["state_root"]
 
 
+def test_state_root_mismatch_audit_on_rocks(rocks):
+    rocks.record_state_root_mismatch(
+        3,
+        expected_root="a" * 64,
+        computed_root="b" * 64,
+        source="p2p",
+        proposer="0x" + "1" * 40,
+    )
+    rows = rocks.get_state_root_mismatches(limit=5)
+    assert len(rows) == 1
+    assert rows[0]["height"] == 3
+    assert rows[0]["expected_root"] == "a" * 64
+
+
 def test_reorg_truncate_and_reset(rocks):
     for h in range(1, 4):
         rocks.persist_block_atomic(

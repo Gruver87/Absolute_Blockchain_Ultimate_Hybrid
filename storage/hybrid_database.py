@@ -225,6 +225,11 @@ class HybridDatabase:
     def record_state_root_mismatch(self, *args: Any, **kwargs: Any) -> None:
         self._core.record_state_root_mismatch(*args, **kwargs)
 
+    def get_state_root_mismatches(self, limit: int = 20) -> List[Dict]:
+        if hasattr(self._core, "get_state_root_mismatches"):
+            return self._core.get_state_root_mismatches(limit=limit)
+        return self._aux.get_state_root_mismatches(limit=limit)
+
     def record_tx_propagation_event(self, *args: Any, **kwargs: Any) -> None:
         self._core.record_tx_propagation_event(*args, **kwargs)
 

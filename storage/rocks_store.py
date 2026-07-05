@@ -820,6 +820,17 @@ class RocksChainStore:
         key = kc.P_STATE_ROOT_MM + kc.pack_u64(int(height)) + computed_root[:8].encode()
         self._raw_put(key, json.dumps(row).encode("utf-8"))
 
+    def get_state_root_mismatches(self, limit: int = 20) -> List[Dict]:
+        limit = max(1, min(int(limit), 100))
+        rows: List[Dict] = []
+        for _key, value in self._scan_prefix(kc.P_STATE_ROOT_MM, limit=limit * 4):
+            try:
+                rows.append(json.loads(value.decode("utf-8")))
+            except Exception:
+                continue
+        rows.sort(key=lambda r: int(r.get("created_at", 0) or 0), reverse=True)
+        return rows[:limit]
+
     def record_tx_propagation_event(
         self,
         tx_hash: str,

@@ -90,8 +90,8 @@ def check_file(path: str) -> list[str]:
     if mode == "parallel":
         errors.append(f"{path}: consensus_mode=parallel forbidden in prod (use unified or auto)")
 
-    if path.startswith("docker/") and cfg.get("db_engine", "sqlite") != "rocksdb":
-        errors.append(f"{path}: db_engine must be rocksdb for docker prod profiles")
+    if cfg.get("db_engine", "sqlite") != "rocksdb":
+        errors.append(f"{path}: db_engine must be rocksdb in prod")
 
     return errors
 

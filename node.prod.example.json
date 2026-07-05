@@ -41,6 +41,8 @@
   "feature_mev": false,
   "feature_ai_agents": false,
   "sqlite_synchronous": "FULL",
+  "db_engine": "rocksdb",
+  "rocksdb_sync": "FULL",
   "log_json": true,
   "enable_cors_rpc_proxy": false,
   "cors_origins": ["https://your-explorer.example.com"],
