@@ -79,7 +79,7 @@ while ($true) {
             $failures += $line
             Write-Log "WARN $line" "Yellow"
         } elseif ($p2pWarn) {
-            Write-Log "OK $line (p2p not full mesh; chain OK)" "Yellow"
+            Write-Log "$line (p2p not full mesh; chain OK)" "Yellow"
         } else {
             Write-Log $line "Green"
         }
