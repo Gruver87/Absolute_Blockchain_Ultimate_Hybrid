@@ -77,6 +77,24 @@ def test_state_root_from_account_blobs_matches_canonical():
         assert native.state_root_from_account_blobs(blobs) == compute_db_state_root(accounts)
 
 
+def test_state_root_accumulator_matches_batch_scan():
+    from crypto import native
+    from execution.state_root import compute_db_state_root
+
+    accounts = _accounts()
+    blobs = [
+        json.dumps(row, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        for row in accounts
+    ]
+    if not native.state_root_accumulator_available():
+        return
+    assert native.state_root_accumulator_root_from_blobs(blobs) == compute_db_state_root(accounts)
+    acc = native.new_state_root_accumulator()
+    for blob in blobs:
+        acc.upsert_account_blob(blob)
+    assert acc.root() == compute_db_state_root(accounts)
+
+
 def test_legacy_state_engine_root_keeps_32_char_contract():
     accounts = {
         "alice": AccountState(balance=100, nonce=0),

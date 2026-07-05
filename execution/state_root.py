@@ -31,6 +31,10 @@ def compute_db_state_root(accounts: List[Dict[str, Any]]) -> str:
 
 def compute_state_root_from_blobs(account_blobs: List[bytes]) -> str:
     """Fast path for RocksDB: hash account JSON blobs without Python row materialization."""
+    from crypto import native
+
+    if native.state_root_accumulator_available():
+        return native.state_root_accumulator_root_from_blobs(account_blobs)
     return native.state_root_from_account_blobs(account_blobs)
 
 

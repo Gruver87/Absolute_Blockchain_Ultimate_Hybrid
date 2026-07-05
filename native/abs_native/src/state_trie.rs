@@ -32,16 +32,20 @@ impl StateRootAccumulator {
     fn upsert_account_json(&mut self, account_json: &str) -> PyResult<()> {
         let account: Value = serde_json::from_str(account_json)
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
-        let obj = account.as_object().ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err("account_json must be an object")
-        })?;
-        let addr = value_to_string(obj.get("address"), "");
-        if addr.is_empty() {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "account_json missing address",
-            ));
+        self.upsert_account_value(account)
+    }
+
+    fn upsert_account_blob(&mut self, blob: &[u8]) -> PyResult<()> {
+        let account: Value = serde_json::from_slice(blob)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        self.upsert_account_value(account)
+    }
+
+    fn load_from_blobs(&mut self, blobs: Vec<Vec<u8>>) -> PyResult<()> {
+        self.accounts.clear();
+        for blob in blobs {
+            self.upsert_account_blob(&blob)?;
         }
-        self.accounts.insert(addr, account);
         Ok(())
     }
 
@@ -58,6 +62,22 @@ impl StateRootAccumulator {
         let encoded = serde_json::to_string(&payload)
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
         Ok(hash_string(&encoded))
+    }
+}
+
+impl StateRootAccumulator {
+    fn upsert_account_value(&mut self, account: Value) -> PyResult<()> {
+        let obj = account.as_object().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err("account row must be a JSON object")
+        })?;
+        let addr = value_to_string(obj.get("address"), "");
+        if addr.is_empty() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "account row missing address",
+            ));
+        }
+        self.accounts.insert(addr, account);
+        Ok(())
     }
 }
 

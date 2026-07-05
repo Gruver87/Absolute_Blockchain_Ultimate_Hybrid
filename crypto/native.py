@@ -1200,6 +1200,23 @@ def state_root_from_account_blobs(blobs: List[bytes]) -> str:
     )
 
 
+def state_root_accumulator_available() -> bool:
+    return _native is not None and hasattr(_native, "StateRootAccumulator")
+
+
+def new_state_root_accumulator():
+    if not state_root_accumulator_available():
+        _require_native_kernel("StateRootAccumulator")
+    return _native.StateRootAccumulator()
+
+
+def state_root_accumulator_root_from_blobs(blobs: List[bytes]) -> str:
+    acc = new_state_root_accumulator()
+    if blobs:
+        acc.load_from_blobs(list(blobs))
+    return acc.root()
+
+
 def verify_secp256k1_sha256(
     message: bytes, signature_der: bytes, public_key_xy: bytes
 ) -> Optional[bool]:

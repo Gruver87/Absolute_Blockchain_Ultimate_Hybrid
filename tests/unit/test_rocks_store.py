@@ -94,6 +94,22 @@ def test_get_last_block_returns_genesis_at_height_zero(rocks):
     assert last["hash"] == "c" * 64
 
 
+def test_compute_state_root_uses_incremental_accumulator(rocks):
+    from runtime.tokenomics import genesis_balances
+    from storage import keycodec as kc
+    from execution.state_root import compute_state_root_from_blobs
+
+    founder = "0x" + "f" * 40
+    for addr, amount in genesis_balances(founder).items():
+        rocks.set_balance(addr, float(amount))
+    root1 = rocks.compute_state_root()
+    rocks.set_balance("0x" + "9" * 40, 1.0)
+    root2 = rocks.compute_state_root()
+    assert root1 != root2
+    blobs = [value for _key, value in rocks._scan_prefix(kc.prefix_accounts())]
+    assert root2 == compute_state_root_from_blobs(blobs)
+
+
 def test_reorg_truncate_and_reset(rocks):
     for h in range(1, 4):
         rocks.persist_block_atomic(

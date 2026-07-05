@@ -58,7 +58,8 @@ class RocksChainStore:
             sync_writes=sync in ("FULL", "EXTRA", "STRICT"),
         )
         self._schema_version = "rocksdb-chain-v1"
-        self._state_root_cache: str | None = None
+        self._root_acc: Any | None = None
+        self._batch_acc_dirty: dict[str, bytes | None] = {}
         self._ensure_schema()
 
     def _ensure_schema(self) -> None:
@@ -75,12 +76,61 @@ class RocksChainStore:
         val = self._engine.get(key)
         return bytes(val) if val is not None else None
 
-    def _invalidate_state_root_cache(self) -> None:
-        self._state_root_cache = None
+    def _drop_root_acc(self) -> None:
+        self._root_acc = None
+
+    def _root_acc_enabled(self) -> bool:
+        try:
+            import abs_native  # type: ignore
+
+            return hasattr(abs_native, "StateRootAccumulator")
+        except Exception:
+            return False
+
+    def _ensure_root_acc(self) -> Any | None:
+        if self._root_acc is not None:
+            return self._root_acc
+        if not self._root_acc_enabled():
+            return None
+        import abs_native  # type: ignore
+
+        acc = abs_native.StateRootAccumulator()
+        blobs = [value for _key, value in self._scan_prefix(kc.prefix_accounts())]
+        if blobs:
+            acc.load_from_blobs(blobs)
+        self._root_acc = acc
+        return acc
+
+    def _account_key_address(self, key: bytes) -> str:
+        return key[len(kc.P_ACCOUNT) :].decode("utf-8")
+
+    def _root_acc_upsert_blob(self, value: bytes) -> None:
+        acc = self._ensure_root_acc()
+        if acc is not None:
+            acc.upsert_account_blob(value)
+
+    def _root_acc_remove(self, address: str) -> None:
+        if self._root_acc is not None:
+            self._root_acc.remove_account(address)
+
+    def _flush_batch_acc_dirty(self) -> None:
+        if not self._batch_acc_dirty:
+            return
+        acc = self._ensure_root_acc()
+        if acc is not None:
+            for addr, value in self._batch_acc_dirty.items():
+                if value is None:
+                    acc.remove_account(addr)
+                else:
+                    acc.upsert_account_blob(value)
+        self._batch_acc_dirty.clear()
 
     def _raw_put(self, key: bytes, value: bytes) -> None:
         if key.startswith(kc.P_ACCOUNT):
-            self._invalidate_state_root_cache()
+            if self._pending_batch is not None:
+                self._batch_acc_dirty[self._account_key_address(key)] = value
+            else:
+                self._root_acc_upsert_blob(value)
         if self._pending_batch is not None:
             self._pending_batch.put(key, value)
             return
@@ -88,7 +138,10 @@ class RocksChainStore:
 
     def _raw_delete(self, key: bytes) -> None:
         if key.startswith(kc.P_ACCOUNT):
-            self._invalidate_state_root_cache()
+            if self._pending_batch is not None:
+                self._batch_acc_dirty[self._account_key_address(key)] = None
+            else:
+                self._root_acc_remove(self._account_key_address(key))
         if self._pending_batch is not None:
             self._pending_batch.delete(key)
             return
@@ -108,10 +161,12 @@ class RocksChainStore:
             try:
                 yield self
                 self._engine.write_batch(batch)
+                self._flush_batch_acc_dirty()
             except Exception:
                 raise
             finally:
                 self._pending_batch = None
+                self._batch_acc_dirty.clear()
 
     def close(self) -> None:
         self._engine = None  # type: ignore[assignment]
@@ -302,15 +357,14 @@ class RocksChainStore:
         return sorted(out, key=lambda r: str(r.get("address", "")))
 
     def compute_state_root(self) -> str:
-        """Canonical state root via native scan of account blobs (no Python dict churn)."""
-        if self._state_root_cache:
-            return self._state_root_cache
+        """Canonical state root via native accumulator or account blob scan."""
+        acc = self._ensure_root_acc()
+        if acc is not None:
+            return acc.root()
         from execution.state_root import compute_state_root_from_blobs
 
         blobs = [value for _key, value in self._scan_prefix(kc.prefix_accounts())]
-        root = compute_state_root_from_blobs(blobs)
-        self._state_root_cache = root
-        return root
+        return compute_state_root_from_blobs(blobs)
 
     def reset_accounts_from_alloc(
         self, alloc: Dict[str, float], *, _in_atomic: bool = False
@@ -322,6 +376,7 @@ class RocksChainStore:
             self._reset_accounts_locked(alloc)
 
     def _reset_accounts_locked(self, alloc: Dict[str, float]) -> None:
+        self._drop_root_acc()
         for key, _value in self._scan_prefix(kc.prefix_accounts()):
             self._raw_delete(key)
         for addr, amount in alloc.items():
