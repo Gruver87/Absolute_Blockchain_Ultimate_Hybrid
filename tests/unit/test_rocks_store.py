@@ -76,6 +76,24 @@ def test_persist_block_atomic(rocks):
     assert len(by_addr) == 1
 
 
+def test_get_last_block_returns_genesis_at_height_zero(rocks):
+    block = {
+        "height": 0,
+        "hash": "c" * 64,
+        "parent_hash": "0" * 64,
+        "timestamp": 1700000000,
+        "miner": "genesis",
+        "state_root": "d" * 64,
+        "transactions": [],
+    }
+    rocks.save_block(block)
+    assert rocks.get_chain_tip() == 0
+    last = rocks.get_last_block()
+    assert last is not None
+    assert last["height"] == 0
+    assert last["hash"] == "c" * 64
+
+
 def test_reorg_truncate_and_reset(rocks):
     for h in range(1, 4):
         rocks.persist_block_atomic(

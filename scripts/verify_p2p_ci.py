@@ -1228,6 +1228,9 @@ def verify_state_consistency(urls: list[str], status: dict) -> int:
 
 def verify_multi_node_proof(urls: list[str], status: dict) -> int:
     """Wave 56: attestations, rotation, reorg drill across cluster."""
+    if str(status.get("deployment_mode", "")).lower() == "prod":
+        print("SKIP: multi-node proof (testnet endpoints blocked in prod)")
+        return 0
     wave = int(status.get("api_wave", 0) or 0)
     if wave < 56:
         print(f"SKIP: multi-node proof (api_wave={wave} < 56)")
@@ -2372,8 +2375,19 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "") -> int:
                 pass
             time.sleep(2)
 
+        # Quiesce leader before cloning RocksDB / SQLite chain files.
+        for proc in procs:
+            proc.terminate()
+        for proc in procs:
+            try:
+                proc.wait(timeout=15)
+            except Exception:
+                proc.kill()
+        procs.clear()
+        time.sleep(2)
+
         _seed_follower_dbs(cfg1, [cfg2, cfg3])
-        for cfg, log_path in zip(cfgs[1:], logs[1:]):
+        for cfg, log_path in zip(cfgs, logs):
             err = open(log_path, "w", encoding="utf-8")
             procs.append(
                 subprocess.Popen(
@@ -2386,7 +2400,7 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "") -> int:
             )
             time.sleep(2)
 
-        for url, log_path in zip(urls[1:], logs[1:]):
+        for url, log_path in zip(urls, logs):
             if not _wait_health(url, max_sec=180):
                 print(f"FAIL: prod-mesh3 health timeout on {url}")
                 print(f"  stderr: {log_path}")

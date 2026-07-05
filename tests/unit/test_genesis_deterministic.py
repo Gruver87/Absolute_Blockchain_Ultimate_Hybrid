@@ -35,3 +35,10 @@ def test_genesis_hash_matches_for_same_chain_id():
     assert g1["hash"] == g2["hash"]
     assert g1["timestamp"] == g2["timestamp"]
     assert cfg.resolve_genesis_timestamp() == int(g1["timestamp"])
+    live_root = db1.compute_state_root() if hasattr(db1, "compute_state_root") else None
+    if live_root is None:
+        from execution.state_root import compute_db_state_root
+        live_root = compute_db_state_root(db1)
+    assert g1.get("state_root") == live_root, (
+        f"genesis state_root must match DB after mint: {g1.get('state_root')!r} != {live_root!r}"
+    )

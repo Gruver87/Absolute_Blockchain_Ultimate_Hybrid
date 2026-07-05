@@ -1338,6 +1338,13 @@ class NodeOrchestrator:
                 getattr(self.config, "founder_address", ""),
                 self.config.miner_address,
             )
+            blk0 = self.db.get_block(0) if hasattr(self.db, "get_block") else None
+            if blk0:
+                if not self.db.get_meta("genesis_alloc_applied"):
+                    self.db.set_meta("genesis_alloc_applied", True)
+                if not self.db.get_meta("tokenomics"):
+                    self.db.set_meta("tokenomics", get_tokenomics_summary(founder or None))
+                return
             if not self.db.get_meta("genesis_alloc_applied"):
                 alloc = genesis_balances(founder or None)
                 for addr, amount in alloc.items():

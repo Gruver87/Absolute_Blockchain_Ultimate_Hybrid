@@ -85,7 +85,7 @@ if ($NoCloneDb) {
 }
 
 Write-Host "Recreating prod 3-node mesh (18180/18181/18182)..." -ForegroundColor Cyan
-docker compose -f $composeFile down --remove-orphans 2>$null
+docker compose -f $composeFile down -v --remove-orphans 2>$null
 docker compose -f $composeFile build node1 node2 node3
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -107,12 +107,38 @@ if (-not $ready1) {
 }
 
 if (-not $NoCloneDb) {
+    Write-Host "Stopping node1 for consistent RocksDB seed..." -ForegroundColor Gray
+    docker compose -f $composeFile stop node1 | Out-Null
     docker compose -f $composeFile --profile seed run --rm node2-db-seed | Out-Null
     docker compose -f $composeFile --profile seed run --rm node3-db-seed | Out-Null
+    docker compose -f $composeFile start node1 | Out-Null
+    $deadline = (Get-Date).AddMinutes(2)
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $resp = Invoke-WebRequest -Uri "http://127.0.0.1:18180/health/ready" -UseBasicParsing -TimeoutSec 5
+            if ($resp.StatusCode -eq 200) { break }
+        } catch { Start-Sleep -Seconds 3 }
+    }
 }
 
 docker compose -f $composeFile up -d --force-recreate node2 node3
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+Write-Host "Waiting for node2/node3 HTTP..." -ForegroundColor Gray
+foreach ($port in @(18181, 18182)) {
+    $deadline = (Get-Date).AddMinutes(2)
+    $ready = $false
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$port/health/live" -UseBasicParsing -TimeoutSec 5
+            if ($resp.StatusCode -eq 200) { $ready = $true; break }
+        } catch { Start-Sleep -Seconds 3 }
+    }
+    if (-not $ready) {
+        Write-Host "FAIL: mesh node not reachable on port $port" -ForegroundColor Red
+        exit 1
+    }
+}
 
 Write-Host "Waiting for 3-node mesh sync..." -ForegroundColor Cyan
 python scripts/verify_p2p_ci.py --mode prod-mesh3-live --url1 http://127.0.0.1:18180 --url2 http://127.0.0.1:18181 --url3 http://127.0.0.1:18182 --wait 360

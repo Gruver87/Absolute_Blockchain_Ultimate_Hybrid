@@ -1,5 +1,6 @@
 mod evm_pure_runner;
 mod storage;
+mod state_trie;
 
 use k256::ecdsa::signature::hazmat::PrehashVerifier;
 use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
@@ -14,7 +15,7 @@ fn sha256_hex_bytes(data: &[u8]) -> String {
     hex::encode(Sha256::digest(data))
 }
 
-fn hash_string(data: &str) -> String {
+pub(crate) fn hash_string(data: &str) -> String {
     sha256_hex_bytes(data.as_bytes())
 }
 
@@ -143,7 +144,7 @@ fn py_round_12(value: f64) -> f64 {
     rounded / SCALE
 }
 
-fn value_to_string(value: Option<&Value>, default_value: &str) -> String {
+pub(crate) fn value_to_string(value: Option<&Value>, default_value: &str) -> String {
     match value {
         Some(Value::String(s)) => s.clone(),
         Some(Value::Null) | None => default_value.to_string(),
@@ -170,7 +171,7 @@ fn value_to_f64(value: Option<&Value>) -> f64 {
     }
 }
 
-fn account_payload_row(account: &Value) -> PyResult<Value> {
+pub(crate) fn account_payload_row(account: &Value) -> PyResult<Value> {
     let obj = account.as_object().ok_or_else(|| {
         pyo3::exceptions::PyValueError::new_err("account row must be a JSON object")
     })?;
@@ -1605,5 +1606,6 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(verify_secp256k1_sha256_batch, m)?)?;
     m.add_function(wrap_pyfunction!(validate_hash_chain, m)?)?;
     storage::register(m)?;
+    state_trie::register(m)?;
     Ok(())
 }

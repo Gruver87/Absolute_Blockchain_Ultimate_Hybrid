@@ -58,6 +58,7 @@ class RocksChainStore:
             sync_writes=sync in ("FULL", "EXTRA", "STRICT"),
         )
         self._schema_version = "rocksdb-chain-v1"
+        self._state_root_cache: str | None = None
         self._ensure_schema()
 
     def _ensure_schema(self) -> None:
@@ -74,13 +75,20 @@ class RocksChainStore:
         val = self._engine.get(key)
         return bytes(val) if val is not None else None
 
+    def _invalidate_state_root_cache(self) -> None:
+        self._state_root_cache = None
+
     def _raw_put(self, key: bytes, value: bytes) -> None:
+        if key.startswith(kc.P_ACCOUNT):
+            self._invalidate_state_root_cache()
         if self._pending_batch is not None:
             self._pending_batch.put(key, value)
             return
         self._engine.put(key, value)
 
     def _raw_delete(self, key: bytes) -> None:
+        if key.startswith(kc.P_ACCOUNT):
+            self._invalidate_state_root_cache()
         if self._pending_batch is not None:
             self._pending_batch.delete(key)
             return
@@ -194,8 +202,11 @@ class RocksChainStore:
         return max(kc.unpack_u64(key[1:9]) for key, _ in rows)
 
     def get_last_block(self) -> Optional[Dict]:
-        tip = self.get_chain_tip()
-        return self.get_block(tip) if tip else None
+        rows = self._scan_prefix(kc.prefix_block_heights())
+        if not rows:
+            return None
+        tip = max(kc.unpack_u64(key[1:9]) for key, _ in rows)
+        return self.get_block(tip)
 
     # ── accounts / state ──────────────────────────────────────────────────
 
@@ -292,10 +303,14 @@ class RocksChainStore:
 
     def compute_state_root(self) -> str:
         """Canonical state root via native scan of account blobs (no Python dict churn)."""
+        if self._state_root_cache:
+            return self._state_root_cache
         from execution.state_root import compute_state_root_from_blobs
 
         blobs = [value for _key, value in self._scan_prefix(kc.prefix_accounts())]
-        return compute_state_root_from_blobs(blobs)
+        root = compute_state_root_from_blobs(blobs)
+        self._state_root_cache = root
+        return root
 
     def reset_accounts_from_alloc(
         self, alloc: Dict[str, float], *, _in_atomic: bool = False

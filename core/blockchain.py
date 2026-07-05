@@ -299,15 +299,19 @@ class Blockchain:
     # ── Genesis ──────────────────────────────────────────────────────────────
 
     def _ensure_genesis(self):
-        if self.db.get_chain_tip() == 0 and self.db.get_last_block() is None:
+        if self.db.get_last_block() is None:
             founder = (
                 getattr(self.config, "founder_address", "")
                 or self.config.miner_address
                 or ""
             )
             alloc = genesis_balances(founder or None)
-            state_root = self.state_engine.get_state_root() if self.state_engine else ""
             initials = getattr(self.config, "founder_initials", "D.U.P.")
+            total_minted = 0.0
+            for addr, amount in alloc.items():
+                self.db.set_balance(addr, float(amount))
+                total_minted += amount
+            state_root = self._compute_state_root_from_db()
             genesis = Block(
                 height=0,
                 parent_hash=self.GENESIS_HASH,
@@ -319,14 +323,14 @@ class Blockchain:
                 ),
                 state_root=state_root,
             )
+            genesis.hash = genesis._compute_hash()
             self.db.save_block(genesis.to_dict())
-            total_minted = 0.0
-            for addr, amount in alloc.items():
-                self.db.set_balance(addr, float(amount))
-                total_minted += amount
-            # Сохраняем метаданные токеномики
             try:
                 self.db.set_meta("tokenomics", get_tokenomics_summary(founder or None))
+            except Exception:
+                pass
+            try:
+                self.db.set_meta("genesis_alloc_applied", True)
             except Exception:
                 pass
             print(
@@ -335,6 +339,25 @@ class Blockchain:
                 f"max_supply={MAX_SUPPLY_ABS:,}, founder={initials} "
                 f"{getattr(self.config, 'founder_percent', 17.4)}%)"
             )
+        else:
+            self._align_genesis_state_root_if_needed()
+
+    def _align_genesis_state_root_if_needed(self) -> None:
+        """Fix genesis header when tip is still 0 (minted state vs empty state_root)."""
+        if self.get_height() != 0:
+            return
+        blk = self.db.get_block(0)
+        if not blk:
+            return
+        live = self._compute_state_root_from_db()
+        if (blk.get("state_root") or "") == live:
+            return
+        row = dict(blk)
+        row["state_root"] = live
+        genesis = Block.from_dict(row)
+        genesis.hash = genesis._compute_hash()
+        self.db.save_block(genesis.to_dict())
+        print(f"[Blockchain] Genesis state_root aligned ({live[:16]}…)")
 
     def set_state_root_baseline(self, height: int) -> None:
         """Blocks at or below baseline may use legacy warn-on-drift on P2P import."""
@@ -1014,8 +1037,6 @@ class Blockchain:
         """Replay canonical chain if live balances drifted from tip block state_root."""
         with self.lock:
             h = self.get_height()
-            if h <= 0:
-                return True
             tip_blk = self.db.get_block(h)
             if not tip_blk:
                 return True
@@ -1025,6 +1046,11 @@ class Blockchain:
             current = self._compute_state_root_from_db()
             if current == expected:
                 return True
+            if h == 0:
+                self._align_genesis_state_root_if_needed()
+                tip_blk = self.db.get_block(0)
+                expected = str((tip_blk or {}).get("state_root") or "").strip()
+                return self._compute_state_root_from_db() == expected
             print(
                 f"[Blockchain] State drift at tip #{h} "
                 f"(live={current[:16]}… expected={expected[:16]}…) — replaying"
