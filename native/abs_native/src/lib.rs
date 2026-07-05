@@ -1,4 +1,5 @@
 mod evm_pure_runner;
+mod storage;
 
 use k256::ecdsa::signature::hazmat::PrehashVerifier;
 use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
@@ -1576,5 +1577,6 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(verify_secp256k1_sha256, m)?)?;
     m.add_function(wrap_pyfunction!(verify_secp256k1_sha256_batch, m)?)?;
     m.add_function(wrap_pyfunction!(validate_hash_chain, m)?)?;
+    storage::register(m)?;
     Ok(())
 }

@@ -5,12 +5,8 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SCRIPT = os.path.join(ROOT, "scripts", "clone_node_db.py")
-_spec = importlib.util.spec_from_file_location("clone_node_db", SCRIPT)
-_mod = importlib.util.module_from_spec(_spec)
-sys.modules["clone_node_db"] = _mod
-_spec.loader.exec_module(_mod)
-clone_sqlite_db = _mod.clone_sqlite_db
+sys.path.insert(0, ROOT)
+from storage.chain_clone import _clone_sqlite_file
 
 
 def test_clone_sqlite_db_copies_rows():
@@ -24,7 +20,7 @@ def test_clone_sqlite_db_copies_rows():
         conn.commit()
         conn.close()
 
-        clone_sqlite_db(src, dst)
+        _clone_sqlite_file(src, dst)
 
         out = sqlite3.connect(dst)
         rows = out.execute("SELECT height, hash FROM blocks ORDER BY height").fetchall()

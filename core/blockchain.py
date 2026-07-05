@@ -977,39 +977,15 @@ class Blockchain:
                     cut = int(ancestor_height)
                     replay_only = cut >= tip
                     if not replay_only:
-                        self.db.conn.execute(
-                            "DELETE FROM transactions WHERE block_height > ?", (cut,)
-                        )
-                        self.db.conn.execute(
-                            "DELETE FROM tx_receipts WHERE block_height > ?", (cut,)
-                        )
-                        self.db.conn.execute(
-                            "DELETE FROM block_proposer_audit WHERE height > ?", (cut,)
-                        )
-                        self.db.conn.execute(
-                            "DELETE FROM state_root_mismatches WHERE height > ?", (cut,)
-                        )
-                        self.db.conn.execute(
-                            "DELETE FROM burn_stats WHERE block_height > ?", (cut,)
-                        )
-                        self.db.conn.execute(
-                            "DELETE FROM blocks WHERE height > ?", (cut,)
-                        )
+                        self.db.reorg_truncate_above(cut)
 
-                    self.db.conn.execute("DELETE FROM accounts")
-                    for addr, amount in alloc.items():
-                        self.db.conn.execute(
-                            "INSERT INTO accounts (address, balance, nonce) VALUES (?, ?, 0)",
-                            (addr, float(amount)),
-                        )
+                    self.db.reset_accounts_from_alloc(alloc, _in_atomic=True)
 
                     for h in range(1, ancestor_height + 1):
-                        row = self.db.conn.execute(
-                            "SELECT data FROM blocks WHERE height=?", (h,)
-                        ).fetchone()
-                        if not row:
+                        block_dict = self.db.get_block(h)
+                        if not block_dict:
                             raise RuntimeError(f"missing_block_at_replay_{h}")
-                        block = Block.from_dict(json.loads(row["data"]))
+                        block = Block.from_dict(block_dict)
                         for tx in block.transactions:
                             result = self._apply_transaction(
                                 tx, block.height, proposer=block.miner, in_atomic=True
@@ -1019,11 +995,9 @@ class Blockchain:
                         self._apply_block_reward(block.miner, in_atomic=True)
 
                     replay_root = self._compute_state_root_from_db()
-                    ancestor_row = self.db.conn.execute(
-                        "SELECT data FROM blocks WHERE height=?", (cut,)
-                    ).fetchone()
-                    if ancestor_row:
-                        expected = json.loads(ancestor_row["data"]).get("state_root", "")
+                    ancestor_block = self.db.get_block(cut)
+                    if ancestor_block:
+                        expected = ancestor_block.get("state_root", "")
                         if expected and expected != replay_root:
                             raise RuntimeError("reorg_state_root_mismatch")
 

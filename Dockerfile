@@ -4,7 +4,10 @@ COPY bridge/rust_bridge/Cargo.toml bridge/rust_bridge/Cargo.lock ./
 COPY bridge/rust_bridge/src ./src
 RUN cargo build --release
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 python3-pip \
+  && apt-get install -y --no-install-recommends \
+     python3 python3-pip \
+     clang libclang-dev cmake pkg-config \
+     libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev \
   && rm -rf /var/lib/apt/lists/*
 COPY native/abs_native /build/native/abs_native
 RUN python3 -m pip install --break-system-packages --no-cache-dir maturin \

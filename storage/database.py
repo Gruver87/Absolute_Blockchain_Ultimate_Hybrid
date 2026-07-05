@@ -702,38 +702,50 @@ class Database:
             ).fetchone()
             return json.loads(row["data"]) if row else None
 
+    def reorg_truncate_above(self, height: int) -> None:
+        """Remove chain rows above height. Caller must hold atomic()."""
+        cut = int(height)
+        self.conn.execute(
+            "DELETE FROM transactions WHERE block_height > ?", (cut,)
+        )
+        self.conn.execute(
+            "DELETE FROM tx_receipts WHERE block_height > ?", (cut,)
+        )
+        self.conn.execute(
+            "DELETE FROM block_proposer_audit WHERE height > ?", (cut,)
+        )
+        self.conn.execute(
+            "DELETE FROM state_root_mismatches WHERE height > ?", (cut,)
+        )
+        self.conn.execute(
+            "DELETE FROM burn_stats WHERE block_height > ?", (cut,)
+        )
+        self.conn.execute("DELETE FROM blocks WHERE height > ?", (cut,))
+
     def truncate_chain_state(self, height: int) -> int:
         """Remove blocks, txs, and burn stats above height."""
         with self.atomic():
-            self.conn.execute(
-                "DELETE FROM transactions WHERE block_height > ?", (int(height),)
-            )
-            self.conn.execute(
-                "DELETE FROM tx_receipts WHERE block_height > ?", (int(height),)
-            )
-            self.conn.execute(
-                "DELETE FROM block_proposer_audit WHERE height > ?", (int(height),)
-            )
-            self.conn.execute(
-                "DELETE FROM state_root_mismatches WHERE height > ?", (int(height),)
-            )
-            self.conn.execute(
-                "DELETE FROM burn_stats WHERE block_height > ?", (int(height),)
-            )
-            cur = self.conn.execute(
-                "DELETE FROM blocks WHERE height > ?", (int(height),)
-            )
-            return cur.rowcount
+            before = self.get_chain_tip()
+            self.reorg_truncate_above(int(height))
+            return max(0, before - int(height))
 
-    def reset_accounts_from_alloc(self, alloc: Dict[str, float]) -> None:
+    def reset_accounts_from_alloc(
+        self, alloc: Dict[str, float], *, _in_atomic: bool = False
+    ) -> None:
         """Reset all account balances/nonces from genesis allocation map."""
+        if _in_atomic:
+            self._reset_accounts_from_alloc_locked(alloc)
+            return
         with self.atomic():
-            self.conn.execute("DELETE FROM accounts")
-            for addr, amount in alloc.items():
-                self.conn.execute(
-                    "INSERT INTO accounts (address, balance, nonce) VALUES (?, ?, 0)",
-                    (addr, float(amount)),
-                )
+            self._reset_accounts_from_alloc_locked(alloc)
+
+    def _reset_accounts_from_alloc_locked(self, alloc: Dict[str, float]) -> None:
+        self.conn.execute("DELETE FROM accounts")
+        for addr, amount in alloc.items():
+            self.conn.execute(
+                "INSERT INTO accounts (address, balance, nonce) VALUES (?, ?, 0)",
+                (addr, float(amount)),
+            )
 
     def truncate_blocks_above(self, height: int) -> int:
         """Remove blocks with height > given tip (for P2P fork resync). Returns deleted count."""

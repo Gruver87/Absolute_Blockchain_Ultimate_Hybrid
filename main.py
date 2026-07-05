@@ -49,7 +49,7 @@ if BASE_DIR not in sys.path:
 
 # ── Импорты всех модулей узла ────────────────────────────────────────────────
 from runtime.config import Config
-from storage.database import Database
+from storage.factory import open_database
 from core.blockchain import Blockchain, Transaction
 from blockchain.mempool import Mempool, MempoolTransaction
 from kernel.event_bus import EventBus
@@ -314,9 +314,10 @@ class NodeOrchestrator:
         self.bus = EventBus()
 
         # 2. База данных
-        self.db = Database(config.db_path, synchronous=config.sqlite_synchronous)
+        self.db = open_database(config)
         self.db.initialize()
-        print(f"[Node] Database: {config.db_path}")
+        engine = getattr(self.db, "engine", getattr(config, "db_engine", "sqlite"))
+        print(f"[Node] Database: {config.db_path} (engine={engine})")
 
         _data_dir = os.path.dirname(config.db_path) if os.path.dirname(config.db_path) else "data"
         _wallet_path = os.path.join(_data_dir, "wallet.json")
@@ -1786,6 +1787,7 @@ def build_config(args: argparse.Namespace) -> Config:
 
     # Credentials from env must survive JSON merge (node JSON does not store secrets).
     config.apply_env_secrets()
+    config.resolve_storage_paths()
 
     # 3) CLI — высший приоритет
     if args.port:

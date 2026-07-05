@@ -11,6 +11,9 @@ x-abs-prod-env: &abs-prod-env
   PYTHONUTF8: "1"
   PYTHONIOENCODING: utf-8
   DEPLOYMENT_MODE: prod
+  DATA_DIR: /app/data
+  DB_ENGINE: rocksdb
+  ROCKSDB_SYNC: FULL
   CHAIN_ID: "778888"
   HTTP_HOST: "0.0.0.0"
   RPC_HOST: "0.0.0.0"
@@ -52,7 +55,7 @@ services:
       <<: *abs-prod-env
       NODE_ID: docker-prod-1
     volumes:
-      # Named volume for SQLite/logs (Windows bind-mount ./data breaks WAL).
+      # Named volume for chain store (RocksDB) / logs (Windows bind-mount ./data breaks WAL).
       - abs-prod-data:/app/data
       - ./data/wallet.json:/app/data/wallet.json:ro
       - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro

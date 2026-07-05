@@ -6,7 +6,10 @@ COPY bridge/rust_bridge/Cargo.toml bridge/rust_bridge/Cargo.lock ./
 COPY bridge/rust_bridge/src ./src
 RUN cargo build --release && cp target/release/abs_bridge_bin /abs_bridge_bin
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 python3-pip \
+  && apt-get install -y --no-install-recommends \
+     python3 python3-pip \
+     clang libclang-dev cmake pkg-config \
+     libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev \
   && rm -rf /var/lib/apt/lists/*
 COPY native/abs_native /build/native/abs_native
 RUN python3 -m pip install --break-system-packages --no-cache-dir maturin \
@@ -29,7 +32,7 @@ COPY . .
 COPY --from=rust-build /abs_bridge_bin /app/bridge/abs_bridge_bin
 COPY --from=rust-build /wheels /wheels
 RUN pip install --no-cache-dir /wheels/*.whl \
-  && python -c "from crypto import native; s=native.native_crypto_status(required=True); assert s['available'] and s['self_test'], s; print('abs_native OK')"
+  && python -c "import abs_native; assert hasattr(abs_native, 'RocksEngine'); from crypto import native; s=native.native_crypto_status(required=True); assert s['available'] and s['self_test'], s; print('abs_native OK (rocksdb)')"
 RUN chmod +x /app/bridge/abs_bridge_bin
 
 EXPOSE 8545 8080 5000 8766

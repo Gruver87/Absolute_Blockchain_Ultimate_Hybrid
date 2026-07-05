@@ -51,6 +51,8 @@ class Config:
 
     # ── База данных ─────────────────────────────────────────────────────────
     db_path: str = "data/blockchain.db"
+    db_engine: str = "sqlite"           # sqlite | rocksdb (prod mainnet)
+    rocksdb_sync: str = "FULL"          # normal | full — durable WAL/fsync
     db_wal_mode: bool = True            # WAL для производительности SQLite
 
     # ── Майнинг / Консенсус ─────────────────────────────────────────────────
@@ -198,12 +200,27 @@ class Config:
                 return rel
         return self.rust_bridge_path
 
+    def resolve_storage_paths(self) -> None:
+        """Normalize db_path/log_file after env + JSON merge."""
+        data_dir = env_str("DATA_DIR")
+        if self.db_engine == "rocksdb":
+            base = data_dir or (os.path.dirname(self.db_path) if os.path.dirname(self.db_path) else "data")
+            self.db_path = os.path.join(base, "chainstore")
+        elif data_dir:
+            self.db_path = os.path.join(data_dir, "blockchain.db")
+        if data_dir:
+            self.log_file = os.path.join(data_dir, "node.log")
+
     def apply_env(self) -> "Config":
         """Переопределяет поля из переменных окружения (.env / Docker / K8s)."""
         data_dir = env_str("DATA_DIR")
         if data_dir:
             self.db_path = os.path.join(data_dir, "blockchain.db")
             self.log_file = os.path.join(data_dir, "node.log")
+
+        self.db_engine = env_str("DB_ENGINE", self.db_engine).strip().lower()
+        self.rocksdb_sync = env_str("ROCKSDB_SYNC", self.rocksdb_sync).strip().upper()
+        self.resolve_storage_paths()
 
         self.node_id = env_str("NODE_ID", self.node_id)
         self.deployment_mode = env_str("DEPLOYMENT_MODE", self.deployment_mode).lower()
@@ -306,6 +323,7 @@ class Config:
             self.require_wallet_file = env_bool("REQUIRE_WALLET_FILE", True)
             self.jwt_enforce_admin = env_bool("JWT_ENFORCE_ADMIN", True)
             self.sqlite_synchronous = env_str("SQLITE_SYNCHRONOUS", "FULL")
+            self.rocksdb_sync = env_str("ROCKSDB_SYNC", "FULL")
             self.enable_cors_rpc_proxy = env_bool("ENABLE_CORS_RPC_PROXY", False)
             self.log_json = env_bool("LOG_JSON", True)
             self.rpc_api_key_required = env_bool("RPC_API_KEY_REQUIRED", True)
