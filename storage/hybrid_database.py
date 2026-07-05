@@ -4,10 +4,12 @@
 
 from __future__ import annotations
 
+import json
 import os
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
 
+from storage import keycodec as kc
 from storage.database import Database as SqliteDatabase
 from storage.rocks_store import RocksChainStore
 
@@ -35,6 +37,30 @@ class HybridDatabase:
 
     def initialize(self) -> None:
         self._core.initialize()
+        self._migrate_aux_bridge_once()
+
+    def _migrate_aux_bridge_once(self) -> None:
+        if self._core.get_meta("aux_bridge_migrated_v1"):
+            return
+        with self._core.atomic():
+            for row in self._aux.get_bridge_locks(limit=1_000_000):
+                tx_hash = row.get("tx_hash", "") or ""
+                if not tx_hash or self._core._raw_get(kc.key_bridge_lock(tx_hash)):
+                    continue
+                self._core._raw_put(
+                    kc.key_bridge_lock(tx_hash),
+                    json.dumps(row, ensure_ascii=False).encode("utf-8"),
+                )
+            for row in self._aux.conn.execute("SELECT * FROM bridge_credits").fetchall():
+                credit = dict(row)
+                credit_key = credit.get("credit_key", "") or ""
+                if not credit_key or self._core.has_bridge_credit(credit_key):
+                    continue
+                self._core._raw_put(
+                    kc.key_bridge_credit(credit_key),
+                    json.dumps(credit, ensure_ascii=False).encode("utf-8"),
+                )
+            self._core.set_meta("aux_bridge_migrated_v1", True)
 
     def close(self) -> None:
         self._core.close()
@@ -241,6 +267,36 @@ class HybridDatabase:
 
     def get_chain_metrics(self, window: int = 32) -> Dict:
         return self._core.get_chain_metrics(window)
+
+    # ── bridge (Rocks core — not aux.db) ─────────────────────────────────
+
+    def save_bridge_lock(
+        self,
+        from_addr: str,
+        to_chain: str,
+        to_addr: str,
+        amount: float,
+        tx_hash: str,
+    ) -> None:
+        self._core.save_bridge_lock(from_addr, to_chain, to_addr, amount, tx_hash)
+
+    def confirm_bridge_lock(self, tx_hash: str) -> None:
+        self._core.confirm_bridge_lock(tx_hash)
+
+    def get_bridge_locks(self, limit: int = 50) -> List[Dict]:
+        return self._core.get_bridge_locks(limit)
+
+    @staticmethod
+    def bridge_credit_key(l1_tx_hash: str, recipient: str, amount: float, from_chain: str) -> str:
+        return RocksChainStore.bridge_credit_key(l1_tx_hash, recipient, amount, from_chain)
+
+    def has_bridge_credit(self, credit_key: str) -> bool:
+        return self._core.has_bridge_credit(credit_key)
+
+    def save_bridge_credit(
+        self, l1_tx_hash: str, recipient: str, amount: float, from_chain: str
+    ) -> str:
+        return self._core.save_bridge_credit(l1_tx_hash, recipient, amount, from_chain)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._aux, name)

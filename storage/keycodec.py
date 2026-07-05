@@ -21,6 +21,7 @@ P_STATE_ROOT_MM = b"\x43"
 P_TX_PROP = b"\x44"
 P_TX_FROM = b"\x06"
 P_TX_TO = b"\x07"
+P_TX_RECENT = b"\x08"
 P_BRIDGE_LOCK = b"\x50"
 P_BRIDGE_CREDIT = b"\x51"
 
@@ -91,6 +92,33 @@ def prefix_tx_from(address: str) -> bytes:
 
 def prefix_tx_to(address: str) -> bytes:
     return P_TX_TO + normalize_address_key(address).encode("utf-8")
+
+
+def key_tx_recent_index(block_height: int, timestamp: int, tx_hash: str) -> bytes:
+    inv_h = (1 << 64) - 1 - int(block_height)
+    inv_ts = (1 << 64) - 1 - int(timestamp)
+    return P_TX_RECENT + pack_u64(inv_h) + pack_u64(inv_ts) + _tx_hash_body(tx_hash)
+
+
+def prefix_tx_recent() -> bytes:
+    return P_TX_RECENT
+
+
+def key_bridge_lock(tx_hash: str) -> bytes:
+    return P_BRIDGE_LOCK + _tx_hash_body(tx_hash)
+
+
+def key_bridge_credit(credit_key: str) -> bytes:
+    ck = (credit_key or "").strip().lower().replace("0x", "")
+    return P_BRIDGE_CREDIT + bytes.fromhex(ck.zfill(64)[-64:])
+
+
+def prefix_bridge_locks() -> bytes:
+    return P_BRIDGE_LOCK
+
+
+def prefix_bridge_credits() -> bytes:
+    return P_BRIDGE_CREDIT
 
 
 def normalize_address_key(address: str) -> str:

@@ -304,6 +304,86 @@ def test_reorg_removes_address_tx_indexes(rocks):
     assert rocks.count_transactions_by_address(sender, "sent") == 0
 
 
+def test_get_recent_transactions_uses_index(rocks):
+    for i in range(1, 4):
+        rocks.persist_block_atomic(
+            {
+                "height": i,
+                "hash": f"{i:064x}",
+                "parent_hash": f"{i - 1:064x}" if i > 1 else "0" * 64,
+                "timestamp": 1700000000 + i,
+                "miner": "0x" + "1" * 40,
+                "transactions": [],
+            },
+            [
+                {
+                    "hash": f"0x{(i + 100):064x}",
+                    "block_height": i,
+                    "from_addr": "0x" + "a" * 40,
+                    "to_addr": "0x" + "b" * 40,
+                    "value": 1.0,
+                    "gas": 21000,
+                    "fee": 0.1,
+                    "burned": 0.0,
+                    "nonce": i - 1,
+                    "status": 1,
+                    "timestamp": 1700000100 + i,
+                }
+            ],
+        )
+    recent = rocks.get_recent_transactions(limit=2)
+    assert len(recent) == 2
+    assert recent[0]["block_height"] == 3
+    assert recent[1]["block_height"] == 2
+
+
+def test_reorg_removes_recent_tx_index(rocks):
+    rocks.persist_block_atomic(
+        {
+            "height": 1,
+            "hash": "a" * 64,
+            "parent_hash": "0" * 64,
+            "timestamp": 1700000001,
+            "miner": "0x" + "1" * 40,
+            "transactions": [],
+        },
+        [
+            {
+                "hash": "b" * 64,
+                "block_height": 1,
+                "from_addr": "0x" + "2" * 40,
+                "to_addr": "0x" + "3" * 40,
+                "value": 1.0,
+                "gas": 21000,
+                "fee": 0.1,
+                "burned": 0.0,
+                "nonce": 0,
+                "status": 1,
+                "timestamp": 1700000002,
+            }
+        ],
+    )
+    assert len(rocks.get_recent_transactions(limit=10)) == 1
+    with rocks.atomic():
+        rocks.reorg_truncate_above(0)
+    assert rocks.get_recent_transactions(limit=10) == []
+
+
+def test_bridge_lock_and_credit(rocks):
+    rocks.save_bridge_lock("0xalice", "ethereum", "0xrecipient", 10.0, "0x" + "11" * 32)
+    locks = rocks.get_bridge_locks()
+    assert len(locks) == 1
+    assert locks[0]["status"] == "pending"
+    assert locks[0]["tx_hash"] == "0x" + "11" * 32
+    rocks.confirm_bridge_lock("0x" + "11" * 32)
+    assert rocks.get_bridge_locks()[0]["status"] == "confirmed"
+    l1 = "0x" + "aa" * 32
+    key = rocks.save_bridge_credit(l1, "0xrecipient", 10.0, "ethereum")
+    assert rocks.has_bridge_credit(key)
+    assert rocks.bridge_credit_key(l1, "0xrecipient", 10.0, "ethereum") == key
+    assert rocks.save_bridge_credit(l1, "0xrecipient", 10.0, "ethereum") == key
+
+
 def test_sqlite_to_rocks_migration(tmp_path):
     from storage.database import Database
 

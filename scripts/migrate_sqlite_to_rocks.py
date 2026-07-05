@@ -44,6 +44,8 @@ def migrate(source_db: str, dest_chainstore: str, *, sync: str = "FULL") -> dict
         "burn_rows": 0,
         "meta_keys": 0,
         "proposer_audit": 0,
+        "bridge_locks": 0,
+        "bridge_credits": 0,
     }
 
     try:
@@ -132,6 +134,26 @@ def migrate(source_db: str, dest_chainstore: str, *, sync: str = "FULL") -> dict
                     json.dumps(value, ensure_ascii=False).encode("utf-8"),
                 )
                 stats["meta_keys"] += 1
+
+            for row in _load_sqlite_rows(src.conn, "bridge_locks"):
+                tx_hash = row.get("tx_hash", "") or ""
+                if not tx_hash:
+                    continue
+                rocks._raw_put(
+                    kc.key_bridge_lock(tx_hash),
+                    json.dumps(dict(row), ensure_ascii=False).encode("utf-8"),
+                )
+                stats["bridge_locks"] += 1
+
+            for row in _load_sqlite_rows(src.conn, "bridge_credits"):
+                credit_key = row.get("credit_key", "") or ""
+                if not credit_key:
+                    continue
+                rocks._raw_put(
+                    kc.key_bridge_credit(credit_key),
+                    json.dumps(dict(row), ensure_ascii=False).encode("utf-8"),
+                )
+                stats["bridge_credits"] += 1
 
         stats["source_tip"] = int(src.get_chain_tip() or 0)
         stats["dest_tip"] = int(rocks.get_chain_tip() or 0)

@@ -8,6 +8,7 @@ Reads are lock-free (RocksDB MVCC). Writes are serialized through WriteBatch com
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import threading
@@ -74,6 +75,16 @@ class RocksChainStore:
                 for row in self._iter_transaction_rows():
                     self._insert_tx_indexes(row)
                 self.set_meta("tx_addr_index_v1", True)
+        if not self.get_meta("tx_recent_index_v1"):
+            with self._write_lock:
+                for row in self._iter_transaction_rows():
+                    tx_hash = row.get("hash", row.get("tx_hash", "")) or ""
+                    if not tx_hash:
+                        continue
+                    bh = int(row.get("block_height", 0) or 0)
+                    ts = int(row.get("timestamp", 0) or 0)
+                    self._raw_put(kc.key_tx_recent_index(bh, ts, tx_hash), b"\x01")
+                self.set_meta("tx_recent_index_v1", True)
 
     # ── low-level I/O ─────────────────────────────────────────────────────
 
@@ -387,11 +398,22 @@ class RocksChainStore:
 
     def compute_state_root(self) -> str:
         """Canonical state root via native accumulator or account blob scan."""
+        from execution.state_root import compute_state_root_from_blobs
+
+        if self._batch_acc_dirty or self._pending_batch is not None:
+            by_addr: dict[str, bytes] = {}
+            for key, value in self._scan_prefix(kc.prefix_accounts()):
+                by_addr[self._account_key_address(key)] = value
+            for addr, value in self._batch_acc_dirty.items():
+                if value is None:
+                    by_addr.pop(addr, None)
+                else:
+                    by_addr[addr] = value
+            return compute_state_root_from_blobs(list(by_addr.values()))
+
         acc = self._ensure_root_acc()
         if acc is not None:
             return acc.root()
-        from execution.state_root import compute_state_root_from_blobs
-
         blobs = [value for _key, value in self._scan_prefix(kc.prefix_accounts())]
         return compute_state_root_from_blobs(blobs)
 
@@ -494,6 +516,8 @@ class RocksChainStore:
             self._raw_put(kc.key_tx_from_index(from_addr, bh, tx_hash), b"\x01")
         if to_addr:
             self._raw_put(kc.key_tx_to_index(to_addr, bh, tx_hash), b"\x01")
+        ts = int(row.get("timestamp", 0) or 0)
+        self._raw_put(kc.key_tx_recent_index(bh, ts, tx_hash), b"\x01")
 
     def _delete_tx_indexes(self, row: Dict) -> None:
         tx_hash = row.get("hash", row.get("tx_hash", "")) or ""
@@ -506,12 +530,20 @@ class RocksChainStore:
             self._raw_delete(kc.key_tx_from_index(from_addr, bh, tx_hash))
         if to_addr:
             self._raw_delete(kc.key_tx_to_index(to_addr, bh, tx_hash))
+        ts = int(row.get("timestamp", 0) or 0)
+        self._raw_delete(kc.key_tx_recent_index(bh, ts, tx_hash))
 
     def _tx_hash_from_index_key(self, key: bytes, prefix: bytes) -> str:
         body = key[len(prefix) :]
         if len(body) < 8 + 32:
             return ""
         return "0x" + body[8:].hex()
+
+    def _tx_hash_from_recent_key(self, key: bytes) -> str:
+        body = key[len(kc.P_TX_RECENT) :]
+        if len(body) < 16 + 32:
+            return ""
+        return "0x" + body[16:].hex()
 
     def _rows_from_address_index(
         self, addr: str, direction: str
@@ -587,10 +619,18 @@ class RocksChainStore:
         return out
 
     def get_recent_transactions(self, limit: int = 30) -> List[Dict]:
-        rows = self._scan_prefix(kc.P_TX)
-        decoded = [json.loads(v.decode("utf-8")) for _k, v in rows]
-        decoded.sort(key=lambda r: (int(r.get("block_height", 0)), int(r.get("timestamp", 0))), reverse=True)
-        return decoded[:limit]
+        limit = max(1, min(int(limit), 200))
+        out: List[Dict] = []
+        for key, _marker in self._scan_prefix(kc.prefix_tx_recent(), limit=limit * 2):
+            tx_hash = self._tx_hash_from_recent_key(key)
+            if not tx_hash:
+                continue
+            raw = self._raw_get(kc.key_tx(tx_hash))
+            if raw:
+                out.append(json.loads(raw.decode("utf-8")))
+            if len(out) >= limit:
+                break
+        return out
 
     def get_tx_receipt(self, tx_hash: str) -> Optional[Dict]:
         raw = self._raw_get(kc.P_TX_RECEIPT + kc.key_tx(tx_hash)[1:])
@@ -634,7 +674,30 @@ class RocksChainStore:
         return out
 
     def _serialize_tx_row(self, row: Dict, viewer_addr: str = "") -> Dict:
-        return SqliteDatabase._serialize_tx_row(row, viewer_addr)
+        viewer = SqliteDatabase._normalize_address(viewer_addr)
+        from_addr = SqliteDatabase._normalize_address(row.get("from_addr", ""))
+        to_addr = SqliteDatabase._normalize_address(row.get("to_addr", ""))
+        direction = "unknown"
+        if viewer:
+            if from_addr == viewer and to_addr == viewer:
+                direction = "self"
+            elif from_addr == viewer:
+                direction = "sent"
+            elif to_addr == viewer:
+                direction = "received"
+        return {
+            "hash": row.get("hash", ""),
+            "block_height": row.get("block_height", 0),
+            "from": from_addr,
+            "to": to_addr,
+            "value": float(row.get("value", 0.0)),
+            "fee": float(row.get("fee", 0.0)),
+            "burned": float(row.get("burned", 0.0)),
+            "gas_used": int(row.get("gas_used", row.get("gas", 21000))),
+            "status": SqliteDatabase._normalize_tx_status(row.get("status", 1)),
+            "timestamp": int(row.get("timestamp", 0)),
+            "direction": direction,
+        }
 
     def _iter_transaction_rows(self) -> List[Dict]:
         rows: List[Dict] = []
@@ -739,6 +802,74 @@ class RocksChainStore:
             }
             for r in page
         ]
+
+    # ── bridge (cross-chain) ─────────────────────────────────────────────
+
+    @staticmethod
+    def bridge_credit_key(l1_tx_hash: str, recipient: str, amount: float, from_chain: str) -> str:
+        raw = f"{l1_tx_hash}:{recipient}:{amount}:{from_chain}".lower()
+        return hashlib.sha256(raw.encode()).hexdigest()
+
+    def save_bridge_lock(
+        self,
+        from_addr: str,
+        to_chain: str,
+        to_addr: str,
+        amount: float,
+        tx_hash: str,
+    ) -> None:
+        row = {
+            "tx_hash": tx_hash,
+            "from_addr": from_addr,
+            "to_chain": to_chain,
+            "to_addr": to_addr,
+            "amount": float(amount),
+            "status": "pending",
+            "created_at": int(time.time()),
+        }
+        with self._write_lock:
+            self._raw_put(kc.key_bridge_lock(tx_hash), json.dumps(row).encode("utf-8"))
+
+    def confirm_bridge_lock(self, tx_hash: str) -> None:
+        with self._write_lock:
+            raw = self._raw_get(kc.key_bridge_lock(tx_hash))
+            if not raw:
+                return
+            row = json.loads(raw.decode("utf-8"))
+            row["status"] = "confirmed"
+            self._raw_put(kc.key_bridge_lock(tx_hash), json.dumps(row).encode("utf-8"))
+
+    def get_bridge_locks(self, limit: int = 50) -> List[Dict]:
+        limit = max(1, min(int(limit), 5000))
+        rows: List[Dict] = []
+        for _key, value in self._scan_prefix(kc.prefix_bridge_locks()):
+            try:
+                rows.append(json.loads(value.decode("utf-8")))
+            except Exception:
+                continue
+        rows.sort(key=lambda r: int(r.get("created_at", 0) or 0), reverse=True)
+        return rows[:limit]
+
+    def has_bridge_credit(self, credit_key: str) -> bool:
+        return self._raw_get(kc.key_bridge_credit(credit_key)) is not None
+
+    def save_bridge_credit(
+        self, l1_tx_hash: str, recipient: str, amount: float, from_chain: str
+    ) -> str:
+        key = self.bridge_credit_key(l1_tx_hash, recipient, amount, from_chain)
+        if self.has_bridge_credit(key):
+            return key
+        row = {
+            "credit_key": key,
+            "l1_tx_hash": l1_tx_hash,
+            "recipient": recipient,
+            "amount": float(amount),
+            "from_chain": from_chain,
+            "credited_at": int(time.time()),
+        }
+        with self._write_lock:
+            self._raw_put(kc.key_bridge_credit(key), json.dumps(row).encode("utf-8"))
+        return key
 
     # ── burn ──────────────────────────────────────────────────────────────
 
