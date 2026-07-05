@@ -33,10 +33,10 @@ rocksdb
 
 | Branch | Role |
 |--------|------|
-| **`main`** | Default on GitHub — keep in sync with `master` |
-| **`master`** | Primary development branch (local default) |
+| **`master`** | **Default** — primary development |
+| **`main`** | Mirror of `master` (auto-sync via `.github/workflows/sync-main-from-master.yml`) |
 
-After push: `git push origin master && git push origin master:main`
+Local push: `.\scripts\push_origin.ps1` or `git push origin master`.
 
 ## Current release
 

@@ -1,0 +1,22 @@
+# Keep `main` identical to `master` so GitHub default branch and clones stay aligned.
+name: Sync main from master
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Push master to main
+        run: git push origin HEAD:main

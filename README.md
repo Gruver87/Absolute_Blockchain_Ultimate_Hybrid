@@ -11,7 +11,7 @@
 [![Audit](https://img.shields.io/badge/Full%20Audit-passing-brightgreen)](scripts/check_everything.ps1)
 [![Release](https://img.shields.io/badge/Release-v1.2.1-blue)](RELEASE_NOTES_v1.2.1.md)
 
-**Repo:** [github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid)
+**Repo:** [github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · **Branch:** `master`
 
 **Author:** **ULADZIMIR DABRANSKI** (D.U.P.)<br>
 **Project owner:** Gruver87

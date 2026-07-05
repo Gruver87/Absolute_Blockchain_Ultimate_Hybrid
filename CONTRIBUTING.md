@@ -21,14 +21,32 @@
 ## Настройка
 
 ```bash
-git clone https://github.com/Gruver87/absolute-blockchain-ultimate.git
-cd absolute-blockchain-ultimate
+git clone https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid.git
+cd Absolute_Blockchain_Ultimate_Hybrid
+git checkout master
 pip install -r requirements.txt
 cp .env.example .env
 python main.py
 ```
 
 Откройте http://localhost:8080
+
+## Ветки и push
+
+| Ветка | Назначение |
+|-------|------------|
+| **`master`** | Основная ветка разработки (default на GitHub) |
+| **`main`** | Зеркало `master` для совместимости; обновляется автоматически CI |
+
+После коммита:
+
+```powershell
+.\scripts\push_origin.ps1
+```
+
+Или вручную: `git push origin master` (workflow `.github/workflows/sync-main-from-master.yml` синхронизирует `main`).
+
+PR — в **`master`**.
 
 ## Разработка
 
@@ -70,7 +88,7 @@ test: merkle light client cases
 
 ## Вопросы
 
-- Issues: https://github.com/Gruver87/absolute-blockchain-ultimate/issues
+- Issues: https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/issues
 - Автор: [@Gruver87](https://github.com/Gruver87)
 
 **Спасибо за развитие Absolute Blockchain Ultimate вместе с сообществом!**
