@@ -114,7 +114,7 @@ Then set `DB_ENGINE=rocksdb` / `"db_engine": "rocksdb"` in config.
 
 - [x] Prod mesh on RocksDB
 - [x] Backup/restore scripts + CI rocks drill
-- [ ] 24–48 h soak: `.\scripts\soak_monitor.ps1 -ProdMesh -Hours 24`
+- [ ] 24–48 h soak **completed** with `passed: true` in `logs/soak_report.json` (in-progress runs do not count)
 - [x] Documented DR restore rehearsal on test volume (`scripts/dr_restore_rehearsal.ps1`)
 - [x] `health_watch.ps1` quick/full harness polls + mesh height alignment
 

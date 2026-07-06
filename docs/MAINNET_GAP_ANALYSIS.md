@@ -1,8 +1,9 @@
 # Mainnet Gap Analysis — Industrial Blockchain Readiness
 
 **Project:** Absolute Blockchain Ultimate Hybrid  
-**Updated:** 2026-07-05  
-**Positioning:** Production-hardened R&D stack → path to public mainnet
+**Updated:** 2026-07-06  
+**Positioning:** Production-hardened R&D stack → path to public mainnet  
+**Evidence ledger:** [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md) — separates CI/automation from live ops proof
 
 This document is the honest engineering checklist after a full repository scan.  
 Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-closed rules; **they do not replace** external audit, validator operations, or legal review.
@@ -53,6 +54,25 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 7. **Prod smoke** — `python scripts/verify_p2p_ci.py --mode prod-smoke` (2-node prod mesh on :15180/:15181).
 8. **Mainnet v1 profile** — `node.prod.mainnet-v1.example.json` (`bridge_enabled: false` until real L1 contracts).
 9. **Ceremony keygen** — `scripts/genesis_ceremony_keygen.py` + `scripts/bridge_l1_preflight.py` in launch checklist.
+
+---
+
+## Live ops evidence (Jul 2026) — honest
+
+### Demonstrated on prod mesh (:18180–:18182)
+
+- [x] 3-node Docker mesh boot + height sync + harness alignment
+- [x] RocksDB hybrid path + DR rehearsal script (`dr_restore_rehearsal.ps1`)
+- [x] Short `health_watch` / monitoring cycles
+- [x] CI + `industrial_gate.py` static checks
+
+### **Not** demonstrated yet (scripts ≠ proof)
+
+- [ ] **Failover under load** — `docker stop abs-prod-mesh3-node2-1`, verify block production + quorum + rejoin (`prod_mesh_failover.ps1`)
+- [ ] **Signed tx on default prod bootstrap** — mesh logs `SKIP: tx propagation`; run `prod_signed_tx_smoke.py`
+- [ ] **EVM deploy/call on prod RPC ports** — no completed live checklist
+- [ ] **Soak 24–48h+** completed with `soak_report.json` passed (7–10h run may be in progress)
+- [ ] **External security audit** — tracker incomplete
 
 ---
 
@@ -119,5 +139,8 @@ python scripts/prod_gate.py
 
 ## Honest summary
 
-The codebase is a **serious industrial devnet / private testnet** implementation.  
-Public mainnet launch requires **organizational gates (audit, ops, genesis)** plus **bridge honesty decision** — not only more Python features.
+The codebase is a **serious industrial devnet / private testnet** implementation with **rising live evidence** (prod mesh runs, harness, monitoring) — not merely documentation claims.
+
+**Public mainnet launch** still requires organizational gates (external audit, validator ops, genesis ceremony in production) plus **operational proof**: failover, signed-tx + EVM on prod RPC, 24–48h soak, and bridge cutover decision.
+
+Full gap table: [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md).

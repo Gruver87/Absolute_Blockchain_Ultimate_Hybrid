@@ -20,8 +20,9 @@ Target (example): `https://testnet.absolute-chain.org` → explorer + RPC behind
 
 ### Stability
 
-- [ ] Prod or devnet mesh soak **48h+** (`.\scripts\soak_monitor.ps1 -ProdMesh -Hours 48`)
+- [ ] Prod mesh soak **48h+ completed** (`soak_report.json` passed) — see [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md)
 - [x] Automated local gate: `.\scripts\testnet_readiness.ps1 -ProdMesh`
+- [ ] Failover drill on prod mesh (`prod_mesh_failover.ps1`) with recorded heights
 - [ ] `probe_mesh_nodes.ps1` green on all HTTP/RPC/P2P ports
 - [ ] `GET /chain/consistency/harness` aligned on all validators
 - [ ] DR rehearsal passed (`dr_restore_rehearsal.ps1 -DockerMesh1`)

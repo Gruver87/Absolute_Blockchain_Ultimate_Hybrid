@@ -4,7 +4,7 @@ Use in **Settings → General → About** and release tags.
 
 | Field | Value |
 |-------|-------|
-| **Description** | Hybrid Python/Rust L1 node: P2P mesh devnet, REST/JSON-RPC explorer, ABS tokenomics model, Rust bridge path. Devnet-ready; mainnet-v1 prep (778888) — not a launched public mainnet. |
+| **Description** | Hybrid Python/Rust L1: 3-node prod-profile mesh (778888 prep), RocksDB, CI gates. Working R&D stack — **not** launched mainnet; external audit not completed. Evidence: `docs/EVIDENCE_MATRIX.md` |
 | **Website** | https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid#readme |
 | **Topics** | `blockchain` `python` `rust` `p2p` `rest-api` `json-rpc` `evm` `docker` `kubernetes` `blockchain-node` `devnet` `tokenomics` |
 

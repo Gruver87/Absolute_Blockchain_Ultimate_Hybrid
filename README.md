@@ -51,13 +51,15 @@
 | **What it is** | Production-hardened R&D blockchain node, local/devnet network stack, portfolio-grade protocol implementation |
 | **What it is NOT** | Launched public mainnet, formally audited DeFi, listed token, investment product |
 | **ABS token** | In-repo tokenomics model (221M cap) — **not** a tradable asset |
-| **Security** | Stronger production gates are implemented; no external audit yet; do **not** use for real funds without independent review |
+| **Security** | Stronger production gates are implemented; **external audit: not completed**; do **not** use for real funds without independent review |
+
+**Evidence vs claims:** [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) — what live prod mesh runs have actually proven (Jul 2026).
 
 ---
 
 ## Snapshot
 
-**Absolute Blockchain Ultimate Hybrid** is a production-hardened Python + Rust L1 node and devnet stack: Python keeps node orchestration, P2P gossip, REST/RPC and test flexibility, while Rust/PyO3 accelerates deterministic crypto kernels used by consensus paths. It includes real SQLite persistence, deterministic state roots, multi-node P2P sync, a browser explorer, Rust bridge integration, and fail-closed production configuration gates. It is a serious R&D implementation and deployment base, not a claim that a public audited mainnet is already live.
+**Absolute Blockchain Ultimate Hybrid** looks like a **working R&D L1 / devnet stack** with a functioning 3-node production-profile mesh, state synchronization, RocksDB persistence, Rust crypto on consensus paths, automated CI/gates, and baseline ops automation (health watch, DR rehearsal, restart recovery). **Public mainnet-ready readiness is not proven** — see gaps below and [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md).
 
 | Area | Level | What is verified in-repo |
 |------|-------|--------------------------|
@@ -65,14 +67,15 @@
 | **REST API** | 🟢 | 288+ route handlers, OpenAPI docs endpoint, API Wave 61, prod admin gates |
 | **Web Explorer** | 🟢 | SPA on port 8080; 32 functional tabs |
 | **P2P networking** | 🟢 Verified | 2 / 3 / 5-node Docker meshes; strict state root checks, topology, and rejoin APIs |
-| **TX propagation** | 🟢 | Signed gossip, mempool pull, transaction trace endpoint |
+| **TX propagation** | 🟡 Devnet proven | Signed gossip + trace in dev/CI; **default prod mesh bootstrap skips unsigned tx** (`SKIP: tx propagation`) — use `prod_signed_tx_smoke.py` |
 | **Multi-validator devnet** | 🟢 | 5 validators, proposer rotation, 3 miners + 2 attesters |
-| **State consistency** | 🟢 | Cross-node harness + auto-repair (`/chain/consistency/*`) |
+| **State consistency** | 🟢 | Cross-node harness + auto-repair (`/chain/consistency/*`) on live prod mesh |
 | **Fork & slashing CI** | 🟢 | `/testnet/fork-status`, double-vote detection |
 | **JSON-RPC** | 🟢 | eth_* subset on port 8545, API-key protection in prod |
 | **Tokenomics model** | 🟢 | 221M ABS cap, founder D.U.P. 17.4% — enforced in code |
 | **Rust native crypto** | 🟢 Hybrid path | PyO3 `abs_native`: SHA-256, Merkle, state_root, secp256k1, header/tx/block hash, P2P import validation, Keccak-256 |
-| **EVM / L2 / Bridge** | 🟡 Mixed | EVM subset and Rust bridge path are integrated; dev-only L2/offchain modules are blocked by prod profile |
+| **EVM / L2 / Bridge** | 🟡 Mixed | Opcode parity in CI; **live prod RPC deploy/call not ops-proven**; bridge OFF on prod mesh by design |
+| **Failover / soak** | 🟡 Scripts only | `prod_mesh_failover.ps1`, `soak_monitor.ps1` exist — **24–48h soak and live failover not confirmed** |
 | **Production mainnet** | 🔴 Not launched | External audit, validator ops, L1 bridge cutover; prod profile is **preparation**, not live mainnet |
 
 **Quality gate (Jul 2026):** CI badges above · local **`.\scripts\check_hybrid_full.ps1`** → native crypto + bridge smoke + pytest · **`703` tests** in suite (`pytest tests/ --collect-only`)
@@ -103,9 +106,10 @@ Public testnet checklist (not live): **[docs/PUBLIC_TESTNET.md](docs/PUBLIC_TEST
 | DR rehearsal | `.\scripts\dr_restore_rehearsal.ps1 -DockerMesh1` |
 | Restore | `python scripts/restore_chainstore.py --backup-dir ... --data-dir data --force --verify` |
 | Health watch | `.\scripts\health_watch.ps1 -ProdMesh` (optional `$env:HEALTH_WEBHOOK_URL`) |
-| Soak test (24h+) | `.\scripts\soak_monitor.ps1 -ProdMesh -Hours 24` |
-| Industrial gate | `.\scripts\prod_mesh_industrial.ps1` (health + failover + signed tx) |
-| Failover drill | `.\scripts\prod_mesh_failover.ps1` |
+| Soak test (24h+) | `.\scripts\soak_monitor.ps1 -ProdMesh -Hours 24` — **must run to completion**; see [EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) |
+| Industrial gate | `.\scripts\prod_mesh_industrial.ps1` (health + failover + signed tx) — **not** run by default mesh bootstrap |
+| Failover drill | `.\scripts\prod_mesh_failover.ps1` — **ops proof**: stop node2, verify blocks + rejoin |
+| Signed tx (prod) | `python scripts/prod_signed_tx_smoke.py` — **not** covered by default mesh `SKIP: tx propagation` |
 
 ---
 
@@ -460,4 +464,4 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 
 ---
 
-*Last update: July 2026 — v1.2.13: RocksDB DR, CI badges, architecture docs, pip-audit workflow.*
+*Last update: July 2026 — v1.2.24: evidence matrix, testnet Docker seed; see [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) for proven vs not-proven ops.*

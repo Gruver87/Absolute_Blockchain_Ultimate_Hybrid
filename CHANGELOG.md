@@ -6,6 +6,15 @@
 
 ---
 
+## [1.2.25] — 2026-07-06
+
+### Docs
+
+- `docs/EVIDENCE_MATRIX.md` — proven vs not-proven ops (failover, signed tx, EVM prod, soak 24h+, audit)
+- README / MAINNET_GAP / PUBLIC_TESTNET aligned with live prod mesh evidence gaps
+
+---
+
 ## [1.2.24] — 2026-07-06
 
 ### Added
