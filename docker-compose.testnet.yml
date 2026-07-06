@@ -1,0 +1,91 @@
+# Public testnet seed (chain 77777) — VPS / cloud single-host starter.
+# Usage:
+#   copy .env.testnet.example .env.testnet   # set JWT_SECRET, RPC_API_KEYS, CORS_ORIGINS
+#   .\scripts\docker_testnet_seed.ps1
+#   curl http://localhost:9080/health/ready
+#
+# Optional second validator (same compose network):
+#   docker compose -f docker-compose.testnet.yml --profile validators up -d
+
+x-testnet-env: &testnet-env
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
+  DEPLOYMENT_MODE: dev
+  CHAIN_ID: "77777"
+  HTTP_HOST: "0.0.0.0"
+  RPC_HOST: "0.0.0.0"
+  WS_HOST: "0.0.0.0"
+  P2P_HOST: "0.0.0.0"
+  ABS_REQUIRE_NATIVE_CRYPTO: "true"
+  BRIDGE_ENABLED: "false"
+  RATE_LIMIT_RPM: ${TESTNET_RATE_LIMIT_RPM:-600}
+  RPC_API_KEY_REQUIRED: "true"
+  JWT_ENFORCE_ADMIN: "true"
+  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env.testnet}
+  RPC_API_KEYS: ${RPC_API_KEYS:?set RPC_API_KEYS in .env.testnet}
+  CORS_ORIGINS: ${CORS_ORIGINS:-https://testnet.example.com}
+
+services:
+  testnet-seed:
+    image: ${ABS_TESTNET_IMAGE:-abs-blockchain-devnet-rust:local}
+    build:
+      context: .
+      dockerfile: Dockerfile.devnet-rust
+    hostname: testnet-seed
+    command: ["python", "main.py", "--config", "docker/node.testnet.seed.json"]
+    ports:
+      - "${TESTNET_HTTP_PORT:-9080}:8080"
+      - "${TESTNET_RPC_PORT:-9085}:8545"
+      - "${TESTNET_P2P_PORT:-9500}:5000"
+      - "${TESTNET_WS_PORT:-9086}:8766"
+    env_file:
+      - path: .env.testnet
+        required: false
+    environment:
+      <<: *testnet-env
+      NODE_ID: testnet-seed-1
+    volumes:
+      - abs-testnet-seed-data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=5)"]
+      interval: 20s
+      timeout: 8s
+      retries: 10
+      start_period: 90s
+    networks:
+      - abs-testnet
+
+  testnet-validator:
+    profiles: ["validators"]
+    image: ${ABS_TESTNET_IMAGE:-abs-blockchain-devnet-rust:local}
+    build:
+      context: .
+      dockerfile: Dockerfile.devnet-rust
+    hostname: testnet-validator
+    depends_on:
+      testnet-seed:
+        condition: service_healthy
+    command: ["python", "main.py", "--config", "docker/node.testnet.validator.json"]
+    ports:
+      - "${TESTNET_HTTP_PORT_2:-9081}:8080"
+      - "${TESTNET_RPC_PORT_2:-9087}:8545"
+      - "${TESTNET_P2P_PORT_2:-9501}:5000"
+    env_file:
+      - path: .env.testnet
+        required: false
+    environment:
+      <<: *testnet-env
+      NODE_ID: testnet-validator-2
+      BOOTSTRAP_PEERS: testnet-seed:5000
+    volumes:
+      - abs-testnet-validator-data:/app/data
+    networks:
+      - abs-testnet
+
+networks:
+  abs-testnet:
+    name: abs-public-testnet
+
+volumes:
+  abs-testnet-seed-data:
+  abs-testnet-validator-data:

@@ -6,6 +6,16 @@
 
 ---
 
+## [1.2.24] — 2026-07-06
+
+### Added
+
+- Public testnet Docker stack: `docker-compose.testnet.yml`, seed/validator configs, `docker_testnet_seed.ps1`
+- nginx TLS/rate-limit template `deploy/nginx/testnet.example.conf`
+- `.env.testnet.example` for JWT/RPC keys and ports
+
+---
+
 ## [1.2.23] — 2026-07-06
 
 ### Added

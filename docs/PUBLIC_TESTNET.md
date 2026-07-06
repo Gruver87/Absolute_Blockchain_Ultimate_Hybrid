@@ -37,6 +37,8 @@ Target (example): `https://testnet.absolute-chain.org` → explorer + RPC behind
 
 ### Ops
 
+- [x] Docker seed compose: `docker-compose.testnet.yml` + `scripts/docker_testnet_seed.ps1`
+- [x] nginx TLS template: `deploy/nginx/testnet.example.conf`
 - [ ] Single seed + 2–3 validators on VPS or cloud (Docker compose or K8s)
 - [ ] Prometheus/Grafana or uptime ping on `/health/ready`
 - [ ] Log rotation on `data/node.log`
@@ -46,10 +48,12 @@ Target (example): `https://testnet.absolute-chain.org` → explorer + RPC behind
 
 ## Go-live (minimal public surface)
 
-1. **Seed node** — HTTP 443 → `:8080`, RPC 443 → `:8545` (or separate host)
-2. **Explorer** — static `web/explorer/` behind same host or CDN
-3. **README** — replace localhost examples with public URL + chain ID `77777`
-4. **Status page** — link to GitHub Actions badges + last release tag
+1. **Local / VPS seed** — `.\scripts\docker_testnet_seed.ps1` (ports `9080` HTTP, `9085` RPC by default)
+2. **TLS** — `deploy/nginx/testnet.example.conf` in front of seed ports
+3. **Explorer** — static `web/explorer/` behind same host or CDN
+4. **README** — replace localhost examples with public URL + chain ID `77777`
+5. **Status page** — link to GitHub Actions badges + last release tag
+6. **Gate** — `.\scripts\testnet_readiness.ps1 -Ports 9080`
 
 Example nginx pattern (illustrative):
 
