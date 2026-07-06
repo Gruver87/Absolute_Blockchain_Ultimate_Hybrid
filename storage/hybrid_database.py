@@ -451,6 +451,12 @@ class HybridDatabase:
     def record_tx_propagation_event(self, *args: Any, **kwargs: Any) -> None:
         self._core.record_tx_propagation_event(*args, **kwargs)
 
+    def get_tx_propagation_trace(self, tx_hash: str) -> Dict:
+        return self._core.get_tx_propagation_trace(tx_hash)
+
+    def get_recent_tx_propagation(self, limit: int = 20) -> List[Dict]:
+        return self._core.get_recent_tx_propagation(limit=limit)
+
     def save_slash_event(self, validator: str, reason: str, epoch: int, penalty: int) -> None:
         self._core.save_slash_event(validator, reason, epoch, penalty)
 

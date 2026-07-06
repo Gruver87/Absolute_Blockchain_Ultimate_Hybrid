@@ -126,7 +126,7 @@ Then set `DB_ENGINE=rocksdb` / `"db_engine": "rocksdb"` in config.
 - [x] Migrate **evm_logs** into Rocks keys (`P_EVM_LOG` / `P_EVM_LOG_TX`)
 - [x] Migrate **nft_tokens** into Rocks (`P_NFT_TOKEN`)
 - [x] Migrate **nft_offers** / **nft_auctions** / **nft_sales** into Rocks
-- [ ] Migrate remaining aux tables (tx propagation events, …)
+- [x] Tx propagation trace reads on Rocks (`get_tx_propagation_trace`, `get_recent_tx_propagation`)
 
 ### P2 — Rust storage depth
 
@@ -146,7 +146,7 @@ Then set `DB_ENGINE=rocksdb` / `"db_engine": "rocksdb"` in config.
 
 **In Rocks (hot path):** blocks, accounts, transactions, validators, meta, bridge locks/credits, receipts, proposer audit, state-root mismatch log.
 
-**Stays in SQLite aux (cold / dev modules):** lightning/plasma, wasm/ai agents, oracle feeds, mev/reorg diagnostics, tx propagation events, legacy minivm tables. **evm_logs** and full **NFT marketplace** (tokens, offers, auctions, sales) persist in Rocks on prod hybrid.
+**Stays in SQLite aux (cold / dev modules):** lightning/plasma, wasm/ai agents, oracle feeds, mev/reorg diagnostics, legacy minivm tables. **evm_logs**, full **NFT marketplace**, and **tx propagation** traces persist in Rocks on prod hybrid.
 
 Migration of aux rows into Rocks CF is **optional P1+** — not a mainnet blocker while prod gate keeps `db_engine=rocksdb` on the Rocks core.
 

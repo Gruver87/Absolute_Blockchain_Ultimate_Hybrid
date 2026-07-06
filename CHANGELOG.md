@@ -6,6 +6,15 @@
 
 ---
 
+## [1.2.23] — 2026-07-06
+
+### Added
+
+- Rocks read path for tx propagation (`get_tx_propagation_trace`, `get_recent_tx_propagation`)
+- `scripts/testnet_readiness.ps1` — automated PUBLIC_TESTNET local prerequisites
+
+---
+
 ## [1.2.22] — 2026-07-06
 
 ### Added

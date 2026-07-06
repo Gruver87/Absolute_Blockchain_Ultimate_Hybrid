@@ -120,6 +120,18 @@ def prefix_tx_recent() -> bytes:
     return P_TX_RECENT
 
 
+def key_tx_prop(tx_hash: str, stage: str) -> bytes:
+    return P_TX_PROP + _tx_hash_body(tx_hash) + (stage or "").encode("utf-8")[:16]
+
+
+def prefix_tx_prop(tx_hash: str) -> bytes:
+    return P_TX_PROP + _tx_hash_body(tx_hash)
+
+
+def prefix_tx_prop_all() -> bytes:
+    return P_TX_PROP
+
+
 def key_bridge_lock(tx_hash: str) -> bytes:
     return P_BRIDGE_LOCK + _tx_hash_body(tx_hash)
 

@@ -1063,8 +1063,76 @@ class RocksChainStore:
             "detail": detail or {},
             "created_at": int(time.time()),
         }
-        key = kc.P_TX_PROP + kc.key_tx(tx_hash)[1:] + stage.encode("utf-8")[:16]
+        key = kc.key_tx_prop(tx_hash, stage)
         self._raw_put(key, json.dumps(row).encode("utf-8"))
+
+    def _decode_tx_propagation_event(self, raw: bytes) -> Dict:
+        row = json.loads(raw.decode("utf-8"))
+        detail = row.get("detail") or {}
+        if isinstance(detail, str):
+            try:
+                detail = json.loads(detail)
+            except Exception:
+                detail = {}
+        if not isinstance(detail, dict):
+            detail = {}
+        return {
+            "stage": row.get("stage", ""),
+            "node_id": row.get("node_id", ""),
+            "peer_id": row.get("peer_id", ""),
+            "block_height": int(row.get("block_height", 0) or 0),
+            "detail": detail,
+            "timestamp": int(row.get("created_at", 0) or 0),
+        }
+
+    def _tx_propagation_status(
+        self,
+        events: List[Dict],
+        receipt: Optional[Dict],
+        tx_row: Optional[Dict],
+    ) -> str:
+        stages = [e.get("stage", "") for e in events]
+        if receipt or tx_row:
+            return "confirmed"
+        if "block_included" in stages:
+            return "included"
+        if "mempool_local" in stages or "mempool_remote" in stages:
+            return "mempool"
+        if events:
+            return "propagating"
+        return "unknown"
+
+    def get_tx_propagation_trace(self, tx_hash: str) -> Dict:
+        events = [
+            self._decode_tx_propagation_event(value)
+            for _key, value in self._scan_prefix(kc.prefix_tx_prop(tx_hash), limit=500)
+        ]
+        events.sort(key=lambda e: int(e.get("timestamp", 0) or 0))
+        receipt = self.get_tx_receipt(tx_hash)
+        tx_row = self.get_transaction(tx_hash)
+        return {
+            "tx_hash": tx_hash,
+            "status": self._tx_propagation_status(events, receipt, tx_row),
+            "events": events,
+            "receipt": receipt,
+            "transaction": tx_row,
+        }
+
+    def get_recent_tx_propagation(self, limit: int = 20) -> List[Dict]:
+        limit = max(1, min(int(limit), 100))
+        last_ts: dict[str, int] = {}
+        for _key, value in self._scan_prefix(kc.prefix_tx_prop_all(), limit=50_000):
+            try:
+                row = json.loads(value.decode("utf-8"))
+            except Exception:
+                continue
+            th = str(row.get("tx_hash") or "")
+            if not th:
+                continue
+            ts = int(row.get("created_at", 0) or 0)
+            last_ts[th] = max(last_ts.get(th, 0), ts)
+        ordered = sorted(last_ts.items(), key=lambda item: item[1], reverse=True)[:limit]
+        return [self.get_tx_propagation_trace(tx_hash) for tx_hash, _ in ordered]
 
     def get_stats(self) -> Dict:
         stats = {
