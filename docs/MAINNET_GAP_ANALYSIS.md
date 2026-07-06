@@ -70,7 +70,7 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 
 - [ ] **Failover under load** — `docker stop abs-prod-mesh3-node2-1`, verify block production + quorum + rejoin (`prod_mesh_failover.ps1`)
 - [ ] **Signed tx on default prod bootstrap** — mesh logs `SKIP: tx propagation`; run `prod_signed_tx_smoke.py`
-- [ ] **EVM deploy/call on prod RPC ports** — no completed live checklist
+- [ ] **EVM deploy/call on prod RPC ports** — run `python scripts/prod_evm_smoke.py` and archive logs
 - [ ] **Soak 24–48h+** completed with `soak_report.json` passed (7–10h run may be in progress)
 - [ ] **External security audit** — tracker incomplete
 

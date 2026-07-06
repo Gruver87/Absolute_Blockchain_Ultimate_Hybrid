@@ -110,6 +110,8 @@ Public testnet checklist (not live): **[docs/PUBLIC_TESTNET.md](docs/PUBLIC_TEST
 | Industrial gate | `.\scripts\prod_mesh_industrial.ps1` (health + failover + signed tx) — **not** run by default mesh bootstrap |
 | Failover drill | `.\scripts\prod_mesh_failover.ps1` — **ops proof**: stop node2, verify blocks + rejoin |
 | Signed tx (prod) | `python scripts/prod_signed_tx_smoke.py` — **not** covered by default mesh `SKIP: tx propagation` |
+| Prod EVM (deploy + RPC storage) | `python scripts/prod_evm_smoke.py` — requires `RPC_API_KEYS` from `.env` |
+| Full evidence suite | `.\scripts\prod_evidence_suite.ps1` — health + failover + signed tx + EVM |
 
 ---
 

@@ -6,6 +6,19 @@
 
 ---
 
+## [1.2.26] — 2026-07-06
+
+### Added
+
+- `scripts/prod_evm_smoke.py` — prod HTTP deploy + `eth_getStorageAt` on RPC :18546–:18548
+- `scripts/prod_evidence_suite.ps1` — one-shot health + failover + signed tx + EVM
+
+### Fixed
+
+- `prod_signed_tx_smoke.py` — missing `import time`
+
+---
+
 ## [1.2.25] — 2026-07-06
 
 ### Docs

@@ -35,7 +35,7 @@ Compared to documentation-only claims, **evidence level increased** in Jul 2026:
 |-----|------------------------------|---------------------|
 | **Failover / resilience** | `prod_mesh_failover.ps1` exists but is **not** part of default `docker_prod_3node.ps1` post-check | `docker stop abs-prod-mesh3-node2-1` → blocks continue, quorum/mesh OK → `docker start …` → node rejoins and heights re-align |
 | **Signed tx on default prod path** | `verify_p2p_ci` / mesh bootstrap prints `SKIP: tx propagation (auto_sign disabled in prod)` | Run `python scripts/prod_signed_tx_smoke.py` after mesh up; all 3 nodes see tx / mempool trace |
-| **EVM end-to-end on prod RPC** | Opcode parity in CI ≠ live deploy/call on `:18180–:18182` | Signed deploy + contract call via prod JSON-RPC; state persisted and visible on peers |
+| **EVM end-to-end on prod RPC** | Opcode parity in CI ≠ live deploy/call on `:18180–:18182` / `:18546–:18548` | `python scripts/prod_evm_smoke.py` (deploy + `eth_getStorageAt` on all RPC peers) |
 | **24–48h soak** | Only short `health_watch` (~1h) and **in-progress** 7–10h `soak_monitor` at time of writing | `soak_report.json` with `passed: true`, `hours_requested ≥ 24`, zero mesh_warn / fail_lines |
 | **External audit** | README and `external_audit_tracker.py` checklist incomplete | Third-party audit report + tracker items closed |
 | **Bridge mainnet cutover** | Prod mesh runs with `bridge_enabled: false` by design | Audited L1 contracts + relayer SLOs per `docs/BRIDGE_L1_MAINNET.md` |
@@ -59,10 +59,11 @@ Compared to documentation-only claims, **evidence level increased** in Jul 2026:
 1. `.\scripts\docker_prod_3node.ps1 -SkipBuild -KeepVolumes`
 2. `.\scripts\prod_mesh_failover.ps1` — record block heights during node2 outage
 3. `python scripts/prod_signed_tx_smoke.py`
-4. Prod EVM smoke (deploy + call on `:18180` RPC) — script TBD or manual checklist
-5. `.\scripts\soak_monitor.ps1 -ProdMesh -Hours 48 -IntervalSec 300`
-6. `.\scripts\testnet_readiness.ps1 -ProdMesh -MinSoakHours 48`
-7. External audit tracker → third-party review
+4. `python scripts/prod_evm_smoke.py` — deploy + `eth_getStorageAt` on all prod RPC ports
+5. `.\scripts\prod_evidence_suite.ps1` — health + failover + signed tx + EVM (optional one-shot)
+6. `.\scripts\soak_monitor.ps1 -ProdMesh -Hours 48 -IntervalSec 300`
+7. `.\scripts\testnet_readiness.ps1 -ProdMesh -MinSoakHours 48`
+8. External audit tracker → third-party review
 
 ---
 
