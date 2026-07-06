@@ -1503,27 +1503,25 @@ class NodeOrchestrator:
             _min_mesh_peers = int(getattr(self.config, "mesh_min_peers_before_mine", 0) or 0)
             if _min_mesh_peers > 0 and self.p2p:
                 peers = getattr(self.p2p, "peers", {}) or {}
-                if len(peers) < _min_mesh_peers:
+                connected = len(peers)
+                if connected < _min_mesh_peers:
                     continue
                 local_h = self.blockchain.get_height()
-                local_root = str(self.blockchain.get_state_root() or "").strip().lower()
-                mesh_ready = True
+                local_root = str(self.blockchain.get_state_root() or "")
                 try:
                     wire_roots = await self.p2p.request_peer_state_roots()
                 except Exception:
                     wire_roots = []
-                if len(wire_roots) < _min_mesh_peers:
-                    mesh_ready = False
-                for entry in wire_roots:
-                    eh = int(entry.get("height", 0) or 0)
-                    pr = str(entry.get("state_root") or "").strip().lower()
-                    if eh < local_h:
-                        mesh_ready = False
-                        break
-                    if eh == local_h and pr and pr != local_root:
-                        mesh_ready = False
-                        break
-                if not mesh_ready:
+                from runtime.mesh_mining import mesh_ready_for_mining
+
+                if not mesh_ready_for_mining(
+                    min_mesh_peers=_min_mesh_peers,
+                    connected_peers=connected,
+                    wire_roots=wire_roots,
+                    local_height=local_h,
+                    local_root=local_root,
+                    state_consistent=bool(getattr(self.p2p, "_state_consistent", True)),
+                ):
                     continue
 
             if self.sharding and hasattr(self.sharding, "process_cross_shard_transactions"):

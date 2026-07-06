@@ -6,6 +6,18 @@
 
 ---
 
+## [1.2.19] — 2026-07-06
+
+### Fixed
+
+- Prod mesh mining stuck when `request_peer_state_roots` returned fewer than 2 responses (`runtime/mesh_mining.py`)
+
+### Added
+
+- Rocks reorg tip metadata test; mesh mining gate unit tests
+
+---
+
 ## [1.2.18] — 2026-07-06
 
 ### Added
