@@ -6,6 +6,14 @@
 
 ---
 
+## [1.2.20] — 2026-07-06
+
+### Added
+
+- RocksDB storage for `nft_tokens` (hybrid prod path) + aux migration
+
+---
+
 ## [1.2.19] — 2026-07-06
 
 ### Fixed

@@ -124,7 +124,8 @@ Then set `DB_ENGINE=rocksdb` / `"db_engine": "rocksdb"` in config.
 - [x] Rocks tuning env vars + LSM property introspection in `get_stats()`
 - [x] Benchmark script `scripts/bench_storage_commit.py` (run locally; numbers vary by disk)
 - [x] Migrate **evm_logs** into Rocks keys (`P_EVM_LOG` / `P_EVM_LOG_TX`)
-- [ ] Migrate optional aux tables into Rocks CF (NFT, …)
+- [x] Migrate **nft_tokens** into Rocks (`P_NFT_TOKEN`)
+- [ ] Migrate optional aux tables into Rocks CF (nft offers/auctions, …)
 
 ### P2 — Rust storage depth
 

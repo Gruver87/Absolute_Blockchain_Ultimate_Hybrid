@@ -26,6 +26,7 @@ P_BRIDGE_LOCK = b"\x50"
 P_BRIDGE_CREDIT = b"\x51"
 P_EVM_LOG = b"\x52"
 P_EVM_LOG_TX = b"\x53"
+P_NFT_TOKEN = b"\x54"
 
 
 def pack_u32(value: int) -> bytes:
@@ -152,6 +153,15 @@ def prefix_evm_logs() -> bytes:
 
 def prefix_evm_logs_tx(tx_hash: str) -> bytes:
     return P_EVM_LOG_TX + _tx_hash_body(tx_hash)
+
+
+def key_nft_token(token_id: str) -> bytes:
+    tid = (token_id or "").strip().encode("utf-8")
+    return P_NFT_TOKEN + pack_u32(len(tid)) + tid
+
+
+def prefix_nft_tokens() -> bytes:
+    return P_NFT_TOKEN
 
 
 def normalize_address_key(address: str) -> str:

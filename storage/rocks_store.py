@@ -1192,6 +1192,45 @@ class RocksChainStore:
         out.sort(key=lambda r: (int(r.get("block_height", 0) or 0), int(r.get("log_index", 0) or 0)))
         return out
 
+    def _decode_nft_token(self, raw: bytes) -> Dict:
+        row = json.loads(raw.decode("utf-8"))
+        meta = row.get("metadata") or {}
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except Exception:
+                meta = {}
+        row["metadata"] = meta
+        row["for_sale"] = bool(row.get("for_sale"))
+        return row
+
+    def save_nft_token(self, token: Dict) -> None:
+        tid = str(token.get("token_id", "") or "")
+        if not tid:
+            return
+        row = {
+            "token_id": tid,
+            "name": token.get("name", ""),
+            "description": token.get("description", ""),
+            "image_url": token.get("image_url", ""),
+            "owner": token.get("owner", ""),
+            "creator": token.get("creator", ""),
+            "price": float(token.get("price", 0) or 0),
+            "for_sale": bool(token.get("for_sale")),
+            "created_at": int(token.get("created_at", 0) or 0),
+            "metadata": token.get("metadata") or {},
+        }
+        self._raw_put(
+            kc.key_nft_token(tid),
+            json.dumps(row, ensure_ascii=False).encode("utf-8"),
+        )
+
+    def get_nft_tokens(self) -> List[Dict]:
+        rows = self._scan_prefix(kc.prefix_nft_tokens(), limit=50_000)
+        out = [self._decode_nft_token(val) for _, val in rows]
+        out.sort(key=lambda r: int(r.get("created_at", 0) or 0))
+        return out
+
     def get_chain_metrics(self, window: int = 32) -> Dict:
         tip = self.get_chain_tip()
         tx_rows = self._iter_transaction_rows()

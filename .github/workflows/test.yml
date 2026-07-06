@@ -171,6 +171,7 @@ jobs:
           tests/unit/test_rocks_store.py \
           tests/unit/test_mesh_mining_ready.py \
           tests/unit/test_rocks_reorg_meta.py \
+          tests/unit/test_rocks_nft_tokens.py \
           tests/unit/test_rocks_evm_logs.py \
           tests/unit/test_rocks_blockchain_integration.py \
           tests/unit/test_chain_backup.py \

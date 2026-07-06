@@ -44,6 +44,7 @@ class HybridDatabase:
         self._core.initialize()
         self._migrate_aux_bridge_once()
         self._migrate_aux_evm_logs_once()
+        self._migrate_aux_nft_tokens_once()
 
     def _migrate_aux_evm_logs_once(self) -> None:
         if self._core.get_meta("aux_evm_logs_migrated_v1"):
@@ -93,6 +94,31 @@ class HybridDatabase:
             self._core.set_meta("aux_evm_logs_migrated_v1", True)
         if migrated:
             print(f"[HybridDatabase] migrated {migrated} evm_logs from aux.db to Rocks")
+
+    def _migrate_aux_nft_tokens_once(self) -> None:
+        if self._core.get_meta("aux_nft_tokens_migrated_v1"):
+            return
+        try:
+            rows = self._aux.conn.execute("SELECT * FROM nft_tokens ORDER BY created_at").fetchall()
+        except Exception:
+            self._core.set_meta("aux_nft_tokens_migrated_v1", True)
+            return
+        migrated = 0
+        with self._core.atomic():
+            for row in rows:
+                item = dict(row)
+                tid = str(item.get("token_id", "") or "")
+                if not tid or self._core._raw_get(kc.key_nft_token(tid)):
+                    continue
+                try:
+                    meta = json.loads(item.get("metadata") or "{}")
+                except Exception:
+                    meta = {}
+                self._core.save_nft_token({**item, "metadata": meta})
+                migrated += 1
+            self._core.set_meta("aux_nft_tokens_migrated_v1", True)
+        if migrated:
+            print(f"[HybridDatabase] migrated {migrated} nft_tokens from aux.db to Rocks")
 
     def _migrate_aux_bridge_once(self) -> None:
         if self._core.get_meta("aux_bridge_migrated_v1"):
@@ -386,6 +412,12 @@ class HybridDatabase:
             topics=topics,
             limit=limit,
         )
+
+    def save_nft_token(self, token: Dict) -> None:
+        self._core.save_nft_token(token)
+
+    def get_nft_tokens(self) -> List[Dict]:
+        return self._core.get_nft_tokens()
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._aux, name)
