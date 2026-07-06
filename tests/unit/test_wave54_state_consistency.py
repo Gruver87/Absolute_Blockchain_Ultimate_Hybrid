@@ -92,3 +92,17 @@ def test_harness_fails_peer_root_mismatch():
     )
     assert h["harness_healthy"] is False
     assert "peer_state_roots" in h["failed_checks"]
+
+
+def test_harness_quick_mode_metadata():
+    from api.http import _build_state_consistency_harness
+
+    root = "e" * 64
+    p2p = _FakeP2P([{"peer_id": "p2", "height": 5, "state_root": root}])
+    h = _build_state_consistency_harness(
+        p2p, _FakeBC(live=root, tip=root), _FakeCfg(), _FakeDB(),
+        peer_timeout=3.0, quick=True,
+    )
+    assert h["monitor_quick"] is True
+    assert h["peer_timeout_sec"] == 3.0
+    assert h["harness_healthy"] is True

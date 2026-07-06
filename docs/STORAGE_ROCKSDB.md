@@ -114,8 +114,9 @@ Then set `DB_ENGINE=rocksdb` / `"db_engine": "rocksdb"` in config.
 
 - [x] Prod mesh on RocksDB
 - [x] Backup/restore scripts + CI rocks drill
-- [ ] 24–48 h soak: `docker_prod_3node.ps1` + restart with `-SkipBuild -KeepVolumes`
+- [ ] 24–48 h soak: `.\scripts\soak_monitor.ps1 -ProdMesh -Hours 24`
 - [x] Documented DR restore rehearsal on test volume (`scripts/dr_restore_rehearsal.ps1`)
+- [x] `health_watch.ps1` quick/full harness polls + mesh height alignment
 
 ### P1 — Hybrid completion
 

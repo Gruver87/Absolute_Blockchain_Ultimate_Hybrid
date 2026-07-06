@@ -4,6 +4,8 @@ param(
     [switch]$ProdMesh,
     [int]$IntervalSec = 300,
     [int]$DurationMin = 0,
+    [int]$FullHarnessEvery = 6,
+    [switch]$AlwaysFullHarness,
     [string]$LogFile = "logs/health_watch.log",
     [string]$WebhookUrl = $env:HEALTH_WEBHOOK_URL
 )
@@ -32,22 +34,59 @@ function Write-Log([string]$Msg, [string]$Color = "Gray") {
     Write-Host $line -ForegroundColor $Color
 }
 
-function Test-NodeHealth([int]$Port) {
+function Test-NodeHealth([int]$Port, [bool]$FullHarness) {
     try {
-        $h = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health/ready" -TimeoutSec 5
+        $null = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health/ready" -TimeoutSec 5
         $st = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status" -TimeoutSec 5
-        $cs = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/chain/consistency/harness" -TimeoutSec 8
+        $harnessUri = if ($FullHarness) {
+            "http://127.0.0.1:$Port/chain/consistency/harness?peer_timeout=8"
+        } else {
+            "http://127.0.0.1:$Port/chain/consistency/harness?quick=1&peer_timeout=3"
+        }
+        $harnessSec = if ($FullHarness) { 20 } else { 10 }
+        $cs = Invoke-RestMethod -Uri $harnessUri -TimeoutSec $harnessSec
+        $failed = @($cs.failed_checks)
         return @{
             Ok = $true
             Port = $Port
             Height = $st.height
+            Head = $st.head_hash
             Peers = $st.peers
             P2P = $st.p2p_sync_status
             Aligned = $cs.tip_state_aligned
-            Failed = $cs.failed_checks
+            HarnessHealthy = $cs.harness_healthy
+            Failed = $failed
+            FullHarness = $FullHarness
         }
     } catch {
         return @{ Ok = $false; Port = $Port; Error = $_.Exception.Message }
+    }
+}
+
+function Test-MeshAlignment([int[]]$PortList) {
+    $rows = @()
+    foreach ($p in $PortList) {
+        try {
+            $st = Invoke-RestMethod -Uri "http://127.0.0.1:$p/status" -TimeoutSec 5
+            $rows += [PSCustomObject]@{
+                Port = $p
+                Height = [int]$st.height
+                Head = [string]$st.head_hash
+                Peers = [int]$st.peers
+            }
+        } catch {
+            return @{ Ok = $false; Error = "port $p status: $($_.Exception.Message)" }
+        }
+    }
+    $heights = $rows | ForEach-Object { $_.Height }
+    $heads = ($rows | ForEach-Object { $_.Head }) | Where-Object { $_ }
+    $heightOk = ($heights | Select-Object -Unique).Count -le 1
+    $headOk = -not $heads -or ($heads | Select-Object -Unique).Count -le 1
+    return @{
+        Ok = $heightOk -and $headOk
+        Rows = $rows
+        HeightOk = $heightOk
+        HeadOk = $headOk
     }
 }
 
@@ -62,20 +101,27 @@ function Send-Webhook([string]$Text) {
 }
 
 $end = if ($DurationMin -gt 0) { (Get-Date).AddMinutes($DurationMin) } else { $null }
-Write-Log "health_watch start ports=$($Ports -join ',') interval=${IntervalSec}s log=$LogFile" "Cyan"
+$cycle = 0
+Write-Log "health_watch start ports=$($Ports -join ',') interval=${IntervalSec}s full_every=$FullHarnessEvery log=$LogFile" "Cyan"
 
 while ($true) {
+    $cycle++
+    $fullHarness = $AlwaysFullHarness -or ($FullHarnessEvery -le 1) -or ($cycle % $FullHarnessEvery -eq 0)
+    $modeLabel = if ($fullHarness) { "full" } else { "quick" }
     $failures = @()
+
     foreach ($p in $Ports) {
-        $r = Test-NodeHealth $p
+        $r = Test-NodeHealth $p $fullHarness
         if (-not $r.Ok) {
             $failures += "port $p unreachable: $($r.Error)"
             Write-Log "FAIL port $p $($r.Error)" "Red"
             continue
         }
-        $line = "OK port $($r.Port) height=$($r.Height) peers=$($r.Peers) p2p=$($r.P2P) aligned=$($r.Aligned) failed=$($r.Failed)"
+        $failedTxt = if ($r.Failed.Count -gt 0) { $r.Failed -join "," } else { "" }
+        $line = "OK port $($r.Port) [$modeLabel] height=$($r.Height) peers=$($r.Peers) p2p=$($r.P2P) aligned=$($r.Aligned) failed=$failedTxt"
         $p2pWarn = ($r.P2P -in @("solo", "under_mesh", "stale"))
-        if ($r.Aligned -eq $false -or ($r.Failed -and [int]$r.Failed -gt 0)) {
+        $harnessBad = ($r.Aligned -eq $false) -or ($r.Failed.Count -gt 0) -or ($r.HarnessHealthy -eq $false)
+        if ($harnessBad) {
             $failures += $line
             Write-Log "WARN $line" "Yellow"
         } elseif ($p2pWarn) {
@@ -85,19 +131,31 @@ while ($true) {
         }
     }
 
+    if ($Ports.Count -gt 1) {
+        $mesh = Test-MeshAlignment $Ports
+        if (-not $mesh.Ok) {
+            $detail = ($mesh.Rows | ForEach-Object { "h$($_.Port)=$($_.Height)" }) -join " "
+            $failures += "mesh misaligned: $detail"
+            Write-Log "WARN mesh misaligned $detail" "Yellow"
+        } else {
+            $detail = ($mesh.Rows | ForEach-Object { "$($_.Port):h$($_.Height)/p$($_.Peers)" }) -join " "
+            Write-Log "OK mesh aligned $detail" "DarkGray"
+        }
+    }
+
     if ($failures.Count -gt 0) {
-        Send-Webhook ("Absolute mesh alert:`n" + ($failures -join "`n"))
+        Send-Webhook ("Absolute mesh alert (cycle $cycle):`n" + ($failures -join "`n"))
     }
 
     if ($end -and (Get-Date) -ge $end) {
-        Write-Log "health_watch done (duration ${DurationMin}m)" "Cyan"
+        Write-Log "health_watch done (duration ${DurationMin}m cycles=$cycle)" "Cyan"
         break
     }
     $sleepFor = $IntervalSec
     if ($end) {
         $remaining = [int](($end - (Get-Date)).TotalSeconds)
         if ($remaining -le 0) {
-            Write-Log "health_watch done (duration ${DurationMin}m)" "Cyan"
+            Write-Log "health_watch done (duration ${DurationMin}m cycles=$cycle)" "Cyan"
             break
         }
         if ($remaining -lt $sleepFor) { $sleepFor = $remaining }

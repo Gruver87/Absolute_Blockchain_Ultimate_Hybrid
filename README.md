@@ -9,7 +9,7 @@
 [![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
 [![Local gate](https://img.shields.io/badge/local%20gate-check__hybrid__full-lightgrey)](scripts/check_hybrid_full.ps1)
-[![Release](https://img.shields.io/badge/Release-v1.2.16-blue)](RELEASE_NOTES_v1.2.16.md)
+[![Release](https://img.shields.io/badge/Release-v1.2.17-blue)](RELEASE_NOTES_v1.2.17.md)
 
 **Repo:** [github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · **Branch:** `master`
 
@@ -103,6 +103,7 @@ Public testnet checklist (not live): **[docs/PUBLIC_TESTNET.md](docs/PUBLIC_TEST
 | DR rehearsal | `.\scripts\dr_restore_rehearsal.ps1 -DockerMesh1` |
 | Restore | `python scripts/restore_chainstore.py --backup-dir ... --data-dir data --force --verify` |
 | Health watch | `.\scripts\health_watch.ps1 -ProdMesh` (optional `$env:HEALTH_WEBHOOK_URL`) |
+| Soak test (24h+) | `.\scripts\soak_monitor.ps1 -ProdMesh -Hours 24` |
 
 ---
 

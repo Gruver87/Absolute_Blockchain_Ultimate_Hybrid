@@ -1714,7 +1714,19 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             elif path in ("/chain/consistency/harness", "/testnet/state-consistency"):
                 db = self.__class__.db
-                self._json(_build_state_consistency_harness(p2p, bc, cfg, db))
+                quick = qs.get("quick", ["0"])[0].lower() in ("1", "true", "yes")
+                try:
+                    peer_timeout = float(qs.get("peer_timeout", ["3" if quick else "8"])[0])
+                except (TypeError, ValueError):
+                    peer_timeout = 3.0 if quick else 8.0
+                peer_timeout = max(0.5, min(peer_timeout, 15.0))
+                if quick:
+                    peer_timeout = min(peer_timeout, 3.0)
+                self._json(
+                    _build_state_consistency_harness(
+                        p2p, bc, cfg, db, peer_timeout=peer_timeout, quick=quick
+                    )
+                )
 
             elif path == "/testnet/validators":
                 db = self.__class__.db
@@ -5888,7 +5900,15 @@ def _build_testnet_fork_exercise(p2p, bc, cfg, db=None, run_reconcile: bool = Fa
     }
 
 
-def _build_state_consistency_harness(p2p, bc, cfg, db=None) -> Dict:
+def _build_state_consistency_harness(
+    p2p,
+    bc,
+    cfg,
+    db=None,
+    *,
+    peer_timeout: float = 8.0,
+    quick: bool = False,
+) -> Dict:
     """Multi-check state integrity harness for testnet CI (Wave 54)."""
     height = bc.get_height() if bc and hasattr(bc, "get_height") else 0
     live_root = bc.get_state_root() if bc and hasattr(bc, "get_state_root") else ""
@@ -5902,7 +5922,7 @@ def _build_state_consistency_harness(p2p, bc, cfg, db=None) -> Dict:
     peer_roots_aligned = True
     if p2p and hasattr(p2p, "request_peer_state_roots_sync"):
         try:
-            for entry in p2p.request_peer_state_roots_sync(timeout=8):
+            for entry in p2p.request_peer_state_roots_sync(timeout=peer_timeout):
                 pr = str(entry.get("state_root") or "")
                 pr_norm = pr.strip().lower()
                 match = (pr_norm == live_norm) if pr_norm and live_norm else None
@@ -5933,16 +5953,20 @@ def _build_state_consistency_harness(p2p, bc, cfg, db=None) -> Dict:
         if db and hasattr(db, "get_state_root_mismatches")
         else []
     )
-    account_count = (
-        len(db.get_all_accounts())
-        if db and hasattr(db, "get_all_accounts")
-        else 0
-    )
-    total_supply = (
-        float(db.get_total_supply())
-        if db and hasattr(db, "get_total_supply")
-        else 0.0
-    )
+    account_count = 0
+    total_supply = 0.0
+    if db and hasattr(db, "get_all_accounts"):
+        if quick and height > 0:
+            account_count = 1
+            if hasattr(db, "get_total_supply"):
+                total_supply = float(db.get_total_supply())
+        else:
+            account_count = len(db.get_all_accounts())
+            total_supply = (
+                float(db.get_total_supply())
+                if hasattr(db, "get_total_supply")
+                else 0.0
+            )
     max_supply = float(getattr(cfg, "max_supply", 221_000_000) or 221_000_000)
     state_consistent = getattr(p2p, "_state_consistent", True) if p2p else True
 
@@ -6001,6 +6025,8 @@ def _build_state_consistency_harness(p2p, bc, cfg, db=None) -> Dict:
         "canonical_state_root_source": "blockchain.database",
         "failed_checks": [c["id"] for c in checks if not c["ok"]],
         "policy": policy,
+        "monitor_quick": quick,
+        "peer_timeout_sec": peer_timeout,
         "api_wave": 61,
     }
 

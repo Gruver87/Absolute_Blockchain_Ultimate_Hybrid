@@ -6,6 +6,23 @@
 
 ---
 
+## [1.2.17] — 2026-07-06
+
+### Added
+
+- `scripts/soak_monitor.ps1` — 24h+ prod mesh soak with JSON report
+- Harness `?quick=1&peer_timeout=3` for fast monitoring polls
+
+### Fixed
+
+- `health_watch.ps1` — harness timeout, quick/full cycle, mesh height alignment, `failed_checks` array handling
+
+### Changed
+
+- `health_watch` uses quick harness by default; full peer scan every 6th cycle
+
+---
+
 ## [1.2.16] — 2026-07-06
 
 ### Fixed

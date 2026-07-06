@@ -20,7 +20,7 @@ Target (example): `https://testnet.absolute-chain.org` → explorer + RPC behind
 
 ### Stability
 
-- [ ] Prod or devnet mesh soak **48h+** (`docker_prod_3node.ps1 -SkipBuild -KeepVolumes`)
+- [ ] Prod or devnet mesh soak **48h+** (`.\scripts\soak_monitor.ps1 -ProdMesh -Hours 48`)
 - [ ] `probe_mesh_nodes.ps1` green on all HTTP/RPC/P2P ports
 - [ ] `GET /chain/consistency/harness` aligned on all validators
 - [ ] DR rehearsal passed (`dr_restore_rehearsal.ps1 -DockerMesh1`)
