@@ -60,6 +60,7 @@ Local push: `.\scripts\push_origin.ps1` or `git push origin master`.
 
 ## Honest positioning (for release body)
 
-- **Is:** production-hardened R&D node, multi-node Docker devnet, prod fail-closed config gates, RocksDB DR
-- **Is not:** live public mainnet, audited DeFi, listed ABS token, investment product
+- **Is:** working R&D L1 stack; 3-node prod-profile mesh evidence; RocksDB + CI gates; health watch / DR scripts
+- **Is not:** live public mainnet; **external audit not completed**; audited DeFi; listed ABS token
+- **Ops gaps:** failover under load, default prod signed-tx path, prod EVM RPC e2e, 24–48h soak completion — see `docs/EVIDENCE_MATRIX.md`
 - **Bridge on prod:** off by default until L1 cutover (`BRIDGE_ENABLED=false`, see `docs/BRIDGE_L1_MAINNET.md`)
