@@ -1231,6 +1231,89 @@ class RocksChainStore:
         out.sort(key=lambda r: int(r.get("created_at", 0) or 0))
         return out
 
+    def _decode_nft_offer(self, raw: bytes) -> Dict:
+        return json.loads(raw.decode("utf-8"))
+
+    def save_nft_offer(self, offer: Dict) -> None:
+        oid = str(offer.get("offer_id", "") or "")
+        if not oid:
+            return
+        row = dict(offer)
+        row["offer_id"] = oid
+        row["price"] = float(row.get("price", 0) or 0)
+        row["expires_at"] = int(row.get("expires_at", 0) or 0)
+        row["created_at"] = int(row.get("created_at", 0) or 0)
+        self._raw_put(
+            kc.key_nft_offer(oid),
+            json.dumps(row, ensure_ascii=False).encode("utf-8"),
+        )
+
+    def get_nft_offers(self) -> List[Dict]:
+        rows = self._scan_prefix(kc.prefix_nft_offers(), limit=50_000)
+        out = [self._decode_nft_offer(val) for _, val in rows]
+        out.sort(key=lambda r: int(r.get("created_at", 0) or 0), reverse=True)
+        return out
+
+    def _decode_nft_auction(self, raw: bytes) -> Dict:
+        return json.loads(raw.decode("utf-8"))
+
+    def save_nft_auction(self, auction: Dict) -> None:
+        aid = str(auction.get("auction_id", "") or "")
+        if not aid:
+            return
+        row = dict(auction)
+        row["auction_id"] = aid
+        row["ends_at"] = int(row.get("ends_at", 0) or 0)
+        row["created_at"] = int(row.get("created_at", 0) or 0)
+        self._raw_put(
+            kc.key_nft_auction(aid),
+            json.dumps(row, ensure_ascii=False).encode("utf-8"),
+        )
+
+    def get_nft_auctions(self) -> List[Dict]:
+        rows = self._scan_prefix(kc.prefix_nft_auctions(), limit=50_000)
+        out = [self._decode_nft_auction(val) for _, val in rows]
+        out.sort(key=lambda r: int(r.get("created_at", 0) or 0), reverse=True)
+        return out
+
+    def _decode_nft_sale(self, raw: bytes) -> Dict:
+        row = json.loads(raw.decode("utf-8"))
+        return {
+            "token_id": row.get("token_id", ""),
+            "from": row.get("from", row.get("from_addr", "")),
+            "to": row.get("to", row.get("to_addr", "")),
+            "price": float(row.get("price", 0) or 0),
+            "type": row.get("type", row.get("sale_type", "buy")),
+            "timestamp": int(row.get("timestamp", row.get("created_at", 0)) or 0),
+        }
+
+    def save_nft_sale(self, sale: Dict) -> None:
+        created_at = int(sale.get("timestamp", sale.get("created_at", 0)) or time.time())
+        seq = int(sale.get("id", 0) or 0)
+        if seq <= 0:
+            seq = int(self.get_meta("nft_sale_seq", 0) or 0) + 1
+            self.set_meta("nft_sale_seq", seq)
+        row = {
+            "id": seq,
+            "token_id": sale.get("token_id", ""),
+            "from": sale.get("from", sale.get("from_addr", "")),
+            "to": sale.get("to", sale.get("to_addr", "")),
+            "price": float(sale.get("price", 0) or 0),
+            "type": sale.get("type", sale.get("sale_type", "buy")),
+            "timestamp": created_at,
+            "created_at": created_at,
+        }
+        self._raw_put(
+            kc.key_nft_sale(created_at, seq),
+            json.dumps(row, ensure_ascii=False).encode("utf-8"),
+        )
+
+    def get_nft_sales(self, limit: int = 100) -> List[Dict]:
+        rows = self._scan_prefix(kc.prefix_nft_sales(), limit=50_000)
+        out = [self._decode_nft_sale(val) for _, val in rows]
+        out.sort(key=lambda r: int(r.get("timestamp", 0) or 0), reverse=True)
+        return out[: max(1, int(limit))]
+
     def get_chain_metrics(self, window: int = 32) -> Dict:
         tip = self.get_chain_tip()
         tx_rows = self._iter_transaction_rows()

@@ -27,6 +27,9 @@ P_BRIDGE_CREDIT = b"\x51"
 P_EVM_LOG = b"\x52"
 P_EVM_LOG_TX = b"\x53"
 P_NFT_TOKEN = b"\x54"
+P_NFT_OFFER = b"\x55"
+P_NFT_AUCTION = b"\x56"
+P_NFT_SALE = b"\x57"
 
 
 def pack_u32(value: int) -> bytes:
@@ -162,6 +165,33 @@ def key_nft_token(token_id: str) -> bytes:
 
 def prefix_nft_tokens() -> bytes:
     return P_NFT_TOKEN
+
+
+def key_nft_offer(offer_id: str) -> bytes:
+    oid = (offer_id or "").strip().encode("utf-8")
+    return P_NFT_OFFER + pack_u32(len(oid)) + oid
+
+
+def prefix_nft_offers() -> bytes:
+    return P_NFT_OFFER
+
+
+def key_nft_auction(auction_id: str) -> bytes:
+    aid = (auction_id or "").strip().encode("utf-8")
+    return P_NFT_AUCTION + pack_u32(len(aid)) + aid
+
+
+def prefix_nft_auctions() -> bytes:
+    return P_NFT_AUCTION
+
+
+def key_nft_sale(created_at: int, seq: int) -> bytes:
+    inv_ts = (1 << 64) - 1 - int(created_at)
+    return P_NFT_SALE + pack_u64(inv_ts) + pack_u64(int(seq))
+
+
+def prefix_nft_sales() -> bytes:
+    return P_NFT_SALE
 
 
 def normalize_address_key(address: str) -> str:

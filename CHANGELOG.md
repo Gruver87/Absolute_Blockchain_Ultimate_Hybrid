@@ -6,6 +6,19 @@
 
 ---
 
+## [1.2.21] — 2026-07-06
+
+### Added
+
+- RocksDB storage for `nft_offers`, `nft_auctions`, and `nft_sales` (hybrid prod) + aux migrations
+- Reorg invariant test: `StateRootAccumulator` / `compute_state_root` vs `live_state_root` meta
+
+### Fixed
+
+- `soak_monitor.ps1` — hashtable splat to `health_watch` (long soak no longer exits in 50ms); stricter pass criteria
+
+---
+
 ## [1.2.20] — 2026-07-06
 
 ### Added

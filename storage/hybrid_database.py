@@ -45,6 +45,9 @@ class HybridDatabase:
         self._migrate_aux_bridge_once()
         self._migrate_aux_evm_logs_once()
         self._migrate_aux_nft_tokens_once()
+        self._migrate_aux_nft_offers_once()
+        self._migrate_aux_nft_auctions_once()
+        self._migrate_aux_nft_sales_once()
 
     def _migrate_aux_evm_logs_once(self) -> None:
         if self._core.get_meta("aux_evm_logs_migrated_v1"):
@@ -119,6 +122,114 @@ class HybridDatabase:
             self._core.set_meta("aux_nft_tokens_migrated_v1", True)
         if migrated:
             print(f"[HybridDatabase] migrated {migrated} nft_tokens from aux.db to Rocks")
+
+    def _migrate_aux_nft_offers_once(self) -> None:
+        if self._core.get_meta("aux_nft_offers_migrated_v1"):
+            return
+        try:
+            rows = self._aux.conn.execute("SELECT * FROM nft_offers ORDER BY created_at").fetchall()
+        except Exception:
+            self._core.set_meta("aux_nft_offers_migrated_v1", True)
+            return
+        migrated = 0
+        with self._core.atomic():
+            for row in rows:
+                item = dict(row)
+                oid = str(item.get("offer_id", "") or "")
+                if not oid or self._core._raw_get(kc.key_nft_offer(oid)):
+                    continue
+                try:
+                    payload = json.loads(item.get("payload") or "{}")
+                except Exception:
+                    payload = {}
+                offer = {
+                    "offer_id": oid,
+                    "token_id": item.get("token_id", ""),
+                    "bidder": item.get("bidder", ""),
+                    "price": item.get("price", 0),
+                    "expires_at": item.get("expires_at", 0),
+                    "status": item.get("status", "pending"),
+                    "created_at": item.get("created_at", 0),
+                    **payload,
+                }
+                self._core.save_nft_offer(offer)
+                migrated += 1
+            self._core.set_meta("aux_nft_offers_migrated_v1", True)
+        if migrated:
+            print(f"[HybridDatabase] migrated {migrated} nft_offers from aux.db to Rocks")
+
+    def _migrate_aux_nft_auctions_once(self) -> None:
+        if self._core.get_meta("aux_nft_auctions_migrated_v1"):
+            return
+        try:
+            rows = self._aux.conn.execute("SELECT * FROM nft_auctions ORDER BY created_at").fetchall()
+        except Exception:
+            self._core.set_meta("aux_nft_auctions_migrated_v1", True)
+            return
+        migrated = 0
+        with self._core.atomic():
+            for row in rows:
+                item = dict(row)
+                aid = str(item.get("auction_id", "") or "")
+                if not aid or self._core._raw_get(kc.key_nft_auction(aid)):
+                    continue
+                try:
+                    payload = json.loads(item.get("payload") or "{}")
+                except Exception:
+                    payload = {}
+                auction = {
+                    "auction_id": aid,
+                    "token_id": item.get("token_id", ""),
+                    "seller": item.get("seller", ""),
+                    "status": item.get("status", "active"),
+                    "ends_at": item.get("ends_at", 0),
+                    "created_at": item.get("created_at", 0),
+                    **payload,
+                }
+                self._core.save_nft_auction(auction)
+                migrated += 1
+            self._core.set_meta("aux_nft_auctions_migrated_v1", True)
+        if migrated:
+            print(f"[HybridDatabase] migrated {migrated} nft_auctions from aux.db to Rocks")
+
+    def _migrate_aux_nft_sales_once(self) -> None:
+        if self._core.get_meta("aux_nft_sales_migrated_v1"):
+            return
+        try:
+            rows = self._aux.conn.execute("SELECT * FROM nft_sales ORDER BY id").fetchall()
+        except Exception:
+            self._core.set_meta("aux_nft_sales_migrated_v1", True)
+            return
+        migrated = 0
+        max_id = 0
+        with self._core.atomic():
+            for row in rows:
+                item = dict(row)
+                sale_id = int(item.get("id", 0) or 0)
+                created_at = int(item.get("created_at", 0) or 0)
+                if sale_id <= 0:
+                    continue
+                key = kc.key_nft_sale(created_at, sale_id)
+                if self._core._raw_get(key):
+                    max_id = max(max_id, sale_id)
+                    continue
+                self._core.save_nft_sale({
+                    "id": sale_id,
+                    "token_id": item.get("token_id", ""),
+                    "from_addr": item.get("from_addr", ""),
+                    "to_addr": item.get("to_addr", ""),
+                    "price": item.get("price", 0),
+                    "sale_type": item.get("sale_type", "buy"),
+                    "created_at": created_at,
+                })
+                max_id = max(max_id, sale_id)
+                migrated += 1
+            if max_id > 0:
+                prev = int(self._core.get_meta("nft_sale_seq", 0) or 0)
+                self._core.set_meta("nft_sale_seq", max(max_id, prev))
+            self._core.set_meta("aux_nft_sales_migrated_v1", True)
+        if migrated:
+            print(f"[HybridDatabase] migrated {migrated} nft_sales from aux.db to Rocks")
 
     def _migrate_aux_bridge_once(self) -> None:
         if self._core.get_meta("aux_bridge_migrated_v1"):
@@ -418,6 +529,24 @@ class HybridDatabase:
 
     def get_nft_tokens(self) -> List[Dict]:
         return self._core.get_nft_tokens()
+
+    def save_nft_offer(self, offer: Dict) -> None:
+        self._core.save_nft_offer(offer)
+
+    def get_nft_offers(self) -> List[Dict]:
+        return self._core.get_nft_offers()
+
+    def save_nft_auction(self, auction: Dict) -> None:
+        self._core.save_nft_auction(auction)
+
+    def get_nft_auctions(self) -> List[Dict]:
+        return self._core.get_nft_auctions()
+
+    def save_nft_sale(self, sale: Dict) -> None:
+        self._core.save_nft_sale(sale)
+
+    def get_nft_sales(self, limit: int = 100) -> List[Dict]:
+        return self._core.get_nft_sales(limit=limit)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._aux, name)

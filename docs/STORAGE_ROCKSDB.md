@@ -125,12 +125,13 @@ Then set `DB_ENGINE=rocksdb` / `"db_engine": "rocksdb"` in config.
 - [x] Benchmark script `scripts/bench_storage_commit.py` (run locally; numbers vary by disk)
 - [x] Migrate **evm_logs** into Rocks keys (`P_EVM_LOG` / `P_EVM_LOG_TX`)
 - [x] Migrate **nft_tokens** into Rocks (`P_NFT_TOKEN`)
-- [ ] Migrate optional aux tables into Rocks CF (nft offers/auctions, …)
+- [x] Migrate **nft_offers** / **nft_auctions** / **nft_sales** into Rocks
+- [ ] Migrate remaining aux tables (tx propagation events, …)
 
 ### P2 — Rust storage depth
 
 - [ ] More hot-path encoding in Rust (batch account scan)
-- [ ] Tighter `StateRootAccumulator` ↔ `persist_block_atomic` invariant tests on reorg
+- [x] Tighter `StateRootAccumulator` ↔ `persist_block_atomic` invariant tests on reorg (`test_rocks_reorg_meta.py`)
 - [ ] Optional: column families split (blocks / state / index)
 
 ### P3 — Not now
@@ -145,7 +146,7 @@ Then set `DB_ENGINE=rocksdb` / `"db_engine": "rocksdb"` in config.
 
 **In Rocks (hot path):** blocks, accounts, transactions, validators, meta, bridge locks/credits, receipts, proposer audit, state-root mismatch log.
 
-**Stays in SQLite aux (cold / dev modules):** NFT, lightning/plasma, wasm/ai agents, oracle feeds, mev/reorg diagnostics, tx propagation events, legacy minivm tables. **evm_logs** now persist in Rocks on prod hybrid (`save_evm_logs` → `RocksChainStore`).
+**Stays in SQLite aux (cold / dev modules):** lightning/plasma, wasm/ai agents, oracle feeds, mev/reorg diagnostics, tx propagation events, legacy minivm tables. **evm_logs** and full **NFT marketplace** (tokens, offers, auctions, sales) persist in Rocks on prod hybrid.
 
 Migration of aux rows into Rocks CF is **optional P1+** — not a mainnet blocker while prod gate keeps `db_engine=rocksdb` on the Rocks core.
 
