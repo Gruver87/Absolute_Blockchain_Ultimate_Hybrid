@@ -6,6 +6,19 @@
 
 ---
 
+## [1.2.22] — 2026-07-06
+
+### Added
+
+- `RocksEngine.state_root_from_account_prefix` — native Rocks scan + state root without Python blob round-trip
+- Shared `compute_state_root_from_account_blobs` in Rust `state_trie`
+
+### Changed
+
+- `RocksChainStore.compute_state_root` uses native prefix scan when accumulator is cold
+
+---
+
 ## [1.2.21] — 2026-07-06
 
 ### Added

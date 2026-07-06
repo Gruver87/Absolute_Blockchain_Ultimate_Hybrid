@@ -1456,30 +1456,9 @@ fn state_root_from_accounts_json(accounts_json: String) -> PyResult<String> {
     Ok(hash_string(&encoded))
 }
 
-fn state_root_from_account_values(accounts: &mut [Value]) -> PyResult<String> {
-    accounts.sort_by(|a, b| {
-        let aa = value_to_string(a.get("address"), "");
-        let bb = value_to_string(b.get("address"), "");
-        aa.cmp(&bb)
-    });
-    let mut payload = Vec::with_capacity(accounts.len());
-    for account in accounts.iter() {
-        payload.push(account_payload_row(account)?);
-    }
-    let encoded = serde_json::to_string(&payload)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
-    Ok(hash_string(&encoded))
-}
-
 #[pyfunction]
 fn state_root_from_account_blobs(blobs: Vec<Vec<u8>>) -> PyResult<String> {
-    let mut accounts = Vec::with_capacity(blobs.len());
-    for blob in blobs {
-        let account: Value = serde_json::from_slice(&blob)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
-        accounts.push(account);
-    }
-    state_root_from_account_values(&mut accounts)
+    state_trie::compute_state_root_from_account_blobs(blobs)
 }
 
 #[pyfunction]

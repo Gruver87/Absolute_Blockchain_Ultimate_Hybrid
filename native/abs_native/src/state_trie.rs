@@ -57,10 +57,36 @@ impl StateRootAccumulator {
 
     fn root(&self) -> PyResult<String> {
         let payload: Vec<&Value> = self.rows.values().collect();
-        let encoded = serde_json::to_string(&payload)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
-        Ok(hash_string(&encoded))
+        encode_state_root_payload(&payload)
     }
+}
+
+pub fn compute_state_root_from_account_blobs<I, B>(blobs: I) -> PyResult<String>
+where
+    I: IntoIterator<Item = B>,
+    B: AsRef<[u8]>,
+{
+    let mut rows = BTreeMap::new();
+    for blob in blobs {
+        let account: Value = serde_json::from_slice(blob.as_ref())
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        let row = account_payload_row(&account)?;
+        let addr = value_to_string(row.get("a"), "");
+        if addr.is_empty() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "account row missing address",
+            ));
+        }
+        rows.insert(addr, row);
+    }
+    let payload: Vec<&Value> = rows.values().collect();
+    encode_state_root_payload(&payload)
+}
+
+fn encode_state_root_payload(payload: &[&Value]) -> PyResult<String> {
+    let encoded = serde_json::to_string(payload)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    Ok(hash_string(&encoded))
 }
 
 impl StateRootAccumulator {

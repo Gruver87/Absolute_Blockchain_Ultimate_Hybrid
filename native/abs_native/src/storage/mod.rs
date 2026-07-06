@@ -189,6 +189,20 @@ impl RocksEngine {
         }
         Ok(dict.unbind())
     }
+
+    #[pyo3(signature = (prefix, limit=100_000))]
+    fn state_root_from_account_prefix(&self, prefix: &[u8], limit: usize) -> PyResult<String> {
+        let iter = self.db.iterator(IteratorMode::From(prefix, Direction::Forward));
+        let mut values = Vec::new();
+        for item in iter.take(limit) {
+            let (key, value) = item.map_err(map_db_err)?;
+            if !key.starts_with(prefix) {
+                break;
+            }
+            values.push(value);
+        }
+        crate::state_trie::compute_state_root_from_account_blobs(values)
+    }
 }
 
 fn map_db_err(err: rocksdb::Error) -> PyErr {

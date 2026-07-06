@@ -130,7 +130,7 @@ Then set `DB_ENGINE=rocksdb` / `"db_engine": "rocksdb"` in config.
 
 ### P2 — Rust storage depth
 
-- [ ] More hot-path encoding in Rust (batch account scan)
+- [x] More hot-path encoding in Rust (batch account scan via `RocksEngine.state_root_from_account_prefix`)
 - [x] Tighter `StateRootAccumulator` ↔ `persist_block_atomic` invariant tests on reorg (`test_rocks_reorg_meta.py`)
 - [ ] Optional: column families split (blocks / state / index)
 

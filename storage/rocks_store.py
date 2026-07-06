@@ -422,6 +422,11 @@ class RocksChainStore:
         acc = self._ensure_root_acc()
         if acc is not None:
             return acc.root()
+        if hasattr(self._engine, "state_root_from_account_prefix"):
+            return self._engine.state_root_from_account_prefix(
+                kc.prefix_accounts(),
+                100_000,
+            )
         blobs = [value for _key, value in self._scan_prefix(kc.prefix_accounts())]
         return compute_state_root_from_blobs(blobs)
 
