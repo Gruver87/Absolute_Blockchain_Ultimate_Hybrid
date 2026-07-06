@@ -24,6 +24,18 @@ P_TX_TO = b"\x07"
 P_TX_RECENT = b"\x08"
 P_BRIDGE_LOCK = b"\x50"
 P_BRIDGE_CREDIT = b"\x51"
+P_EVM_LOG = b"\x52"
+P_EVM_LOG_TX = b"\x53"
+
+
+def pack_u32(value: int) -> bytes:
+    return struct.pack(">I", int(value) & 0xFFFFFFFF)
+
+
+def unpack_u32(data: bytes) -> int:
+    if len(data) != 4:
+        raise ValueError("invalid u32 key segment")
+    return struct.unpack(">I", data)[0]
 
 
 def pack_u64(value: int) -> bytes:
@@ -119,6 +131,27 @@ def prefix_bridge_locks() -> bytes:
 
 def prefix_bridge_credits() -> bytes:
     return P_BRIDGE_CREDIT
+
+
+def key_evm_log(block_height: int, tx_hash: str, log_index: int) -> bytes:
+    return (
+        P_EVM_LOG
+        + pack_u64(int(block_height))
+        + _tx_hash_body(tx_hash)
+        + pack_u32(int(log_index))
+    )
+
+
+def key_evm_log_tx(tx_hash: str, log_index: int) -> bytes:
+    return P_EVM_LOG_TX + _tx_hash_body(tx_hash) + pack_u32(int(log_index))
+
+
+def prefix_evm_logs() -> bytes:
+    return P_EVM_LOG
+
+
+def prefix_evm_logs_tx(tx_hash: str) -> bytes:
+    return P_EVM_LOG_TX + _tx_hash_body(tx_hash)
 
 
 def normalize_address_key(address: str) -> str:

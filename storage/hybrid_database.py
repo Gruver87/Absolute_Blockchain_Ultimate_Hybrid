@@ -43,6 +43,56 @@ class HybridDatabase:
     def initialize(self) -> None:
         self._core.initialize()
         self._migrate_aux_bridge_once()
+        self._migrate_aux_evm_logs_once()
+
+    def _migrate_aux_evm_logs_once(self) -> None:
+        if self._core.get_meta("aux_evm_logs_migrated_v1"):
+            return
+        if not hasattr(self._aux, "conn"):
+            return
+        try:
+            rows = self._aux.conn.execute("SELECT * FROM evm_logs ORDER BY id ASC").fetchall()
+        except Exception:
+            self._core.set_meta("aux_evm_logs_migrated_v1", True)
+            return
+        if not rows:
+            self._core.set_meta("aux_evm_logs_migrated_v1", True)
+            return
+        migrated = 0
+        with self._core.atomic():
+            for row in rows:
+                item = dict(row)
+                topics_raw = item.get("topics") or "[]"
+                try:
+                    topics = json.loads(topics_raw) if isinstance(topics_raw, str) else topics_raw
+                except Exception:
+                    topics = []
+                if not isinstance(topics, list):
+                    topics = []
+                block_height = int(item.get("block_height", 0) or 0)
+                tx_hash = str(item.get("tx_hash") or "")
+                log_index = int(item.get("log_index", 0) or 0)
+                key = kc.key_evm_log(block_height, tx_hash, log_index)
+                if self._core._raw_get(key):
+                    continue
+                payload = json.dumps(
+                    {
+                        "contract_address": item.get("contract_address", ""),
+                        "block_height": block_height,
+                        "tx_hash": tx_hash,
+                        "log_index": log_index,
+                        "topics": topics,
+                        "data": str(item.get("data", "")),
+                        "timestamp": int(item.get("timestamp", 0) or 0),
+                    },
+                    ensure_ascii=False,
+                ).encode("utf-8")
+                self._core._raw_put(key, payload)
+                self._core._raw_put(kc.key_evm_log_tx(tx_hash, log_index), payload)
+                migrated += 1
+            self._core.set_meta("aux_evm_logs_migrated_v1", True)
+        if migrated:
+            print(f"[HybridDatabase] migrated {migrated} evm_logs from aux.db to Rocks")
 
     def _migrate_aux_bridge_once(self) -> None:
         if self._core.get_meta("aux_bridge_migrated_v1"):
@@ -302,6 +352,40 @@ class HybridDatabase:
         self, l1_tx_hash: str, recipient: str, amount: float, from_chain: str
     ) -> str:
         return self._core.save_bridge_credit(l1_tx_hash, recipient, amount, from_chain)
+
+    def save_evm_logs(
+        self,
+        contract_address: str,
+        logs: List[Dict],
+        block_height: int = 0,
+        tx_hash: str = "",
+        timestamp: int = 0,
+    ) -> int:
+        return self._core.save_evm_logs(
+            contract_address, logs, block_height=block_height, tx_hash=tx_hash, timestamp=timestamp
+        )
+
+    def get_evm_logs(self, contract_address: str = "", limit: int = 100) -> List[Dict]:
+        return self._core.get_evm_logs(contract_address=contract_address, limit=limit)
+
+    def get_evm_logs_by_tx(self, tx_hash: str) -> List[Dict]:
+        return self._core.get_evm_logs_by_tx(tx_hash)
+
+    def query_evm_logs(
+        self,
+        from_block: int = 0,
+        to_block: Optional[int] = None,
+        addresses: Optional[List[str]] = None,
+        topics: Optional[List] = None,
+        limit: int = 10_000,
+    ) -> List[Dict]:
+        return self._core.query_evm_logs(
+            from_block=from_block,
+            to_block=to_block,
+            addresses=addresses,
+            topics=topics,
+            limit=limit,
+        )
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._aux, name)

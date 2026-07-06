@@ -162,3 +162,4 @@ while ($true) {
     }
     Start-Sleep -Seconds $sleepFor
 }
+exit 0

@@ -169,6 +169,7 @@ jobs:
           tests/unit/test_evm_prod_handoff.py \
           tests/unit/test_sync_incremental.py \
           tests/unit/test_rocks_store.py \
+          tests/unit/test_rocks_evm_logs.py \
           tests/unit/test_rocks_blockchain_integration.py \
           tests/unit/test_chain_backup.py \
           -q

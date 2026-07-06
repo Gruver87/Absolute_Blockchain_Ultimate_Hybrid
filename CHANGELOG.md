@@ -6,6 +6,21 @@
 
 ---
 
+## [1.2.18] — 2026-07-06
+
+### Added
+
+- `prod_mesh_failover.ps1`, `prod_signed_tx_smoke.py`, `prod_mesh_industrial.ps1`
+- `verify_p2p_ci --mode prod-mesh3-recovery`
+- RocksDB `evm_logs` persistence + hybrid aux migration
+
+### Fixed
+
+- Mesh recovery drill: peer-count fallback when topology is `under_mesh`
+- PowerShell exit codes for health_watch / industrial gate
+
+---
+
 ## [1.2.17] — 2026-07-06
 
 ### Added

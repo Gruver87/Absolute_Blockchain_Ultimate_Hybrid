@@ -123,7 +123,8 @@ Then set `DB_ENGINE=rocksdb` / `"db_engine": "rocksdb"` in config.
 - [x] Document permanent aux scope (see below)
 - [x] Rocks tuning env vars + LSM property introspection in `get_stats()`
 - [x] Benchmark script `scripts/bench_storage_commit.py` (run locally; numbers vary by disk)
-- [ ] Migrate optional aux tables into Rocks CF (NFT, evm_logs, …)
+- [x] Migrate **evm_logs** into Rocks keys (`P_EVM_LOG` / `P_EVM_LOG_TX`)
+- [ ] Migrate optional aux tables into Rocks CF (NFT, …)
 
 ### P2 — Rust storage depth
 
@@ -143,7 +144,7 @@ Then set `DB_ENGINE=rocksdb` / `"db_engine": "rocksdb"` in config.
 
 **In Rocks (hot path):** blocks, accounts, transactions, validators, meta, bridge locks/credits, receipts, proposer audit, state-root mismatch log.
 
-**Stays in SQLite aux (cold / dev modules):** NFT, EVM logs, lightning/plasma, wasm/ai agents, oracle feeds, mev/reorg diagnostics, tx propagation events, legacy minivm tables. These are accessed via `HybridDatabase.__getattr__` → `_aux` and are **not required** for prod mainnet-v1 consensus or bridge L1 cutover.
+**Stays in SQLite aux (cold / dev modules):** NFT, lightning/plasma, wasm/ai agents, oracle feeds, mev/reorg diagnostics, tx propagation events, legacy minivm tables. **evm_logs** now persist in Rocks on prod hybrid (`save_evm_logs` → `RocksChainStore`).
 
 Migration of aux rows into Rocks CF is **optional P1+** — not a mainnet blocker while prod gate keeps `db_engine=rocksdb` on the Rocks core.
 

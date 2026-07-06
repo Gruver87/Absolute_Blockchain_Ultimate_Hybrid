@@ -533,8 +533,16 @@ def _roots_match(roots: list[str]) -> bool:
     return bool(roots and roots[0] and all(root == roots[0] for root in roots))
 
 
-def _docker_compose_3node(*args: str, timeout: int = 90) -> bool:
-    cmd = ["docker", "compose", "-f", "docker-compose.devnet-3node.yml", *args]
+def _docker_compose(
+    compose_file: str,
+    *args: str,
+    project: str = "",
+    timeout: int = 90,
+) -> bool:
+    cmd = ["docker", "compose"]
+    if project:
+        cmd.extend(["-p", project])
+    cmd.extend(["-f", compose_file, *args])
     try:
         proc = subprocess.run(
             cmd,
@@ -555,13 +563,35 @@ def _docker_compose_3node(*args: str, timeout: int = 90) -> bool:
     return True
 
 
-def verify_devnet3_recovery(
+def _docker_compose_3node(*args: str, timeout: int = 90) -> bool:
+    return _docker_compose("docker-compose.devnet-3node.yml", *args, timeout=timeout)
+
+
+PROD_MESH_COMPOSE_FILE = "docker-compose.prod.3node.yml"
+PROD_MESH_COMPOSE_PROJECT = "abs-prod-mesh3"
+
+
+def _docker_compose_prod_mesh3(*args: str, timeout: int = 120) -> bool:
+    return _docker_compose(
+        PROD_MESH_COMPOSE_FILE,
+        *args,
+        project=PROD_MESH_COMPOSE_PROJECT,
+        timeout=timeout,
+    )
+
+
+def verify_mesh3_recovery(
     url1: str,
     url2: str,
     url3: str,
+    *,
     wait_sync_sec: int = 300,
+    compose_fn=None,
+    label: str = "mesh3",
 ) -> int:
-    """Wave 62: live Docker node restart/rejoin with persistent unified state."""
+    """Live 3-node recovery: stop node2, verify node1/3, restart node2, rejoin."""
+    if compose_fn is None:
+        compose_fn = _docker_compose_3node
     urls = [url1, url2, url3]
     for i, url in enumerate(urls, start=1):
         if not _probe_health(url, timeout=5):
@@ -571,8 +601,11 @@ def verify_devnet3_recovery(
     print("RECOVERY: stabilizing initial 3-node mesh")
     _restore_p2p_mesh(urls, expected_peers=2)
     if not _wait_topology_healthy(url1, expected_peers=2, timeout=90):
-        print("FAIL: initial topology not healthy before recovery drill")
-        return 30
+        if not _wait_peer_counts(
+            urls, leader_url=url1, leader_min_peers=2, follower_min_peers=1, timeout=60
+        ):
+            print("FAIL: initial topology not healthy before recovery drill")
+            return 30
 
     try:
         before_statuses, before_roots = _read_cluster_state(urls)
@@ -590,8 +623,8 @@ def verify_devnet3_recovery(
         f"root={before_roots[0][:16]}..."
     )
 
-    print("RECOVERY: stopping node2 container")
-    if not _docker_compose_3node("stop", "node2", timeout=120):
+    print(f"RECOVERY: stopping node2 container ({label})")
+    if not compose_fn("stop", "node2", timeout=120):
         return 33
 
     try:
@@ -624,8 +657,8 @@ def verify_devnet3_recovery(
             print("FAIL: node1/node3 did not remain consistent while node2 was down")
             return 35
 
-        print("RECOVERY: starting node2 container")
-        if not _docker_compose_3node("start", "node2", timeout=120):
+        print(f"RECOVERY: starting node2 container ({label})")
+        if not compose_fn("start", "node2", timeout=120):
             return 36
         if not _wait_health(url2, max_sec=180):
             print("FAIL: node2 did not become healthy after restart")
@@ -659,7 +692,7 @@ def verify_devnet3_recovery(
                     and bool(topo.get("topology_healthy"))
                 ):
                     print(
-                        "OK: devnet3 recovery "
+                        f"OK: {label} recovery "
                         f"heights={' / '.join(str(h) for h in heights)} "
                         f"root={final_roots[0][:16]}... "
                         f"peer_count={topo.get('peer_count')} topology_healthy={topo.get('topology_healthy')}"
@@ -680,10 +713,76 @@ def verify_devnet3_recovery(
         return 38
     finally:
         if not _probe_health(url2, timeout=5):
-            print("RECOVERY: cleanup start node2")
-            _docker_compose_3node("start", "node2", timeout=120)
+            print(f"RECOVERY: cleanup start node2 ({label})")
+            compose_fn("start", "node2", timeout=120)
             _wait_health(url2, max_sec=120)
         _restore_p2p_mesh(urls, expected_peers=2)
+
+
+def verify_devnet3_recovery(
+    url1: str,
+    url2: str,
+    url3: str,
+    wait_sync_sec: int = 300,
+) -> int:
+    """Wave 62: devnet Docker node restart/rejoin."""
+    return verify_mesh3_recovery(
+        url1,
+        url2,
+        url3,
+        wait_sync_sec=wait_sync_sec,
+        compose_fn=_docker_compose_3node,
+        label="devnet3",
+    )
+
+
+def verify_prod_mesh3_recovery(
+    url1: str,
+    url2: str,
+    url3: str,
+    wait_sync_sec: int = 360,
+) -> int:
+    """Prod Docker mesh: stop/start node2 with abs-prod-mesh3 compose project."""
+    return verify_mesh3_recovery(
+        url1,
+        url2,
+        url3,
+        wait_sync_sec=wait_sync_sec,
+        compose_fn=_docker_compose_prod_mesh3,
+        label="prod-mesh3",
+    )
+
+
+def _wait_peer_counts(
+    urls: list[str],
+    *,
+    leader_url: str,
+    leader_min_peers: int = 2,
+    follower_min_peers: int = 1,
+    timeout: int = 90,
+) -> bool:
+    """Fallback when /p2p/topology reports under_mesh but peer counts are OK."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            leader_n = int(_api(f"{leader_url}/peers", timeout=8).get("count", 0) or 0)
+            followers_ok = True
+            for url in urls:
+                if url == leader_url:
+                    continue
+                if int(_api(f"{url}/peers", timeout=8).get("count", 0) or 0) < follower_min_peers:
+                    followers_ok = False
+                    break
+            if leader_n >= leader_min_peers and followers_ok:
+                return True
+        except Exception:
+            pass
+        try:
+            _post_json(leader_url, "/p2p/reconnect", {"timeout": 15}, timeout=20)
+        except Exception:
+            pass
+        time.sleep(3)
+    return False
 
 
 def _wait_topology_healthy(url: str, expected_peers: int, timeout: int = 45) -> bool:
@@ -2663,6 +2762,7 @@ def main() -> int:
             "prod-smoke",
             "prod-mesh3",
             "prod-mesh3-live",
+            "prod-mesh3-recovery",
         ),
         default="auto",
         help="auto; devnet/devnet3/devnet5; ci/ci3",
@@ -2743,6 +2843,15 @@ def main() -> int:
         if rc != 0:
             return rc
         return verify_prod_post_checks(args.url1, args.url2, args.url3)
+
+    if mode == "prod-mesh3-recovery":
+        print(
+            f"Prod-mesh3-recovery: {args.url1} {args.url2} {args.url3} "
+            f"(compose={PROD_MESH_COMPOSE_PROJECT})"
+        )
+        return verify_prod_mesh3_recovery(
+            args.url1, args.url2, args.url3, wait_sync_sec=args.wait
+        )
 
     if mode == "ci-fork":
         return run_ci_fork_spawn()

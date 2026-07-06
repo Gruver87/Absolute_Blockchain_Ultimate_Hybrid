@@ -1104,6 +1104,94 @@ class RocksChainStore:
         events = self.get_meta("slash_events", []) or []
         return list(events)[-int(limit) :]
 
+    def _decode_evm_log_row(self, raw: bytes) -> Dict:
+        row = json.loads(raw.decode("utf-8"))
+        topics = row.get("topics", [])
+        if isinstance(topics, str):
+            try:
+                topics = json.loads(topics)
+            except Exception:
+                topics = []
+        row["topics"] = topics
+        return row
+
+    def save_evm_logs(
+        self,
+        contract_address: str,
+        logs: List[Dict],
+        block_height: int = 0,
+        tx_hash: str = "",
+        timestamp: int = 0,
+    ) -> int:
+        if not logs:
+            return 0
+        ts = int(timestamp or time.time())
+        saved = 0
+        with self.atomic():
+            for i, entry in enumerate(logs):
+                topics = entry.get("topics", [])
+                if not isinstance(topics, list):
+                    topics = []
+                row = {
+                    "contract_address": contract_address,
+                    "block_height": int(block_height),
+                    "tx_hash": tx_hash or "",
+                    "log_index": int(i),
+                    "topics": topics,
+                    "data": str(entry.get("data", "")),
+                    "timestamp": ts,
+                }
+                payload = json.dumps(row, ensure_ascii=False).encode("utf-8")
+                self._raw_put(kc.key_evm_log(block_height, tx_hash, i), payload)
+                self._raw_put(kc.key_evm_log_tx(tx_hash, i), payload)
+                saved += 1
+        return saved
+
+    def get_evm_logs(self, contract_address: str = "", limit: int = 100) -> List[Dict]:
+        return self.query_evm_logs(
+            addresses=[contract_address] if contract_address else None,
+            limit=limit,
+        )
+
+    def get_evm_logs_by_tx(self, tx_hash: str) -> List[Dict]:
+        if not tx_hash:
+            return []
+        rows = self._scan_prefix(kc.prefix_evm_logs_tx(tx_hash), limit=10_000)
+        logs = [self._decode_evm_log_row(val) for _, val in rows]
+        logs.sort(key=lambda r: (int(r.get("log_index", 0) or 0), int(r.get("block_height", 0) or 0)))
+        return logs
+
+    def query_evm_logs(
+        self,
+        from_block: int = 0,
+        to_block: Optional[int] = None,
+        addresses: Optional[List[str]] = None,
+        topics: Optional[List] = None,
+        limit: int = 10_000,
+    ) -> List[Dict]:
+        to_block = 2**63 - 1 if to_block is None else int(to_block)
+        from_block = max(0, int(from_block))
+        limit = max(1, min(int(limit), 10_000))
+        addr_set = None
+        if addresses:
+            addr_set = {kc.normalize_address_key(a) for a in addresses if a}
+        rows = self._scan_prefix(kc.prefix_evm_logs(), limit=50_000)
+        out: List[Dict] = []
+        for _, val in rows:
+            row = self._decode_evm_log_row(val)
+            bh = int(row.get("block_height", 0) or 0)
+            if bh < from_block or bh > to_block:
+                continue
+            if addr_set and kc.normalize_address_key(row.get("contract_address", "")) not in addr_set:
+                continue
+            if topics and not SqliteDatabase._evm_log_topics_match(row.get("topics") or [], topics):
+                continue
+            out.append(row)
+            if len(out) >= limit:
+                break
+        out.sort(key=lambda r: (int(r.get("block_height", 0) or 0), int(r.get("log_index", 0) or 0)))
+        return out
+
     def get_chain_metrics(self, window: int = 32) -> Dict:
         tip = self.get_chain_tip()
         tx_rows = self._iter_transaction_rows()
