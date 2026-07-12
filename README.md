@@ -9,7 +9,7 @@
 [![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
 [![Local gate](https://img.shields.io/badge/local%20gate-check__hybrid__full-lightgrey)](scripts/check_hybrid_full.ps1)
-[![Release](https://img.shields.io/badge/Release-v1.2.41-blue)](RELEASE_NOTES_v1.2.41.md)
+[![Release](https://img.shields.io/badge/Release-v1.2.42-blue)](RELEASE_NOTES_v1.2.42.md)
 
 **Repo:** [github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · **Branch:** `master`
 
@@ -18,7 +18,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | `1.2.0-industrial` (release **v1.2.41** prod mesh fork heal + evidence) |
+| **Version** | `1.2.0-industrial` (release **v1.2.42** L2 advanced modules + **v1.2.41** prod mesh evidence) |
 | **Author** | **ULADZIMIR DABRANSKI** |
 | **API Wave** | 61; check GET /status fields: `api_wave`, `core_real`, `p2p_sync_status` |
 | **Entry point** | `python main.py` |
@@ -33,7 +33,7 @@
 | Changelog | [CHANGELOG.md](CHANGELOG.md) |
 | Architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Public testnet (plan) | [docs/PUBLIC_TESTNET.md](docs/PUBLIC_TESTNET.md) |
-| Release notes | [v1.2.41](RELEASE_NOTES_v1.2.41.md) · [v1.2.28](RELEASE_NOTES_v1.2.28.md) · [Evidence matrix](docs/EVIDENCE_MATRIX.md) |
+| Release notes | [v1.2.42](RELEASE_NOTES_v1.2.42.md) · [v1.2.41](RELEASE_NOTES_v1.2.41.md) · [v1.2.28](RELEASE_NOTES_v1.2.28.md) · [Evidence matrix](docs/EVIDENCE_MATRIX.md) |
 | Mainnet gap (honest) | [docs/MAINNET_GAP_ANALYSIS.md](docs/MAINNET_GAP_ANALYSIS.md) |
 | Bridge L1 cutover | [docs/BRIDGE_L1_MAINNET.md](docs/BRIDGE_L1_MAINNET.md) |
 | Docker images (GHCR) | [docs/DOCKER_IMAGES.md](docs/DOCKER_IMAGES.md) |
@@ -74,11 +74,12 @@
 | **JSON-RPC** | 🟢 | eth_* subset on port 8545, API-key protection in prod |
 | **Tokenomics model** | 🟢 | 221M ABS cap, founder D.U.P. 17.4% — enforced in code |
 | **Rust native crypto** | 🟢 Hybrid path | PyO3 `abs_native`: SHA-256, Merkle, state_root, secp256k1, header/tx/block hash, P2P import validation, Keccak-256 |
-| **EVM / L2 / Bridge** | 🟡 Mixed | **Live prod RPC deploy (mempool) proven** Jul 12; bridge OFF on prod mesh by design |
+| **EVM / Bridge** | 🟡 Mixed | **Live prod RPC deploy (mempool) proven** Jul 12; bridge OFF on prod mesh by design |
+| **L2 advanced (Lightning / Plasma / WASM / Oracles / ZK)** | 🟡 Working R&D | HTLC + Merkle proofs + wasmtime ABI + oracle quorum + ZK balance proofs — **unit-tested**, SQLite persisted; **not** full mainnet Lightning/Plasma |
 | **Failover / soak** | 🟡 Partial | **Failover + 7h soak proven**; **24–48h soak** in progress — see [EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) |
 | **Production mainnet** | 🔴 Not launched | External audit, validator ops, L1 bridge cutover; prod profile is **preparation**, not live mainnet |
 
-**Quality gate (Jul 2026):** CI badges above · local **`.\scripts\check_hybrid_full.ps1`** → native crypto + bridge smoke + pytest · **`703` tests** in suite (`pytest tests/ --collect-only`)
+**Quality gate (Jul 2026):** CI badges above · local **`.\scripts\check_hybrid_full.ps1`** → native crypto + bridge smoke + pytest · **`746` tests** in suite (`pytest tests/ --collect-only`)
 
 ---
 
@@ -151,8 +152,9 @@ Do **not** mix local `python main.py` with Docker on the same host ports (`:8080
 | Unit + integration tests | ✅ | `pytest tests/ -q` |
 | Cross-chain bridge | 🟡 Cutover | **Dev:** rust path on node1. **Prod (778888):** `bridge_enabled=false` until L1 contracts; enable via `docker_prod.ps1 -Bridge` |
 | NFT marketplace | ✅ Dev module | Persisted in SQLite |
-| Lightning / Plasma / WASM / Will | ✅ Dev module | Available through L2 status endpoint; prod-blocked where unsafe |
-| Oracles (prices + weather) | ✅ Dev module | Price/weather feeds; external keys stay in .env |
+| Lightning / Plasma / WASM / Will | 🟡 Working R&D | HTLC routing, Plasma Merkle proofs, wasmtime token/WASM ABI, CryptoWill — persisted in SQLite; prod-blocked where unsafe |
+| Oracles (prices + quorum) | 🟡 Working R&D | Live feeds + reporter quorum median (`/oracles/reports/submit`, `/oracles/aggregate`); not decentralized oracle network |
+| ZK proofs | 🟡 R&D module | Schnorr knowledge, range, balance ≥ amount — Fiat–Shamir; not audited snarks |
 | Post-quantum crypto modules | ✅ R&D module | SPHINCS+, Kyber, Dilithium; private-key helper endpoints blocked in prod |
 
 ---
@@ -424,6 +426,11 @@ Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Honest feature list: [d
 | GET | `/address/{addr}/activity` | balance, blocks_proposed, tx counts |
 | GET | `/chain/proposer/{addr}` | proposer audit detail |
 | GET | `/l2/status` | Lightning, Plasma, NFT, WASM… |
+| POST | `/lightning/htlc/add` | HTLC lock on channel |
+| POST | `/lightning/route` | Multi-hop HTLC payment |
+| GET | `/plasma/proof` | Merkle inclusion proof (`block_id`, `tx_hash`) |
+| POST | `/oracles/aggregate` | Median quorum from reporter submissions |
+| GET | `/zk/info` | ZK module capabilities (R&D tier) |
 | GET | `/features` | modules + persisted flags |
 | GET | `/tokenomics` | supply model |
 | POST | `/bridge/dev-confirm-pending` | dev only |
@@ -466,4 +473,4 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 
 ---
 
-*Last update: July 2026 — **v1.2.41**: prod mesh fork heal, post-forge mining hold, JWT stabilize sync, live evidence suite PASS; see [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md).*
+*Last update: July 2026 — **v1.2.42**: working L2 modules (Lightning HTLC, Plasma Merkle, WASM, Oracle quorum, ZK); **v1.2.41**: prod mesh fork heal + live evidence PASS; see [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md).*
