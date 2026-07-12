@@ -74,6 +74,7 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | `SKIP: tx propagation (auto_sign disabled in prod)` | **Expected** on default prod mesh smoke — not a failure, but **not** proof of signed tx propagation |
 | `SKIP: multi-node proof (testnet endpoints blocked in prod)` | Prod profile blocks dev testnet RPC helpers — use prod-signed smoke instead |
 | `OK: soak passed` in &lt;1 second | **Bug / false positive** (fixed v1.2.21) — soak must run for `Hours × 3600` seconds |
+| Heights stuck, mempool not clearing | Mining gate blocked by lagging peer heights — run `mesh_recover.ps1 -RestartContainers` | 
 | `External audit: not completed` | Honest organizational gate — see `scripts/external_audit_tracker.ps1` |
 
 ---

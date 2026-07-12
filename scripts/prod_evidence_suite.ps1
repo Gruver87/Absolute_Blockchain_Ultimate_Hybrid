@@ -4,7 +4,7 @@ param(
     [switch]$SkipSignedTx,
     [switch]$SkipEvm,
     [switch]$RecordEvidence,
-    [string]$GitTag = "v1.2.39"
+    [string]$GitTag = "v1.2.40"
 )
 
 $ErrorActionPreference = "Stop"
@@ -51,6 +51,10 @@ function Step([string]$Name, [scriptblock]$Action) {
         if ($GitTag) { $tagArg = @("--git-tag", $GitTag) }
         python (Join-Path $ScriptDir "record_evidence_run.py") --name $Name --result PASS @tagArg 2>$null | Out-Null
     }
+}
+
+Step "mesh stabilize" {
+    & (Join-Path $ScriptDir "mesh_stabilize.ps1")
 }
 
 Step "mesh health" {
