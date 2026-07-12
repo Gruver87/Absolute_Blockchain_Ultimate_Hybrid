@@ -42,11 +42,33 @@ def _check_native_wheel() -> tuple[list[str], list[str]]:
     return errors, warnings
 
 
-def run_industrial_gate(*, prod_smoke_spawn: bool = False, min_soak_hours: float = 0) -> int:
+def run_industrial_gate(
+    *,
+    prod_smoke_spawn: bool = False,
+    min_soak_hours: float = 0,
+    ceremony_dir: str = "",
+    require_ceremony_pin: bool = False,
+) -> int:
     import importlib.util
 
     native_errors, native_warnings = _check_native_wheel()
     soak_errors: list[str] = []
+    ceremony_errors: list[str] = []
+    ceremony_warnings: list[str] = []
+
+    if ceremony_dir:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "ceremony_preflight", ROOT / "scripts" / "ceremony_preflight.py"
+        )
+        cp = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(cp)
+        ceremony_errors, ceremony_warnings, _meta = cp.run_ceremony_preflight(
+            ceremony_dir,
+            require_env_pin=require_ceremony_pin,
+        )
 
     if min_soak_hours > 0:
         soak_path = ROOT / "logs" / "soak_report.json"
@@ -78,7 +100,9 @@ def run_industrial_gate(*, prod_smoke_spawn: bool = False, min_soak_hours: float
     )
     errors.extend(soak_errors)
     errors.extend(native_errors)
+    errors.extend(ceremony_errors)
     warnings.extend(native_warnings)
+    warnings.extend(ceremony_warnings)
     report = {
         "ok": not errors,
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -150,11 +174,23 @@ def main() -> int:
         default=0,
         help="Require logs/soak_report.json with passed=true and hours_requested >= N (0=skip)",
     )
+    parser.add_argument(
+        "--ceremony-dir",
+        default="",
+        help="Run ceremony_preflight on this dir before static checks (empty=skip)",
+    )
+    parser.add_argument(
+        "--require-ceremony-pin",
+        action="store_true",
+        help="With --ceremony-dir, require GENESIS_CEREMONY_HASH to match",
+    )
     parser.add_argument("--json", action="store_true", help="Print report path only")
     args = parser.parse_args()
     rc = run_industrial_gate(
         prod_smoke_spawn=args.prod_smoke_spawn,
         min_soak_hours=args.min_soak_hours,
+        ceremony_dir=args.ceremony_dir,
+        require_ceremony_pin=args.require_ceremony_pin,
     )
     if args.json:
         print(str(ROOT / "data" / "industrial_gate.json"))

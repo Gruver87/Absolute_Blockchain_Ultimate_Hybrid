@@ -8,6 +8,9 @@ $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Pa
 Set-Location $ProjectRoot
 . "$ProjectRoot\scripts\ceremony_env.ps1"
 
+python scripts/ceremony_preflight.py --ceremony-dir $CeremonyDir
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 python scripts/deploy_ceremony_prod.py --ceremony-dir $CeremonyDir --validator-index $ValidatorIndex
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

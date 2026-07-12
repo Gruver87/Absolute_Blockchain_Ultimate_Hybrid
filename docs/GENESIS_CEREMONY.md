@@ -120,11 +120,14 @@ Fresh DB if upgrading from old non-deterministic genesis:
 ## Full launch checklist
 
 ```powershell
+python scripts/ceremony_preflight.py --ceremony-dir data/ceremony_keys --require-env-pin
 python scripts/mainnet_launch_checklist.py
 python scripts/mainnet_launch_checklist.py --strict-mainnet --ceremony-dir data/ceremony_keys
 .\scripts\mainnet_live_gate.ps1 -CeremonyDir data/ceremony_keys
 .\scripts\docker_prod.ps1 -CeremonyDir data/ceremony_keys
 ```
+
+Secret rotation (JWT / RPC / bridge oracle) is separate from ceremony — see [SECRET_ROTATION.md](SECRET_ROTATION.md).
 
 ---
 
