@@ -6,6 +6,33 @@
 
 ---
 
+---
+
+## [1.2.27] — 2026-07-12
+
+### Added
+
+- `RELEASE_NOTES_v1.2.27.md` — verification mermaid flows + copy-paste prod mesh checks
+
+### Fixed
+
+- **Prod mesh mining stall** — `mesh_ready_for_mining` no longer latches on stale P2P wire roots; STATUS height alignment fallback
+- **Event loop freeze** — hub P2P broadcast non-blocking; `blockchain.add_block` via `asyncio.to_thread` (EVM deploy no longer blocks mining)
+- **Parallel state-root RPC** — faster peer queries; sync engine skips mismatch while peer catching up
+- **EVM deploy txs** — `tx_validator` allows zero-value deploy; `prod_evm_smoke.py` mempool-only cross-node path (no direct deploy fallback)
+- **Prod JWT** — `verify_p2p_ci._mint_admin_jwt_from_secret()` for mesh when `/auth/token` disabled
+
+### Proven (local Docker mesh)
+
+- Cross-node EVM: mempool deploy + `eth_getStorageAt` on all 3 RPC nodes (Jul 12 evening run)
+- See `docs/EVIDENCE_MATRIX.md`
+
+### Tests
+
+- `tests/unit/test_mesh_mining_ready.py` — stale wire + STATUS height fallback cases
+
+---
+
 ## [1.2.26] — 2026-07-06
 
 ### Added

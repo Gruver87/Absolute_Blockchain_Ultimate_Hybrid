@@ -21,8 +21,8 @@ from verify_p2p_ci import (  # noqa: E402
     _probe_health,
 )
 
-# Minimal constructor: store 1 in slot 0, return runtime code.
-DEPLOY_BYTECODE = "600160005260206000f3"
+# Constructor: SSTORE 1 @ slot0, return 1-byte runtime (STOP).
+DEPLOY_BYTECODE = "6001600055600060005260016000f3"
 STORAGE_SLOT = "0x0"
 
 
@@ -62,25 +62,87 @@ def _ensure_deployer_balance(http_url: str, deployer: str, min_balance: float = 
         )
 
 
-def _deploy_contract(http_url: str, deployer: str, salt: str) -> str:
+def _mempool_deploy_address(deployer: str, nonce: int, block_height: int, tx_hash: str) -> str:
+    from crypto import native
+
+    bytecode = bytes.fromhex(DEPLOY_BYTECODE)
+    deploy_salt = f"{block_height}:{nonce}:{tx_hash}"
+    salt_word = int.from_bytes(native.keccak256_digest(deploy_salt.encode())[:32], "big")
+    return native.evm_create2_address_eip1014(deployer, salt_word, bytecode)
+
+
+def _deploy_via_mempool(http_url: str, wallet_path: str, gas: int = 500_000) -> tuple[str, str, int]:
+    """Signed deploy tx → block → CREATE2 address (replicated across mesh)."""
+    from crypto.wallet import Wallet
+    from runtime.mainnet_constants import MAINNET_V1_CHAIN_ID
+
+    wallet = Wallet.import_wallet(wallet_path)
+    deployer = wallet.address
+    status = _api(f"{http_url}/status")
+    chain_id = int(status.get("chain_id", MAINNET_V1_CHAIN_ID))
+    start_height = int(status.get("height", 0) or 0)
+    nonce = int(_api(f"{http_url}/address/{deployer}").get("nonce", 0) or 0)
+
+    zero = "0x0000000000000000000000000000000000000000"
+    data = DEPLOY_BYTECODE
+    signed = wallet.sign_transaction(
+        zero,
+        0,
+        nonce,
+        chain_id=chain_id,
+        data=data,
+        gas_limit=gas,
+    )
     _admin_token(http_url)
-    result = _post_json(
+    resp = _post_json(
         http_url,
-        "/contract/deploy",
-        {
-            "from": deployer,
-            "bytecode": DEPLOY_BYTECODE,
-            "salt": salt,
-            "value": 0,
-        },
+        "/tx/send",
+        {**signed, "from": deployer, "gas": gas, "value": 0},
         timeout=30,
     )
-    if not result.get("success"):
-        raise RuntimeError(f"deploy failed: {result.get('error') or result}")
-    contract = str(result.get("return_value") or "").strip()
-    if not contract:
-        raise RuntimeError("deploy returned no contract address")
-    return contract
+    tx_hash = str(resp.get("tx_hash") or signed.get("hash") or "").strip()
+    if not tx_hash:
+        raise RuntimeError(f"mempool deploy missing tx_hash: {resp}")
+
+    block_height = start_height
+    for attempt in range(180):
+        time.sleep(2)
+        height = int(_api(f"{http_url}/status").get("height", 0) or 0)
+        if height > start_height:
+            block_height = height
+            break
+        if attempt > 0 and attempt % 15 == 0:
+            print(f"  waiting mine… height={height} mempool={_api(f'{http_url}/status').get('mempool_size')}")
+    else:
+        raise RuntimeError(f"deploy tx not mined (start_height={start_height})")
+
+    contract = _mempool_deploy_address(deployer, nonce, block_height, tx_hash)
+    return tx_hash, contract, block_height
+
+
+def _wait_storage_all(
+    rpc_urls: list[str],
+    contract: str,
+    api_key: str,
+    timeout_sec: int = 120,
+) -> dict[int, str]:
+    deadline = time.time() + timeout_sec
+    last: dict[int, str] = {}
+    while time.time() < deadline:
+        ok_all = True
+        for i, rpc_url in enumerate(rpc_urls, start=1):
+            try:
+                storage = _rpc(rpc_url, "eth_getStorageAt", [contract, STORAGE_SLOT, "latest"], api_key)
+                last[i] = str(storage)
+                if not _storage_ok(last[i]):
+                    ok_all = False
+            except Exception as exc:
+                last[i] = f"err:{exc}"
+                ok_all = False
+        if ok_all:
+            return last
+        time.sleep(3)
+    raise RuntimeError(f"storage not replicated on all RPC nodes (last={last})")
 
 
 def _storage_ok(storage_hex: str) -> bool:
@@ -88,6 +150,44 @@ def _storage_ok(storage_hex: str) -> bool:
         return int(str(storage_hex), 16) == 1
     except ValueError:
         return False
+
+
+def _wait_mesh_aligned(http_urls: list[str], timeout_sec: int = 90) -> None:
+    deadline = time.time() + timeout_sec
+    last: tuple[list[int], list[str]] = ([], [])
+    while time.time() < deadline:
+        heights: list[int] = []
+        roots: list[str] = []
+        for url in http_urls:
+            status = _api(f"{url}/status")
+            heights.append(int(status.get("height", 0) or 0))
+            roots.append(str(status.get("state_root") or ""))
+        last = (heights, roots)
+        if len(set(heights)) == 1 and len(set(roots)) == 1:
+            return
+        time.sleep(3)
+    heights, roots = last
+    raise RuntimeError(
+        "mesh not aligned (heights/roots); wait for P2P sync or rebuild prod mesh "
+        f"(heights={heights} roots={[r[:16] for r in roots]})"
+    )
+
+
+def _deploy_direct(http_url: str, deployer: str) -> str:
+    _admin_token(http_url)
+    salt = f"prod-evm-smoke-{time.time_ns()}"
+    result = _post_json(
+        http_url,
+        "/contract/deploy",
+        {"from": deployer, "bytecode": DEPLOY_BYTECODE, "salt": salt, "value": 0},
+        timeout=30,
+    )
+    if not result.get("success"):
+        raise RuntimeError(f"direct deploy failed: {result.get('error') or result}")
+    contract = str(result.get("return_value") or "").strip()
+    if not contract:
+        raise RuntimeError("direct deploy returned no contract address")
+    return contract
 
 
 def main() -> int:
@@ -102,6 +202,11 @@ def main() -> int:
         "--wallet",
         default="",
         help="Deployer wallet JSON (default: data/prod_mesh/wallets/validator-1.wallet.json)",
+    )
+    parser.add_argument(
+        "--leader-only",
+        action="store_true",
+        help="Skip mempool; direct deploy on node1 only (partial evidence)",
     )
     args = parser.parse_args()
 
@@ -135,13 +240,28 @@ def main() -> int:
         print(f"FAIL: expected deployment_mode=prod, got {status.get('deployment_mode')!r}")
         return 1
 
+    try:
+        _wait_mesh_aligned(http_urls)
+    except RuntimeError as exc:
+        print(f"FAIL: {exc}")
+        return 1
+
     print(f"Prod EVM smoke: deployer={deployer} http={args.url1}")
+    cross_node = not args.leader_only
     try:
         _ensure_deployer_balance(args.url1, deployer)
-        salt = f"prod-evm-smoke-{time.time_ns()}"
-        contract = _deploy_contract(args.url1, deployer, salt)
-        print(f"  deployed contract={contract} salt={salt}")
-        time.sleep(2)
+        if args.leader_only:
+            contract = _deploy_direct(args.url1, deployer)
+            print(f"  direct deploy contract={contract}")
+            storage = _rpc(rpc_urls[0], "eth_getStorageAt", [contract, STORAGE_SLOT, "latest"], api_key)
+            if not _storage_ok(str(storage)):
+                raise RuntimeError(f"leader storage={storage!r}")
+            storage_by_node = {1: str(storage)}
+        else:
+            tx_hash, contract, block_height = _deploy_via_mempool(args.url1, wallet)
+            print(f"  mempool deploy tx={tx_hash} block={block_height} contract={contract}")
+            _wait_mesh_aligned(http_urls, timeout_sec=120)
+            storage_by_node = _wait_storage_all(rpc_urls, contract, api_key)
     except (urllib.error.URLError, RuntimeError, OSError) as exc:
         print(f"FAIL: deploy: {exc}")
         return 1
@@ -157,35 +277,16 @@ def main() -> int:
         print(f"FAIL: eth_getCode: {exc}")
         return 1
 
-    # storage visible on all RPC peers
-    for i, rpc_url in enumerate(rpc_urls, start=1):
-        try:
-            storage = _rpc(rpc_url, "eth_getStorageAt", [contract, STORAGE_SLOT, "latest"], api_key)
-            if not _storage_ok(str(storage)):
-                print(f"FAIL: node{i} storage={storage!r} (expected slot0=1)")
-                return 1
-            print(f"  OK: node{i} eth_getStorageAt slot0={storage}")
-        except Exception as exc:
-            print(f"FAIL: node{i} eth_getStorageAt: {exc}")
-            return 1
+    for i, storage in storage_by_node.items():
+        print(f"  OK: node{i} eth_getStorageAt slot0={storage}")
 
-    # HTTP contract call (static)
-    try:
-        _admin_token(args.url1)
-        call = _post_json(
-            args.url1,
-            "/contract/call",
-            {"from": deployer, "to": contract, "data": "0x", "value": 0},
-            timeout=30,
-        )
-        if not call.get("success", True) and call.get("error"):
-            print(f"WARN: contract/call: {call.get('error')}")
-        else:
-            print("  OK: /contract/call completed")
-    except Exception as exc:
-        print(f"WARN: /contract/call: {exc}")
-
-    print("OK: prod EVM deploy + storage on all RPC nodes")
+    if cross_node and len(storage_by_node) >= len(rpc_urls):
+        print("OK: prod EVM deploy + storage on all RPC nodes")
+    elif args.leader_only:
+        print("PARTIAL: prod EVM leader RPC only (--leader-only)")
+    else:
+        print(f"FAIL: cross-node storage incomplete ({storage_by_node})")
+        return 1
     return 0
 
 

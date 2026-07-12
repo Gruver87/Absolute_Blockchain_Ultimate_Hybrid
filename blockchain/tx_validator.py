@@ -37,7 +37,10 @@ class TransactionValidator:
         amount_satoshi = tx.get(
             "amount_satoshi", int(float(tx.get("amount", tx.get("value", 0))) * SATOSHI_MULTIPLIER)
         )
-        if amount_satoshi <= 0:
+        data = str(tx.get("data", tx.get("input", "")) or "").strip()
+        zero_addr = "0x0000000000000000000000000000000000000000"
+        is_evm_deploy = bool(data.replace("0x", "")) and to_addr.lower() == zero_addr
+        if amount_satoshi <= 0 and not is_evm_deploy:
             return False, "Amount must be positive"
         if amount_satoshi > cls.MAX_TRANSACTION_AMOUNT_SATOSHI:
             return False, "Amount exceeds maximum"

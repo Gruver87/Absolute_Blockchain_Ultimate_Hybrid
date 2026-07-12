@@ -9,9 +9,28 @@ This doc reflects honest status after local prod mesh runs and monitoring — no
 
 **Absolute Blockchain Ultimate Hybrid** is a working R&D L1 / devnet stack with a functioning **3-node production-profile mesh** (chain `778888`), state synchronization, RocksDB hybrid persistence, Rust crypto on the hot path, automated CI/gates, and baseline ops tooling (health watch, DR rehearsal scripts, restart recovery).
 
-**Public mainnet-ready readiness is not proven.** Missing confirmed evidence for: live failover under block production, default prod-mesh signed-tx propagation, prod RPC EVM end-to-end, completed **24–48h+** soak, and independent external security audit.
+**Public mainnet-ready readiness is not proven.** Missing confirmed evidence for: completed **24–48h+** soak and independent external security audit. **Cross-node EVM (mempool path) is now proven** on local prod mesh (Jul 12 evening).
 
-Compared to documentation-only claims, **evidence level increased** in Jul 2026: real prod mesh bring-up logs, harness alignment, and soak monitoring runs — not only in-repo tests.
+Compared to documentation-only claims, **evidence level increased** in Jul 2026: real prod mesh bring-up logs, harness alignment, **7h soak passed**, **failover drill**, **signed tx propagation**, and **cross-node EVM (mempool deploy + 3 RPC storage)**.
+
+---
+
+## Live evidence run (2026-07-12, updated evening)
+
+| Step | Result | Artifact |
+|------|--------|----------|
+| `health_watch.ps1 -ProdMesh -DurationMin 1` | **PASS** | `logs/evidence_health.log` |
+| `prod_mesh_failover.ps1` | **PASS** | `logs/evidence_failover.log` |
+| `prod_signed_tx_smoke.py` | **PASS** | `logs/evidence_signed_tx.log` (n2/n3 propagation) |
+| `prod_evm_smoke.py` (mempool, 3 RPC) | **PASS** | docker mesh run Jul 12 evening — mempool deploy block #6, storage on all RPC |
+| `soak_monitor.ps1 -ProdMesh -Hours 7` | **PASS** | `logs/soak_report.json` (159 cycles, 0 fail) |
+| `testnet_readiness.ps1 -MinSoakHours 7` | **WARN** | re-run after mesh mining gate fixes recommended |
+
+Full JSON: `data/evidence_run.json`
+
+**Industrial fixes applied (Jul 12 evening):** mesh mining gate no longer latches on stale P2P wire roots; hub uses live STATUS heights; P2P broadcast non-blocking; `add_block` runs in worker thread so EVM apply cannot freeze the event loop; parallel peer state-root RPC.
+
+**Lesson:** never use `/contract/deploy` direct on prod mesh for cross-node evidence — mempool signed deploy only. If split-brain occurs, rebuild without `-KeepVolumes`.
 
 ---
 
@@ -22,10 +41,14 @@ Compared to documentation-only claims, **evidence level increased** in Jul 2026:
 | Prod 3-node mesh boots on RocksDB | `docker_prod_3node.ps1` → healthy containers, unified heights | `.\scripts\docker_prod_3node.ps1 -SkipBuild -KeepVolumes` |
 | Cross-node state / tip alignment | `GET /chain/consistency/harness` OK on :18180–:18182 | `.\scripts\probe_mesh_nodes.ps1 -ProdMesh` |
 | P2P topology on prod ports | `peer_count=2`, `topology_healthy=True` in post-checks | same mesh script |
+| **Failover / resilience** | node2 stop → mesh alive → node2 rejoin, heights aligned | `.\scripts\prod_mesh_failover.ps1` |
+| **Signed tx propagation (prod)** | `prod_signed_tx_smoke.py` → n2/n3 see tx | `python scripts/prod_signed_tx_smoke.py` |
+| **7h industrial soak** | `soak_report.json` passed, 159 cycles, 0 fail | `.\scripts\soak_monitor.ps1 -ProdMesh -Hours 7` |
 | RocksDB DR path | DR rehearsal script + backup | `.\scripts\dr_restore_rehearsal.ps1 -DockerMesh1` |
 | Short health monitoring | `health_watch` 1–2 min cycles, harness quick/full | `.\scripts\health_watch.ps1 -ProdMesh -DurationMin 2` |
 | CI / static industrial gates | `industrial_gate.py`, prod_gate, pytest | GitHub Actions + local gate scripts |
 | Native crypto required in prod profile | `ABS_REQUIRE_NATIVE_CRYPTO`, prod_gate | prod mesh configs |
+| **EVM deploy + storage on all prod RPC peers** | Mempool deploy mined in block; `eth_getStorageAt` slot0=1 on all 3 RPC | `docker exec … prod_evm_smoke.py` (see evidence run) |
 
 ---
 
@@ -33,10 +56,8 @@ Compared to documentation-only claims, **evidence level increased** in Jul 2026:
 
 | Gap | Why it is **not** proven yet | What would prove it |
 |-----|------------------------------|---------------------|
-| **Failover / resilience** | `prod_mesh_failover.ps1` exists but is **not** part of default `docker_prod_3node.ps1` post-check | `docker stop abs-prod-mesh3-node2-1` → blocks continue, quorum/mesh OK → `docker start …` → node rejoins and heights re-align |
-| **Signed tx on default prod path** | `verify_p2p_ci` / mesh bootstrap prints `SKIP: tx propagation (auto_sign disabled in prod)` | Run `python scripts/prod_signed_tx_smoke.py` after mesh up; all 3 nodes see tx / mempool trace |
-| **EVM end-to-end on prod RPC** | Opcode parity in CI ≠ live deploy/call on `:18180–:18182` / `:18546–:18548` | `python scripts/prod_evm_smoke.py` (deploy + `eth_getStorageAt` on all RPC peers) |
-| **24–48h soak** | Only short `health_watch` (~1h) and **in-progress** 7–10h `soak_monitor` at time of writing | `soak_report.json` with `passed: true`, `hours_requested ≥ 24`, zero mesh_warn / fail_lines |
+| **EVM end-to-end on all prod RPC peers** | **PASS** (Jul 12 evening) after mining-gate + async fixes | Re-run after each mesh rebuild: `prod_evm_smoke.py` via docker exec |
+| **24–48h soak** | **7h passed** (Jul 6–7); not yet 24–48h | `soak_report.json` with `hours_requested ≥ 24` |
 | **External audit** | README and `external_audit_tracker.py` checklist incomplete | Third-party audit report + tracker items closed |
 | **Bridge mainnet cutover** | Prod mesh runs with `bridge_enabled: false` by design | Audited L1 contracts + relayer SLOs per `docs/BRIDGE_L1_MAINNET.md` |
 | **Public testnet / VPS** | Compose + nginx templates added; no production DNS/TLS deployment yet | Public URL, TLS, rate limits, 48h+ soak on testnet profile |

@@ -38,6 +38,21 @@ def test_mesh_ready_rejects_root_mismatch():
         local_height=1,
         local_root="ab" * 32,
         state_consistent=True,
+        peer_heights=[1, 1],
+    )
+
+
+def test_mesh_ready_ignores_stale_wire_height():
+    """Stale wire h=1 must not block hub at h=2 when STATUS peers are aligned."""
+    root = "ab" * 32
+    assert mesh_ready_for_mining(
+        min_mesh_peers=2,
+        connected_peers=2,
+        wire_roots=[{"height": 1, "state_root": root}],
+        local_height=2,
+        local_root=root,
+        state_consistent=False,
+        peer_heights=[2, 2],
     )
 
 
@@ -49,4 +64,17 @@ def test_mesh_ready_empty_wire_not_consistent():
         local_height=1,
         local_root="ab" * 32,
         state_consistent=False,
+    )
+
+
+def test_mesh_ready_peer_heights_when_wire_slow():
+    """Hub may forge when STATUS heights align even if wire_roots RPC timed out."""
+    assert mesh_ready_for_mining(
+        min_mesh_peers=2,
+        connected_peers=2,
+        wire_roots=[],
+        local_height=2,
+        local_root="ab" * 32,
+        state_consistent=False,
+        peer_heights=[2, 2],
     )

@@ -1508,11 +1508,29 @@ class NodeOrchestrator:
                     continue
                 local_h = self.blockchain.get_height()
                 local_root = str(self.blockchain.get_state_root() or "")
-                try:
-                    wire_roots = await self.p2p.request_peer_state_roots()
-                except Exception:
-                    wire_roots = []
+                if not getattr(self.p2p, "_state_consistent", True) and self.sync_engine:
+                    try:
+                        loop = asyncio.get_running_loop()
+                        ok = await loop.run_in_executor(None, self.sync_engine.sync_state)
+                        self.p2p._state_consistent = bool(ok)
+                    except Exception:
+                        pass
+                peer_heights = [
+                    int(getattr(p, "height", 0) or 0) for p in peers.values()
+                ]
                 from runtime.mesh_mining import mesh_ready_for_mining
+
+                status_aligned = (
+                    len(peer_heights) >= _min_mesh_peers
+                    and all(h == local_h for h in peer_heights)
+                )
+                if status_aligned:
+                    wire_roots = []
+                else:
+                    try:
+                        wire_roots = await self.p2p.request_peer_state_roots()
+                    except Exception:
+                        wire_roots = []
 
                 if not mesh_ready_for_mining(
                     min_mesh_peers=_min_mesh_peers,
@@ -1521,6 +1539,7 @@ class NodeOrchestrator:
                     local_height=local_h,
                     local_root=local_root,
                     state_consistent=bool(getattr(self.p2p, "_state_consistent", True)),
+                    peer_heights=peer_heights,
                 ):
                     continue
 
@@ -1598,7 +1617,13 @@ class NodeOrchestrator:
                         slot_n = getattr(slot, "current_slot", 0) if slot else 0
                         proposer = _eligible[slot_n % len(_eligible)]
 
-            if len(_active_vals) > 1:
+            if (
+                self.config.mining_enabled
+                and _signing
+                and not getattr(self.config, "follower_genesis_sync", False)
+            ):
+                proposer = _signing
+            elif len(_active_vals) > 1:
                 _local = set()
                 for _a in (
                     getattr(self.config, "signing_address", ""),
@@ -1685,7 +1710,27 @@ class NodeOrchestrator:
                 except Exception:
                     pass
 
-            success = self.blockchain.add_block(block)
+            success = await asyncio.to_thread(self.blockchain.add_block, block)
+
+            if not success and txs:
+                print(
+                    f"[Mining] Block #{block.height} with {len(txs)} tx(s) rejected; evicting and forging empty block"
+                )
+                for tx in txs:
+                    self.mempool.remove(tx.hash)
+                block = self.blockchain.create_block([], proposer)
+                if self.validator_keys:
+                    try:
+                        block_dict = {
+                            "hash": block.hash,
+                            "number": block.height,
+                            "proposer": proposer,
+                            "timestamp": block.timestamp,
+                        }
+                        block.signature = self.validator_keys.sign_block(block_dict)
+                    except Exception:
+                        pass
+                success = await asyncio.to_thread(self.blockchain.add_block, block)
 
             if success:
                 # Удаляем включённые транзакции из мемпула
@@ -1701,6 +1746,19 @@ class NodeOrchestrator:
                 self.consensus.mark_block_produced(proposer=proposer)
 
                 self._log_block(block)
+
+                if self.p2p and self.p2p._loop and self.p2p._running:
+                    try:
+                        asyncio.create_task(self.p2p._broadcast_block(block.to_dict()))
+                    except Exception:
+                        pass
+
+                if self.sync_engine and self.p2p:
+                    try:
+                        loop = asyncio.get_running_loop()
+                        loop.run_in_executor(None, self.sync_engine.sync_state)
+                    except Exception:
+                        pass
 
                 # RANDAO: обновляем seed случайности после каждого блока
                 if self.validator_selection:

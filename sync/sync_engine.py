@@ -296,9 +296,12 @@ class SyncEngine:
         for entry in wire_roots:
             peer_root = entry.get("state_root", "")
             peer_h = int(entry.get("height", 0) or 0)
+            if peer_h < local_height:
+                continue
             if peer_h == local_height and peer_root and peer_root != local_root:
                 mismatches.append(entry.get("peer_id", "peer")[:8])
 
+        # Peer still catching up — not a root mismatch.
         for peer in self._collect_p2p_peers():
             peer_height = int(getattr(peer, "height", 0) or 0)
             if peer_height != local_height:
@@ -306,8 +309,8 @@ class SyncEngine:
             blk = self.node.blockchain.get_block(peer_height)
             if not blk:
                 continue
-            peer_root = blk.get("state_root", "")
-            if peer_root and peer_root != local_root:
+            tip_root = blk.get("state_root", "")
+            if tip_root and tip_root != local_root:
                 pid = getattr(peer, "peer_id", "peer")[:8]
                 if pid not in mismatches:
                     mismatches.append(pid)

@@ -42,9 +42,9 @@ Local push: `.\scripts\push_origin.ps1` or `git push origin master`.
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.2.14` (code may be ahead; see CHANGELOG) |
-| **Title** | `v1.2.14 — CI badges, architecture, security audit` |
-| **Notes file** | [CHANGELOG.md](../CHANGELOG.md) |
+| **Tag** | `v1.2.27` — prod mesh mining gate + cross-node EVM evidence |
+| **Title** | `v1.2.27 — prod mesh mining gate + cross-node EVM evidence` |
+| **Notes file** | [RELEASE_NOTES_v1.2.27.md](../RELEASE_NOTES_v1.2.27.md) |
 | **Tests** | 703 collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

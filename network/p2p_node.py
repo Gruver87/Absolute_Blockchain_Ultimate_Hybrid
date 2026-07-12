@@ -1191,7 +1191,7 @@ class P2PNode:
         msg = await self._wait_peer_response(
             peer,
             (MSG_STATE_ROOT_RESPONSE,),
-            timeout=12,
+            timeout=4,
             presend=lambda: peer.send(MSG_STATE_ROOT_REQUEST, {"height": h}),
         )
         if not msg or msg.get("type") != MSG_STATE_ROOT_RESPONSE:
@@ -1200,24 +1200,31 @@ class P2PNode:
         return data if isinstance(data, dict) else None
 
     async def request_peer_state_roots(self) -> List[Dict]:
-        """Collect state_root responses from all connected peers."""
+        """Collect state_root responses from all connected peers (parallel)."""
         height = self.blockchain.get_height()
-        results = []
-        for peer in list(self.peers.values()):
+        peers = list(self.peers.values())
+        if not peers:
+            return []
+
+        async def _one(peer: PeerConnection) -> Optional[Dict]:
             resp = await self.request_peer_state_root(peer, height)
             if resp:
                 resp["peer_id"] = peer.peer_id
-                results.append(resp)
-        return results
+            return resp
+
+        raw = await asyncio.gather(*(_one(p) for p in peers), return_exceptions=True)
+        return [r for r in raw if isinstance(r, dict)]
 
     def request_peer_state_roots_sync(self, timeout: float = 15) -> List[Dict]:
         if not self._loop or not self._running:
             return []
+        peer_n = max(1, len(self.peers))
+        budget = max(float(timeout), 4.0 + 4.0 * peer_n)
         future = asyncio.run_coroutine_threadsafe(
             self.request_peer_state_roots(), self._loop
         )
         try:
-            return future.result(timeout=timeout)
+            return future.result(timeout=budget)
         except Exception:
             return []
 
