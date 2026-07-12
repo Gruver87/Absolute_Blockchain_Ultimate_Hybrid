@@ -88,6 +88,7 @@ https://testnet.example.com/rpc/      -> node :8545 (key required)
 
 ## Related
 
+- [VPS_DEPLOY.md](VPS_DEPLOY.md)
 - [ARCHITECTURE.md](ARCHITECTURE.md)
 - [DOCKER_IMAGES.md](DOCKER_IMAGES.md)
 - [COMMANDS_REFERENCE.md](COMMANDS_REFERENCE.md)

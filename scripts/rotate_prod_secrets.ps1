@@ -10,7 +10,7 @@ Set-Location $Root
 
 $envPath = Join-Path $Root $EnvFile
 if (-not (Test-Path $envPath)) {
-    Write-Host "FAIL: $EnvFile not found — run .\scripts\setup_prod_env.ps1 first" -ForegroundColor Red
+    Write-Host "FAIL: $EnvFile not found - run .\scripts\setup_prod_env.ps1 first" -ForegroundColor Red
     exit 1
 }
 
@@ -40,7 +40,7 @@ Get-Content $envPath | ForEach-Object {
     $line = $_.Trim()
     if (-not $line -or $line.StartsWith("#") -or -not $line.Contains("=")) { return }
     $parts = $line.Split("=", 2)
-    $existing[$parts[0].Trim()] = $parts[1].Trim().Trim('"').Trim("'")
+    $existing[$parts[0].Trim()] = $parts[1].Trim().Trim([char]34).Trim([char]39)
 }
 
 if (-not $Force) {
@@ -56,7 +56,7 @@ Write-Host "Backup: $backup" -ForegroundColor DarkGray
 
 Push-Location $Root
 try {
-    $rpcKey = (python -c "from middleware.rpc_auth import RPCApiKeyAuth; print(RPCApiKeyAuth.generate_key())").Trim()
+    $rpcKey = (python -c 'from middleware.rpc_auth import RPCApiKeyAuth; print(RPCApiKeyAuth.generate_key())').Trim()
     if ($LASTEXITCODE -ne 0 -or -not $rpcKey) { throw "RPC key generation failed" }
 } finally {
     Pop-Location
@@ -76,5 +76,5 @@ Write-Host "OK: secrets rotated in $EnvFile" -ForegroundColor Green
 Write-Host "  Restart all prod nodes / docker compose to pick up new JWT and RPC keys." -ForegroundColor Cyan
 Write-Host "  Update client RPC key; invalidate old sessions." -ForegroundColor Cyan
 Write-Host ""
-Write-Host "New RPC key:" -ForegroundColor Gray
-Write-Host "  $rpcKey" -ForegroundColor Gray
+Write-Host "New RPC key (save securely):" -ForegroundColor Gray
+Write-Host $rpcKey -ForegroundColor Gray

@@ -2,7 +2,9 @@
 param(
     [switch]$SkipFailover,
     [switch]$SkipSignedTx,
-    [switch]$SkipEvm
+    [switch]$SkipEvm,
+    [switch]$RecordEvidence,
+    [string]$GitTag = "v1.2.38"
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,6 +30,11 @@ function Step([string]$Name, [scriptblock]$Action) {
         exit 1
     }
     Write-Host "OK: $Name" -ForegroundColor Green
+    if ($RecordEvidence) {
+        $tagArg = @()
+        if ($GitTag) { $tagArg = @("--git-tag", $GitTag) }
+        python (Join-Path $ScriptDir "record_evidence_run.py") --name $Name --result PASS @tagArg 2>$null | Out-Null
+    }
 }
 
 Step "mesh health" {
