@@ -1,13 +1,19 @@
 # Recover prod mesh when mining stalled (heights drift / mempool not clearing).
 param(
     [switch]$RestartContainers,
-    [switch]$RebuildMesh
+    [switch]$RebuildMesh,
+    [switch]$HealFork
 )
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Root = Split-Path -Parent $ScriptDir
 Set-Location $Root
+
+if ($HealFork) {
+    & (Join-Path $ScriptDir "mesh_heal_fork.ps1") -Force
+    exit $LASTEXITCODE
+}
 
 if ($RebuildMesh) {
     Write-Host "Rebuilding prod mesh (KeepVolumes)..." -ForegroundColor Cyan

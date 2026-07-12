@@ -9,7 +9,7 @@
 [![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
 [![Local gate](https://img.shields.io/badge/local%20gate-check__hybrid__full-lightgrey)](scripts/check_hybrid_full.ps1)
-[![Release](https://img.shields.io/badge/Release-v1.2.27-blue)](RELEASE_NOTES_v1.2.27.md)
+[![Release](https://img.shields.io/badge/Release-v1.2.41-blue)](RELEASE_NOTES_v1.2.41.md)
 
 **Repo:** [github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · **Branch:** `master`
 
@@ -18,7 +18,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | `1.2.0-industrial` (release **v1.2.27** prod mesh mining + EVM evidence) |
+| **Version** | `1.2.0-industrial` (release **v1.2.41** prod mesh fork heal + evidence) |
 | **Author** | **ULADZIMIR DABRANSKI** |
 | **API Wave** | 61; check GET /status fields: `api_wave`, `core_real`, `p2p_sync_status` |
 | **Entry point** | `python main.py` |
@@ -33,7 +33,7 @@
 | Changelog | [CHANGELOG.md](CHANGELOG.md) |
 | Architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Public testnet (plan) | [docs/PUBLIC_TESTNET.md](docs/PUBLIC_TESTNET.md) |
-| Release notes | [v1.2.28](RELEASE_NOTES_v1.2.28.md) · [v1.2.27](RELEASE_NOTES_v1.2.27.md) · [Evidence matrix](docs/EVIDENCE_MATRIX.md) |
+| Release notes | [v1.2.41](RELEASE_NOTES_v1.2.41.md) · [v1.2.28](RELEASE_NOTES_v1.2.28.md) · [Evidence matrix](docs/EVIDENCE_MATRIX.md) |
 | Mainnet gap (honest) | [docs/MAINNET_GAP_ANALYSIS.md](docs/MAINNET_GAP_ANALYSIS.md) |
 | Bridge L1 cutover | [docs/BRIDGE_L1_MAINNET.md](docs/BRIDGE_L1_MAINNET.md) |
 | Docker images (GHCR) | [docs/DOCKER_IMAGES.md](docs/DOCKER_IMAGES.md) |
@@ -466,4 +466,4 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 
 ---
 
-*Last update: July 2026 — **v1.2.28**: fail-closed direct deploy in prod; CI prod-mesh3 signed-tx + EVM evidence; see [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) for proven vs not-proven.*
+*Last update: July 2026 — **v1.2.41**: prod mesh fork heal, post-forge mining hold, JWT stabilize sync, live evidence suite PASS; see [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md).*

@@ -30,20 +30,13 @@ def mesh_ready_for_mining(
 
     local_root_norm = (local_root or "").strip().lower()
 
-    # Live STATUS heights — do not forge while followers are behind.
-    if peer_heights and len(peer_heights) >= min_mesh_peers:
-        if any(h < local_height for h in peer_heights):
-            return False
-
+    # Wire proof at local tip overrides stale P2P STATUS height cache.
     if wire_roots:
         for entry in wire_roots:
             eh = int(entry.get("height", 0) or 0)
             pr = str(entry.get("state_root") or "").strip().lower()
-            # Ignore stale wire responses; peer_heights gate catch-up above.
             if eh == local_height and pr and pr != local_root_norm:
                 return False
-
-    if len(wire_roots) >= min_mesh_peers:
         matching = sum(
             1
             for entry in wire_roots
@@ -53,12 +46,11 @@ def mesh_ready_for_mining(
         if matching >= min_mesh_peers:
             return True
 
-    # Wire RPC may time out under load; STATUS heights still prove mesh alignment.
+    # Live STATUS heights — do not forge while followers are behind.
     if peer_heights and len(peer_heights) >= min_mesh_peers:
-        if all(h >= local_height for h in peer_heights) and all(
-            h == local_height for h in peer_heights
-        ):
+        if any(h < local_height for h in peer_heights):
+            return False
+        if all(h == local_height for h in peer_heights):
             return True
 
-    # Partial / empty wire: followers connected and sync engine aligned
-    return bool(state_consistent) and connected_peers >= min_mesh_peers
+    return False

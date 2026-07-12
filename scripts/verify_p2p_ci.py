@@ -552,6 +552,31 @@ def _restore_p2p_mesh(urls: list[str], expected_peers: int = 2) -> None:
         print("WARN: post-verify mesh restore status unavailable")
 
 
+def _load_root_dotenv() -> None:
+    """Load repo .env into os.environ for prod mesh JWT minting."""
+    dotenv = Path(ROOT) / ".env"
+    if not dotenv.is_file():
+        return
+    for raw in dotenv.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        key = key.strip()
+        val = val.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = val
+
+
+def _ensure_admin_tokens(urls: list[str]) -> None:
+    """Prefetch admin JWT for prod mesh sync/reconnect POST endpoints."""
+    for url in urls:
+        try:
+            _admin_token(url)
+        except Exception as exc:
+            print(f"WARN: admin JWT prefetch {url}: {exc}")
+
+
 def _read_cluster_state(urls: list[str]) -> tuple[list[dict], list[str]]:
     """Return node statuses and normalized live state roots for recovery assertions."""
     statuses = [_api(f"{url}/status", timeout=8) for url in urls]
@@ -565,6 +590,83 @@ def _read_cluster_state(urls: list[str]) -> tuple[list[dict], list[str]]:
 
 def _roots_match(roots: list[str]) -> bool:
     return bool(roots and roots[0] and all(root == roots[0] for root in roots))
+
+
+def _cluster_fork_outlier_index(statuses: list[dict], roots: list[str]) -> int | None:
+    """Return index of the lone divergent node when 2-of-3 share root+height."""
+    if len(statuses) != 3 or len(roots) != 3:
+        return None
+    groups: dict[tuple[int, str], list[int]] = {}
+    for i, (st, root) in enumerate(zip(statuses, roots)):
+        key = (int(st.get("height", 0) or 0), (root or "").lower())
+        groups.setdefault(key, []).append(i)
+    if len(groups) != 2:
+        return None
+    sizes = sorted(((len(v), v) for v in groups.values()), reverse=True)
+    if sizes[0][0] != 2 or sizes[1][0] != 1:
+        return None
+    return sizes[1][1][0]
+
+
+def _cluster_mesh_ready(statuses: list[dict], roots: list[str]) -> bool:
+    """True when all nodes report the same tip and mesh peer counts are satisfied."""
+    if not statuses or not _roots_match(roots):
+        return False
+    heights = [int(st.get("height", 0) or 0) for st in statuses]
+    if not heights or max(heights) != min(heights):
+        return False
+    heads = [
+        str(st.get("head_hash") or "").strip().lower()
+        for st in statuses
+        if st.get("head_hash")
+    ]
+    if heads and len(set(heads)) > 1:
+        return False
+    mesh_min = max(int(st.get("mesh_min_peers", 0) or 0) for st in statuses)
+    if mesh_min <= 0:
+        mesh_min = 2
+    peer_counts = [int(st.get("peers", 0) or 0) for st in statuses]
+    return all(c >= mesh_min for c in peer_counts)
+
+
+def _auto_heal_prod_fork(urls: list[str]) -> bool:
+    """Reseed node1 chainstore from node2 when hub diverged from 2-node majority."""
+    if len(urls) < 2:
+        return False
+    node1 = "abs-prod-mesh3-node1-1"
+    vol_from = "abs-prod-mesh3_abs-prod-mesh2-data"
+    vol_to = "abs-prod-mesh3_abs-prod-mesh1-data"
+    compose = [
+        "docker", "compose", "-f", "docker-compose.prod.3node.yml",
+        "-p", PROD_MESH_COMPOSE_PROJECT,
+    ]
+    print("STABILIZE: auto-healing node1 fork (clone node2 chainstore -> node1)")
+    try:
+        subprocess.run(["docker", "stop", node1], cwd=ROOT, check=True, timeout=90)
+        subprocess.run(
+            [
+                "docker", "run", "--rm",
+                "-v", f"{vol_from}:/from",
+                "-v", f"{vol_to}:/to",
+                "alpine:3.20", "sh", "-c",
+                "set -e; test -d /from/chainstore; rm -rf /to/chainstore; cp -a /from/chainstore /to/",
+            ],
+            cwd=ROOT,
+            check=True,
+            timeout=180,
+        )
+        subprocess.run([*compose, "build"], cwd=ROOT, check=True, timeout=600)
+        subprocess.run([*compose, "up", "-d", "--force-recreate"], cwd=ROOT, check=True, timeout=180)
+    except Exception as exc:
+        print(f"WARN: auto-heal fork failed: {exc}")
+        return False
+    for url in urls:
+        if not _wait_health(url, max_sec=120):
+            print(f"WARN: auto-heal health timeout at {url}")
+            return False
+    _ADMIN_TOKENS.clear()
+    _ensure_admin_tokens(urls)
+    return True
 
 
 def _docker_compose(
@@ -627,6 +729,8 @@ def verify_mesh3_recovery(
     if compose_fn is None:
         compose_fn = _docker_compose_3node
     urls = [url1, url2, url3]
+    _load_root_dotenv()
+    _ensure_admin_tokens(urls)
     for i, url in enumerate(urls, start=1):
         if not _probe_health(url, timeout=5):
             print(f"FAIL: node{i} not reachable before recovery drill at {url}")
@@ -640,6 +744,35 @@ def verify_mesh3_recovery(
         ):
             print("FAIL: initial topology not healthy before recovery drill")
             return 30
+
+    print("RECOVERY: pre-flight cluster stabilize")
+    verify_prod_mesh3_stabilize(
+        url1, url2, url3, wait_sync_sec=min(120, wait_sync_sec)
+    )
+
+    before_statuses: list[dict] = []
+    before_roots: list[str] = []
+    sync_deadline = time.time() + min(90, max(30, wait_sync_sec // 4))
+    while time.time() < sync_deadline:
+        try:
+            before_statuses, before_roots = _read_cluster_state(urls)
+        except Exception as exc:
+            print(f"FAIL: cannot read initial cluster state: {exc}")
+            return 31
+        if _roots_match(before_roots):
+            break
+        heights = [int(st.get("height", 0) or 0) for st in before_statuses]
+        max_h = max(heights) if heights else 0
+        for url, h in zip(urls, heights):
+            if h < max_h:
+                for _ in range(2):
+                    try:
+                        _post_json(url, "/sync/fast-sync", {"timeout": 120}, timeout=135)
+                        _post_json(url, "/sync/reconcile", {"timeout": 120}, timeout=135)
+                    except Exception:
+                        pass
+        _restore_p2p_mesh(urls, expected_peers=2)
+        time.sleep(5)
 
     try:
         before_statuses, before_roots = _read_cluster_state(urls)
@@ -786,6 +919,8 @@ def verify_prod_mesh3_stabilize(
 ) -> int:
     """Reconnect + sync prod mesh before live evidence (no container stop)."""
     urls = [url1, url2, url3]
+    _load_root_dotenv()
+    _ensure_admin_tokens(urls)
     for i, url in enumerate(urls, start=1):
         if not _probe_health(url, timeout=5):
             print(f"FAIL: node{i} not reachable at {url}")
@@ -794,13 +929,14 @@ def verify_prod_mesh3_stabilize(
     print("STABILIZE: reconnecting prod mesh")
     deadline = time.time() + max(60, wait_sync_sec)
     last_heights: list[int] = []
+    fork_streak = 0
     while time.time() < deadline:
         _restore_p2p_mesh(urls, expected_peers=2)
         for url in urls:
             try:
                 _post_json(url, "/p2p/reconnect", {"timeout": 20}, timeout=30)
-                _post_json(url, "/sync/fast-sync", {"timeout": 120}, timeout=135)
-                _post_json(url, "/sync/reconcile", {"timeout": 120}, timeout=135)
+                _post_json(url, "/sync/fast-sync", {"timeout": 45}, timeout=60)
+                _post_json(url, "/sync/reconcile", {"timeout": 45}, timeout=60)
             except Exception:
                 pass
 
@@ -812,8 +948,8 @@ def verify_prod_mesh3_stabilize(
             if h < max_h:
                 for _ in range(2):
                     try:
-                        _post_json(url, "/sync/fast-sync", {"timeout": 180}, timeout=200)
-                        _post_json(url, "/sync/reconcile", {"timeout": 180}, timeout=200)
+                        _post_json(url, "/sync/fast-sync", {"timeout": 60}, timeout=75)
+                        _post_json(url, "/sync/reconcile", {"timeout": 60}, timeout=75)
                     except Exception:
                         pass
                 statuses, roots = _read_cluster_state(urls)
@@ -824,10 +960,27 @@ def verify_prod_mesh3_stabilize(
         peer_hs = [int(p.get("height", 0) or 0) for p in (peer_rows or []) if isinstance(p, dict)]
 
         heights_ok = bool(heights) and max(heights) - min(heights) <= 1
+        fully_aligned = bool(heights) and max(heights) == min(heights)
         roots_ok = _roots_match(roots)
         peers_ok = not peer_hs or all(h >= max(heights) for h in peer_hs)
+        cluster_ok = fully_aligned and _cluster_mesh_ready(statuses, roots)
 
-        if heights_ok and roots_ok and peers_ok:
+        outlier = _cluster_fork_outlier_index(statuses, roots)
+        if outlier == 0 and not _roots_match(roots):
+            fork_streak += 1
+            if fork_streak >= 2 and os.environ.get("ABS_STABILIZE_AUTO_HEAL", "1") != "0":
+                if _auto_heal_prod_fork(urls):
+                    fork_streak = 0
+                    continue
+        else:
+            fork_streak = 0
+
+        if roots_ok and heights_ok and (cluster_ok or peers_ok):
+            if cluster_ok and peer_hs and not peers_ok:
+                print(
+                    "WARN: stabilize passed on cluster tip alignment "
+                    f"(stale peer_heights={peer_hs})"
+                )
             print(
                 f"OK: prod mesh stabilized heights={' / '.join(str(h) for h in heights)} "
                 f"root={roots[0][:16]}..."
@@ -842,6 +995,16 @@ def verify_prod_mesh3_stabilize(
         time.sleep(5)
 
     print(f"FAIL: stabilize timeout heights={' / '.join(str(h) for h in last_heights)}")
+    try:
+        final_statuses, final_roots = _read_cluster_state(urls)
+        outlier = _cluster_fork_outlier_index(final_statuses, final_roots)
+        if outlier is not None:
+            print(
+                f"HINT: node{outlier + 1} diverged from 2-node majority — "
+                "run .\\scripts\\mesh_heal_fork.ps1 -Force then rebuild mesh"
+            )
+    except Exception:
+        pass
     return 1
 
 

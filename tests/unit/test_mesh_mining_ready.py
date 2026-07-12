@@ -23,7 +23,10 @@ def test_mesh_ready_partial_wire_when_consistent():
     assert mesh_ready_for_mining(
         min_mesh_peers=2,
         connected_peers=2,
-        wire_roots=[{"height": 1, "state_root": root}],
+        wire_roots=[
+            {"height": 1, "state_root": root},
+            {"height": 1, "state_root": root},
+        ],
         local_height=1,
         local_root=root,
         state_consistent=True,
@@ -77,4 +80,21 @@ def test_mesh_ready_peer_heights_when_wire_slow():
         local_root="ab" * 32,
         state_consistent=False,
         peer_heights=[2, 2],
+    )
+
+
+def test_mesh_ready_stale_peer_heights_wire_proves_alignment():
+    """Stale P2P STATUS cache must not block when wire roots prove mesh alignment."""
+    root = "ab" * 32
+    assert mesh_ready_for_mining(
+        min_mesh_peers=2,
+        connected_peers=2,
+        wire_roots=[
+            {"height": 2, "state_root": root},
+            {"height": 2, "state_root": root},
+        ],
+        local_height=2,
+        local_root=root,
+        state_consistent=False,
+        peer_heights=[17, 17],
     )

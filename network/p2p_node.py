@@ -501,8 +501,18 @@ class P2PNode:
 
         elif msg_type == MSG_STATUS:
             if isinstance(data, dict):
-                peer.height = data.get("height", peer.height)
-                peer.head = data.get("head_hash", peer.head)
+                incoming_h = int(data.get("height", 0) or 0)
+                if incoming_h:
+                    peer.height = max(int(peer.height or 0), incoming_h)
+                incoming_head = data.get("head_hash")
+                if incoming_head:
+                    peer.head = str(incoming_head)
+                our_h = int(self.blockchain.get_height() or 0)
+                if incoming_h and incoming_h != our_h:
+                    await peer.send(MSG_STATUS, {
+                        "height": our_h,
+                        "head_hash": self.head() or "",
+                    })
 
         elif msg_type == MSG_ATTESTATION:
             await self._handle_attestation(peer, data)
@@ -519,6 +529,10 @@ class P2PNode:
             })
 
         elif msg_type == MSG_STATE_ROOT_RESPONSE:
+            if isinstance(data, dict):
+                peer_h = int(data.get("height", 0) or 0)
+                if peer_h:
+                    peer.height = max(int(peer.height or 0), peer_h)
             if isinstance(data, dict) and waiter is None:
                 peer_root = data.get("state_root", "")
                 local_root = self.blockchain.get_state_root()
@@ -1154,12 +1168,23 @@ class P2PNode:
             except Exception:
                 attempts.append({"address": addr, "ok": False, "error": "bad_port"})
                 continue
-            already = any(
-                p.host == host and (p.port == port or p.listen_port == port)
-                for p in self.peers.values()
+            already_peer = next(
+                (
+                    p
+                    for p in self.peers.values()
+                    if p.host == host and (p.port == port or p.listen_port == port)
+                ),
+                None,
             )
-            if already:
-                attempts.append({"address": addr, "ok": True, "action": "already_connected"})
+            if already_peer:
+                try:
+                    await already_peer.send(MSG_STATUS, {
+                        "height": self.blockchain.get_height(),
+                        "head_hash": self.head() or "",
+                    })
+                except Exception:
+                    pass
+                attempts.append({"address": addr, "ok": True, "action": "already_connected_status_refresh"})
                 continue
             ok = await self.connect_peer(host, port)
             attempts.append({"address": addr, "ok": bool(ok), "action": "connect"})
@@ -1509,24 +1534,30 @@ class P2PNode:
         """Периодически догоняем пиров с большей высотой."""
         while self._running:
             await asyncio.sleep(5)
-            our_height = self.blockchain.get_height()
-            our_status = {
-                "height": our_height,
-                "head_hash": self.head() or "",
-            }
-            for peer in list(self.peers.values()):
-                await peer.send(MSG_STATUS, our_status)
-                if peer.height > our_height:
-                    asyncio.create_task(self._sync_with_peer_safe(peer))
-            target_peers = max(1, int(getattr(self.config, "testnet_expected_peers", 1) or 1))
-            if len(self.peers) < target_peers:
-                for addr in list(self._known_addrs):
-                    parts = addr.rsplit(":", 1)
-                    if len(parts) == 2:
-                        try:
-                            asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
-                        except Exception:
-                            pass
+            try:
+                our_height = int(self.blockchain.get_height() or 0)
+                our_status = {
+                    "height": our_height,
+                    "head_hash": self.head() or "",
+                }
+                for peer in list(self.peers.values()):
+                    try:
+                        await peer.send(MSG_STATUS, our_status)
+                    except Exception:
+                        continue
+                    if peer.height > our_height:
+                        asyncio.create_task(self._sync_with_peer_safe(peer))
+                target_peers = max(1, int(getattr(self.config, "testnet_expected_peers", 1) or 1))
+                if len(self.peers) < target_peers:
+                    for addr in list(self._known_addrs):
+                        parts = addr.rsplit(":", 1)
+                        if len(parts) == 2:
+                            try:
+                                asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
+                            except Exception:
+                                pass
+            except Exception as exc:
+                logger.debug(f"[P2P] catch_up_loop: {exc}")
 
     async def _solo_node_hint(self):
         """One-time hint when running without peers (normal for solo dev)."""

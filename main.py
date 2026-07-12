@@ -305,6 +305,7 @@ class NodeOrchestrator:
         global _ACTIVE_NODE
         self.config = config
         self._running = False
+        self._mesh_forge_hold_height = 0
         self._tasks = []
         self._rpc_server = None
         self._http_server = None
@@ -1522,17 +1523,25 @@ class NodeOrchestrator:
                 ]
                 from runtime.mesh_mining import mesh_ready_for_mining
 
-                status_aligned = (
-                    len(peer_heights) >= _min_mesh_peers
-                    and all(h == local_h for h in peer_heights)
-                )
-                if status_aligned:
+                wire_roots = []
+                try:
+                    wire_roots = await self.p2p.request_peer_state_roots()
+                except Exception:
                     wire_roots = []
-                else:
-                    try:
-                        wire_roots = await self.p2p.request_peer_state_roots()
-                    except Exception:
-                        wire_roots = []
+
+                hold_h = int(getattr(self, "_mesh_forge_hold_height", 0) or 0)
+                if hold_h and local_h >= hold_h:
+                    local_root_hold = local_root
+                    matching_hold = sum(
+                        1
+                        for entry in wire_roots
+                        if int(entry.get("height", 0) or 0) == local_h
+                        and str(entry.get("state_root") or "").strip().lower()
+                        == local_root_hold.strip().lower()
+                    )
+                    if matching_hold < _min_mesh_peers:
+                        continue
+                    self._mesh_forge_hold_height = 0
 
                 if not mesh_ready_for_mining(
                     min_mesh_peers=_min_mesh_peers,
@@ -1743,6 +1752,8 @@ class NodeOrchestrator:
                 success = await asyncio.to_thread(self.blockchain.add_block, block)
 
             if success:
+                if int(getattr(self.config, "mesh_min_peers_before_mine", 0) or 0) > 0:
+                    self._mesh_forge_hold_height = int(block.height)
                 # Удаляем включённые транзакции из мемпула
                 for tx in block.transactions:
                     self.mempool.remove(tx.hash)

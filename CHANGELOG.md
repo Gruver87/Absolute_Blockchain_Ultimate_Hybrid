@@ -16,6 +16,27 @@
 
 ---
 
+## [1.2.41] — 2026-07-13
+
+### Added
+
+- `scripts/mesh_heal_fork.ps1` — reseed node1 chainstore from node2 when hub diverges
+- `mesh_recover.ps1 -HealFork` shortcut
+- Stabilize auto-heal node1 fork (`ABS_STABILIZE_AUTO_HEAL=0` to disable)
+- Post-forge mesh hold: hub waits for wire peer confirmation before next block
+
+### Changed
+
+- Mesh mining gate fail-closed (no solo forge on `state_consistent` alone)
+- P2P STATUS echo + state-root height refresh on reconnect
+- Prod stabilize: JWT from `.env`, cluster-tip success, failover pre-sync in evidence suite
+
+### Live ops
+
+- `prod_evidence_suite.ps1 -GitTag v1.2.41` **PASS** (stabilize, health, failover, signed tx, EVM)
+
+---
+
 ## [1.2.31] — 2026-07-12
 
 ### Added

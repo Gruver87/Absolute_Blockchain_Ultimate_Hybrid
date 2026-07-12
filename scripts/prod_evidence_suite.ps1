@@ -62,6 +62,10 @@ Step "mesh health" {
 }
 
 if (-not $SkipFailover) {
+    Step "failover pre-sync" {
+        & (Join-Path $ScriptDir "mesh_stabilize.ps1") -WaitSec 120
+    }
+
     Step "failover drill" {
         & (Join-Path $ScriptDir "prod_mesh_failover.ps1")
     }
