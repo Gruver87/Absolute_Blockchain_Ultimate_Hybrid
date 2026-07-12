@@ -199,6 +199,10 @@ jobs:
           tests/unit/test_wave54_state_consistency.py \
           -q --tb=short
 
+    - name: Public testnet gate (static)
+      if: matrix.python-version == '3.12'
+      run: python scripts/public_testnet_gate.py
+
     - name: Industrial static gate
       if: matrix.python-version == '3.12'
       run: python scripts/industrial_gate.py

@@ -40,6 +40,7 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | Claim | Evidence | How to reproduce |
 |-------|----------|------------------|
 | Prod 3-node mesh boots on RocksDB | `docker_prod_3node.ps1` → healthy containers, unified heights | `.\scripts\docker_prod_3node.ps1 -SkipBuild -KeepVolumes` |
+| **Public testnet seed (77777)** | Docker seed on :19080, live gate PASS | `.\scripts\testnet_evidence_suite.ps1` |
 | Cross-node state / tip alignment | `GET /chain/consistency/harness` OK on :18180–:18182 | `.\scripts\probe_mesh_nodes.ps1 -ProdMesh` |
 | P2P topology on prod ports | `peer_count=2`, `topology_healthy=True` in post-checks | same mesh script |
 | **Failover / resilience** | node2 stop → mesh alive → node2 rejoin, heights aligned | `.\scripts\prod_mesh_failover.ps1` |
@@ -61,7 +62,8 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | **External audit** | README and `external_audit_tracker.py` checklist incomplete | Third-party audit report + tracker items closed |
 | **Bridge mainnet cutover** | Prod mesh runs with `bridge_enabled: false` by design | Audited L1 contracts + relayer SLOs per `docs/BRIDGE_L1_MAINNET.md`; decision recorded via `bridge_decision_off` step |
 | **Ceremony + secret rotation automation** | **Scripts proven** (v1.2.32): `ceremony_preflight`, `rotate_prod_secrets.ps1` | Operator runs pin + `-Force` rotation before cutover — see `docs/MAINNET_CUTOVER.md` |
-| **Public testnet / VPS** | Compose + nginx + gates added; no production DNS/TLS yet | `public_testnet_gate.py --live` on VPS seed; TLS + DNS |
+| **Public testnet seed (local Docker)** | **PASS** Jul 12 — chain 77777 on :19080, `public_testnet_gate --live` | `.\scripts\testnet_evidence_suite.ps1` |
+| **Public testnet / VPS + DNS** | Local seed proven; no public URL/TLS yet | VPS + `vps_testnet_bootstrap.sh` + nginx TLS |
 
 ---
 

@@ -1,10 +1,12 @@
 # Automated checks from docs/PUBLIC_TESTNET.md (local prod mesh prerequisites).
 param(
     [switch]$ProdMesh,
+    [switch]$TestnetSeed,
     [int[]]$Ports = @(8080, 8081, 8082),
     [string]$SoakReport = "logs/soak_report.json",
     [int]$MinSoakHours = 10,
-    [switch]$SkipIndustrialGate
+    [switch]$SkipIndustrialGate,
+    [switch]$RunPublicGate
 )
 
 $ErrorActionPreference = "Stop"
@@ -13,6 +15,7 @@ $Root = Split-Path -Parent $ScriptDir
 Set-Location $Root
 
 if ($ProdMesh) { $Ports = @(18180, 18181, 18182) }
+if ($TestnetSeed) { $Ports = @(19080) }
 
 $failures = @()
 $checks = @()
@@ -55,6 +58,14 @@ if ($heights.Count -gt 1) {
     Add-Check "mesh_height_aligned" ($uniq -le 1) " heights=$($heights -join '/')"
 }
 
+if ($RunPublicGate -or $TestnetSeed) {
+    Write-Host "`n=== public_testnet_gate ===" -ForegroundColor Cyan
+    $base = "http://127.0.0.1:$($Ports[0])"
+    python (Join-Path $ScriptDir "public_testnet_gate.py") --live --base-url $base
+    Add-Check "public_testnet_gate_live" ($LASTEXITCODE -eq 0)
+}
+
+if ($MinSoakHours -gt 0) {
 if (Test-Path $SoakReport) {
     try {
         $soak = Get-Content $SoakReport -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -68,6 +79,9 @@ if (Test-Path $SoakReport) {
     }
 } else {
     Add-Check "soak_report" $false " missing $SoakReport"
+}
+} else {
+    Add-Check "soak_report" $true " (skipped min_hours=0)"
 }
 
 Write-Host "`n=== summary ===" -ForegroundColor Cyan
