@@ -10,22 +10,29 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Root = Split-Path -Parent $ScriptDir
 Set-Location $Root
 
-function Test-SeedPortFree([int]$Port) {
+function Get-SeedPortState([int]$Port) {
     try {
-        $r = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/health/ready" -UseBasicParsing -TimeoutSec 2 -MaximumRedirection 0
-        return @{ Ok = $false; Reason = "unexpected HTTP $($r.StatusCode) on :$Port (not an ABS node?)" }
+        $ready = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health/ready" -TimeoutSec 3
+        $st = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status" -TimeoutSec 3
+        if (($ready.status -eq "ready") -and ([int]$st.chain_id -eq 77777)) {
+            return @{ State = "AbsRunning"; Status = $st }
+        }
+        return @{
+            State = "Conflict"
+            Reason = "port $Port responds but chain_id=$($st.chain_id) is not testnet 77777"
+        }
     } catch {
         $msg = $_.Exception.Message
         if ($msg -match 'Unable to connect|actively refused|connection attempt failed') {
-            return @{ Ok = $true }
+            return @{ State = "Free" }
         }
         if ($msg -match '301|302|Moved|about:blank') {
             return @{
-                Ok = $false
-                Reason = "port $Port is used by another app (e.g. NahimicService on Windows). Set TESTNET_HTTP_PORT=19080 in .env.testnet"
+                State = "Conflict"
+                Reason = "port $Port is used by another app (e.g. NahimicService on Windows :9080). Set TESTNET_HTTP_PORT=19080 in .env.testnet"
             }
         }
-        return @{ Ok = $true }
+        return @{ State = "Free" }
     }
 }
 
@@ -51,11 +58,12 @@ Get-Content $envFile | ForEach-Object {
 
 $httpPortNum = if ($env:TESTNET_HTTP_PORT) { [int]$env:TESTNET_HTTP_PORT } else { 19080 }
 
-$portCheck = Test-SeedPortFree -Port $httpPortNum
-if (-not $portCheck.Ok) {
-    Write-Host "FAIL: $($portCheck.Reason)" -ForegroundColor Red
+$portState = Get-SeedPortState -Port $httpPortNum
+if ($portState.State -eq "Conflict") {
+    Write-Host "FAIL: $($portState.Reason)" -ForegroundColor Red
     exit 1
 }
+$seedAlreadyRunning = ($portState.State -eq "AbsRunning")
 
 $composeArgs = @("-f", "docker-compose.testnet.yml", "-p", "abs-testnet")
 if ($WithValidator) { $composeArgs += "--profile", "validators" }
@@ -65,28 +73,34 @@ if ($Down) {
     exit $LASTEXITCODE
 }
 
-if (-not $SkipBuild) {
-    docker compose @composeArgs build testnet-seed
-    if (-not $?) { exit 1 }
-}
+if (-not $seedAlreadyRunning) {
+    if (-not $SkipBuild) {
+        docker compose @composeArgs build testnet-seed
+        if (-not $?) { exit 1 }
+    }
 
-docker compose @composeArgs up -d testnet-seed
-if (-not $?) { exit 1 }
-
-if ($WithValidator) {
-    docker compose @composeArgs up -d testnet-validator
+    docker compose @composeArgs up -d testnet-seed
     if (-not $?) { exit 1 }
+
+    if ($WithValidator) {
+        docker compose @composeArgs up -d testnet-validator
+        if (-not $?) { exit 1 }
+    }
+} else {
+    Write-Host "OK: testnet seed already running on :$httpPortNum (chain 77777)" -ForegroundColor Green
 }
 
 $httpPort = if ($env:TESTNET_HTTP_PORT) { $env:TESTNET_HTTP_PORT } else { "19080" }
-$deadline = (Get-Date).AddMinutes(3)
-Write-Host "Waiting for testnet seed http://127.0.0.1:$httpPort/health/ready ..."
-while ((Get-Date) -lt $deadline) {
-    try {
-        $r = Invoke-RestMethod -Uri "http://127.0.0.1:$httpPort/health/ready" -TimeoutSec 5
-        if ($r.status -eq "ready") { break }
-    } catch { }
-    Start-Sleep -Seconds 3
+if (-not $seedAlreadyRunning) {
+    $deadline = (Get-Date).AddMinutes(3)
+    Write-Host "Waiting for testnet seed http://127.0.0.1:$httpPort/health/ready ..."
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $r = Invoke-RestMethod -Uri "http://127.0.0.1:$httpPort/health/ready" -TimeoutSec 5
+            if ($r.status -eq "ready") { break }
+        } catch { }
+        Start-Sleep -Seconds 3
+    }
 }
 
 try {
