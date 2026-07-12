@@ -32,6 +32,8 @@ def _check_native_wheel() -> tuple[list[str], list[str]]:
             "evm_run_until_halt",
             "validate_imported_block_chain",
             "pubkey_to_eth_address",
+            "rlp_encode",
+            "rlp_decode_single",
         ):
             if not hasattr(_abs, sym):
                 errors.append(f"abs_native missing export: {sym}")

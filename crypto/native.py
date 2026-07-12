@@ -102,6 +102,9 @@ def native_crypto_status(required: bool = False) -> dict:
             "secp256k1_verify",
             "consensus_hash",
             "hash_chain_validation",
+            "rlp_encode",
+            "rlp_decode",
+            "rlp_decode_single",
         ],
     }
     if _native is None:
@@ -120,6 +123,16 @@ def native_crypto_status(required: bool = False) -> dict:
         ok = ok and keccak256_hex(b"") == (
             "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
         )
+        if _native is not None and hasattr(_native, "rlp_encode"):
+            from crypto.rlp import decode_single, encode
+
+            sample = [0, 1, 255, 256]
+            ok = ok and decode_single(encode(sample)) == [
+                b"",
+                b"\x01",
+                b"\xff",
+                b"\x01\x00",
+            ]
         if _native is not None and hasattr(_native, "evm_run_until_halt"):
             bc = bytes([0x60, 0x02, 0x60, 0x03, 0x01, 0x00])
             table = evm_build_jumpdest_table(bc)

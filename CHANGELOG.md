@@ -10,6 +10,22 @@
 
 ---
 
+---
+
+## [1.2.29] — 2026-07-12
+
+### Added
+
+- Rust RLP kernel (`rlp_encode`, `rlp_decode`, `rlp_decode_single`) for Ethereum raw tx hot path
+- `tests/unit/test_rlp_native.py` — native/Python parity
+
+### Changed
+
+- `crypto/rlp.py` uses `abs_native` when available; Python fallback for dev
+- Industrial gate + native self-test cover RLP roundtrip
+
+---
+
 ## [1.2.28] — 2026-07-12
 
 ### Added

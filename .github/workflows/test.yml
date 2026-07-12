@@ -144,6 +144,8 @@ jobs:
           tests/unit/test_native_consensus_hash.py \
           tests/unit/test_native_peer_validation.py \
           tests/unit/test_native_deploy_address.py \
+          tests/unit/test_rlp_native.py \
+          tests/unit/test_eth_raw_tx.py \
           tests/unit/test_genesis_deterministic.py \
           tests/unit/test_genesis_ceremony.py \
           tests/unit/test_ceremony_keygen.py \

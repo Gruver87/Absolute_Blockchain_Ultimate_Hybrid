@@ -1,4 +1,5 @@
 mod evm_pure_runner;
+mod rlp;
 mod storage;
 mod state_trie;
 
@@ -1577,6 +1578,9 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(keccak256_hex, m)?)?;
     m.add_function(wrap_pyfunction!(recover_eth_address_keccak, m)?)?;
     m.add_function(wrap_pyfunction!(pubkey_to_eth_address, m)?)?;
+    m.add_function(wrap_pyfunction!(rlp::rlp_encode, m)?)?;
+    m.add_function(wrap_pyfunction!(rlp::rlp_decode, m)?)?;
+    m.add_function(wrap_pyfunction!(rlp::rlp_decode_single, m)?)?;
     m.add_function(wrap_pyfunction!(validate_imported_block_chain, m)?)?;
     m.add_function(wrap_pyfunction!(validate_peer_header_chain, m)?)?;
     m.add_function(wrap_pyfunction!(transaction_hash, m)?)?;
