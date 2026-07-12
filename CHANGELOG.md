@@ -16,6 +16,24 @@
 
 ---
 
+## [1.2.42] — 2026-07-13
+
+### Added
+
+- **Lightning**: HTLC add/settle/refund, signed channel states (`features/l2_crypto`), BFS routing, SQLite tables `lightning_htlcs` / `lightning_channel_states`
+- **Plasma**: native Merkle roots + inclusion proofs, signed L2 txs, L1 root metadata
+- **WASM**: `wasmtime` engine with host `storage_get` / `storage_set` ABI (`features/wasm_engine.py`)
+- **Oracles**: reporter submissions + median quorum aggregation (`oracle_reports` table)
+- **ZK**: fixed balance proof verification; `create_zk_transaction` API compatibility
+- HTTP: `/lightning/htlc/*`, `/lightning/route`, `/plasma/proof`, `/oracles/reports/submit`, `/oracles/aggregate`
+- Tests: `tests/unit/test_l2_advanced_features.py` (29 tests pass in L2/ZK/WASM suite)
+
+### Notes
+
+- Advanced L2 modules are **functional + persisted** but remain **R&D** until independent audit. See `RELEASE_NOTES_v1.2.42.md`.
+
+---
+
 ## [1.2.41] — 2026-07-13
 
 ### Added

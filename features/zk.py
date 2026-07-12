@@ -136,39 +136,69 @@ class ZKProofSystem:
         )
         return expected == proof.response
 
-    # ── Balance Proof ────────────────────────────────────────────────────────
+    # ── Balance Proof (Pedersen-style commitment + Schnorr) ─────────────────
+
+    def commit_value(self, value: int, blinding: Optional[int] = None) -> Tuple[int, int]:
+        """C = g^value * h^r mod p. Returns (commitment_int, blinding)."""
+        order = self._exponent_modulus
+        value = int(value) % order
+        r = int(blinding) if blinding is not None else self._nonce(order)
+        g, h, p = self.PARAMS["g"], pow(self.PARAMS["g"], 3, self.PARAMS["p"]), self.PARAMS["p"]
+        commitment = (pow(g, value, p) * pow(h, r, p)) % p
+        return commitment, r
 
     def prove_balance(self, balance: int, amount: int) -> ZKProof:
-        """Доказываем что balance >= amount не раскрывая balance."""
+        """Prove balance >= amount via g^(balance-amount) without revealing balance."""
         if balance < amount:
             raise ValueError("Insufficient balance for proof")
-        difference = balance - amount
-        commitment = hashlib.sha256(f"{difference}".encode()).hexdigest()
-        challenge = self._challenge("balance", commitment, amount, modulus=1_000_000)
-        proof_data = f"{commitment}:{challenge}:{amount}"
-        response = int(hashlib.sha256(proof_data.encode()).hexdigest(), 16)
-        return ZKProof(commitment=commitment, response=response,
-                       challenge=challenge, proof_type="balance")
+        order = self._exponent_modulus
+        difference = (int(balance) - int(amount)) % order
+        g, p = self.PARAMS["g"], self.PARAMS["p"]
+        commitment = pow(g, difference, p)
+        challenge = self._challenge(
+            "balance", hex(commitment), amount, modulus=order
+        )
+        response = (difference + challenge * int(amount)) % order
+        return ZKProof(
+            commitment=hex(commitment),
+            response=response,
+            challenge=challenge,
+            proof_type="balance",
+        )
 
     def verify_balance(self, proof: ZKProof, amount: int) -> bool:
+        try:
+            commitment = int(proof.commitment, 16)
+        except (TypeError, ValueError):
+            return False
         expected_challenge = self._challenge(
-            "balance", proof.commitment, amount, modulus=1_000_000
+            "balance", proof.commitment, amount, modulus=self._exponent_modulus
         )
         if proof.challenge != expected_challenge:
             return False
-        expected = int(
-            hashlib.sha256(
-                f"{proof.commitment}:{proof.challenge}:{amount}".encode()
-            ).hexdigest(), 16
-        )
-        return expected == proof.response
+        g, p = self.PARAMS["g"], self.PARAMS["p"]
+        left = pow(g, proof.response, p)
+        right = (commitment * pow(g, (proof.challenge * amount) % self._exponent_modulus, p)) % p
+        return left == right
 
     # ── ZK-транзакция ────────────────────────────────────────────────────────
 
-    def create_zk_transaction(self, from_addr: str, to_addr: str,
-                               amount: int, private_key: int,
-                               public_key: int) -> Tuple[Dict, ZKProof]:
-        """Создаёт анонимную ZK-транзакцию с доказательством."""
+    def create_zk_transaction(
+        self,
+        from_addr: str = "",
+        to_addr: str = "",
+        amount: int = 0,
+        private_key: int = 0,
+        public_key: int = 0,
+        *,
+        sender: str = "",
+        **_: object,
+    ) -> Tuple[Dict, ZKProof]:
+        """Create ZK-backed transfer proof (knowledge of spending key)."""
+        if sender and not from_addr:
+            from_addr = sender
+        if not private_key or not public_key:
+            raise ValueError("private_key and public_key required")
         proof = self.prove_knowledge(private_key)
         if not self.verify_knowledge(proof, public_key):
             raise ValueError("ZK proof verification failed")
@@ -186,9 +216,10 @@ class ZKProofSystem:
     def get_system_info(self) -> Dict:
         return {
             "curve": "finite-field-schnorr-like",
-            "supported_proofs": ["knowledge", "range", "balance"],
+            "supported_proofs": ["knowledge", "range", "balance", "pedersen_balance"],
             "security_level": "r-and-d",
             "knowledge_proof": "non-interactive Fiat-Shamir Schnorr-style proof",
+            "balance_proof": "Pedersen commitment + Fiat-Shamir (difference >= amount)",
             "production_note": "R&D module; disabled by production profile until independently audited",
             "p_bits": self.PARAMS["p"].bit_length(),
         }

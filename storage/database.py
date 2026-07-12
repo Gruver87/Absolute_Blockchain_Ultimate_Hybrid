@@ -74,8 +74,8 @@ class Database:
             ("transactions", "burned",   "REAL NOT NULL DEFAULT 0.0"),
             ("transactions", "fee",      "REAL NOT NULL DEFAULT 0.0"),
             ("transactions", "gas_used", "INTEGER NOT NULL DEFAULT 21000"),
-            ("accounts", "code",     "TEXT DEFAULT NULL"),
-            ("accounts", "storage",  "TEXT DEFAULT NULL"),
+            ("plasma_blocks", "merkle_root", "TEXT NOT NULL DEFAULT ''"),
+            ("plasma_blocks", "tx_root",     "TEXT NOT NULL DEFAULT ''"),
         ]
         existing: dict = {"blocks": block_cols}
         for table, col, col_def in add_cols:
@@ -287,6 +287,17 @@ class Database:
             CREATE INDEX IF NOT EXISTS idx_oracle_feeds_symbol ON oracle_feeds(symbol);
             CREATE INDEX IF NOT EXISTS idx_oracle_feeds_ts ON oracle_feeds(submitted_at);
 
+            CREATE TABLE IF NOT EXISTS oracle_reports (
+                report_id   TEXT PRIMARY KEY,
+                symbol      TEXT NOT NULL,
+                reporter    TEXT NOT NULL,
+                value       REAL NOT NULL,
+                signature   TEXT NOT NULL DEFAULT '',
+                payload     TEXT NOT NULL DEFAULT '{}',
+                submitted_at INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_oracle_reports_symbol ON oracle_reports(symbol);
+
             CREATE TABLE IF NOT EXISTS lightning_channels (
                 channel_id   TEXT PRIMARY KEY,
                 node1        TEXT NOT NULL,
@@ -311,6 +322,32 @@ class Database:
                 timestamp    INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_ln_payments_channel ON lightning_payments(channel_id);
+
+            CREATE TABLE IF NOT EXISTS lightning_htlcs (
+                htlc_id       TEXT PRIMARY KEY,
+                channel_id    TEXT NOT NULL,
+                payment_hash  TEXT NOT NULL,
+                amount        REAL NOT NULL,
+                expiry        INTEGER NOT NULL,
+                sender        TEXT NOT NULL,
+                receiver      TEXT NOT NULL,
+                status        TEXT NOT NULL DEFAULT 'pending',
+                preimage      TEXT NOT NULL DEFAULT '',
+                created_at    INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_ln_htlcs_channel ON lightning_htlcs(channel_id);
+
+            CREATE TABLE IF NOT EXISTS lightning_channel_states (
+                channel_id    TEXT NOT NULL,
+                version       INTEGER NOT NULL,
+                balance1      REAL NOT NULL,
+                balance2      REAL NOT NULL,
+                state_hash    TEXT NOT NULL,
+                sig_node1     TEXT NOT NULL DEFAULT '',
+                sig_node2     TEXT NOT NULL DEFAULT '',
+                updated_at    INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (channel_id, version)
+            );
 
             CREATE TABLE IF NOT EXISTS plasma_deposits (
                 deposit_id    TEXT PRIMARY KEY,
@@ -1751,6 +1788,44 @@ class Database:
                 ).fetchall()
             return [dict(r) for r in rows]
 
+    def save_oracle_report(self, report: Dict) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO oracle_reports
+                   (report_id, symbol, reporter, value, signature, payload, submitted_at)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (
+                    report["report_id"],
+                    report["symbol"],
+                    report["reporter"],
+                    float(report["value"]),
+                    report.get("signature", ""),
+                    report.get("payload", "{}"),
+                    int(report.get("submitted_at", 0)),
+                ),
+            )
+            self.conn.commit()
+
+    def get_oracle_reports(
+        self, symbol: str = "", since: int = 0, limit: int = 50
+    ) -> List[Dict]:
+        with self.lock:
+            if symbol:
+                rows = self.conn.execute(
+                    """SELECT * FROM oracle_reports
+                       WHERE symbol=? AND submitted_at>=?
+                       ORDER BY submitted_at DESC LIMIT ?""",
+                    (symbol.lower(), int(since), int(limit)),
+                ).fetchall()
+            else:
+                rows = self.conn.execute(
+                    """SELECT * FROM oracle_reports
+                       WHERE submitted_at>=?
+                       ORDER BY submitted_at DESC LIMIT ?""",
+                    (int(since), int(limit)),
+                ).fetchall()
+            return [dict(r) for r in rows]
+
     # ── Lightning Network (Wave 40 persistence) ─────────────────────────────
 
     def save_lightning_channel(self, ch: Dict) -> None:
@@ -1816,6 +1891,71 @@ class Database:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    def save_lightning_htlc(self, h: Dict) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO lightning_htlcs
+                   (htlc_id, channel_id, payment_hash, amount, expiry,
+                    sender, receiver, status, preimage, created_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    h["htlc_id"],
+                    h["channel_id"],
+                    h["payment_hash"],
+                    float(h["amount"]),
+                    int(h["expiry"]),
+                    h["sender"],
+                    h["receiver"],
+                    h.get("status", "pending"),
+                    h.get("preimage", ""),
+                    int(h.get("created_at", 0)),
+                ),
+            )
+            self.conn.commit()
+
+    def get_lightning_htlcs(self, channel_id: str = "", limit: int = 100) -> List[Dict]:
+        with self.lock:
+            if channel_id:
+                rows = self.conn.execute(
+                    "SELECT * FROM lightning_htlcs WHERE channel_id=? ORDER BY created_at DESC LIMIT ?",
+                    (channel_id, int(limit)),
+                ).fetchall()
+            else:
+                rows = self.conn.execute(
+                    "SELECT * FROM lightning_htlcs ORDER BY created_at DESC LIMIT ?",
+                    (int(limit),),
+                ).fetchall()
+            return [dict(r) for r in rows]
+
+    def save_lightning_channel_state(self, st: Dict) -> None:
+        with self.lock:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO lightning_channel_states
+                   (channel_id, version, balance1, balance2, state_hash,
+                    sig_node1, sig_node2, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (
+                    st["channel_id"],
+                    int(st["version"]),
+                    float(st["balance1"]),
+                    float(st["balance2"]),
+                    st["state_hash"],
+                    st.get("sig_node1", ""),
+                    st.get("sig_node2", ""),
+                    int(st.get("updated_at", 0)),
+                ),
+            )
+            self.conn.commit()
+
+    def get_lightning_channel_state(self, channel_id: str) -> Optional[Dict]:
+        with self.lock:
+            row = self.conn.execute(
+                """SELECT * FROM lightning_channel_states
+                   WHERE channel_id=? ORDER BY version DESC LIMIT 1""",
+                (channel_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
     # ── Plasma L2 (Wave 40 persistence) ─────────────────────────────────────
 
     def save_plasma_deposit(self, dep: Dict) -> None:
@@ -1858,8 +1998,8 @@ class Database:
             self.conn.execute(
                 """INSERT OR REPLACE INTO plasma_blocks
                    (block_id, block_hash, parent_hash, transactions,
-                    total_amount, tx_count, created_at)
-                   VALUES (?,?,?,?,?,?,?)""",
+                    total_amount, tx_count, created_at, merkle_root, tx_root)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
                 (
                     int(block["block_id"]),
                     block["block_hash"],
@@ -1868,6 +2008,8 @@ class Database:
                     float(block.get("total_amount", 0)),
                     int(block.get("transaction_count", block.get("tx_count", 0))),
                     int(block.get("created_at", 0)),
+                    block.get("merkle_root", ""),
+                    block.get("tx_root", block.get("merkle_root", "")),
                 ),
             )
             self.conn.commit()

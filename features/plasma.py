@@ -1,10 +1,14 @@
-"""Plasma Chain — L2 sidechain with SQLite persistence (Wave 40)."""
+"""Plasma Chain — L2 sidechain with Merkle proofs and signed transactions."""
 
 import hashlib
 import json
 import threading
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
+
+from crypto import native
+from crypto.signing import Signer
+from features.l2_crypto import canonical_json, hash_state
 
 
 class PlasmaBlock:
@@ -17,6 +21,15 @@ class PlasmaBlock:
         self.block_hash = block_hash or self._calc_hash()
         self.transaction_count = len(transactions)
         self.total_amount = sum(tx.get("amount", 0) for tx in transactions)
+        self.merkle_root = ""
+        self.tx_hashes: List[str] = []
+
+    def bind_merkle(self, tx_hashes: List[str]) -> None:
+        self.tx_hashes = list(tx_hashes)
+        if tx_hashes:
+            self.merkle_root = native.merkle_root(tx_hashes)
+        else:
+            self.merkle_root = hashlib.sha256(b"").hexdigest()
 
     def _calc_hash(self) -> str:
         tx_data = json.dumps(self.transactions, sort_keys=True)
@@ -28,6 +41,7 @@ class PlasmaBlock:
             "block_id": self.block_id,
             "block_hash": self.block_hash[:16] + "...",
             "parent_hash": self.parent_hash[:16] + "...",
+            "merkle_root": (self.merkle_root or "")[:16] + "...",
             "transaction_count": self.transaction_count,
             "total_amount": self.total_amount,
             "created_at": self.created_at,
@@ -42,6 +56,8 @@ class PlasmaBlock:
             "total_amount": self.total_amount,
             "transaction_count": self.transaction_count,
             "created_at": self.created_at,
+            "merkle_root": self.merkle_root,
+            "tx_root": self.merkle_root,
         }
 
 
@@ -117,6 +133,14 @@ class PlasmaChain:
                     created_at=row.get("created_at"),
                     block_hash=row["block_hash"],
                 )
+                blk.merkle_root = row.get("merkle_root") or row.get("tx_root") or ""
+                blk.tx_hashes = [
+                    native.sha256_hex(canonical_json(tx).encode("utf-8"))
+                    for tx in blk.transactions
+                    if isinstance(tx, dict)
+                ]
+                if blk.tx_hashes and not blk.merkle_root:
+                    blk.bind_merkle(blk.tx_hashes)
                 self.blocks.append(blk)
             self.blocks.sort(key=lambda b: b.block_id)
         if hasattr(self.db, "get_meta"):
@@ -196,22 +220,50 @@ class PlasmaChain:
         print(f"[Plasma] Deposit {deposit_id}: {amount} ABS from {from_addr[:12]}...")
         return deposit_id
 
-    def submit_transaction(self, from_addr: str, to_addr: str,
-                           amount: float) -> Optional[str]:
+    def _tx_hash(self, tx: Dict) -> str:
+        return native.sha256_hex(canonical_json(tx).encode("utf-8"))
+
+    def _verify_signed_tx(self, tx: Dict) -> bool:
+        sig = tx.get("signature", "")
+        pubkey = tx.get("public_key", "")
+        if not sig or not pubkey:
+            return True
+        body = {k: v for k, v in tx.items() if k not in ("signature", "public_key")}
+        try:
+            return Signer._verify_hash(
+                hash_state(body),
+                bytes.fromhex(sig),
+                bytes.fromhex(pubkey),
+            )
+        except (ValueError, TypeError):
+            return False
+
+    def submit_transaction(
+        self,
+        from_addr: str,
+        to_addr: str,
+        amount: float,
+        signature: str = "",
+        public_key: str = "",
+    ) -> Optional[str]:
         if amount <= 0 or not from_addr or not to_addr:
             return None
         with self._lock:
             if self._l2_balance(from_addr) < amount:
                 return None
             tx = {
-                "hash": hashlib.sha256(
-                    f"{from_addr}{to_addr}{amount}{time.time()}".encode()
-                ).hexdigest()[:16],
+                "hash": "",
                 "from": from_addr,
                 "to": to_addr,
                 "amount": amount,
                 "timestamp": int(time.time()),
             }
+            if signature and public_key:
+                tx["signature"] = signature
+                tx["public_key"] = public_key
+            if not self._verify_signed_tx(tx):
+                return None
+            tx["hash"] = self._tx_hash(tx)[:16]
             self.pending_txs.append(tx)
             self._persist_pending()
             return tx["hash"]
@@ -221,16 +273,53 @@ class PlasmaChain:
             if not self.pending_txs:
                 return None
             parent_hash = self.blocks[-1].block_hash if self.blocks else "0" * 64
-            new_block = PlasmaBlock(
-                len(self.blocks), parent_hash, list(self.pending_txs)
-            )
+            txs = list(self.pending_txs)
+            tx_hashes = [self._tx_hash(tx) for tx in txs]
+            new_block = PlasmaBlock(len(self.blocks), parent_hash, txs)
+            new_block.bind_merkle(tx_hashes)
             self.blocks.append(new_block)
             self.pending_txs.clear()
             self._persist_block(new_block)
             self._persist_pending()
-        print(f"[Plasma] Block #{new_block.block_id} by {proposer[:12]}... "
-              f"txs={new_block.transaction_count}")
+            if self.db and hasattr(self.db, "set_meta"):
+                self.db.set_meta(
+                    f"plasma_l1_root_{new_block.block_id}",
+                    {"merkle_root": new_block.merkle_root, "block_hash": new_block.block_hash},
+                )
+        print(
+            f"[Plasma] Block #{new_block.block_id} by {proposer[:12]}... "
+            f"txs={new_block.transaction_count} root={new_block.merkle_root[:16]}..."
+        )
         return new_block.to_dict()
+
+    def merkle_proof(self, block_id: int, tx_hash: str) -> Optional[Dict]:
+        with self._lock:
+            block = next((b for b in self.blocks if b.block_id == block_id), None)
+            if not block or not block.tx_hashes:
+                return None
+            try:
+                idx = block.tx_hashes.index(tx_hash)
+            except ValueError:
+                return None
+            proof = native.generate_proof(block.tx_hashes, idx)
+            return {
+                "block_id": block_id,
+                "tx_hash": tx_hash,
+                "index": idx,
+                "merkle_root": block.merkle_root,
+                "proof": proof,
+            }
+
+    def verify_inclusion(self, block_id: int, tx_hash: str, proof: List[str]) -> bool:
+        with self._lock:
+            block = next((b for b in self.blocks if b.block_id == block_id), None)
+            if not block or not block.merkle_root:
+                return False
+            try:
+                idx = block.tx_hashes.index(tx_hash)
+            except ValueError:
+                return False
+            return native.verify_proof(tx_hash, proof, block.merkle_root, idx)
 
     def request_exit(self, deposit_id: str, user: str) -> Optional[str]:
         with self._lock:
@@ -301,6 +390,8 @@ class PlasmaChain:
                 "tvl": total_deposited - total_withdrawn,
                 "persisted": bool(self.db),
                 "challenge_period_sec": self.CHALLENGE_PERIOD,
+                "merkle_proofs": True,
+                "signed_txs": True,
             }
 
     def _exit_monitor_loop(self):

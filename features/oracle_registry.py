@@ -113,6 +113,78 @@ class OracleFeedRegistry:
         rows = self.list_feeds(symbol=symbol, limit=1)
         return rows[0] if rows else None
 
+    def submit_report(
+        self,
+        symbol: str,
+        value: float,
+        reporter: str,
+        signature: str = "",
+        payload: Optional[Dict[str, Any]] = None,
+        *,
+        max_age_sec: int = 300,
+    ) -> Dict[str, Any]:
+        """Reporter submission for quorum aggregation."""
+        symbol = (symbol or "").strip().lower()
+        if not symbol or not reporter:
+            return {"ok": False, "error": "symbol and reporter required"}
+        body = payload or {
+            "symbol": symbol,
+            "value": float(value),
+            "reporter": reporter,
+            "ts": int(time.time()),
+        }
+        raw = json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+        if self.secret and signature:
+            if not verify_signature(self.secret, raw, signature):
+                return {"ok": False, "error": "invalid oracle signature"}
+        ts = int(body.get("ts", time.time()))
+        report_id = hashlib.sha256(f"{symbol}:{reporter}:{ts}".encode()).hexdigest()[:32]
+        if hasattr(self.db, "save_oracle_report"):
+            self.db.save_oracle_report({
+                "report_id": report_id,
+                "symbol": symbol,
+                "reporter": reporter,
+                "value": float(value),
+                "signature": signature or "",
+                "payload": json.dumps(body),
+                "submitted_at": ts,
+            })
+        return {"ok": True, "report_id": report_id, "symbol": symbol, "value": float(value)}
+
+    def aggregate_symbol(
+        self,
+        symbol: str,
+        *,
+        quorum: int = 2,
+        max_age_sec: int = 300,
+        max_deviation_pct: float = 5.0,
+    ) -> Optional[Dict[str, Any]]:
+        """Median price from recent reporter submissions (quorum gate)."""
+        symbol = (symbol or "").strip().lower()
+        if not symbol or not hasattr(self.db, "get_oracle_reports"):
+            return None
+        cutoff = int(time.time()) - max(30, max_age_sec)
+        rows = self.db.get_oracle_reports(symbol=symbol, since=cutoff, limit=50)
+        if len(rows) < quorum:
+            return None
+        values = sorted(float(r["value"]) for r in rows)
+        mid = values[len(values) // 2]
+        if len(values) >= 2:
+            dev = abs(values[-1] - values[0]) / max(mid, 1e-9) * 100.0
+            if dev > max_deviation_pct:
+                return None
+        canonical = self.ingest_internal(symbol, mid, "quorum_median", {
+            "quorum": len(rows),
+            "reporters": [r["reporter"] for r in rows[:5]],
+        })
+        return {
+            "symbol": symbol,
+            "value": mid,
+            "quorum": len(rows),
+            "feed_id": canonical,
+            "source": "quorum_median",
+        }
+
     def sign_payload(self, payload: Dict[str, Any]) -> str:
         raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
         return sign_payload(self.secret, raw)

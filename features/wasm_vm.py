@@ -1,9 +1,21 @@
 """WASM VM — WebAssembly-style contracts with SQLite persistence (Wave 42)."""
 
+import base64
 import hashlib
 import json
 import time
 from typing import Dict, List, Optional, Any
+
+
+def _looks_like_wasm_module(code: str) -> bool:
+    raw = (code or "").strip()
+    if raw.startswith("(module"):
+        return True
+    try:
+        data = base64.b64decode(raw, validate=True)
+        return len(data) >= 4 and data[:4] == b"\x00asm"
+    except Exception:
+        return False
 
 
 class WASMContract:
@@ -188,6 +200,9 @@ class WASMVirtualMachine:
             "gas_limit": self.GAS_LIMIT,
             "deploy_fee": self.DEPLOY_FEE,
             "persisted": bool(self.db),
+            "wasm_engine": __import__(
+                "features.wasm_engine", fromlist=["WASMEngine"]
+            ).WASMEngine.available(),
         }
 
     def _run_constructor(self, addr: str, params: Dict, owner: str):
@@ -241,10 +256,41 @@ class WASMVirtualMachine:
             return {"success": True, "result": store.get(key) if key else None}
         else:
             code = contract.code
-            if f"fn {fn}" in code or f"function {fn}" in code or f"def {fn}" in code:
+            pseudo_source = (
+                f"fn {fn}" in code
+                or f"function {fn}" in code
+                or f"def {fn}" in code
+            )
+            if pseudo_source and not _looks_like_wasm_module(code):
                 return {
                     "success": False,
                     "error": "Custom WASM execution backend not available",
+                }
+            try:
+                from features.wasm_engine import WASMEngine
+
+                if WASMEngine.available() and _looks_like_wasm_module(code):
+                    store = self.storage.setdefault(addr, {})
+                    engine = WASMEngine(store, gas_limit=self.GAS_LIMIT)
+                    wasm_bytes = WASMEngine.decode_module(contract.code)
+                    out = engine.execute(wasm_bytes, fn, params, caller)
+                    if out.get("success"):
+                        self.storage[addr] = store
+                        return {
+                            "success": True,
+                            "result": out.get("result"),
+                            "data": {"engine": out.get("engine"), "logs": out.get("logs")},
+                        }
+                    return {
+                        "success": False,
+                        "error": out.get("error", "wasm execution failed"),
+                    }
+            except Exception as exc:
+                return {"success": False, "error": f"WASM engine error: {exc}"}
+            if pseudo_source:
+                return {
+                    "success": False,
+                    "error": "Install wasmtime for custom WASM exports (pip install wasmtime)",
                 }
             return {"success": False, "error": f"Function '{fn}' not found"}
 

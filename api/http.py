@@ -351,7 +351,13 @@ _PUBLIC_API_ROUTES = [
     {"method": "POST", "path": "/bridge/oracle/l1-queue-sync", "summary": "Relayer L1 queue persist (oracle HMAC)"},
     {"method": "GET", "path": "/bridge/l1-queue", "summary": "L1 RPC watch queue (relayer)"},
     {"method": "GET", "path": "/oracles/l1-queue", "summary": "Bridge L1 queue (alias)"},
-    {"method": "GET", "path": "/lightning/stats", "summary": "Lightning channel stats (SQLite)"},
+    {"method": "GET", "path": "/lightning/htlcs", "summary": "Lightning HTLC list (SQLite)"},
+    {"method": "POST", "path": "/lightning/htlc/add", "summary": "Add HTLC to channel"},
+    {"method": "POST", "path": "/lightning/htlc/settle", "summary": "Settle HTLC with preimage"},
+    {"method": "POST", "path": "/lightning/route", "summary": "Multi-hop HTLC route payment"},
+    {"method": "GET", "path": "/plasma/proof", "summary": "Plasma Merkle inclusion proof"},
+    {"method": "POST", "path": "/oracles/reports/submit", "summary": "Oracle reporter submission (quorum)"},
+    {"method": "POST", "path": "/oracles/aggregate", "summary": "Aggregate oracle reports (median quorum)"},
     {"method": "GET", "path": "/plasma/stats", "summary": "Plasma L2 stats (SQLite)"},
     {"method": "GET", "path": "/plasma/deposits", "summary": "Plasma L2 deposits"},
     {"method": "GET", "path": "/will/stats", "summary": "Crypto will stats (SQLite)"},
@@ -2526,6 +2532,34 @@ class RESTHandler(BaseHTTPRequestHandler):
                 limit = int(qs.get("limit", ["50"])[0])
                 self._json({"payments": ln.get_payment_history(limit) if ln else []})
 
+            elif path == "/lightning/htlcs":
+                ln = self.__class__.lightning
+                channel_id = qs.get("channel_id", [""])[0]
+                if ln and hasattr(ln, "get_htlcs"):
+                    self._json({"htlcs": ln.get_htlcs(channel_id)})
+                else:
+                    self._json({"htlcs": [], "enabled": False})
+
+            elif path.startswith("/plasma/proof"):
+                pl = self.__class__.plasma
+                block_id = int(qs.get("block_id", ["0"])[0] or 0)
+                tx_hash = qs.get("tx_hash", [""])[0]
+                if not pl or not tx_hash or not hasattr(pl, "merkle_proof"):
+                    self._json({"error": "proof not available"})
+                    return
+                proof = pl.merkle_proof(block_id, tx_hash)
+                self._json(proof or {"error": "transaction not found in block"})
+
+            elif path.startswith("/oracles/aggregate/"):
+                registry = self.__class__.oracle_registry
+                symbol = path.split("/oracles/aggregate/", 1)[1].strip("/")
+                if not registry or not hasattr(registry, "aggregate_symbol"):
+                    self._json({"error": "oracle registry not enabled"})
+                    return
+                quorum = int(qs.get("quorum", ["2"])[0])
+                result = registry.aggregate_symbol(symbol, quorum=quorum)
+                self._json(result or {"error": "quorum not reached", "symbol": symbol})
+
             # ── Crypto Will ───────────────────────────────────────────────────
             elif path == "/will/stats":
                 cw = self.__class__.crypto_will
@@ -3349,10 +3383,14 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/zk/transaction":
                 zk = self.__class__.zk
                 if zk and hasattr(zk, "create_zk_transaction"):
-                    tx = zk.create_zk_transaction(
-                        sender=qs.get("sender",[""])[0],
-                        amount=int(qs.get("amount",["1"])[0]))
-                    self._json({"tx": tx.__dict__ if hasattr(tx,'__dict__') else str(tx)})
+                    tx, proof = zk.create_zk_transaction(
+                        from_addr=qs.get("from", qs.get("sender", [""]))[0],
+                        to_addr=qs.get("to", [""])[0],
+                        amount=int(qs.get("amount", ["1"])[0]),
+                        private_key=int(qs.get("private_key", ["0"])[0]),
+                        public_key=int(qs.get("public_key", ["0"])[0]),
+                    )
+                    self._json({"tx": tx, "proof": proof.to_dict()})
                 else:
                     self._json({"error": "ZK transactions not available"})
 
@@ -4211,6 +4249,59 @@ class RESTHandler(BaseHTTPRequestHandler):
                 else:
                     self._error(400, "Payment failed (insufficient balance or invalid channel)")
 
+            elif path == "/lightning/htlc/add":
+                ln = self.__class__.lightning
+                if not ln:
+                    self._error(503, "Lightning not enabled"); return
+                cid = body.get("channel_id", "")
+                receiver = body.get("receiver", body.get("to", ""))
+                amount = float(body.get("amount", 0))
+                preimage_hash = body.get("payment_hash", body.get("preimage_hash", ""))
+                expiry = body.get("expiry")
+                if not cid or not receiver or amount <= 0 or not preimage_hash:
+                    self._error(400, "channel_id, receiver, amount, payment_hash required"); return
+                htlc_id = ln.add_htlc(cid, receiver, amount, preimage_hash, expiry=expiry)
+                if htlc_id:
+                    self._json({"success": True, "htlc_id": htlc_id})
+                else:
+                    self._error(400, "HTLC add failed")
+
+            elif path == "/lightning/htlc/settle":
+                ln = self.__class__.lightning
+                if not ln:
+                    self._error(503, "Lightning not enabled"); return
+                htlc_id = body.get("htlc_id", "")
+                preimage = body.get("preimage", "")
+                if not htlc_id or not preimage:
+                    self._error(400, "htlc_id and preimage required"); return
+                ok = ln.settle_htlc(htlc_id, preimage)
+                self._json({"success": ok})
+
+            elif path == "/lightning/htlc/refund":
+                ln = self.__class__.lightning
+                if not ln:
+                    self._error(503, "Lightning not enabled"); return
+                htlc_id = body.get("htlc_id", "")
+                if not htlc_id:
+                    self._error(400, "htlc_id required"); return
+                ok = ln.refund_htlc(htlc_id)
+                self._json({"success": ok})
+
+            elif path == "/lightning/route":
+                ln = self.__class__.lightning
+                if not ln:
+                    self._error(503, "Lightning not enabled"); return
+                destination = body.get("destination", body.get("to", ""))
+                amount = float(body.get("amount", 0))
+                preimage = body.get("preimage", "")
+                if not destination or amount <= 0 or not preimage:
+                    self._error(400, "destination, amount, preimage required"); return
+                htlc_id = ln.route_payment(destination, amount, preimage)
+                if htlc_id:
+                    self._json({"success": True, "htlc_id": htlc_id, "path": ln.find_route(destination, amount)})
+                else:
+                    self._error(400, "Route payment failed")
+
             # ── Crypto Will ───────────────────────────────────────────────────
             elif path == "/will/create":
                 cw = self.__class__.crypto_will
@@ -4596,6 +4687,37 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not result.get("ok"):
                     self._error(400, result.get("error", "submit failed")); return
                 self._json(result)
+
+            elif path == "/oracles/reports/submit":
+                registry = self.__class__.oracle_registry
+                if not registry:
+                    self._error(503, "Oracle registry not enabled"); return
+                symbol = body.get("symbol", "")
+                value = float(body.get("value", 0))
+                reporter = body.get("reporter", body.get("from", ""))
+                sig = self.headers.get("X-Bridge-Oracle-Signature", body.get("signature", ""))
+                result = registry.submit_report(
+                    symbol=symbol,
+                    value=value,
+                    reporter=reporter,
+                    signature=sig,
+                    payload=body if isinstance(body, dict) else None,
+                )
+                if not result.get("ok"):
+                    self._error(400, result.get("error", "submit failed")); return
+                self._json(result)
+
+            elif path == "/oracles/aggregate":
+                registry = self.__class__.oracle_registry
+                if not registry:
+                    self._error(503, "Oracle registry not enabled"); return
+                symbol = body.get("symbol", "")
+                quorum = int(body.get("quorum", 2))
+                result = registry.aggregate_symbol(symbol, quorum=quorum)
+                if result:
+                    self._json({"success": True, **result})
+                else:
+                    self._error(400, "Quorum not reached or deviation too high")
 
             elif path == "/bridge/oracle/confirm-lock":
                 br = _bridge_for_request(self.__class__, cfg)
@@ -5503,10 +5625,14 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/zk/create-tx":
                 zk = self.__class__.zk
                 if zk and hasattr(zk, "create_zk_transaction"):
-                    tx = zk.create_zk_transaction(
-                        sender=body.get("sender",""),
-                        amount=int(body.get("amount", 1)))
-                    self._json({"tx": str(tx), "success": True})
+                    tx, proof = zk.create_zk_transaction(
+                        from_addr=body.get("from_addr", body.get("sender", "")),
+                        to_addr=body.get("to_addr", body.get("to", "")),
+                        amount=int(body.get("amount", 1)),
+                        private_key=int(body.get("private_key", 0)),
+                        public_key=int(body.get("public_key", 0)),
+                    )
+                    self._json({"tx": tx, "proof": proof.to_dict(), "success": True})
                 else:
                     self._json({"success": False, "error": "ZK transactions not available"})
 
