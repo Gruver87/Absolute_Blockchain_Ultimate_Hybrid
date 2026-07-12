@@ -14,7 +14,7 @@ if (Test-Path (Join-Path $Root ".env")) {
     Get-Content (Join-Path $Root ".env") | ForEach-Object {
         if ($_ -match '^\s*([^#=]+)=(.*)$') {
             $k = $matches[1].Trim()
-            $v = $matches[2].Trim().Trim('"')
+            $v = $matches[2].Trim().Trim([char]34).Trim([char]39)
             if ($k) { Set-Item -Path "env:$k" -Value $v }
         }
     }

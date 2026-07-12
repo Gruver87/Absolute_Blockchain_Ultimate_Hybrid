@@ -37,6 +37,8 @@ Target (example): `https://testnet.absolute-chain.org` → explorer + RPC behind
 - [ ] No `.env` secrets in repo; rotate JWT / bridge oracle keys
 - [ ] CI green: tests + docker + `security-audit.yml`
 
+**Windows note:** port **9080** is often taken by NahimicService (MSI audio). Default testnet HTTP port is **19080** (see `.env.testnet.example`).
+
 ### Ops
 
 - [x] Docker seed compose: `docker-compose.testnet.yml` + `scripts/docker_testnet_seed.ps1`
@@ -52,7 +54,7 @@ Target (example): `https://testnet.absolute-chain.org` → explorer + RPC behind
 
 ## Go-live (minimal public surface)
 
-1. **Local / VPS seed** — `.\scripts\docker_testnet_seed.ps1` or `bash scripts/vps_testnet_bootstrap.sh`
+1. **Local / VPS seed** — `.\scripts\docker_testnet_seed.ps1` (default HTTP **19080** — avoids Windows Nahimic on :9080)
 2. **Gate** — `python scripts/public_testnet_gate.py --live` (add `--require-soak-hours 48` before DNS)
 3. **TLS** — `deploy/nginx/testnet.example.conf` in front of seed ports
 3. **Explorer** — static `web/explorer/` behind same host or CDN

@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 echo "=== Absolute public testnet VPS bootstrap ==="
-echo "  chain_id=77777  ports: HTTP 9080 RPC 9085 P2P 9500"
+echo "  chain_id=77777  ports: HTTP 19080 RPC 19085 P2P 19500"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "FAIL: docker not installed" >&2
@@ -27,7 +27,7 @@ python3 scripts/public_testnet_gate.py || true
 docker compose -f docker-compose.testnet.yml -p abs-testnet build testnet-seed
 docker compose -f docker-compose.testnet.yml -p abs-testnet up -d testnet-seed
 
-HTTP_PORT="${TESTNET_HTTP_PORT:-9080}"
+HTTP_PORT="${TESTNET_HTTP_PORT:-19080}"
 deadline=$((SECONDS + 180))
 until curl -sf "http://127.0.0.1:${HTTP_PORT}/health/ready" >/dev/null 2>&1; do
   if (( SECONDS > deadline )); then

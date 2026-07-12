@@ -1,7 +1,7 @@
 # Public testnet gate wrapper (static + optional live probe).
 param(
     [switch]$Live,
-    [string]$BaseUrl = "http://127.0.0.1:9080",
+    [string]$BaseUrl = "http://127.0.0.1:19080",
     [double]$RequireSoakHours = 0
 )
 

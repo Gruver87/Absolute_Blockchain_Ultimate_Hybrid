@@ -10,7 +10,8 @@ COPY bridge/rust_bridge/src ./src
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/target \
-    cargo build --release --locked
+    cargo build --release --locked \
+    && cp target/release/abs_bridge_bin /abs_bridge_bin
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
@@ -21,12 +22,11 @@ RUN apt-get update \
 RUN python3 -m pip install --break-system-packages --no-cache-dir maturin
 
 WORKDIR /build/native/abs_native
-COPY native/abs_native/Cargo.toml native/abs_native/Cargo.lock ./
+COPY native/abs_native/pyproject.toml native/abs_native/Cargo.toml native/abs_native/Cargo.lock ./
+COPY native/abs_native/src ./src
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     cargo fetch --locked
-COPY native/abs_native/pyproject.toml native/abs_native/Cargo.toml native/abs_native/Cargo.lock ./
-COPY native/abs_native/src ./src
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/build/native/abs_native/target \
@@ -44,7 +44,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-COPY --from=bridge-builder /build/target/release/abs_bridge_bin /app/bridge/abs_bridge_bin
+COPY --from=bridge-builder /abs_bridge_bin /app/bridge/abs_bridge_bin
 COPY --from=bridge-builder /wheels /wheels
 RUN pip install --no-cache-dir /wheels/*.whl \
   && python -c "from crypto import native; s=native.native_crypto_status(required=True); assert s['available'] and s['self_test'], s; print('abs_native OK')"

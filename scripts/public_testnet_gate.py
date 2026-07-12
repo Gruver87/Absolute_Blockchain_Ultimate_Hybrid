@@ -30,8 +30,22 @@ def _probe_http(base_url: str, timeout: float = 8.0) -> Tuple[List[str], Dict[st
     base = base_url.rstrip("/")
 
     def _get(path: str) -> Dict[str, Any]:
-        with urllib.request.urlopen(f"{base}{path}", timeout=timeout) as resp:
-            return json.loads(resp.read().decode())
+        req = urllib.request.Request(f"{base}{path}", method="GET")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode())
+        except urllib.error.HTTPError as exc:
+            loc = ""
+            if exc.headers:
+                loc = str(exc.headers.get("Location") or "")
+            if exc.code in (301, 302, 303, 307, 308):
+                hint = (
+                    f"{path}: HTTP {exc.code} redirect to {loc!r} — "
+                    "port is not an ABS node (Windows Nahimic often binds :9080). "
+                    "Use TESTNET_HTTP_PORT=19080 in .env.testnet and re-run docker_testnet_seed.ps1"
+                )
+                raise urllib.error.URLError(hint) from exc
+            raise
 
     try:
         ready = _get("/health/ready")
@@ -113,7 +127,7 @@ def run_public_testnet_gate(
     warnings.extend(
         [
             "public_dns_tls: not automated — configure nginx + Let's Encrypt before DNS",
-            "vps_hosting: operator must provision cloud VM and open ports 443/9080/9085",
+            "vps_hosting: operator must provision cloud VM and open ports 443/19080/19085",
         ]
     )
 
@@ -129,7 +143,7 @@ def run_public_testnet_gate(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Public testnet deployment gate (chain 77777)")
     parser.add_argument("--live", action="store_true", help="Probe running testnet seed HTTP")
-    parser.add_argument("--base-url", default="http://127.0.0.1:9080")
+    parser.add_argument("--base-url", default="http://127.0.0.1:19080")
     parser.add_argument(
         "--require-soak-hours",
         type=float,

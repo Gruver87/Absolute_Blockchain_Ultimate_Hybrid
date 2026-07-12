@@ -2,7 +2,7 @@
 # Usage:
 #   copy .env.testnet.example .env.testnet   # set JWT_SECRET, RPC_API_KEYS, CORS_ORIGINS
 #   .\scripts\docker_testnet_seed.ps1
-#   curl http://localhost:9080/health/ready
+#   curl http://localhost:19080/health/ready
 #
 # Optional second validator (same compose network):
 #   docker compose -f docker-compose.testnet.yml --profile validators up -d
@@ -34,10 +34,10 @@ services:
     hostname: testnet-seed
     command: ["python", "main.py", "--config", "docker/node.testnet.seed.json"]
     ports:
-      - "${TESTNET_HTTP_PORT:-9080}:8080"
-      - "${TESTNET_RPC_PORT:-9085}:8545"
-      - "${TESTNET_P2P_PORT:-9500}:5000"
-      - "${TESTNET_WS_PORT:-9086}:8766"
+      - "${TESTNET_HTTP_PORT:-19080}:8080"
+      - "${TESTNET_RPC_PORT:-19085}:8545"
+      - "${TESTNET_P2P_PORT:-19500}:5000"
+      - "${TESTNET_WS_PORT:-19086}:8766"
     env_file:
       - path: .env.testnet
         required: false
