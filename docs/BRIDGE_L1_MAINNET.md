@@ -40,6 +40,7 @@ $env:BRIDGE_PROBE_L1_RPC = "true"
 Full P0 stack including bridge cutover section in mainnet readiness:
 
 ```powershell
+.\scripts\mainnet_cutover_checklist.ps1 -CeremonyDir data\ceremony_keys -BridgeCutover
 .\scripts\mainnet_live_gate.ps1 -CeremonyDir data/ceremony_keys -DockerLive -BridgeCutover
 ```
 

@@ -25,8 +25,8 @@ def _load(path: Path) -> dict:
         "gaps_remaining": [
             "24-48h soak completion",
             "external security audit",
-            "production genesis ceremony + secret rotation",
-            "bridge mainnet cutover decision",
+            "production secret rotation applied (-Force) before cutover",
+            "bridge mainnet cutover decision (off=OK for mainnet v1)",
         ],
     }
 

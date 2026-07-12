@@ -1,0 +1,80 @@
+# Unified mainnet cutover checklist — ceremony, code gates, optional live mesh + bridge.
+param(
+    [string]$CeremonyDir = "data/ceremony_keys",
+    [switch]$RequireCeremonyPin,
+    [switch]$StrictMainnet,
+    [switch]$LiveProdMesh,
+    [switch]$BridgeCutover,
+    [switch]$RecordEvidence,
+    [string]$GitTag = ""
+)
+
+$ErrorActionPreference = "Stop"
+$ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+Set-Location $ProjectRoot
+
+function Step([string]$Name, [scriptblock]$Action) {
+    Write-Host ""
+    Write-Host "=== $Name ===" -ForegroundColor Cyan
+    & $Action
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "FAIL: $Name" -ForegroundColor Red
+        exit $LASTEXITCODE
+    }
+    Write-Host "OK: $Name" -ForegroundColor Green
+    if ($RecordEvidence) {
+        $tagArg = @()
+        if ($GitTag) { $tagArg = @("--git-tag", $GitTag) }
+        python scripts/record_evidence_run.py --name $Name --result PASS @tagArg | Out-Null
+    }
+}
+
+$envPath = Join-Path $ProjectRoot ".env"
+if (Test-Path $envPath) {
+    Get-Content $envPath | ForEach-Object {
+        $line = $_.Trim()
+        if (-not $line -or $line.StartsWith("#") -or -not $line.Contains("=")) { return }
+        $parts = $line.Split("=", 2)
+        $key = $parts[0].Trim()
+        $val = $parts[1].Trim().Trim('"').Trim("'")
+        if ($key) { [Environment]::SetEnvironmentVariable($key, $val, "Process") }
+    }
+}
+
+Step "ceremony_preflight" {
+    $argsList = @("scripts/ceremony_preflight.py", "--ceremony-dir", $CeremonyDir)
+    if ($StrictMainnet) { $argsList += "--strict-mainnet" }
+    if ($RequireCeremonyPin) { $argsList += "--require-env-pin" }
+    python @argsList
+}
+
+Step "mainnet_launch_checklist" {
+    $argsList = @(
+        "scripts/mainnet_launch_checklist.py",
+        "--ceremony-dir", $CeremonyDir
+    )
+    if ($StrictMainnet) { $argsList += "--strict-mainnet" }
+    if ($BridgeCutover) { $argsList += "--bridge-cutover" }
+    python @argsList
+}
+
+if ($LiveProdMesh) {
+    Step "mainnet_readiness_live_mesh" {
+        python scripts/mainnet_readiness.py `
+            --live-prod-mesh `
+            --ceremony-dir $CeremonyDir `
+            --no-strict-audit
+    }
+}
+
+if (-not $BridgeCutover) {
+    Step "bridge_decision_off" {
+        python scripts/bridge_l1_preflight.py --config node.prod.mainnet-v1.example.json
+    }
+}
+
+Write-Host ""
+Write-Host "OK: mainnet cutover checklist passed" -ForegroundColor Green
+Write-Host "  Next: .\scripts\prod_evidence_suite.ps1" -ForegroundColor DarkGray
+Write-Host "  Soak: .\scripts\soak_monitor.ps1 -ProdMesh -Hours 48" -ForegroundColor DarkGray
+exit 0

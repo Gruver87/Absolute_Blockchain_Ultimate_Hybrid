@@ -104,13 +104,20 @@ def run_launch_checklist(
             errors.extend([f"validator_keys:{e}" for e in key_errors])
 
     if ceremony_dir:
-        from runtime.ceremony_keygen import verify_ceremony_directory
+        import importlib.util
 
-        cdir = Path(ceremony_dir)
-        if not cdir.is_absolute():
-            cdir = ROOT / cdir
-        c_errors, c_warnings = verify_ceremony_directory(str(cdir))
-        errors.extend([f"ceremony_dir:{e}" for e in c_errors])
+        spec = importlib.util.spec_from_file_location(
+            "ceremony_preflight", ROOT / "scripts" / "ceremony_preflight.py"
+        )
+        cp = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(cp)
+        c_errors, c_warnings, _meta = cp.run_ceremony_preflight(
+            ceremony_dir,
+            strict_mainnet=strict_mainnet,
+            require_env_pin=strict_mainnet or strict_keys,
+        )
+        errors.extend([f"ceremony_preflight:{e}" for e in c_errors])
         warnings.extend(c_warnings)
 
     rc, _ = _run_script("bridge_l1_preflight.py")

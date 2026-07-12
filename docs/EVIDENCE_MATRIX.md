@@ -59,7 +59,8 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 |-----|------------------------------|---------------------|
 | **24–48h soak** | **7h passed** (Jul 6–7); not yet 24–48h | `soak_report.json` with `hours_requested ≥ 24` |
 | **External audit** | README and `external_audit_tracker.py` checklist incomplete | Third-party audit report + tracker items closed |
-| **Bridge mainnet cutover** | Prod mesh runs with `bridge_enabled: false` by design | Audited L1 contracts + relayer SLOs per `docs/BRIDGE_L1_MAINNET.md` |
+| **Bridge mainnet cutover** | Prod mesh runs with `bridge_enabled: false` by design | Audited L1 contracts + relayer SLOs per `docs/BRIDGE_L1_MAINNET.md`; decision recorded via `bridge_decision_off` step |
+| **Ceremony + secret rotation automation** | **Scripts proven** (v1.2.32): `ceremony_preflight`, `rotate_prod_secrets.ps1` | Operator runs pin + `-Force` rotation before cutover — see `docs/MAINNET_CUTOVER.md` |
 | **Public testnet / VPS** | Compose + nginx templates added; no production DNS/TLS deployment yet | Public URL, TLS, rate limits, 48h+ soak on testnet profile |
 
 ---
@@ -90,6 +91,7 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 
 ## Related docs
 
+- [MAINNET_CUTOVER.md](MAINNET_CUTOVER.md)
 - [MAINNET_GAP_ANALYSIS.md](MAINNET_GAP_ANALYSIS.md)
 - [PUBLIC_TESTNET.md](PUBLIC_TESTNET.md)
 - [STORAGE_ROCKSDB.md](STORAGE_ROCKSDB.md)

@@ -1,7 +1,7 @@
 # Mainnet Gap Analysis — Industrial Blockchain Readiness
 
 **Project:** Absolute Blockchain Ultimate Hybrid  
-**Updated:** 2026-07-06  
+**Updated:** 2026-07-12  
 **Positioning:** Production-hardened R&D stack → path to public mainnet  
 **Evidence ledger:** [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md) — separates CI/automation from live ops proof
 
@@ -82,13 +82,15 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 
 - [ ] Complete all 8 items in `scripts/external_audit_tracker.py`
 - [ ] Third-party security audit (L1 + bridge + EVM)
-- [ ] Production validator manifest + offline keygen (`scripts/genesis_ceremony_keygen.py`, verify with `--ceremony-dir`)
-- [ ] Final `chain_id` (778888) + genesis ceremony hash pinned (`GENESIS_CEREMONY_HASH`)
-- [ ] Rotate all secrets (JWT, RPC keys, bridge oracle, L1 RPC)
+- [ ] Production validator manifest + offline keygen — **automation:** `ceremony_preflight`, `deploy_ceremony_prod` (operator must run keygen + pin)
+- [ ] Final `chain_id` (778888) + genesis ceremony hash pinned — **script:** `pin_ceremony_hash.ps1` + `--require-env-pin`
+- [ ] Rotate all secrets — **script:** `rotate_prod_secrets.ps1 -Force` (see `docs/SECRET_ROTATION.md`)
 - [ ] Live prod smoke: `python scripts/mainnet_readiness.py --live` (after docker prod or manual node)
 - [x] Isolated prod mesh: `python scripts/mainnet_readiness.py --prod-smoke-spawn`
 - [x] DR drill + incident response runbook (`dr_restore_rehearsal.ps1 -DockerMesh1`, `docs/INCIDENT_RESPONSE.md`)
-- [ ] Decision: real L1 bridge contracts **or** disable bridge in mainnet v1
+- [ ] Decision: real L1 bridge contracts **or** disable bridge in mainnet v1 — **runbook:** `docs/MAINNET_CUTOVER.md` Phase 5
+
+Operator sequence: [MAINNET_CUTOVER.md](MAINNET_CUTOVER.md).
 
 ---
 

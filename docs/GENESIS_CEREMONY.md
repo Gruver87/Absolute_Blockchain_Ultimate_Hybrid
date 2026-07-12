@@ -119,10 +119,13 @@ Fresh DB if upgrading from old non-deterministic genesis:
 
 ## Full launch checklist
 
+Full cutover sequence: [MAINNET_CUTOVER.md](MAINNET_CUTOVER.md).
+
 ```powershell
 python scripts/ceremony_preflight.py --ceremony-dir data/ceremony_keys --require-env-pin
 python scripts/mainnet_launch_checklist.py
 python scripts/mainnet_launch_checklist.py --strict-mainnet --ceremony-dir data/ceremony_keys
+.\scripts\mainnet_cutover_checklist.ps1 -CeremonyDir data\ceremony_keys
 .\scripts\mainnet_live_gate.ps1 -CeremonyDir data/ceremony_keys
 .\scripts\docker_prod.ps1 -CeremonyDir data/ceremony_keys
 ```
