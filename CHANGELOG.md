@@ -12,6 +12,22 @@
 
 ---
 
+---
+
+## [1.2.30] — 2026-07-12
+
+### Changed
+
+- Unified consensus: parallel Casper/Beacon block feeds disabled in prod path
+- Genesis ceremony hashes via native crypto kernel
+- Industrial gate `--min-soak-hours` for completed soak evidence
+
+### Live ops
+
+- 48h prod mesh soak started; EVM smoke re-PASS on block #7 (all 3 RPC)
+
+---
+
 ## [1.2.29] — 2026-07-12
 
 ### Added

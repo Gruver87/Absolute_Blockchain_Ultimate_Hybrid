@@ -356,15 +356,14 @@ class ConsensusAdapter:
         }
         self.add_block_to_fork_choice(blk_for_fork)
 
-        # Feed block to Casper FFG engine (two-step finality)
-        if self.casper_engine:
+        # Parallel fork-choice engines (dev / research only; disabled in unified prod path)
+        if not self._unified_consensus and self.casper_engine:
             try:
                 self.casper_engine.add_block(blk_for_fork)
             except Exception:
                 pass
 
-        # Feed block to Beacon Chain engine
-        if self.beacon_engine:
+        if not self._unified_consensus and self.beacon_engine:
             try:
                 self.beacon_engine.add_block(blk_for_fork)
             except Exception:

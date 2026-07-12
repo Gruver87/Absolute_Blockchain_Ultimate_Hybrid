@@ -3,12 +3,12 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from crypto import native
 from runtime.mainnet_constants import (
     is_ceremony_template_address,
     is_zero_prefix_placeholder_address,
@@ -28,15 +28,15 @@ from runtime.validator_loader import (
 
 
 def _sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(65536), b""):
-            h.update(chunk)
-    return h.hexdigest()
+    return native.sha256_hex(path.read_bytes())
 
 
 def _canonical_json(obj: Any) -> str:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def _hash_canonical_json(obj: Any) -> str:
+    return native.hash_text(_canonical_json(obj))
 
 
 def validator_set_hash(manifest: Dict[str, Any]) -> str:
@@ -51,14 +51,13 @@ def validator_set_hash(manifest: Dict[str, Any]) -> str:
             "shard_id": row.get("shard_id"),
         })
     rows.sort(key=lambda r: (int(r.get("index", 0)), r["address"]))
-    digest = hashlib.sha256(_canonical_json(rows).encode("utf-8")).hexdigest()
-    return digest
+    return _hash_canonical_json(rows)
 
 
 def genesis_alloc_hash(founder_address: str = "") -> str:
     alloc = genesis_balances(founder_address or None)
     ordered = {k.lower(): float(v) for k, v in sorted(alloc.items())}
-    return hashlib.sha256(_canonical_json(ordered).encode("utf-8")).hexdigest()
+    return _hash_canonical_json(ordered)
 
 
 def _is_placeholder_validator_address(address: str) -> bool:
@@ -142,14 +141,12 @@ def build_ceremony_artifact(
         "placeholder_validator_count": len(placeholder_addrs),
         "errors": errors,
     }
-    artifact["ceremony_hash"] = hashlib.sha256(
-        _canonical_json({
-            "chain_id": artifact["chain_id"],
-            "validator_set_hash": artifact["validator_set_hash"],
-            "genesis_alloc_hash": artifact["genesis_alloc_hash"],
-            "validators_count": artifact["validators_count"],
-        }).encode("utf-8")
-    ).hexdigest()
+    artifact["ceremony_hash"] = _hash_canonical_json({
+        "chain_id": artifact["chain_id"],
+        "validator_set_hash": artifact["validator_set_hash"],
+        "genesis_alloc_hash": artifact["genesis_alloc_hash"],
+        "validators_count": artifact["validators_count"],
+    })
     return artifact
 
 

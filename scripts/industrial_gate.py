@@ -42,10 +42,28 @@ def _check_native_wheel() -> tuple[list[str], list[str]]:
     return errors, warnings
 
 
-def run_industrial_gate(*, prod_smoke_spawn: bool = False) -> int:
+def run_industrial_gate(*, prod_smoke_spawn: bool = False, min_soak_hours: float = 0) -> int:
     import importlib.util
 
     native_errors, native_warnings = _check_native_wheel()
+    soak_errors: list[str] = []
+
+    if min_soak_hours > 0:
+        soak_path = ROOT / "logs" / "soak_report.json"
+        if not soak_path.is_file():
+            soak_errors.append(
+                f"soak_report missing: {soak_path} (need {min_soak_hours}h prod soak)"
+            )
+        else:
+            try:
+                soak = json.loads(soak_path.read_text(encoding="utf-8"))
+                hrs = float(soak.get("hours_requested", 0) or 0)
+                if hrs < min_soak_hours:
+                    soak_errors.append(f"soak_report hours_requested={hrs} < {min_soak_hours}")
+                if not soak.get("passed"):
+                    soak_errors.append(f"soak_report passed=false (see {soak_path})")
+            except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+                soak_errors.append(f"soak_report unreadable: {exc}")
 
     spec = importlib.util.spec_from_file_location(
         "mainnet_readiness", ROOT / "scripts" / "mainnet_readiness.py"
@@ -58,6 +76,7 @@ def run_industrial_gate(*, prod_smoke_spawn: bool = False) -> int:
         live=False,
         strict_audit=False,
     )
+    errors.extend(soak_errors)
     errors.extend(native_errors)
     warnings.extend(native_warnings)
     report = {
@@ -125,9 +144,18 @@ def main() -> int:
         action="store_true",
         help="Run isolated verify_p2p_ci --mode prod-smoke after static checks",
     )
+    parser.add_argument(
+        "--min-soak-hours",
+        type=float,
+        default=0,
+        help="Require logs/soak_report.json with passed=true and hours_requested >= N (0=skip)",
+    )
     parser.add_argument("--json", action="store_true", help="Print report path only")
     args = parser.parse_args()
-    rc = run_industrial_gate(prod_smoke_spawn=args.prod_smoke_spawn)
+    rc = run_industrial_gate(
+        prod_smoke_spawn=args.prod_smoke_spawn,
+        min_soak_hours=args.min_soak_hours,
+    )
     if args.json:
         print(str(ROOT / "data" / "industrial_gate.json"))
     return rc

@@ -38,6 +38,20 @@ def test_dev_auto_keeps_parallel_engines():
     assert adapter._unified_consensus is False
 
 
+def test_unified_on_new_block_skips_parallel_engines():
+    adapter, _ = _adapter(mode="unified", deployment="prod")
+    assert adapter.casper_engine is None
+    assert adapter.beacon_engine is None
+    adapter._on_new_block(
+        {
+            "height": 1,
+            "hash": "a" * 64,
+            "parent_hash": "b" * 64,
+            "miner": "0x" + "1" * 40,
+        }
+    )
+
+
 def test_unified_stats_flag():
     adapter, _ = _adapter(mode="unified", deployment="dev")
     stats = adapter.get_stats()

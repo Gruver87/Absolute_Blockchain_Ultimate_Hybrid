@@ -22,8 +22,9 @@ Compared to documentation-only claims, **evidence level increased** in Jul 2026:
 | `health_watch.ps1 -ProdMesh -DurationMin 1` | **PASS** | `logs/evidence_health.log` |
 | `prod_mesh_failover.ps1` | **PASS** | `logs/evidence_failover.log` |
 | `prod_signed_tx_smoke.py` | **PASS** | `logs/evidence_signed_tx.log` (n2/n3 propagation) |
-| `prod_evm_smoke.py` (mempool, 3 RPC) | **PASS** | docker mesh run Jul 12 evening — mempool deploy block #6, storage on all RPC |
+| `prod_evm_smoke.py` (mempool, 3 RPC) | **PASS** | docker mesh Jul 12 evening + **re-PASS block #7** Jul 12 post-v1.2.29 |
 | `soak_monitor.ps1 -ProdMesh -Hours 7` | **PASS** | `logs/soak_report.json` (159 cycles, 0 fail) |
+| `soak_monitor.ps1 -ProdMesh -Hours 48` | **IN PROGRESS** | `logs/soak_48h_v1.2.30.log` (started Jul 12 evening) |
 | `testnet_readiness.ps1 -MinSoakHours 7` | **WARN** | re-run after mesh mining gate fixes recommended |
 
 Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) (live runs: `data/evidence_run.json`, gitignored)
