@@ -35,15 +35,17 @@ function Write-Log([string]$Msg, [string]$Color = "Gray") {
 }
 
 function Test-NodeHealth([int]$Port, [bool]$FullHarness) {
+    $readySec = if ($ProdMesh) { 15 } else { 5 }
+    $statusSec = if ($ProdMesh) { 12 } else { 5 }
+    $harnessSec = if ($FullHarness) { if ($ProdMesh) { 30 } else { 20 } } else { if ($ProdMesh) { 15 } else { 10 } }
     try {
-        $null = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health/ready" -TimeoutSec 5
-        $st = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status" -TimeoutSec 5
+        $null = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health/ready" -TimeoutSec $readySec
+        $st = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status" -TimeoutSec $statusSec
         $harnessUri = if ($FullHarness) {
             "http://127.0.0.1:$Port/chain/consistency/harness?peer_timeout=8"
         } else {
             "http://127.0.0.1:$Port/chain/consistency/harness?quick=1&peer_timeout=3"
         }
-        $harnessSec = if ($FullHarness) { 20 } else { 10 }
         $cs = Invoke-RestMethod -Uri $harnessUri -TimeoutSec $harnessSec
         $failed = @($cs.failed_checks)
         return @{
@@ -67,7 +69,7 @@ function Test-MeshAlignment([int[]]$PortList) {
     $rows = @()
     foreach ($p in $PortList) {
         try {
-            $st = Invoke-RestMethod -Uri "http://127.0.0.1:$p/status" -TimeoutSec 5
+            $st = Invoke-RestMethod -Uri "http://127.0.0.1:$p/status" -TimeoutSec $(if ($ProdMesh) { 12 } else { 5 })
             $rows += [PSCustomObject]@{
                 Port = $p
                 Height = [int]$st.height

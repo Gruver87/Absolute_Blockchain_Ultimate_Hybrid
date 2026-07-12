@@ -26,6 +26,7 @@ def _load_module(name: str, rel: str):
 
 def run_gate(
     live: bool = False,
+    live_prod_mesh: bool = False,
     base_url: str = "http://127.0.0.1:8080",
     strict_audit: bool = True,
     prod_smoke_spawn: bool = False,
@@ -83,7 +84,9 @@ def run_gate(
     prod_errors.extend(prod.check_mainnet_v1_config())
     prod_errors.extend(prod.check_docker_prod_compose())
     prod_errors.extend(prod.check_docker_prod_mesh_compose())
-    if live:
+    if live_prod_mesh:
+        prod_errors.extend(prod.check_live_prod_mesh())
+    elif live:
         prod_errors.extend(prod.check_live_smoke(base_url.rstrip("/")))
     if prod_smoke_spawn:
         prod_errors.extend(prod.check_prod_smoke_spawn())
@@ -93,6 +96,7 @@ def run_gate(
     sections["prod_stack"] = {
         "errors": prod_errors,
         "live": live,
+        "live_prod_mesh": live_prod_mesh,
         "prod_smoke_spawn": prod_smoke_spawn,
         "prod_mesh3_spawn": prod_mesh3_spawn,
     }
@@ -209,6 +213,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Mainnet readiness gate")
     parser.add_argument("--live", action="store_true", help="Include prod_smoke against running node")
     parser.add_argument(
+        "--live-prod-mesh",
+        action="store_true",
+        help="Live Docker prod mesh on :18180-:18182 (3-node alignment + prod_smoke)",
+    )
+    parser.add_argument(
         "--prod-smoke-spawn",
         action="store_true",
         help="Spawn isolated 2-node prod-profile mesh (verify_p2p_ci prod-smoke)",
@@ -239,6 +248,7 @@ def main() -> int:
 
     errors, warnings, meta = run_gate(
         live=args.live,
+        live_prod_mesh=args.live_prod_mesh,
         base_url=args.base_url,
         strict_audit=not args.no_strict_audit,
         prod_smoke_spawn=args.prod_smoke_spawn,

@@ -200,9 +200,64 @@ def check_live_smoke(base: str) -> list[str]:
     return list(report.get("errors") or [])
 
 
+PROD_MESH_HTTP_PORTS = (18180, 18181, 18182)
+
+
+def check_live_prod_mesh() -> list[str]:
+    """Live checks against Docker prod mesh on host ports :18180-:18182."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from verify_p2p_ci import _api, _probe_health
+
+    urls = [f"http://127.0.0.1:{port}" for port in PROD_MESH_HTTP_PORTS]
+    reachable = [url for url in urls if _probe_health(url)]
+    errors: list[str] = []
+    if not reachable:
+        return ["prod_mesh: no nodes reachable on :18180-:18182 (start docker_prod_3node.ps1)"]
+    if len(reachable) < len(urls):
+        errors.append(f"prod_mesh: only {len(reachable)}/{len(urls)} nodes reachable")
+
+    statuses = []
+    for url in reachable:
+        try:
+            statuses.append(_api(f"{url}/status"))
+        except OSError as exc:
+            errors.append(f"prod_mesh status {url}: {exc}")
+
+    if len(statuses) >= 2:
+        heights = [int(s.get("height", 0) or 0) for s in statuses]
+        heads = [
+            str(s.get("head_hash") or "").lower()
+            for s in statuses
+            if s.get("head_hash")
+        ]
+        if max(heights) - min(heights) > 1:
+            errors.append(f"prod_mesh height spread: {heights}")
+        if heads and len(set(heads)) > 1:
+            errors.append("prod_mesh head hash mismatch across nodes")
+        for url, status in zip(reachable, statuses):
+            if str(status.get("deployment_mode", "")).lower() != "prod":
+                errors.append(
+                    f"prod_mesh {url} deployment_mode={status.get('deployment_mode')!r}"
+                )
+            peers = int(status.get("peers", status.get("peer_count", 0)) or 0)
+            if peers < 1 and len(reachable) >= 3:
+                errors.append(f"prod_mesh {url} peers={peers} (expected >=1 on 3-node mesh)")
+
+    import prod_smoke
+
+    report = prod_smoke.run_prod_smoke(reachable[0])
+    errors.extend(report.get("errors") or [])
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify production stack readiness")
     parser.add_argument("--live", action="store_true", help="Also run prod_smoke against running node")
+    parser.add_argument(
+        "--live-prod-mesh",
+        action="store_true",
+        help="Live prod 3-node mesh on :18180-:18182 (implies --live on leader)",
+    )
     parser.add_argument("--base-url", default=os.getenv("ABS_API_URL", "http://127.0.0.1:8080"))
     args = parser.parse_args()
 
@@ -210,7 +265,9 @@ def main() -> int:
     errors.extend(check_prod_gate())
     errors.extend(check_config_validate())
     errors.extend(check_docker_prod_compose())
-    if args.live:
+    if args.live_prod_mesh:
+        errors.extend(check_live_prod_mesh())
+    elif args.live:
         errors.extend(check_live_smoke(args.base_url.rstrip("/")))
 
     if errors:
@@ -220,7 +277,9 @@ def main() -> int:
         return 1
 
     print("OK: production stack verification")
-    if args.live:
+    if args.live_prod_mesh:
+        print("  live prod mesh: :18180-:18182")
+    elif args.live:
         print(f"  live smoke: {args.base_url}")
     return 0
 

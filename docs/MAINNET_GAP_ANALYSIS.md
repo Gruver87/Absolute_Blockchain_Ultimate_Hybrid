@@ -71,7 +71,7 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 - [x] **Failover under load** — `prod_mesh_failover.ps1` PASS (`logs/evidence_failover.log`; see [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md))
 - [x] **Signed tx on prod mesh** — `prod_signed_tx_smoke.py` PASS (n2/n3 propagation; `logs/evidence_signed_tx.log`)
 - [x] **EVM deploy/call on prod RPC ports** — `prod_evm_smoke.py` mempool path PASS (Jul 12 evening; storage on all 3 RPC)
-- [ ] **Soak 24–48h+** completed with `soak_report.json` passed (**7h passed** Jul 6–7; 48h run in progress)
+- [ ] **Soak 24–48h+** completed with `soak_report.json` passed (**48h IN PROGRESS** — `logs/soak_48h_v1.2.30.log`)
 - [ ] **External security audit** — tracker incomplete
 
 **API hardening (v1.2.28):** direct `POST /contract/deploy` without `via_mempool` is rejected in production — mempool signed deploy only.
@@ -98,7 +98,7 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 |------|--------|
 | EVM | Full CREATE2 in block execution; EOF roadmap; opcode parity tests |
 | State | Unify `Database` / `ImmutableStateManager` / `StateEngine` |
-| Consensus | Single canonical fork-choice + finality path |
+| Consensus | Single canonical fork-choice + finality path | **unified in prod** (v1.2.30); dev keeps parallel engines |
 | Bridge | On-chain lock/mint contracts + monitored relayer (not proof-only) |
 | Storage | RocksDB prod + backup/restore scripts; aux.db scope documented |
 | Tests | E2E prod boot CI, prod P2P mesh, live `prod_smoke` in pipeline |

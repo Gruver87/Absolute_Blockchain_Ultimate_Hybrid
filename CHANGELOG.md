@@ -14,6 +14,18 @@
 
 ---
 
+---
+
+## [1.2.31] — 2026-07-12
+
+### Added
+
+- `--live-prod-mesh` readiness gate for Docker prod mesh :18180–18182
+- `scripts/record_evidence_run.py` for local evidence JSON
+- Prod mesh health_watch timeouts (reduce soak false FAILs)
+
+---
+
 ## [1.2.30] — 2026-07-12
 
 ### Changed
