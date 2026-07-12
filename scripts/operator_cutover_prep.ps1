@@ -2,7 +2,8 @@
 param(
     [string]$CeremonyDir = "data/ceremony_keys",
     [switch]$StrictMainnet,
-    [switch]$RequirePin
+    [switch]$RequirePin,
+    [switch]$SkipCeremonyPreflight
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,11 +33,13 @@ if (Test-Path $envPath) {
     }
 }
 
-Step "ceremony_preflight" {
-    $argsList = @("scripts/ceremony_preflight.py", "--ceremony-dir", $CeremonyDir)
-    if ($StrictMainnet) { $argsList += "--strict-mainnet" }
-    if ($RequirePin) { $argsList += "--require-env-pin" }
-    python @argsList
+if (-not $SkipCeremonyPreflight) {
+    Step "ceremony_preflight" {
+        $argsList = @("scripts/ceremony_preflight.py", "--ceremony-dir", $CeremonyDir)
+        if ($StrictMainnet) { $argsList += "--strict-mainnet" }
+        if ($RequirePin) { $argsList += "--require-env-pin" }
+        python @argsList
+    }
 }
 
 if (-not $env:GENESIS_CEREMONY_HASH) {

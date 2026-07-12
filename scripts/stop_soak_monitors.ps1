@@ -1,0 +1,41 @@
+# Stop background soak_monitor.ps1 processes (duplicate 48h soaks).
+param(
+    [switch]$Force
+)
+
+$ErrorActionPreference = "Stop"
+$Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+Set-Location $Root
+
+$procs = Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -and ($_.CommandLine -match 'soak_monitor\.ps1') }
+
+if (-not $procs) {
+    Write-Host "OK: no soak_monitor.ps1 processes found" -ForegroundColor Green
+    if (Test-Path (Join-Path $Root "logs/soak_active.json")) {
+        Remove-Item (Join-Path $Root "logs/soak_active.json") -Force
+    }
+    exit 0
+}
+
+Write-Host "Found $($procs.Count) soak_monitor process(es):" -ForegroundColor Yellow
+foreach ($p in $procs) {
+    $cmd = $p.CommandLine
+    if ($cmd.Length -gt 120) { $cmd = $cmd.Substring(0, 120) + "..." }
+    Write-Host "  PID $($p.ProcessId): $cmd" -ForegroundColor DarkGray
+}
+
+if (-not $Force) {
+    Write-Host "Re-run with -Force to stop them." -ForegroundColor Yellow
+    exit 1
+}
+
+foreach ($p in $procs) {
+    Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
+    Write-Host "Stopped PID $($p.ProcessId)" -ForegroundColor Green
+}
+
+$active = Join-Path $Root "logs/soak_active.json"
+if (Test-Path $active) { Remove-Item $active -Force }
+Write-Host "OK: soak monitors stopped" -ForegroundColor Green
+exit 0

@@ -1,26 +1,44 @@
 # Quick status of the active prod mesh soak (no wait).
 param(
     [string]$LogGlob = "logs/soak_48h_*.log",
-    [string]$ReportFile = "logs/soak_report.json"
+    [string]$ReportFile = "logs/soak_report_48h.json"
 )
 
 $ErrorActionPreference = "Continue"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $Root
 
-$logs = Get-ChildItem -Path (Join-Path $Root $LogGlob) -ErrorAction SilentlyContinue |
-    Sort-Object LastWriteTime -Descending
-if (-not $logs) {
-    Write-Host "No soak log matching $LogGlob" -ForegroundColor Yellow
-    exit 1
+$activePath = Join-Path $Root "logs/soak_active.json"
+$log = $null
+if (Test-Path $activePath) {
+    try {
+        $active = Get-Content $activePath -Raw | ConvertFrom-Json
+        $candidate = Join-Path $Root ($active.log_file -replace '/', '\')
+        if (Test-Path $candidate) {
+            $log = $candidate
+            if ($active.report_file) {
+                $ReportFile = $active.report_file
+            }
+            Write-Host "Active soak (logs/soak_active.json)" -ForegroundColor Cyan
+            Write-Host "  started: $($active.started_at) hours=$($active.hours)" -ForegroundColor DarkGray
+        }
+    } catch { }
 }
 
-if ($logs.Count -gt 1) {
-    Write-Host "WARN: multiple soak logs found - stop duplicate soak processes if unintended" -ForegroundColor Yellow
-    $logs | ForEach-Object { Write-Host "  - $($_.Name) (modified $($_.LastWriteTime))" -ForegroundColor DarkGray }
+if (-not $log) {
+    $logs = Get-ChildItem -Path (Join-Path $Root $LogGlob) -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending
+    if (-not $logs) {
+        Write-Host "No soak log matching $LogGlob" -ForegroundColor Yellow
+        exit 1
+    }
+    if ($logs.Count -gt 1) {
+        Write-Host "WARN: multiple soak logs - run .\scripts\stop_soak_monitors.ps1 -Force then restart_soak_prod_mesh.ps1" -ForegroundColor Yellow
+        $logs | ForEach-Object { Write-Host "  - $($_.Name)" -ForegroundColor DarkGray }
+    }
+    $log = $logs[0].FullName
 }
 
-$log = $logs[0].FullName
 $lines = Get-Content $log -Encoding UTF8 -ErrorAction SilentlyContinue
 $ts = '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}'
 $startLine = ($lines | Select-String -Pattern "$ts health_watch start" | Select-Object -Last 1)
@@ -31,10 +49,10 @@ $meshOk = ($lines | Select-String -Pattern "$ts OK mesh aligned").Count
 $done = ($lines | Select-String -Pattern "$ts health_watch done" | Select-Object -Last 1)
 
 Write-Host "Soak status" -ForegroundColor Cyan
-Write-Host "  log: $($logs[0].Name)" -ForegroundColor DarkGray
+Write-Host "  log: $([System.IO.Path]::GetFileName($log))" -ForegroundColor DarkGray
 if ($startLine) { Write-Host "  started: $($startLine.Line)" -ForegroundColor DarkGray }
 if ($lastMesh) { Write-Host "  latest:  $($lastMesh.Line)" -ForegroundColor Green }
-if ($lastFail) { Write-Host "  last_fail: $($lastFail.Line)" -ForegroundColor $(if ($failCount -gt 0) { "Yellow" } else { "DarkGray" }) }
+if ($lastFail -and $failCount -gt 0) { Write-Host "  last_fail: $($lastFail.Line)" -ForegroundColor Yellow }
 Write-Host "  mesh_ok_cycles=$meshOk fail_lines=$failCount" -ForegroundColor DarkGray
 
 if ($done) {
@@ -43,9 +61,10 @@ if ($done) {
     Write-Host "  state: IN_PROGRESS" -ForegroundColor Yellow
 }
 
-if (Test-Path $ReportFile) {
+$reportPath = Join-Path $Root ($ReportFile -replace '/', '\')
+if (Test-Path $reportPath) {
     try {
-        $rep = Get-Content $ReportFile -Raw | ConvertFrom-Json
+        $rep = Get-Content $reportPath -Raw | ConvertFrom-Json
         Write-Host "  report: $ReportFile hours=$($rep.hours_requested) passed=$($rep.passed)" -ForegroundColor DarkGray
     } catch { }
 }

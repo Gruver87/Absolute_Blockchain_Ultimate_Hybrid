@@ -71,7 +71,11 @@ def run_industrial_gate(
         )
 
     if min_soak_hours > 0:
-        soak_path = ROOT / "logs" / "soak_report.json"
+        soak_candidates = [
+            ROOT / "logs" / "soak_report_48h.json",
+            ROOT / "logs" / "soak_report.json",
+        ]
+        soak_path = next((p for p in soak_candidates if p.is_file()), soak_candidates[0])
         if not soak_path.is_file():
             soak_errors.append(
                 f"soak_report missing: {soak_path} (need {min_soak_hours}h prod soak)"

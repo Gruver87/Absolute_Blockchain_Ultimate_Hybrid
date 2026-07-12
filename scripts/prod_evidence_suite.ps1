@@ -4,7 +4,7 @@ param(
     [switch]$SkipSignedTx,
     [switch]$SkipEvm,
     [switch]$RecordEvidence,
-    [string]$GitTag = "v1.2.38"
+    [string]$GitTag = "v1.2.39"
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,12 +22,28 @@ if (Test-Path (Join-Path $Root ".env")) {
     }
 }
 
+function Get-StepExitCode {
+    if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+        return [int]$LASTEXITCODE
+    }
+    if (-not $?) {
+        return 1
+    }
+    return 0
+}
+
 function Step([string]$Name, [scriptblock]$Action) {
     Write-Host "`n=== $Name ===" -ForegroundColor Cyan
     & $Action
-    if (-not $?) {
-        Write-Host "FAIL: $Name" -ForegroundColor Red
-        exit 1
+    $rc = Get-StepExitCode
+    if ($rc -ne 0) {
+        Write-Host "FAIL: $Name (exit $rc)" -ForegroundColor Red
+        if ($RecordEvidence) {
+            $tagArg = @()
+            if ($GitTag) { $tagArg = @("--git-tag", $GitTag) }
+            python (Join-Path $ScriptDir "record_evidence_run.py") --name $Name --result FAIL @tagArg 2>$null | Out-Null
+        }
+        exit $rc
     }
     Write-Host "OK: $Name" -ForegroundColor Green
     if ($RecordEvidence) {
@@ -60,5 +76,5 @@ if (-not $SkipEvm) {
 }
 
 Write-Host "`nOK: prod evidence suite passed" -ForegroundColor Green
-Write-Host "  Soak (24-48h): .\scripts\soak_monitor.ps1 -ProdMesh -Hours 48" -ForegroundColor DarkGray
+Write-Host "  Soak: .\scripts\restart_soak_prod_mesh.ps1 -Hours 48" -ForegroundColor DarkGray
 exit 0

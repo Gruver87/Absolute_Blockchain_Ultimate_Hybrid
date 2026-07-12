@@ -67,13 +67,14 @@ python scripts/record_evidence_run.py --name prod_evm_smoke --result PASS --arti
 ## Phase 4 — Soak (24–48h)
 
 ```powershell
+.\scripts\stop_soak_monitors.ps1 -Force
 .\scripts\restart_soak_prod_mesh.ps1 -Hours 48
-# or foreground: .\scripts\restart_soak_prod_mesh.ps1 -Hours 48 -Foreground
+.\scripts\soak_status.ps1
 .\scripts\testnet_readiness.ps1 -ProdMesh -MinSoakHours 48
 python scripts/industrial_gate.py --min-soak-hours 48 --ceremony-dir data/ceremony_keys
 ```
 
-**Note:** `restart_soak_prod_mesh.ps1` uses v1.2.31+ `health_watch` ProdMesh timeouts. Monitor: `.\scripts\soak_status.ps1`
+Report file: `logs/soak_report_48h.json` (48h run; legacy `soak_report.json` is the earlier 7h pass).
 
 ---
 

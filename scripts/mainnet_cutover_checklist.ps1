@@ -41,11 +41,11 @@ if (Test-Path $envPath) {
     }
 }
 
-Step "ceremony_preflight" {
-    $argsList = @("scripts/ceremony_preflight.py", "--ceremony-dir", $CeremonyDir)
-    if ($StrictMainnet) { $argsList += "--strict-mainnet" }
-    if ($RequireCeremonyPin) { $argsList += "--require-env-pin" }
-    python @argsList
+Step "operator_cutover_prep" {
+    $argsList = @("-CeremonyDir", $CeremonyDir)
+    if ($StrictMainnet) { $argsList += "-StrictMainnet" }
+    if ($RequireCeremonyPin) { $argsList += "-RequirePin" }
+    & "$ProjectRoot\scripts\operator_cutover_prep.ps1" @argsList
 }
 
 Step "mainnet_launch_checklist" {
@@ -68,13 +68,12 @@ if ($LiveProdMesh) {
 }
 
 if (-not $BridgeCutover) {
-    Step "bridge_decision_off" {
-        python scripts/bridge_l1_preflight.py --config node.prod.mainnet-v1.example.json
-    }
+    Write-Host ""
+    Write-Host "Bridge: mainnet v1 keeps bridge off (see operator_cutover_prep)" -ForegroundColor DarkGray
 }
 
 Write-Host ""
 Write-Host "OK: mainnet cutover checklist passed" -ForegroundColor Green
-Write-Host "  Next: .\scripts\prod_evidence_suite.ps1" -ForegroundColor DarkGray
-Write-Host "  Soak: .\scripts\soak_monitor.ps1 -ProdMesh -Hours 48" -ForegroundColor DarkGray
+Write-Host "  Next: .\scripts\prod_evidence_suite.ps1 -RecordEvidence" -ForegroundColor DarkGray
+Write-Host "  Soak: .\scripts\restart_soak_prod_mesh.ps1 -Hours 48" -ForegroundColor DarkGray
 exit 0

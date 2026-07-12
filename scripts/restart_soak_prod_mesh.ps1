@@ -2,9 +2,10 @@
 param(
     [int]$Hours = 48,
     [int]$IntervalSec = 300,
-    [string]$LogFile = "logs/soak_48h_v1.2.33.log",
-    [string]$ReportFile = "logs/soak_report.json",
-    [switch]$Foreground
+    [string]$LogFile = "logs/soak_48h_v1.2.34.log",
+    [string]$ReportFile = "logs/soak_report_48h.json",
+    [switch]$Foreground,
+    [switch]$NoStopExisting
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,6 +22,22 @@ Write-Host "Prod mesh soak restart: ${Hours}h interval=${IntervalSec}s" -Foregro
 Write-Host "  log=$LogFile report=$ReportFile" -ForegroundColor DarkGray
 Write-Host "  health_watch ProdMesh timeouts: ready=15s status=12s harness=15-30s" -ForegroundColor DarkGray
 
+if (-not $NoStopExisting) {
+    & (Join-Path $ScriptDir "stop_soak_monitors.ps1") -Force
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+
+$activeMeta = @{
+    log_file = $LogFile
+    report_file = $ReportFile
+    hours = $Hours
+    interval_sec = $IntervalSec
+    started_at = (Get-Date -Format "o")
+    git_tag = "v1.2.39"
+}
+$activePath = Join-Path $Root "logs/soak_active.json"
+$activeMeta | ConvertTo-Json | Set-Content -Path $activePath -Encoding UTF8
+
 $soakScript = Join-Path $ScriptDir "soak_monitor.ps1"
 $soakArgs = @(
     "-Hours", $Hours,
@@ -35,7 +52,7 @@ python scripts/record_evidence_run.py `
     --result IN_PROGRESS `
     --command ".\scripts\restart_soak_prod_mesh.ps1 -Hours $Hours" `
     --artifact $LogFile `
-    --git-tag v1.2.34 `
+    --git-tag v1.2.39 `
     2>$null | Out-Null
 
 if ($Foreground) {

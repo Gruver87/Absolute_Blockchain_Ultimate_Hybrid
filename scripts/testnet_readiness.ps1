@@ -3,7 +3,7 @@ param(
     [switch]$ProdMesh,
     [switch]$TestnetSeed,
     [int[]]$Ports = @(8080, 8081, 8082),
-    [string]$SoakReport = "logs/soak_report.json",
+    [string]$SoakReport = "",
     [int]$MinSoakHours = 10,
     [switch]$SkipIndustrialGate,
     [switch]$RunPublicGate
@@ -16,6 +16,14 @@ Set-Location $Root
 
 if ($ProdMesh) { $Ports = @(18180, 18181, 18182) }
 if ($TestnetSeed) { $Ports = @(19080) }
+
+if (-not $SoakReport) {
+    if ($MinSoakHours -ge 48 -and (Test-Path (Join-Path $Root "logs/soak_report_48h.json"))) {
+        $SoakReport = "logs/soak_report_48h.json"
+    } else {
+        $SoakReport = "logs/soak_report.json"
+    }
+}
 
 $failures = @()
 $checks = @()
