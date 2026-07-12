@@ -362,6 +362,21 @@ fn recover_eth_address_keccak(
         .map_err(pyo3::exceptions::PyValueError::new_err)
 }
 
+#[pyfunction]
+fn pubkey_to_eth_address(public_key: &[u8]) -> PyResult<String> {
+    let pk: &[u8] = match public_key.len() {
+        64 => public_key,
+        65 if public_key.first() == Some(&0x04) => &public_key[1..],
+        n => {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "public_key must be 64 bytes uncompressed or 65 with 0x04 prefix, got {n}"
+            )))
+        }
+    };
+    let hash = keccak256_digest_bytes(pk);
+    Ok(format!("0x{}", hex::encode(&hash[12..])))
+}
+
 pub(crate) fn u256_from_be32(bytes: [u8; 32]) -> U256 {
     U256::from_big_endian(&bytes)
 }
@@ -1561,6 +1576,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_pure_runner::evm_run_pure_until_host_py, m)?)?;
     m.add_function(wrap_pyfunction!(keccak256_hex, m)?)?;
     m.add_function(wrap_pyfunction!(recover_eth_address_keccak, m)?)?;
+    m.add_function(wrap_pyfunction!(pubkey_to_eth_address, m)?)?;
     m.add_function(wrap_pyfunction!(validate_imported_block_chain, m)?)?;
     m.add_function(wrap_pyfunction!(validate_peer_header_chain, m)?)?;
     m.add_function(wrap_pyfunction!(transaction_hash, m)?)?;

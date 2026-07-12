@@ -8,6 +8,29 @@
 
 ---
 
+---
+
+## [1.2.28] — 2026-07-12
+
+### Added
+
+- Fail-closed prod `/contract/deploy` (mempool only); CI prod-mesh3 signed-tx + EVM evidence
+- Rust `pubkey_to_eth_address`; `KeyGenerator.derive_address_eth()`
+- `docs/evidence_run.example.json`; release notes v1.2.28
+
+### Fixed / hardened
+
+- `block_builder` Merkle tx_root aligned with `core.blockchain`
+- Cross-shard digests via native `hash_text`
+- Industrial gate: abs_native self-test + wheel export checks
+- Mining block-sign errors logged; native fail-closed merkle/canonical paths
+
+### Tests
+
+- `test_api_prod_direct_deploy.py`, `test_block_builder_merkle.py`, `test_keygen_native.py`
+
+---
+
 ## [1.2.27] — 2026-07-12
 
 ### Added

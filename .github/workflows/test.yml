@@ -217,8 +217,9 @@ jobs:
           --strict-keys \
           --ceremony-dir data/ceremony_keys_ci
 
-    - name: Prod mesh3 spawn (ceremony 3-validator)
+    - name: Prod mesh3 spawn (ceremony 3-validator + signed tx + EVM)
       if: runner.os == 'Linux' && matrix.python-version == '3.12'
+      timeout-minutes: 45
       env:
         PYTHONUTF8: "1"
       run: |

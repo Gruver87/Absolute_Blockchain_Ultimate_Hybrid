@@ -66,13 +66,15 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 - [x] Short `health_watch` / monitoring cycles
 - [x] CI + `industrial_gate.py` static checks
 
-### **Not** demonstrated yet (scripts ≠ proof)
+### **Demonstrated in live prod mesh runs (Jul 2026)**
 
-- [ ] **Failover under load** — `docker stop abs-prod-mesh3-node2-1`, verify block production + quorum + rejoin (`prod_mesh_failover.ps1`)
-- [ ] **Signed tx on default prod bootstrap** — mesh logs `SKIP: tx propagation`; run `prod_signed_tx_smoke.py`
-- [ ] **EVM deploy/call on prod RPC ports** — run `python scripts/prod_evm_smoke.py` and archive logs
-- [ ] **Soak 24–48h+** completed with `soak_report.json` passed (7–10h run may be in progress)
+- [x] **Failover under load** — `prod_mesh_failover.ps1` PASS (`logs/evidence_failover.log`; see [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md))
+- [x] **Signed tx on prod mesh** — `prod_signed_tx_smoke.py` PASS (n2/n3 propagation; `logs/evidence_signed_tx.log`)
+- [x] **EVM deploy/call on prod RPC ports** — `prod_evm_smoke.py` mempool path PASS (Jul 12 evening; storage on all 3 RPC)
+- [ ] **Soak 24–48h+** completed with `soak_report.json` passed (**7h passed** Jul 6–7; 48h run in progress)
 - [ ] **External security audit** — tracker incomplete
+
+**API hardening (v1.2.28):** direct `POST /contract/deploy` without `via_mempool` is rejected in production — mempool signed deploy only.
 
 ---
 
@@ -141,6 +143,6 @@ python scripts/prod_gate.py
 
 The codebase is a **serious industrial devnet / private testnet** implementation with **rising live evidence** (prod mesh runs, harness, monitoring) — not merely documentation claims.
 
-**Public mainnet launch** still requires organizational gates (external audit, validator ops, genesis ceremony in production) plus **operational proof**: failover, signed-tx + EVM on prod RPC, 24–48h soak, and bridge cutover decision.
+**Public mainnet launch** still requires organizational gates (external audit, validator ops, genesis ceremony in production) plus **remaining operational proof**: completed **24–48h soak** and bridge cutover decision. Failover, signed-tx propagation, and cross-node EVM (mempool) are demonstrated on local prod mesh (Jul 2026).
 
 Full gap table: [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md).

@@ -240,6 +240,10 @@ def main() -> int:
         print(f"FAIL: expected deployment_mode=prod, got {status.get('deployment_mode')!r}")
         return 1
 
+    if args.leader_only:
+        print("FAIL: --leader-only uses direct /contract/deploy, blocked in production")
+        return 1
+
     try:
         _wait_mesh_aligned(http_urls)
     except RuntimeError as exc:

@@ -33,7 +33,7 @@
 | Changelog | [CHANGELOG.md](CHANGELOG.md) |
 | Architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Public testnet (plan) | [docs/PUBLIC_TESTNET.md](docs/PUBLIC_TESTNET.md) |
-| Release notes | [v1.2.27](RELEASE_NOTES_v1.2.27.md) · [v1.2.26](RELEASE_NOTES_v1.2.26.md) · [Evidence matrix](docs/EVIDENCE_MATRIX.md) |
+| Release notes | [v1.2.28](RELEASE_NOTES_v1.2.28.md) · [v1.2.27](RELEASE_NOTES_v1.2.27.md) · [Evidence matrix](docs/EVIDENCE_MATRIX.md) |
 | Mainnet gap (honest) | [docs/MAINNET_GAP_ANALYSIS.md](docs/MAINNET_GAP_ANALYSIS.md) |
 | Bridge L1 cutover | [docs/BRIDGE_L1_MAINNET.md](docs/BRIDGE_L1_MAINNET.md) |
 | Docker images (GHCR) | [docs/DOCKER_IMAGES.md](docs/DOCKER_IMAGES.md) |
@@ -67,15 +67,15 @@
 | **REST API** | 🟢 | 288+ route handlers, OpenAPI docs endpoint, API Wave 61, prod admin gates |
 | **Web Explorer** | 🟢 | SPA on port 8080; 32 functional tabs |
 | **P2P networking** | 🟢 Verified | 2 / 3 / 5-node Docker meshes; strict state root checks, topology, and rejoin APIs |
-| **TX propagation** | 🟡 Devnet proven | Signed gossip + trace in dev/CI; **default prod mesh bootstrap skips unsigned tx** (`SKIP: tx propagation`) — use `prod_signed_tx_smoke.py` |
+| **TX propagation** | 🟢 Prod proven | Signed gossip via `prod_signed_tx_smoke.py` — n2/n3 see tx on live prod mesh |
 | **Multi-validator devnet** | 🟢 | 5 validators, proposer rotation, 3 miners + 2 attesters |
 | **State consistency** | 🟢 | Cross-node harness + auto-repair (`/chain/consistency/*`) on live prod mesh |
 | **Fork & slashing CI** | 🟢 | `/testnet/fork-status`, double-vote detection |
 | **JSON-RPC** | 🟢 | eth_* subset on port 8545, API-key protection in prod |
 | **Tokenomics model** | 🟢 | 221M ABS cap, founder D.U.P. 17.4% — enforced in code |
 | **Rust native crypto** | 🟢 Hybrid path | PyO3 `abs_native`: SHA-256, Merkle, state_root, secp256k1, header/tx/block hash, P2P import validation, Keccak-256 |
-| **EVM / L2 / Bridge** | 🟡 Mixed | Opcode parity in CI; **live prod RPC deploy/call not ops-proven**; bridge OFF on prod mesh by design |
-| **Failover / soak** | 🟡 Scripts only | `prod_mesh_failover.ps1`, `soak_monitor.ps1` exist — **24–48h soak and live failover not confirmed** |
+| **EVM / L2 / Bridge** | 🟡 Mixed | **Live prod RPC deploy (mempool) proven** Jul 12; bridge OFF on prod mesh by design |
+| **Failover / soak** | 🟡 Partial | **Failover + 7h soak proven**; **24–48h soak** in progress — see [EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) |
 | **Production mainnet** | 🔴 Not launched | External audit, validator ops, L1 bridge cutover; prod profile is **preparation**, not live mainnet |
 
 **Quality gate (Jul 2026):** CI badges above · local **`.\scripts\check_hybrid_full.ps1`** → native crypto + bridge smoke + pytest · **`703` tests** in suite (`pytest tests/ --collect-only`)
@@ -466,4 +466,4 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 
 ---
 
-*Last update: July 2026 — **v1.2.27**: prod mesh mining gate, cross-node EVM mempool evidence; see [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) for proven vs not-proven.*
+*Last update: July 2026 — **v1.2.28**: fail-closed direct deploy in prod; CI prod-mesh3 signed-tx + EVM evidence; see [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) for proven vs not-proven.*

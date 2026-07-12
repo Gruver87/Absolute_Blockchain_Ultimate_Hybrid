@@ -148,6 +148,18 @@ def _reject_deploy_without_salt_in_prod(body: Dict, cfg) -> None:
         raise ValueError("deploy salt required in production for deterministic contract address")
 
 
+def _reject_direct_deploy_in_prod(cfg, *, via_mempool: bool = False) -> None:
+    """Production must route deploys through signed mempool txs, not direct EVM apply."""
+    if not _is_production_cfg(cfg):
+        return
+    if via_mempool:
+        return
+    raise ValueError(
+        "direct contract deploy disabled in production; "
+        "use via_mempool=true or POST /tx/deploy"
+    )
+
+
 def _is_prod_blocked_path(path: str, cfg) -> bool:
     if not _is_production_cfg(cfg):
         return False
@@ -3448,11 +3460,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not v.get("valid"):
                     self._error(400, f"unsupported EVM bytecode: {(v.get('unsupported') or [{}])[0].get('name', v.get('error'))}")
                     return
-                if body.get("via_mempool", body.get("mempool", False)):
+                via_mempool = bool(body.get("via_mempool", body.get("mempool", False)))
+                if via_mempool:
                     _reject_deploy_without_salt_in_prod(body, cfg)
                     tx_hash = _handle_deploy_tx(body, bc, mp, cfg, self.__class__.wallet, evm_adapter)
                     self._json({"tx_hash": tx_hash, "status": "pending", "via_mempool": True})
                     return
+                _reject_direct_deploy_in_prod(cfg, via_mempool=False)
                 _reject_deploy_without_salt_in_prod(body, cfg)
                 result = evm_adapter.deploy_contract(
                     deployer=body.get("from", body.get("from_address", "")),

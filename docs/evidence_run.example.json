@@ -1,0 +1,50 @@
+{
+  "run_id": "evidence-2026-07-12-example",
+  "mesh": "docker prod 3-node :18180-18182",
+  "chain_id": 778888,
+  "started_at": "2026-07-12T17:00:00+02:00",
+  "finished_at": "2026-07-12T19:30:00+02:00",
+  "git_tag": "v1.2.27",
+  "steps": [
+    {
+      "name": "health_watch",
+      "command": ".\\scripts\\health_watch.ps1 -ProdMesh -DurationMin 1",
+      "result": "PASS",
+      "artifact": "logs/evidence_health.log"
+    },
+    {
+      "name": "prod_mesh_failover",
+      "command": ".\\scripts\\prod_mesh_failover.ps1",
+      "result": "PASS",
+      "artifact": "logs/evidence_failover.log"
+    },
+    {
+      "name": "prod_signed_tx_smoke",
+      "command": "python scripts/prod_signed_tx_smoke.py",
+      "result": "PASS",
+      "artifact": "logs/evidence_signed_tx.log",
+      "notes": "tx visible on n2 and n3"
+    },
+    {
+      "name": "prod_evm_smoke",
+      "command": "docker exec abs-prod-mesh3-node1-1 python scripts/prod_evm_smoke.py ...",
+      "result": "PASS",
+      "artifact": "logs/evidence_evm.log",
+      "notes": "mempool deploy block #6; eth_getStorageAt slot0=1 on all 3 RPC"
+    },
+    {
+      "name": "soak_monitor",
+      "command": ".\\scripts\\soak_monitor.ps1 -ProdMesh -Hours 7",
+      "result": "PASS",
+      "artifact": "logs/soak_report.json",
+      "cycles": 159,
+      "failures": 0
+    }
+  ],
+  "gaps_remaining": [
+    "24-48h soak completion",
+    "external security audit",
+    "production genesis ceremony + secret rotation",
+    "bridge mainnet cutover decision"
+  ]
+}

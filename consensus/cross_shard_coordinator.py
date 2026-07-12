@@ -3,11 +3,12 @@
 
 from __future__ import annotations
 
-import hashlib
 import math
 import threading
 import time
-from typing import Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set
+
+from crypto import native
 
 
 class CrossShardCoordinator:
@@ -64,7 +65,7 @@ class CrossShardCoordinator:
             if row.get("shard_id") is not None:
                 shard = int(row["shard_id"]) % n
             else:
-                digest = hashlib.sha256(vid.encode()).hexdigest()
+                digest = native.hash_text(vid)
                 shard = int(digest, 16) % n
             committees.setdefault(shard, []).append(vid)
         return self.load_shard_committees(committees)
@@ -334,7 +335,7 @@ class CrossShardCoordinator:
 
     def shard_for_address(self, address: str, num_shards: Optional[int] = None) -> int:
         n = max(1, int(num_shards or self.num_shards))
-        digest = hashlib.sha256((address or "").encode()).hexdigest()
+        digest = native.hash_text(address or "")
         return int(digest, 16) % n
 
     def status(self) -> dict:

@@ -12,8 +12,38 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
+def _check_native_wheel() -> tuple[list[str], list[str]]:
+    """Require abs_native self-test and prod-critical exports when wheel is present."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    from crypto import native
+
+    status = native.native_crypto_status(required=True)
+    if not status.get("available"):
+        errors.append(f"abs_native unavailable: {status.get('error') or 'import failed'}")
+        return errors, warnings
+    if not status.get("self_test"):
+        errors.append("abs_native self_test failed")
+    try:
+        import abs_native as _abs
+
+        for sym in (
+            "RocksEngine",
+            "evm_run_until_halt",
+            "validate_imported_block_chain",
+            "pubkey_to_eth_address",
+        ):
+            if not hasattr(_abs, sym):
+                errors.append(f"abs_native missing export: {sym}")
+    except ImportError as exc:
+        errors.append(f"abs_native import failed: {exc}")
+    return errors, warnings
+
+
 def run_industrial_gate(*, prod_smoke_spawn: bool = False) -> int:
     import importlib.util
+
+    native_errors, native_warnings = _check_native_wheel()
 
     spec = importlib.util.spec_from_file_location(
         "mainnet_readiness", ROOT / "scripts" / "mainnet_readiness.py"
@@ -26,12 +56,15 @@ def run_industrial_gate(*, prod_smoke_spawn: bool = False) -> int:
         live=False,
         strict_audit=False,
     )
+    errors.extend(native_errors)
+    warnings.extend(native_warnings)
     report = {
         "ok": not errors,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "errors": errors,
         "warnings": warnings,
         "sections": sections,
+        "native_wheel": not native_errors,
     }
 
     if prod_smoke_spawn:
@@ -68,6 +101,8 @@ def run_industrial_gate(*, prod_smoke_spawn: bool = False) -> int:
 
     out = ROOT / "data" / "industrial_gate.json"
     out.parent.mkdir(parents=True, exist_ok=True)
+    report["ok"] = not errors
+    report["errors"] = errors
     out.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
     if errors:

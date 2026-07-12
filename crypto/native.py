@@ -305,6 +305,7 @@ def canonical_hash_json(obj_json: str) -> str:
     """Hash a JSON object using canonical float-to-satoshi rules."""
     if _native is not None and hasattr(_native, "canonical_hash_json"):
         return str(_native.canonical_hash_json(obj_json))
+    _require_native_kernel("canonical_hash_json")
     value = json.loads(obj_json)
     return hash_text(_python_canonical_serialize(value))
 
@@ -366,6 +367,19 @@ def recover_eth_address_keccak(prehash: bytes, r: bytes, s: bytes, rec_id: int) 
     if _native is not None and hasattr(_native, "recover_eth_address_keccak"):
         return str(_native.recover_eth_address_keccak(prehash, r, s, int(rec_id)))
     raise RuntimeError("recover_eth_address_keccak requires abs_native")
+
+
+def pubkey_to_eth_address(public_key: bytes) -> str:
+    """Keccak-256 Ethereum address from secp256k1 public key bytes."""
+    if _native is not None and hasattr(_native, "pubkey_to_eth_address"):
+        return str(_native.pubkey_to_eth_address(public_key))
+    if _REQUIRE_NATIVE:
+        raise RuntimeError(_NATIVE_REQUIRED_MSG)
+    pk = public_key[1:] if len(public_key) == 65 and public_key[0] == 0x04 else public_key
+    if len(pk) != 64:
+        raise ValueError("public_key must be 64 bytes uncompressed or 65 with 0x04 prefix")
+    digest = keccak256_digest(pk)
+    return "0x" + digest[-20:].hex()
 
 
 EVM_U256_MASK = (1 << 256) - 1
@@ -1161,6 +1175,7 @@ def generate_proof(items: List[Any], target_index: int) -> List[str]:
         return []
     if _native is not None:
         return _native.generate_proof(string_items, target_index)
+    _require_native_kernel("generate_proof")
     return _python_generate_proof_strings(string_items, target_index)
 
 
@@ -1170,6 +1185,7 @@ def verify_proof(item: Any, proof: List[str], expected_root: str, target_index: 
     item_str = str(item)
     if _native is not None:
         return bool(_native.verify_proof(item_str, proof, expected_root, target_index))
+    _require_native_kernel("verify_proof")
     return merkle_root_from_proof(item_str, proof, target_index) == expected_root
 
 

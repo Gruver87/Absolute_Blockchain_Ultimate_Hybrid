@@ -4,7 +4,6 @@ Cryptographic key generation and management
 secp256k1 curve (same as Bitcoin/Ethereum)
 """
 
-import hashlib
 import secrets
 from typing import Tuple, Optional
 from dataclasses import dataclass
@@ -51,13 +50,18 @@ class KeyGenerator:
     
     @staticmethod
     def derive_address(public_key: bytes) -> str:
-        """Derive Ethereum-style address from public key"""
-        # Hash public key
-        sha = hashlib.sha256(public_key).digest()
-        # Take last 20 bytes for address
-        address_bytes = sha[-20:]
-        # Add 0x prefix
-        return "0x" + address_bytes.hex()
+        """Derive chain address from secp256k1 public key (legacy SHA-256, prod-stable)."""
+        from crypto import native
+
+        digest = native.sha256_hex(public_key)
+        return "0x" + digest[-40:]
+
+    @staticmethod
+    def derive_address_eth(public_key: bytes) -> str:
+        """Ethereum-compatible address (Keccak-256 of uncompressed pubkey)."""
+        from crypto import native
+
+        return native.pubkey_to_eth_address(public_key)
     
     @staticmethod
     def generate_keypair() -> KeyPair:

@@ -26,6 +26,8 @@ import time
 import threading
 import logging
 
+_node_log = logging.getLogger("Node")
+
 
 def _configure_stdio_utf8() -> None:
     """Windows cp1251 consoles crash on emoji in print when stdout is redirected."""
@@ -1707,8 +1709,12 @@ class NodeOrchestrator:
                     block_dict = {"hash": block.hash, "number": block.height,
                                   "proposer": proposer, "timestamp": block.timestamp}
                     block.signature = self.validator_keys.sign_block(block_dict)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    _node_log.warning(
+                        "Block signing failed (height=%s): %s",
+                        block.height,
+                        exc,
+                    )
 
             success = await asyncio.to_thread(self.blockchain.add_block, block)
 
@@ -1728,8 +1734,12 @@ class NodeOrchestrator:
                             "timestamp": block.timestamp,
                         }
                         block.signature = self.validator_keys.sign_block(block_dict)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        _node_log.warning(
+                            "Empty block signing failed (height=%s): %s",
+                            block.height,
+                            exc,
+                        )
                 success = await asyncio.to_thread(self.blockchain.add_block, block)
 
             if success:

@@ -3,9 +3,12 @@
 Block Builder — creates blocks from mempool transactions
 """
 
-import hashlib
+import json
 import time
 from typing import List, Dict, Any, Optional
+
+from crypto.merkle import merkle_root
+from crypto import native
 
 
 class BlockBuilder:
@@ -54,13 +57,16 @@ class BlockBuilder:
         return block
     
     def _compute_tx_root(self, transactions) -> str:
-        """Compute merkle root of transactions"""
+        """Compute merkle root of transactions (same rules as core.blockchain.Block)."""
         if not transactions:
-            return hashlib.sha256(b"empty_tx").hexdigest()[:32]
-        
-        tx_strings = [tx["hash"] for tx in transactions]
-        combined = "".join(sorted(tx_strings))
-        return hashlib.sha256(combined.encode()).hexdigest()[:32]
+            return merkle_root(["empty"])
+        tx_hashes: List[str] = []
+        for tx in transactions:
+            if isinstance(tx, dict):
+                tx_hashes.append(str(tx.get("hash", "") or ""))
+            else:
+                tx_hashes.append(str(getattr(tx, "hash", "") or ""))
+        return merkle_root(tx_hashes)
     
     def _tx_to_dict(self, tx) -> dict:
         """Convert transaction to dict for inclusion in block"""
@@ -95,8 +101,8 @@ class BlockBuilder:
         return block
     
     def _compute_block_hash(self, block: dict) -> str:
-        """Compute deterministic block hash"""
-        block_data = json.dumps({
+        """Compute deterministic block hash via native canonical rules."""
+        payload = json.dumps({
             "number": block["number"],
             "parent_hash": block["parent_hash"],
             "timestamp": block["timestamp"],
@@ -104,8 +110,4 @@ class BlockBuilder:
             "tx_root": block["tx_root"],
             "state_root": block["state_root"]
         }, sort_keys=True)
-        return hashlib.sha256(block_data.encode()).hexdigest()[:32]
-
-
-import json
-
+        return native.canonical_hash_json(payload)

@@ -47,10 +47,10 @@ class Wallet:
         )
     
     def _derive_address(self, public_key: bytes) -> str:
-        """Derive Ethereum-style address from public key"""
-        sha = hashlib.sha256(public_key).digest()
-        address_bytes = sha[-20:]
-        return "0x" + address_bytes.hex()
+        """Derive chain address from public key (delegates to KeyGenerator)."""
+        from crypto.keys import KeyGenerator
+
+        return KeyGenerator.derive_address(public_key)
     
     @property
     def address(self) -> str:

@@ -26,7 +26,7 @@ Compared to documentation-only claims, **evidence level increased** in Jul 2026:
 | `soak_monitor.ps1 -ProdMesh -Hours 7` | **PASS** | `logs/soak_report.json` (159 cycles, 0 fail) |
 | `testnet_readiness.ps1 -MinSoakHours 7` | **WARN** | re-run after mesh mining gate fixes recommended |
 
-Full JSON: `data/evidence_run.json`
+Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) (live runs: `data/evidence_run.json`, gitignored)
 
 **Industrial fixes applied (Jul 12 evening):** mesh mining gate no longer latches on stale P2P wire roots; hub uses live STATUS heights; P2P broadcast non-blocking; `add_block` runs in worker thread so EVM apply cannot freeze the event loop; parallel peer state-root RPC.
 
@@ -56,7 +56,6 @@ Full JSON: `data/evidence_run.json`
 
 | Gap | Why it is **not** proven yet | What would prove it |
 |-----|------------------------------|---------------------|
-| **EVM end-to-end on all prod RPC peers** | **PASS** (Jul 12 evening) after mining-gate + async fixes | Re-run after each mesh rebuild: `prod_evm_smoke.py` via docker exec |
 | **24–48h soak** | **7h passed** (Jul 6–7); not yet 24–48h | `soak_report.json` with `hours_requested ≥ 24` |
 | **External audit** | README and `external_audit_tracker.py` checklist incomplete | Third-party audit report + tracker items closed |
 | **Bridge mainnet cutover** | Prod mesh runs with `bridge_enabled: false` by design | Audited L1 contracts + relayer SLOs per `docs/BRIDGE_L1_MAINNET.md` |

@@ -2513,6 +2513,80 @@ def run_prod_smoke_spawn() -> int:
                 proc.kill()
 
 
+def _run_prod_mesh3_evidence(ceremony_dir: str, urls: list[str], env: dict) -> int:
+    """Signed tx + EVM mempool smoke on spawned prod-mesh3 (CI ports)."""
+    from runtime.prod_smoke_profile import PROD_MESH3_RPC_PORTS, resolve_ceremony_dir
+    from runtime.validator_loader import manifest_entries
+
+    cdir = resolve_ceremony_dir(ceremony_dir)
+    manifest_path = cdir / "validators.manifest.json"
+    if not manifest_path.is_file():
+        print(f"FAIL: evidence ceremony manifest missing: {manifest_path}")
+        return 1
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    rows = sorted(manifest_entries(manifest), key=lambda r: int(r.get("index", 0) or 0))
+    if not rows:
+        print("FAIL: evidence ceremony manifest has no validators")
+        return 1
+    primary = next((r for r in rows if bool(r.get("mines", True))), rows[0])
+    index = int(primary.get("index", 1) or 1)
+    wallet = str(cdir / "wallets" / f"validator-{index}.wallet.json")
+    if not os.path.isfile(wallet):
+        print(f"FAIL: evidence wallet missing: {wallet}")
+        return 1
+
+    url1, url2, url3 = urls
+    rpc_urls = [f"http://127.0.0.1:{p}" for p in PROD_MESH3_RPC_PORTS]
+    smoke_env = {**os.environ, **env}
+
+    steps = [
+        (
+            "signed-tx",
+            [
+                sys.executable,
+                "scripts/prod_signed_tx_smoke.py",
+                "--url1",
+                url1,
+                "--url2",
+                url2,
+                "--url3",
+                url3,
+                "--wallet",
+                wallet,
+            ],
+        ),
+        (
+            "evm",
+            [
+                sys.executable,
+                "scripts/prod_evm_smoke.py",
+                "--url1",
+                url1,
+                "--url2",
+                url2,
+                "--url3",
+                url3,
+                "--rpc1",
+                rpc_urls[0],
+                "--rpc2",
+                rpc_urls[1],
+                "--rpc3",
+                rpc_urls[2],
+                "--wallet",
+                wallet,
+            ],
+        ),
+    ]
+    for label, cmd in steps:
+        print(f"Prod-mesh3 evidence: {label} ...")
+        proc = subprocess.run(cmd, cwd=ROOT, env=smoke_env)
+        if proc.returncode != 0:
+            print(f"FAIL: prod-mesh3 evidence {label} exit={proc.returncode}")
+            return proc.returncode
+    print("OK: prod-mesh3 signed-tx + EVM evidence passed")
+    return 0
+
+
 def run_prod_mesh3_spawn(ceremony_dir: str = "") -> int:
     """Isolated 3-node prod mesh on :15280-15282 with ceremony wallets."""
     from runtime.prod_smoke_profile import (
@@ -2671,6 +2745,9 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "") -> int:
             return 2
 
         rc = verify_prod_consensus_mesh3(url1, url2, url3)
+        if rc != 0:
+            return rc
+        rc = _run_prod_mesh3_evidence(ceremony_dir, urls, env)
         if rc != 0:
             return rc
         print("OK: prod-mesh3 ceremony spawn passed")
