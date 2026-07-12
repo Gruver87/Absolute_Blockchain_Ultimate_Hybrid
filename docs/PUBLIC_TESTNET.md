@@ -22,7 +22,8 @@ Target (example): `https://testnet.absolute-chain.org` → explorer + RPC behind
 
 - [ ] Prod mesh soak **48h+ completed** (`soak_report.json` passed) — see [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md)
 - [x] Automated local gate: `.\scripts\testnet_readiness.ps1 -ProdMesh`
-- [ ] Failover drill on prod mesh (`prod_mesh_failover.ps1`) with recorded heights
+- [x] Soak restart with v1.2.31+ timeouts: `.\scripts\restart_soak_prod_mesh.ps1 -Hours 48`
+- [x] Failover drill on prod mesh (`prod_mesh_failover.ps1`) with recorded heights
 - [ ] `probe_mesh_nodes.ps1` green on all HTTP/RPC/P2P ports
 - [ ] `GET /chain/consistency/harness` aligned on all validators
 - [ ] DR rehearsal passed (`dr_restore_rehearsal.ps1 -DockerMesh1`)
@@ -40,6 +41,8 @@ Target (example): `https://testnet.absolute-chain.org` → explorer + RPC behind
 
 - [x] Docker seed compose: `docker-compose.testnet.yml` + `scripts/docker_testnet_seed.ps1`
 - [x] nginx TLS template: `deploy/nginx/testnet.example.conf`
+- [x] Static + live gate: `scripts/public_testnet_gate.py` / `.ps1`
+- [x] Linux VPS bootstrap: `scripts/vps_testnet_bootstrap.sh`
 - [ ] Single seed + 2–3 validators on VPS or cloud (Docker compose or K8s)
 - [ ] Prometheus/Grafana or uptime ping on `/health/ready`
 - [ ] Log rotation on `data/node.log`
@@ -49,12 +52,13 @@ Target (example): `https://testnet.absolute-chain.org` → explorer + RPC behind
 
 ## Go-live (minimal public surface)
 
-1. **Local / VPS seed** — `.\scripts\docker_testnet_seed.ps1` (ports `9080` HTTP, `9085` RPC by default)
-2. **TLS** — `deploy/nginx/testnet.example.conf` in front of seed ports
+1. **Local / VPS seed** — `.\scripts\docker_testnet_seed.ps1` or `bash scripts/vps_testnet_bootstrap.sh`
+2. **Gate** — `python scripts/public_testnet_gate.py --live` (add `--require-soak-hours 48` before DNS)
+3. **TLS** — `deploy/nginx/testnet.example.conf` in front of seed ports
 3. **Explorer** — static `web/explorer/` behind same host or CDN
 4. **README** — replace localhost examples with public URL + chain ID `77777`
 5. **Status page** — link to GitHub Actions badges + last release tag
-6. **Gate** — `.\scripts\testnet_readiness.ps1 -Ports 9080`
+6. **Gate** — `.\scripts\testnet_readiness.ps1 -Ports 9080` or `.\scripts\public_testnet_gate.ps1 -Live`
 
 Example nginx pattern (illustrative):
 

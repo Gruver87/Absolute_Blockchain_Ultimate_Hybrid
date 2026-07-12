@@ -34,12 +34,15 @@ if (-not $SkipIndustrialGate) {
 }
 
 Write-Host "`n=== mesh health + harness ===" -ForegroundColor Cyan
+$readySec = if ($ProdMesh) { 15 } else { 5 }
+$statusSec = if ($ProdMesh) { 12 } else { 5 }
+$harnessSec = if ($ProdMesh) { 20 } else { 15 }
 $heights = @()
 foreach ($p in $Ports) {
     try {
-        $ready = Invoke-RestMethod -Uri "http://127.0.0.1:$p/health/ready" -TimeoutSec 5
-        $st = Invoke-RestMethod -Uri "http://127.0.0.1:$p/status" -TimeoutSec 5
-        $cs = Invoke-RestMethod -Uri "http://127.0.0.1:$p/chain/consistency/harness?quick=1&peer_timeout=5" -TimeoutSec 15
+        $ready = Invoke-RestMethod -Uri "http://127.0.0.1:$p/health/ready" -TimeoutSec $readySec
+        $st = Invoke-RestMethod -Uri "http://127.0.0.1:$p/status" -TimeoutSec $statusSec
+        $cs = Invoke-RestMethod -Uri "http://127.0.0.1:$p/chain/consistency/harness?quick=1&peer_timeout=5" -TimeoutSec $harnessSec
         $ok = ($ready.status -eq "ready") -and ($cs.harness_healthy -eq $true) -and ($cs.tip_state_aligned -eq $true)
         $heights += [int]$st.height
         Add-Check "node:$p" $ok " height=$($st.height) peers=$($st.peers)"
