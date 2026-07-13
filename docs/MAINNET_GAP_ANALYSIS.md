@@ -82,7 +82,7 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 
 - [ ] Complete all 8 items in `scripts/external_audit_tracker.py`
 - [ ] Third-party security audit (L1 + bridge + EVM)
-- [ ] Production validator manifest + offline keygen — **automation:** `ceremony_preflight`, `deploy_ceremony_prod` (operator must run keygen + pin)
+- [ ] Production validator manifest + offline keygen — **automation:** `ceremony_evidence_suite.ps1`, `deploy_ceremony_prod` (operator must run keygen + pin)
 - [ ] Final `chain_id` (778888) + genesis ceremony hash pinned — **script:** `pin_ceremony_hash.ps1` + `--require-env-pin`
 - [ ] Rotate all secrets — **script:** `rotate_prod_secrets.ps1 -Force` (see `docs/SECRET_ROTATION.md`)
 - [ ] Live prod smoke: `python scripts/mainnet_readiness.py --live` (after docker prod or manual node)

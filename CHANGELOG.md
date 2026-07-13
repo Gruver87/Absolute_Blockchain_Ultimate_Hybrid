@@ -32,6 +32,21 @@
 
 ---
 
+## [1.2.74] — 2026-07-14
+
+### Added
+
+- **`scripts/verify_prod_mesh_probe.py`** + **`probe_prod_mesh.ps1`** — structured prod mesh verify (`:18180-:18182`, chain 778888)
+- **`scripts/prod_mesh_resilience_suite.ps1`** — probe + stabilize + failover + optional DR rehearsal (no soak)
+- **`scripts/ceremony_evidence_suite.ps1`** + **`prepare_ceremony_deploy.ps1`** — genesis ceremony preflight path
+- **`tests/unit/test_verify_prod_mesh_probe.py`**
+
+### Changed
+
+- **`docs/GENESIS_CEREMONY.md`**, **`docs/EVIDENCE_MATRIX.md`**, **`docs/MAINNET_GAP_ANALYSIS.md`**, **`docs/PUBLIC_TESTNET.md`**
+
+---
+
 ## [1.2.73] — 2026-07-14
 
 ### Added

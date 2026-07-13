@@ -41,9 +41,9 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 |-------|----------|------------------|
 | Prod 3-node mesh boots on RocksDB | `docker_prod_3node.ps1` → healthy containers, unified heights | `.\scripts\docker_prod_3node.ps1 -SkipBuild -KeepVolumes` |
 | **Public testnet seed (77777)** | Docker seed on :19080, live gate PASS | `.\scripts\testnet_evidence_suite.ps1` |
-| Cross-node state / tip alignment | `GET /chain/consistency/harness` OK on :18180–:18182 | `.\scripts\probe_mesh_nodes.ps1 -ProdMesh` |
-| P2P topology on prod ports | `peer_count=2`, `topology_healthy=True` in post-checks | same mesh script |
-| **Failover / resilience** | node2 stop → mesh alive → node2 rejoin, heights aligned | `.\scripts\prod_mesh_failover.ps1` |
+| Cross-node state / tip alignment | `GET /chain/consistency/harness` OK on :18180–:18182 | `.\scripts\probe_prod_mesh.ps1` |
+| P2P topology on prod ports | `peer_count=2`, `topology_healthy=True` in post-checks | `verify_prod_mesh_probe.py` |
+| **Failover / resilience** | node2 stop → mesh alive → node2 rejoin, heights aligned | `.\scripts\prod_mesh_resilience_suite.ps1` |
 | **Signed tx propagation (prod)** | `prod_signed_tx_smoke.py` → n2/n3 see tx | `python scripts/prod_signed_tx_smoke.py` |
 | **7h industrial soak** | `soak_report.json` passed, 159 cycles, 0 fail | `.\scripts\soak_monitor.ps1 -ProdMesh -Hours 7` |
 | RocksDB DR path | DR rehearsal script + backup | `.\scripts\dr_restore_rehearsal.ps1 -DockerMesh1` |

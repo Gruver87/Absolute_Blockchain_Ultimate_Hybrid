@@ -29,6 +29,13 @@ Edit `validators.manifest.mainnet-v1.example.json` (template) or your production
 
 ### 2. Build ceremony artifact
 
+**Evidence suite (recommended after keygen):**
+
+```powershell
+.\scripts\ceremony_evidence_suite.ps1 -CeremonyDir data/ceremony_keys
+.\scripts\pin_ceremony_hash.ps1 -CeremonyDir data/ceremony_keys
+```
+
 ```powershell
 python scripts/genesis_ceremony.py `
   --config node.prod.mainnet-v1.example.json `

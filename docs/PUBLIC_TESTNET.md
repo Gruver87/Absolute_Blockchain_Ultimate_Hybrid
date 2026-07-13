@@ -23,13 +23,13 @@ Target (example): `https://testnet.absolute-chain.org` → explorer + RPC behind
 - [ ] Prod mesh soak **48h+ completed** (`soak_report.json` passed) — see [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md)
 - [x] Automated local gate: `.\scripts\testnet_readiness.ps1 -ProdMesh`
 - [x] Soak restart with v1.2.31+ timeouts: `.\scripts\restart_soak_prod_mesh.ps1 -Hours 48`
-- [x] Failover drill on prod mesh (`prod_mesh_failover.ps1`) with recorded heights
-- [ ] `probe_mesh_nodes.ps1` green on all HTTP/RPC/P2P ports
+- [x] Failover drill on prod mesh (`prod_mesh_failover.ps1`) — `prod_mesh_resilience_suite.ps1`
+- [ ] `probe_mesh_nodes.ps1` green — use `.\scripts\probe_prod_mesh.ps1`
 - [x] Testnet mesh verify: `.\scripts\docker_testnet_mesh.ps1` / `probe_testnet_mesh.ps1 -Deep`
 - [x] 3-node testnet mesh: `.\scripts\docker_testnet_mesh3.ps1` / `probe_testnet_mesh.ps1 -Mesh3 -Deep`
 - [x] Health watch: `.\scripts\testnet_health_watch.ps1 -Mesh3 -DurationMin 10`
 - [ ] `GET /chain/consistency/harness` aligned on all validators
-- [ ] DR rehearsal passed (`dr_restore_rehearsal.ps1 -DockerMesh1`)
+- [ ] DR rehearsal passed (`dr_restore_rehearsal.ps1 -DockerMesh1`) — included in `prod_mesh_resilience_suite.ps1`
 
 ### Security
 
