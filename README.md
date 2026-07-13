@@ -53,7 +53,8 @@
 | **ABS token** | In-repo tokenomics model (221M cap) — **not** a tradable asset |
 | **Security** | Stronger production gates are implemented; **external audit: not completed**; do **not** use for real funds without independent review |
 
-**Evidence vs claims:** [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) — what live prod mesh runs have actually proven (Jul 2026).
+**Evidence vs claims:** [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) — what live prod mesh runs have actually proven (Jul 2026).  
+**Latest release:** [v1.2.77](RELEASE_NOTES_v1.2.77.md) — P2P sync rate-limit fix; prod mesh probe PASS (Jul 13).
 
 ---
 
@@ -407,7 +408,7 @@ curl.exe http://localhost:8080/features
 
 ---
 
-## Architecture (short)
+## Repository layout
 
 ```
 main.py → NodeOrchestrator
@@ -485,4 +486,4 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 
 ---
 
-*Last update: July 2026 — **v1.2.42**: working L2 modules (Lightning HTLC, Plasma Merkle, WASM, Oracle quorum, ZK); **v1.2.41**: prod mesh fork heal + live evidence PASS; see [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md).*
+*Last update: July 2026 — latest release **[v1.2.77](RELEASE_NOTES_v1.2.77.md)** (P2P sync rate-limit fix; prod mesh probe PASS). **Not** a launched public mainnet — evidence ledger: [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md).*
