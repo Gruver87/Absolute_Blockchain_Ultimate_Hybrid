@@ -16,6 +16,15 @@
 
 ---
 
+## [1.2.55] — 2026-07-13
+
+### Fixed
+
+- **P2P auto mode:** `-P2P` / `--prefer-devnet` no longer hijacks live prod mesh on `:18180–:18182`; use `--prefer-prod-mesh` or `-ProdMesh` for prod checks
+- **Harness timeouts:** `verify_p2p_ci` uses `_consistency_harness()` with `quick=1` and ≥45s HTTP timeout on prod ports (fixes false `node1 harness: timed out`)
+
+---
+
 ## [1.2.54] — 2026-07-13
 
 ### Added

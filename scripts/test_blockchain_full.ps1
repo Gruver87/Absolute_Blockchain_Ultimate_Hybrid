@@ -367,7 +367,7 @@ elseif ($Live) {
 }
 elseif ($P2P) {
     Run-Step "P2P auto verification" {
-        python scripts/verify_p2p_ci.py --mode auto --wait $P2PWait
+        python scripts/verify_p2p_ci.py --mode auto --prefer-devnet --wait $P2PWait
     }
 }
 

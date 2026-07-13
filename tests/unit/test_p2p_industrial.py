@@ -67,17 +67,37 @@ def test_max_p2p_line_bytes_clamps_config():
     assert _max_p2p_line_bytes(Config()) == DEFAULT_MAX_P2P_LINE_BYTES
 
 
-def test_verify_p2p_auto_detects_prod_mesh(monkeypatch):
+def _load_verify_p2p():
     path = os.path.join(ROOT, "scripts", "verify_p2p_ci.py")
     spec = importlib.util.spec_from_file_location("verify_p2p_ci", path)
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(mod)
+    return mod
 
-    calls = []
+
+def test_verify_p2p_auto_prefers_devnet_over_prod_mesh(monkeypatch):
+    mod = _load_verify_p2p()
 
     def fake_probe(url):
-        calls.append(url)
+        return url in (
+            mod.PROD_MESH_URL1,
+            mod.PROD_MESH_URL2,
+            mod.PROD_MESH_URL3,
+            mod.DEVNET_URL1,
+            mod.DEVNET_URL2,
+        )
+
+    monkeypatch.setattr(mod, "_probe_health", fake_probe)
+    monkeypatch.setattr(mod, "verify_pair", lambda *a, **k: 0)
+    monkeypatch.setattr(sys, "argv", ["verify_p2p_ci.py", "--mode", "auto", "--prefer-devnet"])
+    assert mod.main() == 0
+
+
+def test_verify_p2p_auto_detects_prod_mesh_with_prefer_flag(monkeypatch):
+    mod = _load_verify_p2p()
+
+    def fake_probe(url):
         return url in (
             mod.PROD_MESH_URL1,
             mod.PROD_MESH_URL2,
@@ -85,26 +105,27 @@ def test_verify_p2p_auto_detects_prod_mesh(monkeypatch):
         )
 
     monkeypatch.setattr(mod, "_probe_health", fake_probe)
-    monkeypatch.setattr(
-        mod,
-        "verify_triple",
-        lambda *a, **k: 0,
-    )
-    monkeypatch.setattr(
-        mod,
-        "verify_prod_consensus_mesh3",
-        lambda *a, **k: 0,
-    )
-    monkeypatch.setattr(
-        mod,
-        "verify_prod_post_checks",
-        lambda *a, **k: 0,
-    )
+    monkeypatch.setattr(mod, "verify_triple", lambda *a, **k: 0)
+    monkeypatch.setattr(mod, "verify_prod_consensus_mesh3", lambda *a, **k: 0)
+    monkeypatch.setattr(mod, "verify_prod_post_checks", lambda *a, **k: 0)
     monkeypatch.setattr(
         sys,
         "argv",
-        ["verify_p2p_ci.py", "--mode", "auto"],
+        ["verify_p2p_ci.py", "--mode", "auto", "--prefer-prod-mesh"],
     )
-    rc = mod.main()
-    assert rc == 0
-    assert mod.PROD_MESH_URL1 in calls
+    assert mod.main() == 0
+
+
+def test_consistency_harness_uses_long_timeout_on_prod_ports(monkeypatch):
+    mod = _load_verify_p2p()
+    calls = []
+
+    def fake_api(url, timeout=10):
+        calls.append((url, timeout))
+        return {"harness_healthy": True, "live_state_root": "0xabc", "failed_checks": []}
+
+    monkeypatch.setattr(mod, "_api", fake_api)
+    mod._consistency_harness("http://127.0.0.1:18180")
+    assert calls
+    assert calls[0][1] >= 45.0
+    assert "quick=1" in calls[0][0]

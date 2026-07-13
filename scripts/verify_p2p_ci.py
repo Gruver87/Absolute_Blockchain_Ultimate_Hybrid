@@ -49,6 +49,29 @@ def _api(url: str, timeout: float = 10) -> dict:
         return json.loads(resp.read().decode())
 
 
+def _is_prod_mesh_url(url: str) -> bool:
+    u = (url or "").lower()
+    return any(p in u for p in (":18180", ":18181", ":18182"))
+
+
+def _consistency_harness(url: str, *, quick: bool | None = None, peer_timeout: float | None = None) -> dict:
+    """Fetch /chain/consistency/harness with prod-safe timeouts (avoid urllib 10s false FAIL)."""
+    base = url.rstrip("/")
+    if quick is None:
+        quick = _is_prod_mesh_url(base)
+    if peer_timeout is None:
+        peer_timeout = 3.0 if quick else 8.0
+    q = "1" if quick else "0"
+    http_timeout = max(25.0, peer_timeout + 4.0 * 3 + 8.0)
+    if _is_prod_mesh_url(base):
+        http_timeout = max(http_timeout, 45.0)
+    path = (
+        f"{base}/chain/consistency/harness"
+        f"?quick={q}&peer_timeout={peer_timeout}"
+    )
+    return _api(path, timeout=http_timeout)
+
+
 def _probe_health(base_url: str, timeout: float = 2) -> bool:
     try:
         _api(f"{base_url}/health/live", timeout=timeout)
@@ -1549,7 +1572,7 @@ def verify_state_consistency(urls: list[str], status: dict) -> int:
         failed_nodes: list[str] = []
         for i, url in enumerate(urls, start=1):
             try:
-                h = _api(f"{url}/chain/consistency/harness")
+                h = _consistency_harness(url)
             except Exception as exc:
                 print(f"FAIL: node{i} harness: {exc}")
                 return False, [], [f"node{i}"]
@@ -2415,7 +2438,7 @@ def verify_prod_post_checks(url: str, *mesh_urls: str) -> int:
         heights: list[str] = []
         for i, u in enumerate(urls, start=1):
             try:
-                harness = _api(f"{u}/chain/consistency/harness")
+                harness = _consistency_harness(u)
             except Exception as exc:
                 harness_errors.append(f"node{i} harness: {exc}")
                 continue
@@ -2482,7 +2505,7 @@ def verify_prod_post_checks(url: str, *mesh_urls: str) -> int:
         errors.append(f"harness roots mismatch: {[r[:16] for r in roots]}")
     else:
         try:
-            harness = _api(f"{url}/chain/consistency/harness")
+            harness = _consistency_harness(url)
             if harness.get("canonical_state_root_source") != "blockchain.database":
                 errors.append("harness canonical_state_root_source mismatch")
         except Exception as exc:
@@ -3138,6 +3161,16 @@ def main() -> int:
         help="seconds to wait for stable P2P sync (devnet mode)",
     )
     parser.add_argument(
+        "--prefer-prod-mesh",
+        action="store_true",
+        help="In auto mode, prefer live prod mesh :18180-:18182 when all three nodes are up",
+    )
+    parser.add_argument(
+        "--prefer-devnet",
+        action="store_true",
+        help="In auto mode, never select prod mesh (use devnet :8080+ or isolated CI)",
+    )
+    parser.add_argument(
         "--ceremony-dir",
         default="",
         help="Ceremony directory for prod-mesh3 spawn (default: data/ceremony_keys_ci)",
@@ -3146,9 +3179,18 @@ def main() -> int:
 
     mode = args.mode
     if mode == "auto":
+        up1 = _probe_health(args.url1)
+        up2 = _probe_health(args.url2)
+        up3 = _probe_health(args.url3)
         prod1 = _probe_health(PROD_MESH_URL1)
         prod2 = _probe_health(PROD_MESH_URL2)
         prod3 = _probe_health(PROD_MESH_URL3)
+
+        if args.prefer_devnet:
+            prod1 = prod2 = prod3 = False
+        elif not args.prefer_prod_mesh:
+            prod1 = prod2 = prod3 = False
+
         if prod1 and prod2 and prod3:
             mode = "prod-mesh3-live"
             args.url1 = PROD_MESH_URL1
@@ -3165,29 +3207,25 @@ def main() -> int:
             print(f"  node3 :18182 {'UP' if prod3 else 'DOWN'}")
             print("  Fix: .\\scripts\\docker_prod_3node.ps1 -SkipBuild -KeepVolumes -NoCloneDb")
             return 1
+        elif up1 and up2 and up3:
+            mode = "devnet3"
+            print(f"Auto: 3-node devnet at {args.url1} {args.url2} {args.url3}")
+        elif up1 and up2:
+            mode = "devnet"
+            print(f"Auto: devnet detected at {args.url1} and {args.url2}")
+        elif up1 or up2 or up3:
+            print("FAIL: incomplete devnet cluster")
+            print(f"  node1 :8080 {'UP' if up1 else 'DOWN'}")
+            print(f"  node2 :8081 {'UP' if up2 else 'DOWN'}")
+            print(f"  node3 :8082 {'UP' if up3 else 'DOWN'}")
+            print("  Fix 2-node: .\\scripts\\start_two_nodes.ps1")
+            print("  Fix 2-node: .\\scripts\\docker_devnet.ps1 -RustBridge")
+            print("  Fix 3-node: .\\scripts\\docker_devnet_3node.ps1")
+            print("  Or run without -Live to use isolated CI on :15080/:15081")
+            return 1
         else:
-            up1 = _probe_health(args.url1)
-            up2 = _probe_health(args.url2)
-            up3 = _probe_health(args.url3)
-            if up1 and up2 and up3:
-                mode = "devnet3"
-                print(f"Auto: 3-node devnet at {args.url1} {args.url2} {args.url3}")
-            elif up1 and up2:
-                mode = "devnet"
-                print(f"Auto: devnet detected at {args.url1} and {args.url2}")
-            elif up1 or up2 or up3:
-                print("FAIL: incomplete devnet cluster")
-                print(f"  node1 :8080 {'UP' if up1 else 'DOWN'}")
-                print(f"  node2 :8081 {'UP' if up2 else 'DOWN'}")
-                print(f"  node3 :8082 {'UP' if up3 else 'DOWN'}")
-                print("  Fix 2-node: .\\scripts\\start_two_nodes.ps1")
-                print("  Fix 2-node: .\\scripts\\docker_devnet.ps1 -RustBridge")
-                print("  Fix 3-node: .\\scripts\\docker_devnet_3node.ps1")
-                print("  Or run without -Live to use isolated CI on :15080/:15081")
-                return 1
-            else:
-                mode = "ci"
-                print("Auto: no devnet on :8080/:8081 — running isolated CI test (--mode ci)")
+            mode = "ci"
+            print("Auto: no devnet on :8080/:8081 — running isolated CI test (--mode ci)")
 
     if mode == "devnet5":
         print(f"Devnet5 mode: checking {args.url1} .. {args.url5}")

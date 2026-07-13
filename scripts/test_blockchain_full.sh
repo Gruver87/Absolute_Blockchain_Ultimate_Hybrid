@@ -296,7 +296,7 @@ PY
   fi
   run_step "Live audit" python "${live_args[@]}"
 elif [[ "$P2P" == "1" ]]; then
-  run_step "P2P auto verification" python scripts/verify_p2p_ci.py --mode auto --wait "$P2P_WAIT"
+  run_step "P2P auto verification" python scripts/verify_p2p_ci.py --mode auto --prefer-devnet --wait "$P2P_WAIT"
 fi
 
 if [[ "$DOCKER" == "1" ]]; then

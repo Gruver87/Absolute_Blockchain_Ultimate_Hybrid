@@ -397,7 +397,7 @@ def section_p2p_verify(live: bool, base_url: str, wait_sec: int = 300) -> AuditR
     subprocess_timeout = _p2p_subprocess_timeout(wait_sec, gap)
 
     return _run_subprocess(
-        [sys.executable, "scripts/verify_p2p_ci.py", "--mode", "auto", "--wait", str(wait_sec)],
+        [sys.executable, "scripts/verify_p2p_ci.py", "--mode", "auto", "--prefer-devnet", "--wait", str(wait_sec)],
         name,
         timeout=subprocess_timeout,
     )
