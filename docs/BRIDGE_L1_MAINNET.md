@@ -33,6 +33,23 @@ With live L1 probe (`eth_blockNumber`) and running Docker prod node:
 ```powershell
 .\scripts\docker_prod.ps1 -CeremonyDir data/ceremony_keys
 $env:ETH_RPC_URL = "https://your-mainnet-rpc.example"
+.\scripts\bridge_l1_live_probe.ps1 -Full -BaseUrl http://127.0.0.1:18080
+# or step-by-step:
+.\scripts\bridge_l1_live_probe.ps1 -ProbeL1
+.\scripts\bridge_l1_cutover.ps1 -Live -ProbeL1
+```
+
+Unified probe writes `logs/bridge_l1_live_probe.json`. Gates:
+
+```powershell
+python scripts/mainnet_readiness.py --bridge-cutover --probe-l1 --no-strict-audit
+python scripts/industrial_gate.py --bridge-cutover --probe-l1
+.\scripts\monolith_gate.ps1 -BridgeCutover -ProbeL1
+```
+
+Previous flow (still supported):
+
+```powershell
 $env:BRIDGE_PROBE_L1_RPC = "true"
 .\scripts\bridge_l1_cutover.ps1 -Live
 ```

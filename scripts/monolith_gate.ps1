@@ -5,6 +5,8 @@ param(
     [switch]$LiveProdMesh,
     [switch]$P2pCi,
     [switch]$SoakPreflight,
+    [switch]$ProbeL1,
+    [switch]$BridgeLive,
     [string]$CeremonyDir = ""
 )
 
@@ -18,6 +20,8 @@ if ($BridgeCutover) { $args += "--bridge-cutover" }
 if ($LiveProdMesh) { $args += "--live-prod-mesh" }
 if ($P2pCi) { $args += "--p2p-ci" }
 if ($SoakPreflight) { $args += "--soak-preflight" }
+if ($ProbeL1) { $args += "--probe-l1" }
+if ($BridgeLive) { $args += "--bridge-live" }
 if ($CeremonyDir) { $args += @("--ceremony-dir", $CeremonyDir) }
 $args += "--json"
 

@@ -33,6 +33,8 @@ def run_gate(
     prod_mesh3_spawn: bool = False,
     ceremony_dir: str = "",
     bridge_cutover: bool = False,
+    probe_l1: bool = False,
+    bridge_live: bool = False,
 ) -> Tuple[List[str], List[str], dict]:
     errors: List[str] = []
     warnings: List[str] = []
@@ -179,15 +181,20 @@ def run_gate(
             sys.path.insert(0, str(ROOT / "scripts"))
             from bridge_l1_cutover import run_cutover_gate, resolve_live_base_url
 
-            cutover_base = resolve_live_base_url(base_url) if live else ""
+            cutover_base = resolve_live_base_url(base_url) if (live or bridge_live) else ""
             c_errors, c_warnings, c_meta = run_cutover_gate(
-                live=live,
+                live=bridge_live or live,
                 base_url=cutover_base,
-                probe_l1=live,
+                probe_l1=probe_l1 or bridge_live or live,
             )
             errors.extend([f"bridge_cutover:{e}" for e in c_errors])
             warnings.extend([f"bridge_cutover:{w}" for w in c_warnings])
             sections["bridge_cutover"] = c_meta
+            if probe_l1 or bridge_live or live:
+                probe_mod = _load_module(
+                    "bridge_l1_live_probe", "scripts/bridge_l1_live_probe.py"
+                )
+                probe_mod.write_report(c_errors, c_warnings, c_meta)
         except Exception as exc:
             errors.append(f"bridge_cutover:{exc}")
 
@@ -245,6 +252,16 @@ def main() -> int:
         action="store_true",
         help="Include Bridge L1 cutover gate (requires real ETH_RPC_URL when bridge enabled)",
     )
+    parser.add_argument(
+        "--probe-l1",
+        action="store_true",
+        help="With --bridge-cutover, run live L1 RPC + contract bytecode probes",
+    )
+    parser.add_argument(
+        "--bridge-live",
+        action="store_true",
+        help="With --bridge-cutover, probe running bridge-enabled prod node",
+    )
     parser.add_argument("--json", action="store_true", help="Print JSON summary")
     args = parser.parse_args()
 
@@ -257,6 +274,8 @@ def main() -> int:
         prod_mesh3_spawn=args.prod_mesh3_spawn,
         ceremony_dir=args.ceremony_dir,
         bridge_cutover=args.bridge_cutover,
+        probe_l1=args.probe_l1,
+        bridge_live=args.bridge_live,
     )
     report_path = write_report(errors, warnings, meta)
 

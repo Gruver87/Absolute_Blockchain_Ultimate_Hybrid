@@ -115,6 +115,8 @@ def run_industrial_gate(
     strict_audit: bool = False,
     bridge_cutover: bool = False,
     live_prod_mesh: bool = False,
+    probe_l1: bool = False,
+    bridge_live: bool = False,
 ) -> int:
     import importlib.util
 
@@ -173,6 +175,8 @@ def run_industrial_gate(
         strict_audit=strict_audit,
         ceremony_dir=ceremony_dir,
         bridge_cutover=bridge_cutover,
+        probe_l1=probe_l1,
+        bridge_live=bridge_live,
     )
     errors.extend(soak_errors)
     errors.extend(native_errors)
@@ -266,12 +270,30 @@ def main() -> int:
         help="With --ceremony-dir, require GENESIS_CEREMONY_HASH to match",
     )
     parser.add_argument("--json", action="store_true", help="Print report path only")
+    parser.add_argument(
+        "--bridge-cutover",
+        action="store_true",
+        help="Include bridge L1 cutover static gate",
+    )
+    parser.add_argument(
+        "--probe-l1",
+        action="store_true",
+        help="With --bridge-cutover, probe L1 RPC and contract bytecode",
+    )
+    parser.add_argument(
+        "--bridge-live",
+        action="store_true",
+        help="With --bridge-cutover, live checks on bridge-enabled prod node",
+    )
     args = parser.parse_args()
     rc = run_industrial_gate(
         prod_smoke_spawn=args.prod_smoke_spawn,
         min_soak_hours=args.min_soak_hours,
         ceremony_dir=args.ceremony_dir,
         require_ceremony_pin=args.require_ceremony_pin,
+        bridge_cutover=args.bridge_cutover,
+        probe_l1=args.probe_l1,
+        bridge_live=args.bridge_live,
     )
     if args.json:
         print(str(ROOT / "data" / "industrial_gate.json"))

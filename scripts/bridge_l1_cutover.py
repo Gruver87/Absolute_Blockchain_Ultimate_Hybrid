@@ -146,6 +146,22 @@ def run_cutover_gate(
     warnings.extend(pre_warnings)
     meta["eth_rpc_configured"] = bool(os.environ.get("ETH_RPC_URL", "").strip())
 
+    if probe_l1:
+        try:
+            from bridge.health import check_l1_rpc_health
+            from runtime.config import Config
+
+            cfg_path = Path(config_path)
+            if not cfg_path.is_absolute():
+                cfg_path = ROOT / cfg_path
+            probe_cfg = Config.from_json(str(cfg_path))
+            probe_cfg.apply_env()
+            probe_cfg.apply_env_secrets()
+            os.environ["BRIDGE_PROBE_L1_RPC"] = "true"
+            meta["l1_rpc"] = check_l1_rpc_health(probe_cfg, timeout=5.0)
+        except Exception as exc:
+            warnings.append(f"l1_rpc_summary:{exc}")
+
     if live:
         live_base = resolve_live_base_url(base_url)
         meta["base_url"] = live_base

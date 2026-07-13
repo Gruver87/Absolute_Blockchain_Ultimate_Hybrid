@@ -32,6 +32,23 @@
 
 ---
 
+## [1.2.67] — 2026-07-14
+
+### Added
+
+- **`scripts/bridge_l1_live_probe.py`** + **`bridge_l1_live_probe.ps1`** — unified L1 bridge probe (`static` / `--probe-l1` / `--live` / `--full`); writes `logs/bridge_l1_live_probe.json`
+- **`--probe-l1`** and **`--bridge-live`** on `mainnet_readiness.py`, `industrial_gate.py`, `monolith_gate.py`, `verify_prod_stack.py`
+- PowerShell: `industrial_gate.ps1 -BridgeCutover -ProbeL1`, `monolith_gate.ps1 -BridgeCutover -ProbeL1 -BridgeLive`
+- **`tests/unit/test_bridge_l1_live_probe.py`**
+
+### Changed
+
+- **`bridge_l1_cutover.py`** — includes `l1_rpc` probe summary in gate meta when `--probe-l1`
+- **`mainnet_readiness.py`** — `--probe-l1` works without `--live` (fixes prior `probe_l1=live` coupling)
+- **`docs/BRIDGE_L1_MAINNET.md`** — live probe workflow
+
+---
+
 ## [1.2.66] — 2026-07-13
 
 ### Added

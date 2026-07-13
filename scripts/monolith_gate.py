@@ -22,6 +22,8 @@ def run_monolith_gate(
     ceremony_dir: str = "",
     p2p_ci: bool = False,
     soak_preflight: bool = False,
+    probe_l1: bool = False,
+    bridge_live: bool = False,
     skip_launch_checklist: bool = False,
 ) -> Tuple[List[str], List[str], dict]:
     errors: List[str] = []
@@ -42,6 +44,8 @@ def run_monolith_gate(
         strict_audit=strict_audit,
         bridge_cutover=bridge_cutover,
         live_prod_mesh=live_prod_mesh,
+        probe_l1=probe_l1,
+        bridge_live=bridge_live,
     )
     sections["industrial_gate"] = {"rc": ig_rc}
     if ig_rc != 0:
@@ -113,6 +117,8 @@ def run_monolith_gate(
         "live_prod_mesh": live_prod_mesh,
         "p2p_ci": p2p_ci,
         "soak_preflight": soak_preflight,
+        "probe_l1": probe_l1,
+        "bridge_live": bridge_live,
         "sections": sections,
     }
     return errors, warnings, meta
@@ -164,6 +170,16 @@ def main() -> int:
         action="store_true",
         help="Check prod mesh readiness for 48h soak (does not start soak)",
     )
+    parser.add_argument(
+        "--probe-l1",
+        action="store_true",
+        help="With --bridge-cutover, probe L1 RPC and contract bytecode",
+    )
+    parser.add_argument(
+        "--bridge-live",
+        action="store_true",
+        help="With --bridge-cutover, live bridge node checks",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
@@ -174,6 +190,8 @@ def main() -> int:
         ceremony_dir=args.ceremony_dir,
         p2p_ci=args.p2p_ci,
         soak_preflight=args.soak_preflight,
+        probe_l1=args.probe_l1,
+        bridge_live=args.bridge_live,
         skip_launch_checklist=args.skip_launch_checklist,
     )
     report_path = write_report(errors, warnings, meta)
