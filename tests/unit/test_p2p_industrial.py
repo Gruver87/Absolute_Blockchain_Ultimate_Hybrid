@@ -159,6 +159,31 @@ def test_p2p_rate_limit_exempts_sync_types():
         assert p2p._rate_limit_ok("peer-sync", MSG_STATUS) is True
 
 
+def test_verify_spawn_mesh3_recovery_wires_callbacks(monkeypatch):
+    mod = _load_verify_p2p()
+    captured = {}
+
+    def fake_recovery(*_args, **kwargs):
+        captured.update(kwargs)
+        return 0
+
+    monkeypatch.setattr(mod, "verify_mesh3_recovery", fake_recovery)
+    rc = mod.verify_spawn_mesh3_recovery(
+        "http://127.0.0.1:15280",
+        "http://127.0.0.1:15281",
+        "http://127.0.0.1:15282",
+        procs=[None, None, None],
+        node2_cfg=os.path.join(ROOT, "node.example.json"),
+        node2_log=os.path.join(ROOT, "data", "n2.log"),
+        env={"PYTHONUNBUFFERED": "1"},
+        label="test-spawn",
+    )
+    assert rc == 0
+    assert captured.get("label") == "test-spawn"
+    assert callable(captured.get("stop_node2"))
+    assert callable(captured.get("start_node2"))
+
+
 def test_industrial_gate_p2p_hardening_check():
     ig_path = os.path.join(ROOT, "scripts", "industrial_gate.py")
     spec = importlib.util.spec_from_file_location("industrial_gate", ig_path)

@@ -28,6 +28,23 @@
 
 ---
 
+---
+
+## [1.2.63] — 2026-07-13
+
+### Added
+
+- **`prod-mesh3-ci-recovery`** — isolated ceremony spawn on `:15280–15282` + node2 SIGTERM/rejoin drill (GitHub Actions Linux)
+- **`verify_spawn_mesh3_recovery()`** — process-based failover for CI (mirrors Docker `prod-mesh3-recovery`)
+- **`verify_p2p_ci.py --recovery`** — append failover drill to `--mode prod-mesh3`
+
+### Changed
+
+- CI workflow: prod mesh3 step now runs spawn + recovery (55 min timeout)
+- `verify_mesh3_recovery` accepts custom `stop_node2` / `start_node2` callbacks
+
+---
+
 ## [1.2.62] — 2026-07-13
 
 ### Added

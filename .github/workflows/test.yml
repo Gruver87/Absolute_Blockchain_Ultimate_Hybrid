@@ -236,13 +236,13 @@ jobs:
           --strict-keys \
           --ceremony-dir data/ceremony_keys_ci
 
-    - name: Prod mesh3 spawn (ceremony 3-validator + signed tx + EVM)
+    - name: Prod mesh3 spawn + CI recovery drill (ceremony 3-validator)
       if: runner.os == 'Linux' && matrix.python-version == '3.12'
-      timeout-minutes: 45
+      timeout-minutes: 55
       env:
         PYTHONUTF8: "1"
       run: |
-        python scripts/verify_p2p_ci.py --mode prod-mesh3 --ceremony-dir data/ceremony_keys_ci
+        python scripts/verify_p2p_ci.py --mode prod-mesh3-ci-recovery --ceremony-dir data/ceremony_keys_ci
 
     - name: Prod-profile P2P smoke (Linux)
       if: runner.os == 'Linux' && matrix.python-version == '3.12'

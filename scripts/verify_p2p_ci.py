@@ -749,11 +749,24 @@ def verify_mesh3_recovery(
     *,
     wait_sync_sec: int = 300,
     compose_fn=None,
+    stop_node2=None,
+    start_node2=None,
     label: str = "mesh3",
 ) -> int:
     """Live 3-node recovery: stop node2, verify node1/3, restart node2, rejoin."""
-    if compose_fn is None:
+    if compose_fn is None and stop_node2 is None:
         compose_fn = _docker_compose_3node
+
+    def _stop_node2() -> bool:
+        if stop_node2 is not None:
+            return bool(stop_node2())
+        return bool(compose_fn("stop", "node2", timeout=120))
+
+    def _start_node2() -> bool:
+        if start_node2 is not None:
+            return bool(start_node2())
+        return bool(compose_fn("start", "node2", timeout=120))
+
     urls = [url1, url2, url3]
     _load_root_dotenv()
     _ensure_admin_tokens(urls)
@@ -816,13 +829,13 @@ def verify_mesh3_recovery(
         f"root={before_roots[0][:16]}..."
     )
 
-    print(f"RECOVERY: stopping node2 container ({label})")
-    if not compose_fn("stop", "node2", timeout=120):
+    print(f"RECOVERY: stopping node2 ({label})")
+    if not _stop_node2():
         return 33
 
     try:
         if _wait_health(url2, max_sec=12):
-            print("FAIL: node2 still responds after docker stop")
+            print("FAIL: node2 still responds after stop")
             return 34
 
         print("RECOVERY: checking node1/node3 stay alive while node2 is down")
@@ -850,8 +863,8 @@ def verify_mesh3_recovery(
             print("FAIL: node1/node3 did not remain consistent while node2 was down")
             return 35
 
-        print(f"RECOVERY: starting node2 container ({label})")
-        if not compose_fn("start", "node2", timeout=120):
+        print(f"RECOVERY: starting node2 ({label})")
+        if not _start_node2():
             return 36
         if not _wait_health(url2, max_sec=180):
             print("FAIL: node2 did not become healthy after restart")
@@ -917,9 +930,61 @@ def verify_mesh3_recovery(
     finally:
         if not _probe_health(url2, timeout=5):
             print(f"RECOVERY: cleanup start node2 ({label})")
-            compose_fn("start", "node2", timeout=120)
+            _start_node2()
             _wait_health(url2, max_sec=120)
         _restore_p2p_mesh(urls, expected_peers=2)
+
+
+def verify_spawn_mesh3_recovery(
+    url1: str,
+    url2: str,
+    url3: str,
+    *,
+    procs: list,
+    node2_cfg: str,
+    node2_log: str,
+    env: dict,
+    wait_sync_sec: int = 300,
+    label: str = "prod-mesh3-spawn",
+) -> int:
+    """Process-based node2 failover for isolated prod-mesh3 CI spawn."""
+
+    def _stop_node2() -> bool:
+        if len(procs) < 2 or procs[1] is None:
+            return False
+        proc = procs[1]
+        proc.terminate()
+        try:
+            proc.wait(timeout=15)
+        except Exception:
+            proc.kill()
+        procs[1] = None
+        return True
+
+    def _start_node2() -> bool:
+        err = open(node2_log, "a", encoding="utf-8")
+        proc = subprocess.Popen(
+            [sys.executable, "main.py", "--config", node2_cfg],
+            cwd=ROOT,
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=err,
+        )
+        if len(procs) >= 2:
+            procs[1] = proc
+        else:
+            procs.append(proc)
+        return _wait_health(url2, max_sec=180)
+
+    return verify_mesh3_recovery(
+        url1,
+        url2,
+        url3,
+        wait_sync_sec=wait_sync_sec,
+        stop_node2=_stop_node2,
+        start_node2=_start_node2,
+        label=label,
+    )
 
 
 def verify_devnet3_recovery(
@@ -2945,7 +3010,7 @@ def _run_prod_mesh3_evidence(ceremony_dir: str, urls: list[str], env: dict) -> i
     return 0
 
 
-def run_prod_mesh3_spawn(ceremony_dir: str = "") -> int:
+def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False) -> int:
     """Isolated 3-node prod mesh on :15280-15282 with ceremony wallets."""
     from runtime.prod_smoke_profile import (
         PROD_MESH3_HTTP_PORTS,
@@ -3108,6 +3173,21 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "") -> int:
         rc = _run_prod_mesh3_evidence(ceremony_dir, urls, env)
         if rc != 0:
             return rc
+        if recovery_drill:
+            print("RECOVERY: prod-mesh3 CI spawn failover drill (node2 SIGTERM/restart)")
+            rc = verify_spawn_mesh3_recovery(
+                url1,
+                url2,
+                url3,
+                procs=procs,
+                node2_cfg=cfg2,
+                node2_log=logs[1],
+                env=env,
+                wait_sync_sec=240,
+                label="prod-mesh3-ci",
+            )
+            if rc != 0:
+                return rc
         print("OK: prod-mesh3 ceremony spawn passed")
         return 0
     finally:
@@ -3230,6 +3310,7 @@ def main() -> int:
             "ci-adversarial",
             "prod-smoke",
             "prod-mesh3",
+            "prod-mesh3-ci-recovery",
             "prod-mesh3-live",
             "prod-mesh3-stabilize",
             "prod-mesh3-recovery",
@@ -3262,6 +3343,11 @@ def main() -> int:
         "--ceremony-dir",
         default="",
         help="Ceremony directory for prod-mesh3 spawn (default: data/ceremony_keys_ci)",
+    )
+    parser.add_argument(
+        "--recovery",
+        action="store_true",
+        help="With prod-mesh3: run node2 failover recovery drill after spawn checks",
     )
     args = parser.parse_args()
 
@@ -3337,7 +3423,16 @@ def main() -> int:
         return run_prod_smoke_spawn()
 
     if mode == "prod-mesh3":
-        return run_prod_mesh3_spawn(ceremony_dir=args.ceremony_dir)
+        return run_prod_mesh3_spawn(
+            ceremony_dir=args.ceremony_dir,
+            recovery_drill=args.recovery,
+        )
+
+    if mode == "prod-mesh3-ci-recovery":
+        return run_prod_mesh3_spawn(
+            ceremony_dir=args.ceremony_dir,
+            recovery_drill=True,
+        )
 
     if mode == "prod-mesh3-live":
         print(f"Prod-mesh3-live: checking {args.url1} {args.url2} {args.url3}")
