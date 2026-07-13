@@ -119,6 +119,19 @@ Operator sequence: [MAINNET_CUTOVER.md](MAINNET_CUTOVER.md).
 ## Commands
 
 ```powershell
+# Unified monolith static gate (industrial + mainnet + launch checklist)
+python scripts/monolith_gate.py --bridge-cutover
+.\scripts\monolith_gate.ps1 -BridgeCutover
+
+# Full local verification
+.\scripts\test_blockchain_full.ps1 -SkipNativeBuild
+
+# Live prod mesh proof
+.\scripts\test_blockchain_full.ps1 -ProdMeshFull -ProdMeshSpawn
+python scripts/mainnet_readiness.py --live-prod-mesh --no-strict-audit
+```
+
+```powershell
 # Industrial static gate (no external audit blockers)
 python scripts/industrial_gate.py
 python scripts/industrial_gate.py --prod-smoke-spawn

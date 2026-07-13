@@ -57,6 +57,8 @@ def run_launch_checklist(
     strict_keys: bool = False,
     ceremony_dir: str = "",
     bridge_cutover: bool = False,
+    skip_industrial: bool = False,
+    skip_duplicate_gates: bool = False,
 ) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
@@ -68,6 +70,9 @@ def run_launch_checklist(
         ("backup_db_drill.py", "DR backup drill"),
         ("evm_opcode_parity_gate.py", "EVM opcode parity"),
     ]
+    if skip_duplicate_gates:
+        skip_names = {"prod_gate.py", "runbook_check.py", "evm_opcode_parity_gate.py"}
+        steps = [step for step in steps if step[0] not in skip_names]
     for script, label in steps:
         rc, name = _run_script(script)
         if rc != 0:
@@ -143,7 +148,7 @@ def run_launch_checklist(
             errors.append(f"bridge_l1_cutover failed: {detail or proc.returncode}")
 
     rc, _ = _run_script("industrial_gate.py")
-    if rc != 0:
+    if rc != 0 and not skip_industrial:
         errors.append("industrial_gate failed")
 
     from runtime.external_audit import evaluate

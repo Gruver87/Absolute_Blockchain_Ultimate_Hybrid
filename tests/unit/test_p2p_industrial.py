@@ -129,3 +129,17 @@ def test_consistency_harness_uses_long_timeout_on_prod_ports(monkeypatch):
     assert calls
     assert calls[0][1] >= 45.0
     assert "quick=1" in calls[0][0]
+
+
+def test_p2p_rate_limit_drops_excess_messages():
+    from network.p2p_node import P2PNode
+    from runtime.config import Config
+
+    cfg = Config()
+    cfg.p2p_max_messages_per_sec = 3
+    p2p = P2PNode(cfg, None, None)
+    assert p2p._rate_limit_ok("peer-a") is True
+    assert p2p._rate_limit_ok("peer-a") is True
+    assert p2p._rate_limit_ok("peer-a") is True
+    assert p2p._rate_limit_ok("peer-a") is False
+

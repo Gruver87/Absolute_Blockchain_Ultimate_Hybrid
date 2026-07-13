@@ -148,7 +148,7 @@ Do **not** mix local `python main.py` with Docker on the same host ports (`:8080
 | Prod 3-node mesh (mainnet-v1 prep) | ✅ | `.\scripts\docker_prod_3node.ps1` |
 | Mesh / bridge probe | ✅ | `.\scripts\probe_mesh_nodes.ps1` |
 | P2P sync verification | ✅ | `python scripts/verify_p2p_ci.py --mode devnet3` |
-| Full project audit (one command) | ✅ | `.\scripts\test_blockchain_full.ps1` · fast: `.\scripts\check_everything.ps1` |
+| Full project audit (one command) | ✅ | `.\scripts\test_blockchain_full.ps1` · monolith: `.\scripts\monolith_gate.ps1 -BridgeCutover` |
 | Unit + integration tests | ✅ | `pytest tests/ -q` |
 | Cross-chain bridge | 🟡 Cutover | **Dev:** rust path on node1. **Prod (778888):** `bridge_enabled=false` until L1 contracts; enable via `docker_prod.ps1 -Bridge` |
 | NFT marketplace | ✅ Dev module | Persisted in SQLite |

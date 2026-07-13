@@ -216,20 +216,8 @@ Run-Step "Production stack verification" {
     python scripts/verify_prod_stack.py
 }
 
-Run-Step "Industrial code gate" {
-    python scripts/industrial_gate.py
-}
-
-Run-Step "Mainnet readiness (automated, relaxed audit)" {
-    python scripts/mainnet_readiness.py --no-strict-audit --bridge-cutover --json
-}
-
-Run-Step "Bridge L1 cutover static gate" {
-    python scripts/bridge_l1_cutover.py --json
-}
-
-Run-Step "Bridge L1 preflight (cutover profile, static)" {
-    python scripts/bridge_l1_preflight.py --config node.prod.mainnet-v1.bridge.example.json --json
+Run-Step "Monolith static gate" {
+    python scripts/monolith_gate.py --bridge-cutover --json
 }
 
 if (-not $NoClean) {
@@ -298,6 +286,8 @@ Run-Step "Hybrid critical native/consensus/EVM tests" {
         tests/unit/test_db_accounts_migration.py `
         tests/unit/test_l1_rpc_contract.py `
         tests/unit/test_p2p_industrial.py `
+        tests/unit/test_prod_mesh_full_gate.py `
+        tests/unit/test_monolith_gate.py `
         -q
 }
 
@@ -427,7 +417,7 @@ Write-Host "Reports:"
 Write-Host "  data/full_audit_report.json"
 Write-Host "  data/final_audit_report.json"
 Write-Host "  data/mainnet_readiness.json"
-Write-Host "  data/industrial_gate.json"
+Write-Host "  data/monolith_gate.json"
 if ($ProdMeshFull -and $RecordEvidence) {
     Write-Host "  data/evidence_runs.json (append)"
 }

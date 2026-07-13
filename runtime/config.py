@@ -88,6 +88,7 @@ class Config:
     validators_manifest_path: str = ""    # prod: public validator set (addresses only)
     peer_timeout: int = 30              # секунд до отключения неактивного пира
     p2p_max_message_bytes: int = 2 * 1024 * 1024  # max JSON line on P2P wire
+    p2p_max_messages_per_sec: int = 500           # per-peer wire rate limit (0=off)
     sync_batch_size: int = 100          # блоков за один запрос синхронизации
 
     # ── EVM ─────────────────────────────────────────────────────────────────

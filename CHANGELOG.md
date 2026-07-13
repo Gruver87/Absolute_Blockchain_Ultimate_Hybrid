@@ -16,6 +16,22 @@
 
 ---
 
+## [1.2.56] — 2026-07-13
+
+### Added
+
+- **`scripts/monolith_gate.py`** — unified static gate: industrial + mainnet readiness + launch checklist → `data/monolith_gate.json`
+- **`scripts/monolith_gate.ps1`** — PowerShell wrapper
+- **P2P rate limit:** `p2p_max_messages_per_sec` (default 500) per-peer wire throttle
+
+### Changed
+
+- `test_blockchain_full` uses monolith gate instead of separate industrial/bridge preflight steps
+- `industrial_gate` forwards `bridge_cutover` / `live_prod_mesh` / `strict_audit` to mainnet readiness
+- CI: monolith static gate step on Python 3.12
+
+---
+
 ## [1.2.55] — 2026-07-13
 
 ### Fixed

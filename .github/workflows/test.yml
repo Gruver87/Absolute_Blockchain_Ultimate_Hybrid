@@ -179,6 +179,12 @@ jobs:
           tests/unit/test_chain_backup.py \
           -q
 
+    - name: Monolith static gate
+      if: matrix.python-version == '3.12'
+      env:
+        PYTHONUTF8: "1"
+      run: python scripts/monolith_gate.py --bridge-cutover --json
+
     - name: Mainnet readiness (static, bridge cutover profile)
       if: matrix.python-version == '3.12'
       env:

@@ -154,6 +154,7 @@ class P2PNode:
         # Sync responses routed from _message_loop (avoid double recv on same socket)
         self._sync_waiters: Dict[str, tuple] = {}  # peer_id -> (expected_types, Future)
         self._peer_sync_locks: Dict[str, asyncio.Lock] = {}
+        self._peer_msg_windows: Dict[str, tuple[int, float]] = {}
         self._consensus = None
         self.validator_keys = None
         self._state_consistent = True
@@ -456,7 +457,25 @@ class P2PNode:
         finally:
             self._remove_peer(peer.peer_id, peer)
 
+    def _rate_limit_ok(self, peer_id: str) -> bool:
+        """Per-peer message rate limit (0 = disabled)."""
+        limit = int(getattr(self.config, "p2p_max_messages_per_sec", 0) or 0)
+        if limit <= 0 or not peer_id:
+            return True
+        now = time.time()
+        count, start = self._peer_msg_windows.get(peer_id, (0, now))
+        if now - start >= 1.0:
+            count, start = 0, now
+        count += 1
+        self._peer_msg_windows[peer_id] = (count, start)
+        if count > limit:
+            logger.warning("[P2P] rate limit exceeded for %s (%s/s)", peer_id, limit)
+            return False
+        return True
+
     async def _handle_message(self, peer: PeerConnection, msg: Dict):
+        if not self._rate_limit_ok(peer.peer_id):
+            return
         msg_type = msg.get("type")
         data = msg.get("data")
 

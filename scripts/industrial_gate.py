@@ -67,6 +67,9 @@ def run_industrial_gate(
     min_soak_hours: float = 0,
     ceremony_dir: str = "",
     require_ceremony_pin: bool = False,
+    strict_audit: bool = False,
+    bridge_cutover: bool = False,
+    live_prod_mesh: bool = False,
 ) -> int:
     import importlib.util
 
@@ -120,7 +123,10 @@ def run_industrial_gate(
 
     errors, warnings, sections = mr.run_gate(
         live=False,
-        strict_audit=False,
+        live_prod_mesh=live_prod_mesh,
+        strict_audit=strict_audit,
+        ceremony_dir=ceremony_dir,
+        bridge_cutover=bridge_cutover,
     )
     errors.extend(soak_errors)
     errors.extend(native_errors)

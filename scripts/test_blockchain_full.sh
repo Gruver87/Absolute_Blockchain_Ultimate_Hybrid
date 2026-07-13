@@ -190,12 +190,7 @@ fi
 run_step "Rust bridge status" bash -c "printf '%s' '{\"command\":\"status\",\"args\":{}}' | '$bin' | python -c \"import json,sys; d=json.load(sys.stdin); assert d.get('status')=='ready', d; print('OK bridge:', d.get('status'), d.get('source'))\""
 
 run_step "Production stack verification" python scripts/verify_prod_stack.py
-run_step "Industrial code gate" python scripts/industrial_gate.py
-run_step "Mainnet readiness (automated, relaxed audit)" \
-  python scripts/mainnet_readiness.py --no-strict-audit --bridge-cutover --json
-run_step "Bridge L1 cutover static gate" python scripts/bridge_l1_cutover.py --json
-run_step "Bridge L1 preflight (cutover profile, static)" \
-  python scripts/bridge_l1_preflight.py --config node.prod.mainnet-v1.bridge.example.json --json
+run_step "Monolith static gate" python scripts/monolith_gate.py --bridge-cutover --json
 
 if [[ "$NO_CLEAN" != "1" ]]; then
   run_step "Clean generated Python cache" clear_python_cache
@@ -322,4 +317,4 @@ echo "Reports:"
 echo "  data/full_audit_report.json"
 echo "  data/final_audit_report.json"
 echo "  data/mainnet_readiness.json"
-echo "  data/industrial_gate.json"
+echo "  data/monolith_gate.json"
