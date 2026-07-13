@@ -19,6 +19,18 @@ Mainnet v1 default keeps bridge **off** until L1 lock contracts and RPC are prod
 
 ## Cutover gate (automated)
 
+**Evidence suite (recommended):**
+
+```powershell
+# Before L1 contracts — validate RPC + gates (WARN on placeholder contracts):
+.\scripts\bridge_cutover_evidence_suite.ps1 -RpcOnly
+
+# After L1 deploy + bridge-enabled prod node:
+.\scripts\bridge_cutover_evidence_suite.ps1 -Full -Live
+```
+
+Copy env template: `.env.bridge.cutover.example` → `.env` (rotate secrets).
+
 Static checks (bridge config + Rust CLI + placeholder RPC detection):
 
 ```powershell

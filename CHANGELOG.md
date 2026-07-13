@@ -32,6 +32,25 @@
 
 ---
 
+## [1.2.73] — 2026-07-14
+
+### Added
+
+- **`scripts/bridge_cutover_evidence_suite.ps1`** — unified bridge L1 cutover path (`-RpcOnly` / `-Full` / `-Live`)
+- **`scripts/prepare_bridge_l1_cutover.ps1`** — wrapper for cutover evidence suite
+- **`.env.bridge.cutover.example`** — L1 RPC + contract env template for prod cutover
+- **`scripts/testnet_backup_restore.ps1`** — Docker testnet seed backup + optional DR rehearsal
+- **`scripts/testnet_log_rotate.sh`** — rotate `data/node.log` inside testnet containers (VPS cron)
+- **`tests/unit/test_bridge_cutover_evidence.py`**
+
+### Changed
+
+- **`docs/BRIDGE_L1_MAINNET.md`** — evidence suite workflow
+- **`docs/VPS_DEPLOY.md`**, **`docs/PUBLIC_TESTNET.md`** — backup/restore + log rotation checklist
+- **`bridge_l1_cutover.py`** — hint for evidence suite on placeholder contract failures
+
+---
+
 ## [1.2.72] — 2026-07-14
 
 ### Added

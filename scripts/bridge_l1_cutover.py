@@ -225,6 +225,7 @@ def main() -> int:
                 print()
                 print("L1 contracts not deployed yet — expected before cutover.")
                 print("  Validate RPC only:  python scripts/bridge_l1_live_probe.py --probe-l1-rpc-only")
+                print("  Evidence suite:       .\\scripts\\bridge_cutover_evidence_suite.ps1 -RpcOnly")
                 print("  After L1 deploy:    set BRIDGE_L1_LOCK_CONTRACT / BRIDGE_L1_MINT_CONTRACT in .env")
             if any("401" in e for e in errors):
                 print()

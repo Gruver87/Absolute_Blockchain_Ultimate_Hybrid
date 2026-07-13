@@ -57,6 +57,18 @@ Explorer static files: copy `web/explorer/` to `/var/www/abs-explorer`.
 
 Snapshot: `logs/testnet_uptime.json` · history: `logs/testnet_uptime.jsonl`
 
+## 4b. Backup + log rotation
+
+```bash
+# weekly backup (brief seed stop for consistent RocksDB checkpoint)
+bash -c 'cd /opt/Absolute_Blockchain_Ultimate_Hybrid && pwsh -File scripts/testnet_backup_restore.ps1 -DockerTestnetSeed -Rehearsal'
+
+# weekly log rotate inside containers
+0 3 * * 0 cd /opt/Absolute_Blockchain_Ultimate_Hybrid && bash scripts/testnet_log_rotate.sh
+```
+
+Backups: `backups/testnet-seed-YYYYMMDD-HHMMSS/`
+
 ---
 
 ## 5. Verify
