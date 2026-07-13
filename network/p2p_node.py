@@ -104,7 +104,7 @@ ALLOWED_WIRE_TYPES = frozenset({
     MSG_SHARD_MIGRATION,
 })
 
-# Housekeeping + sync payloads are not counted toward per-peer rate limits.
+# Housekeeping + consensus/sync wire types are not counted toward per-peer rate limits.
 RATE_LIMIT_EXEMPT_TYPES = frozenset({
     MSG_HANDSHAKE,
     MSG_HANDSHAKE_ACK,
@@ -114,8 +114,15 @@ RATE_LIMIT_EXEMPT_TYPES = frozenset({
     MSG_STATUS,
     MSG_STATE_ROOT_REQUEST,
     MSG_STATE_ROOT_RESPONSE,
+    MSG_NEW_BLOCK,
+    MSG_GET_BLOCK,
+    MSG_GET_BLOCK_BY_HASH,
+    MSG_GET_BLOCKS,
     MSG_BLOCK,
     MSG_BLOCKS,
+    MSG_NEW_TX,
+    MSG_GET_MEMPOOL,
+    MSG_MEMPOOL,
 })
 
 

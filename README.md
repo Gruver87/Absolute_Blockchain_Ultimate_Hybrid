@@ -9,7 +9,7 @@
 [![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
 [![Local gate](https://img.shields.io/badge/local%20gate-check__hybrid__full-lightgrey)](scripts/check_hybrid_full.ps1)
-[![Release](https://img.shields.io/badge/Release-v1.2.42-blue)](RELEASE_NOTES_v1.2.42.md)
+[![Release](https://img.shields.io/badge/Release-v1.2.77-blue)](RELEASE_NOTES_v1.2.77.md)
 
 **Repo:** [github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · **Branch:** `master`
 
@@ -18,7 +18,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | `1.2.0-industrial` (release **v1.2.42** L2 advanced modules + **v1.2.41** prod mesh evidence) |
+| **Version** | `1.2.0-industrial` (latest release **v1.2.77** — P2P sync rate-limit fix; see [CHANGELOG](CHANGELOG.md)) |
 | **Author** | **ULADZIMIR DABRANSKI** |
 | **API Wave** | 61; check GET /status fields: `api_wave`, `core_real`, `p2p_sync_status` |
 | **Entry point** | `python main.py` |
@@ -33,7 +33,7 @@
 | Changelog | [CHANGELOG.md](CHANGELOG.md) |
 | Architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Public testnet (plan) | [docs/PUBLIC_TESTNET.md](docs/PUBLIC_TESTNET.md) |
-| Release notes | [v1.2.42](RELEASE_NOTES_v1.2.42.md) · [v1.2.41](RELEASE_NOTES_v1.2.41.md) · [v1.2.28](RELEASE_NOTES_v1.2.28.md) · [Evidence matrix](docs/EVIDENCE_MATRIX.md) |
+| Release notes | [v1.2.77](RELEASE_NOTES_v1.2.77.md) · [v1.2.76](RELEASE_NOTES_v1.2.76.md) · [v1.2.75](RELEASE_NOTES_v1.2.75.md) · [Evidence matrix](docs/EVIDENCE_MATRIX.md) |
 | Mainnet gap (honest) | [docs/MAINNET_GAP_ANALYSIS.md](docs/MAINNET_GAP_ANALYSIS.md) |
 | Bridge L1 cutover | [docs/BRIDGE_L1_MAINNET.md](docs/BRIDGE_L1_MAINNET.md) |
 | Docker images (GHCR) | [docs/DOCKER_IMAGES.md](docs/DOCKER_IMAGES.md) |
@@ -76,10 +76,10 @@
 | **Rust native crypto** | 🟢 Hybrid path | PyO3 `abs_native`: SHA-256, Merkle, state_root, secp256k1, header/tx/block hash, P2P import validation, Keccak-256 |
 | **EVM / Bridge** | 🟡 Mixed | **Live prod RPC deploy (mempool) proven** Jul 12; bridge OFF on prod mesh by design |
 | **L2 advanced (Lightning / Plasma / WASM / Oracles / ZK)** | 🟡 Working R&D | HTLC + Merkle proofs + wasmtime ABI + oracle quorum + ZK balance proofs — **unit-tested**, SQLite persisted; **not** full mainnet Lightning/Plasma |
-| **Failover / soak** | 🟡 Partial | **Failover + 7h soak proven**; **24–48h soak** in progress — see [EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) |
+| **Failover / soak** | 🟡 Partial | **Failover + 7h soak proven**; **48h soak** scheduled (not yet completed) — see [EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) |
 | **Production mainnet** | 🔴 Not launched | External audit, validator ops, L1 bridge cutover; prod profile is **preparation**, not live mainnet |
 
-**Quality gate (Jul 2026):** CI badges above · local **`.\scripts\check_hybrid_full.ps1`** → native crypto + bridge smoke + pytest · **`746` tests** in suite (`pytest tests/ --collect-only`)
+**Quality gate (Jul 2026):** CI badges above · local **`.\scripts\check_hybrid_full.ps1`** → native crypto + bridge smoke + pytest · **`824` tests** in suite (`pytest tests/ --collect-only`)
 
 ---
 
@@ -107,6 +107,9 @@ Public testnet checklist (not live): **[docs/PUBLIC_TESTNET.md](docs/PUBLIC_TEST
 | DR rehearsal | `.\scripts\dr_restore_rehearsal.ps1 -DockerMesh1` |
 | Restore | `python scripts/restore_chainstore.py --backup-dir ... --data-dir data --force --verify` |
 | Health watch | `.\scripts\health_watch.ps1 -ProdMesh` (optional `$env:HEALTH_WEBHOOK_URL`) |
+| Prod mesh probe | `.\scripts\probe_prod_mesh.ps1` — heights, harness, topology on `:18180-:18182` |
+| Resilience suite | `.\scripts\prod_mesh_resilience_suite.ps1` — probe + stabilize + failover (no soak) |
+| P2P TLS evidence | `.\scripts\p2p_tls_evidence_suite.ps1` — optional TLS mesh verify |
 | Soak test (24h+) | `.\scripts\soak_monitor.ps1 -ProdMesh -Hours 24` — **must run to completion**; see [EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) |
 | Industrial gate | `.\scripts\prod_mesh_full.ps1` or `test_blockchain_full.ps1 -ProdMeshFull` |
 | Failover drill | `.\scripts\prod_mesh_failover.ps1` — **ops proof**: stop node2, verify blocks + rejoin |
@@ -455,6 +458,7 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 | `api_wave` &lt; 60 in Docker | `docker compose -f docker-compose.devnet-rust.yml build --no-cache node1` + recreate |
 | Ports busy / solo while mesh expected | `.\scripts\stop_node.ps1`; do not run local `main.py` on same ports as Docker |
 | Dashboard `Bridge off` on prod | **Intentional** — mainnet-v1 cutover; see `bridge_disabled_reason` in `/status` |
+| `[P2P] rate limit exceeded` on prod mesh sync | Fixed **v1.2.77** — rebuild mesh; if node1 restarts, run `rotate_prod_secrets.ps1 -Force` first |
 | Two networks on one machine | chain 77777 (Docker :8081+) vs 778888 (local prod :8080) — use `probe_mesh_nodes.ps1` |
 | Docker not running | Start Docker Desktop |
 

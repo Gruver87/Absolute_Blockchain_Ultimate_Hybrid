@@ -46,6 +46,8 @@ Secrets
 .env
 .env.local
 .env.production
+.env.testnet
+.env.bak.*
 *.pem
 *.key
 *oracle_keys*

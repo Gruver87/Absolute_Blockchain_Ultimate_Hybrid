@@ -37,8 +37,18 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
     missing = required_types - ALLOWED_WIRE_TYPES
     if missing:
         errors.append(f"P2P allowlist missing types: {sorted(missing)}")
-    if not RATE_LIMIT_EXEMPT_TYPES.intersection({"block", "blocks", "status"}):
-        errors.append("P2P rate-limit exempt set missing sync types")
+    required_exempt = {
+        "new_block",
+        "get_block",
+        "get_blocks",
+        "block",
+        "blocks",
+        "new_tx",
+        "status",
+    }
+    missing_exempt = required_exempt - RATE_LIMIT_EXEMPT_TYPES
+    if missing_exempt:
+        errors.append(f"P2P rate-limit exempt set missing sync types: {sorted(missing_exempt)}")
 
     cfg = Config()
     if int(getattr(cfg, "p2p_max_message_bytes", 0) or 0) < DEFAULT_MAX_P2P_LINE_BYTES // 2:

@@ -42,6 +42,7 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | Prod 3-node mesh boots on RocksDB | `docker_prod_3node.ps1` → healthy containers, unified heights | `.\scripts\docker_prod_3node.ps1 -SkipBuild -KeepVolumes` |
 | **Public testnet seed (77777)** | Docker seed on :19080, live gate PASS | `.\scripts\testnet_evidence_suite.ps1` |
 | Cross-node state / tip alignment | `GET /chain/consistency/harness` OK on :18180–:18182 | `.\scripts\probe_prod_mesh.ps1` |
+| **Prod mesh probe (post v1.2.77)** | Jul 13 — 3/3 reachable, height 182 aligned, harness OK | `logs/prod_mesh_probe.json` |
 | P2P topology on prod ports | `peer_count=2`, `topology_healthy=True` in post-checks | `verify_prod_mesh_probe.py` |
 | **Failover / resilience** | node2 stop → mesh alive → node2 rejoin, heights aligned | `.\scripts\prod_mesh_resilience_suite.ps1` |
 | **Signed tx propagation (prod)** | `prod_signed_tx_smoke.py` → n2/n3 see tx | `python scripts/prod_signed_tx_smoke.py` |
@@ -76,6 +77,7 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | `OK: soak passed` in &lt;1 second | **Bug / false positive** (fixed v1.2.21) — soak must run for `Hours × 3600` seconds |
 | Heights stuck, mempool not clearing | Mining gate blocked by lagging peer heights — run `mesh_recover.ps1 -HealFork` (not restart-only) |
 | `heights=N / N-1 / N-1`, node1 diverged HINT | Hub solo-fork — `.\scripts\mesh_heal_fork.ps1 -Force` then rebuild evidence |
+| `[P2P] rate limit exceeded for docker-prod-mesh-1 (500/s)` | **Fixed v1.2.77** — sync gossip types now exempt; rebuild mesh. Before fix: dropped blocks during catch-up |
 | `External audit: not completed` | Honest organizational gate — see `scripts/external_audit_tracker.ps1` |
 
 ---

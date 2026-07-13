@@ -32,6 +32,19 @@
 
 ---
 
+## [1.2.77] — 2026-07-14
+
+### Fixed
+
+- **P2P rate limit** — exempt `new_block`, `get_block`, `get_blocks`, `new_tx`, and mempool sync types from per-peer 500/s throttle so prod mesh catch-up no longer drops consensus traffic from the leader (`docker-prod-mesh-1`)
+
+### Changed
+
+- **`scripts/industrial_gate.py`** — stricter check that sync wire types stay rate-limit exempt
+- **`tests/unit/test_p2p_industrial.py`** — expanded sync exempt coverage
+
+---
+
 ## [1.2.76] — 2026-07-14
 
 ### Fixed
