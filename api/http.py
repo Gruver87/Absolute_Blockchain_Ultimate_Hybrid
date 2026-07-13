@@ -268,6 +268,7 @@ _RATE_LIMIT_EXEMPT_PATHS = frozenset({
     "/network/peers",
     "/p2p/topology",
     "/p2p/peer-score",
+    "/p2p/security",
     "/sync/status",
     "/testnet/mesh",
     "/testnet/fork-status",
@@ -325,6 +326,8 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/peers", "summary": "Connected P2P peers (alias)"},
     {"method": "GET", "path": "/network/peers", "summary": "Connected P2P peers"},
     {"method": "GET", "path": "/p2p/topology", "summary": "Live P2P topology and rejoin candidates (Wave 61)"},
+    {"method": "GET", "path": "/p2p/peer-score", "summary": "P2P peer health scores (height gap + last seen)"},
+    {"method": "GET", "path": "/p2p/security", "summary": "P2P wire security: rate limits, bans, eviction policy"},
     {"method": "POST", "path": "/p2p/reconnect", "summary": "Reconnect bootstrap/known P2P peers (dev, Wave 61)"},
     {"method": "GET", "path": "/testnet/mesh", "summary": "P2P mesh health (3-node testnet)"},
     {"method": "GET", "path": "/testnet/fork-status", "summary": "Fork heads, gaps, slashing summary (Wave 53)"},
@@ -1475,17 +1478,25 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "bootstrap_peers": getattr(cfg, "bootstrap_peers", []),
                 })
 
-            elif path in ("/p2p/topology", "/p2p/peer-score"):
+            elif path in ("/p2p/topology", "/p2p/peer-score", "/p2p/security"):
                 if p2p and hasattr(p2p, "get_topology"):
-                    topo = p2p.get_topology()
-                    if path == "/p2p/peer-score":
-                        topo["endpoint"] = "peer-score"
-                        topo["scoring"] = {
-                            "model": "height_gap_and_last_seen",
-                            "min": topo.get("peer_score_min"),
-                            "avg": topo.get("peer_score_avg"),
-                        }
-                    self._json(topo)
+                    if path == "/p2p/security" and hasattr(p2p, "get_p2p_security_status"):
+                        sec = p2p.get_p2p_security_status()
+                        sec["endpoint"] = "security"
+                        sec["node_id"] = getattr(cfg, "node_id", "")
+                        sec["running"] = getattr(p2p, "_running", False)
+                        sec["peer_count"] = p2p.peer_count() if hasattr(p2p, "peer_count") else 0
+                        self._json(sec)
+                    else:
+                        topo = p2p.get_topology()
+                        if path == "/p2p/peer-score":
+                            topo["endpoint"] = "peer-score"
+                            topo["scoring"] = {
+                                "model": "height_gap_and_last_seen",
+                                "min": topo.get("peer_score_min"),
+                                "avg": topo.get("peer_score_avg"),
+                            }
+                        self._json(topo)
                 else:
                     self._json({
                         "node_id": getattr(cfg, "node_id", ""),

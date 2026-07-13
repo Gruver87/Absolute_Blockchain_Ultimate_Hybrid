@@ -69,6 +69,48 @@ MSG_CROSS_SHARD_TX = "cross_shard_tx"
 MSG_CROSS_SHARD_ACK = "cross_shard_ack"
 MSG_SHARD_MIGRATION = "shard_migration"
 
+ALLOWED_WIRE_TYPES = frozenset({
+    MSG_HANDSHAKE,
+    MSG_HANDSHAKE_ACK,
+    MSG_PING,
+    MSG_PONG,
+    MSG_IDLE,
+    MSG_NEW_BLOCK,
+    MSG_GET_BLOCK,
+    MSG_GET_BLOCK_BY_HASH,
+    MSG_BLOCK,
+    MSG_GET_BLOCKS,
+    MSG_BLOCKS,
+    MSG_NEW_TX,
+    MSG_GET_MEMPOOL,
+    MSG_MEMPOOL,
+    MSG_GET_PEERS,
+    MSG_PEERS,
+    MSG_STATUS,
+    MSG_ATTESTATION,
+    MSG_STATE_ROOT_REQUEST,
+    MSG_STATE_ROOT_RESPONSE,
+    MSG_VALIDATOR_REGISTER,
+    MSG_CROSS_SHARD_TX,
+    MSG_CROSS_SHARD_ACK,
+    MSG_SHARD_MIGRATION,
+})
+
+
+def _peer_health_score(
+    *,
+    height_gap: int,
+    last_seen_age: float,
+    health_timeout: float,
+) -> int:
+    score = 100
+    score -= min(45, int(height_gap) * 15)
+    if last_seen_age >= health_timeout:
+        score -= 50
+    elif last_seen_age >= health_timeout / 2:
+        score -= 20
+    return max(0, min(100, score))
+
 
 class PeerConnection:
     """Активное соединение с одним пиром."""
@@ -155,6 +197,8 @@ class P2PNode:
         self._sync_waiters: Dict[str, tuple] = {}  # peer_id -> (expected_types, Future)
         self._peer_sync_locks: Dict[str, asyncio.Lock] = {}
         self._peer_msg_windows: Dict[str, tuple[int, float]] = {}
+        self._peer_strikes: Dict[str, int] = {}
+        self._peer_bans: Dict[str, float] = {}
         self._consensus = None
         self.validator_keys = None
         self._state_consistent = True
@@ -319,6 +363,9 @@ class P2PNode:
         if peer_addr and len(peer_addr) >= 2:
             peer.host = peer_addr[0]
             peer.port = int(peer_addr[1] or 0)
+        if self._is_addr_banned(peer.host, peer.port):
+            peer.close()
+            return
         logger.debug(f"[P2P] Incoming from {peer_addr}")
 
         if len(self.peers) >= self.config.max_peers:
@@ -329,6 +376,9 @@ class P2PNode:
         # Handshake
         ok = await self._do_handshake(peer, initiator=False)
         if not ok:
+            peer.close()
+            return
+        if self._is_banned(self._peer_key(peer)):
             peer.close()
             return
 
@@ -353,6 +403,8 @@ class P2PNode:
         # Не подключаться к самому себе
         if port == self.config.p2p_port and host in ("127.0.0.1", "localhost", "0.0.0.0"):
             return False
+        if self._is_addr_banned(host, port):
+            return False
         self._prune_stale_peers()
         # Не дублировать соединения
         if any(
@@ -371,6 +423,9 @@ class P2PNode:
 
             ok = await self._do_handshake(peer, initiator=True)
             if not ok:
+                peer.close()
+                return False
+            if self._is_banned(self._peer_key(peer)):
                 peer.close()
                 return False
 
@@ -449,13 +504,61 @@ class P2PNode:
             while self._running and self.peers.get(peer.peer_id) is peer:
                 msg = await peer.recv(self.config)
                 if msg is None:
-                    break
+                    if self._strike_peer_sync(peer, "invalid_wire"):
+                        break
+                    continue
                 if msg.get("type") == MSG_IDLE:
                     continue
                 peer.touch()
+                if not self._rate_limit_ok(peer.peer_id):
+                    if self._strike_peer_sync(peer, "rate_limit"):
+                        break
+                    continue
                 await self._handle_message(peer, msg)
         finally:
             self._remove_peer(peer.peer_id, peer)
+
+    def _peer_key(self, peer: PeerConnection) -> str:
+        if peer.peer_id:
+            return peer.peer_id
+        port = peer.listen_port or peer.port
+        return f"{peer.host}:{port}"
+
+    def _is_banned(self, key: str) -> bool:
+        if not key:
+            return False
+        until = self._peer_bans.get(key)
+        if until is None:
+            return False
+        if time.time() >= until:
+            self._peer_bans.pop(key, None)
+            return False
+        return True
+
+    def _is_addr_banned(self, host: str, port: int) -> bool:
+        if self._is_banned(f"{host}:{port}"):
+            return True
+        return any(
+            self._is_banned(key)
+            for key in self._peer_bans
+            if key.startswith(f"{host}:")
+        )
+
+    def _strike_peer_sync(self, peer: PeerConnection, reason: str) -> bool:
+        """Record abuse strike; return True if peer should be disconnected (banned)."""
+        key = self._peer_key(peer)
+        if not key:
+            return False
+        strikes = int(self._peer_strikes.get(key, 0) or 0) + 1
+        self._peer_strikes[key] = strikes
+        max_strikes = int(getattr(self.config, "p2p_rate_limit_strikes", 5) or 5)
+        if strikes < max_strikes:
+            return False
+        ban_sec = int(getattr(self.config, "p2p_ban_seconds", 300) or 300)
+        self._peer_bans[key] = time.time() + max(30, ban_sec)
+        self._peer_strikes.pop(key, None)
+        logger.warning("[P2P] banned %s for %ss (%s)", key, ban_sec, reason)
+        return True
 
     def _rate_limit_ok(self, peer_id: str) -> bool:
         """Per-peer message rate limit (0 = disabled)."""
@@ -474,9 +577,11 @@ class P2PNode:
         return True
 
     async def _handle_message(self, peer: PeerConnection, msg: Dict):
-        if not self._rate_limit_ok(peer.peer_id):
-            return
         msg_type = msg.get("type")
+        if msg_type not in ALLOWED_WIRE_TYPES:
+            if self._strike_peer_sync(peer, f"unknown_type:{msg_type}"):
+                self._remove_peer(peer.peer_id, peer)
+            return
         data = msg.get("data")
 
         waiter = self._sync_waiters.get(peer.peer_id)
@@ -595,6 +700,10 @@ class P2PNode:
             await self._handle_cross_shard_ack(peer, data)
         elif msg_type == MSG_SHARD_MIGRATION:
             await self._handle_shard_migration(peer, data)
+
+        else:
+            if self._strike_peer_sync(peer, f"unhandled_type:{msg_type}"):
+                self._remove_peer(peer.peer_id, peer)
 
     async def _handle_validator_register(self, peer: PeerConnection, data: Dict):
         """Register peer validator in local consensus when announced."""
@@ -1170,15 +1279,36 @@ class P2PNode:
             self._known_addrs.append(norm)
 
     def _prune_stale_peers(self, max_age: Optional[float] = None) -> int:
-        """Drop stale peer objects before reconnect/dedup decisions."""
+        """Drop stale or critically unhealthy peer objects before reconnect/dedup."""
         now = time.time()
         if max_age is None:
             max_age = max(30.0, float(getattr(self.config, "peer_timeout", 30) or 30) * 2)
         removed = 0
+        local_height = int(self.blockchain.get_height() or 0) if self.blockchain else 0
+        health_timeout = max(
+            30.0,
+            float(getattr(self.config, "peer_timeout", 30) or 30) * 2,
+        )
+        evict_below = int(getattr(self.config, "p2p_evict_min_score", 0) or 0)
         for pid, peer in list(self.peers.items()):
             if now - peer.last_seen > max_age:
                 self._remove_peer(pid, peer)
                 removed += 1
+                continue
+            if evict_below > 0 and len(self.peers) > 1:
+                gap = abs(int(peer.height or 0) - local_height)
+                age = max(0.0, now - peer.last_seen)
+                score = _peer_health_score(
+                    height_gap=gap,
+                    last_seen_age=age,
+                    health_timeout=health_timeout,
+                )
+                if score < evict_below:
+                    self._remove_peer(pid, peer)
+                    removed += 1
+        expired_bans = [k for k, until in self._peer_bans.items() if now >= until]
+        for key in expired_bans:
+            self._peer_bans.pop(key, None)
         return removed
 
     async def reconnect_known_peers(self) -> Dict:
@@ -1668,13 +1798,12 @@ class P2PNode:
         for p in self.peers.values():
             gap = abs(int(p.height or 0) - int(local_height or 0))
             last_seen_age = max(0.0, now - p.last_seen)
-            score = 100
-            score -= min(45, gap * 15)
-            if last_seen_age >= health_timeout:
-                score -= 50
-            elif last_seen_age >= health_timeout / 2:
-                score -= 20
-            score = max(0, min(100, score))
+            score = _peer_health_score(
+                height_gap=gap,
+                last_seen_age=last_seen_age,
+                health_timeout=health_timeout,
+            )
+            strikes = int(self._peer_strikes.get(self._peer_key(p), 0) or 0)
             peers.append({
                 "peer_id": p.peer_id,
                 "address": f"{p.host}:{p.listen_port or p.port}",
@@ -1688,6 +1817,8 @@ class P2PNode:
                 "health_timeout_sec": int(health_timeout),
                 "healthy": gap <= 2 and last_seen_age < health_timeout,
                 "score": score,
+                "strikes": strikes,
+                "banned": self._is_banned(self._peer_key(p)),
             })
         expected = int(getattr(self.config, "testnet_expected_peers", 0) or 0)
         scores = [p["score"] for p in peers]
@@ -1707,4 +1838,26 @@ class P2PNode:
             "state_consistent": self._state_consistent,
             "peer_score_min": min(scores) if scores else None,
             "peer_score_avg": round(sum(scores) / len(scores), 2) if scores else None,
+            "security": self.get_p2p_security_status(),
+        }
+
+    def get_p2p_security_status(self) -> Dict:
+        now = time.time()
+        active_bans = [
+            {
+                "key": key,
+                "seconds_remaining": max(0, int(until - now)),
+            }
+            for key, until in self._peer_bans.items()
+            if until > now
+        ]
+        return {
+            "rate_limit_per_sec": int(getattr(self.config, "p2p_max_messages_per_sec", 0) or 0),
+            "max_message_bytes": _max_p2p_line_bytes(self.config),
+            "ban_seconds": int(getattr(self.config, "p2p_ban_seconds", 300) or 300),
+            "strikes_before_ban": int(getattr(self.config, "p2p_rate_limit_strikes", 5) or 5),
+            "evict_min_score": int(getattr(self.config, "p2p_evict_min_score", 0) or 0),
+            "active_bans": len(active_bans),
+            "banned": active_bans[:20],
+            "tracked_strikes": len(self._peer_strikes),
         }

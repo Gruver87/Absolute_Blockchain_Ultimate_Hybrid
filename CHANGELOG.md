@@ -16,6 +16,24 @@
 
 ---
 
+---
+
+## [1.2.57] — 2026-07-13
+
+### Added
+
+- **P2P security layer:** temporary peer bans after repeated wire abuse (`p2p_ban_seconds`, `p2p_rate_limit_strikes`)
+- **Wire type allowlist:** reject unknown P2P message types with strike/ban
+- **Low-score peer eviction:** `p2p_evict_min_score` drops unhealthy peers when alternatives exist
+- **`GET /p2p/security`** — rate limits, active bans, eviction policy (also embedded in `/p2p/topology.security`)
+- Env overrides: `P2P_BAN_SECONDS`, `P2P_RATE_LIMIT_STRIKES`, `P2P_EVICT_MIN_SCORE`, `P2P_MAX_MESSAGES_PER_SEC`
+
+### Changed
+
+- `probe_mesh_nodes.ps1 -Deep` prints P2P security summary from topology
+
+---
+
 ## [1.2.56] — 2026-07-13
 
 ### Added

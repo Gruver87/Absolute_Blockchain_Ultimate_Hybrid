@@ -84,6 +84,10 @@ foreach ($p in $Ports) {
             $scoreAvg = F $topo.peer_score_avg "-"
             $peerCount = F $topo.peer_count 0
             Write-Host ("       p2p: peers=$peerCount healthy=$($topo.topology_healthy) score_avg=$scoreAvg") -ForegroundColor DarkGray
+            if ($topo.security) {
+                $sec = $topo.security
+                Write-Host ("       security: bans=$($sec.active_bans) rate=$($sec.rate_limit_per_sec)/s strikes=$($sec.strikes_before_ban)") -ForegroundColor DarkGray
+            }
         }
         $harness = Get-Json "$base/chain/consistency/harness" 20
         if ($harness) {

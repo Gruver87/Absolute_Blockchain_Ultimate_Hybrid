@@ -89,6 +89,9 @@ class Config:
     peer_timeout: int = 30              # секунд до отключения неактивного пира
     p2p_max_message_bytes: int = 2 * 1024 * 1024  # max JSON line on P2P wire
     p2p_max_messages_per_sec: int = 500           # per-peer wire rate limit (0=off)
+    p2p_ban_seconds: int = 300                    # temp ban after repeated abuse
+    p2p_rate_limit_strikes: int = 5               # strikes before ban
+    p2p_evict_min_score: int = 0                  # evict peers below score when >1 peer (0=off)
     sync_batch_size: int = 100          # блоков за один запрос синхронизации
 
     # ── EVM ─────────────────────────────────────────────────────────────────
@@ -248,6 +251,19 @@ class Config:
         self.http_port = env_int("HTTP_PORT", env_int("WEB_PORT", self.http_port))
         self.ws_port = env_int("WS_PORT", self.ws_port)
         self.p2p_port = env_int("P2P_PORT", self.p2p_port)
+        self.p2p_max_message_bytes = env_int(
+            "P2P_MAX_MESSAGE_BYTES", self.p2p_max_message_bytes
+        )
+        self.p2p_max_messages_per_sec = env_int(
+            "P2P_MAX_MESSAGES_PER_SEC", self.p2p_max_messages_per_sec
+        )
+        self.p2p_ban_seconds = env_int("P2P_BAN_SECONDS", self.p2p_ban_seconds)
+        self.p2p_rate_limit_strikes = env_int(
+            "P2P_RATE_LIMIT_STRIKES", self.p2p_rate_limit_strikes
+        )
+        self.p2p_evict_min_score = env_int(
+            "P2P_EVICT_MIN_SCORE", self.p2p_evict_min_score
+        )
         self.log_level = env_str("LOG_LEVEL", self.log_level)
         self.log_json = env_bool("LOG_JSON", self.log_json)
         self.mining_enabled = env_bool("MINING_ENABLED", self.mining_enabled)

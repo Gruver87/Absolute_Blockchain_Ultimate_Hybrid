@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 import sys
+import time
 
 import pytest
 
@@ -142,4 +143,82 @@ def test_p2p_rate_limit_drops_excess_messages():
     assert p2p._rate_limit_ok("peer-a") is True
     assert p2p._rate_limit_ok("peer-a") is True
     assert p2p._rate_limit_ok("peer-a") is False
+
+
+def test_p2p_strike_bans_after_threshold():
+    from network.p2p_node import P2PNode
+    from runtime.config import Config
+
+    cfg = Config()
+    cfg.p2p_rate_limit_strikes = 2
+    cfg.p2p_ban_seconds = 60
+    p2p = P2PNode(cfg, None, None)
+    peer = PeerConnection(_FakeReader(b""), _FakeWriter())
+    peer.peer_id = "bad-peer"
+    peer.host = "127.0.0.1"
+    peer.port = 9001
+
+    assert p2p._strike_peer_sync(peer, "test") is False
+    assert p2p._strike_peer_sync(peer, "test") is True
+    assert p2p._is_banned("bad-peer") is True
+    sec = p2p.get_p2p_security_status()
+    assert sec["active_bans"] == 1
+    assert sec["strikes_before_ban"] == 2
+
+
+@pytest.mark.asyncio
+async def test_handle_message_rejects_unknown_wire_type():
+    from network.p2p_node import P2PNode
+    from runtime.config import Config
+
+    cfg = Config()
+    cfg.p2p_rate_limit_strikes = 1
+    p2p = P2PNode(cfg, None, None)
+    peer = PeerConnection(_FakeReader(b""), _FakeWriter())
+    peer.peer_id = "peer-x"
+    p2p.peers[peer.peer_id] = peer
+
+    removed = []
+    p2p._remove_peer = lambda pid, p: removed.append(pid)
+
+    await p2p._handle_message(peer, {"type": "totally_unknown", "data": {}})
+    assert removed == ["peer-x"]
+    assert p2p._is_banned("peer-x") is True
+
+
+def test_p2p_evicts_low_score_peer_when_alternative_exists():
+    from network.p2p_node import P2PNode, _peer_health_score
+    from runtime.config import Config
+
+    class _Chain:
+        def get_height(self):
+            return 100
+
+    cfg = Config()
+    cfg.p2p_evict_min_score = 50
+    p2p = P2PNode(cfg, _Chain(), None)
+
+    good = PeerConnection(_FakeReader(b""), _FakeWriter())
+    good.peer_id = "good"
+    good.height = 100
+    good.last_seen = time.time()
+
+    bad = PeerConnection(_FakeReader(b""), _FakeWriter())
+    bad.peer_id = "bad"
+    bad.height = 0
+    bad.last_seen = time.time() - 999
+
+    p2p.peers = {"good": good, "bad": bad}
+    removed = p2p._prune_stale_peers()
+    assert removed == 1
+    assert "bad" not in p2p.peers
+    assert "good" in p2p.peers
+
+
+def test_peer_health_score_helper():
+    from network.p2p_node import _peer_health_score
+
+    assert _peer_health_score(height_gap=0, last_seen_age=0, health_timeout=60) == 100
+    assert _peer_health_score(height_gap=3, last_seen_age=0, health_timeout=60) == 55
+    assert _peer_health_score(height_gap=0, last_seen_age=70, health_timeout=60) == 50
 
