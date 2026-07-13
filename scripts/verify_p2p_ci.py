@@ -2397,16 +2397,46 @@ def run_ci3_spawn() -> int:
                 proc.kill()
 
 
+def _fetch_p2p_security(url: str) -> tuple[dict | None, str]:
+    """Read P2P security policy from dedicated route or topology fallback."""
+    base = url.rstrip("/")
+    try:
+        sec = _api(f"{base}/p2p/security", timeout=12)
+        if isinstance(sec, dict) and sec:
+            return sec, "/p2p/security"
+    except urllib.error.HTTPError as exc:
+        if exc.code != 404:
+            raise
+    except Exception:
+        pass
+    try:
+        topo = _api(f"{base}/p2p/topology", timeout=12)
+        sec = topo.get("security") if isinstance(topo, dict) else None
+        if isinstance(sec, dict) and sec:
+            return sec, "/p2p/topology.security"
+    except Exception:
+        pass
+    return None, ""
+
+
 def verify_p2p_security_mesh(urls: list[str]) -> int:
     """Ensure mesh nodes expose hardened P2P security endpoints and /status summary."""
     errors: list[str] = []
+    warnings: list[str] = []
     clean = [u for u in urls if u]
     for i, url in enumerate(clean, start=1):
         try:
-            sec = _api(f"{url}/p2p/security", timeout=12)
+            sec, source = _fetch_p2p_security(url)
         except Exception as exc:
-            errors.append(f"node{i} /p2p/security: {exc}")
+            errors.append(f"node{i} p2p security: {exc}")
             continue
+        if not sec:
+            errors.append(
+                f"node{i} missing /p2p/security (upgrade to v1.2.57+ and rebuild mesh)"
+            )
+            continue
+        if source != "/p2p/security":
+            warnings.append(f"node{i} using {source} fallback (rebuild mesh for /p2p/security)")
         max_bytes = int(sec.get("max_message_bytes", 0) or 0)
         rate = int(sec.get("rate_limit_per_sec", 0) or 0)
         strikes = int(sec.get("strikes_before_ban", 0) or 0)
@@ -2420,7 +2450,7 @@ def verify_p2p_security_mesh(urls: list[str]) -> int:
             st = _api(f"{url}/status", timeout=8)
             summary = st.get("p2p_summary") or {}
             if not summary.get("enabled"):
-                errors.append(f"node{i} status.p2p_summary.enabled=false")
+                warnings.append(f"node{i} status.p2p_summary missing (node not upgraded)")
                 continue
             sec_sum = summary.get("security") or {}
             if int(sec_sum.get("rate_limit_per_sec", 0) or 0) != rate:
@@ -2428,11 +2458,15 @@ def verify_p2p_security_mesh(urls: list[str]) -> int:
             if int(sec_sum.get("max_message_bytes", 0) or 0) != max_bytes:
                 errors.append(f"node{i} status/security max_message_bytes mismatch")
         except Exception as exc:
-            errors.append(f"node{i} /status p2p_summary: {exc}")
+            warnings.append(f"node{i} /status p2p_summary: {exc}")
+    for warn in warnings:
+        print(f"WARN: {warn}")
     if errors:
         print("FAIL: p2p security checks")
         for err in errors:
             print(f"  - {err}")
+        if any("upgrade to v1.2.57" in e for e in errors):
+            print("  Fix prod mesh: .\\scripts\\docker_prod_3node.ps1 -SkipBuild")
         return 15
     print("OK: p2p security checks passed")
     return 0

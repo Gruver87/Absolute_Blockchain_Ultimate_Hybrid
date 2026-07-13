@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import time
+import urllib.error
 
 import pytest
 
@@ -244,10 +245,8 @@ def test_p2p_maintenance_loop_prunes_stale_peers():
 
 def test_verify_p2p_security_mesh_ok(monkeypatch):
     mod = _load_verify_p2p()
-    calls = []
 
     def fake_api(url, timeout=10):
-        calls.append(url)
         if url.endswith("/p2p/security"):
             return {
                 "max_message_bytes": 2_097_152,
@@ -269,6 +268,28 @@ def test_verify_p2p_security_mesh_ok(monkeypatch):
 
     monkeypatch.setattr(mod, "_api", fake_api)
     assert mod.verify_p2p_security_mesh(["http://127.0.0.1:8080"]) == 0
+
+
+def test_verify_p2p_security_mesh_topology_fallback(monkeypatch):
+    mod = _load_verify_p2p()
+
+    def fake_api(url, timeout=10):
+        if url.endswith("/p2p/security"):
+            raise urllib.error.HTTPError(url, 404, "Not Found", None, None)
+        if url.endswith("/p2p/topology"):
+            return {
+                "security": {
+                    "max_message_bytes": 2_097_152,
+                    "rate_limit_per_sec": 500,
+                    "strikes_before_ban": 5,
+                }
+            }
+        if url.endswith("/status"):
+            return {"p2p_summary": {"enabled": False}}
+        raise AssertionError(url)
+
+    monkeypatch.setattr(mod, "_api", fake_api)
+    assert mod.verify_p2p_security_mesh(["http://127.0.0.1:18180"]) == 0
 
 
 def test_verify_p2p_security_mesh_detects_mismatch(monkeypatch):

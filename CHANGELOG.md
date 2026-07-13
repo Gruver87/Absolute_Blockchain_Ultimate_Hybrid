@@ -22,6 +22,17 @@
 
 ---
 
+---
+
+## [1.2.60] — 2026-07-13
+
+### Fixed
+
+- **`probe_mesh_nodes.ps1`** — PowerShell parse error from UTF-8 em dash; `-Deep` also tries `/p2p/security` when topology lacks `security`
+- **`verify_p2p_security_mesh`** — fallback to `/p2p/topology.security` on 404; WARN (not FAIL) when `status.p2p_summary` missing on older nodes; rebuild hint for prod mesh
+
+---
+
 ## [1.2.59] — 2026-07-13
 
 ### Added

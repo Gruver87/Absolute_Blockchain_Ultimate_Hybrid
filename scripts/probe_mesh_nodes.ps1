@@ -87,6 +87,11 @@ foreach ($p in $Ports) {
             if ($topo.security) {
                 $sec = $topo.security
                 Write-Host ("       security: bans=$($sec.active_bans) rate=$($sec.rate_limit_per_sec)/s strikes=$($sec.strikes_before_ban)") -ForegroundColor DarkGray
+            } else {
+                $secEndpoint = Get-Json "$base/p2p/security" 8
+                if ($secEndpoint) {
+                    Write-Host ("       security: bans=$($secEndpoint.active_bans) rate=$($secEndpoint.rate_limit_per_sec)/s (endpoint)") -ForegroundColor DarkGray
+                }
             }
         }
         $harness = Get-Json "$base/chain/consistency/harness" 20
@@ -123,7 +128,7 @@ if ($Deep -and $rows.Count -ge 2) {
         Write-Host "  unique state roots: $uniqueRoots"
     }
     if ($spread -gt 1) {
-        Write-Host "WARN: height spread > 1 — mesh may still be syncing" -ForegroundColor Yellow
+        Write-Host "WARN: height spread > 1 - mesh may still be syncing" -ForegroundColor Yellow
     }
     if ($uniqueHeads -gt 1) {
         Write-Host "FAIL: head hash mismatch across reachable nodes" -ForegroundColor Red
