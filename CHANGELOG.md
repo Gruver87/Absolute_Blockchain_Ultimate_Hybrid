@@ -18,6 +18,21 @@
 
 ---
 
+---
+
+## [1.2.58] — 2026-07-13
+
+### Added
+
+- **`GET /status.p2p_summary`** — compact mesh health + security snapshot (peer scores, bans, rate limits)
+- **`verify_p2p_security_mesh()`** in `verify_p2p_ci.py` — validates `/p2p/security` and status summary on all mesh nodes
+
+### Changed
+
+- `verify_n_nodes` / `verify_prod_post_checks` run P2P security checks before pass
+
+---
+
 ## [1.2.57] — 2026-07-13
 
 ### Added

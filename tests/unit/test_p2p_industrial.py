@@ -222,3 +222,55 @@ def test_peer_health_score_helper():
     assert _peer_health_score(height_gap=3, last_seen_age=0, health_timeout=60) == 55
     assert _peer_health_score(height_gap=0, last_seen_age=70, health_timeout=60) == 50
 
+
+def test_verify_p2p_security_mesh_ok(monkeypatch):
+    mod = _load_verify_p2p()
+    calls = []
+
+    def fake_api(url, timeout=10):
+        calls.append(url)
+        if url.endswith("/p2p/security"):
+            return {
+                "max_message_bytes": 2_097_152,
+                "rate_limit_per_sec": 500,
+                "strikes_before_ban": 5,
+                "active_bans": 0,
+            }
+        if url.endswith("/status"):
+            return {
+                "p2p_summary": {
+                    "enabled": True,
+                    "security": {
+                        "max_message_bytes": 2_097_152,
+                        "rate_limit_per_sec": 500,
+                    },
+                }
+            }
+        raise AssertionError(url)
+
+    monkeypatch.setattr(mod, "_api", fake_api)
+    assert mod.verify_p2p_security_mesh(["http://127.0.0.1:8080"]) == 0
+
+
+def test_verify_p2p_security_mesh_detects_mismatch(monkeypatch):
+    mod = _load_verify_p2p()
+
+    def fake_api(url, timeout=10):
+        if url.endswith("/p2p/security"):
+            return {
+                "max_message_bytes": 2_097_152,
+                "rate_limit_per_sec": 500,
+                "strikes_before_ban": 5,
+            }
+        if url.endswith("/status"):
+            return {
+                "p2p_summary": {
+                    "enabled": True,
+                    "security": {"max_message_bytes": 1024, "rate_limit_per_sec": 500},
+                }
+            }
+        raise AssertionError(url)
+
+    monkeypatch.setattr(mod, "_api", fake_api)
+    assert mod.verify_p2p_security_mesh(["http://127.0.0.1:8080"]) == 15
+

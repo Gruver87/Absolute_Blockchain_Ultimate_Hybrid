@@ -1138,6 +1138,29 @@ class RESTHandler(BaseHTTPRequestHandler):
                     deployment_mode=getattr(cfg, "deployment_mode", "dev"),
                     mesh_min_peers=mesh_min_peers,
                 )
+                p2p_summary = {"enabled": bool(p2p)}
+                if p2p and hasattr(p2p, "get_topology"):
+                    try:
+                        topo = p2p.get_topology()
+                        sec = topo.get("security") or {}
+                        p2p_summary = {
+                            "enabled": True,
+                            "running": bool(getattr(p2p, "_running", False)),
+                            "peer_count": int(topo.get("peer_count", 0) or 0),
+                            "topology_healthy": topo.get("topology_healthy"),
+                            "peer_score_min": topo.get("peer_score_min"),
+                            "peer_score_avg": topo.get("peer_score_avg"),
+                            "state_consistent": topo.get("state_consistent"),
+                            "security": {
+                                "rate_limit_per_sec": sec.get("rate_limit_per_sec"),
+                                "max_message_bytes": sec.get("max_message_bytes"),
+                                "active_bans": sec.get("active_bans", 0),
+                                "strikes_before_ban": sec.get("strikes_before_ban"),
+                                "evict_min_score": sec.get("evict_min_score", 0),
+                            },
+                        }
+                    except Exception:
+                        p2p_summary = {"enabled": True, "running": bool(getattr(p2p, "_running", False))}
                 self._json({
                     "status": "running",
                     "node_version": cfg.node_version,
@@ -1151,6 +1174,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "validators_registered": len(validators),
                     "mesh_min_peers": mesh_min_peers,
                     "p2p_sync_status": p2p_sync_status,
+                    "p2p_summary": p2p_summary,
                     "mempool_size": mp.get_size(),
                     "mempool_stats": mp_stats,
                     "sharding": sharding_info,

@@ -1910,6 +1910,9 @@ def verify_n_nodes(urls: list[str], wait_sync_sec: int = 300) -> int:
     if not _verify_tx_propagation_multi(url1, urls[1:], statuses[0]):
         _restore_p2p_mesh(urls, expected_peers=max(1, len(urls) - 1))
         return 7
+    sec_rc = verify_p2p_security_mesh(urls)
+    if sec_rc != 0:
+        return sec_rc
     result = verify_state_consistency(urls, statuses[0])
     _restore_p2p_mesh(urls, expected_peers=max(1, len(urls) - 1))
     return result
@@ -2394,6 +2397,47 @@ def run_ci3_spawn() -> int:
                 proc.kill()
 
 
+def verify_p2p_security_mesh(urls: list[str]) -> int:
+    """Ensure mesh nodes expose hardened P2P security endpoints and /status summary."""
+    errors: list[str] = []
+    clean = [u for u in urls if u]
+    for i, url in enumerate(clean, start=1):
+        try:
+            sec = _api(f"{url}/p2p/security", timeout=12)
+        except Exception as exc:
+            errors.append(f"node{i} /p2p/security: {exc}")
+            continue
+        max_bytes = int(sec.get("max_message_bytes", 0) or 0)
+        rate = int(sec.get("rate_limit_per_sec", 0) or 0)
+        strikes = int(sec.get("strikes_before_ban", 0) or 0)
+        if max_bytes < 4096:
+            errors.append(f"node{i} max_message_bytes={max_bytes}")
+        if rate <= 0:
+            errors.append(f"node{i} rate_limit_per_sec disabled")
+        if strikes <= 0:
+            errors.append(f"node{i} strikes_before_ban unset")
+        try:
+            st = _api(f"{url}/status", timeout=8)
+            summary = st.get("p2p_summary") or {}
+            if not summary.get("enabled"):
+                errors.append(f"node{i} status.p2p_summary.enabled=false")
+                continue
+            sec_sum = summary.get("security") or {}
+            if int(sec_sum.get("rate_limit_per_sec", 0) or 0) != rate:
+                errors.append(f"node{i} status/security rate mismatch")
+            if int(sec_sum.get("max_message_bytes", 0) or 0) != max_bytes:
+                errors.append(f"node{i} status/security max_message_bytes mismatch")
+        except Exception as exc:
+            errors.append(f"node{i} /status p2p_summary: {exc}")
+    if errors:
+        print("FAIL: p2p security checks")
+        for err in errors:
+            print(f"  - {err}")
+        return 15
+    print("OK: p2p security checks passed")
+    return 0
+
+
 def verify_prod_post_checks(url: str, *mesh_urls: str) -> int:
     """Prod profile HTTP policy checks after P2P sync."""
     errors = []
@@ -2510,6 +2554,10 @@ def verify_prod_post_checks(url: str, *mesh_urls: str) -> int:
                 errors.append("harness canonical_state_root_source mismatch")
         except Exception as exc:
             errors.append(f"harness: {exc}")
+    if urls:
+        sec_rc = verify_p2p_security_mesh(urls)
+        if sec_rc != 0:
+            return sec_rc
     if errors:
         print("FAIL: prod post-checks")
         for err in errors:
