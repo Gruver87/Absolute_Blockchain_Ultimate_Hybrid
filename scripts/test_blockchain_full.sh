@@ -14,7 +14,9 @@ cd "$ROOT"
 LIVE=0
 P2P=0
 PROD_MESH=0
+PROD_MESH_FULL=0
 PROD_MESH_SPAWN=0
+RECORD_EVIDENCE=0
 DOCKER=0
 DOCKER_BUILD=0
 BUILD_RUST=0
@@ -24,6 +26,8 @@ BASE_URL="http://127.0.0.1:8080"
 PYTEST_TIMEOUT=900
 P2P_WAIT=300
 PROD_MESH_WAIT=360
+PROD_MESH_FAILOVER_WAIT=360
+EVIDENCE_GIT_TAG="v1.2.54"
 AUDIT_RETRIES=1
 
 while [[ $# -gt 0 ]]; do
@@ -42,6 +46,15 @@ while [[ $# -gt 0 ]]; do
       ;;
     --prod-mesh-spawn)
       PROD_MESH_SPAWN=1
+      shift
+      ;;
+    --prod-mesh-full)
+      PROD_MESH_FULL=1
+      PROD_MESH=1
+      shift
+      ;;
+    --record-evidence)
+      RECORD_EVIDENCE=1
       shift
       ;;
     --docker)
@@ -78,6 +91,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --prod-mesh-wait)
       PROD_MESH_WAIT="${2:?missing value for --prod-mesh-wait}"
+      shift 2
+      ;;
+    --prod-mesh-failover-wait)
+      PROD_MESH_FAILOVER_WAIT="${2:?missing value for --prod-mesh-failover-wait}"
+      shift 2
+      ;;
+    --evidence-git-tag)
+      EVIDENCE_GIT_TAG="${2:?missing value for --evidence-git-tag}"
       shift 2
       ;;
     --audit-retries)
@@ -241,6 +262,21 @@ if [[ "$PROD_MESH" == "1" ]]; then
     --url1 http://127.0.0.1:18180 --url2 http://127.0.0.1:18181 --url3 http://127.0.0.1:18182 \
     --wait "$PROD_MESH_WAIT"
   run_step "Mainnet readiness live prod mesh" python scripts/mainnet_readiness.py --no-strict-audit --live-prod-mesh --json
+  if [[ "$PROD_MESH_FULL" == "1" ]]; then
+    evidence_args=(-FailoverWaitSec "$PROD_MESH_FAILOVER_WAIT" -GitTag "$EVIDENCE_GIT_TAG")
+    if [[ "$RECORD_EVIDENCE" == "1" ]]; then
+      evidence_args+=(-RecordEvidence)
+    fi
+    if command -v powershell >/dev/null 2>&1; then
+      run_step "Prod mesh FULL evidence suite" powershell -ExecutionPolicy Bypass -File scripts/prod_evidence_suite.ps1 "${evidence_args[@]}"
+    else
+      run_step "Failover drill" python scripts/verify_p2p_ci.py --mode prod-mesh3-recovery \
+        --url1 http://127.0.0.1:18180 --url2 http://127.0.0.1:18181 --url3 http://127.0.0.1:18182 \
+        --wait "$PROD_MESH_FAILOVER_WAIT"
+      run_step "Signed tx smoke" python scripts/prod_signed_tx_smoke.py
+      run_step "Prod EVM smoke" python scripts/prod_evm_smoke.py
+    fi
+  fi
 elif [[ "$LIVE" == "1" ]]; then
   run_step "Live node endpoints" python - <<PY
 import urllib.request

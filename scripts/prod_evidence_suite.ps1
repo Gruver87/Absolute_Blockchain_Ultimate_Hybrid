@@ -4,7 +4,8 @@ param(
     [switch]$SkipSignedTx,
     [switch]$SkipEvm,
     [switch]$RecordEvidence,
-    [string]$GitTag = "v1.2.40"
+    [int]$FailoverWaitSec = 360,
+    [string]$GitTag = "v1.2.54"
 )
 
 $ErrorActionPreference = "Stop"
@@ -67,7 +68,7 @@ if (-not $SkipFailover) {
     }
 
     Step "failover drill" {
-        & (Join-Path $ScriptDir "prod_mesh_failover.ps1")
+        & (Join-Path $ScriptDir "prod_mesh_failover.ps1") -WaitSec $FailoverWaitSec
     }
 }
 

@@ -28,12 +28,18 @@
 # Prod mesh live P2P (docker_prod_3node.ps1 must be running on :18180-:18182):
 #   .\scripts\test_blockchain_full.ps1 -ProdMesh
 #   .\scripts\test_blockchain_full.ps1 -ProdMesh -ProdMeshSpawn
+#
+# Prod mesh FULL ops proof (failover + signed tx + EVM on live mesh):
+#   .\scripts\test_blockchain_full.ps1 -ProdMeshFull
+#   .\scripts\test_blockchain_full.ps1 -ProdMeshFull -ProdMeshSpawn -RecordEvidence
 
 param(
     [switch]$Live,
     [switch]$P2P,
     [switch]$ProdMesh,
+    [switch]$ProdMeshFull,
     [switch]$ProdMeshSpawn,
+    [switch]$RecordEvidence,
     [switch]$Docker,
     [switch]$DockerBuild,
     [switch]$BuildRust,
@@ -43,8 +49,14 @@ param(
     [int]$PytestTimeout = 900,
     [int]$P2PWait = 300,
     [int]$ProdMeshWait = 360,
+    [int]$ProdMeshFailoverWait = 360,
+    [string]$EvidenceGitTag = "v1.2.54",
     [int]$AuditRetries = 1
 )
+
+if ($ProdMeshFull) {
+    $ProdMesh = $true
+}
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -108,6 +120,21 @@ function Invoke-FullAuditWithRetry {
         Write-Host "Full audit failed once; cleaning caches and retrying..." -ForegroundColor Yellow
         Clear-PythonGeneratedFiles
         Start-Sleep -Seconds 2
+    }
+}
+
+function Import-DotEnvIfPresent {
+    $envFile = Join-Path $ProjectRoot ".env"
+    if (-not (Test-Path $envFile)) { return }
+    Get-Content $envFile | ForEach-Object {
+        $line = $_.Trim()
+        if (-not $line -or $line.StartsWith("#") -or -not $line.Contains("=")) { return }
+        $parts = $line.Split("=", 2)
+        $key = $parts[0].Trim()
+        $val = $parts[1].Trim().Trim('"').Trim("'")
+        if ($key) {
+            Set-Item -Path "env:$key" -Value $val
+        }
     }
 }
 
@@ -283,6 +310,7 @@ if ($ProdMeshSpawn) {
 }
 
 if ($ProdMesh) {
+    Import-DotEnvIfPresent
     if ($P2P) {
         Write-Host "NOTE: -P2P devnet check skipped; running -ProdMesh gates instead" -ForegroundColor Yellow
     }
@@ -299,6 +327,14 @@ if ($ProdMesh) {
     }
     Run-Step "Mainnet readiness (live prod mesh)" {
         python scripts/mainnet_readiness.py --no-strict-audit --live-prod-mesh --json
+    }
+    if ($ProdMeshFull) {
+        Run-Step "Prod mesh FULL evidence (failover + signed tx + EVM)" {
+            $evidenceArgs = @("-FailoverWaitSec", "$ProdMeshFailoverWait", "-GitTag", $EvidenceGitTag)
+            if ($RecordEvidence) { $evidenceArgs += "-RecordEvidence" }
+            & (Join-Path $ProjectRoot "scripts\prod_evidence_suite.ps1") @evidenceArgs
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        }
     }
 }
 elseif ($Live) {
@@ -392,3 +428,6 @@ Write-Host "  data/full_audit_report.json"
 Write-Host "  data/final_audit_report.json"
 Write-Host "  data/mainnet_readiness.json"
 Write-Host "  data/industrial_gate.json"
+if ($ProdMeshFull -and $RecordEvidence) {
+    Write-Host "  data/evidence_runs.json (append)"
+}

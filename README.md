@@ -108,7 +108,7 @@ Public testnet checklist (not live): **[docs/PUBLIC_TESTNET.md](docs/PUBLIC_TEST
 | Restore | `python scripts/restore_chainstore.py --backup-dir ... --data-dir data --force --verify` |
 | Health watch | `.\scripts\health_watch.ps1 -ProdMesh` (optional `$env:HEALTH_WEBHOOK_URL`) |
 | Soak test (24h+) | `.\scripts\soak_monitor.ps1 -ProdMesh -Hours 24` — **must run to completion**; see [EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) |
-| Industrial gate | `.\scripts\prod_mesh_industrial.ps1` (health + failover + signed tx) — **not** run by default mesh bootstrap |
+| Industrial gate | `.\scripts\prod_mesh_full.ps1` or `test_blockchain_full.ps1 -ProdMeshFull` |
 | Failover drill | `.\scripts\prod_mesh_failover.ps1` — **ops proof**: stop node2, verify blocks + rejoin |
 | Signed tx (prod) | `python scripts/prod_signed_tx_smoke.py` — **not** covered by default mesh `SKIP: tx propagation` |
 | Prod EVM (deploy + RPC storage) | `python scripts/prod_evm_smoke.py` — requires `RPC_API_KEYS` from `.env` |
@@ -384,7 +384,8 @@ Single script — native crypto + bridge smoke, secrets scan, production/industr
 # Optional live / P2P / Docker / Prod mesh:
 .\scripts\test_blockchain_full.ps1 -Live -P2P -Docker
 .\scripts\test_blockchain_full.ps1 -ProdMesh
-.\scripts\test_blockchain_full.ps1 -ProdMesh -ProdMeshSpawn
+.\scripts\test_blockchain_full.ps1 -ProdMeshFull -ProdMeshSpawn -RecordEvidence
+.\scripts\prod_mesh_full.ps1
 # Reports: data/full_audit_report.json, data/mainnet_readiness.json, data/industrial_gate.json
 ```
 

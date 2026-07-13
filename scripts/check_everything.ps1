@@ -15,7 +15,9 @@ param(
     [switch]$Live,
     [switch]$P2P,
     [switch]$ProdMesh,
+    [switch]$ProdMeshFull,
     [switch]$ProdMeshSpawn,
+    [switch]$RecordEvidence,
     [switch]$Docker,
     [switch]$DockerBuild,
     [switch]$BuildRust,
@@ -24,6 +26,8 @@ param(
     [int]$PytestTimeout = 900,
     [int]$P2PWait = 300,
     [int]$ProdMeshWait = 360,
+    [int]$ProdMeshFailoverWait = 360,
+    [string]$EvidenceGitTag = "v1.2.54",
     [int]$AuditRetries = 1
 )
 
@@ -34,7 +38,9 @@ $args = @("-SkipNativeBuild")
 if ($Live) { $args += "-Live" }
 if ($P2P) { $args += "-P2P" }
 if ($ProdMesh) { $args += "-ProdMesh" }
+if ($ProdMeshFull) { $args += "-ProdMeshFull" }
 if ($ProdMeshSpawn) { $args += "-ProdMeshSpawn" }
+if ($RecordEvidence) { $args += "-RecordEvidence" }
 if ($Docker) { $args += "-Docker" }
 if ($DockerBuild) { $args += "-DockerBuild" }
 if ($BuildRust) { $args += "-BuildRust" }
@@ -44,6 +50,8 @@ $args += @(
     "-PytestTimeout", "$PytestTimeout",
     "-P2PWait", "$P2PWait",
     "-ProdMeshWait", "$ProdMeshWait",
+    "-ProdMeshFailoverWait", "$ProdMeshFailoverWait",
+    "-EvidenceGitTag", $EvidenceGitTag,
     "-AuditRetries", "$AuditRetries"
 )
 

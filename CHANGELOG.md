@@ -16,6 +16,20 @@
 
 ---
 
+## [1.2.54] — 2026-07-13
+
+### Added
+
+- **`-ProdMeshFull`** on `test_blockchain_full.ps1` — after `-ProdMesh` gates runs `prod_evidence_suite` (stabilize, health, failover drill, signed tx, EVM smoke)
+- **`scripts/prod_mesh_full.ps1`** — one-command alias for full prod mesh ops proof
+- **`prod_evidence_suite.ps1`** — `-FailoverWaitSec` parameter (passed to `prod_mesh_failover.ps1`)
+
+### Tests
+
+- `tests/unit/test_prod_mesh_full_gate.py`
+
+---
+
 ## [1.2.53] — 2026-07-13
 
 ### Added
