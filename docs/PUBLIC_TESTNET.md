@@ -26,6 +26,8 @@ Target (example): `https://testnet.absolute-chain.org` → explorer + RPC behind
 - [x] Failover drill on prod mesh (`prod_mesh_failover.ps1`) with recorded heights
 - [ ] `probe_mesh_nodes.ps1` green on all HTTP/RPC/P2P ports
 - [x] Testnet mesh verify: `.\scripts\docker_testnet_mesh.ps1` / `probe_testnet_mesh.ps1 -Deep`
+- [x] 3-node testnet mesh: `.\scripts\docker_testnet_mesh3.ps1` / `probe_testnet_mesh.ps1 -Mesh3 -Deep`
+- [x] Health watch: `.\scripts\testnet_health_watch.ps1 -Mesh3 -DurationMin 10`
 - [ ] `GET /chain/consistency/harness` aligned on all validators
 - [ ] DR rehearsal passed (`dr_restore_rehearsal.ps1 -DockerMesh1`)
 

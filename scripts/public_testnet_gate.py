@@ -30,6 +30,13 @@ _REQUIRED_FILES = (
     "docs/PUBLIC_TESTNET.md",
 )
 
+_REQUIRED_MESH3_FILES = (
+    "docker-compose.testnet.mesh3.yml",
+    "docker/node.testnet.validator3.json",
+    "scripts/docker_testnet_mesh3.ps1",
+    "scripts/testnet_health_watch.ps1",
+)
+
 
 def _probe_http(base_url: str, timeout: float = 8.0) -> Tuple[List[str], Dict[str, Any]]:
     errors: List[str] = []
@@ -95,6 +102,7 @@ def run_public_testnet_gate(
     require_soak_hours: float = 0,
     soak_report: str = "logs/soak_report.json",
     mesh: bool = False,
+    mesh3: bool = False,
 ) -> Tuple[List[str], List[str], Dict[str, Any]]:
     errors: List[str] = []
     warnings: List[str] = []
@@ -104,6 +112,12 @@ def run_public_testnet_gate(
         path = ROOT / rel
         if not path.is_file():
             errors.append(f"missing:{rel}")
+
+    if mesh3:
+        for rel in _REQUIRED_MESH3_FILES:
+            path = ROOT / rel
+            if not path.is_file():
+                errors.append(f"missing:{rel}")
 
     explorer = ROOT / "web" / "explorer"
     if not explorer.is_dir():
@@ -144,13 +158,18 @@ def run_public_testnet_gate(
         meta.update(live_meta)
         errors.extend([f"live:{e}" for e in live_errors])
 
-    if mesh:
+    if mesh or mesh3:
         sys.path.insert(0, str(ROOT / "scripts"))
         import verify_testnet_mesh
 
+        validator_urls = (
+            list(verify_testnet_mesh.DEFAULT_MESH3)
+            if mesh3
+            else ["http://127.0.0.1:19081"]
+        )
         mesh_errors, mesh_warnings, mesh_meta = verify_testnet_mesh.verify_testnet_mesh(
             seed_url=base_url,
-            validator_url="http://127.0.0.1:19081",
+            validator_urls=validator_urls,
             wait_sec=0,
         )
         meta["mesh_verify"] = mesh_meta
@@ -177,6 +196,11 @@ def main() -> int:
         action="store_true",
         help="Also verify 2-node mesh on :19080/:19081",
     )
+    parser.add_argument(
+        "--mesh3",
+        action="store_true",
+        help="Also verify 3-node mesh on :19080/:19081/:19082",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
@@ -186,6 +210,7 @@ def main() -> int:
         require_soak_hours=args.require_soak_hours,
         soak_report=args.soak_report,
         mesh=args.mesh,
+        mesh3=args.mesh3,
     )
 
     out = ROOT / "data" / "public_testnet_gate.json"

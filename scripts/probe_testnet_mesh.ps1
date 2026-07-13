@@ -1,12 +1,15 @@
 # Quick probe of public testnet ports (:19080 seed, :19081 validator).
 param(
     [switch]$Deep,
+    [switch]$Mesh3,
     [int[]]$Ports = @(19080, 19081)
 )
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Root = Split-Path -Parent $ScriptDir
 Set-Location $Root
+
+if ($Mesh3) { $Ports = @(19080, 19081, 19082) }
 
 $fail = 0
 foreach ($port in $Ports) {
@@ -38,8 +41,10 @@ foreach ($port in $Ports) {
     }
 }
 
-if ($Ports -contains 19080 -and $Ports -contains 19081 -and $fail -eq 0) {
-    python (Join-Path $ScriptDir "verify_testnet_mesh.py") --mesh --wait 0
+if ($Ports -contains 19080 -and $Ports.Count -ge 2 -and $fail -eq 0) {
+    $meshArgs = @("scripts/verify_testnet_mesh.py", "--wait", "0")
+    if ($Mesh3) { $meshArgs += "--mesh3" } else { $meshArgs += "--mesh" }
+    python @meshArgs
     if ($LASTEXITCODE -ne 0) { $fail++ }
 }
 

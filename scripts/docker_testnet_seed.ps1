@@ -2,6 +2,7 @@
 param(
     [switch]$SkipBuild,
     [switch]$WithValidator,
+    [switch]$Mesh3,
     [switch]$Down
 )
 
@@ -66,7 +67,12 @@ if ($portState.State -eq "Conflict") {
 $seedAlreadyRunning = ($portState.State -eq "AbsRunning")
 
 $composeArgs = @("-f", "docker-compose.testnet.yml", "-p", "abs-testnet")
-if ($WithValidator) { $composeArgs += "--profile", "validators" }
+if ($Mesh3) {
+    $composeArgs += @("-f", "docker-compose.testnet.mesh3.yml", "--profile", "validators")
+    $WithValidator = $true
+} elseif ($WithValidator) {
+    $composeArgs += @("--profile", "validators")
+}
 
 if ($Down) {
     docker compose @composeArgs down
@@ -83,11 +89,31 @@ if (-not $seedAlreadyRunning) {
     if (-not $?) { exit 1 }
 
     if ($WithValidator) {
-        docker compose @composeArgs up -d testnet-validator
+        if ($Mesh3) {
+            docker compose @composeArgs up -d testnet-seed testnet-validator testnet-validator-3
+        } else {
+            docker compose @composeArgs up -d testnet-validator
+        }
         if (-not $?) { exit 1 }
     }
 } else {
     Write-Host "OK: testnet seed already running on :$httpPortNum (chain 77777)" -ForegroundColor Green
+    if ($WithValidator) {
+        if (-not $SkipBuild) {
+            if ($Mesh3) {
+                docker compose @composeArgs build testnet-validator testnet-validator-3
+            } else {
+                docker compose @composeArgs build testnet-validator
+            }
+            if (-not $?) { exit 1 }
+        }
+        if ($Mesh3) {
+            docker compose @composeArgs up -d testnet-validator testnet-validator-3
+        } else {
+            docker compose @composeArgs up -d testnet-validator
+        }
+        if (-not $?) { exit 1 }
+    }
 }
 
 $httpPort = if ($env:TESTNET_HTTP_PORT) { $env:TESTNET_HTTP_PORT } else { "19080" }
@@ -109,8 +135,9 @@ try {
     Write-Host "  HTTP  http://127.0.0.1:$httpPort" -ForegroundColor DarkGray
     $rpcPort = if ($env:TESTNET_RPC_PORT) { $env:TESTNET_RPC_PORT } else { "19085" }
     Write-Host "  RPC   http://127.0.0.1:$rpcPort  (X-API-Key required)" -ForegroundColor DarkGray
-    Write-Host "  Next: .\scripts\prepare_vps_testnet.ps1 -Live" -ForegroundColor DarkGray
-    Write-Host "  Gate: .\scripts\public_testnet_gate.ps1 -Live -BaseUrl http://127.0.0.1:$httpPort" -ForegroundColor DarkGray
+    Write-Host "  Mesh2: .\scripts\docker_testnet_mesh.ps1" -ForegroundColor DarkGray
+    Write-Host "  Mesh3: .\scripts\docker_testnet_mesh3.ps1" -ForegroundColor DarkGray
+    Write-Host "  Watch: .\scripts\testnet_health_watch.ps1 -Mesh2" -ForegroundColor DarkGray
 } catch {
     Write-Host "WARN: seed started but status check failed: $($_.Exception.Message)" -ForegroundColor Yellow
     exit 1

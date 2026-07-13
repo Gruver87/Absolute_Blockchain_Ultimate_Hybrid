@@ -1,0 +1,56 @@
+# 3-node public testnet overlay (seed expects 2 peers).
+# Usage:
+#   docker compose -f docker-compose.testnet.yml -f docker-compose.testnet.mesh3.yml --profile validators up -d
+
+services:
+  testnet-seed:
+    command: ["python", "main.py", "--config", "docker/node.testnet.seed.json"]
+    environment:
+      TESTNET_EXPECTED_PEERS: "2"
+
+  testnet-validator-3:
+    profiles: ["validators"]
+    image: ${ABS_TESTNET_IMAGE:-abs-blockchain-devnet-rust:local}
+    build:
+      context: .
+      dockerfile: Dockerfile.devnet-rust
+    hostname: testnet-validator-3
+    depends_on:
+      testnet-seed:
+        condition: service_healthy
+      testnet-validator:
+        condition: service_started
+    command: ["python", "main.py", "--config", "docker/node.testnet.validator3.json"]
+    ports:
+      - "${TESTNET_HTTP_PORT_3:-19082}:8080"
+      - "${TESTNET_RPC_PORT_3:-19088}:8545"
+      - "${TESTNET_P2P_PORT_3:-19502}:5000"
+    env_file:
+      - path: .env.testnet
+        required: false
+    environment:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+      DEPLOYMENT_MODE: dev
+      CHAIN_ID: "77777"
+      HTTP_HOST: "0.0.0.0"
+      RPC_HOST: "0.0.0.0"
+      WS_HOST: "0.0.0.0"
+      P2P_HOST: "0.0.0.0"
+      ABS_REQUIRE_NATIVE_CRYPTO: "true"
+      BRIDGE_ENABLED: "false"
+      RATE_LIMIT_RPM: ${TESTNET_RATE_LIMIT_RPM:-600}
+      RPC_API_KEY_REQUIRED: "true"
+      JWT_ENFORCE_ADMIN: "true"
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env.testnet}
+      RPC_API_KEYS: ${RPC_API_KEYS:?set RPC_API_KEYS in .env.testnet}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://testnet.example.com}
+      NODE_ID: testnet-validator-3
+      BOOTSTRAP_PEERS: testnet-seed:5000,testnet-validator:5000
+    volumes:
+      - abs-testnet-validator3-data:/app/data
+    networks:
+      - abs-testnet
+
+volumes:
+  abs-testnet-validator3-data:

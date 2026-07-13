@@ -282,6 +282,10 @@ class Config:
         self.mesh_min_peers_before_mine = env_int(
             "MESH_MIN_PEERS_BEFORE_MINE", self.mesh_min_peers_before_mine
         )
+        if "TESTNET_EXPECTED_PEERS" in os.environ:
+            self.testnet_expected_peers = env_int(
+                "TESTNET_EXPECTED_PEERS", self.testnet_expected_peers
+            )
         self.require_signatures = env_bool(
             "REQUIRE_SIGNATURES",
             self.require_signatures if not self.is_production else True,

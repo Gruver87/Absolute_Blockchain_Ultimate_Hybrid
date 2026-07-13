@@ -2,7 +2,8 @@
 param(
     [string]$BaseUrl = "http://127.0.0.1:19080",
     [switch]$SkipReadiness,
-    [switch]$WithValidator
+    [switch]$WithValidator,
+    [switch]$Mesh3
 )
 
 $ErrorActionPreference = "Stop"
@@ -27,7 +28,12 @@ function Step([string]$Name, [scriptblock]$Action) {
 }
 
 $seedArgs = @()
-if ($WithValidator) { $seedArgs += "-WithValidator" }
+if ($Mesh3) {
+    $seedArgs += "-Mesh3"
+    $WithValidator = $true
+} elseif ($WithValidator) {
+    $seedArgs += "-WithValidator"
+}
 
 Step "docker_testnet_seed" {
     & (Join-Path $ScriptDir "docker_testnet_seed.ps1") -SkipBuild @seedArgs
@@ -55,7 +61,11 @@ if (-not $SkipReadiness) {
 
 if ($WithValidator) {
     Step "verify_testnet_mesh" {
-        python (Join-Path $ScriptDir "verify_testnet_mesh.py") --mesh --wait 90
+        if ($Mesh3) {
+            python (Join-Path $ScriptDir "verify_testnet_mesh.py") --mesh3 --wait 120
+        } else {
+            python (Join-Path $ScriptDir "verify_testnet_mesh.py") --mesh --wait 90
+        }
     }
 }
 

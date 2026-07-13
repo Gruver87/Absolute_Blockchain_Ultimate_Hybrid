@@ -26,6 +26,12 @@ def test_public_testnet_gate_static_ok():
     assert any("public_dns_tls" in w for w in warnings)
 
 
+def test_public_testnet_gate_mesh3_static_files():
+    mod = _load_gate()
+    errors, _warnings, _meta = mod.run_public_testnet_gate(live=False, mesh3=True)
+    assert not any(e.startswith("missing:") for e in errors), errors
+
+
 def test_public_testnet_gate_requires_soak_when_configured(tmp_path):
     mod = _load_gate()
     soak = tmp_path / "soak.json"

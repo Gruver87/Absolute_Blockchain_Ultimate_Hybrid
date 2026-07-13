@@ -20,6 +20,8 @@ def _load():
 def test_verify_testnet_mesh_module_exists():
     assert (ROOT / "scripts" / "verify_testnet_mesh.py").is_file()
     assert (ROOT / "scripts" / "docker_testnet_mesh.ps1").is_file()
+    assert (ROOT / "scripts" / "docker_testnet_mesh3.ps1").is_file()
+    assert (ROOT / "scripts" / "testnet_health_watch.ps1").is_file()
 
 
 def test_solo_seed_warns_without_validator():
@@ -63,8 +65,19 @@ def test_two_node_mesh_fails_when_not_healthy():
 
     with patch.object(mod, "_api", side_effect=fake_api), patch.object(mod, "_probe_health", return_value=True):
         errors, _warnings, meta = mod.verify_testnet_mesh(
-            validator_url="http://127.0.0.1:19081",
+            validator_urls=["http://127.0.0.1:19081"],
             wait_sec=0,
         )
     assert meta["reachable"] == 2
     assert any("mesh_healthy=false" in e for e in errors)
+
+
+def test_mesh3_expects_three_nodes():
+    mod = _load()
+    with patch.object(mod, "_probe_health", return_value=False):
+        errors, _warnings, meta = mod.verify_testnet_mesh(
+            validator_urls=list(mod.DEFAULT_MESH3),
+            wait_sec=0,
+        )
+    assert meta["expected"] == 3
+    assert len(errors) >= 3

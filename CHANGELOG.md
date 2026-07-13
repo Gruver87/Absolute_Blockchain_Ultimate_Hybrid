@@ -32,6 +32,25 @@
 
 ---
 
+## [1.2.71] — 2026-07-14
+
+### Added
+
+- **3-node public testnet mesh** — `docker-compose.testnet.mesh3.yml`, `docker/node.testnet.validator3.json`, ports `:19082/:19088/:19502`
+- **`scripts/docker_testnet_mesh3.ps1`** — start seed + 2 validators and verify sync
+- **`scripts/testnet_health_watch.ps1`** — periodic mesh health polling (`-Mesh2` / `-Mesh3`)
+- **`verify_testnet_mesh.py --mesh3`** — 3-node verify (`:19080/:19081/:19082`)
+- **`probe_testnet_mesh.ps1 -Mesh3`**, **`docker_testnet_seed.ps1 -Mesh3`**
+- **`public_testnet_gate.py --mesh3`**, **`testnet_evidence_suite.ps1 -Mesh3`**
+- **`TESTNET_EXPECTED_PEERS`** env override in `runtime/config.py` (seed expects 2 peers in mesh3 overlay)
+
+### Changed
+
+- **`.env.testnet.example`** — validator-3 port vars (`TESTNET_HTTP_PORT_3`, RPC, P2P)
+- **`docs/PUBLIC_TESTNET.md`** — 3-node mesh + health watch checklist
+
+---
+
 ## [1.2.70] — 2026-07-14
 
 ### Added
