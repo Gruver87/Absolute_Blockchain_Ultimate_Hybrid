@@ -117,6 +117,9 @@ class Config:
     rust_bridge_path: str = "bridge/abs_bridge_bin"
     bridge_oracle_secret: str = ""      # HMAC secret for /bridge/oracle/* relayer
     bridge_l1_queue_path: str = "data/bridge_l1_queue.json"
+    bridge_l1_chain: str = "ethereum"   # target L1 chain for cutover profile
+    bridge_l1_lock_contract: str = ""   # L1 escrow/lock contract (address)
+    bridge_l1_mint_contract: str = ""   # L1 mint/release contract (address)
 
     # ── Логирование ─────────────────────────────────────────────────────────
     log_level: str = "INFO"
@@ -330,6 +333,15 @@ class Config:
         l1_queue = env_str("BRIDGE_L1_QUEUE_PATH", "")
         if l1_queue:
             self.bridge_l1_queue_path = l1_queue
+        l1_chain = env_str("BRIDGE_L1_CHAIN", "")
+        if l1_chain:
+            self.bridge_l1_chain = l1_chain
+        lock_contract = env_str("BRIDGE_L1_LOCK_CONTRACT", "")
+        if lock_contract:
+            self.bridge_l1_lock_contract = lock_contract
+        mint_contract = env_str("BRIDGE_L1_MINT_CONTRACT", "")
+        if mint_contract:
+            self.bridge_l1_mint_contract = mint_contract
 
         origins = env_list("CORS_ORIGINS")
         if origins:
@@ -380,6 +392,15 @@ class Config:
         l1_queue = env_str("BRIDGE_L1_QUEUE_PATH", "")
         if l1_queue:
             self.bridge_l1_queue_path = l1_queue
+        l1_chain = env_str("BRIDGE_L1_CHAIN", "")
+        if l1_chain:
+            self.bridge_l1_chain = l1_chain
+        lock_contract = env_str("BRIDGE_L1_LOCK_CONTRACT", "")
+        if lock_contract:
+            self.bridge_l1_lock_contract = lock_contract
+        mint_contract = env_str("BRIDGE_L1_MINT_CONTRACT", "")
+        if mint_contract:
+            self.bridge_l1_mint_contract = mint_contract
         if "BRIDGE_ENABLED" in os.environ:
             self.bridge_enabled = env_bool("BRIDGE_ENABLED", self.bridge_enabled)
         if "BRIDGE_REQUIRE_L1_PROOF" in os.environ:

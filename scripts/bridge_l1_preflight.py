@@ -27,6 +27,22 @@ def is_placeholder_rpc_url(url: str) -> bool:
         return True
     return bool(_PLACEHOLDER_RPC.search(url))
 
+def _is_placeholder_contract(addr: str) -> bool:
+    from runtime.secret_utils import is_placeholder_secret
+
+    a = (addr or "").strip().lower()
+    if not a:
+        return True
+    if is_placeholder_secret(a):
+        return True
+    if not a.startswith("0x") or len(a) != 42:
+        return True
+    try:
+        raw = bytes.fromhex(a[2:])
+    except ValueError:
+        return True
+    return raw == b"\x00" * 20
+
 
 def run_preflight(
     *,
@@ -128,6 +144,22 @@ def run_preflight(
 
     if os.environ.get("BRIDGE_ALLOW_SYNTHETIC", "").strip().lower() in ("1", "true", "yes"):
         errors.append("prod forbids BRIDGE_ALLOW_SYNTHETIC")
+
+    # L1 contract addresses (cutover profile).
+    lock_addr = (
+        str(os.environ.get("BRIDGE_L1_LOCK_CONTRACT", "") or "").strip()
+        or str(cfg_data.get("bridge_l1_lock_contract", "") or "").strip()
+    )
+    mint_addr = (
+        str(os.environ.get("BRIDGE_L1_MINT_CONTRACT", "") or "").strip()
+        or str(cfg_data.get("bridge_l1_mint_contract", "") or "").strip()
+    )
+    if not lock_addr or _is_placeholder_contract(lock_addr):
+        msg = "BRIDGE_L1_LOCK_CONTRACT missing/placeholder (required for real cutover)"
+        (errors if probe_l1 else warnings).append(msg)
+    if not mint_addr or _is_placeholder_contract(mint_addr):
+        msg = "BRIDGE_L1_MINT_CONTRACT missing/placeholder (required for real cutover)"
+        (errors if probe_l1 else warnings).append(msg)
 
     return errors, warnings
 
