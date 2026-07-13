@@ -148,7 +148,7 @@ Do **not** mix local `python main.py` with Docker on the same host ports (`:8080
 | Prod 3-node mesh (mainnet-v1 prep) | ✅ | `.\scripts\docker_prod_3node.ps1` |
 | Mesh / bridge probe | ✅ | `.\scripts\probe_mesh_nodes.ps1` |
 | P2P sync verification | ✅ | `python scripts/verify_p2p_ci.py --mode devnet3` |
-| Full project audit (one command) | ✅ | `.\scripts\check_everything.ps1` |
+| Full project audit (one command) | ✅ | `.\scripts\test_blockchain_full.ps1` · fast: `.\scripts\check_everything.ps1` |
 | Unit + integration tests | ✅ | `pytest tests/ -q` |
 | Cross-chain bridge | 🟡 Cutover | **Dev:** rust path on node1. **Prod (778888):** `bridge_enabled=false` until L1 contracts; enable via `docker_prod.ps1 -Bridge` |
 | NFT marketplace | ✅ Dev module | Persisted in SQLite |
@@ -372,13 +372,18 @@ api_wave=61
 
 ### Full audit (recommended before release)
 
-Single script — secrets scan, production gate, syntax, tokenomics, Waves 52–61, mega/final audit, pytest, optional live API/P2P/Docker checks:
+Single script — native crypto + bridge smoke, secrets scan, production/industrial/mainnet gates, bridge cutover preflight, full pytest, optional live API/P2P/Docker:
 
 ```powershell
+# Full gate (builds abs_native + bridge if needed)
+.\scripts\test_blockchain_full.ps1
+
+# Faster local audit (skip native wheel rebuild)
 .\scripts\check_everything.ps1
-# Optional:
-.\scripts\check_everything.ps1 -Live -P2P -Docker
-# Report: data/full_audit_report.json
+
+# Optional live / P2P / Docker:
+.\scripts\test_blockchain_full.ps1 -Live -P2P -Docker
+# Reports: data/full_audit_report.json, data/mainnet_readiness.json, data/industrial_gate.json
 ```
 
 ### Verify

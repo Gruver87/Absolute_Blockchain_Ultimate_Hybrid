@@ -16,6 +16,16 @@
 
 ---
 
+## [1.2.52] — 2026-07-13
+
+### Added
+
+- **Full blockchain test script:** `scripts/test_blockchain_full.ps1` / `.sh` now runs industrial gate, mainnet readiness (`--bridge-cutover`), bridge L1 cutover + preflight (static)
+- **`check_everything.ps1`** delegates to `test_blockchain_full.ps1 -SkipNativeBuild` (single entry point)
+- Unit tests: `tests/unit/test_l1_rpc_contract.py` for `eth_getCode` helper
+
+---
+
 ## [1.2.51] — 2026-07-13
 
 ### Added

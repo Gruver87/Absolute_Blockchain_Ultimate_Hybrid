@@ -138,6 +138,8 @@ fi
 run_step "Native crypto self-test" python -c "from crypto import native; s=native.native_crypto_status(required=True); assert s['available'] and s['self_test'], s; print('OK native:', s)"
 run_step "Secrets scan" python scripts/check_secrets.py
 run_step "Static production gate" python scripts/prod_gate.py
+run_step "Pre-mainnet audit" python scripts/pre_mainnet_audit.py
+run_step "Native bridge helper" python scripts/native_bridge_helper.py status
 
 bin="$(bridge_binary || true)"
 if [[ "$BUILD_RUST" == "1" || -z "$bin" ]]; then
@@ -152,6 +154,12 @@ fi
 run_step "Rust bridge status" bash -c "printf '%s' '{\"command\":\"status\",\"args\":{}}' | '$bin' | python -c \"import json,sys; d=json.load(sys.stdin); assert d.get('status')=='ready', d; print('OK bridge:', d.get('status'), d.get('source'))\""
 
 run_step "Production stack verification" python scripts/verify_prod_stack.py
+run_step "Industrial code gate" python scripts/industrial_gate.py
+run_step "Mainnet readiness (automated, relaxed audit)" \
+  python scripts/mainnet_readiness.py --no-strict-audit --bridge-cutover --json
+run_step "Bridge L1 cutover static gate" python scripts/bridge_l1_cutover.py --json
+run_step "Bridge L1 preflight (cutover profile, static)" \
+  python scripts/bridge_l1_preflight.py --config node.prod.mainnet-v1.bridge.example.json --json
 
 if [[ "$NO_CLEAN" != "1" ]]; then
   run_step "Clean generated Python cache" clear_python_cache
@@ -189,6 +197,11 @@ run_step "Hybrid critical native/consensus/EVM tests" python -m pytest \
   tests/unit/test_sync_incremental.py \
   tests/unit/test_rust_bridge_cli.py \
   tests/unit/test_rust_bridge_e2e.py \
+  tests/unit/test_mainnet_readiness.py \
+  tests/unit/test_external_audit.py \
+  tests/unit/test_bridge_l1_cutover.py \
+  tests/unit/test_l1_rpc_contract.py \
+  tests/unit/test_db_accounts_migration.py \
   -q
 
 if [[ "$LIVE" == "1" ]]; then
@@ -235,3 +248,5 @@ echo "OK: FULL BLOCKCHAIN TEST PASSED"
 echo "Reports:"
 echo "  data/full_audit_report.json"
 echo "  data/final_audit_report.json"
+echo "  data/mainnet_readiness.json"
+echo "  data/industrial_gate.json"
