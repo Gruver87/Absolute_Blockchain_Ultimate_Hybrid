@@ -181,6 +181,26 @@ def test_prod_bridge_requires_l1_rpc_and_proof_flag(monkeypatch):
     assert not any("BRIDGE_REQUIRE_L1_PROOF" in e for e in errs)
 
 
+def test_prod_bridge_forbids_auto_confirm_and_requires_l1_queue_path(monkeypatch):
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.bridge_enabled = True
+    cfg.bridge_mode = "rust"
+    cfg.rust_bridge_path = __file__
+    cfg.require_wallet_file = False
+    cfg.rpc_api_key_required = False
+    cfg.bridge_oracle_secret = "x" * 32
+    cfg.bridge_require_l1_proof = True
+    cfg.bridge_auto_confirm_sec = 10
+    cfg.bridge_l1_queue_path = ""
+    monkeypatch.setenv("JWT_SECRET", "y" * 32)
+    monkeypatch.setenv("ETH_RPC_URL", "https://rpc.example.com")
+
+    errs = cfg.validate()
+    assert any("BRIDGE_AUTO_CONFIRM_SEC" in e for e in errs)
+    assert any("BRIDGE_L1_QUEUE_PATH" in e for e in errs)
+
+
 def test_prod_bridge_l1_rpc_probe_when_enabled(monkeypatch):
     cfg = Config()
     cfg.deployment_mode = "prod"

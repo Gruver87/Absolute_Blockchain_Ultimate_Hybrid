@@ -505,6 +505,8 @@ class Config:
         if self.is_production and self.bridge_enabled:
             if env_bool("BRIDGE_ALLOW_SYNTHETIC", False):
                 errors.append("prod bridge forbids BRIDGE_ALLOW_SYNTHETIC (local dev only)")
+            if int(getattr(self, "bridge_auto_confirm_sec", 0) or 0) > 0:
+                errors.append("prod bridge forbids BRIDGE_AUTO_CONFIRM_SEC > 0 (dev simulator only)")
             if self.bridge_mode == "rust":
                 try:
                     from bridge.health import check_rust_bridge_binary
@@ -529,6 +531,8 @@ class Config:
                 errors.append("prod bridge requires at least one L1 RPC URL (ETH_RPC_URL/BSC_RPC_URL/POLYGON_RPC_URL)")
             if not self.bridge_require_l1_proof:
                 errors.append("prod bridge requires BRIDGE_REQUIRE_L1_PROOF=true")
+            if not str(getattr(self, "bridge_l1_queue_path", "") or "").strip():
+                errors.append("prod bridge requires BRIDGE_L1_QUEUE_PATH (L1 proof queue)")
             from bridge.health import should_probe_l1_rpc
 
             if should_probe_l1_rpc(self):
