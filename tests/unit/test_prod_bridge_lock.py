@@ -43,10 +43,10 @@ def test_prod_lock_uses_abs_receipt_hash_not_rust_subprocess(prod_bridge, monkey
 
     monkeypatch.setattr(br, "_call_rust", _forbidden_rust)
     res = br.lock_and_bridge("0xalice", "ethereum", "0xrecipient", 10.0)
-    assert "error" not in res
-    assert res["tx_hash"].startswith("0x")
-    assert len(res["tx_hash"]) == 66
-    assert db.get_bridge_locks()[0]["tx_hash"] == res["tx_hash"]
+    assert res.get("error")
+    assert "l1_tx_hash" in res["error"]
+    assert db.get_bridge_locks() == []
+    assert db.get_balance("0xalice") == 100.0
 
 
 def test_prod_lock_verifies_l1_via_rust_when_proof_present(prod_bridge, monkeypatch):

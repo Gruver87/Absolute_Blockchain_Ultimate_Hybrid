@@ -190,7 +190,13 @@ class RustBridge:
                     return {"error": "rust L1 lock verification failed"}
                 tx_hash = l1_tx_hash
             elif self._is_prod:
-                tx_hash = self._mint_abs_lock_hash(from_addr, to_chain, to_addr, net_amount)
+                return {
+                    "error": (
+                        "prod outbound bridge requires l1_tx_hash (real L1 escrow). "
+                        "Disable bridge_enabled for mainnet-v1 until L1 lock/mint contracts "
+                        "and tx submission are implemented."
+                    )
+                }
             else:
                 tx_hash = self._call_rust("bridge", rust_args)
                 if not tx_hash:
