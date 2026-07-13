@@ -5,6 +5,7 @@ param(
     [switch]$SkipBuild,
     [switch]$KeepVolumes,
     [switch]$PullLatest,
+    [switch]$RecoveryDrill,
     [string]$ProdImage = "ghcr.io/gruver87/abs-blockchain-node:latest"
 )
 
@@ -221,6 +222,16 @@ if ($LASTEXITCODE -ne 0) {
 
 python scripts/prod_smoke.py http://127.0.0.1:18180
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+if ($RecoveryDrill) {
+    Write-Host "Running prod mesh failover recovery drill..." -ForegroundColor Cyan
+    python scripts/verify_p2p_ci.py --mode prod-mesh3-recovery `
+        --url1 http://127.0.0.1:18180 `
+        --url2 http://127.0.0.1:18181 `
+        --url3 http://127.0.0.1:18182 `
+        --wait 360
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
 
 Write-Host "OK: prod 3-node mesh" -ForegroundColor Green
 Write-Host "  node1 http://127.0.0.1:18180" -ForegroundColor Gray

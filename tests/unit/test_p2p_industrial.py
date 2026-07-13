@@ -243,6 +243,56 @@ def test_p2p_maintenance_loop_prunes_stale_peers():
     assert "stale" not in p2p.peers
 
 
+@pytest.mark.asyncio
+async def test_handshake_chain_id_mismatch_strikes_and_bans():
+    from network.p2p_node import MSG_HANDSHAKE_ACK, P2PNode
+
+    class _Chain:
+        def get_height(self):
+            return 10
+
+        def get_last_block(self):
+            return {"hash": "0xdeadbeef"}
+
+    cfg = Config()
+    cfg.chain_id = 77777
+    cfg.p2p_rate_limit_strikes = 2
+    cfg.p2p_ban_seconds = 60
+    p2p = P2PNode(cfg, _Chain(), None)
+    peer = PeerConnection(_FakeReader(b""), _FakeWriter())
+    peer.host = "10.0.0.9"
+    peer.port = 5009
+
+    async def _wrong_chain_handshake(_peer, initiator=False):
+        wrong = json.dumps(
+            {
+                "type": MSG_HANDSHAKE_ACK,
+                "data": {
+                    "chain_id": 99999,
+                    "node_id": "bad-peer",
+                    "height": 1,
+                    "head_hash": "0xabc",
+                    "p2p_port": 5009,
+                },
+            }
+        ).encode() + b"\n"
+        peer._fake_payload = wrong  # type: ignore[attr-defined]
+
+        async def _recv(_config=None):
+            return json.loads(wrong.decode().strip())
+
+        peer.recv = _recv  # type: ignore[method-assign]
+        return await p2p._do_handshake(peer, initiator=True)
+
+    assert await _wrong_chain_handshake(peer) is False
+    assert p2p._handshake_rejects == 1
+    assert await _wrong_chain_handshake(peer) is False
+    assert p2p._is_addr_banned("10.0.0.9", 5009) is True
+    sec = p2p.get_p2p_security_status()
+    assert sec["handshake_rejects"] == 2
+    assert sec["active_bans"] == 1
+
+
 def test_verify_p2p_security_mesh_ok(monkeypatch):
     mod = _load_verify_p2p()
 

@@ -1157,6 +1157,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                                 "active_bans": sec.get("active_bans", 0),
                                 "strikes_before_ban": sec.get("strikes_before_ban"),
                                 "evict_min_score": sec.get("evict_min_score", 0),
+                                "handshake_rejects": sec.get("handshake_rejects", 0),
                             },
                         }
                     except Exception:

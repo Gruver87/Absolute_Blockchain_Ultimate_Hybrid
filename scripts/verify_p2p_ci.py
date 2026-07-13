@@ -897,6 +897,9 @@ def verify_mesh3_recovery(
                         f"root={final_roots[0][:16]}... "
                         f"peer_count={topo.get('peer_count')} topology_healthy={topo.get('topology_healthy')}"
                     )
+                    sec_rc = verify_p2p_security_mesh(urls)
+                    if sec_rc != 0:
+                        return sec_rc
                     return 0
             except Exception:
                 pass

@@ -24,6 +24,28 @@
 
 ---
 
+---
+
+## [1.2.61] — 2026-07-13
+
+### Added
+
+- **Handshake chain_id mismatch → strike/ban** — wrong-network peers accumulate strikes; `handshake_rejects` in `/p2p/security`
+- **`docker_prod_3node.ps1 -RecoveryDrill`** — runs `prod-mesh3-recovery` after mesh boot
+- **Recovery drill** now validates P2P security on all nodes after node2 rejoin
+
+### Fixed
+
+- **Rate limit no longer bans peers** — excess messages are dropped only (sync bursts were false-banning prod hub)
+- **Wire EOF/parse close** — disconnect without strike/ban on peer close (fixes prod mesh split)
+
+### Changed
+
+- `probe_mesh_nodes.ps1 -Deep` shows `hs_rejects` from topology security
+- `GET /status.p2p_summary.security` includes `handshake_rejects`
+
+---
+
 ## [1.2.60] — 2026-07-13
 
 ### Fixed

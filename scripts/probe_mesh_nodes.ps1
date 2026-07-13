@@ -86,7 +86,8 @@ foreach ($p in $Ports) {
             Write-Host ("       p2p: peers=$peerCount healthy=$($topo.topology_healthy) score_avg=$scoreAvg") -ForegroundColor DarkGray
             if ($topo.security) {
                 $sec = $topo.security
-                Write-Host ("       security: bans=$($sec.active_bans) rate=$($sec.rate_limit_per_sec)/s strikes=$($sec.strikes_before_ban)") -ForegroundColor DarkGray
+                $hsRejects = F $sec.handshake_rejects 0
+                Write-Host ("       security: bans=$($sec.active_bans) rate=$($sec.rate_limit_per_sec)/s strikes=$($sec.strikes_before_ban) hs_rejects=$hsRejects") -ForegroundColor DarkGray
             } else {
                 $secEndpoint = Get-Json "$base/p2p/security" 8
                 if ($secEndpoint) {

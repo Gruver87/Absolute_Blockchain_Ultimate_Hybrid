@@ -199,6 +199,7 @@ class P2PNode:
         self._peer_msg_windows: Dict[str, tuple[int, float]] = {}
         self._peer_strikes: Dict[str, int] = {}
         self._peer_bans: Dict[str, float] = {}
+        self._handshake_rejects: int = 0
         self._consensus = None
         self.validator_keys = None
         self._state_consistent = True
@@ -477,6 +478,8 @@ class P2PNode:
 
         # Проверяем совместимость
         if ack.get("chain_id") != self.config.chain_id:
+            self._handshake_rejects += 1
+            self._strike_peer_sync(peer, "chain_id_mismatch")
             print(
                 f"[P2P] Rejected {peer.host}:{peer.port}: chain_id mismatch "
                 f"(remote={ack.get('chain_id')} local={self.config.chain_id}). "
@@ -505,15 +508,11 @@ class P2PNode:
             while self._running and self.peers.get(peer.peer_id) is peer:
                 msg = await peer.recv(self.config)
                 if msg is None:
-                    if self._strike_peer_sync(peer, "invalid_wire"):
-                        break
-                    continue
+                    break
                 if msg.get("type") == MSG_IDLE:
                     continue
                 peer.touch()
                 if not self._rate_limit_ok(peer.peer_id):
-                    if self._strike_peer_sync(peer, "rate_limit"):
-                        break
                     continue
                 await self._handle_message(peer, msg)
         finally:
@@ -1876,4 +1875,5 @@ class P2PNode:
             "active_bans": len(active_bans),
             "banned": active_bans[:20],
             "tracked_strikes": len(self._peer_strikes),
+            "handshake_rejects": int(self._handshake_rejects),
         }
