@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -16,35 +17,51 @@ DEFAULT_NODES = (
     "docker-prod-mesh-3",
 )
 
+_WIN_OPENSSL_CANDIDATES = (
+    r"C:\Program Files\Git\usr\bin\openssl.exe",
+    r"C:\Program Files (x86)\Git\usr\bin\openssl.exe",
+)
+
+
+def _resolve_openssl() -> str:
+    for candidate in ("openssl", *_WIN_OPENSSL_CANDIDATES):
+        if candidate == "openssl":
+            try:
+                proc = subprocess.run(
+                    ["openssl", "version"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    check=False,
+                )
+                if proc.returncode == 0:
+                    return "openssl"
+            except (OSError, subprocess.SubprocessError):
+                continue
+        elif os.path.isfile(candidate):
+            return candidate
+    return ""
+
 
 def _run(cmd: list[str], cwd: Path) -> None:
-    proc = subprocess.run(cmd, cwd=str(cwd), check=False)
+    proc = subprocess.run(cmd, cwd=str(cwd), check=False, capture_output=True, text=True)
     if proc.returncode != 0:
-        raise RuntimeError(f"command failed: {' '.join(cmd)}")
+        detail = (proc.stderr or proc.stdout or "").strip()
+        raise RuntimeError(f"command failed: {' '.join(cmd)} ({detail})")
 
 
 def _openssl_available() -> bool:
-    try:
-        proc = subprocess.run(
-            ["openssl", "version"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
-        )
-        return proc.returncode == 0
-    except (OSError, subprocess.SubprocessError):
-        return False
+    return bool(_resolve_openssl())
 
 
-def generate_mesh_tls(
+def generate_mesh_tls_openssl(
     out_dir: Path,
     node_ids: list[str],
     *,
     force: bool = False,
 ) -> dict[str, Path]:
-    """Return map node_dir_name -> cert directory (node1, node2, ...)."""
-    if not _openssl_available():
+    openssl = _resolve_openssl()
+    if not openssl:
         raise RuntimeError("openssl not found in PATH")
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -54,7 +71,7 @@ def generate_mesh_tls(
     if force or not ca_pem.is_file():
         _run(
             [
-                "openssl",
+                openssl,
                 "req",
                 "-x509",
                 "-newkey",
@@ -85,7 +102,7 @@ def generate_mesh_tls(
         if force or not node_pem.is_file():
             _run(
                 [
-                    "openssl",
+                    openssl,
                     "req",
                     "-newkey",
                     "rsa:2048",
@@ -101,7 +118,7 @@ def generate_mesh_tls(
             )
             _run(
                 [
-                    "openssl",
+                    openssl,
                     "x509",
                     "-req",
                     "-in",
@@ -127,6 +144,22 @@ def generate_mesh_tls(
     return dirs
 
 
+def generate_mesh_tls(
+    out_dir: Path,
+    node_ids: list[str],
+    *,
+    force: bool = False,
+) -> tuple[dict[str, Path], str]:
+    """Return (node dirs, backend label: openssl|cryptography)."""
+    if _openssl_available():
+        return generate_mesh_tls_openssl(out_dir, node_ids, force=force), "openssl"
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import p2p_tls_crypto
+
+    return p2p_tls_crypto.generate_mesh_tls_crypto(out_dir, node_ids, force=force), "cryptography"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate prod mesh P2P TLS certs")
     parser.add_argument(
@@ -148,12 +181,16 @@ def main() -> int:
         return 1
 
     try:
-        dirs = generate_mesh_tls(Path(args.out_dir), node_ids, force=args.force)
+        dirs, backend = generate_mesh_tls(Path(args.out_dir), node_ids, force=args.force)
     except RuntimeError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1
+    except Exception as exc:
+        print(f"FAIL: {exc}", file=sys.stderr)
+        print("  Install: pip install cryptography  OR  Git for Windows (openssl in PATH)", file=sys.stderr)
+        return 1
 
-    print(f"OK: P2P TLS prod mesh material in {args.out_dir}")
+    print(f"OK: P2P TLS prod mesh material in {args.out_dir} (backend={backend})")
     for name, path in dirs.items():
         print(f"  {name}: {path}")
     print("Docker mount: ./data/p2p_tls_prod_mesh/<nodeN>:/app/p2p_tls:ro")

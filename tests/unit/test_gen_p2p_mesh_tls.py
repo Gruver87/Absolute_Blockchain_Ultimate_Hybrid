@@ -30,16 +30,12 @@ def test_gen_p2p_mesh_tls_module():
 
 def test_generate_mesh_tls_creates_node_dirs(tmp_path):
     mod = _load()
-    if not mod._openssl_available():
-        import pytest
-
-        pytest.skip("openssl not available")
-
-    dirs = mod.generate_mesh_tls(
+    dirs, backend = mod.generate_mesh_tls(
         tmp_path,
         ["test-node-a", "test-node-b"],
         force=True,
     )
+    assert backend in ("openssl", "cryptography")
     assert set(dirs.keys()) == {"node1", "node2"}
     for name in ("node1", "node2"):
         node_dir = dirs[name]

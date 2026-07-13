@@ -19,6 +19,43 @@ try {
     if ($desc) { $gitTag = $desc.Trim() }
 } catch { }
 
+function Test-ProdMeshPreflight {
+    $reachable = $false
+    try {
+        $r = Invoke-RestMethod -Uri "http://127.0.0.1:18180/health/ready" -TimeoutSec 4
+        $reachable = ($r.status -eq "ready")
+    } catch { }
+
+    if ($reachable) { return }
+
+    Write-Host "FAIL: prod mesh not reachable on :18180" -ForegroundColor Red
+    $ps = docker compose -p abs-prod-mesh3 -f docker-compose.prod.3node.yml ps --format json 2>$null
+    if ($ps) {
+        $rows = @($ps | ConvertFrom-Json)
+        foreach ($row in $rows) {
+            $state = "$($row.State)"
+            $svc = "$($row.Service)"
+            if ($state -match "restarting|exited|dead") {
+                Write-Host "  Docker $svc : $state" -ForegroundColor Yellow
+            }
+        }
+        $logs = docker compose -p abs-prod-mesh3 -f docker-compose.prod.3node.yml logs node1 --tail 8 2>$null
+        if ($logs -match "RPC_API_KEYS contains placeholder") {
+            Write-Host "  Cause: RPC_API_KEYS placeholder in .env" -ForegroundColor Yellow
+            Write-Host "  Fix:   .\scripts\rotate_prod_secrets.ps1 -Force" -ForegroundColor White
+            Write-Host "         docker compose -p abs-prod-mesh3 -f docker-compose.prod.3node.yml up -d --force-recreate node1 node2 node3" -ForegroundColor White
+        } elseif ($logs) {
+            Write-Host "  node1 logs (last lines):" -ForegroundColor DarkGray
+            $logs | Select-Object -Last 4 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+        }
+    } else {
+        Write-Host "  Start mesh: .\scripts\docker_prod_3node.ps1 -CeremonyDir data/ceremony_keys -SkipBuild" -ForegroundColor White
+    }
+    exit 1
+}
+
+Test-ProdMeshPreflight
+
 function Step([string]$Name, [scriptblock]$Action) {
     Write-Host "`n=== $Name ===" -ForegroundColor Cyan
     & $Action

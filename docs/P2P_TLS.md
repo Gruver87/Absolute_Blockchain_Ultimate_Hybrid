@@ -20,6 +20,8 @@ All peers in a mesh must use the same CA and compatible certs.
 python scripts/gen_p2p_dev_tls.py --out-dir data/p2p_tls_dev --node-id dev-node-1
 ```
 
+**Windows:** `gen_p2p_mesh_tls.py` uses OpenSSL from PATH if present (e.g. Git for Windows), otherwise falls back to the `cryptography` Python package (already in `requirements.txt`).
+
 Copy the printed env vars into `.env` or node config for each node (unique CN per node, same `P2P_TLS_CA_PATH`).
 
 ## Docker prod 3-node mesh

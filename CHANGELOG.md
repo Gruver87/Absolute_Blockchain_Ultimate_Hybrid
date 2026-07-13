@@ -32,6 +32,25 @@
 
 ---
 
+## [1.2.76] — 2026-07-14
+
+### Fixed
+
+- **`docker_prod_3node.ps1`** — PowerShell parse error (Unicode em-dash in TLS verify catch block)
+- **`gen_p2p_mesh_tls.py`** — Windows fallback via `cryptography` when `openssl` absent; also probes Git for Windows `openssl.exe`
+
+### Added
+
+- **`scripts/p2p_tls_crypto.py`** — pure-Python CA/node cert generation
+- **`tests/unit/test_p2p_tls_crypto.py`**
+- **`prod_mesh_resilience_suite.ps1`** — preflight hint when mesh unreachable (e.g. placeholder `RPC_API_KEYS`)
+
+### Changed
+
+- **`docs/P2P_TLS.md`** — Windows TLS generation note
+
+---
+
 ## [1.2.75] — 2026-07-14
 
 ### Added

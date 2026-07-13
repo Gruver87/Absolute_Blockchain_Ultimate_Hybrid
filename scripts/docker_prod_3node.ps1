@@ -262,7 +262,7 @@ if ($P2pTls) {
             }
             Write-Host "  OK :$port P2P TLS ready" -ForegroundColor DarkGray
         } catch {
-            Write-Host "FAIL: could not read /p2p/security on :$port — $_" -ForegroundColor Red
+            Write-Host "FAIL: could not read /p2p/security on :$port - $_" -ForegroundColor Red
             exit 1
         }
     }
