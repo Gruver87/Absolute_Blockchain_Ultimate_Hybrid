@@ -166,6 +166,45 @@ def check_mainnet_v1_config() -> list[str]:
             os.environ["GENESIS_CEREMONY_HASH"] = saved_pin
 
 
+def check_mainnet_v1_bridge_cutover_config() -> list[str]:
+    """Static check for bridge-enabled mainnet-v1 cutover profile."""
+    placeholders = {
+        "JWT_SECRET": "Q" * 40,
+        "RPC_API_KEYS": "R" * 40,
+        "BRIDGE_ORACLE_SECRET": "S" * 40,
+        "ETH_RPC_URL": "https://rpc.example.com",
+        "CORS_ORIGINS": "https://explorer.example.com",
+        "BRIDGE_PROBE_L1_RPC": "false",
+    }
+    saved = {key: os.environ.get(key) for key in placeholders}
+    saved_pin = os.environ.pop("GENESIS_CEREMONY_HASH", None)
+    try:
+        for key, value in placeholders.items():
+            os.environ[key] = value
+        errors: list[str] = []
+        errors.extend(check_config_validate("node.prod.mainnet-v1.bridge.example.json"))
+        sys.path.insert(0, str(ROOT / "scripts"))
+        try:
+            from bridge_l1_cutover import run_cutover_gate
+
+            c_errors, _c_warnings, _meta = run_cutover_gate(
+                live=False,
+                probe_l1=False,
+            )
+            errors.extend([f"bridge_cutover:{e}" for e in c_errors])
+        except Exception as exc:
+            errors.append(f"bridge_cutover:{exc}")
+        return errors
+    finally:
+        for key, old in saved.items():
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+        if saved_pin is not None:
+            os.environ["GENESIS_CEREMONY_HASH"] = saved_pin
+
+
 def check_prod_smoke_spawn() -> list[str]:
     spec = importlib.util.spec_from_file_location(
         "verify_p2p_ci", ROOT / "scripts" / "verify_p2p_ci.py"

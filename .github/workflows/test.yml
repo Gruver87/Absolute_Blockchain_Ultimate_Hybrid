@@ -179,6 +179,13 @@ jobs:
           tests/unit/test_chain_backup.py \
           -q
 
+    - name: Mainnet readiness (static, bridge cutover profile)
+      if: matrix.python-version == '3.12'
+      env:
+        PYTHONUTF8: "1"
+      run: |
+        python scripts/mainnet_readiness.py --no-strict-audit --bridge-cutover
+
     - name: Docker prod image build (smoke)
       if: matrix.python-version == '3.12'
       run: docker build -f Dockerfile.prod -t absolute-blockchain-prod:ci .

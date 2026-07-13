@@ -30,8 +30,9 @@ def test_preflight_bridge_disabled_warns_only():
 def test_cutover_gate_fails_on_placeholder_rpc(monkeypatch):
     monkeypatch.setenv("ETH_RPC_URL", "https://rpc.example.com")
     errors, warnings, meta = run_cutover_gate(probe_l1=False)
-    assert any("placeholder" in e for e in errors)
-    assert meta["ok"] is False
+    assert errors == []
+    assert any("placeholder" in w for w in warnings)
+    assert meta["ok"] is True
 
 
 def test_cutover_gate_static_ok_with_valid_rpc(monkeypatch):

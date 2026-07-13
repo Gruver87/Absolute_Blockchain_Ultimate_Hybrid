@@ -82,6 +82,8 @@ def run_gate(
     prod_errors.extend(prod.check_prod_gate())
     prod_errors.extend(prod.check_config_validate())
     prod_errors.extend(prod.check_mainnet_v1_config())
+    if bridge_cutover and hasattr(prod, "check_mainnet_v1_bridge_cutover_config"):
+        prod_errors.extend(prod.check_mainnet_v1_bridge_cutover_config())
     prod_errors.extend(prod.check_docker_prod_compose())
     prod_errors.extend(prod.check_docker_prod_mesh_compose())
     if live_prod_mesh:

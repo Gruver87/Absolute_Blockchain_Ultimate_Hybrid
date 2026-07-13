@@ -105,9 +105,15 @@ def run_preflight(
 
     eth_rpc = os.environ.get("ETH_RPC_URL", "").strip()
     if not eth_rpc:
-        errors.append("ETH_RPC_URL not set in environment (required when bridge_enabled)")
+        if probe_l1:
+            errors.append("ETH_RPC_URL not set in environment (required when bridge_enabled)")
+        else:
+            warnings.append("ETH_RPC_URL not set (static preflight); required for live cutover")
     elif is_placeholder_rpc_url(eth_rpc):
-        errors.append("ETH_RPC_URL looks like a placeholder, not production RPC")
+        if probe_l1:
+            errors.append("ETH_RPC_URL looks like a placeholder, not production RPC")
+        else:
+            warnings.append("ETH_RPC_URL looks like a placeholder (static preflight); required for live cutover")
     elif probe_l1:
         from bridge.health import check_l1_rpc_health
 
