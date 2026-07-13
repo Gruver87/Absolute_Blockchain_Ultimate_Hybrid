@@ -50,7 +50,10 @@ def check_config_validate(config_name: str = "node.prod.example.json") -> list[s
             ROOT / "bridge" / "abs_bridge_bin.exe",
             ROOT / "bridge" / "abs_bridge_bin",
         ]
-        if not any(p.is_file() for p in bridge_candidates):
+        # Only suppress rust-bridge smoke errors when bridge is disabled in the profile.
+        # If bridge_enabled=true, missing/invalid abs_bridge_bin must fail the gate.
+        bridge_enabled = bool(getattr(cfg, "bridge_enabled", False))
+        if (not bridge_enabled) and (not any(p.is_file() for p in bridge_candidates)):
             errors = [e for e in errors if "rust binary smoke-test" not in e]
         return errors
     finally:
