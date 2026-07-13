@@ -84,3 +84,50 @@ def test_persist_block_atomic_keeps_compute_root_in_sync_with_live_meta(store):
     assert live_h == 1
     assert live_root == roots[0]
     assert str(tip.get("state_root", "")) == roots[0]
+
+
+def test_reorg_truncate_purges_evm_logs_and_tx_prop(store):
+    b0 = _block(0, state_root="0x" + "0" * 64)
+    b1 = _block(1, b0["hash"], state_root="0x" + "1" * 64)
+    b2 = _block(2, b1["hash"], state_root="0x" + "2" * 64)
+    tx1 = {
+        "hash": "0x" + "a" * 64,
+        "from_addr": "0x" + "1" * 40,
+        "to_addr": "0x" + "2" * 40,
+        "amount": 1.0,
+        "block_height": 1,
+        "timestamp": 1_700_000_001,
+    }
+    tx2 = {
+        "hash": "0x" + "b" * 64,
+        "from_addr": "0x" + "3" * 40,
+        "to_addr": "0x" + "4" * 40,
+        "amount": 2.0,
+        "block_height": 2,
+        "timestamp": 1_700_000_002,
+    }
+    store.persist_block_atomic(b0, [])
+    store.persist_block_atomic(b1, [tx1])
+    store.persist_block_atomic(b2, [tx2])
+    store.save_evm_logs(
+        "0x" + "c" * 40,
+        [{"topics": [], "data": "0x01"}],
+        block_height=1,
+        tx_hash=tx1["hash"],
+    )
+    store.save_evm_logs(
+        "0x" + "c" * 40,
+        [{"topics": [], "data": "0x02"}],
+        block_height=2,
+        tx_hash=tx2["hash"],
+    )
+    store.record_tx_propagation_event(tx2["hash"], "mempool_local", block_height=2)
+    assert store.get_evm_logs(limit=10)
+    assert store.get_tx_propagation_trace(tx2["hash"])["events"]
+
+    store.reorg_truncate_above(1)
+    assert store.get_chain_tip() == 1
+    assert store.get_evm_logs(limit=10)
+    assert not store.get_evm_logs_by_tx(tx2["hash"])
+    trace = store.get_tx_propagation_trace(tx2["hash"])
+    assert trace["events"] == [] or trace.get("status") == "unknown"

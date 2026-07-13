@@ -16,6 +16,22 @@
 
 ---
 
+## [1.2.43] — 2026-07-13
+
+### Fixed
+
+- **Rocks reorg:** purge EVM logs and tx propagation indexes above truncated height (fork safety on prod mesh)
+- **External audit:** penetration test + third-party audit cannot be marked done with `auto:` notes only
+- **Industrial gate:** smoke-test `abs_bridge_bin` when binary is present
+- **Prod gate:** `node.prod.mainnet-v1.example.json` must keep `bridge_enabled=false` until L1 contracts
+
+### Notes
+
+- Bridge outbound without `l1_tx_hash` still uses ABS-side receipt hash + L1 queue (async relayer path); L1 contracts remain future cutover work
+- 48h soak artifact still required for full mainnet readiness (`--min-soak-hours 48`)
+
+---
+
 ## [1.2.42] — 2026-07-13
 
 ### Added

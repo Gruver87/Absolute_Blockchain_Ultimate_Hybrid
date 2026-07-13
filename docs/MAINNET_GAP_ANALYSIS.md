@@ -33,9 +33,9 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 |-----------|------|--------------|
 | `bridge/dev_bridge_adapter.py` | dev/test | Yes (`bridge_mode=rust` required) |
 | `bridge/mock_l1_rpc.py` | CI only | Not loaded in prod |
-| Plasma, Lightning | dev-test | `feature_*=false` |
-| WASM VM | r-and-d | Blocked (not real WASM) |
-| ZK proofs | r-and-d | Blocked (educational Fiat–Shamir) |
+| Plasma, Lightning | dev-test | `feature_*=false` in prod; v1.2.42+ implementations are **working R&D** (SQLite aux), not mainnet tier |
+| WASM VM | r-and-d | Blocked in prod profile; wasmtime path for binary modules |
+| ZK proofs | r-and-d | Blocked (Fiat–Shamir R&D) |
 | Post-quantum Dilithium | r-and-d | Blocked (not NIST ML-DSA) |
 | AI validator/agents | dev-test / analysis | Blocked |
 | Sharding routing MVP | routing | Blocked |
@@ -72,7 +72,7 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 - [x] **Signed tx on prod mesh** — `prod_signed_tx_smoke.py` PASS (n2/n3 propagation; `logs/evidence_signed_tx.log`)
 - [x] **EVM deploy/call on prod RPC ports** — `prod_evm_smoke.py` mempool path PASS (Jul 12 evening; storage on all 3 RPC)
 - [ ] **Soak 24–48h+** completed with `soak_report.json` passed (**48h IN PROGRESS** — `logs/soak_48h_v1.2.30.log`)
-- [ ] **External security audit** — tracker incomplete
+- [ ] **External security audit** — third-party firm; auto-checkmarks no longer satisfy strict gate (v1.2.43)
 
 **API hardening (v1.2.28):** direct `POST /contract/deploy` without `via_mempool` is rejected in production — mempool signed deploy only.
 
@@ -102,7 +102,7 @@ Operator sequence: [MAINNET_CUTOVER.md](MAINNET_CUTOVER.md).
 | State | Unify `Database` / `ImmutableStateManager` / `StateEngine` |
 | Consensus | Single canonical fork-choice + finality path | **unified in prod** (v1.2.30); dev keeps parallel engines |
 | Bridge | On-chain lock/mint contracts + monitored relayer (not proof-only) |
-| Storage | RocksDB prod + backup/restore scripts; aux.db scope documented |
+| Storage | RocksDB prod + backup/restore; **reorg purges EVM/tx-prop indexes** (v1.2.43); aux.db scope documented |
 | Tests | E2E prod boot CI, prod P2P mesh, live `prod_smoke` in pipeline |
 | Tests | ✅ CI: `industrial_gate.py`, prod boot E2E, `verify_p2p_ci --mode prod-smoke` |
 

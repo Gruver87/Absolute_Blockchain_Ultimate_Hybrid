@@ -985,12 +985,36 @@ class RocksChainStore:
         for key, value in list(self._scan_prefix(kc.P_STATE_ROOT_MM)):
             if len(key) >= 9 and kc.unpack_u64(key[1:9]) > cut:
                 self._raw_delete(key)
+        self._purge_height_scoped_indexes(cut)
         tip = self.get_block(cut)
         if tip:
             self._touch_live_state_root_meta(tip)
         else:
             for meta_key in ("live_state_root", "live_state_root_height", "state_root"):
                 self._raw_delete(kc.key_meta(meta_key))
+
+    def _purge_height_scoped_indexes(self, cut: int) -> None:
+        """Remove secondary Rocks indexes tied to blocks above *cut* (reorg safety)."""
+        cut = int(cut)
+        for key, _value in list(self._scan_prefix(kc.prefix_evm_logs())):
+            if len(key) >= 9 and kc.unpack_u64(key[1:9]) > cut:
+                self._raw_delete(key)
+        for key, value in list(self._scan_prefix(kc.P_EVM_LOG_TX)):
+            try:
+                row = json.loads(value.decode("utf-8"))
+                bh = int(row.get("block_height", 0) or 0)
+            except Exception:
+                bh = 0
+            if bh > cut:
+                self._raw_delete(key)
+        for key, value in list(self._scan_prefix(kc.prefix_tx_prop_all())):
+            try:
+                row = json.loads(value.decode("utf-8"))
+                bh = int(row.get("block_height", 0) or 0)
+            except Exception:
+                bh = 0
+            if bh > cut:
+                self._raw_delete(key)
 
     def truncate_chain_state(self, height: int) -> int:
         with self.atomic():

@@ -42,6 +42,25 @@ def _check_native_wheel() -> tuple[list[str], list[str]]:
     return errors, warnings
 
 
+def _check_rust_bridge_binary() -> tuple[list[str], list[str]]:
+    """Smoke-test abs_bridge_bin when present (optional warning if missing)."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    from runtime.config import Config
+
+    cfg = Config()
+    path = cfg.resolve_rust_bridge_path()
+    if not path or not __import__("os").path.isfile(path):
+        warnings.append(f"abs_bridge_bin missing: {path or '(unset)'}")
+        return errors, warnings
+    from bridge.health import check_rust_bridge_binary
+
+    result = check_rust_bridge_binary(path)
+    if not result.get("ok"):
+        errors.append(f"abs_bridge_bin smoke failed: {result.get('error')}")
+    return errors, warnings
+
+
 def run_industrial_gate(
     *,
     prod_smoke_spawn: bool = False,
@@ -52,6 +71,7 @@ def run_industrial_gate(
     import importlib.util
 
     native_errors, native_warnings = _check_native_wheel()
+    bridge_errors, bridge_warnings = _check_rust_bridge_binary()
     soak_errors: list[str] = []
     ceremony_errors: list[str] = []
     ceremony_warnings: list[str] = []
@@ -104,8 +124,10 @@ def run_industrial_gate(
     )
     errors.extend(soak_errors)
     errors.extend(native_errors)
+    errors.extend(bridge_errors)
     errors.extend(ceremony_errors)
     warnings.extend(native_warnings)
+    warnings.extend(bridge_warnings)
     warnings.extend(ceremony_warnings)
     report = {
         "ok": not errors,

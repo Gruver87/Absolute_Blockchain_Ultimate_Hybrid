@@ -19,6 +19,8 @@ PROD_FILES = [
     "node.prod.mainnet-v1.bridge.example.json",
 ]
 
+MAINNET_V1_PROFILE = "node.prod.mainnet-v1.example.json"
+
 BRIDGE_PROD_FILES = [
     "node.prod.mainnet-v1.bridge.example.json",
 ]
@@ -96,6 +98,12 @@ def check_file(path: str) -> list[str]:
     elif chain_id != MAINNET_V1_CHAIN_ID:
         errors.append(
             f"{path}: chain_id {chain_id} must be MAINNET_V1_CHAIN_ID ({MAINNET_V1_CHAIN_ID})"
+        )
+
+    if path == MAINNET_V1_PROFILE and cfg.get("bridge_enabled"):
+        errors.append(
+            f"{path}: bridge_enabled must be false until L1 lock/mint contracts "
+            "are deployed (use node.prod.mainnet-v1.bridge.example.json for cutover lab)"
         )
 
     if path in BRIDGE_PROD_FILES:

@@ -44,6 +44,11 @@ def save_status(path: Path, items: Dict[str, Any]) -> Path:
 
 from runtime.mainnet_constants import DEVNET_CHAIN_ID, MAINNET_V1_CHAIN_ID
 
+HUMAN_REQUIRED_AUDIT_ITEMS = frozenset({
+    "External penetration test scheduled",
+    "Third-party smart-contract / L1 security audit completed",
+})
+
 AUTOMATED_ITEMS = {
     "Disaster recovery drill for multi-node devnet completed",
     "CORS and RPC API keys reviewed for production origins",
@@ -227,6 +232,10 @@ def evaluate(
     for label in items_checklist:
         row = stored.get(label) or {}
         done = bool(row.get("done"))
+        note = str(row.get("note") or "")
+        if done and label in HUMAN_REQUIRED_AUDIT_ITEMS:
+            if note.startswith("auto:") or len(note.strip()) < 8:
+                done = False
         rows.append({
             "label": label,
             "done": done,
