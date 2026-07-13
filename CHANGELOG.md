@@ -30,6 +30,23 @@
 
 ---
 
+---
+
+## [1.2.64] — 2026-07-13
+
+### Added
+
+- **Optional P2P wire TLS** — `network/p2p_tls.py`, config/env `P2P_TLS_*`, fail-closed start when enabled but misconfigured
+- **`scripts/gen_p2p_dev_tls.py`** — dev CA + node cert generator (OpenSSL)
+- **`docs/P2P_TLS.md`** — P2P TLS vs nginx HTTP TLS
+- **`GET /p2p/security.tls`** — readiness block
+
+### Changed
+
+- Industrial gate warns when prod profile runs with `p2p_tls_enabled=false`
+
+---
+
 ## [1.2.63] — 2026-07-13
 
 ### Added

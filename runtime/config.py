@@ -92,6 +92,11 @@ class Config:
     p2p_ban_seconds: int = 300                    # temp ban after repeated abuse
     p2p_rate_limit_strikes: int = 5               # strikes before ban
     p2p_evict_min_score: int = 0                  # evict peers below score when >1 peer (0=off)
+    p2p_tls_enabled: bool = False                 # TLS on P2P wire (mainnet / public mesh)
+    p2p_tls_cert_path: str = ""                   # node cert (PEM)
+    p2p_tls_key_path: str = ""                    # node private key (PEM)
+    p2p_tls_ca_path: str = ""                     # CA bundle for peer verify / mTLS
+    p2p_tls_require_client_cert: bool = False     # mTLS: require client cert from peers
     sync_batch_size: int = 100          # блоков за один запрос синхронизации
 
     # ── EVM ─────────────────────────────────────────────────────────────────
@@ -263,6 +268,13 @@ class Config:
         )
         self.p2p_evict_min_score = env_int(
             "P2P_EVICT_MIN_SCORE", self.p2p_evict_min_score
+        )
+        self.p2p_tls_enabled = env_bool("P2P_TLS_ENABLED", self.p2p_tls_enabled)
+        self.p2p_tls_cert_path = env_str("P2P_TLS_CERT_PATH", self.p2p_tls_cert_path)
+        self.p2p_tls_key_path = env_str("P2P_TLS_KEY_PATH", self.p2p_tls_key_path)
+        self.p2p_tls_ca_path = env_str("P2P_TLS_CA_PATH", self.p2p_tls_ca_path)
+        self.p2p_tls_require_client_cert = env_bool(
+            "P2P_TLS_REQUIRE_CLIENT_CERT", self.p2p_tls_require_client_cert
         )
         self.log_level = env_str("LOG_LEVEL", self.log_level)
         self.log_json = env_bool("LOG_JSON", self.log_json)

@@ -48,6 +48,12 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
     for attr in ("get_p2p_security_status", "_maintenance_loop", "_strike_peer_sync"):
         if not hasattr(P2PNode, attr):
             errors.append(f"P2PNode missing {attr}")
+    try:
+        from network import p2p_tls  # noqa: F401
+    except ImportError as exc:
+        errors.append(f"network.p2p_tls import failed: {exc}")
+    if getattr(cfg, "deployment_mode", "") == "prod" and not getattr(cfg, "p2p_tls_enabled", False):
+        warnings.append("prod profile: p2p_tls_enabled=false (enable for public mainnet wire)")
     return errors, warnings
 
 

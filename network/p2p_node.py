@@ -19,6 +19,14 @@ import threading
 import logging
 from typing import Dict, List, Optional, Callable, Any, Tuple
 
+from network.p2p_tls import (
+    build_p2p_client_ssl_context,
+    build_p2p_server_ssl_context,
+    p2p_tls_enabled,
+    p2p_tls_status,
+    validate_p2p_tls_config,
+)
+
 logger = logging.getLogger("P2P")
 
 # Fail closed on oversized wire payloads (DoS hardening).
@@ -333,12 +341,25 @@ class P2PNode:
 
         # Запускаем TCP-сервер
         try:
+            if p2p_tls_enabled(self.config):
+                tls_errors, tls_warn = validate_p2p_tls_config(self.config)
+                for warn in tls_warn:
+                    logger.warning("[P2P] TLS: %s", warn)
+                if tls_errors:
+                    print(f"[P2P] TLS enabled but misconfigured: {tls_errors}")
+                    self._running = False
+                    return
+            server_ssl = build_p2p_server_ssl_context(self.config)
             self._server = await asyncio.start_server(
                 self._handle_incoming,
                 self.config.p2p_host,
                 self.config.p2p_port,
+                ssl=server_ssl,
             )
-            print(f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port}")
+            tls_label = "tls" if server_ssl else "plain"
+            print(
+                f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} ({tls_label})"
+            )
         except OSError as e:
             print(f"[P2P] Could not bind port {self.config.p2p_port}: {e}")
             print("[P2P] Hint: stop other node — .\\scripts\\stop_node.ps1 — or use --port 5001")
@@ -430,8 +451,10 @@ class P2PNode:
             return False
 
         try:
+            client_ssl = build_p2p_client_ssl_context(self.config)
             reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(host, port), timeout=10
+                asyncio.open_connection(host, port, ssl=client_ssl),
+                timeout=10,
             )
             peer = PeerConnection(reader, writer)
             peer.host = host
@@ -1897,4 +1920,5 @@ class P2PNode:
             "tracked_strikes": len(self._peer_strikes),
             "handshake_rejects": int(self._handshake_rejects),
             "rate_limit_exempt_types": len(RATE_LIMIT_EXEMPT_TYPES),
+            "tls": p2p_tls_status(self.config),
         }
