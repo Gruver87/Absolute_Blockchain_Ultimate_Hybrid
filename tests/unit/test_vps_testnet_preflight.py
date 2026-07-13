@@ -27,7 +27,16 @@ def test_vps_preflight_static_ok():
     errors, warnings, meta = mod.run_vps_testnet_preflight(live=False)
     assert meta.get("chain_id") == 77777
     assert "deploy_steps" in meta
+    assert "dns_cutover_probe" in meta
+    assert "bootstrap_mesh3_script" in meta
     assert isinstance(warnings, list)
+
+
+def test_vps_preflight_mesh3_deploy_steps():
+    mod = _load("vps_testnet_preflight", "scripts/vps_testnet_preflight.py")
+    _errors, _warnings, meta = mod.run_vps_testnet_preflight(live=False, mesh3=True)
+    assert any("bootstrap_mesh3" in step for step in meta["deploy_steps"])
+    assert any("verify_testnet_mesh.py --mesh3" in step for step in meta["deploy_steps"])
 
 
 def test_vps_preflight_write_report(tmp_path, monkeypatch):

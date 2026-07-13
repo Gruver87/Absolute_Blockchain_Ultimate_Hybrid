@@ -16,6 +16,8 @@ Local proof already done: `testnet_evidence_suite.ps1` on `:19080`.
 
 ## 2. Bootstrap on server
 
+**Seed only:**
+
 ```bash
 git clone https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid.git
 cd Absolute_Blockchain_Ultimate_Hybrid
@@ -25,12 +27,20 @@ bash scripts/vps_testnet_bootstrap.sh
 python3 scripts/public_testnet_gate.py --live --base-url http://127.0.0.1:19080
 ```
 
+**3-node mesh (seed + 2 validators):**
+
+```bash
+bash scripts/vps_testnet_bootstrap_mesh3.sh
+python3 scripts/verify_testnet_mesh.py --mesh3 --wait 120
+```
+
 ---
 
 ## 3. TLS (nginx)
 
 ```bash
 sudo apt install nginx certbot python3-certbot-nginx
+sudo mkdir -p /var/www/certbot
 sudo bash deploy/nginx/install_testnet_nginx.sh testnet.yourdomain.com
 sudo certbot --nginx -d testnet.yourdomain.com
 sudo nginx -t && sudo systemctl reload nginx
@@ -53,13 +63,16 @@ Snapshot: `logs/testnet_uptime.json` · history: `logs/testnet_uptime.jsonl`
 
 ```bash
 curl -s https://testnet.yourdomain.com/api/health/ready
+python3 scripts/testnet_dns_cutover.py --domain testnet.yourdomain.com
 python3 scripts/public_testnet_gate.py --live --base-url https://testnet.yourdomain.com/api
 ```
 
 From your workstation (after DNS):
 
 ```powershell
+.\scripts\prepare_testnet_dns_cutover.ps1 -Domain testnet.yourdomain.com
 .\scripts\public_testnet_gate.ps1 -Live -BaseUrl https://testnet.yourdomain.com/api
+.\scripts\prepare_vps_testnet.ps1 -Live -Mesh3
 ```
 
 ---

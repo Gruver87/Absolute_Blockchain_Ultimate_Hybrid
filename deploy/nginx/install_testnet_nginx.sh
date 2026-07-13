@@ -26,6 +26,7 @@ rm -f "$tmp"
 sudo ln -sf "$AVAILABLE" "$ENABLED"
 
 echo "OK: installed $AVAILABLE (server_name=$DOMAIN)"
+echo "  Certbot webroot: sudo mkdir -p /var/www/certbot"
 echo "  Test config:  sudo nginx -t"
 echo "  Reload:       sudo systemctl reload nginx"
 echo "  TLS:          sudo certbot --nginx -d $DOMAIN"

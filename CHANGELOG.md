@@ -32,6 +32,25 @@
 
 ---
 
+## [1.2.72] — 2026-07-14
+
+### Added
+
+- **`scripts/testnet_dns_cutover.py`** — DNS resolve + HTTPS `/api` probe before public cutover
+- **`scripts/prepare_testnet_dns_cutover.ps1`** — workstation wrapper for DNS/TLS verification
+- **`scripts/vps_testnet_bootstrap_mesh3.sh`** — Linux VPS 3-node testnet mesh bootstrap
+- **`vps_testnet_preflight.py --mesh3` / `--domain`** — mesh3 deploy steps + optional HTTPS cutover probe
+- **`tests/unit/test_testnet_dns_cutover.py`**
+
+### Changed
+
+- **`vps_testnet_bootstrap.sh`** — optional `--mesh3` / `MESH3=1` for validator overlay
+- **`deploy/nginx/testnet.example.conf`** — port 80 ACME + HTTPS redirect for certbot
+- **`prepare_vps_testnet.ps1`** — `-Mesh3`, `-Domain` flags
+- **`docs/VPS_DEPLOY.md`**, **`docs/PUBLIC_TESTNET.md`** — VPS mesh3 + DNS cutover path
+
+---
+
 ## [1.2.71] — 2026-07-14
 
 ### Added
