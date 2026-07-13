@@ -25,6 +25,7 @@ Target (example): `https://testnet.absolute-chain.org` → explorer + RPC behind
 - [x] Soak restart with v1.2.31+ timeouts: `.\scripts\restart_soak_prod_mesh.ps1 -Hours 48`
 - [x] Failover drill on prod mesh (`prod_mesh_failover.ps1`) with recorded heights
 - [ ] `probe_mesh_nodes.ps1` green on all HTTP/RPC/P2P ports
+- [x] Testnet mesh verify: `.\scripts\docker_testnet_mesh.ps1` / `probe_testnet_mesh.ps1 -Deep`
 - [ ] `GET /chain/consistency/harness` aligned on all validators
 - [ ] DR rehearsal passed (`dr_restore_rehearsal.ps1 -DockerMesh1`)
 

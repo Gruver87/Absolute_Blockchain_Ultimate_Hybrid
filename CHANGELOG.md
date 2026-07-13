@@ -32,6 +32,23 @@
 
 ---
 
+## [1.2.70] — 2026-07-14
+
+### Added
+
+- **`scripts/verify_testnet_mesh.py`** — 2-node public testnet mesh verify (seed :19080 + validator :19081, `/testnet/mesh`)
+- **`scripts/docker_testnet_mesh.ps1`** — start seed+validator and verify sync
+- **`scripts/probe_testnet_mesh.ps1`** — quick port probe for testnet mesh
+- **`public_testnet_gate.py --mesh`** — optional 2-node mesh check in live gate
+- **`tests/unit/test_verify_testnet_mesh.py`**
+
+### Changed
+
+- **`docker/node.testnet.seed.json`** / **validator** — `testnet_expected_peers: 1` for 2-node mesh health
+- **`testnet_evidence_suite.ps1`** — mesh verify when `-WithValidator`
+
+---
+
 ## [1.2.69] — 2026-07-14
 
 ### Added

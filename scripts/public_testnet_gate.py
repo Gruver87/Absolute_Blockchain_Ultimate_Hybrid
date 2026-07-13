@@ -23,6 +23,9 @@ _REQUIRED_FILES = (
     "scripts/vps_testnet_preflight.py",
     "scripts/vps_testnet_bootstrap.sh",
     "scripts/testnet_uptime_probe.py",
+    "scripts/verify_testnet_mesh.py",
+    "scripts/docker_testnet_mesh.ps1",
+    "scripts/probe_testnet_mesh.ps1",
     "scripts/testnet_readiness.ps1",
     "docs/PUBLIC_TESTNET.md",
 )
@@ -91,6 +94,7 @@ def run_public_testnet_gate(
     base_url: str = "http://127.0.0.1:19080",
     require_soak_hours: float = 0,
     soak_report: str = "logs/soak_report.json",
+    mesh: bool = False,
 ) -> Tuple[List[str], List[str], Dict[str, Any]]:
     errors: List[str] = []
     warnings: List[str] = []
@@ -140,6 +144,19 @@ def run_public_testnet_gate(
         meta.update(live_meta)
         errors.extend([f"live:{e}" for e in live_errors])
 
+    if mesh:
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import verify_testnet_mesh
+
+        mesh_errors, mesh_warnings, mesh_meta = verify_testnet_mesh.verify_testnet_mesh(
+            seed_url=base_url,
+            validator_url="http://127.0.0.1:19081",
+            wait_sec=0,
+        )
+        meta["mesh_verify"] = mesh_meta
+        errors.extend([f"mesh:{e}" for e in mesh_errors])
+        warnings.extend(mesh_warnings)
+
     meta["ok"] = not errors
     return errors, warnings, meta
 
@@ -155,6 +172,11 @@ def main() -> int:
         help="Require prod mesh soak_report hours (0=skip)",
     )
     parser.add_argument("--soak-report", default="logs/soak_report.json")
+    parser.add_argument(
+        "--mesh",
+        action="store_true",
+        help="Also verify 2-node mesh on :19080/:19081",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
@@ -163,6 +185,7 @@ def main() -> int:
         base_url=args.base_url,
         require_soak_hours=args.require_soak_hours,
         soak_report=args.soak_report,
+        mesh=args.mesh,
     )
 
     out = ROOT / "data" / "public_testnet_gate.json"

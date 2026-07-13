@@ -12,6 +12,7 @@
   "rpc_port": 8545,
   "ws_port": 8766,
   "bootstrap_peers": ["testnet-seed:5000"],
+  "testnet_expected_peers": 1,
   "mining_enabled": true,
   "require_signatures": true,
   "enforce_proposer": false,

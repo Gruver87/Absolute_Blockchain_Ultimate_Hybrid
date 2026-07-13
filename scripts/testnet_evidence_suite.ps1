@@ -53,6 +53,12 @@ if (-not $SkipReadiness) {
     }
 }
 
+if ($WithValidator) {
+    Step "verify_testnet_mesh" {
+        python (Join-Path $ScriptDir "verify_testnet_mesh.py") --mesh --wait 90
+    }
+}
+
 python (Join-Path $ScriptDir "record_evidence_run.py") `
     --name public_testnet_seed_live `
     --result PASS `
