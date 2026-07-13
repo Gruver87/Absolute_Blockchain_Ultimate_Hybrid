@@ -1161,6 +1161,21 @@ class RESTHandler(BaseHTTPRequestHandler):
                         }
                     except Exception:
                         p2p_summary = {"enabled": True, "running": bool(getattr(p2p, "_running", False))}
+                monolith_summary = {
+                    "deployment_mode": getattr(cfg, "deployment_mode", "dev"),
+                    "chain_id": cfg.chain_id,
+                    "p2p": {
+                        "hardened": int(getattr(cfg, "p2p_max_messages_per_sec", 0) or 0) > 0,
+                        "sync_status": p2p_sync_status,
+                        "peer_count": peer_count,
+                        "topology_healthy": p2p_summary.get("topology_healthy"),
+                        "active_bans": (p2p_summary.get("security") or {}).get("active_bans", 0),
+                    },
+                    "consensus_unified": bool(consensus_info.get("unified_path")),
+                    "native_crypto_ready": bool((native_crypto or {}).get("available")),
+                    "bridge_enabled": bool(cfg.bridge_enabled),
+                    "state_root_strict_p2p": bool(getattr(cfg, "state_root_strict_p2p", True)),
+                }
                 self._json({
                     "status": "running",
                     "node_version": cfg.node_version,
@@ -1175,6 +1190,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "mesh_min_peers": mesh_min_peers,
                     "p2p_sync_status": p2p_sync_status,
                     "p2p_summary": p2p_summary,
+                    "monolith_summary": monolith_summary,
                     "mempool_size": mp.get_size(),
                     "mempool_stats": mp_stats,
                     "sharding": sharding_info,

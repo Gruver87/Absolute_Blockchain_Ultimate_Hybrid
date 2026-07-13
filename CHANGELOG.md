@@ -20,6 +20,17 @@
 
 ---
 
+---
+
+## [1.2.59] — 2026-07-13
+
+### Added
+
+- **P2P `_maintenance_loop`** — periodic stale/unhealthy peer eviction and ban expiry
+- **`GET /status.monolith_summary`** — compact readiness snapshot (P2P, consensus, native crypto, bridge)
+
+---
+
 ## [1.2.58] — 2026-07-13
 
 ### Added

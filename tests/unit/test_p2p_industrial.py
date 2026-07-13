@@ -223,6 +223,25 @@ def test_peer_health_score_helper():
     assert _peer_health_score(height_gap=0, last_seen_age=70, health_timeout=60) == 50
 
 
+def test_p2p_maintenance_loop_prunes_stale_peers():
+    from network.p2p_node import P2PNode
+
+    class _Chain:
+        def get_height(self):
+            return 10
+
+    cfg = Config()
+    cfg.peer_timeout = 5
+    p2p = P2PNode(cfg, _Chain(), None)
+    stale = PeerConnection(_FakeReader(b""), _FakeWriter())
+    stale.peer_id = "stale"
+    stale.last_seen = time.time() - 999
+    p2p.peers = {"stale": stale}
+    removed = p2p._prune_stale_peers(max_age=30)
+    assert removed == 1
+    assert "stale" not in p2p.peers
+
+
 def test_verify_p2p_security_mesh_ok(monkeypatch):
     mod = _load_verify_p2p()
     calls = []

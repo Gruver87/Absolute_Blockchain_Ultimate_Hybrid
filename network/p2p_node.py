@@ -338,6 +338,7 @@ class P2PNode:
         asyncio.create_task(self._ping_loop())
         asyncio.create_task(self._discovery_loop())
         asyncio.create_task(self._bootstrap_retry_loop())
+        asyncio.create_task(self._maintenance_loop())
         asyncio.create_task(self._solo_node_hint())
         asyncio.create_task(self._catch_up_loop())
 
@@ -1701,6 +1702,21 @@ class P2PNode:
                 parts = peer_addr.split(":")
                 if len(parts) == 2:
                     asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
+
+    async def _maintenance_loop(self):
+        """Periodic peer hygiene: stale eviction, ban expiry, low-score drops."""
+        interval = max(
+            15.0,
+            float(getattr(self.config, "peer_timeout", 30) or 30),
+        )
+        while self._running:
+            await asyncio.sleep(interval)
+            try:
+                removed = self._prune_stale_peers()
+                if removed:
+                    logger.info("[P2P] maintenance pruned %s peer(s)", removed)
+            except Exception as exc:
+                logger.debug("[P2P] maintenance_loop: %s", exc)
 
     async def _catch_up_loop(self):
         """Периодически догоняем пиров с большей высотой."""
