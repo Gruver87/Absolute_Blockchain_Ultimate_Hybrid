@@ -12,6 +12,45 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
+def _check_p2p_hardening() -> tuple[list[str], list[str]]:
+    """Static P2P industrial surface checks (no live mesh required)."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    from network.p2p_node import (
+        ALLOWED_WIRE_TYPES,
+        DEFAULT_MAX_P2P_LINE_BYTES,
+        P2PNode,
+        RATE_LIMIT_EXEMPT_TYPES,
+    )
+    from runtime.config import Config
+
+    required_types = {
+        "handshake",
+        "handshake_ack",
+        "new_block",
+        "block",
+        "blocks",
+        "status",
+        "state_root_request",
+        "state_root_response",
+    }
+    missing = required_types - ALLOWED_WIRE_TYPES
+    if missing:
+        errors.append(f"P2P allowlist missing types: {sorted(missing)}")
+    if not RATE_LIMIT_EXEMPT_TYPES.intersection({"block", "blocks", "status"}):
+        errors.append("P2P rate-limit exempt set missing sync types")
+
+    cfg = Config()
+    if int(getattr(cfg, "p2p_max_message_bytes", 0) or 0) < DEFAULT_MAX_P2P_LINE_BYTES // 2:
+        warnings.append("p2p_max_message_bytes lower than industrial default")
+    if int(getattr(cfg, "p2p_max_messages_per_sec", 0) or 0) <= 0:
+        warnings.append("p2p_max_messages_per_sec disabled (0)")
+    for attr in ("get_p2p_security_status", "_maintenance_loop", "_strike_peer_sync"):
+        if not hasattr(P2PNode, attr):
+            errors.append(f"P2PNode missing {attr}")
+    return errors, warnings
+
+
 def _check_native_wheel() -> tuple[list[str], list[str]]:
     """Require abs_native self-test and prod-critical exports when wheel is present."""
     errors: list[str] = []
@@ -75,6 +114,7 @@ def run_industrial_gate(
 
     native_errors, native_warnings = _check_native_wheel()
     bridge_errors, bridge_warnings = _check_rust_bridge_binary()
+    p2p_errors, p2p_warnings = _check_p2p_hardening()
     soak_errors: list[str] = []
     ceremony_errors: list[str] = []
     ceremony_warnings: list[str] = []
@@ -131,9 +171,11 @@ def run_industrial_gate(
     errors.extend(soak_errors)
     errors.extend(native_errors)
     errors.extend(bridge_errors)
+    errors.extend(p2p_errors)
     errors.extend(ceremony_errors)
     warnings.extend(native_warnings)
     warnings.extend(bridge_warnings)
+    warnings.extend(p2p_warnings)
     warnings.extend(ceremony_warnings)
     report = {
         "ok": not errors,
@@ -142,6 +184,7 @@ def run_industrial_gate(
         "warnings": warnings,
         "sections": sections,
         "native_wheel": not native_errors,
+        "p2p_hardening": not p2p_errors,
     }
 
     if prod_smoke_spawn:

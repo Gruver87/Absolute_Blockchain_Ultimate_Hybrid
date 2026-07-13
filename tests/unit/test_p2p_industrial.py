@@ -134,16 +134,39 @@ def test_consistency_harness_uses_long_timeout_on_prod_ports(monkeypatch):
 
 
 def test_p2p_rate_limit_drops_excess_messages():
-    from network.p2p_node import P2PNode
+    from network.p2p_node import P2PNode, MSG_PING
     from runtime.config import Config
 
     cfg = Config()
     cfg.p2p_max_messages_per_sec = 3
     p2p = P2PNode(cfg, None, None)
+    assert p2p._rate_limit_ok("peer-a", MSG_PING) is True
     assert p2p._rate_limit_ok("peer-a") is True
     assert p2p._rate_limit_ok("peer-a") is True
     assert p2p._rate_limit_ok("peer-a") is True
     assert p2p._rate_limit_ok("peer-a") is False
+
+
+def test_p2p_rate_limit_exempts_sync_types():
+    from network.p2p_node import MSG_BLOCK, MSG_STATUS, P2PNode
+    from runtime.config import Config
+
+    cfg = Config()
+    cfg.p2p_max_messages_per_sec = 2
+    p2p = P2PNode(cfg, None, None)
+    for _ in range(20):
+        assert p2p._rate_limit_ok("peer-sync", MSG_BLOCK) is True
+        assert p2p._rate_limit_ok("peer-sync", MSG_STATUS) is True
+
+
+def test_industrial_gate_p2p_hardening_check():
+    ig_path = os.path.join(ROOT, "scripts", "industrial_gate.py")
+    spec = importlib.util.spec_from_file_location("industrial_gate", ig_path)
+    ig = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(ig)
+    errors, warnings = ig._check_p2p_hardening()
+    assert not errors, errors
 
 
 def test_p2p_strike_bans_after_threshold():

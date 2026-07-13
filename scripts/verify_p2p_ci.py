@@ -1559,6 +1559,9 @@ def verify_pair(url1: str, url2: str, wait_sync_sec: int = 240, max_mining_gap: 
         return 5
     if not _verify_tx_propagation(url1, url2, s1):
         return 7
+    sec_rc = verify_p2p_security_mesh([url1, url2])
+    if sec_rc != 0:
+        return sec_rc
     return verify_state_consistency([url1, url2], s1)
 
 

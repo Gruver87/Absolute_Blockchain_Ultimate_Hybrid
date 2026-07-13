@@ -26,6 +26,23 @@
 
 ---
 
+---
+
+## [1.2.62] — 2026-07-13
+
+### Added
+
+- **Rate-limit exempt wire types** — `block`, `blocks`, `status`, handshake/ping/state-root not counted (safe sync bursts on prod hub)
+- **`industrial_gate` P2P hardening check** — static allowlist, security surface, config defaults
+- **`verify_pair`** runs `verify_p2p_security_mesh` (2-node devnet + CI)
+
+### Changed
+
+- P2P maintenance clears strike counters for disconnected peers
+- `/p2p/security` reports `rate_limit_exempt_types` count
+
+---
+
 ## [1.2.61] — 2026-07-13
 
 ### Added

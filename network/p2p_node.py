@@ -96,6 +96,20 @@ ALLOWED_WIRE_TYPES = frozenset({
     MSG_SHARD_MIGRATION,
 })
 
+# Housekeeping + sync payloads are not counted toward per-peer rate limits.
+RATE_LIMIT_EXEMPT_TYPES = frozenset({
+    MSG_HANDSHAKE,
+    MSG_HANDSHAKE_ACK,
+    MSG_PING,
+    MSG_PONG,
+    MSG_IDLE,
+    MSG_STATUS,
+    MSG_STATE_ROOT_REQUEST,
+    MSG_STATE_ROOT_RESPONSE,
+    MSG_BLOCK,
+    MSG_BLOCKS,
+})
+
 
 def _peer_health_score(
     *,
@@ -512,7 +526,7 @@ class P2PNode:
                 if msg.get("type") == MSG_IDLE:
                     continue
                 peer.touch()
-                if not self._rate_limit_ok(peer.peer_id):
+                if not self._rate_limit_ok(peer.peer_id, msg.get("type")):
                     continue
                 await self._handle_message(peer, msg)
         finally:
@@ -560,8 +574,10 @@ class P2PNode:
         logger.warning("[P2P] banned %s for %ss (%s)", key, ban_sec, reason)
         return True
 
-    def _rate_limit_ok(self, peer_id: str) -> bool:
-        """Per-peer message rate limit (0 = disabled)."""
+    def _rate_limit_ok(self, peer_id: str, msg_type: Optional[str] = None) -> bool:
+        """Per-peer message rate limit (0 = disabled). Sync/housekeeping types exempt."""
+        if msg_type in RATE_LIMIT_EXEMPT_TYPES:
+            return True
         limit = int(getattr(self.config, "p2p_max_messages_per_sec", 0) or 0)
         if limit <= 0 or not peer_id:
             return True
@@ -1714,6 +1730,10 @@ class P2PNode:
                 removed = self._prune_stale_peers()
                 if removed:
                     logger.info("[P2P] maintenance pruned %s peer(s)", removed)
+                active_keys = {self._peer_key(p) for p in self.peers.values()}
+                for key in list(self._peer_strikes):
+                    if key not in active_keys:
+                        self._peer_strikes.pop(key, None)
             except Exception as exc:
                 logger.debug("[P2P] maintenance_loop: %s", exc)
 
@@ -1876,4 +1896,5 @@ class P2PNode:
             "banned": active_bans[:20],
             "tracked_strikes": len(self._peer_strikes),
             "handshake_rejects": int(self._handshake_rejects),
+            "rate_limit_exempt_types": len(RATE_LIMIT_EXEMPT_TYPES),
         }
