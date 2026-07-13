@@ -146,6 +146,16 @@ def get_block_number(rpc_url: str) -> int:
     result = _rpc_call(rpc_url, "eth_blockNumber", [])
     return _parse_hex_int(result)
 
+def get_contract_code(rpc_url: str, address: str, *, timeout: float = 10.0) -> str:
+    """Return EVM bytecode at address (eth_getCode)."""
+    if not rpc_url or not address:
+        return "0x"
+    try:
+        result = _rpc_call(rpc_url, "eth_getCode", [address, "latest"], timeout=timeout)
+        return str(result or "0x")
+    except Exception:
+        return "0x"
+
 
 def get_tx_confirmations(rpc_url: str, tx_hash: str) -> Optional[int]:
     """

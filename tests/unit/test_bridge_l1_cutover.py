@@ -46,6 +46,28 @@ def test_cutover_gate_static_ok_with_valid_rpc(monkeypatch):
     assert meta["ok"] is True
 
 
+def test_cutover_probe_l1_fails_on_empty_contract_code(monkeypatch):
+    monkeypatch.setenv("ETH_RPC_URL", "https://mainnet.infura.io/v3/testkey")
+    monkeypatch.setenv("BRIDGE_L1_LOCK_CONTRACT", "0x" + "11" * 20)
+    monkeypatch.setenv("BRIDGE_L1_MINT_CONTRACT", "0x" + "22" * 20)
+    monkeypatch.setenv("BRIDGE_L1_CHAIN", "ethereum")
+    monkeypatch.setenv("RUST_BRIDGE_PATH", __file__)
+    # Skip real RPC probe; focus on contract code verification.
+    import runtime.config as runtime_config
+
+    monkeypatch.setattr(runtime_config.Config, "validate", lambda self: [])
+    import bridge.health as health
+
+    monkeypatch.setattr(health, "check_l1_rpc_health", lambda *a, **k: {"required": True, "ok": True})
+    monkeypatch.setattr(health, "check_rust_bridge_binary", lambda *a, **k: {"ok": True})
+    # Simulate eth_getCode returning empty.
+    import bridge.l1_rpc as l1_rpc
+
+    monkeypatch.setattr(l1_rpc, "get_contract_code", lambda *a, **k: "0x")
+    errors, _warnings, _meta = run_cutover_gate(probe_l1=True)
+    assert any("empty bytecode" in e for e in errors)
+
+
 def test_resolve_live_base_url_prefers_docker_prod_without_bridge():
     from bridge_l1_cutover import resolve_live_base_url
 

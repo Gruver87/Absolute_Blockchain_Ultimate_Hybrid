@@ -161,6 +161,26 @@ def run_preflight(
         msg = "BRIDGE_L1_MINT_CONTRACT missing/placeholder (required for real cutover)"
         (errors if probe_l1 else warnings).append(msg)
 
+    if probe_l1 and not errors:
+        # Validate that contracts are actually deployed (non-empty bytecode).
+        from bridge.l1_rpc import chain_rpc_url, get_contract_code
+
+        chain = (
+            str(os.environ.get("BRIDGE_L1_CHAIN", "") or "").strip()
+            or str(cfg_data.get("bridge_l1_chain", "") or "").strip()
+            or "ethereum"
+        )
+        rpc = chain_rpc_url(chain) or os.environ.get("ETH_RPC_URL", "").strip()
+        if not rpc:
+            errors.append("BRIDGE_L1_CHAIN RPC not configured (set ETH_RPC_URL/BSC_RPC_URL/POLYGON_RPC_URL)")
+        else:
+            lock_code = get_contract_code(rpc, lock_addr, timeout=10.0)
+            mint_code = get_contract_code(rpc, mint_addr, timeout=10.0)
+            if lock_code in ("0x", "0x0", ""):
+                errors.append("L1 lock contract has empty bytecode (eth_getCode=0x)")
+            if mint_code in ("0x", "0x0", ""):
+                errors.append("L1 mint contract has empty bytecode (eth_getCode=0x)")
+
     return errors, warnings
 
 

@@ -16,6 +16,18 @@
 
 ---
 
+## [1.2.51] — 2026-07-13
+
+### Added
+
+- **Bridge cutover (probe/live):** verify L1 contracts are actually deployed by calling `eth_getCode` for `BRIDGE_L1_LOCK_CONTRACT` and `BRIDGE_L1_MINT_CONTRACT` (fails closed on empty bytecode)
+
+### Fixed
+
+- **SQLite migration:** legacy `accounts` table now auto-adds `code` and `storage` columns to support state-root/account export on older DBs
+
+---
+
 ## [1.2.43] — 2026-07-13
 
 ### Fixed

@@ -74,6 +74,8 @@ class Database:
             ("transactions", "burned",   "REAL NOT NULL DEFAULT 0.0"),
             ("transactions", "fee",      "REAL NOT NULL DEFAULT 0.0"),
             ("transactions", "gas_used", "INTEGER NOT NULL DEFAULT 21000"),
+            ("accounts", "code",    "TEXT DEFAULT ''"),
+            ("accounts", "storage", "TEXT DEFAULT ''"),
             ("plasma_blocks", "merkle_root", "TEXT NOT NULL DEFAULT ''"),
             ("plasma_blocks", "tx_root",     "TEXT NOT NULL DEFAULT ''"),
         ]
