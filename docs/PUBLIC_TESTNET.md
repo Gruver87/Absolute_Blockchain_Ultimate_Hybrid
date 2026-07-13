@@ -59,10 +59,10 @@ Target (example): `https://testnet.absolute-chain.org` → explorer + RPC behind
 2. **Gate** — `python scripts/public_testnet_gate.py --live` (add `--require-soak-hours 48` before DNS)
 3. **VPS preflight** — `.\scripts\prepare_vps_testnet.ps1` (static) or `-Live` after local seed
 4. **TLS** — `deploy/nginx/testnet.example.conf` in front of seed ports
-3. **Explorer** — static `web/explorer/` behind same host or CDN
-4. **README** — replace localhost examples with public URL + chain ID `77777`
-5. **Status page** — link to GitHub Actions badges + last release tag
-6. **Gate** — `.\scripts\testnet_readiness.ps1 -TestnetSeed -MinSoakHours 0` or `.\scripts\testnet_evidence_suite.ps1`
+5. **Explorer** — static `web/explorer/` behind same host or CDN
+6. **README** — replace localhost examples with public URL + chain ID `77777`
+7. **Status page** — link to GitHub Actions badges + last release tag
+8. **Gate** — `.\scripts\testnet_readiness.ps1 -TestnetSeed -MinSoakHours 0` or `.\scripts\testnet_evidence_suite.ps1`
 
 Example nginx pattern (illustrative):
 
