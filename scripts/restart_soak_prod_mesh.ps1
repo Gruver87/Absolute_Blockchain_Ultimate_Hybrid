@@ -21,6 +21,15 @@ if ($logDir -and -not (Test-Path $logDir)) {
 Write-Host "Prod mesh soak restart: ${Hours}h interval=${IntervalSec}s" -ForegroundColor Cyan
 Write-Host "  log=$LogFile report=$ReportFile" -ForegroundColor DarkGray
 Write-Host "  health_watch ProdMesh timeouts: ready=15s status=12s harness=15-30s" -ForegroundColor DarkGray
+Write-Host "  preflight (safe, no soak start): .\scripts\prepare_48h_soak.ps1" -ForegroundColor DarkGray
+
+$gitTag = "unknown"
+try {
+    $desc = git describe --tags --abbrev=0 2>$null
+    if ($desc) { $gitTag = $desc.Trim() }
+} catch {
+    $gitTag = "unknown"
+}
 
 if (-not $NoStopExisting) {
     & (Join-Path $ScriptDir "stop_soak_monitors.ps1") -Force
@@ -33,7 +42,7 @@ $activeMeta = @{
     hours = $Hours
     interval_sec = $IntervalSec
     started_at = (Get-Date -Format "o")
-    git_tag = "v1.2.39"
+    git_tag = $gitTag
 }
 $activePath = Join-Path $Root "logs/soak_active.json"
 $activeMeta | ConvertTo-Json | Set-Content -Path $activePath -Encoding UTF8
@@ -52,7 +61,7 @@ python scripts/record_evidence_run.py `
     --result IN_PROGRESS `
     --command ".\scripts\restart_soak_prod_mesh.ps1 -Hours $Hours" `
     --artifact $LogFile `
-    --git-tag v1.2.39 `
+    --git-tag $gitTag `
     2>$null | Out-Null
 
 if ($Foreground) {

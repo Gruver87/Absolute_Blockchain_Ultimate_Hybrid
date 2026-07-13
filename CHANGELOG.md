@@ -32,6 +32,22 @@
 
 ---
 
+## [1.2.65] — 2026-07-13
+
+### Added
+
+- **`scripts/soak_preflight.py`** — prod mesh readiness for 48h soak (health, P2P security, harness, topology); writes `logs/soak_preflight.json`; does **not** start soak
+- **`scripts/prepare_48h_soak.ps1`** — PowerShell wrapper for preflight
+- **`monolith_gate.py --soak-preflight`** and **`monolith_gate.ps1 -SoakPreflight`**
+- **`tests/unit/test_soak_preflight.py`**
+
+### Changed
+
+- **`restart_soak_prod_mesh.ps1`** — dynamic `git describe` tag in evidence + soak metadata; preflight hint in output
+- **`verify_prod_stack.py --live-prod-mesh`** — P2P security policy check on all three nodes
+
+---
+
 ## [1.2.64] — 2026-07-13
 
 ### Added

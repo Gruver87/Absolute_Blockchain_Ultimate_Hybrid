@@ -21,6 +21,7 @@ def run_monolith_gate(
     live_prod_mesh: bool = False,
     ceremony_dir: str = "",
     p2p_ci: bool = False,
+    soak_preflight: bool = False,
     skip_launch_checklist: bool = False,
 ) -> Tuple[List[str], List[str], dict]:
     errors: List[str] = []
@@ -86,12 +87,32 @@ def run_monolith_gate(
             detail = (proc.stdout or proc.stderr or "").strip()
             errors.append(f"p2p_ci failed: {detail or proc.returncode}")
 
+    if soak_preflight:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "soak_preflight", ROOT / "scripts" / "soak_preflight.py"
+        )
+        soak_mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(soak_mod)
+        sf_errors, sf_warnings, sf_meta = soak_mod.run_soak_preflight(hours=48)
+        soak_mod.write_report(sf_errors, sf_warnings, sf_meta)
+        sections["soak_preflight"] = {
+            "ready": sf_meta.get("ready"),
+            "errors": sf_errors,
+            "warnings": sf_warnings,
+        }
+        errors.extend([f"soak_preflight:{e}" for e in sf_errors])
+        warnings.extend(sf_warnings)
+
     meta = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "strict_audit": strict_audit,
         "bridge_cutover": bridge_cutover,
         "live_prod_mesh": live_prod_mesh,
         "p2p_ci": p2p_ci,
+        "soak_preflight": soak_preflight,
         "sections": sections,
     }
     return errors, warnings, meta
@@ -138,6 +159,11 @@ def main() -> int:
         action="store_true",
         help="Skip mainnet_launch_checklist layer (faster dev loop)",
     )
+    parser.add_argument(
+        "--soak-preflight",
+        action="store_true",
+        help="Check prod mesh readiness for 48h soak (does not start soak)",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
@@ -147,6 +173,7 @@ def main() -> int:
         live_prod_mesh=args.live_prod_mesh,
         ceremony_dir=args.ceremony_dir,
         p2p_ci=args.p2p_ci,
+        soak_preflight=args.soak_preflight,
         skip_launch_checklist=args.skip_launch_checklist,
     )
     report_path = write_report(errors, warnings, meta)

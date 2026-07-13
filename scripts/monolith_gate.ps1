@@ -4,6 +4,7 @@ param(
     [switch]$BridgeCutover,
     [switch]$LiveProdMesh,
     [switch]$P2pCi,
+    [switch]$SoakPreflight,
     [string]$CeremonyDir = ""
 )
 
@@ -16,6 +17,7 @@ if ($StrictAudit) { $args += "--strict-audit" }
 if ($BridgeCutover) { $args += "--bridge-cutover" }
 if ($LiveProdMesh) { $args += "--live-prod-mesh" }
 if ($P2pCi) { $args += "--p2p-ci" }
+if ($SoakPreflight) { $args += "--soak-preflight" }
 if ($CeremonyDir) { $args += @("--ceremony-dir", $CeremonyDir) }
 $args += "--json"
 

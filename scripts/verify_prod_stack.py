@@ -289,6 +289,25 @@ def check_live_prod_mesh() -> list[str]:
 
     report = prod_smoke.run_prod_smoke(reachable[0])
     errors.extend(report.get("errors") or [])
+
+    if len(reachable) == len(PROD_MESH_HTTP_PORTS):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "verify_p2p_ci", ROOT / "scripts" / "verify_p2p_ci.py"
+        )
+        vp = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(vp)
+        for i, url in enumerate(reachable, start=1):
+            try:
+                sec, _source = vp._fetch_p2p_security(url)
+            except OSError as exc:
+                errors.append(f"prod_mesh {url} p2p security: {exc}")
+                continue
+            if not sec:
+                errors.append(f"prod_mesh node{i} missing P2P security policy")
+
     return errors
 
 
