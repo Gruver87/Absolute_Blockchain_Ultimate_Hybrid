@@ -82,6 +82,13 @@ def verify_prod_mesh_probe(
 
         if deep and url in reachable:
             try:
+                sec = _api(f"{url}/p2p/security", timeout=12)
+                tls = sec.get("tls") or {}
+                row["p2p_tls_enabled"] = bool(tls.get("enabled"))
+                row["p2p_tls_ready"] = bool(tls.get("ready"))
+            except (urllib.error.URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError):
+                pass
+            try:
                 harness = _api(f"{url}/chain/consistency/harness?quick=1&peer_timeout=5", timeout=25)
                 row["harness_healthy"] = bool(harness.get("harness_healthy"))
                 row["tip_state_aligned"] = bool(harness.get("tip_state_aligned"))

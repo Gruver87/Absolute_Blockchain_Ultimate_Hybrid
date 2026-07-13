@@ -10,6 +10,8 @@ param(
     [switch]$BridgeLive,
     [switch]$VpsTestnetPreflight,
     [switch]$VpsTestnetLive,
+    [switch]$P2pTlsPreflight,
+    [switch]$P2pTlsLive,
     [string]$CeremonyDir = ""
 )
 
@@ -28,6 +30,8 @@ if ($ProbeL1RpcOnly) { $args += "--probe-l1-rpc-only" }
 if ($BridgeLive) { $args += "--bridge-live" }
 if ($VpsTestnetPreflight) { $args += "--vps-testnet-preflight" }
 if ($VpsTestnetLive) { $args += "--vps-testnet-live" }
+if ($P2pTlsPreflight) { $args += "--p2p-tls-preflight" }
+if ($P2pTlsLive) { $args += "--p2p-tls-live" }
 if ($CeremonyDir) { $args += @("--ceremony-dir", $CeremonyDir) }
 $args += "--json"
 

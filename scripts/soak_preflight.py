@@ -39,7 +39,7 @@ def _git_tag() -> str:
     return "unknown"
 
 
-def run_soak_preflight(*, hours: int = 48, interval_sec: int = 300) -> tuple[list[str], list[str], dict]:
+def run_soak_preflight(*, hours: int = 48, interval_sec: int = 300, require_p2p_tls: bool = False) -> tuple[list[str], list[str], dict]:
     import importlib.util
 
     vp_path = ROOT / "scripts" / "verify_p2p_ci.py"
@@ -94,7 +94,13 @@ def run_soak_preflight(*, hours: int = 48, interval_sec: int = 300) -> tuple[lis
             row["p2p_tls_enabled"] = bool(tls.get("enabled"))
             row["p2p_tls_ready"] = bool(tls.get("ready"))
             if tls.get("enabled") and not tls.get("ready"):
-                warnings.append(f"node{i} P2P TLS enabled but not ready")
+                msg = f"node{i} P2P TLS enabled but not ready"
+                if require_p2p_tls:
+                    errors.append(msg)
+                else:
+                    warnings.append(msg)
+            if require_p2p_tls and not tls.get("enabled"):
+                errors.append(f"node{i} P2P TLS not enabled (use docker_prod_3node.ps1 -P2pTls)")
         except OSError as exc:
             warnings.append(f"node{i} p2p security: {exc}")
         nodes.append(row)
@@ -152,6 +158,7 @@ def run_soak_preflight(*, hours: int = 48, interval_sec: int = 300) -> tuple[lis
             f"python scripts/industrial_gate.py --min-soak-hours {hours}"
         ),
         "note": "Run preflight again immediately before starting soak.",
+        "require_p2p_tls": require_p2p_tls,
     }
     return errors, warnings, meta
 
@@ -173,12 +180,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Prod mesh soak preflight (no soak start)")
     parser.add_argument("--hours", type=int, default=48, help="Planned soak duration")
     parser.add_argument("--interval-sec", type=int, default=300, help="Planned poll interval")
+    parser.add_argument(
+        "--require-p2p-tls",
+        action="store_true",
+        help="Fail if prod mesh P2P wire TLS is not enabled and ready on all nodes",
+    )
     parser.add_argument("--json", action="store_true", help="Print JSON summary")
     args = parser.parse_args()
 
     errors, warnings, meta = run_soak_preflight(
         hours=args.hours,
         interval_sec=args.interval_sec,
+        require_p2p_tls=args.require_p2p_tls,
     )
     report_path = write_report(errors, warnings, meta)
 

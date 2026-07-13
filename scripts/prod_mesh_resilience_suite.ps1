@@ -3,6 +3,7 @@ param(
     [switch]$SkipFailover,
     [switch]$SkipDrRehearsal,
     [switch]$QuickProbe,
+    [switch]$P2pTls,
     [int]$FailoverWaitSec = 360,
     [int]$ProbeWaitSec = 60
 )
@@ -37,6 +38,12 @@ Step "prod_mesh_probe" {
     if ($QuickProbe) { $probeArgs += "-Quick" }
     if ($ProbeWaitSec -gt 0) { $probeArgs += @("-WaitSec", $ProbeWaitSec) }
     & (Join-Path $ScriptDir "probe_prod_mesh.ps1") @probeArgs
+}
+
+if ($P2pTls) {
+    Step "verify_p2p_tls_mesh" {
+        python (Join-Path $ScriptDir "verify_p2p_tls_mesh.py") --wait $ProbeWaitSec
+    }
 }
 
 if (-not $SkipFailover) {

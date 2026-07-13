@@ -27,6 +27,8 @@ def run_monolith_gate(
     bridge_live: bool = False,
     vps_testnet_preflight: bool = False,
     vps_testnet_live: bool = False,
+    p2p_tls_preflight: bool = False,
+    p2p_tls_live: bool = False,
     skip_launch_checklist: bool = False,
 ) -> Tuple[List[str], List[str], dict]:
     errors: List[str] = []
@@ -135,6 +137,26 @@ def run_monolith_gate(
         errors.extend([f"vps_testnet:{e}" for e in vps_errors])
         warnings.extend(vps_warnings)
 
+    if p2p_tls_preflight:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "p2p_tls_preflight", ROOT / "scripts" / "p2p_tls_preflight.py"
+        )
+        tls_mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(tls_mod)
+        tls_errors, tls_warnings, tls_meta = tls_mod.run_p2p_tls_preflight(live=p2p_tls_live)
+        tls_mod.write_report(tls_errors, tls_warnings, tls_meta)
+        sections["p2p_tls_preflight"] = {
+            "ready": tls_meta.get("ready"),
+            "live": p2p_tls_live,
+            "errors": tls_errors,
+            "warnings": tls_warnings,
+        }
+        errors.extend([f"p2p_tls:{e}" for e in tls_errors])
+        warnings.extend(tls_warnings)
+
     meta = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "strict_audit": strict_audit,
@@ -147,6 +169,8 @@ def run_monolith_gate(
         "bridge_live": bridge_live,
         "vps_testnet_preflight": vps_testnet_preflight,
         "vps_testnet_live": vps_testnet_live,
+        "p2p_tls_preflight": p2p_tls_preflight,
+        "p2p_tls_live": p2p_tls_live,
         "sections": sections,
     }
     return errors, warnings, meta
@@ -223,6 +247,16 @@ def main() -> int:
         action="store_true",
         help="With --vps-testnet-preflight, probe running testnet seed on :19080",
     )
+    parser.add_argument(
+        "--p2p-tls-preflight",
+        action="store_true",
+        help="Check prod mesh P2P TLS material and compose overlay",
+    )
+    parser.add_argument(
+        "--p2p-tls-live",
+        action="store_true",
+        help="With --p2p-tls-preflight, probe running mesh /p2p/security.tls",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
@@ -238,6 +272,8 @@ def main() -> int:
         bridge_live=args.bridge_live,
         vps_testnet_preflight=args.vps_testnet_preflight,
         vps_testnet_live=args.vps_testnet_live,
+        p2p_tls_preflight=args.p2p_tls_preflight,
+        p2p_tls_live=args.p2p_tls_live,
         skip_launch_checklist=args.skip_launch_checklist,
     )
     report_path = write_report(errors, warnings, meta)

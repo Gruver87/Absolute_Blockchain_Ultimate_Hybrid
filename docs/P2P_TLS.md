@@ -28,10 +28,40 @@ Generate mesh certs and start with P2P TLS overlay:
 
 ```powershell
 python scripts/gen_p2p_mesh_tls.py
+.\scripts\docker_prod_3node_p2ptls.ps1
+# or
 .\scripts\docker_prod_3node.ps1 -P2pTls
 ```
 
-Uses `docker-compose.prod.3node.p2ptls.yml` (mounts `data/p2p_tls_prod_mesh/nodeN` → `/app/p2p_tls`). Verify via `GET /p2p/security` → `tls.ready=true` on `:18180–:18182`.
+Uses `docker-compose.prod.3node.p2ptls.yml` (mounts `data/p2p_tls_prod_mesh/nodeN` → `/app/p2p_tls`).
+
+### Verify and evidence
+
+```powershell
+.\scripts\probe_p2p_tls_mesh.ps1
+python scripts/verify_p2p_tls_mesh.py --wait 120
+.\scripts\p2p_tls_evidence_suite.ps1
+.\scripts\prod_mesh_resilience_suite.ps1 -P2pTls -SkipDrRehearsal
+```
+
+Report: `logs/p2p_tls_mesh_verify.json`
+
+Preflight (static or live):
+
+```powershell
+.\scripts\prepare_p2p_tls_mesh.ps1
+.\scripts\prepare_p2p_tls_mesh.ps1 -Live -WaitSec 60
+.\scripts\monolith_gate.ps1 -P2pTlsPreflight
+.\scripts\monolith_gate.ps1 -P2pTlsPreflight -P2pTlsLive
+```
+
+### 48h soak with TLS
+
+When mesh runs with `-P2pTls`:
+
+```powershell
+.\scripts\prepare_48h_soak.ps1 -RequireP2pTls
+```
 
 Default off (plain TCP) when `-P2pTls` is omitted — matches existing local prod mesh workflows.
 

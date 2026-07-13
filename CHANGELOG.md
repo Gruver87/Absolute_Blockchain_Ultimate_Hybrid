@@ -32,6 +32,26 @@
 
 ---
 
+## [1.2.75] — 2026-07-14
+
+### Added
+
+- **`scripts/verify_p2p_tls_mesh.py`** — static cert + live `/p2p/security.tls` verify for prod mesh
+- **`scripts/p2p_tls_preflight.py`** + **`prepare_p2p_tls_mesh.ps1`** — TLS material preflight
+- **`scripts/p2p_tls_evidence_suite.ps1`** — gen/start/verify TLS mesh + optional failover drill
+- **`scripts/docker_prod_3node_p2ptls.ps1`**, **`probe_p2p_tls_mesh.ps1`**
+- **`soak_preflight.py --require-p2p-tls`**, **`prepare_48h_soak.ps1 -RequireP2pTls`**
+- **`monolith_gate.py --p2p-tls-preflight`** / **`--p2p-tls-live`**
+- **`tests/unit/test_verify_p2p_tls_mesh.py`**
+
+### Changed
+
+- **`prod_mesh_resilience_suite.ps1`** — `-P2pTls` runs TLS verify after mesh probe
+- **`verify_prod_mesh_probe.py`** — records `p2p_tls_enabled` / `p2p_tls_ready` in deep probe
+- **`docs/P2P_TLS.md`** — evidence suite, soak, monolith gate workflow
+
+---
+
 ## [1.2.74] — 2026-07-14
 
 ### Added
