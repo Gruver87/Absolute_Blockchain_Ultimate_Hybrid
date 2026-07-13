@@ -46,6 +46,9 @@ Target (example): `https://testnet.absolute-chain.org` → explorer + RPC behind
 - [x] Static + live gate: `scripts/public_testnet_gate.py` / `.ps1`
 - [x] Linux VPS bootstrap: `scripts/vps_testnet_bootstrap.sh`
 - [x] VPS preflight: `scripts/vps_testnet_preflight.py` / `prepare_vps_testnet.ps1`
+- [x] Uptime probe (cron): `scripts/testnet_uptime_probe.py` → `logs/testnet_uptime.json`
+- [x] nginx install helper: `deploy/nginx/install_testnet_nginx.sh`
+- [x] Evidence suite: `.\scripts\testnet_evidence_suite.ps1` (seed + gates + VPS preflight)
 - [ ] Single seed + 2–3 validators on VPS or cloud (Docker compose or K8s)
 - [ ] Prometheus/Grafana or uptime ping on `/health/ready`
 - [ ] Log rotation on `data/node.log`

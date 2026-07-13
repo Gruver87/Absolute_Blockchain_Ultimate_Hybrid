@@ -32,6 +32,26 @@
 
 ---
 
+## [1.2.69] — 2026-07-14
+
+### Added
+
+- **`scripts/testnet_uptime_probe.py`** + **`.ps1`** — cron-friendly testnet health snapshot (`logs/testnet_uptime.json`, optional `--append` jsonl)
+- **`deploy/nginx/install_testnet_nginx.sh`** — VPS nginx site installer with domain substitution
+- **`monolith_gate --vps-testnet-preflight`** / **`-VpsTestnetLive`**
+- **`tests/unit/test_testnet_uptime_probe.py`**
+
+### Changed
+
+- **`testnet_evidence_suite.ps1`** — full path: seed → public gate → VPS preflight → uptime probe
+- **`testnet_readiness.ps1 -VpsPreflight`** — optional VPS preflight step
+- **`docker-compose.testnet.yml`** — validator host ports `19081/19087/19501` (was `9081/9087/9501`)
+- **`.env.testnet.example`** — validator port vars
+- **`vps_testnet_bootstrap.sh`** — live preflight + uptime probe after seed boot
+- **`docs/PUBLIC_TESTNET.md`**, **`docs/VPS_DEPLOY.md`**
+
+---
+
 ## [1.2.68] — 2026-07-14
 
 ### Added

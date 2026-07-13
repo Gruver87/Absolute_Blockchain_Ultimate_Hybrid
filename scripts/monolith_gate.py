@@ -25,6 +25,8 @@ def run_monolith_gate(
     probe_l1: bool = False,
     probe_l1_rpc_only: bool = False,
     bridge_live: bool = False,
+    vps_testnet_preflight: bool = False,
+    vps_testnet_live: bool = False,
     skip_launch_checklist: bool = False,
 ) -> Tuple[List[str], List[str], dict]:
     errors: List[str] = []
@@ -112,6 +114,27 @@ def run_monolith_gate(
         errors.extend([f"soak_preflight:{e}" for e in sf_errors])
         warnings.extend(sf_warnings)
 
+    if vps_testnet_preflight:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "vps_testnet_preflight", ROOT / "scripts" / "vps_testnet_preflight.py"
+        )
+        vps_mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(vps_mod)
+        vps_errors, vps_warnings, vps_meta = vps_mod.run_vps_testnet_preflight(
+            live=vps_testnet_live,
+        )
+        vps_mod.write_report(vps_errors, vps_warnings, vps_meta)
+        sections["vps_testnet_preflight"] = {
+            "ready": vps_meta.get("ready"),
+            "errors": vps_errors,
+            "warnings": vps_warnings,
+        }
+        errors.extend([f"vps_testnet:{e}" for e in vps_errors])
+        warnings.extend(vps_warnings)
+
     meta = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "strict_audit": strict_audit,
@@ -122,6 +145,8 @@ def run_monolith_gate(
         "probe_l1": probe_l1,
         "probe_l1_rpc_only": probe_l1_rpc_only,
         "bridge_live": bridge_live,
+        "vps_testnet_preflight": vps_testnet_preflight,
+        "vps_testnet_live": vps_testnet_live,
         "sections": sections,
     }
     return errors, warnings, meta
@@ -188,6 +213,16 @@ def main() -> int:
         action="store_true",
         help="With --bridge-cutover, live bridge node checks",
     )
+    parser.add_argument(
+        "--vps-testnet-preflight",
+        action="store_true",
+        help="Check public testnet VPS deploy prerequisites (chain 77777)",
+    )
+    parser.add_argument(
+        "--vps-testnet-live",
+        action="store_true",
+        help="With --vps-testnet-preflight, probe running testnet seed on :19080",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
@@ -201,6 +236,8 @@ def main() -> int:
         probe_l1=args.probe_l1,
         probe_l1_rpc_only=args.probe_l1_rpc_only,
         bridge_live=args.bridge_live,
+        vps_testnet_preflight=args.vps_testnet_preflight,
+        vps_testnet_live=args.vps_testnet_live,
         skip_launch_checklist=args.skip_launch_checklist,
     )
     report_path = write_report(errors, warnings, meta)

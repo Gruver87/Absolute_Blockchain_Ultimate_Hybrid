@@ -18,7 +18,11 @@ _REQUIRED_FILES = (
     ".env.testnet.example",
     "docker/node.testnet.seed.json",
     "deploy/nginx/testnet.example.conf",
+    "deploy/nginx/install_testnet_nginx.sh",
     "scripts/docker_testnet_seed.ps1",
+    "scripts/vps_testnet_preflight.py",
+    "scripts/vps_testnet_bootstrap.sh",
+    "scripts/testnet_uptime_probe.py",
     "scripts/testnet_readiness.ps1",
     "docs/PUBLIC_TESTNET.md",
 )

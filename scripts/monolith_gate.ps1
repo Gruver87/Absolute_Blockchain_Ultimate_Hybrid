@@ -8,6 +8,8 @@ param(
     [switch]$ProbeL1,
     [switch]$ProbeL1RpcOnly,
     [switch]$BridgeLive,
+    [switch]$VpsTestnetPreflight,
+    [switch]$VpsTestnetLive,
     [string]$CeremonyDir = ""
 )
 
@@ -24,6 +26,8 @@ if ($SoakPreflight) { $args += "--soak-preflight" }
 if ($ProbeL1) { $args += "--probe-l1" }
 if ($ProbeL1RpcOnly) { $args += "--probe-l1-rpc-only" }
 if ($BridgeLive) { $args += "--bridge-live" }
+if ($VpsTestnetPreflight) { $args += "--vps-testnet-preflight" }
+if ($VpsTestnetLive) { $args += "--vps-testnet-live" }
 if ($CeremonyDir) { $args += @("--ceremony-dir", $CeremonyDir) }
 $args += "--json"
 

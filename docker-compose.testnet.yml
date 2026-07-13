@@ -67,9 +67,9 @@ services:
         condition: service_healthy
     command: ["python", "main.py", "--config", "docker/node.testnet.validator.json"]
     ports:
-      - "${TESTNET_HTTP_PORT_2:-9081}:8080"
-      - "${TESTNET_RPC_PORT_2:-9087}:8545"
-      - "${TESTNET_P2P_PORT_2:-9501}:5000"
+      - "${TESTNET_HTTP_PORT_2:-19081}:8080"
+      - "${TESTNET_RPC_PORT_2:-19087}:8545"
+      - "${TESTNET_P2P_PORT_2:-19501}:5000"
     env_file:
       - path: .env.testnet
         required: false

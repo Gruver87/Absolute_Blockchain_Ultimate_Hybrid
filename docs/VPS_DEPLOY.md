@@ -31,18 +31,25 @@ python3 scripts/public_testnet_gate.py --live --base-url http://127.0.0.1:19080
 
 ```bash
 sudo apt install nginx certbot python3-certbot-nginx
-sudo cp deploy/nginx/testnet.example.conf /etc/nginx/sites-available/abs-testnet
-# edit server_name and upstream ports (19080/19085)
-sudo ln -s /etc/nginx/sites-available/abs-testnet /etc/nginx/sites-enabled/
+sudo bash deploy/nginx/install_testnet_nginx.sh testnet.yourdomain.com
 sudo certbot --nginx -d testnet.yourdomain.com
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
 Explorer static files: copy `web/explorer/` to `/var/www/abs-explorer`.
 
+## 4. Uptime monitoring
+
+```bash
+# cron every 5 minutes on VPS
+*/5 * * * * cd /opt/Absolute_Blockchain_Ultimate_Hybrid && python3 scripts/testnet_uptime_probe.py --append
+```
+
+Snapshot: `logs/testnet_uptime.json` · history: `logs/testnet_uptime.jsonl`
+
 ---
 
-## 4. Verify
+## 5. Verify
 
 ```bash
 curl -s https://testnet.yourdomain.com/api/health/ready

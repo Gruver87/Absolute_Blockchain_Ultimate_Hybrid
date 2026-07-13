@@ -38,6 +38,9 @@ until curl -sf "http://127.0.0.1:${HTTP_PORT}/health/ready" >/dev/null 2>&1; do
 done
 
 python3 scripts/public_testnet_gate.py --live --base-url "http://127.0.0.1:${HTTP_PORT}"
+python3 scripts/vps_testnet_preflight.py --live --base-url "http://127.0.0.1:${HTTP_PORT}" || true
+python3 scripts/testnet_uptime_probe.py --base-url "http://127.0.0.1:${HTTP_PORT}" --append || true
 echo "OK: testnet seed live on :${HTTP_PORT}"
-echo "  TLS: deploy/nginx/testnet.example.conf + certbot"
+echo "  TLS: sudo bash deploy/nginx/install_testnet_nginx.sh testnet.yourdomain.com"
+echo "  cron: */5 * * * * cd $ROOT && python3 scripts/testnet_uptime_probe.py --append"
 echo "  gate: python3 scripts/public_testnet_gate.py --live --require-soak-hours 48"

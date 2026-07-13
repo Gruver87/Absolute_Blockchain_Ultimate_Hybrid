@@ -6,7 +6,8 @@ param(
     [string]$SoakReport = "",
     [int]$MinSoakHours = 10,
     [switch]$SkipIndustrialGate,
-    [switch]$RunPublicGate
+    [switch]$RunPublicGate,
+    [switch]$VpsPreflight
 )
 
 $ErrorActionPreference = "Stop"
@@ -64,6 +65,15 @@ foreach ($p in $Ports) {
 if ($heights.Count -gt 1) {
     $uniq = ($heights | Select-Object -Unique).Count
     Add-Check "mesh_height_aligned" ($uniq -le 1) " heights=$($heights -join '/')"
+}
+
+if ($VpsPreflight -or $TestnetSeed) {
+    Write-Host "`n=== vps_testnet_preflight ===" -ForegroundColor Cyan
+    $base = "http://127.0.0.1:$($Ports[0])"
+    $vpsArgs = @("scripts/vps_testnet_preflight.py", "--base-url", $base)
+    if ($TestnetSeed -or $RunPublicGate) { $vpsArgs += "--live" }
+    python @vpsArgs
+    Add-Check "vps_testnet_preflight" ($LASTEXITCODE -eq 0)
 }
 
 if ($RunPublicGate -or $TestnetSeed) {

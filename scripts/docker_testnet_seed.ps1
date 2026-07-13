@@ -109,7 +109,8 @@ try {
     Write-Host "  HTTP  http://127.0.0.1:$httpPort" -ForegroundColor DarkGray
     $rpcPort = if ($env:TESTNET_RPC_PORT) { $env:TESTNET_RPC_PORT } else { "19085" }
     Write-Host "  RPC   http://127.0.0.1:$rpcPort  (X-API-Key required)" -ForegroundColor DarkGray
-    Write-Host "  Next: .\scripts\public_testnet_gate.ps1 -Live -BaseUrl http://127.0.0.1:$httpPort" -ForegroundColor DarkGray
+    Write-Host "  Next: .\scripts\prepare_vps_testnet.ps1 -Live" -ForegroundColor DarkGray
+    Write-Host "  Gate: .\scripts\public_testnet_gate.ps1 -Live -BaseUrl http://127.0.0.1:$httpPort" -ForegroundColor DarkGray
 } catch {
     Write-Host "WARN: seed started but status check failed: $($_.Exception.Message)" -ForegroundColor Yellow
     exit 1

@@ -68,12 +68,25 @@ def run_vps_testnet_preflight(
     else:
         meta["bootstrap_script"] = str(bootstrap)
 
+    nginx_install = ROOT / "deploy" / "nginx" / "install_testnet_nginx.sh"
+    if nginx_install.is_file():
+        meta["nginx_install_script"] = str(nginx_install)
+    else:
+        warnings.append("missing:deploy/nginx/install_testnet_nginx.sh")
+
+    uptime = ROOT / "scripts" / "testnet_uptime_probe.py"
+    if uptime.is_file():
+        meta["uptime_probe"] = str(uptime)
+    else:
+        warnings.append("missing:scripts/testnet_uptime_probe.py")
+
     meta["ready"] = not errors
     meta["deploy_steps"] = [
         "cp .env.testnet.example .env.testnet && rotate secrets",
         "./scripts/vps_testnet_bootstrap.sh",
-        "sudo cp deploy/nginx/testnet.example.conf /etc/nginx/sites-available/abs-testnet",
+        "sudo bash deploy/nginx/install_testnet_nginx.sh testnet.yourdomain.com",
         "sudo certbot --nginx -d testnet.yourdomain.com",
+        "python scripts/testnet_uptime_probe.py --append",
         "python scripts/public_testnet_gate.py --live --require-soak-hours 48",
     ]
     return errors, warnings, meta
