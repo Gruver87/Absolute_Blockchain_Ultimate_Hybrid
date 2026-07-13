@@ -39,5 +39,5 @@ done
 
 python3 scripts/public_testnet_gate.py --live --base-url "http://127.0.0.1:${HTTP_PORT}"
 echo "OK: testnet seed live on :${HTTP_PORT}"
-  echo "  TLS: deploy/nginx/testnet.example.conf + certbot"
+echo "  TLS: deploy/nginx/testnet.example.conf + certbot"
 echo "  gate: python3 scripts/public_testnet_gate.py --live --require-soak-hours 48"

@@ -42,6 +42,11 @@ $env:ETH_RPC_URL = "https://your-mainnet-rpc.example"
 Unified probe writes `logs/bridge_l1_live_probe.json`. Gates:
 
 ```powershell
+# Before L1 contracts are deployed — validate RPC only (WARN on placeholder contracts):
+python scripts/mainnet_readiness.py --bridge-cutover --probe-l1-rpc-only --no-strict-audit
+python scripts/industrial_gate.py --bridge-cutover --probe-l1-rpc-only
+
+# After L1 deploy — full probe (FAIL if contracts missing or bytecode empty):
 python scripts/mainnet_readiness.py --bridge-cutover --probe-l1 --no-strict-audit
 python scripts/industrial_gate.py --bridge-cutover --probe-l1
 .\scripts\monolith_gate.ps1 -BridgeCutover -ProbeL1

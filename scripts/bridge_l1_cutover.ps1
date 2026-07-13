@@ -3,6 +3,7 @@ param(
     [switch]$Live,
     [string]$BaseUrl = "",
     [switch]$ProbeL1,
+    [switch]$ProbeL1RpcOnly,
     [string]$Config = "node.prod.mainnet-v1.bridge.example.json"
 )
 
@@ -36,6 +37,7 @@ $argsList = @("scripts/bridge_l1_cutover.py", "--config", $Config)
 if ($Live) { $argsList += "--live" }
 if ($BaseUrl) { $argsList += @("--base-url", $BaseUrl) }
 if ($ProbeL1) { $argsList += "--probe-l1" }
+if ($ProbeL1RpcOnly) { $argsList += "--probe-l1-rpc-only" }
 
 python @argsList
 exit $LASTEXITCODE

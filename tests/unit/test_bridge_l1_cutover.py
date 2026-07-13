@@ -68,6 +68,20 @@ def test_cutover_probe_l1_fails_on_empty_contract_code(monkeypatch):
     assert any("empty bytecode" in e for e in errors)
 
 
+def test_probe_l1_rpc_only_warns_on_placeholder_contracts(monkeypatch):
+    monkeypatch.setenv("ETH_RPC_URL", "https://mainnet.infura.io/v3/testkey")
+    import runtime.config as runtime_config
+
+    monkeypatch.setattr(runtime_config.Config, "validate", lambda self: [])
+    import bridge.health as health
+
+    monkeypatch.setattr(health, "check_l1_rpc_health", lambda *a, **k: {"required": True, "ok": True})
+    monkeypatch.setattr(health, "check_rust_bridge_binary", lambda *a, **k: {"ok": True})
+    errors, warnings, _meta = run_cutover_gate(probe_l1_rpc_only=True)
+    assert not any("BRIDGE_L1_LOCK_CONTRACT" in e for e in errors)
+    assert any("BRIDGE_L1_LOCK_CONTRACT" in w for w in warnings)
+
+
 def test_resolve_live_base_url_prefers_docker_prod_without_bridge():
     from bridge_l1_cutover import resolve_live_base_url
 

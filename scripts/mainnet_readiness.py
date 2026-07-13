@@ -34,6 +34,7 @@ def run_gate(
     ceremony_dir: str = "",
     bridge_cutover: bool = False,
     probe_l1: bool = False,
+    probe_l1_rpc_only: bool = False,
     bridge_live: bool = False,
 ) -> Tuple[List[str], List[str], dict]:
     errors: List[str] = []
@@ -185,12 +186,13 @@ def run_gate(
             c_errors, c_warnings, c_meta = run_cutover_gate(
                 live=bridge_live or live,
                 base_url=cutover_base,
-                probe_l1=probe_l1 or bridge_live or live,
+                probe_l1=probe_l1 or (bridge_live and not probe_l1_rpc_only),
+                probe_l1_rpc_only=probe_l1_rpc_only and not probe_l1,
             )
             errors.extend([f"bridge_cutover:{e}" for e in c_errors])
             warnings.extend([f"bridge_cutover:{w}" for w in c_warnings])
             sections["bridge_cutover"] = c_meta
-            if probe_l1 or bridge_live or live:
+            if probe_l1 or probe_l1_rpc_only or bridge_live or live:
                 probe_mod = _load_module(
                     "bridge_l1_live_probe", "scripts/bridge_l1_live_probe.py"
                 )
@@ -258,6 +260,11 @@ def main() -> int:
         help="With --bridge-cutover, run live L1 RPC + contract bytecode probes",
     )
     parser.add_argument(
+        "--probe-l1-rpc-only",
+        action="store_true",
+        help="With --bridge-cutover, probe ETH_RPC_URL only (contracts may be placeholder)",
+    )
+    parser.add_argument(
         "--bridge-live",
         action="store_true",
         help="With --bridge-cutover, probe running bridge-enabled prod node",
@@ -275,6 +282,7 @@ def main() -> int:
         ceremony_dir=args.ceremony_dir,
         bridge_cutover=args.bridge_cutover,
         probe_l1=args.probe_l1,
+        probe_l1_rpc_only=args.probe_l1_rpc_only,
         bridge_live=args.bridge_live,
     )
     report_path = write_report(errors, warnings, meta)

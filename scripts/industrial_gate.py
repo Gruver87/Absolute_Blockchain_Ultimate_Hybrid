@@ -116,6 +116,7 @@ def run_industrial_gate(
     bridge_cutover: bool = False,
     live_prod_mesh: bool = False,
     probe_l1: bool = False,
+    probe_l1_rpc_only: bool = False,
     bridge_live: bool = False,
 ) -> int:
     import importlib.util
@@ -176,6 +177,7 @@ def run_industrial_gate(
         ceremony_dir=ceremony_dir,
         bridge_cutover=bridge_cutover,
         probe_l1=probe_l1,
+        probe_l1_rpc_only=probe_l1_rpc_only,
         bridge_live=bridge_live,
     )
     errors.extend(soak_errors)
@@ -281,6 +283,11 @@ def main() -> int:
         help="With --bridge-cutover, probe L1 RPC and contract bytecode",
     )
     parser.add_argument(
+        "--probe-l1-rpc-only",
+        action="store_true",
+        help="With --bridge-cutover, probe ETH_RPC_URL only",
+    )
+    parser.add_argument(
         "--bridge-live",
         action="store_true",
         help="With --bridge-cutover, live checks on bridge-enabled prod node",
@@ -293,6 +300,7 @@ def main() -> int:
         require_ceremony_pin=args.require_ceremony_pin,
         bridge_cutover=args.bridge_cutover,
         probe_l1=args.probe_l1,
+        probe_l1_rpc_only=args.probe_l1_rpc_only,
         bridge_live=args.bridge_live,
     )
     if args.json:

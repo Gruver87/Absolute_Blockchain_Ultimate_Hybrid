@@ -131,22 +131,30 @@ def run_cutover_gate(
     live: bool = False,
     base_url: str = "",
     probe_l1: bool = False,
+    probe_l1_rpc_only: bool = False,
 ) -> Tuple[List[str], List[str], Dict[str, Any]]:
     from bridge_l1_preflight import run_preflight
 
     errors: List[str] = []
     warnings: List[str] = []
-    meta: Dict[str, Any] = {"config_path": config_path, "live": live, "probe_l1": probe_l1}
+    rpc_probe = probe_l1 or probe_l1_rpc_only
+    meta: Dict[str, Any] = {
+        "config_path": config_path,
+        "live": live,
+        "probe_l1": probe_l1,
+        "probe_l1_rpc_only": probe_l1_rpc_only,
+    }
 
     pre_errors, pre_warnings = run_preflight(
         config_path=config_path,
         probe_l1=probe_l1,
+        probe_l1_rpc_only=probe_l1_rpc_only,
     )
     errors.extend(pre_errors)
     warnings.extend(pre_warnings)
     meta["eth_rpc_configured"] = bool(os.environ.get("ETH_RPC_URL", "").strip())
 
-    if probe_l1:
+    if rpc_probe:
         try:
             from bridge.health import check_l1_rpc_health
             from runtime.config import Config
@@ -187,6 +195,11 @@ def main() -> int:
         action="store_true",
         help="Run eth_blockNumber probe during static preflight",
     )
+    parser.add_argument(
+        "--probe-l1-rpc-only",
+        action="store_true",
+        help="Probe L1 RPC only (contracts may stay placeholder until deploy)",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
@@ -194,7 +207,8 @@ def main() -> int:
         config_path=args.config,
         live=args.live,
         base_url=args.base_url,
-        probe_l1=args.probe_l1 or args.live,
+        probe_l1=args.probe_l1 or (args.live and not args.probe_l1_rpc_only),
+        probe_l1_rpc_only=args.probe_l1_rpc_only and not args.probe_l1,
     )
 
     if args.json:
@@ -207,6 +221,11 @@ def main() -> int:
             print("RESULT: FAIL")
             for err in errors:
                 print(f"  - {err}")
+            if any("BRIDGE_L1_" in e and "placeholder" in e for e in errors):
+                print()
+                print("L1 contracts not deployed yet — expected before cutover.")
+                print("  Validate RPC only:  python scripts/bridge_l1_live_probe.py --probe-l1-rpc-only")
+                print("  After L1 deploy:    set BRIDGE_L1_LOCK_CONTRACT / BRIDGE_L1_MINT_CONTRACT in .env")
             if any("401" in e for e in errors):
                 print()
                 print("Infura 401 = invalid API key. Dashboard -> Project -> API Key (32 hex characters).")

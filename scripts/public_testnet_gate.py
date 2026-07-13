@@ -84,7 +84,7 @@ def _probe_http(base_url: str, timeout: float = 8.0) -> Tuple[List[str], Dict[st
 def run_public_testnet_gate(
     *,
     live: bool = False,
-    base_url: str = "http://127.0.0.1:9080",
+    base_url: str = "http://127.0.0.1:19080",
     require_soak_hours: float = 0,
     soak_report: str = "logs/soak_report.json",
 ) -> Tuple[List[str], List[str], Dict[str, Any]]:

@@ -311,13 +311,20 @@ def check_live_prod_mesh() -> list[str]:
     return errors
 
 
-def check_bridge_l1_live_probe(*, probe_l1: bool = False, live: bool = False, base_url: str = "") -> list[str]:
+def check_bridge_l1_live_probe(
+    *,
+    probe_l1: bool = False,
+    probe_l1_rpc_only: bool = False,
+    live: bool = False,
+    base_url: str = "",
+) -> list[str]:
     """Bridge L1 cutover probe (optional L1 RPC + live node checks)."""
     sys.path.insert(0, str(ROOT / "scripts"))
     from bridge_l1_live_probe import run_bridge_l1_live_probe
 
     errors, _warnings, _meta = run_bridge_l1_live_probe(
         probe_l1=probe_l1,
+        probe_l1_rpc_only=probe_l1_rpc_only,
         live=live,
         base_url=base_url,
     )
@@ -344,6 +351,11 @@ def main() -> int:
         help="With bridge cutover, probe L1 RPC and contract bytecode",
     )
     parser.add_argument(
+        "--probe-l1-rpc-only",
+        action="store_true",
+        help="Probe ETH_RPC_URL only (contracts may stay placeholder)",
+    )
+    parser.add_argument(
         "--bridge-live",
         action="store_true",
         help="With bridge cutover, live checks on bridge-enabled prod node",
@@ -356,10 +368,11 @@ def main() -> int:
     errors.extend(check_docker_prod_compose())
     if args.bridge_cutover:
         errors.extend(check_mainnet_v1_bridge_cutover_config())
-    if args.probe_l1 or args.bridge_live:
+    if args.probe_l1 or args.probe_l1_rpc_only or args.bridge_live:
         errors.extend(
             check_bridge_l1_live_probe(
-                probe_l1=args.probe_l1 or args.bridge_live,
+                probe_l1=args.probe_l1,
+                probe_l1_rpc_only=args.probe_l1_rpc_only and not args.probe_l1,
                 live=args.bridge_live,
                 base_url=args.base_url.rstrip("/"),
             )

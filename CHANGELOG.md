@@ -32,6 +32,22 @@
 
 ---
 
+## [1.2.68] — 2026-07-14
+
+### Added
+
+- **`--probe-l1-rpc-only`** — validate `ETH_RPC_URL` before L1 contracts are deployed (placeholder contracts → WARN, not FAIL)
+- **`scripts/vps_testnet_preflight.py`** + **`prepare_vps_testnet.ps1`** — VPS public testnet preflight (nginx template, env, public gate)
+- **`tests/unit/test_vps_testnet_preflight.py`**
+
+### Changed
+
+- Bridge cutover gates print hint when contracts are still placeholder
+- **`public_testnet_gate.py`** default live URL `:19080` (was `:9080`)
+- **`docs/BRIDGE_L1_MAINNET.md`**, **`docs/PUBLIC_TESTNET.md`** — rpc-only vs full probe workflow
+
+---
+
 ## [1.2.67] — 2026-07-14
 
 ### Added

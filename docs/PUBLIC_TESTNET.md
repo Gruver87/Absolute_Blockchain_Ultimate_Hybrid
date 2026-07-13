@@ -45,6 +45,7 @@ Target (example): `https://testnet.absolute-chain.org` → explorer + RPC behind
 - [x] nginx TLS template: `deploy/nginx/testnet.example.conf`
 - [x] Static + live gate: `scripts/public_testnet_gate.py` / `.ps1`
 - [x] Linux VPS bootstrap: `scripts/vps_testnet_bootstrap.sh`
+- [x] VPS preflight: `scripts/vps_testnet_preflight.py` / `prepare_vps_testnet.ps1`
 - [ ] Single seed + 2–3 validators on VPS or cloud (Docker compose or K8s)
 - [ ] Prometheus/Grafana or uptime ping on `/health/ready`
 - [ ] Log rotation on `data/node.log`
@@ -56,7 +57,8 @@ Target (example): `https://testnet.absolute-chain.org` → explorer + RPC behind
 
 1. **Local / VPS seed** — `.\scripts\docker_testnet_seed.ps1` (default HTTP **19080** — avoids Windows Nahimic on :9080)
 2. **Gate** — `python scripts/public_testnet_gate.py --live` (add `--require-soak-hours 48` before DNS)
-3. **TLS** — `deploy/nginx/testnet.example.conf` in front of seed ports
+3. **VPS preflight** — `.\scripts\prepare_vps_testnet.ps1` (static) or `-Live` after local seed
+4. **TLS** — `deploy/nginx/testnet.example.conf` in front of seed ports
 3. **Explorer** — static `web/explorer/` behind same host or CDN
 4. **README** — replace localhost examples with public URL + chain ID `77777`
 5. **Status page** — link to GitHub Actions badges + last release tag

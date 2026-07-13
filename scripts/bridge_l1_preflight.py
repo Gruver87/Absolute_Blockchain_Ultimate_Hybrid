@@ -48,9 +48,12 @@ def run_preflight(
     *,
     config_path: str = "node.prod.mainnet-v1.example.json",
     probe_l1: bool = False,
+    probe_l1_rpc_only: bool = False,
 ) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
+    rpc_probe = probe_l1 or probe_l1_rpc_only
+    strict_contracts = probe_l1 and not probe_l1_rpc_only
 
     cfg_path = Path(config_path)
     if not cfg_path.is_absolute():
@@ -76,7 +79,7 @@ def run_preflight(
         "BRIDGE_ORACLE_SECRET": "S" * 40,
         "ETH_RPC_URL": os.environ.get("ETH_RPC_URL", "") or "https://rpc.example.com",
         "CORS_ORIGINS": "https://explorer.example.com",
-        "BRIDGE_PROBE_L1_RPC": "true" if probe_l1 else "false",
+        "BRIDGE_PROBE_L1_RPC": "true" if rpc_probe else "false",
     }
     saved = {key: os.environ.get(key) for key in placeholders}
     saved_probe = os.environ.get("BRIDGE_PROBE_L1_RPC")
@@ -84,7 +87,7 @@ def run_preflight(
         for key, value in placeholders.items():
             if value is not None and value != "":
                 os.environ[key] = str(value)
-        if probe_l1:
+        if rpc_probe:
             os.environ["BRIDGE_PROBE_L1_RPC"] = "true"
         cfg = Config.from_json(str(cfg_path))
         cfg.apply_env()
@@ -121,16 +124,16 @@ def run_preflight(
 
     eth_rpc = os.environ.get("ETH_RPC_URL", "").strip()
     if not eth_rpc:
-        if probe_l1:
+        if rpc_probe:
             errors.append("ETH_RPC_URL not set in environment (required when bridge_enabled)")
         else:
             warnings.append("ETH_RPC_URL not set (static preflight); required for live cutover")
     elif is_placeholder_rpc_url(eth_rpc):
-        if probe_l1:
+        if rpc_probe:
             errors.append("ETH_RPC_URL looks like a placeholder, not production RPC")
         else:
             warnings.append("ETH_RPC_URL looks like a placeholder (static preflight); required for live cutover")
-    elif probe_l1:
+    elif rpc_probe:
         from bridge.health import check_l1_rpc_health
 
         probe_cfg = Config.from_json(str(cfg_path))
@@ -156,12 +159,12 @@ def run_preflight(
     )
     if not lock_addr or _is_placeholder_contract(lock_addr):
         msg = "BRIDGE_L1_LOCK_CONTRACT missing/placeholder (required for real cutover)"
-        (errors if probe_l1 else warnings).append(msg)
+        (errors if strict_contracts else warnings).append(msg)
     if not mint_addr or _is_placeholder_contract(mint_addr):
         msg = "BRIDGE_L1_MINT_CONTRACT missing/placeholder (required for real cutover)"
-        (errors if probe_l1 else warnings).append(msg)
+        (errors if strict_contracts else warnings).append(msg)
 
-    if probe_l1 and not errors:
+    if strict_contracts and not errors:
         # Validate that contracts are actually deployed (non-empty bytecode).
         from bridge.l1_rpc import chain_rpc_url, get_contract_code
 
@@ -196,10 +199,19 @@ def main() -> int:
         action="store_true",
         help="Run eth_blockNumber against configured ETH_RPC_URL",
     )
+    parser.add_argument(
+        "--probe-l1-rpc-only",
+        action="store_true",
+        help="Probe L1 RPC only (skip contract bytecode until addresses are set)",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
-    errors, warnings = run_preflight(config_path=args.config, probe_l1=args.probe_l1)
+    errors, warnings = run_preflight(
+        config_path=args.config,
+        probe_l1=args.probe_l1,
+        probe_l1_rpc_only=args.probe_l1_rpc_only,
+    )
     payload = {"ok": not errors, "errors": errors, "warnings": warnings}
     if args.json:
         print(json.dumps(payload, indent=2))

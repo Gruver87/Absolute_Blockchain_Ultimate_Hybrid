@@ -20,6 +20,7 @@ def run_bridge_l1_live_probe(
     *,
     config_path: str = _DEFAULT_CONFIG,
     probe_l1: bool = False,
+    probe_l1_rpc_only: bool = False,
     live: bool = False,
     base_url: str = "",
 ) -> tuple[list[str], list[str], dict]:
@@ -31,18 +32,23 @@ def run_bridge_l1_live_probe(
         live=live,
         base_url=live_base,
         probe_l1=probe_l1,
+        probe_l1_rpc_only=probe_l1_rpc_only,
     )
+    rpc_probe = probe_l1 or probe_l1_rpc_only
     meta = {
         **meta,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "config_path": config_path,
         "probe_l1": probe_l1,
+        "probe_l1_rpc_only": probe_l1_rpc_only,
         "live": live,
         "mode": (
             "full"
             if probe_l1 and live
             else "probe-l1"
             if probe_l1
+            else "probe-l1-rpc-only"
+            if probe_l1_rpc_only
             else "live"
             if live
             else "static"
@@ -75,6 +81,11 @@ def main() -> int:
         help="Probe ETH_RPC_URL (eth_blockNumber) and L1 contract bytecode",
     )
     parser.add_argument(
+        "--probe-l1-rpc-only",
+        action="store_true",
+        help="Probe ETH_RPC_URL only (skip contract bytecode until addresses are set)",
+    )
+    parser.add_argument(
         "--live",
         action="store_true",
         help="Live checks against bridge-enabled prod node HTTP API",
@@ -89,11 +100,13 @@ def main() -> int:
     args = parser.parse_args()
 
     probe_l1 = args.probe_l1 or args.full
+    probe_l1_rpc_only = args.probe_l1_rpc_only and not probe_l1
     live = args.live or args.full
 
     errors, warnings, meta = run_bridge_l1_live_probe(
         config_path=args.config,
         probe_l1=probe_l1,
+        probe_l1_rpc_only=probe_l1_rpc_only,
         live=live,
         base_url=args.base_url,
     )

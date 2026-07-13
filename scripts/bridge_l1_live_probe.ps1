@@ -1,6 +1,7 @@
 # L1 bridge live probe — static, RPC probe, and optional live node checks.
 param(
     [switch]$ProbeL1,
+    [switch]$ProbeL1RpcOnly,
     [switch]$Live,
     [switch]$Full,
     [string]$BaseUrl = "",
@@ -27,6 +28,7 @@ if (Test-Path $dotEnv) {
 
 $argsList = @("scripts/bridge_l1_live_probe.py", "--config", $Config)
 if ($ProbeL1) { $argsList += "--probe-l1" }
+if ($ProbeL1RpcOnly) { $argsList += "--probe-l1-rpc-only" }
 if ($Live) { $argsList += "--live" }
 if ($Full) { $argsList += "--full" }
 if ($BaseUrl) { $argsList += @("--base-url", $BaseUrl) }

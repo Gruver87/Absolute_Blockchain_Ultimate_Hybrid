@@ -23,6 +23,7 @@ def run_monolith_gate(
     p2p_ci: bool = False,
     soak_preflight: bool = False,
     probe_l1: bool = False,
+    probe_l1_rpc_only: bool = False,
     bridge_live: bool = False,
     skip_launch_checklist: bool = False,
 ) -> Tuple[List[str], List[str], dict]:
@@ -45,6 +46,7 @@ def run_monolith_gate(
         bridge_cutover=bridge_cutover,
         live_prod_mesh=live_prod_mesh,
         probe_l1=probe_l1,
+        probe_l1_rpc_only=probe_l1_rpc_only,
         bridge_live=bridge_live,
     )
     sections["industrial_gate"] = {"rc": ig_rc}
@@ -118,6 +120,7 @@ def run_monolith_gate(
         "p2p_ci": p2p_ci,
         "soak_preflight": soak_preflight,
         "probe_l1": probe_l1,
+        "probe_l1_rpc_only": probe_l1_rpc_only,
         "bridge_live": bridge_live,
         "sections": sections,
     }
@@ -176,6 +179,11 @@ def main() -> int:
         help="With --bridge-cutover, probe L1 RPC and contract bytecode",
     )
     parser.add_argument(
+        "--probe-l1-rpc-only",
+        action="store_true",
+        help="With --bridge-cutover, probe ETH_RPC_URL only",
+    )
+    parser.add_argument(
         "--bridge-live",
         action="store_true",
         help="With --bridge-cutover, live bridge node checks",
@@ -191,6 +199,7 @@ def main() -> int:
         p2p_ci=args.p2p_ci,
         soak_preflight=args.soak_preflight,
         probe_l1=args.probe_l1,
+        probe_l1_rpc_only=args.probe_l1_rpc_only,
         bridge_live=args.bridge_live,
         skip_launch_checklist=args.skip_launch_checklist,
     )
