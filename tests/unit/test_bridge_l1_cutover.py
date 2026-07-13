@@ -93,6 +93,7 @@ def test_cutover_live_uses_prod_smoke(monkeypatch):
         "errors": [],
         "checks": {"bridge_rust_mode": True},
     }
+    run_ok = type("R", (), {"returncode": 0, "stdout": "OK", "stderr": ""})()
     with patch("bridge.health.check_rust_bridge_binary", return_value={"ok": True}), patch(
         "bridge_l1_cutover._fetch_status",
         return_value={"deployment_mode": "prod", "chain_id": 778888, "bridge_enabled": True},
@@ -100,7 +101,7 @@ def test_cutover_live_uses_prod_smoke(monkeypatch):
         "prod_smoke.run_prod_smoke", return_value=fake_report
     ), patch(
         "subprocess.run",
-        return_value=type("R", (), {"returncode": 0, "stdout": "OK", "stderr": ""})(),
+        side_effect=[run_ok, run_ok],
     ):
         errors, _warnings, meta = run_cutover_gate(
             live=True,

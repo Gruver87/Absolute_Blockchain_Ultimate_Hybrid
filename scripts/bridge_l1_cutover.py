@@ -98,6 +98,30 @@ def check_live_bridge_cutover(base_url: str) -> Tuple[List[str], List[str]]:
     except Exception as exc:
         warnings.append(f"bridge_relayer preflight skipped: {exc}")
 
+    # Fail-closed check: in L1-proof mode, relayer must be able to run with --watch-l1.
+    # Use a dry-run one-shot so it does not modify state.
+    try:
+        proc = __import__("subprocess").run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "bridge_relayer.py"),
+                "--once",
+                "--dry-run",
+                "--watch-l1",
+                "--api",
+                base,
+            ],
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if proc.returncode != 0:
+            detail = (proc.stdout or proc.stderr or "").strip()
+            errors.append(f"bridge_relayer watch-l1 dry-run failed: {detail or proc.returncode}")
+    except Exception as exc:
+        warnings.append(f"bridge_relayer watch-l1 dry-run skipped: {exc}")
+
     return errors, warnings
 
 
