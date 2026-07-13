@@ -57,6 +57,11 @@ def main() -> int:
         help="Also poll BRIDGE_L1_QUEUE_PATH items against L1 RPC (ETH_RPC_URL, etc.)",
     )
     parser.add_argument(
+        "--allow-blind-confirm",
+        action="store_true",
+        help="Allow confirming pending locks without L1 proofs even when BRIDGE_REQUIRE_L1_PROOF=true (dev only)",
+    )
+    parser.add_argument(
         "--l1-queue",
         default=os.getenv("BRIDGE_L1_QUEUE_PATH", "data/bridge_l1_queue.json"),
         help="JSON queue: outbound/incoming L1 proofs",
@@ -77,9 +82,18 @@ def main() -> int:
             print(f"  - {err}")
         return 1
 
-    if relayer_require_l1_proof() and not args.watch_l1:
+    require_l1 = relayer_require_l1_proof()
+    if require_l1 and not args.watch_l1:
+        # In L1-proof mode, blind confirmation is unsafe. Fail closed unless explicitly allowed.
+        if not args.allow_blind_confirm:
+            print(
+                "FAIL: BRIDGE_REQUIRE_L1_PROOF=true — relayer must run with --watch-l1 "
+                "(or pass --allow-blind-confirm for dev only)"
+            )
+            return 1
         print(
-            "WARN: BRIDGE_REQUIRE_L1_PROOF=true — enable --watch-l1 for L1-backed confirmation"
+            "WARN: allow-blind-confirm enabled while BRIDGE_REQUIRE_L1_PROOF=true "
+            "(dev-only; do not use in production)"
         )
 
     interval = 0 if args.once else (args.interval or 0)

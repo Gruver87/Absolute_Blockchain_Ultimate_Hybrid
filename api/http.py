@@ -6581,6 +6581,7 @@ def _build_bridge_relayer_status(cfg, db) -> Dict:
         )
         return {
             "relayer_script": "python scripts/bridge_relayer.py --once --watch-l1",
+            "relayer_dev_override": "python scripts/bridge_relayer.py --once --allow-blind-confirm",
             "preflight_script": "python scripts/bridge_relayer.py --preflight",
             "oracle_hmac_configured": oracle_on,
             "require_l1_proof": relayer_require_l1_proof(),
