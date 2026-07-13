@@ -32,6 +32,21 @@
 
 ---
 
+## [1.2.66] — 2026-07-13
+
+### Added
+
+- **`scripts/gen_p2p_mesh_tls.py`** — generate CA + node1/node2/node3 P2P TLS material for prod Docker mesh
+- **`docker-compose.prod.3node.p2ptls.yml`** — compose overlay with `/app/p2p_tls` mounts and `P2P_TLS_*` env
+- **`docker_prod_3node.ps1 -P2pTls`** — auto-generate certs, start mesh with TLS overlay, verify `/p2p/security.tls.ready`
+- **`tests/unit/test_gen_p2p_mesh_tls.py`**
+
+### Changed
+
+- **`docs/P2P_TLS.md`** — Docker prod mesh TLS section
+
+---
+
 ## [1.2.65] — 2026-07-13
 
 ### Added

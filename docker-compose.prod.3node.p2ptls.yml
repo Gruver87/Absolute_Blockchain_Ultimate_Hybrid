@@ -1,0 +1,31 @@
+# P2P TLS overlay for docker-compose.prod.3node.yml
+# Usage: docker compose -f docker-compose.prod.3node.yml -f docker-compose.prod.3node.p2ptls.yml up -d
+# Or: .\scripts\docker_prod_3node.ps1 -P2pTls
+
+services:
+  node1:
+    environment:
+      P2P_TLS_ENABLED: "true"
+      P2P_TLS_CERT_PATH: /app/p2p_tls/node.pem
+      P2P_TLS_KEY_PATH: /app/p2p_tls/node.key
+      P2P_TLS_CA_PATH: /app/p2p_tls/ca.pem
+    volumes:
+      - ./data/p2p_tls_prod_mesh/node1:/app/p2p_tls:ro
+
+  node2:
+    environment:
+      P2P_TLS_ENABLED: "true"
+      P2P_TLS_CERT_PATH: /app/p2p_tls/node.pem
+      P2P_TLS_KEY_PATH: /app/p2p_tls/node.key
+      P2P_TLS_CA_PATH: /app/p2p_tls/ca.pem
+    volumes:
+      - ./data/p2p_tls_prod_mesh/node2:/app/p2p_tls:ro
+
+  node3:
+    environment:
+      P2P_TLS_ENABLED: "true"
+      P2P_TLS_CERT_PATH: /app/p2p_tls/node.pem
+      P2P_TLS_KEY_PATH: /app/p2p_tls/node.key
+      P2P_TLS_CA_PATH: /app/p2p_tls/ca.pem
+    volumes:
+      - ./data/p2p_tls_prod_mesh/node3:/app/p2p_tls:ro

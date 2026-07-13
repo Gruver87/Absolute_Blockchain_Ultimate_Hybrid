@@ -6,6 +6,7 @@ param(
     [switch]$KeepVolumes,
     [switch]$PullLatest,
     [switch]$RecoveryDrill,
+    [switch]$P2pTls,
     [string]$ProdImage = "ghcr.io/gruver87/abs-blockchain-node:latest"
 )
 
@@ -84,7 +85,32 @@ python scripts/prod_gate.py
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $composeFile = "docker-compose.prod.3node.yml"
+$composeTlsFile = "docker-compose.prod.3node.p2ptls.yml"
 $ComposeProject = "abs-prod-mesh3"
+$composeArgs = @("-p", $ComposeProject, "-f", $composeFile)
+
+if ($P2pTls) {
+    $tlsRoot = Join-Path (Get-Location) "data\p2p_tls_prod_mesh\node1\node.pem"
+    if (-not (Test-Path $tlsRoot)) {
+        Write-Host "Generating prod mesh P2P TLS material..." -ForegroundColor Cyan
+        python scripts/gen_p2p_mesh_tls.py
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
+    if (-not (Test-Path $composeTlsFile)) {
+        Write-Host "FAIL: missing $composeTlsFile" -ForegroundColor Red
+        exit 1
+    }
+    $composeArgs += @("-f", $composeTlsFile)
+    Write-Host "P2P wire TLS enabled (overlay $composeTlsFile)" -ForegroundColor Cyan
+}
+
+function Invoke-MeshCompose {
+    param(
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [string[]]$ComposeCommand
+    )
+    & docker compose @composeArgs @ComposeCommand
+}
 $env:DOCKER_BUILDKIT = "1"
 $env:COMPOSE_DOCKER_CLI_BUILD = "1"
 
@@ -123,21 +149,21 @@ if ($KeepVolumes) {
 }
 
 if ($KeepVolumes) {
-    docker compose -p $ComposeProject -f $composeFile down --remove-orphans 2>$null
+    Invoke-MeshCompose down --remove-orphans 2>$null
 } else {
-    docker compose -p $ComposeProject -f $composeFile down -v --remove-orphans 2>$null
+    Invoke-MeshCompose down -v --remove-orphans 2>$null
 }
 if (-not $SkipBuild) {
-    docker compose -p $ComposeProject -f $composeFile build node1 node2 node3
+    Invoke-MeshCompose build node1 node2 node3
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
 if ($NoCloneDb) {
     Write-Host "Starting 3-node mesh (no DB seed)..." -ForegroundColor Gray
-    docker compose -p $ComposeProject -f $composeFile up -d --force-recreate node1 node2 node3
+    Invoke-MeshCompose up -d --force-recreate node1 node2 node3
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 } else {
-    docker compose -p $ComposeProject -f $composeFile up -d --force-recreate node1
+    Invoke-MeshCompose up -d --force-recreate node1
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     Write-Host "Waiting for node1..." -ForegroundColor Gray
@@ -150,7 +176,7 @@ if ($NoCloneDb) {
         } catch { Start-Sleep -Seconds 5 }
     }
     if (-not $ready1) {
-        docker compose -p $ComposeProject -f $composeFile logs node1 --tail 40
+        Invoke-MeshCompose logs node1 --tail 40
         exit 1
     }
 
@@ -166,14 +192,14 @@ if ($NoCloneDb) {
         Write-Host "WARN: could not read node1 height before seed" -ForegroundColor Yellow
     }
     Write-Host "Stopping node1 for consistent RocksDB seed..." -ForegroundColor Gray
-    docker compose -p $ComposeProject -f $composeFile stop node1 | Out-Null
-    docker compose -p $ComposeProject -f $composeFile --profile seed run --rm node2-db-seed
+    Invoke-MeshCompose stop node1 | Out-Null
+    Invoke-MeshCompose --profile seed run --rm node2-db-seed
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    docker compose -p $ComposeProject -f $composeFile --profile seed run --rm node3-db-seed
+    Invoke-MeshCompose --profile seed run --rm node3-db-seed
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     Write-Host "Starting 3-node mesh together (avoid solo mining before followers)..." -ForegroundColor Gray
-    docker compose -p $ComposeProject -f $composeFile up -d --force-recreate node1 node2 node3
+    Invoke-MeshCompose up -d --force-recreate node1 node2 node3
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
@@ -187,7 +213,7 @@ while ((Get-Date) -lt $deadline) {
     } catch { Start-Sleep -Seconds 3 }
 }
 if (-not $ready1) {
-    docker compose -p $ComposeProject -f $composeFile logs node1 --tail 40
+    Invoke-MeshCompose logs node1 --tail 40
     exit 1
 }
 
@@ -205,8 +231,8 @@ foreach ($port in @(18181, 18182)) {
     if (-not $ready) {
         $svc = $portToService[$port]
         Write-Host "FAIL: mesh node not reachable on port $port (/health/ready)" -ForegroundColor Red
-        docker compose -p $ComposeProject -f $composeFile ps -a
-        docker compose -p $ComposeProject -f $composeFile logs $svc --tail 60
+        Invoke-MeshCompose ps -a
+        Invoke-MeshCompose logs $svc --tail 60
         exit 1
     }
 }
@@ -214,14 +240,33 @@ foreach ($port in @(18181, 18182)) {
 Write-Host "Waiting for 3-node mesh sync..." -ForegroundColor Cyan
 python scripts/verify_p2p_ci.py --mode prod-mesh3-live --url1 http://127.0.0.1:18180 --url2 http://127.0.0.1:18181 --url3 http://127.0.0.1:18182 --wait 360
 if ($LASTEXITCODE -ne 0) {
-    docker compose -p $ComposeProject -f $composeFile logs node1 --tail 20
-    docker compose -p $ComposeProject -f $composeFile logs node2 --tail 20
-    docker compose -p $ComposeProject -f $composeFile logs node3 --tail 20
+    Invoke-MeshCompose logs node1 --tail 20
+    Invoke-MeshCompose logs node2 --tail 20
+    Invoke-MeshCompose logs node3 --tail 20
     exit $LASTEXITCODE
 }
 
 python scripts/prod_smoke.py http://127.0.0.1:18180
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+if ($P2pTls) {
+    Write-Host "Verifying P2P wire TLS on mesh nodes..." -ForegroundColor Cyan
+    foreach ($port in @(18180, 18181, 18182)) {
+        try {
+            $sec = Invoke-RestMethod -Uri "http://127.0.0.1:$port/p2p/security" -TimeoutSec 12
+            $tls = $sec.tls
+            if (-not $tls.enabled -or -not $tls.ready) {
+                Write-Host "FAIL: P2P TLS not ready on :$port (enabled=$($tls.enabled) ready=$($tls.ready))" -ForegroundColor Red
+                if ($tls.errors) { Write-Host "  errors: $($tls.errors -join '; ')" -ForegroundColor Red }
+                exit 1
+            }
+            Write-Host "  OK :$port P2P TLS ready" -ForegroundColor DarkGray
+        } catch {
+            Write-Host "FAIL: could not read /p2p/security on :$port — $_" -ForegroundColor Red
+            exit 1
+        }
+    }
+}
 
 if ($RecoveryDrill) {
     Write-Host "Running prod mesh failover recovery drill..." -ForegroundColor Cyan
@@ -234,6 +279,9 @@ if ($RecoveryDrill) {
 }
 
 Write-Host "OK: prod 3-node mesh" -ForegroundColor Green
+if ($P2pTls) {
+    Write-Host "  P2P wire TLS: enabled on all nodes" -ForegroundColor Gray
+}
 Write-Host "  node1 http://127.0.0.1:18180" -ForegroundColor Gray
 Write-Host "  node2 http://127.0.0.1:18181" -ForegroundColor Gray
 Write-Host "  node3 http://127.0.0.1:18182" -ForegroundColor Gray
