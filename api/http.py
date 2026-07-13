@@ -1477,7 +1477,15 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             elif path in ("/p2p/topology", "/p2p/peer-score"):
                 if p2p and hasattr(p2p, "get_topology"):
-                    self._json(p2p.get_topology())
+                    topo = p2p.get_topology()
+                    if path == "/p2p/peer-score":
+                        topo["endpoint"] = "peer-score"
+                        topo["scoring"] = {
+                            "model": "height_gap_and_last_seen",
+                            "min": topo.get("peer_score_min"),
+                            "avg": topo.get("peer_score_avg"),
+                        }
+                    self._json(topo)
                 else:
                     self._json({
                         "node_id": getattr(cfg, "node_id", ""),

@@ -16,6 +16,21 @@
 
 ---
 
+## [1.2.53] — 2026-07-13
+
+### Added
+
+- **`-ProdMesh` / `-ProdMeshSpawn`** on `test_blockchain_full.ps1` — live prod 3-node P2P gate (`prod-mesh3-live`) + deep mesh probe + `mainnet_readiness --live-prod-mesh`
+- **P2P industrial hardening:** max wire message size (`p2p_max_message_bytes`), peer health scores in topology/`/p2p/peer-score`
+- **`verify_p2p_ci --mode auto`** now detects prod mesh on `:18180–:18182` before devnet
+- **`probe_mesh_nodes.ps1 -Deep`** — topology + consistency harness summary (auto on `-ProdMesh`)
+
+### Tests
+
+- `tests/unit/test_p2p_industrial.py` — oversized message drop, auto prod-mesh detection
+
+---
+
 ## [1.2.52] — 2026-07-13
 
 ### Added

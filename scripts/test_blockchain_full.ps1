@@ -24,10 +24,16 @@
 #
 # Skip native wheel rebuild (already built):
 #   .\scripts\test_blockchain_full.ps1 -SkipNativeBuild
+#
+# Prod mesh live P2P (docker_prod_3node.ps1 must be running on :18180-:18182):
+#   .\scripts\test_blockchain_full.ps1 -ProdMesh
+#   .\scripts\test_blockchain_full.ps1 -ProdMesh -ProdMeshSpawn
 
 param(
     [switch]$Live,
     [switch]$P2P,
+    [switch]$ProdMesh,
+    [switch]$ProdMeshSpawn,
     [switch]$Docker,
     [switch]$DockerBuild,
     [switch]$BuildRust,
@@ -36,6 +42,7 @@ param(
     [string]$BaseUrl = "http://127.0.0.1:8080",
     [int]$PytestTimeout = 900,
     [int]$P2PWait = 300,
+    [int]$ProdMeshWait = 360,
     [int]$AuditRetries = 1
 )
 
@@ -263,10 +270,38 @@ Run-Step "Hybrid critical native/consensus/EVM tests" {
         tests/unit/test_prod_boot_e2e.py `
         tests/unit/test_db_accounts_migration.py `
         tests/unit/test_l1_rpc_contract.py `
+        tests/unit/test_p2p_industrial.py `
         -q
 }
 
-if ($Live) {
+if ($ProdMeshSpawn) {
+    Require-Command docker
+    Run-Step "Docker prod 3-node mesh bootstrap" {
+        & (Join-Path $ProjectRoot "scripts\docker_prod_3node.ps1") -SkipBuild -KeepVolumes -NoCloneDb
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
+}
+
+if ($ProdMesh) {
+    if ($P2P) {
+        Write-Host "NOTE: -P2P devnet check skipped; running -ProdMesh gates instead" -ForegroundColor Yellow
+    }
+    Run-Step "Prod mesh probe (deep)" {
+        & (Join-Path $ProjectRoot "scripts\probe_mesh_nodes.ps1") -ProdMesh -Deep
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
+    Run-Step "Prod mesh P2P verify (prod-mesh3-live)" {
+        python scripts/verify_p2p_ci.py --mode prod-mesh3-live `
+            --url1 http://127.0.0.1:18180 `
+            --url2 http://127.0.0.1:18181 `
+            --url3 http://127.0.0.1:18182 `
+            --wait $ProdMeshWait
+    }
+    Run-Step "Mainnet readiness (live prod mesh)" {
+        python scripts/mainnet_readiness.py --no-strict-audit --live-prod-mesh --json
+    }
+}
+elseif ($Live) {
     Run-Step "Live node endpoints" {
         try {
             Invoke-JsonEndpoint "/health/live"

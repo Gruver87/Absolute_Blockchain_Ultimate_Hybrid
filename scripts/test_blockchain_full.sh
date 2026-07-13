@@ -13,6 +13,8 @@ cd "$ROOT"
 
 LIVE=0
 P2P=0
+PROD_MESH=0
+PROD_MESH_SPAWN=0
 DOCKER=0
 DOCKER_BUILD=0
 BUILD_RUST=0
@@ -21,6 +23,7 @@ NO_CLEAN=0
 BASE_URL="http://127.0.0.1:8080"
 PYTEST_TIMEOUT=900
 P2P_WAIT=300
+PROD_MESH_WAIT=360
 AUDIT_RETRIES=1
 
 while [[ $# -gt 0 ]]; do
@@ -31,6 +34,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --p2p)
       P2P=1
+      shift
+      ;;
+    --prod-mesh)
+      PROD_MESH=1
+      shift
+      ;;
+    --prod-mesh-spawn)
+      PROD_MESH_SPAWN=1
       shift
       ;;
     --docker)
@@ -63,6 +74,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --p2p-wait)
       P2P_WAIT="${2:?missing value for --p2p-wait}"
+      shift 2
+      ;;
+    --prod-mesh-wait)
+      PROD_MESH_WAIT="${2:?missing value for --prod-mesh-wait}"
       shift 2
       ;;
     --audit-retries)
@@ -201,10 +216,32 @@ run_step "Hybrid critical native/consensus/EVM tests" python -m pytest \
   tests/unit/test_external_audit.py \
   tests/unit/test_bridge_l1_cutover.py \
   tests/unit/test_l1_rpc_contract.py \
+  tests/unit/test_p2p_industrial.py \
   tests/unit/test_db_accounts_migration.py \
   -q
 
-if [[ "$LIVE" == "1" ]]; then
+if [[ "$PROD_MESH_SPAWN" == "1" ]]; then
+  require_command docker
+  if [[ -x scripts/docker_prod_3node.sh ]]; then
+    run_step "Docker prod 3-node mesh bootstrap" bash scripts/docker_prod_3node.sh --skip-build --keep-volumes --no-clone-db
+  elif [[ -f scripts/docker_prod_3node.ps1 ]]; then
+    run_step "Docker prod 3-node mesh bootstrap" powershell -ExecutionPolicy Bypass -File scripts/docker_prod_3node.ps1 -SkipBuild -KeepVolumes -NoCloneDb
+  else
+    echo "ProdMeshSpawn requires docker_prod_3node script" >&2
+    exit 1
+  fi
+fi
+
+if [[ "$PROD_MESH" == "1" ]]; then
+  if [[ "$P2P" == "1" ]]; then
+    echo "NOTE: -P2P devnet check skipped; running --prod-mesh gates instead"
+  fi
+  run_step "Prod mesh probe" powershell -ExecutionPolicy Bypass -File scripts/probe_mesh_nodes.ps1 -ProdMesh -Deep
+  run_step "Prod mesh P2P verify" python scripts/verify_p2p_ci.py --mode prod-mesh3-live \
+    --url1 http://127.0.0.1:18180 --url2 http://127.0.0.1:18181 --url3 http://127.0.0.1:18182 \
+    --wait "$PROD_MESH_WAIT"
+  run_step "Mainnet readiness live prod mesh" python scripts/mainnet_readiness.py --no-strict-audit --live-prod-mesh --json
+elif [[ "$LIVE" == "1" ]]; then
   run_step "Live node endpoints" python - <<PY
 import urllib.request
 base = "${BASE_URL}"

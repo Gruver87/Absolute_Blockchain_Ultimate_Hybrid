@@ -381,8 +381,10 @@ Single script — native crypto + bridge smoke, secrets scan, production/industr
 # Faster local audit (skip native wheel rebuild)
 .\scripts\check_everything.ps1
 
-# Optional live / P2P / Docker:
+# Optional live / P2P / Docker / Prod mesh:
 .\scripts\test_blockchain_full.ps1 -Live -P2P -Docker
+.\scripts\test_blockchain_full.ps1 -ProdMesh
+.\scripts\test_blockchain_full.ps1 -ProdMesh -ProdMeshSpawn
 # Reports: data/full_audit_report.json, data/mainnet_readiness.json, data/industrial_gate.json
 ```
 

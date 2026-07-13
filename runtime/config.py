@@ -87,6 +87,7 @@ class Config:
     testnet_validators_manifest: str = "" # docker/validators.devnet5.json
     validators_manifest_path: str = ""    # prod: public validator set (addresses only)
     peer_timeout: int = 30              # секунд до отключения неактивного пира
+    p2p_max_message_bytes: int = 2 * 1024 * 1024  # max JSON line on P2P wire
     sync_batch_size: int = 100          # блоков за один запрос синхронизации
 
     # ── EVM ─────────────────────────────────────────────────────────────────

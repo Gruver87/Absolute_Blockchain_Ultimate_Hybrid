@@ -38,6 +38,9 @@ DEVNET_URL2 = "http://127.0.0.1:8081"
 DEVNET_URL3 = "http://127.0.0.1:8082"
 DEVNET_URL4 = "http://127.0.0.1:8083"
 DEVNET_URL5 = "http://127.0.0.1:8084"
+PROD_MESH_URL1 = "http://127.0.0.1:18180"
+PROD_MESH_URL2 = "http://127.0.0.1:18181"
+PROD_MESH_URL3 = "http://127.0.0.1:18182"
 _ADMIN_TOKENS: dict[str, str] = {}
 
 
@@ -3143,28 +3146,48 @@ def main() -> int:
 
     mode = args.mode
     if mode == "auto":
-        up1 = _probe_health(args.url1)
-        up2 = _probe_health(args.url2)
-        up3 = _probe_health(args.url3)
-        if up1 and up2 and up3:
-            mode = "devnet3"
-            print(f"Auto: 3-node devnet at {args.url1} {args.url2} {args.url3}")
-        elif up1 and up2:
-            mode = "devnet"
-            print(f"Auto: devnet detected at {args.url1} and {args.url2}")
-        elif up1 or up2 or up3:
-            print("FAIL: incomplete devnet cluster")
-            print(f"  node1 :8080 {'UP' if up1 else 'DOWN'}")
-            print(f"  node2 :8081 {'UP' if up2 else 'DOWN'}")
-            print(f"  node3 :8082 {'UP' if up3 else 'DOWN'}")
-            print("  Fix 2-node: .\\scripts\\start_two_nodes.ps1")
-            print("  Fix 2-node: .\\scripts\\docker_devnet.ps1 -RustBridge")
-            print("  Fix 3-node: .\\scripts\\docker_devnet_3node.ps1")
-            print("  Or run without -Live to use isolated CI on :15080/:15081")
+        prod1 = _probe_health(PROD_MESH_URL1)
+        prod2 = _probe_health(PROD_MESH_URL2)
+        prod3 = _probe_health(PROD_MESH_URL3)
+        if prod1 and prod2 and prod3:
+            mode = "prod-mesh3-live"
+            args.url1 = PROD_MESH_URL1
+            args.url2 = PROD_MESH_URL2
+            args.url3 = PROD_MESH_URL3
+            print(
+                f"Auto: prod mesh detected at {PROD_MESH_URL1} "
+                f"{PROD_MESH_URL2} {PROD_MESH_URL3}"
+            )
+        elif prod1 or prod2 or prod3:
+            print("FAIL: incomplete prod mesh cluster")
+            print(f"  node1 :18180 {'UP' if prod1 else 'DOWN'}")
+            print(f"  node2 :18181 {'UP' if prod2 else 'DOWN'}")
+            print(f"  node3 :18182 {'UP' if prod3 else 'DOWN'}")
+            print("  Fix: .\\scripts\\docker_prod_3node.ps1 -SkipBuild -KeepVolumes -NoCloneDb")
             return 1
         else:
-            mode = "ci"
-            print("Auto: no devnet on :8080/:8081 — running isolated CI test (--mode ci)")
+            up1 = _probe_health(args.url1)
+            up2 = _probe_health(args.url2)
+            up3 = _probe_health(args.url3)
+            if up1 and up2 and up3:
+                mode = "devnet3"
+                print(f"Auto: 3-node devnet at {args.url1} {args.url2} {args.url3}")
+            elif up1 and up2:
+                mode = "devnet"
+                print(f"Auto: devnet detected at {args.url1} and {args.url2}")
+            elif up1 or up2 or up3:
+                print("FAIL: incomplete devnet cluster")
+                print(f"  node1 :8080 {'UP' if up1 else 'DOWN'}")
+                print(f"  node2 :8081 {'UP' if up2 else 'DOWN'}")
+                print(f"  node3 :8082 {'UP' if up3 else 'DOWN'}")
+                print("  Fix 2-node: .\\scripts\\start_two_nodes.ps1")
+                print("  Fix 2-node: .\\scripts\\docker_devnet.ps1 -RustBridge")
+                print("  Fix 3-node: .\\scripts\\docker_devnet_3node.ps1")
+                print("  Or run without -Live to use isolated CI on :15080/:15081")
+                return 1
+            else:
+                mode = "ci"
+                print("Auto: no devnet on :8080/:8081 — running isolated CI test (--mode ci)")
 
     if mode == "devnet5":
         print(f"Devnet5 mode: checking {args.url1} .. {args.url5}")

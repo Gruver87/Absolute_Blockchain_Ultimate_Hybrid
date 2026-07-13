@@ -21,6 +21,20 @@ from typing import Dict, List, Optional, Callable, Any, Tuple
 
 logger = logging.getLogger("P2P")
 
+# Fail closed on oversized wire payloads (DoS hardening).
+DEFAULT_MAX_P2P_LINE_BYTES = 2 * 1024 * 1024
+
+
+def _max_p2p_line_bytes(config) -> int:
+    raw = getattr(config, "p2p_max_message_bytes", None)
+    if raw is None:
+        return DEFAULT_MAX_P2P_LINE_BYTES
+    try:
+        limit = int(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_MAX_P2P_LINE_BYTES
+    return max(4096, min(limit, 16 * 1024 * 1024))
+
 # --- SyncEngine (System C: fast catch-up) ---
 try:
     from sync.sync_engine import SyncEngine
@@ -87,11 +101,20 @@ class PeerConnection:
         except Exception as e:
             logger.debug(f"[P2P] send error to {self.peer_id}: {e}")
 
-    async def recv(self) -> Optional[Dict]:
+    async def recv(self, config=None) -> Optional[Dict]:
         """Читает одно JSON-сообщение от пира."""
+        limit = _max_p2p_line_bytes(config)
         try:
             line = await asyncio.wait_for(self.reader.readline(), timeout=30)
             if not line:
+                return None
+            if len(line) > limit:
+                logger.warning(
+                    "[P2P] dropped oversized message from %s (%s bytes > %s)",
+                    self.peer_id or self.host,
+                    len(line),
+                    limit,
+                )
                 return None
             return json.loads(line.decode().strip())
         except asyncio.TimeoutError:
@@ -384,12 +407,12 @@ class P2PNode:
 
         if initiator:
             await peer.send(MSG_HANDSHAKE, our_info)
-            msg = await peer.recv()
+            msg = await peer.recv(self.config)
             if not msg or msg.get("type") != MSG_HANDSHAKE_ACK:
                 return False
             ack = msg.get("data", {})
         else:
-            msg = await peer.recv()
+            msg = await peer.recv(self.config)
             if not msg or msg.get("type") != MSG_HANDSHAKE:
                 return False
             ack = msg.get("data", {})
@@ -423,7 +446,7 @@ class P2PNode:
         """Основной цикл чтения сообщений от пира."""
         try:
             while self._running and self.peers.get(peer.peer_id) is peer:
-                msg = await peer.recv()
+                msg = await peer.recv(self.config)
                 if msg is None:
                     break
                 if msg.get("type") == MSG_IDLE:
@@ -1619,13 +1642,20 @@ class P2PNode:
         local_height = self.blockchain.get_height() if self.blockchain else 0
         peers = []
         now = time.time()
+        health_timeout = max(
+            30.0,
+            float(getattr(self.config, "peer_timeout", 30) or 30) * 2,
+        )
         for p in self.peers.values():
             gap = abs(int(p.height or 0) - int(local_height or 0))
             last_seen_age = max(0.0, now - p.last_seen)
-            health_timeout = max(
-                30.0,
-                float(getattr(self.config, "peer_timeout", 30) or 30) * 2,
-            )
+            score = 100
+            score -= min(45, gap * 15)
+            if last_seen_age >= health_timeout:
+                score -= 50
+            elif last_seen_age >= health_timeout / 2:
+                score -= 20
+            score = max(0, min(100, score))
             peers.append({
                 "peer_id": p.peer_id,
                 "address": f"{p.host}:{p.listen_port or p.port}",
@@ -1638,8 +1668,10 @@ class P2PNode:
                 "last_seen_age_sec": round(last_seen_age, 3),
                 "health_timeout_sec": int(health_timeout),
                 "healthy": gap <= 2 and last_seen_age < health_timeout,
+                "score": score,
             })
         expected = int(getattr(self.config, "testnet_expected_peers", 0) or 0)
+        scores = [p["score"] for p in peers]
         return {
             "node_id": getattr(self.config, "node_id", ""),
             "chain_id": getattr(self.config, "chain_id", 0),
@@ -1654,4 +1686,6 @@ class P2PNode:
             "known_addresses": list(self._known_addrs),
             "peers": peers,
             "state_consistent": self._state_consistent,
+            "peer_score_min": min(scores) if scores else None,
+            "peer_score_avg": round(sum(scores) / len(scores), 2) if scores else None,
         }
