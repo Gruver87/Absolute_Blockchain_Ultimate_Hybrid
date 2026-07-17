@@ -2,7 +2,7 @@
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $ProjectRoot
 
-Write-Host "=== Absolute Blockchain — genesis reset ===" -ForegroundColor Cyan
+Write-Host "=== Absolute Blockchain - genesis reset ===" -ForegroundColor Cyan
 Write-Host "This stops nodes and deletes local chain databases." -ForegroundColor Yellow
 Write-Host "Wallets in data/ and data/node2/ are kept unless you pass -WipeWallets" -ForegroundColor Gray
 Write-Host ""

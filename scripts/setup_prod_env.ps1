@@ -53,7 +53,7 @@ elif not all(ord(c) < 128 for c in url):
     errors.append('ETH_RPC_URL must be ASCII only - paste the API key from infura.io, not placeholder text like NOVYI_KLYUCH or VSTAVTE_32_HEX')
 from bridge.l1_rpc import is_placeholder_l1_rpc_url, probe_l1_rpc_url
 if url.strip() and is_placeholder_l1_rpc_url(url):
-    errors.append('placeholder URL — use a real provider key (Infura Project API Key, Alchemy, etc.)')
+    errors.append('placeholder URL - use a real provider key (Infura Project API Key, Alchemy, etc.)')
 m = re.search(r'infura\.io/v3/([^/?\s]+)', url, re.I)
 if m:
     key = m.group(1)
@@ -68,7 +68,7 @@ if not out['ok']:
     err = str(probe.get('error') or 'probe failed')
     out['errors'] = [err]
     if '401' in err:
-        out['errors'].append('Infura 401: API key invalid or revoked — copy a fresh key from infura.io')
+        out['errors'].append('Infura 401: API key invalid or revoked - copy a fresh key from infura.io')
 print(json.dumps(out))
 "@ $Url 2>&1
     try {

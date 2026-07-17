@@ -26,7 +26,7 @@ if (Test-Path $dotEnv) {
 
 $bridgeExample = Join-Path $Root ".env.bridge.cutover.example"
 if (-not (Test-Path $dotEnv) -and (Test-Path $bridgeExample)) {
-    Write-Host "WARN: no .env — copy .env.bridge.cutover.example and set ETH_RPC_URL" -ForegroundColor Yellow
+    Write-Host "WARN: no .env - copy .env.bridge.cutover.example and set ETH_RPC_URL" -ForegroundColor Yellow
 }
 
 $gitTag = "unknown"

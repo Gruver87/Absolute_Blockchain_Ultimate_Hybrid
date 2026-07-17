@@ -9,7 +9,7 @@
 [![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
 [![Local gate](https://img.shields.io/badge/local%20gate-check__hybrid__full-lightgrey)](scripts/check_hybrid_full.ps1)
-[![Release](https://img.shields.io/badge/Release-v1.2.77-blue)](RELEASE_NOTES_v1.2.77.md)
+[![Release](https://img.shields.io/badge/Release-v1.2.78-blue)](RELEASE_NOTES_v1.2.78.md)
 
 **Repo:** [github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · **Branch:** `master`
 
@@ -18,7 +18,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | `1.2.0-industrial` (latest release **v1.2.77** — P2P sync rate-limit fix; see [CHANGELOG](CHANGELOG.md)) |
+| **Version** | `1.2.0-industrial` (latest release **v1.2.78** — industrial audit prep; see [CHANGELOG](CHANGELOG.md)) |
 | **Author** | **ULADZIMIR DABRANSKI** |
 | **API Wave** | 61; check GET /status fields: `api_wave`, `core_real`, `p2p_sync_status` |
 | **Entry point** | `python main.py` |
@@ -33,7 +33,7 @@
 | Changelog | [CHANGELOG.md](CHANGELOG.md) |
 | Architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Public testnet (plan) | [docs/PUBLIC_TESTNET.md](docs/PUBLIC_TESTNET.md) |
-| Release notes | [v1.2.77](RELEASE_NOTES_v1.2.77.md) · [v1.2.76](RELEASE_NOTES_v1.2.76.md) · [v1.2.75](RELEASE_NOTES_v1.2.75.md) · [Evidence matrix](docs/EVIDENCE_MATRIX.md) |
+| Release notes | [v1.2.78](RELEASE_NOTES_v1.2.78.md) · [v1.2.77](RELEASE_NOTES_v1.2.77.md) · [v1.2.76](RELEASE_NOTES_v1.2.76.md) · [Evidence matrix](docs/EVIDENCE_MATRIX.md) |
 | Mainnet gap (honest) | [docs/MAINNET_GAP_ANALYSIS.md](docs/MAINNET_GAP_ANALYSIS.md) |
 | Bridge L1 cutover | [docs/BRIDGE_L1_MAINNET.md](docs/BRIDGE_L1_MAINNET.md) |
 | Docker images (GHCR) | [docs/DOCKER_IMAGES.md](docs/DOCKER_IMAGES.md) |
@@ -54,7 +54,7 @@
 | **Security** | Stronger production gates are implemented; **external audit: not completed**; do **not** use for real funds without independent review |
 
 **Evidence vs claims:** [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md) — what live prod mesh runs have actually proven (Jul 2026).  
-**Latest release:** [v1.2.77](RELEASE_NOTES_v1.2.77.md) — P2P sync rate-limit fix; prod mesh probe PASS (Jul 13).
+**Latest release:** [v1.2.78](RELEASE_NOTES_v1.2.78.md) — industrial audit pack (soak-safe); 48h soak **running**, not PASS yet.
 
 ---
 
@@ -117,6 +117,7 @@ Public testnet checklist (not live): **[docs/PUBLIC_TESTNET.md](docs/PUBLIC_TEST
 | Signed tx (prod) | `python scripts/prod_signed_tx_smoke.py` — **not** covered by default mesh `SKIP: tx propagation` |
 | Prod EVM (deploy + RPC storage) | `python scripts/prod_evm_smoke.py` — requires `RPC_API_KEYS` from `.env` |
 | Full evidence suite | `.\scripts\prod_evidence_suite.ps1` — health + failover + signed tx + EVM |
+| Audit pack (static) | `.\scripts\export_audit_pack.ps1` — soak-safe zip for third-party review |
 
 ---
 
@@ -486,4 +487,4 @@ Full list: `api/http.py`, `/docs`, `docs/ALL_COMMANDS.txt`
 
 ---
 
-*Last update: July 2026 — latest release **[v1.2.77](RELEASE_NOTES_v1.2.77.md)** (P2P sync rate-limit fix; prod mesh probe PASS). **Not** a launched public mainnet — evidence ledger: [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md).*
+*Last update: July 2026 — latest release **[v1.2.78](RELEASE_NOTES_v1.2.78.md)** (industrial audit prep; 48h soak running, not PASS yet). **Not** a launched public mainnet — evidence ledger: [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md).*

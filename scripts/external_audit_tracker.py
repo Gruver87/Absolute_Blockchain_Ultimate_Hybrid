@@ -14,6 +14,7 @@ from runtime.external_audit import (  # noqa: E402
     DEFAULT_CHECKLIST,
     default_status_path,
     evaluate,
+    evaluate_automated,
     set_item_done,
     sync_automated_items,
 )
@@ -25,6 +26,16 @@ def main() -> int:
     parser.add_argument("--set", metavar="ITEM", help="Mark checklist item done (exact label)")
     parser.add_argument("--unset", metavar="ITEM", help="Mark checklist item pending")
     parser.add_argument("--note", default="", help="Optional note for --set")
+    parser.add_argument(
+        "--evidence-url",
+        default="",
+        help="Optional evidence URL for --set (engagement letter, report link)",
+    )
+    parser.add_argument(
+        "--evidence-note",
+        default="",
+        help="Optional evidence note for --set",
+    )
     parser.add_argument("--json", action="store_true", help="JSON output")
     parser.add_argument("--status-file", default="", help="Override status JSON path")
     parser.add_argument(
@@ -32,9 +43,33 @@ def main() -> int:
         action="store_true",
         help="Mark items done when automated checks pass (DR drill, prod_gate, key scan)",
     )
+    parser.add_argument(
+        "--show-automated",
+        action="store_true",
+        help="Dry-run: show automated check pass/fail without writing status",
+    )
     args = parser.parse_args()
 
     status_path = Path(args.status_file) if args.status_file else default_status_path(ROOT)
+
+    if args.show_automated:
+        results = evaluate_automated(ROOT)
+        rows = [
+            {"label": label, "ok": ok, "note": note}
+            for label, (ok, note) in results.items()
+        ]
+        if args.json:
+            print(json.dumps({"items": rows}, indent=2, ensure_ascii=False))
+        else:
+            print("=" * 60)
+            print("AUTOMATED AUDIT CHECKS (dry-run, no write)")
+            print("=" * 60)
+            for row in rows:
+                mark = "PASS" if row["ok"] else "FAIL"
+                print(f"  [{mark}] {row['label']}")
+                print(f"         {row['note']}")
+            print("=" * 60)
+        return 0
 
     if args.sync_automated:
         marked = sync_automated_items(ROOT, status_path)
@@ -54,7 +89,14 @@ def main() -> int:
         if args.set not in DEFAULT_CHECKLIST:
             print(f"Unknown item: {args.set}", file=sys.stderr)
             return 2
-        out = set_item_done(args.set, done=True, note=args.note, status_path=status_path)
+        out = set_item_done(
+            args.set,
+            done=True,
+            note=args.note,
+            status_path=status_path,
+            evidence_url=args.evidence_url,
+            evidence_note=args.evidence_note,
+        )
         if args.json:
             print(json.dumps({"ok": True, "status_file": str(out)}))
         else:
@@ -87,6 +129,10 @@ def main() -> int:
         print(f"  {mark} {row['label']}")
         if row.get("note"):
             print(f"       note: {row['note']}")
+        if row.get("evidence_url"):
+            print(f"       evidence_url: {row['evidence_url']}")
+        if row.get("evidence_note"):
+            print(f"       evidence_note: {row['evidence_note']}")
     print(f"\nCompleted: {summary['completed']}/{summary['total']}")
     print(f"Status file: {summary['status_path']}")
     if warnings:

@@ -2,7 +2,7 @@
 param(
     [int]$Hours = 48,
     [int]$IntervalSec = 300,
-    [string]$LogFile = "logs/soak_48h_v1.2.34.log",
+    [string]$LogFile = "logs/soak_48h_v1.2.77.log",
     [string]$ReportFile = "logs/soak_report_48h.json",
     [switch]$Foreground,
     [switch]$NoStopExisting

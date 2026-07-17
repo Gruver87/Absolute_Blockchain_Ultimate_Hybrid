@@ -32,6 +32,27 @@
 
 ---
 
+## [1.2.78] — 2026-07-17
+
+### Added
+
+- **`scripts/export_audit_pack.py`** / **`.ps1`** — soak-safe static audit pack (gates, docs, soak artifacts, zip + `manifest.json`); never restarts prod mesh
+- **`external_audit_tracker`** — `-SyncAutomated` / `-ShowAutomated`, `--evidence-url` / `--evidence-note` on `--set`
+- **`tests/unit/test_export_audit_pack.py`**
+
+### Fixed
+
+- **`prepare_48h_soak.ps1`** — PowerShell parse error from Unicode em-dash
+- **Ops PS1 strings** — ASCII hyphens in `bridge_cutover_evidence_suite`, `docker_devnet`, `reset_genesis`, `setup_prod_env`
+
+### Changed
+
+- **`industrial_gate.ps1`** — forwards `-MinSoakHours`, `-CeremonyDir`, `-RequireCeremonyPin`, `-Json`
+- **`restart_soak_prod_mesh.ps1`** — default log `logs/soak_48h_v1.2.77.log`
+- **Docs** — honest 48h soak status (RUNNING since 2026-07-17, not PASS); EVIDENCE_MATRIX, MAINNET_GAP, PUBLIC_TESTNET, REPO_PROFILE
+
+---
+
 ## [1.2.77] — 2026-07-14
 
 ### Fixed

@@ -42,8 +42,6 @@ def save_status(path: Path, items: Dict[str, Any]) -> Path:
     return path
 
 
-from runtime.mainnet_constants import DEVNET_CHAIN_ID, MAINNET_V1_CHAIN_ID
-
 HUMAN_REQUIRED_AUDIT_ITEMS = frozenset({
     "External penetration test scheduled",
     "Third-party smart-contract / L1 security audit completed",
@@ -240,6 +238,8 @@ def evaluate(
             "label": label,
             "done": done,
             "note": row.get("note", ""),
+            "evidence_url": row.get("evidence_url", ""),
+            "evidence_note": row.get("evidence_note", ""),
             "completed_at": row.get("completed_at"),
         })
         if done:
@@ -264,11 +264,17 @@ def set_item_done(
     done: bool = True,
     note: str = "",
     status_path: Path | None = None,
+    evidence_url: str = "",
+    evidence_note: str = "",
 ) -> Path:
     path = status_path or default_status_path()
     status = load_status(path)
     items = dict(status.get("items") or {})
     entry: Dict[str, Any] = {"done": done, "note": note}
+    if evidence_url:
+        entry["evidence_url"] = evidence_url.strip()
+    if evidence_note:
+        entry["evidence_note"] = evidence_note.strip()
     if done:
         entry["completed_at"] = datetime.now(timezone.utc).isoformat()
     items[label] = entry

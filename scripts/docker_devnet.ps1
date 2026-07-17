@@ -73,7 +73,7 @@ for ($i = 0; $i -lt 40; $i++) {
             $ok1 = $true
             Write-Host "node1 ready ($($st.node_id)) api_wave=$($st.api_wave)" -ForegroundColor Green
             if ($null -eq $st.api_wave -or [int]$st.api_wave -lt 60) {
-                Write-Host "WARN: Docker image is older than Wave 60 — rebuild: docker compose -f $composeFile build --no-cache node1 node2" -ForegroundColor Yellow
+                Write-Host "WARN: Docker image is older than Wave 60 - rebuild: docker compose -f $composeFile build --no-cache node1 node2" -ForegroundColor Yellow
             }
             try {
                 $feeds = Invoke-RestMethod "http://127.0.0.1:8080/oracles/feeds" -UseBasicParsing -TimeoutSec 5
@@ -95,7 +95,7 @@ for ($i = 0; $i -lt 40; $i++) {
                 $cm = Invoke-RestMethod 'http://127.0.0.1:8080/chain/metrics' -UseBasicParsing -TimeoutSec 5
                 Write-Host ("chain/metrics OK (height=$($cm.height) receipts=$($cm.receipt_count))") -ForegroundColor Green
             } catch {
-                Write-Host "oracles/feeds missing — rebuild Docker image (Wave 39+)" -ForegroundColor Red
+                Write-Host "oracles/feeds missing - rebuild Docker image (Wave 39+)" -ForegroundColor Red
             }
             break
         }

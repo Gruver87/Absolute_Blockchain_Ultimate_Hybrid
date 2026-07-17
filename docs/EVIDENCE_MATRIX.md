@@ -24,7 +24,7 @@ Compared to documentation-only claims, **evidence level increased** in Jul 2026:
 | `prod_signed_tx_smoke.py` | **PASS** | `logs/evidence_signed_tx.log` (n2/n3 propagation) |
 | `prod_evm_smoke.py` (mempool, 3 RPC) | **PASS** | docker mesh Jul 12 evening + **re-PASS block #7** Jul 12 post-v1.2.29 |
 | `soak_monitor.ps1 -ProdMesh -Hours 7` | **PASS** | `logs/soak_report.json` (159 cycles, 0 fail) |
-| `soak_monitor.ps1 -ProdMesh -Hours 48` | **IN PROGRESS** (v1.2.30 log) — restart: `restart_soak_prod_mesh.ps1` | `logs/soak_48h_v1.2.33.log` → `soak_report.json` |
+| `soak_monitor.ps1 -ProdMesh -Hours 48` | **RUNNING** (started 2026-07-17, v1.2.77) — **not completed** | `logs/soak_48h_v1.2.77.log` → `logs/soak_report_48h.json` (on finish) |
 | `testnet_readiness.ps1 -MinSoakHours 7` | **WARN** | re-run after mesh mining gate fixes recommended |
 
 Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) (live runs: `data/evidence_run.json`, gitignored)
@@ -59,7 +59,7 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 
 | Gap | Why it is **not** proven yet | What would prove it |
 |-----|------------------------------|---------------------|
-| **24–48h soak** | **7h passed** (Jul 6–7); not yet 24–48h | `soak_report.json` with `hours_requested ≥ 24` |
+| **24–48h soak** | **7h passed**; **48h RUNNING** since 2026-07-17 (`logs/soak_48h_v1.2.77.log`) — **not yet PASS** | `logs/soak_report_48h.json` with `passed=true` and `hours_requested ≥ 48` |
 | **External audit** | README and `external_audit_tracker.py` checklist incomplete | Third-party audit report + tracker items closed |
 | **Bridge mainnet cutover** | Prod mesh runs with `bridge_enabled: false` by design | Audited L1 contracts + relayer SLOs per `docs/BRIDGE_L1_MAINNET.md`; decision recorded via `bridge_decision_off` step |
 | **Ceremony + secret rotation automation** | **Scripts proven** (v1.2.32): `ceremony_preflight`, `rotate_prod_secrets.ps1` | Operator runs pin + `-Force` rotation before cutover — see `docs/MAINNET_CUTOVER.md` |
