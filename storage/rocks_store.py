@@ -303,38 +303,73 @@ class RocksChainStore:
     # ── accounts / state ──────────────────────────────────────────────────
 
     def _load_account(self, address: str) -> Dict[str, Any]:
+        from runtime.amount import account_satoshi, dual_write_balance
+
         raw = self._raw_get(kc.key_account(address))
         if not raw:
             return {
                 "address": SqliteDatabase._normalize_address(address),
                 "balance": 0.0,
+                "balance_satoshi": 0,
                 "nonce": 0,
                 "code": None,
                 "storage": None,
             }
-        return json.loads(raw.decode("utf-8"))
+        row = json.loads(raw.decode("utf-8"))
+        # Backfill satoshi for legacy float-only rows (in-memory; persisted on next write)
+        if row.get("balance_satoshi") is None:
+            dual_write_balance(row, row.get("balance", 0) or 0)
+        else:
+            row["balance_satoshi"] = account_satoshi(row)
+            row["balance"] = float(row.get("balance", 0) or 0)
+        return row
 
     def _save_account_row(self, row: Dict[str, Any]) -> None:
+        from runtime.amount import dual_write_balance, from_satoshi_float
+
         addr = SqliteDatabase._normalize_address(row.get("address", ""))
         row["address"] = addr
+        if row.get("balance_satoshi") is not None:
+            sat = max(0, int(row["balance_satoshi"]))
+            row["balance_satoshi"] = sat
+            row["balance"] = from_satoshi_float(sat)
+        else:
+            dual_write_balance(row, row.get("balance", 0) or 0)
         self._raw_put(kc.key_account(addr), json.dumps(row, ensure_ascii=False).encode("utf-8"))
 
     def get_balance(self, address: str) -> float:
-        return float(self._load_account(address).get("balance", 0.0) or 0.0)
+        from runtime.amount import account_balance_abs
+
+        return account_balance_abs(self._load_account(address))
+
+    def get_balance_satoshi(self, address: str) -> int:
+        from runtime.amount import account_satoshi
+
+        return account_satoshi(self._load_account(address))
 
     def get_nonce(self, address: str) -> int:
         return int(self._load_account(address).get("nonce", 0) or 0)
 
     def get_account(self, address: str) -> Optional[Dict]:
+        from runtime.amount import account_satoshi
+
         row = self._load_account(address)
-        if row["balance"] == 0.0 and row["nonce"] == 0 and not row.get("code") and not row.get("storage"):
+        sat = account_satoshi(row)
+        if sat == 0 and row["nonce"] == 0 and not row.get("code") and not row.get("storage"):
             raw = self._raw_get(kc.key_account(address))
             return None if raw is None else row
         return row
 
     def _apply_balance_delta(self, address: str, delta: float) -> None:
+        from runtime.amount import apply_delta_satoshi, dual_write_balance, from_satoshi_float
+
         row = self._load_account(address)
-        row["balance"] = max(0.0, float(row.get("balance", 0.0) or 0.0) + float(delta))
+        cur_sat = int(row.get("balance_satoshi", 0) or 0)
+        new_sat = apply_delta_satoshi(cur_sat, delta)
+        dual_write_balance(row, from_satoshi_float(new_sat))
+        # dual_write from float of new_sat is exact for representable amounts
+        row["balance_satoshi"] = new_sat
+        row["balance"] = from_satoshi_float(new_sat)
         self._save_account_row(row)
 
     def balance_delta(self, address: str, delta: float) -> None:
@@ -346,9 +381,11 @@ class RocksChainStore:
             return self.get_balance(address)
 
     def set_balance(self, address: str, balance: float) -> None:
+        from runtime.amount import dual_write_balance
+
         with self._write_lock:
             row = self._load_account(address)
-            row["balance"] = float(balance)
+            dual_write_balance(row, balance)
             self._save_account_row(row)
 
     def increment_nonce(self, address: str) -> int:
@@ -372,9 +409,11 @@ class RocksChainStore:
         code: str | None = None,
         storage: str | None = None,
     ) -> None:
+        from runtime.amount import dual_write_balance
+
         with self._write_lock:
             row = self._load_account(address)
-            row["balance"] = float(balance)
+            dual_write_balance(row, balance)
             row["nonce"] = int(nonce)
             row["code"] = code
             row["storage"] = storage

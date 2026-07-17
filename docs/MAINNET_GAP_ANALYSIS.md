@@ -99,7 +99,7 @@ Operator sequence: [MAINNET_CUTOVER.md](MAINNET_CUTOVER.md).
 | Area | Action |
 |------|--------|
 | EVM | CREATE/CREATE2 deterministic addresses (v1.2.79); EOF roadmap later |
-| State | Shared `runtime.amount` satoshi helpers (v1.2.79); full INTEGER DB migration still open |
+| State | Shared `runtime.amount` + **dual-write `balance_satoshi`** (v1.2.80); float ABS retained for wire/compat; full drop of float column later |
 | Consensus | Single canonical fork-choice in prod (adapter + node skip parallel engines, v1.2.79) |
 | Bridge | On-chain lock/mint contracts + monitored relayer (not proof-only) |
 | Storage | RocksDB prod + backup/restore; **reorg purges EVM/tx-prop indexes** (v1.2.43); aux.db scope documented |

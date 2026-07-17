@@ -76,6 +76,7 @@ class Database:
             ("transactions", "gas_used", "INTEGER NOT NULL DEFAULT 21000"),
             ("accounts", "code",    "TEXT DEFAULT ''"),
             ("accounts", "storage", "TEXT DEFAULT ''"),
+            ("accounts", "balance_satoshi", "INTEGER"),
             ("plasma_blocks", "merkle_root", "TEXT NOT NULL DEFAULT ''"),
             ("plasma_blocks", "tx_root",     "TEXT NOT NULL DEFAULT ''"),
         ]
@@ -121,6 +122,30 @@ class Database:
 
         self._backfill_tx_receipts_v48()
         self._backfill_proposer_audit_v49()
+        self._backfill_balance_satoshi_v80()
+
+    def _backfill_balance_satoshi_v80(self) -> None:
+        """Populate balance_satoshi from float balance where NULL (idempotent)."""
+        try:
+            from runtime.amount import to_satoshi
+
+            cols = {row[1] for row in self.conn.execute("PRAGMA table_info(accounts)").fetchall()}
+            if "balance_satoshi" not in cols:
+                return
+            rows = self.conn.execute(
+                "SELECT address, balance FROM accounts WHERE balance_satoshi IS NULL"
+            ).fetchall()
+            for r in rows:
+                sat = to_satoshi(r["balance"] or 0)
+                self.conn.execute(
+                    "UPDATE accounts SET balance_satoshi=? WHERE address=?",
+                    (sat, r["address"]),
+                )
+            if rows:
+                print(f"[DB] v1.2.80: backfilled balance_satoshi for {len(rows)} account(s)")
+                self.conn.commit()
+        except Exception as e:
+            print(f"[DB] balance_satoshi backfill warning: {e}")
 
     def _backfill_proposer_audit_v49(self) -> None:
         """Build proposer audit rows from historical blocks (Wave 49, idempotent)."""
@@ -1350,19 +1375,50 @@ class Database:
     # ── Аккаунты / балансы ───────────────────────────────────────────────────
 
     def get_balance(self, address: str) -> float:
+        from runtime.amount import from_satoshi_float
+
         with self.lock:
             row = self.conn.execute(
-                "SELECT balance FROM accounts WHERE address=?", (address,)
+                "SELECT balance, balance_satoshi FROM accounts WHERE address=?",
+                (address,),
             ).fetchone()
-            return float(row["balance"]) if row else 0.0
+            if not row:
+                return 0.0
+            if row["balance_satoshi"] is not None:
+                return from_satoshi_float(int(row["balance_satoshi"]))
+            return float(row["balance"]) if row["balance"] is not None else 0.0
+
+    def get_balance_satoshi(self, address: str) -> int:
+        from runtime.amount import account_satoshi
+
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT balance, balance_satoshi FROM accounts WHERE address=?",
+                (address,),
+            ).fetchone()
+            return account_satoshi(dict(row) if row else None)
 
     def _apply_balance_delta(self, address: str, delta: float) -> None:
+        from runtime.amount import apply_delta_satoshi, from_satoshi_float, to_satoshi
+
+        row = self.conn.execute(
+            "SELECT balance, balance_satoshi FROM accounts WHERE address=?",
+            (address,),
+        ).fetchone()
+        if row and row["balance_satoshi"] is not None:
+            cur_sat = int(row["balance_satoshi"])
+        elif row:
+            cur_sat = to_satoshi(row["balance"] or 0)
+        else:
+            cur_sat = 0
+        new_sat = apply_delta_satoshi(cur_sat, delta)
+        new_abs = from_satoshi_float(new_sat)
         self.conn.execute(
-            """INSERT INTO accounts (address, balance, nonce)
-               VALUES (?, MAX(0.0, ?), 0)
+            """INSERT INTO accounts (address, balance, balance_satoshi, nonce)
+               VALUES (?, ?, ?, 0)
                ON CONFLICT(address) DO UPDATE
-               SET balance = MAX(0.0, balance + ?)""",
-            (address, delta, delta),
+               SET balance=excluded.balance, balance_satoshi=excluded.balance_satoshi""",
+            (address, new_abs, new_sat),
         )
 
     def update_balance(self, address: str, delta: float) -> float:
@@ -1373,11 +1429,17 @@ class Database:
             return self.get_balance(address)
 
     def set_balance(self, address: str, balance: float) -> None:
+        from runtime.amount import dual_write_balance
+
+        payload: dict = {}
+        dual_write_balance(payload, balance)
         with self.lock:
             self.conn.execute(
-                """INSERT INTO accounts (address, balance) VALUES (?,?)
-                   ON CONFLICT(address) DO UPDATE SET balance=excluded.balance""",
-                (address, balance),
+                """INSERT INTO accounts (address, balance, balance_satoshi) VALUES (?,?,?)
+                   ON CONFLICT(address) DO UPDATE SET
+                     balance=excluded.balance,
+                     balance_satoshi=excluded.balance_satoshi""",
+                (address, payload["balance"], payload["balance_satoshi"]),
             )
             self.conn.commit()
 
@@ -1391,7 +1453,7 @@ class Database:
     def increment_nonce(self, address: str) -> int:
         with self.lock:
             self.conn.execute(
-                """INSERT INTO accounts (address, balance, nonce) VALUES (?,0,1)
+                """INSERT INTO accounts (address, balance, balance_satoshi, nonce) VALUES (?,0,0,1)
                    ON CONFLICT(address) DO UPDATE SET nonce=nonce+1""",
                 (address,),
             )
@@ -1407,14 +1469,18 @@ class Database:
 
     def save_account(self, address: str, balance: float = 0.0,
                      nonce: int = 0, code: str = None, storage: str = None) -> None:
+        from runtime.amount import dual_write_balance
+
+        payload: dict = {}
+        dual_write_balance(payload, balance)
         with self.lock:
             self.conn.execute(
-                """INSERT INTO accounts (address, balance, nonce, code, storage)
-                   VALUES (?,?,?,?,?)
+                """INSERT INTO accounts (address, balance, balance_satoshi, nonce, code, storage)
+                   VALUES (?,?,?,?,?,?)
                    ON CONFLICT(address) DO UPDATE
-                   SET balance=excluded.balance, nonce=excluded.nonce,
-                       code=excluded.code, storage=excluded.storage""",
-                (address, balance, nonce, code, storage),
+                   SET balance=excluded.balance, balance_satoshi=excluded.balance_satoshi,
+                       nonce=excluded.nonce, code=excluded.code, storage=excluded.storage""",
+                (address, payload["balance"], payload["balance_satoshi"], nonce, code, storage),
             )
             self.conn.commit()
 

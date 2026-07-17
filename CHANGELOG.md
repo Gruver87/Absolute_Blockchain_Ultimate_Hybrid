@@ -32,6 +32,25 @@
 
 ---
 
+## [1.2.80] — 2026-07-17
+
+### Changed
+
+- **Money path:** dual-write `balance_satoshi` (INTEGER) alongside float `balance` on SQLite + Rocks account rows; reads prefer satoshi
+- **`runtime/amount.py`:** `dual_write_balance`, `account_satoshi`, `apply_delta_satoshi`
+- **`industrial_gate`:** `_check_balance_precision` static surface
+
+### Added
+
+- `tests/unit/test_balance_satoshi_dual_write.py`
+
+### Notes
+
+- Live 48h soak mesh is **not** restarted by this release; new dual-write applies on next node image rebuild
+- Float ABS column retained for compatibility — not yet dropped
+
+---
+
 ## [1.2.79] — 2026-07-17
 
 ### Fixed / hardened (core доводка — no new features)

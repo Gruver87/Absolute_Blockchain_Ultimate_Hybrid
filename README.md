@@ -9,7 +9,7 @@
 [![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
 [![Local gate](https://img.shields.io/badge/local%20gate-check__hybrid__full-lightgrey)](scripts/check_hybrid_full.ps1)
-[![Release](https://img.shields.io/badge/Release-v1.2.79-blue)](RELEASE_NOTES_v1.2.79.md)
+[![Release](https://img.shields.io/badge/Release-v1.2.80-blue)](RELEASE_NOTES_v1.2.80.md)
 
 **Repo:** [github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · **Branch:** `master`
 
@@ -18,7 +18,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | `1.2.0-industrial` (latest release **v1.2.79** — core hardening; see [CHANGELOG](CHANGELOG.md)) |
+| **Version** | `1.2.0-industrial` (latest release **v1.2.80** — satoshi dual-write; see [CHANGELOG](CHANGELOG.md)) |
 | **Author** | **ULADZIMIR DABRANSKI** |
 | **API Wave** | 61; check GET /status fields: `api_wave`, `core_real`, `p2p_sync_status` |
 | **Entry point** | `python main.py` |

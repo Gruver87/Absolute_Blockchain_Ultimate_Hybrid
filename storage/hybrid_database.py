@@ -324,6 +324,13 @@ class HybridDatabase:
     def get_balance(self, address: str) -> float:
         return self._core.get_balance(address)
 
+    def get_balance_satoshi(self, address: str) -> int:
+        if hasattr(self._core, "get_balance_satoshi"):
+            return int(self._core.get_balance_satoshi(address))
+        from runtime.amount import to_satoshi
+
+        return to_satoshi(self._core.get_balance(address))
+
     def get_nonce(self, address: str) -> int:
         return self._core.get_nonce(address)
 

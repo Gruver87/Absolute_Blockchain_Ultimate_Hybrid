@@ -67,6 +67,44 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
     return errors, warnings
 
 
+def _check_balance_precision() -> tuple[list[str], list[str]]:
+    """Satoshi dual-write surface for industrial money path."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    try:
+        from runtime.amount import (
+            SATOSHI_MULTIPLIER,
+            apply_delta_satoshi,
+            dual_write_balance,
+            to_satoshi,
+        )
+    except ImportError as exc:
+        errors.append(f"runtime.amount import failed: {exc}")
+        return errors, warnings
+    if SATOSHI_MULTIPLIER != 1_000_000:
+        errors.append(f"SATOSHI_MULTIPLIER unexpected: {SATOSHI_MULTIPLIER}")
+    if to_satoshi(1) != 1_000_000:
+        errors.append("to_satoshi(1) != 1_000_000")
+    row: dict = {}
+    dual_write_balance(row, "1.5")
+    if row.get("balance_satoshi") != 1_500_000:
+        errors.append("dual_write_balance failed for 1.5 ABS")
+    if apply_delta_satoshi(1_000_000, -0.5) != 500_000:
+        errors.append("apply_delta_satoshi failed")
+    from storage.database import Database
+
+    if not hasattr(Database, "get_balance_satoshi"):
+        errors.append("Database missing get_balance_satoshi")
+    try:
+        from storage.rocks_store import RocksStore
+
+        if not hasattr(RocksStore, "get_balance_satoshi"):
+            errors.append("RocksStore missing get_balance_satoshi")
+    except ImportError:
+        warnings.append("RocksStore unavailable (optional for this host)")
+    return errors, warnings
+
+
 def _check_native_wheel() -> tuple[list[str], list[str]]:
     """Require abs_native self-test and prod-critical exports when wheel is present."""
     errors: list[str] = []
@@ -134,6 +172,7 @@ def run_industrial_gate(
     native_errors, native_warnings = _check_native_wheel()
     bridge_errors, bridge_warnings = _check_rust_bridge_binary()
     p2p_errors, p2p_warnings = _check_p2p_hardening()
+    balance_errors, balance_warnings = _check_balance_precision()
     soak_errors: list[str] = []
     ceremony_errors: list[str] = []
     ceremony_warnings: list[str] = []
@@ -194,10 +233,12 @@ def run_industrial_gate(
     errors.extend(native_errors)
     errors.extend(bridge_errors)
     errors.extend(p2p_errors)
+    errors.extend(balance_errors)
     errors.extend(ceremony_errors)
     warnings.extend(native_warnings)
     warnings.extend(bridge_warnings)
     warnings.extend(p2p_warnings)
+    warnings.extend(balance_warnings)
     warnings.extend(ceremony_warnings)
     report = {
         "ok": not errors,
@@ -207,6 +248,7 @@ def run_industrial_gate(
         "sections": sections,
         "native_wheel": not native_errors,
         "p2p_hardening": not p2p_errors,
+        "balance_precision": not balance_errors,
     }
 
     if prod_smoke_spawn:
