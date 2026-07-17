@@ -75,7 +75,7 @@ class ImmutableStateManager:
                 acc.balance_satoshi = self.to_satoshi(float(amount))
             return len(balances)
 
-    def reconcile_from_store(self, store, addresses=None) -> int:
+    def reconcile_from_store(self, store, addresses=None, *, fail_loud: bool = False) -> int:
         """Mirror canonical DB/Rocks satoshi into IMS shadow (post-block honesty)."""
         from runtime.state_truth import canonical_balance_satoshi
 
@@ -94,8 +94,10 @@ class ImmutableStateManager:
                 if hasattr(store, "get_nonce"):
                     try:
                         acc.nonce = int(store.get_nonce(addr))
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        print(f"[ImmutableState] get_nonce failed for {addr}: {exc}")
+                        if fail_loud:
+                            raise
                 n += 1
             return n
 

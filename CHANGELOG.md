@@ -32,6 +32,30 @@
 
 ---
 
+## [1.2.84] — 2026-07-17
+
+### Fixed / hardened
+
+- **Mining sync probe:** log + clear `_state_consistent` on `sync_state` failure (no silent pass)
+- **SyncEngine:** log wire state_root probe failures; expose `wire_probe_ok` in status
+- **Genesis meta:** fail-loud in prod on `set_meta` write failure
+- **State-root mismatch audit:** log when `record_state_root_mismatch` fails
+- **API `/chain/state-root/status`:** return `peer_probe_error` instead of looking like 0 peers OK
+- **IMS reconcile:** `fail_loud` for nonce mirror errors in prod
+- **prod_gate:** forbid `allow_state_root_rewrite=true`; mesh1 peers≥1; mesh2/3 `follower_genesis_sync`
+- **industrial_gate:** `_check_fail_loud_surfaces` static freeze
+
+### Added
+
+- `tests/unit/test_silent_except_honesty.py`
+
+### Notes
+
+- Live 48h soak mesh is **not** restarted by this release
+- Tip float `"b"` encoding and float `balance` column unchanged
+
+---
+
 ## [1.2.83] — 2026-07-17
 
 ### Fixed / hardened

@@ -34,4 +34,5 @@ python scripts/industrial_gate.py
 
 - Tip state-root payload → satoshi (coordinated rebuild / fork)
 - Drop float `balance` column after full fleet upgrade
+- Prod-critical silent-except honesty → done in **v1.2.84**
 - 48h soak PASS

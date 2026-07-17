@@ -287,11 +287,15 @@ class SyncEngine:
         mismatches = []
 
         wire_roots = []
+        wire_probe_ok = True
         if hasattr(self.node, "request_peer_state_roots_sync"):
             try:
                 wire_roots = self.node.request_peer_state_roots_sync()
-            except Exception:
+            except Exception as exc:
+                wire_probe_ok = False
+                print(f"   [Sync] peer state_root wire probe failed: {exc}")
                 wire_roots = []
+        self._last_wire_probe_ok = wire_probe_ok
 
         for entry in wire_roots:
             peer_root = entry.get("state_root", "")
@@ -344,6 +348,7 @@ class SyncEngine:
             "best_peer_height": best_peer_height,
             "behind": max(0, best_peer_height - local_height),
             "state_consistent": state_consistent,
+            "wire_probe_ok": bool(getattr(self, "_last_wire_probe_ok", True)),
         }
 
     def reset(self):

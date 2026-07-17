@@ -67,6 +67,65 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
     return errors, warnings
 
 
+def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
+    """Static inspect: prod-critical paths must not silent-pass probe/meta failures."""
+    import inspect
+
+    errors: list[str] = []
+    warnings: list[str] = []
+    try:
+        from sync.sync_engine import SyncEngine
+
+        src = inspect.getsource(SyncEngine.sync_state)
+        if "peer state_root wire probe failed" not in src:
+            errors.append("SyncEngine.sync_state must log wire probe failures")
+        status_src = inspect.getsource(SyncEngine.get_status)
+        if "wire_probe_ok" not in status_src:
+            errors.append("SyncEngine.get_status missing wire_probe_ok")
+    except Exception as exc:
+        errors.append(f"fail-loud sync inspect failed: {exc}")
+    try:
+        from blockchain.immutable_state import ImmutableStateManager
+
+        src = inspect.getsource(ImmutableStateManager.reconcile_from_store)
+        if "fail_loud" not in src:
+            errors.append("IMS reconcile_from_store missing fail_loud")
+        if "except Exception:\n                        pass" in src or "except Exception:\n                            pass" in src:
+            errors.append("IMS reconcile_from_store still has silent except pass")
+    except Exception as exc:
+        errors.append(f"fail-loud IMS inspect failed: {exc}")
+    try:
+        main_py = (ROOT / "main.py").read_text(encoding="utf-8")
+        if "sync_state probe failed" not in main_py:
+            errors.append("main.py mining loop must log sync_state probe failures")
+        if "self.p2p._state_consistent = False" not in main_py:
+            errors.append("main.py must clear _state_consistent on sync probe failure")
+    except Exception as exc:
+        errors.append(f"fail-loud main.py inspect failed: {exc}")
+    try:
+        from core.blockchain import Blockchain
+
+        gen_src = inspect.getsource(Blockchain._ensure_genesis)
+        if "genesis meta write failed" not in gen_src:
+            errors.append("Blockchain._ensure_genesis must log genesis meta failures")
+        if "except Exception:\n                pass" in gen_src and "set_meta" in gen_src:
+            # still allow other passes elsewhere in function; only fail if set_meta still bare-pass
+            if "except Exception:\n                pass\n            try:\n                self.db.set_meta" in gen_src:
+                errors.append("Blockchain._ensure_genesis still silent-passes tokenomics meta")
+        add_src = inspect.getsource(Blockchain.add_block)
+        if "record_state_root_mismatch failed" not in add_src:
+            errors.append("Blockchain.add_block must log mismatch audit failures")
+    except Exception as exc:
+        errors.append(f"fail-loud blockchain inspect failed: {exc}")
+    try:
+        http_py = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
+        if "peer_probe_error" not in http_py:
+            errors.append("GET /chain/state-root/status must expose peer_probe_error")
+    except Exception as exc:
+        errors.append(f"fail-loud http inspect failed: {exc}")
+    return errors, warnings
+
+
 def _check_balance_precision() -> tuple[list[str], list[str]]:
     """Satoshi dual-write surface for industrial money path."""
     errors: list[str] = []
@@ -216,6 +275,7 @@ def run_industrial_gate(
     bridge_errors, bridge_warnings = _check_rust_bridge_binary()
     p2p_errors, p2p_warnings = _check_p2p_hardening()
     balance_errors, balance_warnings = _check_balance_precision()
+    fail_loud_errors, fail_loud_warnings = _check_fail_loud_surfaces()
     soak_errors: list[str] = []
     ceremony_errors: list[str] = []
     ceremony_warnings: list[str] = []
@@ -277,11 +337,13 @@ def run_industrial_gate(
     errors.extend(bridge_errors)
     errors.extend(p2p_errors)
     errors.extend(balance_errors)
+    errors.extend(fail_loud_errors)
     errors.extend(ceremony_errors)
     warnings.extend(native_warnings)
     warnings.extend(bridge_warnings)
     warnings.extend(p2p_warnings)
     warnings.extend(balance_warnings)
+    warnings.extend(fail_loud_warnings)
     warnings.extend(ceremony_warnings)
     report = {
         "ok": not errors,
@@ -292,6 +354,7 @@ def run_industrial_gate(
         "native_wheel": not native_errors,
         "p2p_hardening": not p2p_errors,
         "balance_precision": not balance_errors,
+        "fail_loud_surfaces": not fail_loud_errors,
     }
 
     if prod_smoke_spawn:

@@ -811,7 +811,10 @@ class NodeOrchestrator:
                 self.immutable_state.seed_from_balances(alloc)
                 # Align shadow IMS to DB tip (rewards/burns already on chain if any)
                 try:
-                    self.immutable_state.reconcile_from_store(self.db)
+                    self.immutable_state.reconcile_from_store(
+                        self.db,
+                        fail_loud=bool(getattr(config, "is_production", False)),
+                    )
                 except Exception as _ims_seed_rec:
                     print(f"[ImmutableState] reconcile_from_store at boot: {_ims_seed_rec}")
                     if getattr(config, "is_production", False):
@@ -1539,8 +1542,9 @@ class NodeOrchestrator:
                         loop = asyncio.get_running_loop()
                         ok = await loop.run_in_executor(None, self.sync_engine.sync_state)
                         self.p2p._state_consistent = bool(ok)
-                    except Exception:
-                        pass
+                    except Exception as _sync_probe_err:
+                        print(f"[Mining] sync_state probe failed: {_sync_probe_err}")
+                        self.p2p._state_consistent = False
                 peer_heights = [
                     int(getattr(p, "height", 0) or 0) for p in peers.values()
                 ]
@@ -1825,7 +1829,11 @@ class NodeOrchestrator:
                         burn = getattr(self.config, "burn_address", None)
                         if burn:
                             addrs.add(burn)
-                        n = self.immutable_state.reconcile_from_store(self.db, addrs)
+                        n = self.immutable_state.reconcile_from_store(
+                            self.db,
+                            addrs,
+                            fail_loud=bool(getattr(self.config, "is_production", False)),
+                        )
                         if n < 0:
                             raise RuntimeError("IMS reconcile_from_store returned failure")
                     except Exception as _ims_err:

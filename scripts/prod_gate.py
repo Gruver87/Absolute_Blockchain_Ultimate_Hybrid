@@ -119,6 +119,18 @@ def check_file(path: str) -> list[str]:
     if cfg.get("db_engine", "sqlite") != "rocksdb":
         errors.append(f"{path}: db_engine must be rocksdb in prod")
 
+    if cfg.get("allow_state_root_rewrite") is True:
+        errors.append(f"{path}: allow_state_root_rewrite must not be true in prod")
+
+    if "mesh1" in path.replace("\\", "/"):
+        if int(cfg.get("mesh_min_peers_before_mine", 0) or 0) < 1:
+            errors.append(
+                f"{path}: mesh_min_peers_before_mine must be >= 1 for mesh1 miner"
+            )
+    if "mesh2" in path.replace("\\", "/") or "mesh3" in path.replace("\\", "/"):
+        if cfg.get("follower_genesis_sync") is not True:
+            errors.append(f"{path}: follower_genesis_sync must be true for mesh followers")
+
     return errors
 
 

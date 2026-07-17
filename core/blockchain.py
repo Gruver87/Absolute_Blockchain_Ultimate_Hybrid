@@ -326,13 +326,12 @@ class Blockchain:
             self.db.save_block(genesis.to_dict())
             try:
                 self.db.set_meta("tokenomics", get_tokenomics_summary(founder or None))
-            except Exception:
-                pass
-            try:
                 self.db.set_meta("genesis_alloc_applied", True)
                 self.db.set_meta("genesis_founder", founder)
-            except Exception:
-                pass
+            except Exception as _gen_meta_err:
+                print(f"[Blockchain] genesis meta write failed: {_gen_meta_err}")
+                if getattr(self.config, "is_production", False):
+                    raise
             print(
                 f"[Blockchain] Genesis block created "
                 f"(minted={total_minted:,.0f} {self.config.coin_symbol}, "
@@ -609,8 +608,11 @@ class Blockchain:
                             source="p2p" if preserve_peer_hash else "local",
                             proposer=block.miner,
                         )
-                    except Exception:
-                        pass
+                    except Exception as _mismatch_err:
+                        print(
+                            f"[Blockchain] record_state_root_mismatch failed "
+                            f"#{block.height}: {_mismatch_err}"
+                        )
                 print(f"[Blockchain] Block execution failed #{block.height}: {e}")
                 return False
 

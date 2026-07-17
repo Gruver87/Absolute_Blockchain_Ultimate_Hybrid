@@ -1764,6 +1764,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     else {}
                 )
                 peers = []
+                peer_probe_error = None
                 if p2p and hasattr(p2p, "request_peer_state_roots_sync"):
                     try:
                         for entry in p2p.request_peer_state_roots_sync(timeout=8):
@@ -1774,8 +1775,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                                 "state_root": pr,
                                 "match": (pr == local_root) if pr else None,
                             })
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        peer_probe_error = str(exc)
                 mismatches = []
                 if db and hasattr(db, "get_state_root_mismatches"):
                     mismatches = db.get_state_root_mismatches(limit=10)
@@ -1786,6 +1787,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                         getattr(p2p, "_state_consistent", True) if p2p else True
                     ),
                     "peers": peers,
+                    "peer_probe_error": peer_probe_error,
                     "recent_mismatches": mismatches,
                     **policy,
                 })
