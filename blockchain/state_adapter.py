@@ -4,7 +4,8 @@
 from dataclasses import dataclass
 from typing import Optional
 
-SATOSHI_MULTIPLIER = 1_000_000
+from runtime.amount import account_balance_abs
+from runtime.state_truth import canonical_balance_satoshi
 
 
 @dataclass
@@ -25,10 +26,10 @@ class DatabaseStateAdapter:
         if row:
             return AccountView(
                 address=address,
-                balance=float(row.get("balance", 0)),
+                balance=account_balance_abs(row),
                 nonce=int(row.get("nonce", 0)),
             )
         return AccountView(address=address, balance=0.0, nonce=0)
 
     def get_balance_satoshi(self, address: str) -> int:
-        return int(self.db.get_balance(address) * SATOSHI_MULTIPLIER)
+        return canonical_balance_satoshi(self.db, address)

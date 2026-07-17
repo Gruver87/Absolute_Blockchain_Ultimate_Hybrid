@@ -56,15 +56,19 @@ def migrate(source_db: str, dest_chainstore: str, *, sync: str = "FULL") -> dict
                 stats["blocks"] += 1
 
             for row in _load_sqlite_rows(src.conn, "accounts"):
-                rocks._save_account_row(
-                    {
-                        "address": row.get("address", ""),
-                        "balance": float(row.get("balance", 0.0) or 0.0),
-                        "nonce": int(row.get("nonce", 0) or 0),
-                        "code": row.get("code"),
-                        "storage": row.get("storage"),
-                    }
-                )
+                payload = {
+                    "address": row.get("address", ""),
+                    "balance": float(row.get("balance", 0.0) or 0.0),
+                    "nonce": int(row.get("nonce", 0) or 0),
+                    "code": row.get("code"),
+                    "storage": row.get("storage"),
+                }
+                if row.get("balance_satoshi") is not None:
+                    try:
+                        payload["balance_satoshi"] = max(0, int(row["balance_satoshi"]))
+                    except (TypeError, ValueError):
+                        pass
+                rocks._save_account_row(payload)
                 stats["accounts"] += 1
 
             for row in _load_sqlite_rows(src.conn, "validators"):

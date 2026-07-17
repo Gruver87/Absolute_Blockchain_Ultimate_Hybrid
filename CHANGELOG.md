@@ -32,6 +32,29 @@
 
 ---
 
+## [1.2.82] — 2026-07-17
+
+### Fixed
+
+- **SQLite genesis reset** (`_reset_accounts_from_alloc_locked`): dual-write `balance_satoshi`
+- **`nonce_increment`**: INSERT includes `balance_satoshi=0` (match `increment_nonce`)
+- **`DatabaseStateAdapter`**: `get_balance_satoshi` via `canonical_balance_satoshi` (no float×1e6)
+- **`migrate_sqlite_to_rocks`**: preserve `balance_satoshi` when present
+- **`PersistentStorage.update_balance`**: delegate to DB dual-write (no accidental nonce bump)
+
+### Added
+
+- `tests/unit/test_balance_write_path_unify.py`
+- `industrial_gate` checks reset_accounts + adapter satoshi path
+
+### Notes
+
+- Live 48h soak mesh is **not** restarted by this release
+- Tip `compute_db_state_root` float `"b"` encoding unchanged (soak contract)
+- Float ABS column still retained
+
+---
+
 ## [1.2.81] — 2026-07-17
 
 ### Changed

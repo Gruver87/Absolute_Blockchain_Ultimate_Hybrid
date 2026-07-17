@@ -31,5 +31,5 @@ python scripts/industrial_gate.py
 ### Still open
 
 - Drop float `balance` column after full fleet upgrade
-- Unify Database / StateEngine / IMS as a single write path
+- Unify Database write-path bypasses → done in **v1.2.82**
 - 48h soak PASS

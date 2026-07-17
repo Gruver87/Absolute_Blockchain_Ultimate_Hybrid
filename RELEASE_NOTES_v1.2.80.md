@@ -30,5 +30,5 @@ python scripts/industrial_gate.py
 ### Still open
 
 - Drop float `balance` column after full fleet upgrade
-- Unify StateEngine int units with satoshi ledger → done in **v1.2.81**
+- Unify Database / StateEngine / IMS write path → storage bypasses closed in **v1.2.82** (tip root float `"b"` still deferred)
 - 48h soak PASS

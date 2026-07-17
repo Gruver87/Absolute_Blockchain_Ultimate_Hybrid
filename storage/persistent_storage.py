@@ -32,10 +32,8 @@ class PersistentStorage:
         return {"balance": 0.0, "nonce": 0}
 
     def update_balance(self, address: str, delta: float) -> float:
-        current = self.get_balance(address)
-        new_balance = current + delta
-        self.save_account_state(address, new_balance, self.get_nonce(address) + 1)
-        return new_balance
+        # Delegate to DB dual-write path (satoshi + float); do not bump nonce here.
+        return self.db.update_balance(address, delta)
 
     def save_block(self, block: Dict) -> bool:
         return self.db.save_block(block)

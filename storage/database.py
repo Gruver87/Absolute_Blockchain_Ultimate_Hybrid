@@ -714,7 +714,7 @@ class Database:
     def nonce_increment(self, address: str) -> int:
         """Nonce bump without commit (inside atomic())."""
         self.conn.execute(
-            """INSERT INTO accounts (address, balance, nonce) VALUES (?,0,1)
+            """INSERT INTO accounts (address, balance, balance_satoshi, nonce) VALUES (?,0,0,1)
                ON CONFLICT(address) DO UPDATE SET nonce=nonce+1""",
             (address,),
         )
@@ -809,11 +809,15 @@ class Database:
             self._reset_accounts_from_alloc_locked(alloc)
 
     def _reset_accounts_from_alloc_locked(self, alloc: Dict[str, float]) -> None:
+        from runtime.amount import dual_write_balance
+
         self.conn.execute("DELETE FROM accounts")
         for addr, amount in alloc.items():
+            payload: dict = {}
+            dual_write_balance(payload, amount)
             self.conn.execute(
-                "INSERT INTO accounts (address, balance, nonce) VALUES (?, ?, 0)",
-                (addr, float(amount)),
+                "INSERT INTO accounts (address, balance, balance_satoshi, nonce) VALUES (?, ?, ?, 0)",
+                (addr, payload["balance"], payload["balance_satoshi"]),
             )
 
     def truncate_blocks_above(self, height: int) -> int:

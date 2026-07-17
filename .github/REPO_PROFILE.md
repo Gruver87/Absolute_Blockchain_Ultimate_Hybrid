@@ -42,9 +42,9 @@ Local push: `.\scripts\push_origin.ps1` or `git push origin master`.
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.2.81` — StateEngine satoshi ledger (soak-safe) |
-| **Title** | `v1.2.81 — StateEngine satoshi ledger` |
-| **Notes file** | [RELEASE_NOTES_v1.2.81.md](../RELEASE_NOTES_v1.2.81.md) |
+| **Tag** | `v1.2.82` — balance write-path unify (soak-safe) |
+| **Title** | `v1.2.82 — balance write-path unify` |
+| **Notes file** | [RELEASE_NOTES_v1.2.82.md](../RELEASE_NOTES_v1.2.82.md) |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

@@ -112,6 +112,18 @@ def _check_balance_precision() -> tuple[list[str], list[str]]:
             errors.append("StateEngine create_genesis not storing satoshi")
         if canonical_balance_satoshi(None, "x") != 0:
             errors.append("canonical_balance_satoshi(None) should be 0")
+        from blockchain.state_adapter import DatabaseStateAdapter
+        from storage.database import Database as _DbCheck
+        import tempfile, os
+
+        _p = os.path.join(tempfile.mkdtemp(), "gate.db")
+        _d = _DbCheck(_p)
+        _d.initialize()
+        _d.reset_accounts_from_alloc({"gate": 2})
+        if _d.get_balance_satoshi("gate") != 2_000_000:
+            errors.append("reset_accounts_from_alloc missing balance_satoshi")
+        if DatabaseStateAdapter(_d).get_balance_satoshi("gate") != 2_000_000:
+            errors.append("DatabaseStateAdapter not using satoshi path")
     except Exception as exc:
         errors.append(f"state_truth/StateEngine check failed: {exc}")
     return errors, warnings
