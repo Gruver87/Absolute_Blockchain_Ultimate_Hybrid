@@ -2213,15 +2213,29 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path.startswith("/state/balance/"):
                 ist = self.__class__.immutable_state
                 addr = path.split("/state/balance/")[-1]
+                from runtime.amount import SATOSHI_MULTIPLIER
+                from runtime.state_truth import canonical_balance_satoshi
+
+                db_sat = canonical_balance_satoshi(bc.db if bc and hasattr(bc, "db") else None, addr)
                 if ist:
                     sat = ist.get_balance_satoshi(addr)
-                    self._json({"address": addr,
-                                "balance_satoshi": sat,
-                                "balance_abs": sat / 1_000_000})
+                    self._json({
+                        "address": addr,
+                        "balance_satoshi": sat,
+                        "balance_abs": sat / SATOSHI_MULTIPLIER,
+                        "db_balance_satoshi": db_sat,
+                        "canonical": sat == db_sat,
+                        "source": "immutable_state",
+                    })
                 else:
-                    # fallback to blockchain balance
                     bal = bc.get_balance(addr) if hasattr(bc, "get_balance") else 0
-                    self._json({"address": addr, "balance": bal})
+                    self._json({
+                        "address": addr,
+                        "balance": bal,
+                        "balance_satoshi": db_sat,
+                        "canonical": True,
+                        "source": "db",
+                    })
 
             elif path == "/state/all":
                 ist = self.__class__.immutable_state
@@ -2818,12 +2832,29 @@ class RESTHandler(BaseHTTPRequestHandler):
                 ims = self.__class__.immutable_state
                 se  = self.__class__.state_engine
                 supply = None
-                if ims and hasattr(ims, "get_total_supply_abs"):
+                source = None
+                canonical = False
+                if bc and hasattr(bc, "db") and hasattr(bc.db, "get_total_supply"):
+                    try:
+                        supply = float(bc.db.get_total_supply())
+                        source = "db"
+                        canonical = True
+                    except Exception:
+                        supply = None
+                if supply is None and ims and hasattr(ims, "get_total_supply_abs"):
                     supply = ims.get_total_supply_abs()
-                elif se and hasattr(se, "get_total_supply"):
+                    source = "immutable_state"
+                    canonical = False
+                elif supply is None and se and hasattr(se, "get_total_supply"):
                     supply = se.get_total_supply()
-                self._json({"total_supply": supply, "symbol": "ABS",
-                            "source": "immutable_state" if ims else "state_engine"})
+                    source = "state_engine"
+                    canonical = False
+                self._json({
+                    "total_supply": supply,
+                    "symbol": "ABS",
+                    "source": source,
+                    "canonical": canonical,
+                })
 
             elif path == "/state/engine":
                 se = self.__class__.state_engine
@@ -3408,15 +3439,27 @@ class RESTHandler(BaseHTTPRequestHandler):
             # ── Immutable state ABS balance ───────────────────────────────────
             elif path.startswith("/state/abs-balance/"):
                 addr = path.split("/state/abs-balance/")[-1]
+                from runtime.state_truth import canonical_balance_abs
+
+                bc = self.__class__.blockchain
+                db_abs = canonical_balance_abs(bc.db if bc and hasattr(bc, "db") else None, addr)
                 ims = self.__class__.immutable_state
                 if ims and hasattr(ims, "get_balance_abs"):
-                    self._json({"address": addr, "balance_abs": ims.get_balance_abs(addr)})
-                elif ims and hasattr(ims, "get_balance"):
-                    self._json({"address": addr, "balance_abs": ims.get_balance(addr)})
+                    ims_abs = ims.get_balance_abs(addr)
+                    self._json({
+                        "address": addr,
+                        "balance_abs": ims_abs,
+                        "db_balance_abs": db_abs,
+                        "canonical": abs(ims_abs - db_abs) < 1e-12,
+                        "source": "immutable_state",
+                    })
                 else:
-                    bc = self.__class__.blockchain
-                    bal = bc.get_balance(addr) if bc and hasattr(bc,"get_balance") else 0
-                    self._json({"address": addr, "balance_abs": bal})
+                    self._json({
+                        "address": addr,
+                        "balance_abs": db_abs,
+                        "canonical": True,
+                        "source": "db",
+                    })
 
             # ── Sharding: register node, mine block ───────────────────────────
             elif path == "/sharding/nodes":
@@ -3467,10 +3510,29 @@ class RESTHandler(BaseHTTPRequestHandler):
             # ── Immutable state total supply ──────────────────────────────────
             elif path == "/state/total-supply":
                 ims = self.__class__.immutable_state
+                bc = self.__class__.blockchain
+                db_abs = None
+                if bc and hasattr(bc, "db") and hasattr(bc.db, "get_total_supply"):
+                    try:
+                        db_abs = float(bc.db.get_total_supply())
+                    except Exception:
+                        db_abs = None
                 if ims and hasattr(ims, "get_total_supply_abs"):
-                    self._json({"total_supply_abs": ims.get_total_supply_abs(),
-                                "total_supply_satoshi": ims.get_total_supply_satoshi()
-                                if hasattr(ims,"get_total_supply_satoshi") else None})
+                    ims_abs = ims.get_total_supply_abs()
+                    self._json({
+                        "total_supply_abs": ims_abs,
+                        "total_supply_satoshi": ims.get_total_supply_satoshi()
+                        if hasattr(ims, "get_total_supply_satoshi") else None,
+                        "db_total_supply_abs": db_abs,
+                        "canonical": db_abs is not None and abs(ims_abs - db_abs) < 1e-9,
+                        "source": "immutable_state",
+                    })
+                elif db_abs is not None:
+                    self._json({
+                        "total_supply_abs": db_abs,
+                        "canonical": True,
+                        "source": "db",
+                    })
                 else:
                     self._json({"total_supply_abs": None, "enabled": False})
 
@@ -4088,8 +4150,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                 except Exception as e:
                     self._error(500, str(e))
 
-            # ── Immutable State: credit (for genesis / faucet) ────────────────
+            # ── Immutable State: credit (dev/genesis only — not L1 canonical) ─
             elif path == "/state/credit":
+                if _is_production_cfg(cfg):
+                    self._error(403, "/state/credit disabled in production (IMS shadow only)")
+                    return
                 ist = self.__class__.immutable_state
                 if not ist:
                     self._error(503, "ImmutableState not enabled"); return
@@ -4098,11 +4163,19 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not address or satoshi <= 0:
                     self._error(400, "address and satoshi > 0 required"); return
                 try:
-                    acc = ist.get_account(address, create=True)
-                    acc.balance_satoshi += satoshi
+                    if hasattr(ist, "credit"):
+                        from runtime.amount import from_satoshi_float
+                        ist.credit(address, from_satoshi_float(satoshi))
+                        acc = ist.get_account(address, create=False)
+                    else:
+                        acc = ist.get_account(address, create=True)
+                        acc.balance_satoshi += satoshi
+                    from runtime.amount import SATOSHI_MULTIPLIER
                     self._json({"success": True, "address": address,
-                                "new_balance_satoshi": acc.balance_satoshi,
-                                "new_balance_abs": acc.balance_satoshi / 1_000_000})
+                                "new_balance_satoshi": acc.balance_satoshi if acc else satoshi,
+                                "new_balance_abs": (acc.balance_satoshi if acc else satoshi) / SATOSHI_MULTIPLIER,
+                                "canonical": False,
+                                "note": "IMS shadow only — does not mutate DB"})
                 except Exception as e:
                     self._error(500, str(e))
 

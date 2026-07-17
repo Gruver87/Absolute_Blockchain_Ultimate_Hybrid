@@ -124,6 +124,25 @@ def _check_balance_precision() -> tuple[list[str], list[str]]:
             errors.append("reset_accounts_from_alloc missing balance_satoshi")
         if DatabaseStateAdapter(_d).get_balance_satoshi("gate") != 2_000_000:
             errors.append("DatabaseStateAdapter not using satoshi path")
+        # Tip state-root soak contract: float "b" must remain (do not silently switch to satoshi)
+        from crypto.native import _python_state_root_from_accounts
+        import inspect
+
+        src = inspect.getsource(_python_state_root_from_accounts)
+        if '"b"' not in src or "round(float" not in src:
+            errors.append("tip state_root Python path no longer uses float round(balance,12) — soak contract broken")
+        from blockchain.immutable_state import ImmutableStateManager
+
+        if not hasattr(ImmutableStateManager, "reconcile_from_store"):
+            errors.append("ImmutableStateManager missing reconcile_from_store")
+        ims = ImmutableStateManager()
+        ims.reconcile_from_store(_d, ["gate"])
+        if ims.get_balance_satoshi("gate") != 2_000_000:
+            errors.append("IMS reconcile_from_store did not mirror DB satoshi")
+        # get_address_activity prefers satoshi
+        act = _d.get_address_activity("gate")
+        if int(act.get("balance_satoshi", -1)) != 2_000_000:
+            errors.append("get_address_activity missing balance_satoshi")
     except Exception as exc:
         errors.append(f"state_truth/StateEngine check failed: {exc}")
     return errors, warnings

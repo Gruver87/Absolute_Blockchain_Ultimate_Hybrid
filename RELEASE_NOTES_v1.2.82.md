@@ -32,4 +32,5 @@ python scripts/industrial_gate.py
 
 - Drop float `balance` column after full fleet upgrade
 - Tip state-root payload → satoshi (requires coordinated fork / rebuild)
+- IMS shadow honesty → done in **v1.2.83**
 - 48h soak PASS

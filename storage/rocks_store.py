@@ -493,7 +493,9 @@ class RocksChainStore:
             self._save_account_row(row)
 
     def get_total_supply(self) -> float:
-        return sum(float(a.get("balance", 0.0) or 0.0) for a in self.get_all_accounts())
+        from runtime.amount import account_balance_abs
+
+        return sum(account_balance_abs(a) for a in self.get_all_accounts())
 
     # ── validators ────────────────────────────────────────────────────────
 

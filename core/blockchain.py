@@ -714,11 +714,13 @@ class Blockchain:
         if tx.nonce != expected_nonce:
             return {"success": False, "error": "nonce_mismatch"}
 
-        sender_balance = self.db.get_balance(tx.from_addr)
-        total_cost = tx.value + fee
+        from runtime.amount import from_satoshi_float, to_satoshi
 
-        if sender_balance < total_cost:
+        total_cost = tx.value + fee
+        sender_sat = self.db.get_balance_satoshi(tx.from_addr)
+        if sender_sat < to_satoshi(total_cost):
             return {"success": False, "error": "insufficient_funds"}
+        sender_balance = from_satoshi_float(sender_sat)
 
         if self.pool_locks:
             allowed, reason = self.pool_locks.is_outgoing_allowed(
@@ -747,8 +749,9 @@ class Blockchain:
                 fee = max(fee, evm_res.gas_used * self.config.gas_price_wei)
                 burn_amount = fee * self.config.burn_rate
                 miner_fee = fee - burn_amount
-                if sender_balance < fee + tx.value:
-                    return {"success": False, "error": "insufficient_funds_for_gas"}
+                total_cost = tx.value + fee
+                if sender_sat < to_satoshi(total_cost):
+                    return {"success": False, "error": "insufficient_funds"}
                 if in_atomic:
                     self.db.balance_delta(tx.from_addr, -fee)
                     self.db.balance_delta(proposer, miner_fee)
@@ -875,10 +878,13 @@ class Blockchain:
             return {"valid": False, "error": f"nonce_mismatch (got {tx.nonce}, expected {expected_nonce})"}
 
         fee = tx.gas * self.config.gas_price_wei
-        balance = self.db.get_balance(tx.from_addr)
+        from runtime.amount import from_satoshi_float, to_satoshi
+
+        balance_sat = self.db.get_balance_satoshi(tx.from_addr)
         total_cost = tx.value + fee
-        if balance < total_cost:
+        if balance_sat < to_satoshi(total_cost):
             return {"valid": False, "error": "insufficient_funds"}
+        balance = from_satoshi_float(balance_sat)
 
         if self.pool_locks:
             allowed, reason = self.pool_locks.is_outgoing_allowed(

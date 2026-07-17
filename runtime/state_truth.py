@@ -14,8 +14,11 @@ def canonical_balance_satoshi(store: Any, address: str) -> int:
     if hasattr(store, "get_balance_satoshi"):
         try:
             return max(0, int(store.get_balance_satoshi(address)))
-        except Exception:
-            pass
+        except Exception as exc:
+            # Prefer float fallback over silent zero when satoshi path fails
+            import warnings
+
+            warnings.warn(f"get_balance_satoshi failed for {address}: {exc}", stacklevel=2)
     if hasattr(store, "get_balance"):
         try:
             return max(0, to_satoshi(store.get_balance(address)))

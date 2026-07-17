@@ -1339,7 +1339,7 @@ class Database:
             ).fetchone()
             last_h = int(row["h"]) if row and row["h"] is not None else None
             bal_row = self.conn.execute(
-                "SELECT balance FROM accounts WHERE address=?", (addr,)
+                "SELECT balance, balance_satoshi FROM accounts WHERE address=?", (addr,)
             ).fetchone()
             nonce_row = self.conn.execute(
                 "SELECT nonce FROM accounts WHERE address=?", (addr,)
@@ -1347,9 +1347,13 @@ class Database:
             code_row = self.conn.execute(
                 "SELECT code FROM accounts WHERE address=?", (addr,)
             ).fetchone()
+            from runtime.amount import account_balance_abs, account_satoshi
+
+            bal_dict = dict(bal_row) if bal_row else None
             return {
                 "address": addr,
-                "balance": float(bal_row["balance"]) if bal_row else 0.0,
+                "balance": account_balance_abs(bal_dict),
+                "balance_satoshi": account_satoshi(bal_dict),
                 "nonce": int(nonce_row["nonce"]) if nonce_row else 0,
                 "sent_count": sent,
                 "received_count": received,
@@ -2626,12 +2630,18 @@ class Database:
                 return row["value"]
 
     def get_total_supply(self) -> float:
-        """Сумма всех балансов аккаунтов."""
+        """Sum of account balances (prefer satoshi column when present)."""
+        from runtime.amount import from_satoshi_float
+
         with self.lock:
             row = self.conn.execute(
-                "SELECT COALESCE(SUM(balance), 0) as total FROM accounts"
+                """SELECT COALESCE(SUM(
+                       CASE WHEN balance_satoshi IS NOT NULL THEN balance_satoshi
+                            ELSE CAST(ROUND(balance * 1000000) AS INTEGER) END
+                   ), 0) as total_sat FROM accounts"""
             ).fetchone()
-            return float(row["total"] if row else 0)
+            total_sat = int(row["total_sat"] if row else 0)
+            return from_satoshi_float(total_sat)
 
     # ── Статистика ───────────────────────────────────────────────────────────
 

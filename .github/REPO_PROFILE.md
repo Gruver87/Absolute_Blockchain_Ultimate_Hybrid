@@ -42,9 +42,9 @@ Local push: `.\scripts\push_origin.ps1` or `git push origin master`.
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.2.82` — balance write-path unify (soak-safe) |
-| **Title** | `v1.2.82 — balance write-path unify` |
-| **Notes file** | [RELEASE_NOTES_v1.2.82.md](../RELEASE_NOTES_v1.2.82.md) |
+| **Tag** | `v1.2.83` — IMS reconcile honesty (soak-safe) |
+| **Title** | `v1.2.83 — IMS reconcile honesty` |
+| **Notes file** | [RELEASE_NOTES_v1.2.83.md](../RELEASE_NOTES_v1.2.83.md) |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

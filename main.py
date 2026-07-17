@@ -809,8 +809,17 @@ class NodeOrchestrator:
                 founder = getattr(config, "founder_address", "") or config.miner_address
                 alloc = genesis_balances(founder or None)
                 self.immutable_state.seed_from_balances(alloc)
-            except Exception:
-                pass
+                # Align shadow IMS to DB tip (rewards/burns already on chain if any)
+                try:
+                    self.immutable_state.reconcile_from_store(self.db)
+                except Exception as _ims_seed_rec:
+                    print(f"[ImmutableState] reconcile_from_store at boot: {_ims_seed_rec}")
+                    if getattr(config, "is_production", False):
+                        raise
+            except Exception as _ims_seed_err:
+                print(f"[ImmutableState] seed_from_balances failed: {_ims_seed_err}")
+                if getattr(config, "is_production", False):
+                    raise
             print("[Node] ImmutableStateManager: enabled (satoshi-precision balances)")
         else:
             self.immutable_state = None
@@ -1803,18 +1812,24 @@ class NodeOrchestrator:
                 if self.ai_validator:
                     self.ai_validator.update_performance(proposer, success=True)
 
-                # ImmutableState: синхронизируем satoshi-балансы по транзакциям блока
+                # ImmutableState: mirror DB satoshi after L1 apply (fees/rewards/burns)
                 if self.immutable_state:
                     try:
+                        addrs = set()
                         for tx in block.transactions:
-                            self.immutable_state.apply_transaction({
-                                "from": tx.from_addr,
-                                "to":   tx.to_addr,
-                                "amount": tx.value,
-                                "fee":  getattr(tx, "gas", 0) * self.config.gas_price_wei,
-                            })
+                            if getattr(tx, "from_addr", None):
+                                addrs.add(tx.from_addr)
+                            if getattr(tx, "to_addr", None):
+                                addrs.add(tx.to_addr)
+                        addrs.add(proposer)
+                        burn = getattr(self.config, "burn_address", None)
+                        if burn:
+                            addrs.add(burn)
+                        n = self.immutable_state.reconcile_from_store(self.db, addrs)
+                        if n < 0:
+                            raise RuntimeError("IMS reconcile_from_store returned failure")
                     except Exception as _ims_err:
-                        print(f"[ImmutableState] apply_transaction failed: {_ims_err}")
+                        print(f"[ImmutableState] reconcile_from_store failed: {_ims_err}")
                         if getattr(self.config, "is_production", False):
                             raise
 

@@ -74,7 +74,31 @@ class ImmutableStateManager:
                 acc = self.get_account(addr, create=True)
                 acc.balance_satoshi = self.to_satoshi(float(amount))
             return len(balances)
-    
+
+    def reconcile_from_store(self, store, addresses=None) -> int:
+        """Mirror canonical DB/Rocks satoshi into IMS shadow (post-block honesty)."""
+        from runtime.state_truth import canonical_balance_satoshi
+
+        with self._lock:
+            if addresses is None:
+                if hasattr(store, "get_all_accounts"):
+                    addresses = [a.get("address", "") for a in store.get_all_accounts()]
+                else:
+                    addresses = list(self._state.keys())
+            n = 0
+            for addr in addresses:
+                if not addr:
+                    continue
+                acc = self.get_account(addr, create=True)
+                acc.balance_satoshi = canonical_balance_satoshi(store, addr)
+                if hasattr(store, "get_nonce"):
+                    try:
+                        acc.nonce = int(store.get_nonce(addr))
+                    except Exception:
+                        pass
+                n += 1
+            return n
+
     def apply_transaction(self, tx: dict) -> bool:
         """
         Применить транзакцию к состоянию

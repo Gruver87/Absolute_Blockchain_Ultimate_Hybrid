@@ -32,6 +32,28 @@
 
 ---
 
+## [1.2.83] — 2026-07-17
+
+### Fixed / hardened
+
+- **IMS:** post-block `reconcile_from_store` from DB satoshi (fees/rewards/burns); seed fail-loud in prod
+- **API `/state/*`:** DB cross-check + `canonical` flag; `/state/supply` prefers DB; `/state/credit` blocked in prod
+- **`get_address_activity` / `PersistentStorage.get_account_state` / Rocks+SQLite `get_total_supply`:** prefer satoshi
+- **`Blockchain` funds check:** compare in satoshi
+- **`industrial_gate`:** freeze tip float `"b"` soak contract + IMS reconcile surface
+
+### Added
+
+- `tests/unit/test_ims_reconcile_honesty.py`
+
+### Notes
+
+- Live 48h soak mesh is **not** restarted by this release
+- Tip `compute_db_state_root` float `"b"` encoding unchanged
+- Float ABS column still retained
+
+---
+
 ## [1.2.82] — 2026-07-17
 
 ### Fixed

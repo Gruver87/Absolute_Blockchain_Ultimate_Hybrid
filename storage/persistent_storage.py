@@ -26,10 +26,16 @@ class PersistentStorage:
         return self.db.get_nonce(address)
 
     def get_account_state(self, address: str) -> Dict:
+        from runtime.amount import account_balance_abs, account_satoshi
+
         row = self.db.get_account(address)
         if row:
-            return {"balance": float(row.get("balance", 0)), "nonce": int(row.get("nonce", 0))}
-        return {"balance": 0.0, "nonce": 0}
+            return {
+                "balance": account_balance_abs(row),
+                "balance_satoshi": account_satoshi(row),
+                "nonce": int(row.get("nonce", 0)),
+            }
+        return {"balance": 0.0, "balance_satoshi": 0, "nonce": 0}
 
     def update_balance(self, address: str, delta: float) -> float:
         # Delegate to DB dual-write path (satoshi + float); do not bump nonce here.

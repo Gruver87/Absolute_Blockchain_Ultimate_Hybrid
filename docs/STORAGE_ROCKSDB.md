@@ -12,9 +12,10 @@
 | SQLite / Rocks accounts | **`balance_satoshi`** (INTEGER) + float `balance` dual-write (v1.2.80+) | Reads prefer satoshi; float kept for wire/compat; genesis reset + nonce insert also dual-write (v1.2.82) |
 | In-memory `StateEngine` | **satoshi** internally (v1.2.81) | Wire/genesis still ABS; tip consensus root remains DB/Rocks |
 | Validator adapter | satoshi via `state_truth` (v1.2.82) | No float×1e6 bypass |
+| IMS shadow | **reconcile_from_store** after blocks (v1.2.83) | Not a second ledger; mirrors DB satoshi; `/state/*` labels `canonical` |
 | API / `Blockchain.get_balance` | ABS float via `runtime.state_truth` | Derived from satoshi when available |
 
-**Not done yet:** drop float `balance` column; single write-path for Database / StateEngine / IMS.
+**Not done yet:** drop float `balance` column; tip state-root payload → satoshi (coordinated rebuild).
 
 ---
 
