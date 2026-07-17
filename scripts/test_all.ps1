@@ -1,4 +1,4 @@
-# Full blockchain verification — single entry point.
+# Full blockchain verification - single entry point.
 # Delegates to test_blockchain_full.ps1 (see that file for all flags).
 #
 # Quick local gate (recommended before push):

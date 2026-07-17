@@ -1,4 +1,4 @@
-# Prod mesh resilience path (probe + stabilize + failover + optional DR) — no soak.
+# Prod mesh resilience path (probe + stabilize + failover + optional DR) - no soak.
 param(
     [switch]$SkipFailover,
     [switch]$SkipDrRehearsal,

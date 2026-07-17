@@ -1,4 +1,4 @@
-# Prod mesh FULL operational gate — alias for test_blockchain_full -ProdMeshFull.
+# Prod mesh FULL operational gate - alias for test_blockchain_full -ProdMeshFull.
 # Requires live Docker prod mesh on :18180-:18182 (or use -ProdMeshSpawn).
 #
 #   .\scripts\prod_mesh_full.ps1

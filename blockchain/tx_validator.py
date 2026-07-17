@@ -4,7 +4,7 @@
 import time
 from typing import Dict, Tuple, Optional
 
-SATOSHI_MULTIPLIER = 1_000_000
+from runtime.amount import SATOSHI_MULTIPLIER, to_satoshi
 
 
 class TransactionValidator:
@@ -35,7 +35,8 @@ class TransactionValidator:
             return False, f"Invalid receiver address: {to_addr}"
 
         amount_satoshi = tx.get(
-            "amount_satoshi", int(float(tx.get("amount", tx.get("value", 0))) * SATOSHI_MULTIPLIER)
+            "amount_satoshi",
+            to_satoshi(tx.get("amount", tx.get("value", 0))),
         )
         data = str(tx.get("data", tx.get("input", "")) or "").strip()
         zero_addr = "0x0000000000000000000000000000000000000000"
@@ -45,7 +46,7 @@ class TransactionValidator:
         if amount_satoshi > cls.MAX_TRANSACTION_AMOUNT_SATOSHI:
             return False, "Amount exceeds maximum"
 
-        fee_satoshi = tx.get("fee_satoshi", int(float(tx.get("fee", 0)) * SATOSHI_MULTIPLIER))
+        fee_satoshi = tx.get("fee_satoshi", to_satoshi(tx.get("fee", 0)))
         if fee_satoshi < cls.MIN_TRANSACTION_FEE_SATOSHI:
             return False, (
                 f"Fee too low. Minimum: {cls.MIN_TRANSACTION_FEE_SATOSHI / SATOSHI_MULTIPLIER} ABS"

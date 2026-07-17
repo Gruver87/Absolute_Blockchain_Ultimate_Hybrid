@@ -1,4 +1,4 @@
-# Mainnet readiness — prod stack + pre-mainnet audit (run before tag/release).
+# Mainnet readiness - prod stack + pre-mainnet audit (run before tag/release).
 # Usage: .\scripts\mainnet_readiness.ps1
 #        .\scripts\mainnet_readiness.ps1 -Live
 #        .\scripts\mainnet_readiness.ps1 -ProdSmokeSpawn

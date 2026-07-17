@@ -1,4 +1,4 @@
-# Multi-node P2P smoke — two local nodes, state consistency check.
+# Multi-node P2P smoke - two local nodes, state consistency check.
 # Requires: nodes started separately (see start_two_nodes.ps1).
 #
 # Usage:

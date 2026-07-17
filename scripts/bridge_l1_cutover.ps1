@@ -1,4 +1,4 @@
-# Bridge L1 cutover gate — static + optional live checks against running prod node.
+# Bridge L1 cutover gate - static + optional live checks against running prod node.
 param(
     [switch]$Live,
     [string]$BaseUrl = "",

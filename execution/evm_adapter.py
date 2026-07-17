@@ -313,9 +313,11 @@ class EVMAdapter:
         if salt is None:
             if getattr(self.config, "evm_require_deploy_salt", False):
                 return None, "deploy_salt_required"
-            seed = str(time.time())
+            # Deterministic CREATE address (same rule as in-block 0xF0 hook)
             return (
-                "0x" + hashlib.sha256(f"{deployer}{seed}".encode()).hexdigest()[:40],
+                native.evm_deploy_address_create(
+                    deployer, int(block_number), len(bytecode)
+                ),
                 None,
             )
 

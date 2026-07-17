@@ -379,8 +379,22 @@ class Blockchain:
         return self._resolve_genesis_founder()
 
     def _align_block_state_root_metadata(self, height: int, state_root: str) -> bool:
-        """Repair stale state_root/hash when live account state is already canonical."""
-        blk = self.db.get_block(int(height))
+        """Repair stale state_root/hash when live account state is already canonical.
+
+        Prod fail-closed: refuse rewrites above genesis (height 0) unless
+        ``allow_state_root_rewrite`` is explicitly enabled (dev/recovery only).
+        """
+        h = int(height)
+        allow = bool(getattr(self.config, "allow_state_root_rewrite", False))
+        is_prod = bool(getattr(self.config, "is_production", False))
+        if is_prod and h > 0 and not allow:
+            live = str(state_root or "").strip()
+            print(
+                f"[Blockchain] REFUSED state_root rewrite at #{h} "
+                f"(prod fail-closed; live={live[:16]}…)"
+            )
+            return False
+        blk = self.db.get_block(h)
         if not blk:
             return False
         live = str(state_root or "").strip()
@@ -391,7 +405,7 @@ class Blockchain:
         block = Block.from_dict(row)
         row["hash"] = block._compute_hash()
         self.db.save_block(row)
-        print(f"[Blockchain] Block #{int(height)} state_root aligned ({live[:16]}…)")
+        print(f"[Blockchain] Block #{h} state_root aligned ({live[:16]}…)")
         return True
 
     def _sync_tip_state_root_metadata(self) -> bool:

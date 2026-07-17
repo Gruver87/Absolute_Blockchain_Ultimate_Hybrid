@@ -1,4 +1,4 @@
-# VPS public testnet preflight — static checks + optional live seed probe.
+# VPS public testnet preflight - static checks + optional live seed probe.
 param(
     [switch]$Live,
     [switch]$Mesh3,

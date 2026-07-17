@@ -32,6 +32,24 @@
 
 ---
 
+## [1.2.79] — 2026-07-17
+
+### Fixed / hardened (core доводка — no new features)
+
+- **Docs:** NFT/EVM logs on prod hybrid are RocksDB (not SQLite-only); ARCHITECTURE + MAINNET_GAP + README aligned with STORAGE_ROCKSDB
+- **IMS sync:** `except: pass` on ImmutableState apply → fail-loud in prod
+- **PS1:** remaining Unicode em-dashes scrubbed in `scripts/*.ps1`
+- **State root:** prod refuses tip header `state_root`/`hash` rewrite (`allow_state_root_rewrite=false`); genesis h=0 still alignable
+- **Consensus:** prod `consensus_mode=unified` skips parallel Casper/Beacon/LMD/standalone engines in `main.py` (adapter already unified)
+- **Amounts:** `runtime/amount.py` shared satoshi helpers; IMS + tx_validator import them
+- **EVM:** unsalted CREATE address deterministic (no `time.time()`); CREATE2 EIP-1014 path unchanged and tested
+
+### Added
+
+- `tests/unit/test_amount_units.py`, `test_state_root_rewrite_guard.py`, `test_evm_create_address.py`
+
+---
+
 ## [1.2.78] — 2026-07-17
 
 ### Added

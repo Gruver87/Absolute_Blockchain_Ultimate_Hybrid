@@ -1,4 +1,4 @@
-# Release gate — full blockchain verification before tag/push.
+# Release gate - full blockchain verification before tag/push.
 # Add -Mainnet for prod stack + pre-mainnet combined gate.
 param(
     [switch]$FullNativeBuild,

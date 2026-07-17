@@ -1,4 +1,4 @@
-# L1 bridge live probe — static, RPC probe, and optional live node checks.
+# L1 bridge live probe - static, RPC probe, and optional live node checks.
 param(
     [switch]$ProbeL1,
     [switch]$ProbeL1RpcOnly,

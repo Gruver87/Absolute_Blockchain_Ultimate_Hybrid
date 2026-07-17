@@ -921,7 +921,12 @@ class NodeOrchestrator:
                 print("[Node] Cross-Chain Bridge: using RustBridge (production path)")
 
         # 34. Standalone Consensus Engine (PoS slots/epochs/attestations)
-        if _CONSENSUS_ENGINE_AVAILABLE:
+        # Prod unified path: ConsensusAdapter only — skip parallel engines for API.
+        _unified = config.resolved_consensus_mode() == "unified"
+        if _unified:
+            self.consensus_engine_standalone = None
+            print("[Node] Consensus mode=unified: skipping parallel consensus engines")
+        elif _CONSENSUS_ENGINE_AVAILABLE:
             try:
                 self.consensus_engine_standalone = StandaloneConsensusEngine()
                 if config.miner_address:
@@ -934,6 +939,7 @@ class NodeOrchestrator:
             self.consensus_engine_standalone = None
 
         # 34b. Consensus Sub-Engines (LMD-GHOST, Casper, Slashing, Registry, Epoch, Beacon)
+        # Slashing + registry + epoch stay available (ops/API); fork-choice engines only in parallel mode.
         try:
             from consensus.slashing import SlashingEngine as _SlashingEng
             self.slashing_engine = _SlashingEng()
@@ -987,55 +993,63 @@ class NodeOrchestrator:
             self.epoch_manager = None
             print(f"[Node] EpochManager: unavailable ({_e})")
 
-        try:
-            from consensus.finality_beacon import BeaconFinality as _BF
-            self.beacon_finality = _BF()
-            print("[Node] BeaconFinality: beacon chain finality ready")
-        except Exception as _e:
+        if _unified:
             self.beacon_finality = None
-            print(f"[Node] BeaconFinality: unavailable ({_e})")
-
-        try:
-            from consensus.lmd import LMDTable as _LMD
-            self.lmd_table = _LMD()
-            if config.miner_address:
-                self.lmd_table.add_validator(config.miner_address)
-            print("[Node] LMDTable: LMD-GHOST fork choice ready")
-        except Exception as _e:
             self.lmd_table = None
-            print(f"[Node] LMDTable: unavailable ({_e})")
-
-        try:
-            from consensus.engine_casper import ConsensusEngineCasper as _CECasper
-            self.consensus_casper = _CECasper()
-            print("[Node] ConsensusEngineCasper: Casper FFG engine ready")
-        except Exception as _e:
             self.consensus_casper = None
-            print(f"[Node] ConsensusEngineCasper: unavailable ({_e})")
-
-        try:
-            from consensus.engine_beacon import ConsensusEngineBeacon as _CEBeacon
-            self.consensus_beacon = _CEBeacon()
-            print("[Node] ConsensusEngineBeacon: Beacon consensus ready")
-        except Exception as _e:
             self.consensus_beacon = None
-            print(f"[Node] ConsensusEngineBeacon: unavailable ({_e})")
-
-        try:
-            from consensus.engine_slashing import ConsensusEngineSlashing as _CESl
-            self.consensus_engine_slashing = _CESl()
-            print("[Node] ConsensusEngineSlashing: slashing-aware consensus ready")
-        except Exception as _e:
             self.consensus_engine_slashing = None
-            print(f"[Node] ConsensusEngineSlashing: unavailable ({_e})")
-
-        try:
-            from consensus.finality_casper import CasperFinality as _CasperFin
-            self.casper_finality = _CasperFin()
-            print("[Node] CasperFinality: Casper finality engine ready")
-        except Exception as _e:
             self.casper_finality = None
-            print(f"[Node] CasperFinality: unavailable ({_e})")
+        else:
+            try:
+                from consensus.finality_beacon import BeaconFinality as _BF
+                self.beacon_finality = _BF()
+                print("[Node] BeaconFinality: beacon chain finality ready")
+            except Exception as _e:
+                self.beacon_finality = None
+                print(f"[Node] BeaconFinality: unavailable ({_e})")
+
+            try:
+                from consensus.lmd import LMDTable as _LMD
+                self.lmd_table = _LMD()
+                if config.miner_address:
+                    self.lmd_table.add_validator(config.miner_address)
+                print("[Node] LMDTable: LMD-GHOST fork choice ready")
+            except Exception as _e:
+                self.lmd_table = None
+                print(f"[Node] LMDTable: unavailable ({_e})")
+
+            try:
+                from consensus.engine_casper import ConsensusEngineCasper as _CECasper
+                self.consensus_casper = _CECasper()
+                print("[Node] ConsensusEngineCasper: Casper FFG engine ready")
+            except Exception as _e:
+                self.consensus_casper = None
+                print(f"[Node] ConsensusEngineCasper: unavailable ({_e})")
+
+            try:
+                from consensus.engine_beacon import ConsensusEngineBeacon as _CEBeacon
+                self.consensus_beacon = _CEBeacon()
+                print("[Node] ConsensusEngineBeacon: Beacon consensus ready")
+            except Exception as _e:
+                self.consensus_beacon = None
+                print(f"[Node] ConsensusEngineBeacon: unavailable ({_e})")
+
+            try:
+                from consensus.engine_slashing import ConsensusEngineSlashing as _CESl
+                self.consensus_engine_slashing = _CESl()
+                print("[Node] ConsensusEngineSlashing: slashing-aware consensus ready")
+            except Exception as _e:
+                self.consensus_engine_slashing = None
+                print(f"[Node] ConsensusEngineSlashing: unavailable ({_e})")
+
+            try:
+                from consensus.finality_casper import CasperFinality as _CasperFin
+                self.casper_finality = _CasperFin()
+                print("[Node] CasperFinality: Casper finality engine ready")
+            except Exception as _e:
+                self.casper_finality = None
+                print(f"[Node] CasperFinality: unavailable ({_e})")
 
         try:
             from execution.block_validator import BlockValidator as _BV
@@ -1799,8 +1813,10 @@ class NodeOrchestrator:
                                 "amount": tx.value,
                                 "fee":  getattr(tx, "gas", 0) * self.config.gas_price_wei,
                             })
-                    except Exception:
-                        pass
+                    except Exception as _ims_err:
+                        print(f"[ImmutableState] apply_transaction failed: {_ims_err}")
+                        if getattr(self.config, "is_production", False):
+                            raise
 
                 # Light client: новый заголовок
                 if self.light_client:

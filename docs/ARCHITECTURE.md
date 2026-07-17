@@ -123,9 +123,11 @@ See [STORAGE_ROCKSDB.md](STORAGE_ROCKSDB.md).
 
 ```
 data/
-  chainstore/     # RocksDB blocks, accounts, txs, bridge locks
-    aux.db        # NFT, logs, dev tables (not consensus-critical)
+  chainstore/     # RocksDB: blocks, accounts, txs, bridge, NFT marketplace, evm_logs
+    aux.db        # SQLite sidecar: lightning/plasma/wasm/oracles and other cold modules
 ```
+
+NFT / EVM logs on prod hybrid live in **Rocks**, not aux.db (see [STORAGE_ROCKSDB.md](STORAGE_ROCKSDB.md)).
 
 Backup: `scripts/backup_chainstore.ps1 -DockerMesh1` · DR: `scripts/dr_restore_rehearsal.ps1`
 

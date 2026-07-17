@@ -1,4 +1,4 @@
-# Full project audit — one command (Windows)
+# Full project audit - one command (Windows)
 param(
     [switch]$Quick,
     [switch]$NoTests,

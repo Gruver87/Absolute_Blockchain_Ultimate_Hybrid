@@ -72,6 +72,7 @@ class Config:
     verify_peer_state_root: bool = True # compare state_root on P2P import
     state_root_strict_p2p: bool = True  # strict state_root on P2P import above baseline
     state_root_legacy_cutoff_height: int = 0  # blocks <= cutoff: warn on drift; above: strict
+    allow_state_root_rewrite: bool = True  # rewrite tip header state_root/hash; prod forces False (genesis h=0 still allowed)
     monitor_port: int = 0               # 0 = http_port + 12 (8092 for :8080)
     rpc_proxy_port: int = 0             # 0 = http_port + 2 (8082 for :8080)
     monitor_enabled: bool = True
@@ -297,6 +298,9 @@ class Config:
         self.state_root_strict_p2p = env_bool(
             "STATE_ROOT_STRICT_P2P", self.state_root_strict_p2p
         )
+        self.allow_state_root_rewrite = env_bool(
+            "ALLOW_STATE_ROOT_REWRITE", self.allow_state_root_rewrite
+        )
         self.state_root_legacy_cutoff_height = env_int(
             "STATE_ROOT_LEGACY_CUTOFF_HEIGHT",
             self.state_root_legacy_cutoff_height,
@@ -392,6 +396,7 @@ class Config:
             self.bridge_require_l1_proof = env_bool("BRIDGE_REQUIRE_L1_PROOF", True)
             self.evm_create2_eip1014 = env_bool("EVM_CREATE2_EIP1014", True)
             self.evm_require_deploy_salt = env_bool("EVM_REQUIRE_DEPLOY_SALT", True)
+            self.allow_state_root_rewrite = env_bool("ALLOW_STATE_ROOT_REWRITE", False)
             self.feature_zk = env_bool("FEATURE_ZK", False)
             self.feature_sharding = env_bool("FEATURE_SHARDING", False)
             self.feature_oracles = env_bool("FEATURE_ORACLES", False)
@@ -552,6 +557,11 @@ class Config:
         if self.is_production:
             if not self.state_root_strict_p2p:
                 errors.append("prod mode requires state_root_strict_p2p=true")
+            if self.allow_state_root_rewrite:
+                errors.append(
+                    "prod mode forbids allow_state_root_rewrite "
+                    "(set ALLOW_STATE_ROOT_REWRITE=false; genesis h=0 align still allowed)"
+                )
             jwt_secret = os.environ.get("JWT_SECRET") or getattr(self, "jwt_secret", "")
             if not jwt_secret:
                 errors.append("prod mode requires JWT_SECRET")

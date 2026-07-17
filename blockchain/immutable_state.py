@@ -5,8 +5,7 @@ import threading
 from typing import Dict, Optional, List
 from dataclasses import dataclass, field
 
-# 1 ABS = 1_000_000 сатоши (как USDC)
-SATOSHI_MULTIPLIER = 1_000_000
+from runtime.amount import SATOSHI_MULTIPLIER, to_satoshi, from_satoshi_float
 
 @dataclass
 class AccountState:
@@ -21,7 +20,7 @@ class AccountState:
     @property
     def balance(self) -> float:
         """Только для отображения"""
-        return self.balance_satoshi / SATOSHI_MULTIPLIER
+        return from_satoshi_float(self.balance_satoshi)
     
     def to_dict(self) -> dict:
         return {
@@ -84,10 +83,14 @@ class ImmutableStateManager:
         with self._lock:
             from_addr = tx.get('from', tx.get('from_addr', ''))
             to_addr = tx.get('to', tx.get('to_addr', ''))
-            amount_satoshi = tx.get('amount_satoshi', 
-                                     int(tx.get('amount', 0) * SATOSHI_MULTIPLIER))
-            fee_satoshi = tx.get('fee_satoshi',
-                                 int(tx.get('fee', 0) * SATOSHI_MULTIPLIER))
+            amount_satoshi = tx.get(
+                "amount_satoshi",
+                to_satoshi(tx.get("amount", 0)),
+            )
+            fee_satoshi = tx.get(
+                "fee_satoshi",
+                to_satoshi(tx.get("fee", 0)),
+            )
             
             from_acc = self.get_account(from_addr, create=True)
             to_acc = self.get_account(to_addr, create=True)
@@ -130,11 +133,11 @@ class ImmutableStateManager:
     
     @staticmethod
     def to_satoshi(abs_amount: float) -> int:
-        return int(abs_amount * SATOSHI_MULTIPLIER)
-    
+        return to_satoshi(abs_amount)
+
     @staticmethod
     def to_abs(satoshi: int) -> float:
-        return satoshi / SATOSHI_MULTIPLIER
+        return from_satoshi_float(satoshi)
 
 
 # Глобальный экземпляр

@@ -1,4 +1,4 @@
-# Monolith readiness gate — one command for all static mainnet-prep layers.
+# Monolith readiness gate - one command for all static mainnet-prep layers.
 param(
     [switch]$StrictAudit,
     [switch]$BridgeCutover,

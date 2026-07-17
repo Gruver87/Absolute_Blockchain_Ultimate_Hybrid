@@ -22,7 +22,7 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 | State root + P2P import validation | Real | Wave 50–54 |
 | EVM subset (Shanghai/Cancun) | Real subset | Not full Ethereum client |
 | PoS proposer + slashing | Devnet-proven | Not formal BFT proof |
-| NFT marketplace | Prod tier | SQLite-backed |
+| NFT marketplace | Prod hybrid | RocksDB on prod hybrid (`HybridDatabase`); SQLite `aux.db` for cold/legacy modules only — see [STORAGE_ROCKSDB.md](STORAGE_ROCKSDB.md) |
 | Prod config fail-closed | Enforced | `runtime/config.py`, `scripts/prod_gate.py` |
 
 ---
@@ -98,12 +98,12 @@ Operator sequence: [MAINNET_CUTOVER.md](MAINNET_CUTOVER.md).
 
 | Area | Action |
 |------|--------|
-| EVM | Full CREATE2 in block execution; EOF roadmap; opcode parity tests |
-| State | Unify `Database` / `ImmutableStateManager` / `StateEngine` |
-| Consensus | Single canonical fork-choice + finality path | **unified in prod** (v1.2.30); dev keeps parallel engines |
+| EVM | CREATE/CREATE2 deterministic addresses (v1.2.79); EOF roadmap later |
+| State | Shared `runtime.amount` satoshi helpers (v1.2.79); full INTEGER DB migration still open |
+| Consensus | Single canonical fork-choice in prod (adapter + node skip parallel engines, v1.2.79) |
 | Bridge | On-chain lock/mint contracts + monitored relayer (not proof-only) |
 | Storage | RocksDB prod + backup/restore; **reorg purges EVM/tx-prop indexes** (v1.2.43); aux.db scope documented |
-| Tests | E2E prod boot CI, prod P2P mesh, live `prod_smoke` in pipeline |
+| State root | Prod refuse tip header rewrite (`allow_state_root_rewrite=false`, v1.2.79) |
 | Tests | ✅ CI: `industrial_gate.py`, prod boot E2E, `verify_p2p_ci --mode prod-smoke` |
 
 ---

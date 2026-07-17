@@ -1,4 +1,4 @@
-# Public testnet uptime probe — cron-friendly health snapshot.
+# Public testnet uptime probe - cron-friendly health snapshot.
 param(
     [string]$BaseUrl = "http://127.0.0.1:19080",
     [switch]$Append,

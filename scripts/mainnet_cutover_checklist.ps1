@@ -1,4 +1,4 @@
-# Unified mainnet cutover checklist — ceremony, code gates, optional live mesh + bridge.
+# Unified mainnet cutover checklist - ceremony, code gates, optional live mesh + bridge.
 param(
     [string]$CeremonyDir = "data/ceremony_keys",
     [switch]$RequireCeremonyPin,

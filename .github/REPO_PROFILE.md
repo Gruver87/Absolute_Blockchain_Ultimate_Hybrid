@@ -42,9 +42,9 @@ Local push: `.\scripts\push_origin.ps1` or `git push origin master`.
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.2.78` — industrial audit-prep pack (soak-safe) |
-| **Title** | `v1.2.78 — industrial audit prep (soak-safe)` |
-| **Notes file** | [RELEASE_NOTES_v1.2.78.md](../RELEASE_NOTES_v1.2.78.md) |
+| **Tag** | `v1.2.79` — core industrial hardening (soak-safe) |
+| **Title** | `v1.2.79 — core industrial hardening` |
+| **Notes file** | [RELEASE_NOTES_v1.2.79.md](../RELEASE_NOTES_v1.2.79.md) |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |
