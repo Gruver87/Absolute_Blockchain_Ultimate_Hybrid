@@ -32,6 +32,28 @@
 
 ---
 
+## [1.2.81] — 2026-07-17
+
+### Changed
+
+- **StateEngine:** account balances stored as integer satoshi; genesis/tx wire still ABS via `runtime.amount`
+- **`compute_state_engine_root`:** payload uses `balance_satoshi`
+- **`Blockchain.get_balance` / `get_balance_satoshi`:** via `runtime.state_truth` (prefer satoshi dual-write)
+- **`industrial_gate`:** StateEngine + `canonical_balance_satoshi` surface check
+
+### Added
+
+- `runtime/state_truth.py`
+- `tests/unit/test_state_engine_satoshi.py`
+
+### Notes
+
+- Live 48h soak mesh is **not** restarted by this release
+- Tip consensus root remains DB/Rocks; StateEngine is auxiliary deterministic sandbox
+- Float ABS column still retained for compatibility
+
+---
+
 ## [1.2.80] — 2026-07-17
 
 ### Changed

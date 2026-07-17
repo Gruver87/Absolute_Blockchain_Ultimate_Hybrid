@@ -102,6 +102,18 @@ def _check_balance_precision() -> tuple[list[str], list[str]]:
             errors.append("RocksStore missing get_balance_satoshi")
     except ImportError:
         warnings.append("RocksStore unavailable (optional for this host)")
+    try:
+        from runtime.state_truth import canonical_balance_satoshi
+        from execution.state_engine import StateEngine
+
+        eng = StateEngine()
+        eng.create_genesis({"x": 1})
+        if eng.get_balance_satoshi("x") != 1_000_000:
+            errors.append("StateEngine create_genesis not storing satoshi")
+        if canonical_balance_satoshi(None, "x") != 0:
+            errors.append("canonical_balance_satoshi(None) should be 0")
+    except Exception as exc:
+        errors.append(f"state_truth/StateEngine check failed: {exc}")
     return errors, warnings
 
 

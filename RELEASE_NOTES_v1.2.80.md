@@ -30,5 +30,5 @@ python scripts/industrial_gate.py
 ### Still open
 
 - Drop float `balance` column after full fleet upgrade
-- Unify StateEngine int units with satoshi ledger
+- Unify StateEngine int units with satoshi ledger → done in **v1.2.81**
 - 48h soak PASS

@@ -1170,14 +1170,14 @@ class Blockchain:
         return self.db.get_chain_tip()
 
     def get_balance(self, address: str) -> float:
-        return self.db.get_balance(address)
+        from runtime.state_truth import canonical_balance_abs
+
+        return canonical_balance_abs(self.db, address)
 
     def get_balance_satoshi(self, address: str) -> int:
-        if hasattr(self.db, "get_balance_satoshi"):
-            return int(self.db.get_balance_satoshi(address))
-        from runtime.amount import to_satoshi
+        from runtime.state_truth import canonical_balance_satoshi
 
-        return to_satoshi(self.db.get_balance(address))
+        return canonical_balance_satoshi(self.db, address)
 
     def get_last_block(self) -> Optional[Dict]:
         return self.db.get_last_block()

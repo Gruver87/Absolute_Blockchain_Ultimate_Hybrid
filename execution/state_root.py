@@ -40,13 +40,12 @@ def compute_state_root_from_blobs(account_blobs: List[bytes]) -> str:
 
 def compute_state_engine_root(accounts: Dict[str, Any]) -> str:
     """
-    Legacy in-memory StateEngine root.
+    In-memory StateEngine root (32-char legacy contract).
 
-    StateEngine historically exposes a 32-char root, so this helper keeps that
-    compatibility until the in-memory engine is fully aligned with SQLite state.
+    Account ``balance`` fields are satoshi integers (v1.2.81+).
     """
     payload = {
-        addr: {"balance": acc.balance, "nonce": acc.nonce}
+        addr: {"balance_satoshi": int(acc.balance), "nonce": int(acc.nonce)}
         for addr, acc in accounts.items()
     }
     encoded = json.dumps(payload, sort_keys=True)

@@ -1,7 +1,19 @@
 # RocksDB storage architecture (honest)
 
-**Updated:** 2026-07-05  
+**Updated:** 2026-07-17  
 **Scope:** prod mainnet-v1 prep (chain 778888) — not a launched public mainnet
+
+---
+
+## Account balances (honest)
+
+| Layer | Canonical unit | Notes |
+|-------|----------------|-------|
+| SQLite / Rocks accounts | **`balance_satoshi`** (INTEGER) + float `balance` dual-write (v1.2.80) | Reads prefer satoshi; float kept for wire/compat |
+| In-memory `StateEngine` | **satoshi** internally (v1.2.81) | Wire/genesis still ABS; tip consensus root remains DB/Rocks |
+| API / `Blockchain.get_balance` | ABS float via `runtime.state_truth` | Derived from satoshi when available |
+
+**Not done yet:** drop float `balance` column; single write-path for Database / StateEngine / IMS.
 
 ---
 
