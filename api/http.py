@@ -1678,7 +1678,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     })
 
             elif path == "/features":
-                from features import FeatureFlags
+                from features import FeatureFlags, OPTIONAL_MODULE_PROBES, probe_optional_module
                 cfg = self.__class__.config
                 flags = FeatureFlags.from_config(cfg) if cfg else FeatureFlags()
                 instances = {
@@ -1697,6 +1697,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                 }
                 payload = flags.to_api_dict(instances, cfg)
                 payload["api_wave"] = 58
+                payload["module_probes"] = {
+                    name: probe_optional_module(mod_path, cls_name)
+                    for name, (mod_path, cls_name) in OPTIONAL_MODULE_PROBES.items()
+                }
                 rp = self.__class__.reorg_predictor
                 if rp and hasattr(rp, "get_stats"):
                     payload["reorg_predictor"] = rp.get_stats()
@@ -2779,7 +2783,13 @@ class RESTHandler(BaseHTTPRequestHandler):
             # ── Plasma Chain ──────────────────────────────────────────────────
             elif path == "/plasma/stats":
                 pl = self.__class__.plasma
-                self._json(pl.get_stats() if pl else {"enabled": False})
+                if pl:
+                    self._json(pl.get_stats())
+                else:
+                    from features import probe_optional_module
+
+                    probe = probe_optional_module("features.plasma", "PlasmaChain")
+                    self._json({"enabled": False, **probe})
 
             elif path == "/plasma/blocks":
                 pl = self.__class__.plasma
@@ -2797,7 +2807,13 @@ class RESTHandler(BaseHTTPRequestHandler):
             # ── WASM VM ───────────────────────────────────────────────────────
             elif path == "/wasm/stats":
                 vm = self.__class__.wasm_vm
-                self._json(vm.get_stats() if vm else {"enabled": False})
+                if vm:
+                    self._json(vm.get_stats())
+                else:
+                    from features import probe_optional_module
+
+                    probe = probe_optional_module("features.wasm_vm", "WASMVirtualMachine")
+                    self._json({"enabled": False, **probe})
 
             elif path == "/wasm/contracts":
                 vm = self.__class__.wasm_vm

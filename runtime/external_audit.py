@@ -97,7 +97,19 @@ def _automated_runbook(root: Path) -> tuple[bool, str]:
 
 
 def _automated_bridge_l1_keys(root: Path) -> tuple[bool, str]:
-    """Staging gate: no L1 RPC secrets in git; mainnet-v1 keeps bridge off until contracts."""
+    """Staging gate: bridge OFF policy + no L1 RPC secrets in git."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "bridge_off_audit_gate", root / "scripts" / "bridge_off_audit_gate.py"
+    )
+    if spec is None or spec.loader is None:
+        return False, "bridge_off_audit_gate.py missing"
+    gate_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gate_mod)
+    if int(gate_mod.main()) != 0:
+        return False, "bridge_off_audit_gate failed (see data/bridge_off_audit_gate.json)"
+
     embedded: list[str] = []
     for path in _prod_config_paths(root):
         text = path.read_text(encoding="utf-8").lower()
@@ -110,7 +122,7 @@ def _automated_bridge_l1_keys(root: Path) -> tuple[bool, str]:
     if mainnet_v1.is_file():
         cfg = _load_json(mainnet_v1)
         if cfg.get("bridge_enabled") is False:
-            return True, "mainnet-v1 bridge disabled; supply ETH_RPC_URL via env at deploy"
+            return True, "mainnet-v1 bridge disabled; bridge_off_audit_gate PASS"
 
     import importlib.util
 
@@ -123,7 +135,7 @@ def _automated_bridge_l1_keys(root: Path) -> tuple[bool, str]:
     spec.loader.exec_module(mod)
     if mod.main() != 0:
         return False, "check_secrets found potential secrets in repo"
-    return True, "no L1 RPC secrets in repo; rotate ETH_RPC_URL in deployment env"
+    return True, "bridge_off_audit_gate PASS; no L1 RPC secrets in repo"
 
 
 def _automated_validator_manifest(root: Path) -> tuple[bool, str]:

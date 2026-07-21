@@ -126,6 +126,7 @@ Bridge remains **disabled** on prod mesh until audited L1 contracts ship. Use th
 7. `.\scripts\testnet_readiness.ps1 -ProdMesh -MinSoakHours 48`
 8. External audit tracker → third-party review
 9. `python scripts/bridge_off_audit_gate.py` — Bridge OFF checklist (10 controls)
+10. `python scripts/stamp_release_evidence.py --git-tag v1.2.96` — evidence stamp (optional soak ref)
 
 ---
 

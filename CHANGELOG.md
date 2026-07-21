@@ -6,6 +6,17 @@
 
 ---
 
+## [1.2.96] — 2026-07-21
+
+### Hardened — evidence bridge gate, WASM/Plasma probes, release stamp
+
+- testnet_readiness + prod_evidence_suite call bridge_off_audit_gate
+- stamp_release_evidence.py for bridge_decision_off + soak reference
+- /features module_probes; wasm/plasma stats import_error pattern
+- external_audit bridge L1 auto-check uses bridge_off_audit_gate
+
+---
+
 ## [1.2.95] — 2026-07-21
 
 ### Hardened — bridge OFF audit gate, K8s TLS merge, consensus import errors

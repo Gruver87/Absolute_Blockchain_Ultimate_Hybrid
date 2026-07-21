@@ -45,6 +45,10 @@ if (-not $SkipIndustrialGate) {
     Add-Check "industrial_gate" $true " (skipped)"
 }
 
+Write-Host "`n=== bridge_off_audit_gate ===" -ForegroundColor Cyan
+python (Join-Path $ScriptDir "bridge_off_audit_gate.py")
+Add-Check "bridge_off_audit_gate" ($LASTEXITCODE -eq 0)
+
 Write-Host "`n=== mesh health + harness ===" -ForegroundColor Cyan
 $readySec = if ($ProdMesh) { 15 } else { 5 }
 $statusSec = if ($ProdMesh) { 12 } else { 5 }
@@ -56,6 +60,8 @@ foreach ($p in $Ports) {
         $st = Invoke-RestMethod -Uri "http://127.0.0.1:$p/status" -TimeoutSec $statusSec
         $cs = Invoke-RestMethod -Uri "http://127.0.0.1:$p/chain/consistency/harness?quick=1&peer_timeout=5" -TimeoutSec $harnessSec
         $ok = ($ready.status -eq "ready") -and ($cs.harness_healthy -eq $true) -and ($cs.tip_state_aligned -eq $true)
+        $probe = @($cs.checks | Where-Object { $_.id -eq "peer_probe_ok" })
+        if ($probe -and $probe[0].ok -ne $true) { $ok = $false }
         $heights += [int]$st.height
         Add-Check "node:$p" $ok " height=$($st.height) peers=$($st.peers)"
     } catch {

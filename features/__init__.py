@@ -80,3 +80,21 @@ class FeatureFlags:
                 ),
             }
         return out
+
+
+def probe_optional_module(module_path: str, class_name: str) -> Dict[str, Any]:
+    """Honest import probe for optional R&D modules (wasm, plasma, etc.)."""
+    try:
+        import importlib
+
+        mod = importlib.import_module(module_path)
+        getattr(mod, class_name)
+        return {"module_importable": True, "import_error": None}
+    except Exception as exc:
+        return {"module_importable": False, "import_error": str(exc)}
+
+
+OPTIONAL_MODULE_PROBES: Dict[str, tuple[str, str]] = {
+    "wasm": ("features.wasm_vm", "WASMVirtualMachine"),
+    "plasma": ("features.plasma", "PlasmaChain"),
+}

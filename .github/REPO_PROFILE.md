@@ -41,8 +41,8 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.2.95` — bridge OFF audit gate, K8s TLS merge job |
-| **Notes** | [RELEASE_NOTES_v1.2.95.md](../RELEASE_NOTES_v1.2.95.md) |
+| **Tag** | `v1.2.96` — evidence bridge gate, WASM/Plasma probes |
+| **Notes** | [RELEASE_NOTES_v1.2.96.md](../RELEASE_NOTES_v1.2.96.md) |
 | **Prior** | [v1.2.87](../RELEASE_NOTES_v1.2.87.md) pre-audit fail-closed + P2P TLS |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

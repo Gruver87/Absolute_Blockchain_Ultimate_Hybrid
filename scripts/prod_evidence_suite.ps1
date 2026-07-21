@@ -5,7 +5,7 @@ param(
     [switch]$SkipEvm,
     [switch]$RecordEvidence,
     [int]$FailoverWaitSec = 360,
-    [string]$GitTag = "v1.2.54"
+    [string]$GitTag = "v1.2.96"
 )
 
 $ErrorActionPreference = "Stop"
@@ -56,6 +56,10 @@ function Step([string]$Name, [scriptblock]$Action) {
 
 Step "mesh stabilize" {
     & (Join-Path $ScriptDir "mesh_stabilize.ps1")
+}
+
+Step "bridge_off_audit_gate" {
+    python (Join-Path $ScriptDir "bridge_off_audit_gate.py")
 }
 
 Step "mesh health" {

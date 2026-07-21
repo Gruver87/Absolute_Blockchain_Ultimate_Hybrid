@@ -158,6 +158,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("POST /chain/consistency/repair must expose repair_error")
         if "peer_probe_ok" not in http_py:
             errors.append("state consistency harness must include peer_probe_ok check")
+        if "module_probes" not in http_py:
+            errors.append("GET /features must expose module_probes for wasm/plasma")
     except Exception as exc:
         errors.append(f"fail-loud http inspect failed: {exc}")
     return errors, warnings
