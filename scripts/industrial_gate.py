@@ -58,6 +58,12 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
     for attr in ("get_p2p_security_status", "_maintenance_loop", "_strike_peer_sync"):
         if not hasattr(P2PNode, attr):
             errors.append(f"P2PNode missing {attr}")
+    import inspect
+
+    p2p_src = inspect.getsource(P2PNode)
+    for needle in ("shape_rejects_total", "_shape_reject_counts"):
+        if needle not in p2p_src:
+            errors.append(f"P2PNode missing industrial observability: {needle}")
     try:
         from network import p2p_tls  # noqa: F401
     except ImportError as exc:

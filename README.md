@@ -10,14 +10,14 @@
 [![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
 [![48h soak](https://img.shields.io/badge/48h%20soak-PASS%20Jul%202026-brightgreen)](docs/EVIDENCE_MATRIX.md)
-[![Release](https://img.shields.io/badge/Release-v1.3.02-blue)](RELEASE_NOTES_v1.3.02.md)
+[![Release](https://img.shields.io/badge/Release-v1.3.03-blue)](RELEASE_NOTES_v1.3.03.md)
 
 **Repo:** [github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · **Default branch:** `master`  
 **Author:** **ULADZIMIR DABRANSKI** (D.U.P.) · **Owner:** Gruver87
 
 | | |
 |---|---|
-| **Release** | **v1.3.02** - [notes](RELEASE_NOTES_v1.3.02.md) — [CHANGELOG](CHANGELOG.md) |
+| **Release** | **v1.3.03** - [notes](RELEASE_NOTES_v1.3.03.md) — [CHANGELOG](CHANGELOG.md) |
 | **Entry** | `python main.py` |
 | **Dev chain** | `77777` |
 | **Mainnet-v1 prep chain** | `778888` (prod profile — **not** a public mainnet) |
@@ -256,4 +256,4 @@ MIT — see [LICENSE](LICENSE).
 
 ---
 
-*Last update: 2026-07-21 — **v1.3.02** (post-soak industrial polish). Not a launched public mainnet.*
+*Last update: 2026-07-21 — **v1.3.03** (observability + ceremony UX). Not a launched public mainnet.*

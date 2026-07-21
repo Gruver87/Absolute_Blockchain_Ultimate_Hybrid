@@ -109,6 +109,12 @@ def test_metrics_prometheus_format():
             "ok": True,
             "l1_rpc": {"configured": True, "required": True, "ok": True},
         },
+        p2p_security={
+            "handshake_rejects": 2,
+            "shape_rejects_total": 5,
+            "active_bans": 1,
+            "shape_rejects": {"bad_wire_tx": 3, "bad_block_announce": 2},
+        },
     )
     assert "abs_chain_height" in text
     assert 'abs_chain_height{node_id="n1"} 42' in text
@@ -121,6 +127,9 @@ def test_metrics_prometheus_format():
     assert 'abs_l1_rpc_configured{node_id="n1"} 1' in text
     assert 'abs_l1_rpc_required{node_id="n1"} 1' in text
     assert 'abs_l1_rpc_ok{node_id="n1"} 1' in text
+    assert 'abs_p2p_shape_rejects_total{node_id="n1"} 5' in text
+    assert 'abs_p2p_shape_rejects{node_id="n1",reason="bad_wire_tx"} 3' in text
+    assert 'abs_p2p_handshake_rejects_total{node_id="n1"} 2' in text
 
 
 def test_health_live(api_server):

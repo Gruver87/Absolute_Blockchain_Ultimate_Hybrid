@@ -231,6 +231,8 @@ def test_p2p_strike_bans_after_threshold():
     sec = p2p.get_p2p_security_status()
     assert sec["active_bans"] == 1
     assert sec["strikes_before_ban"] == 2
+    assert sec["shape_rejects_total"] >= 2
+    assert sec["shape_rejects"].get("test", 0) >= 2
 
 
 @pytest.mark.asyncio

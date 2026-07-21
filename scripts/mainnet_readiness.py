@@ -15,6 +15,37 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
+def _resolve_ceremony_dir(explicit: str = "") -> tuple[str, str]:
+    """Return (ceremony_dir, source_note). Auto-detect when pin is present."""
+    if explicit and str(explicit).strip():
+        return str(Path(explicit)).strip(), "explicit"
+    meta_path = ROOT / "data" / "ceremony_deploy.json"
+    if meta_path.is_file():
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            for key in ("ceremony_dir", "output_dir", "dir"):
+                raw = str(meta.get(key) or "").strip()
+                if raw:
+                    p = Path(raw)
+                    if not p.is_absolute():
+                        p = ROOT / p
+                    if p.is_dir():
+                        return str(p), "ceremony_deploy.json"
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            pass
+    for rel in (
+        "data/ceremony_keys",
+        "data/ceremony",
+        "logs/ceremony_keys",
+    ):
+        p = ROOT / rel
+        if not p.is_dir():
+            continue
+        if (p / "validators.manifest.json").is_file() or (p / "manifest.json").is_file():
+            return str(p), rel
+    return "", ""
+
+
 def _load_module(name: str, rel: str):
     path = ROOT / rel
     spec = importlib.util.spec_from_file_location(name, path)
@@ -40,6 +71,13 @@ def run_gate(
     errors: List[str] = []
     warnings: List[str] = []
     sections: dict = {}
+
+    ceremony_dir, ceremony_dir_source = _resolve_ceremony_dir(ceremony_dir)
+    if ceremony_dir and ceremony_dir_source and ceremony_dir_source != "explicit":
+        sections["ceremony_dir_auto"] = {
+            "path": ceremony_dir,
+            "source": ceremony_dir_source,
+        }
 
     pre = _load_module("pre_mainnet_audit", "scripts/pre_mainnet_audit.py")
     pre_errors, pre_warnings, checklist = pre.run_checks()
@@ -138,7 +176,9 @@ def run_gate(
         elif pinned_ceremony_hash:
             warnings.append(
                 "genesis_ceremony: GENESIS_CEREMONY_HASH set without --ceremony-dir "
-                "(pin verified only with generated manifest path)"
+                "(no auto path: data/ceremony_deploy.json or data/ceremony_keys; "
+                "run: python scripts/industrial_gate.py --ceremony-dir <path> "
+                "or .\\scripts\\pin_ceremony_hash.ps1)"
             )
         legacy, legacy_errors = build_from_paths(
             str(ROOT / "node.prod.example.json"),

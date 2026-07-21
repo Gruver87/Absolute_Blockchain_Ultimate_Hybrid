@@ -38,9 +38,11 @@ class MetricsCollector:
         node_id: str = "node-1",
         native_crypto: Optional[dict[str, Any]] = None,
         bridge_health: Optional[dict[str, Any]] = None,
+        p2p_security: Optional[dict[str, Any]] = None,
     ) -> str:
         native_crypto = native_crypto or {}
         bridge_health = bridge_health or {}
+        p2p_security = p2p_security or {}
         lines = [
             "# HELP abs_uptime_seconds Node uptime",
             "# TYPE abs_uptime_seconds gauge",
@@ -118,7 +120,38 @@ class MetricsCollector:
                 f"abs_l1_rpc_ok{{node_id=\"{node_id}\"}} "
                 f"{1 if (bridge_health.get('l1_rpc') or {}).get('ok') else 0}"
             ),
+            "# HELP abs_p2p_handshake_rejects_total Handshake payload rejects",
+            "# TYPE abs_p2p_handshake_rejects_total counter",
+            (
+                f"abs_p2p_handshake_rejects_total{{node_id=\"{node_id}\"}} "
+                f"{int(p2p_security.get('handshake_rejects', 0) or 0)}"
+            ),
+            "# HELP abs_p2p_shape_rejects_total Fail-closed P2P shape rejects",
+            "# TYPE abs_p2p_shape_rejects_total counter",
+            (
+                f"abs_p2p_shape_rejects_total{{node_id=\"{node_id}\"}} "
+                f"{int(p2p_security.get('shape_rejects_total', 0) or 0)}"
+            ),
+            "# HELP abs_p2p_active_bans Currently banned peer keys",
+            "# TYPE abs_p2p_active_bans gauge",
+            (
+                f"abs_p2p_active_bans{{node_id=\"{node_id}\"}} "
+                f"{int(p2p_security.get('active_bans', 0) or 0)}"
+            ),
+            "# HELP abs_p2p_shape_rejects Fail-closed P2P shape rejects by reason",
+            "# TYPE abs_p2p_shape_rejects counter",
         ]
+        for reason, count in (p2p_security.get("shape_rejects") or {}).items():
+            safe_reason = (
+                str(reason)
+                .replace("\\", "\\\\")
+                .replace('"', '\\"')
+                .replace("\n", " ")
+            )
+            lines.append(
+                f"abs_p2p_shape_rejects{{node_id=\"{node_id}\",reason=\"{safe_reason}\"}} "
+                f"{int(count or 0)}"
+            )
         for kernel in native_crypto.get("kernels", []):
             safe_kernel = str(kernel).replace("\\", "\\\\").replace('"', '\\"')
             lines.append(

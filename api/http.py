@@ -1053,6 +1053,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                     required=bool(getattr(cfg, "require_native_crypto", False))
                 )
                 bridge_health = _rust_bridge_health(cfg)
+                p2p_security = {}
+                if p2p and hasattr(p2p, "get_p2p_security_status"):
+                    try:
+                        p2p_security = dict(p2p.get_p2p_security_status() or {})
+                    except Exception as exc:
+                        logger.warning("/metrics p2p security snapshot failed: %s", exc)
                 text = mc.render_prometheus(
                     height=bc.get_height() if bc else 0,
                     peers=p2p.peer_count() if p2p else 0,
@@ -1062,6 +1068,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     node_id=getattr(cfg, "node_id", "node-1"),
                     native_crypto=native_crypto,
                     bridge_health=bridge_health,
+                    p2p_security=p2p_security,
                 )
                 body = text.encode()
                 self.send_response(200)
@@ -1235,6 +1242,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                                 "strikes_before_ban": sec.get("strikes_before_ban"),
                                 "evict_min_score": sec.get("evict_min_score", 0),
                                 "handshake_rejects": sec.get("handshake_rejects", 0),
+                                "shape_rejects_total": sec.get("shape_rejects_total", 0),
+                                "shape_rejects": sec.get("shape_rejects") or {},
                             },
                         }
                     except Exception as exc:

@@ -6,6 +6,17 @@
 
 ---
 
+## [1.3.03] — 2026-07-21
+
+### Hardened — Observability + ceremony UX + Rocks env in deploy
+
+- Prometheus: `abs_p2p_shape_rejects*`, handshake rejects, active bans
+- `/status` P2P security includes `shape_rejects_total`
+- Ceremony auto-detect from `data/ceremony_deploy.json` / `data/ceremony_keys`
+- Docker/K8s: `ROCKSDB_BLOCK_CACHE_MB`, `WRITE_BUFFER_MB`, `COLUMN_FAMILIES`
+
+---
+
 ## [1.3.02] — 2026-07-21
 
 ### Hardened — Post-soak industrial polish (Swiss-watch pass)
