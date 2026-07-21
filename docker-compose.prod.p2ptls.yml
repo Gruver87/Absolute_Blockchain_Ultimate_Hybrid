@@ -1,0 +1,20 @@
+# P2P TLS overlay for docker-compose.prod.yml (single-node)
+# Usage:
+#   python scripts/gen_p2p_dev_tls.py --out-dir data/p2p_tls_prod_single --node-id docker-prod-node-1
+#   # copy ca.pem into the same dir as node.pem/node.key, or symlink mesh CA
+#   .\scripts\docker_prod.ps1 -P2pTls
+# Manual:
+#   docker compose -p abs-prod-single -f docker-compose.prod.yml -f docker-compose.prod.p2ptls.yml up -d
+
+services:
+  node:
+    environment:
+      P2P_TLS_ENABLED: "true"
+      P2P_TLS_CERT_PATH: /app/p2p_tls/node.pem
+      P2P_TLS_KEY_PATH: /app/p2p_tls/node.key
+      P2P_TLS_CA_PATH: /app/p2p_tls/ca.pem
+      P2P_TLS_REQUIRE_CLIENT_CERT: "true"
+      P2P_TLS_FAIL_CLOSED: "true"
+      P2P_TLS_BIND_IDENTITY: "true"
+    volumes:
+      - ./data/p2p_tls_prod_single:/app/p2p_tls:ro

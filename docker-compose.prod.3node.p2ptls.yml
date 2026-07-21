@@ -2,9 +2,8 @@
 # Default via: .\scripts\docker_prod_3node.ps1  (opt out: -NoP2pTls)
 # Manual: docker compose -f docker-compose.prod.3node.yml -f docker-compose.prod.3node.p2ptls.yml up -d
 #
-# Threat model (honest): TLS encrypts the wire and mTLS authenticates peer certs
-# against the mesh CA. Application handshake identity is separate; cert CN binding
-# to validator addresses is not claimed here.
+# Threat model (honest): TLS encrypts the wire; mTLS authenticates peer certs
+# against the mesh CA; handshake node_id is bound to cert CN/SAN (v1.2.87+).
 
 services:
   node1:

@@ -1,7 +1,8 @@
 # Start Docker prod profile (mainnet-v1 node; optional bridge relayer sidecar)
 param(
     [string]$CeremonyDir = "",
-    [switch]$Bridge
+    [switch]$Bridge,
+    [switch]$P2pTls
 )
 
 $ComposeProject = "abs-prod-single"
@@ -187,7 +188,23 @@ Write-Host "Recreating prod stack on HTTP $($ports.Http), RPC $($ports.Rpc)..." 
 # Legacy default compose project (pre abs-prod-single split)
 docker compose -f docker-compose.prod.yml down 2>$null
 docker compose -p $ComposeProject -f docker-compose.prod.yml down 2>$null
-$composeArgs = @("-p", $ComposeProject, "-f", "docker-compose.prod.yml", "up", "--build", "-d", "--force-recreate")
+$composeFiles = @("-p", $ComposeProject, "-f", "docker-compose.prod.yml")
+if ($P2pTls) {
+    $tlsDir = Join-Path $ProjectRoot "data\p2p_tls_prod_single"
+    $tlsPem = Join-Path $tlsDir "node.pem"
+    if (-not (Test-Path $tlsPem)) {
+        Write-Host "Generating single-node P2P TLS material..." -ForegroundColor Gray
+        New-Item -ItemType Directory -Force -Path $tlsDir | Out-Null
+        python scripts/gen_p2p_dev_tls.py --out-dir data/p2p_tls_prod_single --node-id docker-prod-node-1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "FAIL: could not generate P2P TLS material" -ForegroundColor Red
+            exit 1
+        }
+    }
+    $composeFiles += @("-f", "docker-compose.prod.p2ptls.yml")
+    Write-Host "P2P TLS overlay: ON (data/p2p_tls_prod_single)" -ForegroundColor Cyan
+}
+$composeArgs = $composeFiles + @("up", "--build", "-d", "--force-recreate")
 if ($Bridge) {
     $env:BRIDGE_ENABLED = "true"
     $env:BRIDGE_PROBE_L1_RPC = "true"

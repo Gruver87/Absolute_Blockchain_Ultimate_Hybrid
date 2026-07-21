@@ -47,5 +47,24 @@ def test_create_rate_limiter_redis_unavailable_falls_back():
             redis_url="redis://bad:6379/0",
             redis_enabled=True,
             requests_per_minute=10,
+            fail_closed=False,
         )
     assert isinstance(rl, RateLimiter)
+
+
+def test_create_rate_limiter_redis_unavailable_fail_closed():
+    with patch("middleware.redis_rate_limit.try_create_redis_limiter", return_value=None):
+        rl = create_rate_limiter(
+            redis_url="redis://bad:6379/0",
+            redis_enabled=True,
+            requests_per_minute=10,
+            fail_closed=True,
+        )
+    assert rl is None
+
+
+def test_rate_limiter_backend_name():
+    from middleware.rate_limit import rate_limiter_backend_name
+
+    assert rate_limiter_backend_name(None) == "none"
+    assert rate_limiter_backend_name(RateLimiter()) == "memory"

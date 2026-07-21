@@ -44,6 +44,17 @@ python scripts/mint_admin_jwt.py --address ops-admin --hours 24
 
 Protected admin POSTs require JWT claim `role=admin` (user role → 403).
 
+## P2P TLS / mTLS
+
+- Prod profiles enable P2P TLS + mTLS; handshake `node_id` must match peer cert CN/SAN.
+- Mesh: `.\scripts\docker_prod_3node.ps1` (default TLS). Single-node: `.\scripts\docker_prod.ps1 -P2pTls`.
+- Details: [docs/P2P_TLS.md](docs/P2P_TLS.md)
+
+## Rate limiting
+
+- In-memory RPM is per-process (fine for single-node).
+- Multi-node: set `REDIS_RATE_LIMIT=true` + `REDIS_URL`. In **prod**, Redis failure does **not** fall back to memory (boot fails closed).
+
 ## Pre-push check
 
 ```bash

@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.2.87` — pre-audit fail-closed gates + default P2P TLS |
-| **Notes** | [RELEASE_NOTES_v1.2.87.md](../RELEASE_NOTES_v1.2.87.md) |
-| **Prior** | [v1.2.85](../RELEASE_NOTES_v1.2.85.md) 48h soak PASS |
+| **Tag** | `v1.2.88` — soak honesty, Redis RL fail-closed, single-node P2P TLS |
+| **Notes** | [RELEASE_NOTES_v1.2.88.md](../RELEASE_NOTES_v1.2.88.md) |
+| **Prior** | [v1.2.87](../RELEASE_NOTES_v1.2.87.md) pre-audit fail-closed + P2P TLS |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

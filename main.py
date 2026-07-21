@@ -1553,8 +1553,11 @@ class NodeOrchestrator:
                 wire_roots = []
                 try:
                     wire_roots = await self.p2p.request_peer_state_roots()
-                except Exception:
+                except Exception as exc:
+                    print(f"[Mining] request_peer_state_roots failed: {exc}")
                     wire_roots = []
+                    if bool(getattr(self.config, "is_production", False)):
+                        self.p2p._state_consistent = False
 
                 hold_h = int(getattr(self, "_mesh_forge_hold_height", 0) or 0)
                 if hold_h and local_h >= hold_h:
@@ -1806,15 +1809,17 @@ class NodeOrchestrator:
                 if self.p2p and self.p2p._loop and self.p2p._running:
                     try:
                         asyncio.create_task(self.p2p._broadcast_block(block.to_dict()))
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        print(f"[Mining] broadcast_block schedule failed: {exc}")
 
                 if self.sync_engine and self.p2p:
                     try:
                         loop = asyncio.get_running_loop()
                         loop.run_in_executor(None, self.sync_engine.sync_state)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        print(f"[Mining] sync_state schedule failed: {exc}")
+                        if bool(getattr(self.config, "is_production", False)):
+                            self.p2p._state_consistent = False
 
                 # RANDAO: обновляем seed случайности после каждого блока
                 if self.validator_selection:

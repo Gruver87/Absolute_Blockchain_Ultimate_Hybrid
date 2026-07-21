@@ -6,6 +6,22 @@
 
 ---
 
+## [1.2.88] — 2026-07-21
+
+### Hardened — soak / rate limit / TLS
+
+- health_watch fail-exit on hard FAIL; soak/industrial_gate require wall-clock hours
+- Prod Redis RL: no memory fallback; honest backend logging
+- Single-node `docker-compose.prod.p2ptls.yml` + `docker_prod.ps1 -P2pTls`
+- Mining path: log peer-root / sync schedule failures (prod clears consistency)
+
+### Docs / tests
+
+- SECURITY.md P2P TLS + Redis; mint_admin_jwt + prod TLS tests
+- [RELEASE_NOTES_v1.2.88.md](RELEASE_NOTES_v1.2.88.md)
+
+---
+
 ## [1.2.87] — 2026-07-21
 
 ### Hardened — P2P

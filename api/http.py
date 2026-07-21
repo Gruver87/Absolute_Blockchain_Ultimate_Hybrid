@@ -55,18 +55,27 @@ def configure_rate_limiter(config) -> None:
         logger.info("Rate limiter: disabled (rate_limit_rpm=%s)", rpm)
         return
     try:
-        from middleware.rate_limit import create_rate_limiter
+        from middleware.rate_limit import create_rate_limiter, rate_limiter_backend_name
+        want_redis = bool(getattr(config, "redis_rate_limit_enabled", False))
         _rate_limiter = create_rate_limiter(
             redis_url=getattr(config, "redis_url", ""),
-            redis_enabled=getattr(config, "redis_rate_limit_enabled", False),
+            redis_enabled=want_redis,
             requests_per_minute=getattr(config, "rate_limit_rpm", 120),
             window_seconds=60,
-            fail_closed=prod and bool(getattr(config, "redis_rate_limit_enabled", False)),
+            fail_closed=prod and want_redis,
         )
         _RATE_LIMIT_AVAILABLE = _rate_limiter is not None
         if prod and not _RATE_LIMIT_AVAILABLE:
-            raise RuntimeError("prod requires a working rate limiter")
-        backend = "redis" if getattr(config, "redis_rate_limit_enabled", False) else "memory"
+            raise RuntimeError(
+                "prod requires a working rate limiter"
+                + (" (REDIS_RATE_LIMIT=true but Redis unavailable)" if want_redis else "")
+            )
+        backend = rate_limiter_backend_name(_rate_limiter)
+        if prod and want_redis and backend != "redis":
+            raise RuntimeError(
+                "prod REDIS_RATE_LIMIT=true but backend is "
+                f"{backend} (memory fallback forbidden)"
+            )
         logger.info("Rate limiter: %s (%s rpm)", backend, getattr(config, "rate_limit_rpm", 120))
     except ImportError as e:
         _rate_limiter = None

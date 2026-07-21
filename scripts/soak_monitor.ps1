@@ -89,10 +89,20 @@ if ($RescoreOnly -and $finishedWatch) {
     if ($HealthWatchExit -lt 0) { $exitCode = 0 }
 }
 
+$hoursElapsed = 0.0
+try {
+    $hoursElapsed = ([datetime]::Parse($ended) - [datetime]::Parse($started)).TotalHours
+} catch {
+    $hoursElapsed = 0.0
+}
+# Allow 5% clock skew when rescoring completed soaks.
+$hoursFloor = [Math]::Max(0.0, $Hours * 0.95)
+
 $report = @{
     started_at = $started
     ended_at = $ended
     hours_requested = $Hours
+    hours_elapsed = [Math]::Round($hoursElapsed, 4)
     interval_sec = $IntervalSec
     log_file = $LogFile
     counts = @{
@@ -111,16 +121,24 @@ $report = @{
         $finishedWatch -and
         $ok -gt 0 -and
         $fail -eq 0 -and
-        $meshWarnsTransient
+        $meshWarnsTransient -and
+        $hoursElapsed -ge $hoursFloor
     )
     pass_notes = $(
+        $notes = @()
         if ($meshWarn -eq 0) {
-            "strict mesh_warn=0"
+            $notes += "strict mesh_warn=0"
         } elseif ($meshWarnsTransient) {
-            "mesh_warn=$meshWarn accepted: all height deltas <=1 (sequential poll skew)"
+            $notes += "mesh_warn=$meshWarn accepted: all height deltas <=1 (sequential poll skew)"
         } else {
-            "mesh_warn=$meshWarn includes height delta >1"
+            $notes += "mesh_warn=$meshWarn includes height delta >1"
         }
+        if ($hoursElapsed -lt $hoursFloor) {
+            $notes += "hours_elapsed=$([Math]::Round($hoursElapsed,2)) < required_floor=$([Math]::Round($hoursFloor,2))"
+        } else {
+            $notes += "hours_elapsed=$([Math]::Round($hoursElapsed,2)) ok"
+        }
+        $notes -join "; "
     )
 }
 

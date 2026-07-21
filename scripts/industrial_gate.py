@@ -332,6 +332,23 @@ def run_industrial_gate(
                 hrs = float(soak.get("hours_requested", 0) or 0)
                 if hrs < min_soak_hours:
                     soak_errors.append(f"soak_report hours_requested={hrs} < {min_soak_hours}")
+                elapsed = soak.get("hours_elapsed")
+                if elapsed is None:
+                    try:
+                        started = datetime.fromisoformat(
+                            str(soak.get("started_at", "")).replace("Z", "+00:00")
+                        )
+                        ended = datetime.fromisoformat(
+                            str(soak.get("ended_at", "")).replace("Z", "+00:00")
+                        )
+                        elapsed = (ended - started).total_seconds() / 3600.0
+                    except (TypeError, ValueError, OSError):
+                        elapsed = None
+                if elapsed is not None and float(elapsed) < float(min_soak_hours) * 0.95:
+                    soak_errors.append(
+                        f"soak_report hours_elapsed={float(elapsed):.2f} < "
+                        f"{min_soak_hours}*0.95 (wall-clock duration short)"
+                    )
                 if not soak.get("passed"):
                     soak_errors.append(f"soak_report passed=false (see {soak_path})")
             except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:

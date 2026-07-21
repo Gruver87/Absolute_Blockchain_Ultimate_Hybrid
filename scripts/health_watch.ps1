@@ -112,6 +112,7 @@ function Send-Webhook([string]$Text) {
 
 $end = if ($DurationMin -gt 0) { (Get-Date).AddMinutes($DurationMin) } else { $null }
 $cycle = 0
+$totalHardFails = 0
 Write-Log "health_watch start ports=$($Ports -join ',') interval=${IntervalSec}s full_every=$FullHarnessEvery log=$LogFile" "Cyan"
 
 while ($true) {
@@ -124,6 +125,7 @@ while ($true) {
         $r = Test-NodeHealth $p $fullHarness
         if (-not $r.Ok) {
             $failures += "port $p unreachable: $($r.Error)"
+            $totalHardFails++
             Write-Log "FAIL port $p $($r.Error)" "Red"
             continue
         }
@@ -158,18 +160,24 @@ while ($true) {
     }
 
     if ($end -and (Get-Date) -ge $end) {
-        Write-Log "health_watch done (duration ${DurationMin}m cycles=$cycle)" "Cyan"
+        Write-Log "health_watch done (duration ${DurationMin}m cycles=$cycle hard_fails=$totalHardFails)" "Cyan"
         break
     }
     $sleepFor = $IntervalSec
     if ($end) {
         $remaining = [int](($end - (Get-Date)).TotalSeconds)
         if ($remaining -le 0) {
-            Write-Log "health_watch done (duration ${DurationMin}m cycles=$cycle)" "Cyan"
+            Write-Log "health_watch done (duration ${DurationMin}m cycles=$cycle hard_fails=$totalHardFails)" "Cyan"
             break
         }
         if ($remaining -lt $sleepFor) { $sleepFor = $remaining }
     }
     Start-Sleep -Seconds $sleepFor
+}
+
+# Hard FAIL lines (unreachable ports) must fail the process for soak honesty.
+if ($totalHardFails -gt 0) {
+    Write-Log "health_watch exit=1 hard_fails=$totalHardFails" "Red"
+    exit 1
 }
 exit 0

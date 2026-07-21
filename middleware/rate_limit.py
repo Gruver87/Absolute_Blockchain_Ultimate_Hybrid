@@ -4,7 +4,7 @@
 
 import time
 from collections import defaultdict
-from typing import Tuple
+from typing import Optional, Tuple
 
 class RateLimiter:
     """Токен-бакет алгоритм"""
@@ -53,8 +53,18 @@ def create_rate_limiter(
     window_seconds: int = 60,
     fail_closed: bool = False,
 ):
-    """In-memory или Redis (если включён и доступен)."""
-    if redis_enabled and redis_url:
+    """In-memory или Redis.
+
+    When redis_enabled=True and fail_closed=True, returns None if Redis is
+    unavailable (no silent memory fallback). Dev may fall back to memory.
+    """
+    if redis_enabled:
+        if not redis_url:
+            if fail_closed:
+                return None
+            return RateLimiter(
+                requests_per_minute=requests_per_minute, window_seconds=window_seconds
+            )
         from middleware.redis_rate_limit import try_create_redis_limiter
 
         rl = try_create_redis_limiter(
@@ -63,6 +73,18 @@ def create_rate_limiter(
             window_seconds,
             fail_closed=fail_closed,
         )
-        if rl:
+        if rl is not None:
             return rl
+        if fail_closed:
+            return None
     return RateLimiter(requests_per_minute=requests_per_minute, window_seconds=window_seconds)
+
+
+def rate_limiter_backend_name(limiter: Optional[object]) -> str:
+    if limiter is None:
+        return "none"
+    mod = type(limiter).__module__
+    name = type(limiter).__name__
+    if "redis" in mod.lower() or "Redis" in name:
+        return "redis"
+    return "memory"
