@@ -161,7 +161,7 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         if "module_probes" not in http_py:
             errors.append("GET /features must expose module_probes for wasm/plasma")
         feat_init = (ROOT / "features" / "__init__.py").read_text(encoding="utf-8")
-        for name in ("lightning", "zk"):
+        for name in ("lightning", "zk", "ai_agents", "mev", "pq"):
             if f'"{name}"' not in feat_init:
                 errors.append(f"OPTIONAL_MODULE_PROBES must include {name}")
     except Exception as exc:

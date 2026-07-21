@@ -32,8 +32,25 @@ def test_probe_zk_importable():
     assert probe["module_importable"] is True
 
 
+def test_probe_ai_agents_importable():
+    probe = probe_optional_module(*OPTIONAL_MODULE_PROBES["ai_agents"])
+    assert probe["module_importable"] is True
+
+
+def test_probe_mev_importable():
+    probe = probe_optional_module(*OPTIONAL_MODULE_PROBES["mev"])
+    assert probe["module_importable"] is True
+
+
+def test_probe_pq_importable():
+    probe = probe_optional_module(*OPTIONAL_MODULE_PROBES["pq"])
+    assert probe["module_importable"] is True
+
+
 def test_optional_module_probes_registry():
-    assert set(OPTIONAL_MODULE_PROBES) >= {"wasm", "plasma", "lightning", "zk"}
+    assert set(OPTIONAL_MODULE_PROBES) >= {
+        "wasm", "plasma", "lightning", "zk", "ai_agents", "mev", "pq",
+    }
 
 
 def test_probe_unknown_module_fail_loud():

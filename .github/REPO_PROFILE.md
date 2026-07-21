@@ -41,8 +41,8 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.2.97` — Lightning/ZK probes, CI bridge gate |
-| **Notes** | [RELEASE_NOTES_v1.2.97.md](../RELEASE_NOTES_v1.2.97.md) |
+| **Tag** | `v1.2.98` — AI/MEV/PQ probes, security-audit bridge gate |
+| **Notes** | [RELEASE_NOTES_v1.2.98.md](../RELEASE_NOTES_v1.2.98.md) |
 | **Prior** | [v1.2.87](../RELEASE_NOTES_v1.2.87.md) pre-audit fail-closed + P2P TLS |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

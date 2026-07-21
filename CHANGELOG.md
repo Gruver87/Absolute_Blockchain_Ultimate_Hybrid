@@ -6,6 +6,16 @@
 
 ---
 
+## [1.2.98] — 2026-07-21
+
+### Hardened — AI/MEV/PQ probes, security-audit bridge gate, main fail-loud
+
+- module_probes: ai_agents + mev + pq; honest stats endpoints with import_error
+- security-audit workflow: bridge_off_audit_gate job
+- main.py: monitor/RPC proxy/validator key provider failures log exception text
+
+---
+
 ## [1.2.97] — 2026-07-21
 
 ### Hardened — Lightning/ZK probes, CI bridge gate, audit pack

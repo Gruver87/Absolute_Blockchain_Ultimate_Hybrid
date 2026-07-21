@@ -2218,7 +2218,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                     except Exception as e:
                         self._json({"post_quantum": "enabled", "error": str(e)})
                 else:
-                    self._json({"post_quantum": "disabled"})
+                    from features import probe_optional_module
+
+                    probe = probe_optional_module("features.postquantum", "PostQuantumManager")
+                    self._json({"post_quantum": "disabled", "enabled": False, **probe})
 
             # ── Smart Accounts ────────────────────────────────────────────────
             elif path == "/smart-account/list":
@@ -2483,7 +2486,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if mev:
                     self._json(mev.get_statistics())
                 else:
-                    self._json({"enabled": False})
+                    from features import probe_optional_module
+
+                    probe = probe_optional_module("features.mev_analyzer", "MEVAnalyzer")
+                    self._json({"enabled": False, **probe})
 
             elif path == "/mev/history":
                 mev = self.__class__.mev_simulator
@@ -2848,7 +2854,13 @@ class RESTHandler(BaseHTTPRequestHandler):
             # ── AI Agent Manager ──────────────────────────────────────────────
             elif path == "/ai-agent/stats":
                 am = self.__class__.ai_manager
-                self._json(am.get_stats() if am else {"enabled": False})
+                if am:
+                    self._json(am.get_stats())
+                else:
+                    from features import probe_optional_module
+
+                    probe = probe_optional_module("features.ai_manager", "AIAgentManager")
+                    self._json({"enabled": False, **probe})
 
             elif path == "/ai-agent/list":
                 am = self.__class__.ai_manager

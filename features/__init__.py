@@ -99,4 +99,7 @@ OPTIONAL_MODULE_PROBES: Dict[str, tuple[str, str]] = {
     "plasma": ("features.plasma", "PlasmaChain"),
     "lightning": ("features.lightning", "LightningNetwork"),
     "zk": ("features.zk", "ZKProofSystem"),
+    "ai_agents": ("features.ai_manager", "AIAgentManager"),
+    "mev": ("features.mev_analyzer", "MEVAnalyzer"),
+    "pq": ("features.postquantum", "PostQuantumManager"),
 }

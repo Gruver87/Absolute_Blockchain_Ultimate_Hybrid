@@ -541,9 +541,12 @@ class NodeOrchestrator:
         try:
             from runtime.validator_key_provider import build_validator_key_provider
             self.validator_key_provider = build_validator_key_provider(self.wallet)
-        except Exception:
+        except Exception as exc:
             self.validator_key_provider = None
-            print(f"[Node] Auto-generated miner address: {config.miner_address}")
+            print(
+                f"[Node] Validator key provider unavailable ({exc}); "
+                f"auto-generated miner address: {config.miner_address}"
+            )
 
         self._apply_genesis_allocation()
 
@@ -1267,8 +1270,9 @@ class NodeOrchestrator:
                 )
                 self.monitor.start()
                 print(f"[Monitor] Health monitor started: http://localhost:{_mon_port}")
-            except Exception:
+            except Exception as exc:
                 self.monitor = None
+                print(f"[Monitor] Health monitor failed: {exc}")
 
         # RPC CORS Proxy — per-node port (8082 node1, 8083 node2)
         if self.config.enable_cors_rpc_proxy:
@@ -1311,8 +1315,8 @@ class NodeOrchestrator:
                 _proxy = _HTTPServer(("127.0.0.1", _proxy_port), _CORSProxy)
                 _threading.Thread(target=_proxy.serve_forever, daemon=True, name="RPCProxy").start()
                 print(f"[RPC Proxy] CORS proxy started: http://localhost:{_proxy_port}/rpc -> :{_rpc_port}")
-            except Exception:
-                pass  # proxy is optional
+            except Exception as exc:
+                print(f"[RPC Proxy] CORS proxy unavailable: {exc}")
         else:
             print("[RPC Proxy] Disabled (ENABLE_CORS_RPC_PROXY=false or prod mode)")
 
