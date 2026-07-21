@@ -1914,7 +1914,8 @@ class P2PNode:
                     if peer.height > our_h
                 ]
                 if tasks:
-                    await asyncio.gather(*tasks, return_exceptions=True)
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                    self._record_broadcast_results(results, kind="catch_up_sync")
                 new_h = self.blockchain.get_height()
                 peer_max = max((p.height for p in self.peers.values()), default=new_h)
                 last = {"ok": new_h >= peer_max, "height": new_h, "peer_height": peer_max}

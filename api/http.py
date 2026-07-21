@@ -1344,7 +1344,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 bridge_pending = sum(1 for l in bridge_locks if l.get("status") == "pending")
                 mp_stats = mp.get_stats()
                 sh = self.__class__.sharding
-                sharding_info = {"enabled": False}
+                sharding_info = {"enabled": False, "error": "sharding_missing"}
                 if sh and hasattr(sh, "get_stats"):
                     sh_st = sh.get_stats()
                     sharding_info = {
@@ -2385,7 +2385,11 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/sharding/reshard/status":
                 sharding = self.__class__.sharding
                 if not sharding or not getattr(sharding, "coordinator", None):
-                    self._json({"enabled": False, "coordinator": None})
+                    self._json({
+                        "enabled": False,
+                        "coordinator": None,
+                        "error": "sharding_missing",
+                    })
                     return
                 coord = sharding.coordinator
                 self._json({
@@ -2654,7 +2658,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if ist:
                     self._json(ist.get_stats())
                 else:
-                    self._json({"enabled": False})
+                    self._json({
+                        "enabled": False,
+                        "error": "immutable_state_missing",
+                    })
 
             elif path.startswith("/state/balance/"):
                 ist = self.__class__.immutable_state
@@ -2679,8 +2686,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "address": addr,
                         "balance": bal,
                         "balance_satoshi": db_sat,
-                        "canonical": True,
+                        # DB-only is never IMS-canonical when shadow state is absent.
+                        "canonical": False,
+                        "ims_available": False,
                         "source": "db",
+                        "error": "immutable_state_missing",
                     })
 
             elif path == "/state/all":
@@ -2688,7 +2698,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if ist:
                     self._json(ist.to_dict())
                 else:
-                    self._json({"enabled": False})
+                    self._json({
+                        "enabled": False,
+                        "error": "immutable_state_missing",
+                    })
 
             # ── Extended oracle endpoints (from extended_api_server) ──────────
             elif path == "/oracles/news":

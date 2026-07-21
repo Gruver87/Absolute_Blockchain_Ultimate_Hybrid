@@ -263,14 +263,21 @@ class RocksChainStore:
         try:
             return json.loads(raw.decode("utf-8"))
         except Exception as exc:
-            self._json_decode_failures += 1
-            logger.warning(
-                "[RocksStore] corrupt meta %s (decode_failures=%s): %s",
-                key,
-                self._json_decode_failures,
-                exc,
-            )
-            return raw.decode("utf-8", errors="replace")
+            text = raw.decode("utf-8", errors="replace")
+            stripped = text.strip()
+            # Corrupt JSON object/array/string → fail-closed default.
+            # Legacy plain-string meta (e.g. schema_version) is not JSON.
+            if stripped[:1] in "{\"[":
+                self._json_decode_failures += 1
+                logger.warning(
+                    "[RocksStore] corrupt meta %s (decode_failures=%s): %s",
+                    key,
+                    self._json_decode_failures,
+                    exc,
+                )
+                # Fail-closed: never return a garbage string as valid meta.
+                return default
+            return text if text else default
 
     # ── blocks ────────────────────────────────────────────────────────────
 
@@ -1336,13 +1343,22 @@ class RocksChainStore:
         key = kc.key_tx_prop(tx_hash, stage)
         self._raw_put(key, json.dumps(row).encode("utf-8"))
 
-    def _decode_tx_propagation_event(self, raw: bytes) -> Dict:
-        row = json.loads(raw.decode("utf-8"))
+    def _decode_tx_propagation_event(self, raw: bytes) -> Optional[Dict]:
+        row = self._loads_json_or_none(raw, context="tx_propagation")
+        if row is None:
+            return None
         detail = row.get("detail") or {}
         if isinstance(detail, str):
             try:
                 detail = json.loads(detail)
-            except Exception:
+            except Exception as exc:
+                self._json_decode_failures += 1
+                logger.warning(
+                    "[RocksStore] corrupt tx_propagation detail "
+                    "(decode_failures=%s): %s",
+                    self._json_decode_failures,
+                    exc,
+                )
                 detail = {}
         if not isinstance(detail, dict):
             detail = {}
@@ -1374,8 +1390,12 @@ class RocksChainStore:
 
     def get_tx_propagation_trace(self, tx_hash: str) -> Dict:
         events = [
-            self._decode_tx_propagation_event(value)
-            for _key, value in self._scan_prefix(kc.prefix_tx_prop(tx_hash), limit=500)
+            ev
+            for ev in (
+                self._decode_tx_propagation_event(value)
+                for _key, value in self._scan_prefix(kc.prefix_tx_prop(tx_hash), limit=500)
+            )
+            if ev is not None
         ]
         events.sort(key=lambda e: int(e.get("timestamp", 0) or 0))
         receipt = self.get_tx_receipt(tx_hash)
@@ -1455,15 +1475,24 @@ class RocksChainStore:
         events = self.get_meta("slash_events", []) or []
         return list(events)[-int(limit) :]
 
-    def _decode_evm_log_row(self, raw: bytes) -> Dict:
-        row = json.loads(raw.decode("utf-8"))
+    def _decode_evm_log_row(self, raw: bytes) -> Optional[Dict]:
+        row = self._loads_json_or_none(raw, context="evm_log")
+        if row is None:
+            return None
         topics = row.get("topics", [])
         if isinstance(topics, str):
             try:
                 topics = json.loads(topics)
-            except Exception:
+            except Exception as exc:
+                self._json_decode_failures += 1
+                logger.warning(
+                    "[RocksStore] corrupt evm_log topics "
+                    "(decode_failures=%s): %s",
+                    self._json_decode_failures,
+                    exc,
+                )
                 topics = []
-        row["topics"] = topics
+        row["topics"] = topics if isinstance(topics, list) else []
         return row
 
     def save_evm_logs(
@@ -1508,7 +1537,11 @@ class RocksChainStore:
         if not tx_hash:
             return []
         rows = self._scan_prefix(kc.prefix_evm_logs_tx(tx_hash), limit=10_000)
-        logs = [self._decode_evm_log_row(val) for _, val in rows]
+        logs = [
+            row
+            for row in (self._decode_evm_log_row(val) for _, val in rows)
+            if row is not None
+        ]
         logs.sort(key=lambda r: (int(r.get("log_index", 0) or 0), int(r.get("block_height", 0) or 0)))
         return logs
 
@@ -1530,6 +1563,8 @@ class RocksChainStore:
         out: List[Dict] = []
         for _, val in rows:
             row = self._decode_evm_log_row(val)
+            if row is None:
+                continue
             bh = int(row.get("block_height", 0) or 0)
             if bh < from_block or bh > to_block:
                 continue
@@ -1543,15 +1578,24 @@ class RocksChainStore:
         out.sort(key=lambda r: (int(r.get("block_height", 0) or 0), int(r.get("log_index", 0) or 0)))
         return out
 
-    def _decode_nft_token(self, raw: bytes) -> Dict:
-        row = json.loads(raw.decode("utf-8"))
+    def _decode_nft_token(self, raw: bytes) -> Optional[Dict]:
+        row = self._loads_json_or_none(raw, context="nft_token")
+        if row is None:
+            return None
         meta = row.get("metadata") or {}
         if isinstance(meta, str):
             try:
                 meta = json.loads(meta)
-            except Exception:
+            except Exception as exc:
+                self._json_decode_failures += 1
+                logger.warning(
+                    "[RocksStore] corrupt nft_token metadata "
+                    "(decode_failures=%s): %s",
+                    self._json_decode_failures,
+                    exc,
+                )
                 meta = {}
-        row["metadata"] = meta
+        row["metadata"] = meta if isinstance(meta, dict) else {}
         row["for_sale"] = bool(row.get("for_sale"))
         return row
 
@@ -1578,12 +1622,16 @@ class RocksChainStore:
 
     def get_nft_tokens(self) -> List[Dict]:
         rows = self._scan_prefix(kc.prefix_nft_tokens(), limit=50_000)
-        out = [self._decode_nft_token(val) for _, val in rows]
+        out = [
+            row
+            for row in (self._decode_nft_token(val) for _, val in rows)
+            if row is not None
+        ]
         out.sort(key=lambda r: int(r.get("created_at", 0) or 0))
         return out
 
-    def _decode_nft_offer(self, raw: bytes) -> Dict:
-        return json.loads(raw.decode("utf-8"))
+    def _decode_nft_offer(self, raw: bytes) -> Optional[Dict]:
+        return self._loads_json_or_none(raw, context="nft_offer")
 
     def save_nft_offer(self, offer: Dict) -> None:
         oid = str(offer.get("offer_id", "") or "")
@@ -1601,12 +1649,16 @@ class RocksChainStore:
 
     def get_nft_offers(self) -> List[Dict]:
         rows = self._scan_prefix(kc.prefix_nft_offers(), limit=50_000)
-        out = [self._decode_nft_offer(val) for _, val in rows]
+        out = [
+            row
+            for row in (self._decode_nft_offer(val) for _, val in rows)
+            if row is not None
+        ]
         out.sort(key=lambda r: int(r.get("created_at", 0) or 0), reverse=True)
         return out
 
-    def _decode_nft_auction(self, raw: bytes) -> Dict:
-        return json.loads(raw.decode("utf-8"))
+    def _decode_nft_auction(self, raw: bytes) -> Optional[Dict]:
+        return self._loads_json_or_none(raw, context="nft_auction")
 
     def save_nft_auction(self, auction: Dict) -> None:
         aid = str(auction.get("auction_id", "") or "")
@@ -1623,12 +1675,18 @@ class RocksChainStore:
 
     def get_nft_auctions(self) -> List[Dict]:
         rows = self._scan_prefix(kc.prefix_nft_auctions(), limit=50_000)
-        out = [self._decode_nft_auction(val) for _, val in rows]
+        out = [
+            row
+            for row in (self._decode_nft_auction(val) for _, val in rows)
+            if row is not None
+        ]
         out.sort(key=lambda r: int(r.get("created_at", 0) or 0), reverse=True)
         return out
 
-    def _decode_nft_sale(self, raw: bytes) -> Dict:
-        row = json.loads(raw.decode("utf-8"))
+    def _decode_nft_sale(self, raw: bytes) -> Optional[Dict]:
+        row = self._loads_json_or_none(raw, context="nft_sale")
+        if row is None:
+            return None
         return {
             "token_id": row.get("token_id", ""),
             "from": row.get("from", row.get("from_addr", "")),
@@ -1661,7 +1719,11 @@ class RocksChainStore:
 
     def get_nft_sales(self, limit: int = 100) -> List[Dict]:
         rows = self._scan_prefix(kc.prefix_nft_sales(), limit=50_000)
-        out = [self._decode_nft_sale(val) for _, val in rows]
+        out = [
+            row
+            for row in (self._decode_nft_sale(val) for _, val in rows)
+            if row is not None
+        ]
         out.sort(key=lambda r: int(r.get("timestamp", 0) or 0), reverse=True)
         return out[: max(1, int(limit))]
 

@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.27] — 2026-07-21
+
+### Hardened — Rocks NFT/EVM decode / catch_up gather / IMS missing / get_meta
+
+- Decode helpers fail-closed; get_meta returns default on corrupt; catch_up_sync records broadcast_fail
+- IMS/sharding missing error keys; peer_sync and catch_up loop alerts
+
+---
+
 ## [1.3.26] — 2026-07-21
 
 ### Hardened — remaining gather / Rocks mutate / attestation errors / BlockBuilder

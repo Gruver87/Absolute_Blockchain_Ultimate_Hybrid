@@ -92,6 +92,24 @@ groups:
           summary: "P2P gossip broadcast failures on {{ $labels.node_id }}"
           description: "block/tx/attestation/cross-shard gather send failures above 0.1/sec for 5 minutes."
 
+      - alert: AbsoluteP2PPeerSyncFailBurst
+        expr: rate(abs_p2p_ops_errors{kind="peer_sync_fail"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P2P peer sync failures on {{ $labels.node_id }}"
+          description: "peer_sync_fail ops errors above 0.1/sec for 5 minutes."
+
+      - alert: AbsoluteP2PCatchUpLoopFailBurst
+        expr: rate(abs_p2p_ops_errors{kind="catch_up_loop_fail"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P2P catch-up loop failures on {{ $labels.node_id }}"
+          description: "catch_up_loop_fail ops errors above 0.05/sec for 5 minutes."
+
       - alert: AbsoluteP2PAttestationLocalFailBurst
         expr: rate(abs_p2p_attestation_local_fail_total[5m]) > 0.1
         for: 5m

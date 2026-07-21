@@ -592,6 +592,7 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             'kind="cross_shard_tx"',
             'kind="shard_migration"',
             'kind="validator_register"',
+            'kind="catch_up_sync"',
         ):
             if kind not in p2p_py:
                 errors.append(f"P2P must record broadcast results for {kind}")
@@ -620,12 +621,25 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("rocks_store confirm_bridge_lock must use fail-closed JSON decode")
         if 'context="burn_total"' not in rocks_py:
             errors.append("rocks_store get_total_burned must use fail-closed JSON decode")
+        if 'context="tx_propagation"' not in rocks_py:
+            errors.append("rocks_store tx_propagation decode must use fail-closed JSON decode")
+        if 'context="evm_log"' not in rocks_py:
+            errors.append("rocks_store evm_log decode must use fail-closed JSON decode")
+        if 'context="nft_token"' not in rocks_py:
+            errors.append("rocks_store nft_token decode must use fail-closed JSON decode")
+        # get_meta corrupt path must return default, not garbage string
+        if "Fail-closed: never return a garbage string as valid meta" not in rocks_py:
+            errors.append("rocks_store get_meta must return default on corrupt decode")
     except Exception as exc:
         errors.append(f"fail-loud rocks point-get inspect failed: {exc}")
     try:
         alerts = (ROOT / "deploy" / "prometheus" / "alerts.yml").read_text(encoding="utf-8")
         if "AbsoluteP2PBroadcastFailBurst" not in alerts:
             errors.append("alerts.yml missing AbsoluteP2PBroadcastFailBurst")
+        if "AbsoluteP2PPeerSyncFailBurst" not in alerts:
+            errors.append("alerts.yml missing AbsoluteP2PPeerSyncFailBurst")
+        if "AbsoluteP2PCatchUpLoopFailBurst" not in alerts:
+            errors.append("alerts.yml missing AbsoluteP2PCatchUpLoopFailBurst")
     except Exception as exc:
         errors.append(f"fail-loud broadcast alert inspect failed: {exc}")
     try:
@@ -642,6 +656,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("/slashing/status must surface slashing_engine_missing")
         if "sharding_missing" not in http_py:
             errors.append("/sharding/pending must surface sharding_missing")
+        if "immutable_state_missing" not in http_py:
+            errors.append("/state/stats|/state/all must surface immutable_state_missing")
     except Exception as exc:
         errors.append(f"fail-loud api missing-error inspect failed: {exc}")
     try:
