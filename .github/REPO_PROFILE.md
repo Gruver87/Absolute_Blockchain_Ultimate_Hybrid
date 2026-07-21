@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.06` — CI final_audit + housekeeping gates |
-| **Notes** | [RELEASE_NOTES_v1.3.06.md](../RELEASE_NOTES_v1.3.06.md) |
-| **Prior** | [v1.3.05](../RELEASE_NOTES_v1.3.05.md) rate-limit; [v1.3.04](../RELEASE_NOTES_v1.3.04.md) wire-reject |
+| **Tag** | `v1.3.07` — ops_errors metrics + mid-session handshake |
+| **Notes** | [RELEASE_NOTES_v1.3.07.md](../RELEASE_NOTES_v1.3.07.md) |
+| **Prior** | [v1.3.06](../RELEASE_NOTES_v1.3.06.md) CI/housekeeping; [v1.3.05](../RELEASE_NOTES_v1.3.05.md) rate-limit |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

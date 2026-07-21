@@ -119,8 +119,6 @@ ALLOWED_WIRE_TYPES = frozenset({
 
 # Housekeeping + consensus/sync wire types are not counted toward per-peer rate limits.
 RATE_LIMIT_EXEMPT_TYPES = frozenset({
-    MSG_HANDSHAKE,
-    MSG_HANDSHAKE_ACK,
     MSG_PING,
     MSG_PONG,
     MSG_IDLE,
@@ -760,6 +758,12 @@ class P2PNode:
         msg_type = msg.get("type")
         if msg_type not in ALLOWED_WIRE_TYPES:
             if self._strike_peer_sync(peer, f"unknown_type:{msg_type}"):
+                self._remove_peer(peer.peer_id, peer)
+            return
+        # Mid-session handshake is abuse (initial handshake uses _do_handshake recv).
+        if msg_type in (MSG_HANDSHAKE, MSG_HANDSHAKE_ACK):
+            self._handshake_rejects = int(self._handshake_rejects or 0) + 1
+            if self._strike_peer_sync(peer, "mid_session_handshake"):
                 self._remove_peer(peer.peer_id, peer)
             return
         data = msg.get("data")

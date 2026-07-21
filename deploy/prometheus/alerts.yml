@@ -92,6 +92,15 @@ groups:
           summary: "Elevated P2P rate-limit drops on {{ $labels.node_id }}"
           description: "Per-peer rate-limit strikes are above 1/sec for 5 minutes."
 
+      - alert: AbsoluteP2PPeerSendFailBurst
+        expr: rate(abs_p2p_peer_send_fail_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated P2P outbound send failures on {{ $labels.node_id }}"
+          description: "Peer.send failures are above 0.5/sec for 5 minutes."
+
       - alert: AbsoluteRocksBlockCacheUnset
         expr: abs_native_crypto_required == 1 and abs_rocksdb_block_cache_mb == 0
         for: 15m

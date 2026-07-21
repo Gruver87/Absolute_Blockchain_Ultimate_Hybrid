@@ -73,6 +73,7 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "recv_error",
         "_housekeeping_payload_ok",
         "peer_send_fail",
+        "mid_session_handshake",
     ):
         if needle not in p2p_mod:
             errors.append(f"p2p_node.py missing wire-reject surface: {needle}")
@@ -91,6 +92,8 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "abs_p2p_handshake_rejects_total",
         "abs_p2p_active_bans",
         "abs_p2p_rate_limit_drops_total",
+        "abs_p2p_peer_send_fail_total",
+        "abs_p2p_ops_errors",
         "abs_rocksdb_column_families",
     ):
         if needle not in metrics_src:
@@ -99,6 +102,7 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
     for needle in (
         "abs_p2p_shape_rejects_total",
         "abs_p2p_rate_limit_drops_total",
+        "abs_p2p_peer_send_fail_total",
         "abs_rocksdb_block_cache_mb",
     ):
         if needle not in alerts_src:
@@ -123,9 +127,17 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
             continue
         if str(prod_cfg.get("deployment_mode", "")).lower() != "prod":
             continue
+        rate = int(prod_cfg.get("p2p_max_messages_per_sec", 0) or 0)
+        if rate <= 0:
+            errors.append(f"{rel}: p2p_max_messages_per_sec must be > 0")
+        max_bytes = int(prod_cfg.get("p2p_max_message_bytes", 0) or 0)
+        if max_bytes and max_bytes < DEFAULT_MAX_P2P_LINE_BYTES // 2:
+            errors.append(
+                f"{rel}: p2p_max_message_bytes below industrial floor "
+                f"({DEFAULT_MAX_P2P_LINE_BYTES // 2})"
+            )
         if prod_cfg.get("p2p_tls_enabled") is True:
             prod_tls_enabled = True
-            break
     if not prod_tls_enabled:
         warnings.append(
             "prod mesh JSON: p2p_tls_enabled is not true "

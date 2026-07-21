@@ -325,6 +325,26 @@ def test_p2p_strike_bans_after_threshold():
 
 
 @pytest.mark.asyncio
+async def test_handle_message_rejects_mid_session_handshake():
+    from network.p2p_node import MSG_HANDSHAKE, P2PNode
+
+    cfg = Config()
+    cfg.p2p_rate_limit_strikes = 1
+    p2p = P2PNode(cfg, None, None)
+    peer = PeerConnection(_FakeReader(b""), _FakeWriter())
+    peer.peer_id = "hs-mid"
+    p2p.peers[peer.peer_id] = peer
+    removed = []
+    p2p._remove_peer = lambda pid, p: removed.append(pid)
+
+    await p2p._handle_message(peer, {"type": MSG_HANDSHAKE, "data": {"node_id": "x"}})
+    assert removed == ["hs-mid"]
+    sec = p2p.get_p2p_security_status()
+    assert sec["handshake_rejects"] >= 1
+    assert sec["shape_rejects"].get("mid_session_handshake", 0) >= 1
+
+
+@pytest.mark.asyncio
 async def test_handle_message_rejects_noisy_ping_payload():
     from network.p2p_node import MSG_PING, P2PNode
 

@@ -6,6 +6,17 @@
 
 ---
 
+## [1.3.07] — 2026-07-21
+
+### Hardened — ops_errors metrics, mid-session handshake reject, prod rate hard errors
+
+- Prometheus: `abs_p2p_peer_send_fail_total`, `abs_p2p_ops_errors{kind=…}` + alert/panel
+- Mid-session `handshake`/`handshake_ack` → strike `mid_session_handshake` (not rate-exempt)
+- industrial_gate: prod JSON `p2p_max_messages_per_sec > 0` hard error; freeze new metric needles
+- `.env.example`: `P2P_HOST`
+
+---
+
 ## [1.3.06] — 2026-07-21
 
 ### Hardened — CI final_audit blocking, housekeeping gates, status honesty

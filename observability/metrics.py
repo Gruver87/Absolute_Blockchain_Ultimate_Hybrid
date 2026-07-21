@@ -160,6 +160,30 @@ class MetricsCollector:
                 f"abs_p2p_shape_rejects{{node_id=\"{node_id}\",reason=\"{safe_reason}\"}} "
                 f"{int(count or 0)}"
             )
+        ops_errors = dict(p2p_security.get("ops_errors") or {})
+        lines.extend(
+            [
+                "# HELP abs_p2p_peer_send_fail_total Outbound P2P send failures",
+                "# TYPE abs_p2p_peer_send_fail_total counter",
+                (
+                    f"abs_p2p_peer_send_fail_total{{node_id=\"{node_id}\"}} "
+                    f"{int(ops_errors.get('peer_send_fail', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_ops_errors P2P operational error counters by kind",
+                "# TYPE abs_p2p_ops_errors counter",
+            ]
+        )
+        for kind, count in ops_errors.items():
+            safe_kind = (
+                str(kind)
+                .replace("\\", "\\\\")
+                .replace('"', '\\"')
+                .replace("\n", " ")
+            )
+            lines.append(
+                f"abs_p2p_ops_errors{{node_id=\"{node_id}\",kind=\"{safe_kind}\"}} "
+                f"{int(count or 0)}"
+            )
         lines.extend(
             [
                 "# HELP abs_rocksdb_column_families Whether RocksDB column families are enabled",
