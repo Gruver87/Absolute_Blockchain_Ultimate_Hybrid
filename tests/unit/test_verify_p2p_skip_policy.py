@@ -27,3 +27,19 @@ def test_skip_or_fail_with_env(monkeypatch):
     mod = _load_verify()
     monkeypatch.setenv("VERIFY_P2P_ALLOW_SKIP", "1")
     assert mod._verify_p2p_skip_or_fail("native wheel missing") == 0
+
+
+def test_adversarial_wave_skip_fail_closed(monkeypatch):
+    mod = _load_verify()
+    monkeypatch.delenv("VERIFY_P2P_ALLOW_SKIP", raising=False)
+    assert mod.verify_adversarial("http://127.0.0.1:8080", {"api_wave": 40, "deployment_mode": "dev"}) == 1
+
+
+def test_adversarial_prod_skip_fail_closed(monkeypatch):
+    mod = _load_verify()
+    monkeypatch.delenv("VERIFY_P2P_ALLOW_SKIP", raising=False)
+    rc = mod.verify_adversarial(
+        "http://127.0.0.1:8080",
+        {"api_wave": 61, "deployment_mode": "prod"},
+    )
+    assert rc == 1

@@ -1,0 +1,70 @@
+# Per-pod P2P mTLS certificates for abs-node StatefulSet ordinals 0..2.
+# Apply after cert-manager is installed. Secrets are consumed by entrypoint.sh
+# as node-${ORDINAL}.pem / node-${ORDINAL}.key under abs-p2p-tls.
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: abs-p2p-ca
+  namespace: absolute-chain
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: abs-node-0-p2p-tls
+  namespace: absolute-chain
+spec:
+  secretName: abs-p2p-tls-node-0
+  duration: 2160h
+  renewBefore: 360h
+  commonName: abs-node-0
+  dnsNames:
+    - abs-node-0.abs-p2p.absolute-chain.svc.cluster.local
+  issuerRef:
+    name: abs-p2p-ca
+    kind: Issuer
+  secretTemplate:
+    annotations:
+      absolute-chain/ordinal: "0"
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: abs-node-1-p2p-tls
+  namespace: absolute-chain
+spec:
+  secretName: abs-p2p-tls-node-1
+  duration: 2160h
+  renewBefore: 360h
+  commonName: abs-node-1
+  dnsNames:
+    - abs-node-1.abs-p2p.absolute-chain.svc.cluster.local
+  issuerRef:
+    name: abs-p2p-ca
+    kind: Issuer
+  secretTemplate:
+    annotations:
+      absolute-chain/ordinal: "1"
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: abs-node-2-p2p-tls
+  namespace: absolute-chain
+spec:
+  secretName: abs-p2p-tls-node-2
+  duration: 2160h
+  renewBefore: 360h
+  commonName: abs-node-2
+  dnsNames:
+    - abs-node-2.abs-p2p.absolute-chain.svc.cluster.local
+  issuerRef:
+    name: abs-p2p-ca
+    kind: Issuer
+  secretTemplate:
+    annotations:
+      absolute-chain/ordinal: "2"
+# Merge per-pod secrets into abs-p2p-tls (node-N.pem/key + ca.pem) via your deploy
+# pipeline, or mount each secret subpath in a future StatefulSet revision.

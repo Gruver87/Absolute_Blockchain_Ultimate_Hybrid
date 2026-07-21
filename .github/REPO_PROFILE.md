@@ -41,8 +41,8 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.2.92` — mining fail-loud, state_root encoding scaffold |
-| **Notes** | [RELEASE_NOTES_v1.2.92.md](../RELEASE_NOTES_v1.2.92.md) |
+| **Tag** | `v1.2.93` — API fail-loud, verify_p2p strict skips, migration doc |
+| **Notes** | [RELEASE_NOTES_v1.2.93.md](../RELEASE_NOTES_v1.2.93.md) |
 | **Prior** | [v1.2.87](../RELEASE_NOTES_v1.2.87.md) pre-audit fail-closed + P2P TLS |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

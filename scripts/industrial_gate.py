@@ -150,6 +150,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         http_py = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
         if "peer_probe_error" not in http_py:
             errors.append("GET /chain/state-root/status must expose peer_probe_error")
+        if "peer_probe_error" not in http_py or "state consistency harness peer probe failed" not in http_py:
+            errors.append("state consistency harness must expose/log peer_probe_error")
+        if "prices_error" not in http_py:
+            errors.append("/oracles/all must expose prices_error on failure")
     except Exception as exc:
         errors.append(f"fail-loud http inspect failed: {exc}")
     return errors, warnings

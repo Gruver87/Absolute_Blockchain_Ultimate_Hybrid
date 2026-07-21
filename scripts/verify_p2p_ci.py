@@ -210,8 +210,7 @@ def verify_bridge(url1: str, status: dict, oracle_secret: str = "") -> int:
     if wave < 59:
         return 0
     if not status.get("bridge_enabled"):
-        print("SKIP: bridge checks (bridge_enabled=false)")
-        return 0
+        return _verify_p2p_skip_or_fail("bridge checks (bridge_enabled=false)")
 
     sender = "0x" + "b1" * 20
     recipient = "0x" + "b2" * 20
@@ -354,8 +353,7 @@ def verify_bridge_relayer(
     if wave < 60:
         return 0
     if not status.get("bridge_enabled"):
-        print("SKIP: bridge relayer (bridge_enabled=false)")
-        return 0
+        return _verify_p2p_skip_or_fail("bridge relayer (bridge_enabled=false)")
 
     from bridge.mock_l1_rpc import register_confirmed_tx
 
@@ -365,8 +363,7 @@ def verify_bridge_relayer(
     mod = _load_bridge_relayer_module()
     secret = (oracle_secret or os.environ.get("BRIDGE_ORACLE_SECRET", "")).strip()
     if not secret:
-        print("SKIP: bridge relayer (no oracle secret)")
-        return 0
+        return _verify_p2p_skip_or_fail("bridge relayer (no oracle secret)")
 
     recipient = "0x" + "r2" * 20
     sender = "0x" + "r1" * 20
@@ -1308,11 +1305,15 @@ def _verify_tx_propagation_multi(url1: str, target_urls: list[str], s1: dict) ->
     """Wave 52: signed tx on node1 must reach all target mempools."""
     wave = int(s1.get("api_wave", 0) or 0)
     if wave < 51:
-        print("SKIP: tx propagation (api_wave < 51)")
+        if _verify_p2p_skip_or_fail("tx propagation (api_wave < 51)") != 0:
+            return False
         return True
     if str(s1.get("deployment_mode", "")).lower() == "prod":
         if not _prod_smoke_wallet_path():
-            print("SKIP: tx propagation (auto_sign disabled in prod; use signed raw tx)")
+            if _verify_p2p_skip_or_fail(
+                "tx propagation (auto_sign disabled in prod; use signed raw tx)"
+            ) != 0:
+                return False
             return True
 
     if not _wait_topology_healthy(url1, expected_peers=max(1, len(target_urls)), timeout=90):
@@ -1650,7 +1651,9 @@ def verify_state_consistency(urls: list[str], status: dict) -> int:
     """Wave 54: cross-node state consistency harness."""
     wave = int(status.get("api_wave", 0) or 0)
     if wave < 54:
-        print(f"SKIP: state consistency harness (api_wave={wave} < 54)")
+        rc = _verify_p2p_skip_or_fail(f"state consistency harness (api_wave={wave} < 54)")
+        if rc != 0:
+            return rc
         return verify_adversarial(urls[0], status)
 
     def _run_harness() -> tuple[bool, list[str], list[str]]:
@@ -1719,11 +1722,16 @@ def verify_state_consistency(urls: list[str], status: dict) -> int:
 def verify_multi_node_proof(urls: list[str], status: dict) -> int:
     """Wave 56: attestations, rotation, reorg drill across cluster."""
     if str(status.get("deployment_mode", "")).lower() == "prod":
-        print("SKIP: multi-node proof (testnet endpoints blocked in prod)")
+        if _verify_p2p_skip_or_fail(
+            "multi-node proof (testnet endpoints blocked in prod)"
+        ) != 0:
+            return 1
         return 0
     wave = int(status.get("api_wave", 0) or 0)
     if wave < 56:
-        print(f"SKIP: multi-node proof (api_wave={wave} < 56)")
+        rc = _verify_p2p_skip_or_fail(f"multi-node proof (api_wave={wave} < 56)")
+        if rc != 0:
+            return rc
         return verify_adversarial(urls[0], status)
 
     url1 = urls[0]
@@ -2019,10 +2027,12 @@ def verify_adversarial(url1: str, status: dict) -> int:
     """Wave 53: fork-status API, reconcile, double-vote slashing."""
     wave = int(status.get("api_wave", 0) or 0)
     if wave < 53:
-        print(f"SKIP: adversarial checks (api_wave={wave} < 53)")
-        return 0
+        return _verify_p2p_skip_or_fail(f"adversarial checks (api_wave={wave} < 53)")
     if str(status.get("deployment_mode", "")).lower() == "prod":
-        print("SKIP: adversarial checks (testnet/slashing drill endpoints blocked in prod)")
+        if _verify_p2p_skip_or_fail(
+            "adversarial checks (testnet/slashing drill endpoints blocked in prod)"
+        ) != 0:
+            return 1
         return 0
 
     try:

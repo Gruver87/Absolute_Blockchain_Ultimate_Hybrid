@@ -91,6 +91,15 @@ def main() -> int:
     elif "cert-manager.io/v1" not in cert_mgr.read_text(encoding="utf-8"):
         errors.append("cert-manager-p2p.example.yaml: must document cert-manager Certificate")
 
+    perpod = K8S / "cert-manager-p2p-perpod.example.yaml"
+    if not perpod.is_file():
+        errors.append("missing deploy/k8s/cert-manager-p2p-perpod.example.yaml")
+    else:
+        perpod_txt = perpod.read_text(encoding="utf-8")
+        for ordinal in ("abs-node-0-p2p-tls", "abs-node-1-p2p-tls", "abs-node-2-p2p-tls"):
+            if ordinal not in perpod_txt:
+                errors.append(f"cert-manager-p2p-perpod.example.yaml: missing {ordinal}")
+
     if errors:
         print("FAIL: k8s prod gate")
         for err in errors:

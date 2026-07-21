@@ -15,7 +15,8 @@ STATE_ROOT_ENCODING_V1: Dict[str, Any] = {
     "satoshi_tip_ready": False,
     "note": (
         "Consensus tip uses native float round(balance,12) encoding. "
-        "balance_satoshi dual-write is storage/read truth only until a versioned migration."
+        "balance_satoshi dual-write is storage/read truth only until a versioned migration. "
+        "See docs/STATE_ROOT_ENCODING_MIGRATION.md."
     ),
 }
 

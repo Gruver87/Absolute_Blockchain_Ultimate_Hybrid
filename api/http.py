@@ -105,15 +105,17 @@ def _status_p2p_hardening_snapshot(cfg, p2p) -> Dict[str, Any]:
     if p2p and hasattr(p2p, "get_p2p_security_status"):
         try:
             tls = dict((p2p.get_p2p_security_status() or {}).get("tls") or {})
-        except Exception:
-            tls = {}
+        except Exception as exc:
+            logger.warning("p2p TLS status snapshot failed: %s", exc)
+            tls = {"status_error": str(exc)}
     elif cfg:
         try:
             from network.p2p_tls import p2p_tls_status
 
             tls = p2p_tls_status(cfg)
-        except Exception:
-            tls = {}
+        except Exception as exc:
+            logger.warning("config TLS status snapshot failed: %s", exc)
+            tls = {"status_error": str(exc)}
     return {
         "rate_limit_per_sec": int(getattr(cfg, "p2p_max_messages_per_sec", 0) or 0) if cfg else 0,
         "tls_enabled": bool(tls.get("enabled")),
@@ -1232,7 +1234,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                                 "handshake_rejects": sec.get("handshake_rejects", 0),
                             },
                         }
-                    except Exception:
+                    except Exception as exc:
+                        logger.warning("/status p2p summary failed: %s", exc)
                         p2p_summary = {"enabled": True, "running": bool(getattr(p2p, "_running", False))}
                 rl_snap = _status_rate_limit_snapshot(cfg)
                 p2p_hard = _status_p2p_hardening_snapshot(cfg, p2p)
@@ -2614,7 +2617,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 oracles = self.__class__.oracles
                 if not oracles:
                     self._json({"prices": [], "weather": None, "enabled": False}); return
-                result = {}
+                result = {"enabled": True}
                 try:
                     prices = []
                     for sym in ["bitcoin", "ethereum", "absolute"]:
@@ -2623,16 +2626,20 @@ class RESTHandler(BaseHTTPRequestHandler):
                             prices.append({"symbol": sym, "price": p.price,
                                            "change_24h": p.change_24h})
                     result["prices"] = prices
-                except Exception:
+                except Exception as exc:
+                    logger.warning("oracle prices fetch failed: %s", exc)
                     result["prices"] = []
+                    result["prices_error"] = str(exc)
                 try:
                     weather = oracles.get_weather("London") if hasattr(oracles, "get_weather") else None
                     if weather:
                         result["weather"] = {"city": "London",
                                              "temp": getattr(weather, "temperature", None),
                                              "condition": getattr(weather, "condition", None)}
-                except Exception:
+                except Exception as exc:
+                    logger.warning("oracle weather fetch failed: %s", exc)
                     result["weather"] = None
+                    result["weather_error"] = str(exc)
                 self._json(result)
 
             elif path.startswith("/oracles/weather"):
@@ -6244,6 +6251,7 @@ def _build_testnet_fork_exercise(p2p, bc, cfg, db=None, run_reconcile: bool = Fa
     before = _build_testnet_fork_status(p2p, bc, cfg, db)
     reconcile_detail: Dict = {}
     repaired = False
+    state_repair_error: Optional[str] = None
 
     if run_reconcile:
         if p2p and hasattr(p2p, "reconcile_peers_sync"):
@@ -6259,7 +6267,9 @@ def _build_testnet_fork_exercise(p2p, bc, cfg, db=None, run_reconcile: bool = Fa
         if bc and hasattr(bc, "ensure_state_at_tip"):
             try:
                 repaired = bool(bc.ensure_state_at_tip())
-            except Exception:
+            except Exception as exc:
+                state_repair_error = str(exc)
+                logger.warning("fork drill ensure_state_at_tip failed: %s", exc)
                 repaired = False
 
     after = _build_testnet_fork_status(p2p, bc, cfg, db)
@@ -6293,6 +6303,7 @@ def _build_testnet_fork_exercise(p2p, bc, cfg, db=None, run_reconcile: bool = Fa
         },
         "reconcile": reconcile_detail,
         "state_repaired": repaired,
+        "state_repair_error": state_repair_error,
         "harness_healthy": bool(harness.get("harness_healthy")),
         "fork_recovered": fork_recovered if run_reconcile else None,
         "needs_recovery": not before.get("consensus_healthy") or before.get("fork_detected"),
@@ -6320,6 +6331,7 @@ def _build_state_consistency_harness(
 
     peers = []
     peer_roots_aligned = True
+    peer_probe_error: Optional[str] = None
     if p2p and hasattr(p2p, "request_peer_state_roots_sync"):
         try:
             for entry in p2p.request_peer_state_roots_sync(timeout=peer_timeout):
@@ -6334,7 +6346,9 @@ def _build_state_consistency_harness(
                     "state_root": pr,
                     "match": match,
                 })
-        except Exception:
+        except Exception as exc:
+            peer_probe_error = str(exc)
+            logger.warning("state consistency harness peer probe failed: %s", exc)
             peer_roots_aligned = False
 
     # Long Docker chains: tip block metadata may lag while mesh agrees on live root
@@ -6382,6 +6396,11 @@ def _build_state_consistency_harness(
             "detail": "P2P peer state_roots match local",
         },
         {
+            "id": "peer_probe_ok",
+            "ok": peer_probe_error is None,
+            "detail": "P2P peer state_root wire probe succeeded",
+        },
+        {
             "id": "p2p_state_consistent",
             "ok": bool(state_consistent),
             "detail": "P2P wire state consistency flag",
@@ -6418,6 +6437,7 @@ def _build_state_consistency_harness(
         "max_supply_abs": max_supply,
         "peer_count": len(peers),
         "peers": peers,
+        "peer_probe_error": peer_probe_error,
         "recent_mismatch_count": len(mismatches),
         "recent_mismatches": mismatches[:5],
         "checks": checks,

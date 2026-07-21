@@ -6,6 +6,16 @@
 
 ---
 
+## [1.2.93] — 2026-07-21
+
+### Hardened — API repair fail-loud, verify_p2p strict skips, cert-manager per-pod
+
+- Harness/oracle/fork repair errors exposed + logged; peer_probe_error in harness
+- verify_p2p_ci wave/bridge/prod-endpoint skips fail-closed unless VERIFY_P2P_ALLOW_SKIP=1
+- docs/STATE_ROOT_ENCODING_MIGRATION.md; cert-manager per-pod example
+
+---
+
 ## [1.2.92] — 2026-07-21
 
 ### Hardened — mining fail-loud, state_root encoding scaffold
