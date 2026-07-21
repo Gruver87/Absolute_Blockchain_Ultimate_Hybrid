@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.28] — 2026-07-21
+
+### Hardened — mining/status / WS-P2P send / API missing / clone / SQLite / amount
+
+- eth_mining prod/P2P-running honesty; /status subsystems + SyncEngine degrade
+- WS broadcast and legacy P2P send fail-loud; unbound API error keys; Rocks clone checkpoint fail-closed
+- SQLite JSON decode counter; amount native required mode
+
+---
+
 ## [1.3.27] — 2026-07-21
 
 ### Hardened — Rocks NFT/EVM decode / catch_up gather / IMS missing / get_meta

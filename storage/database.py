@@ -7,11 +7,14 @@ Absolute Blockchain — единый слой хранения данных.
 
 import sqlite3
 import json
+import logging
 import os
 import threading
 import time
 from contextlib import contextmanager
 from typing import Optional, List, Dict, Any
+
+logger = logging.getLogger("Database")
 
 
 class Database:
@@ -26,10 +29,29 @@ class Database:
         self.db_path = db_path
         self.synchronous = (synchronous or "NORMAL").upper()
         self.lock = threading.RLock()
+        self._json_decode_failures = 0
         os.makedirs(os.path.dirname(db_path) if os.path.dirname(db_path) else ".", exist_ok=True)
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row  # доступ к полям по имени
         self._configure()
+
+    def _loads_json_or_none(self, raw: Any, *, context: str = "") -> Optional[Any]:
+        """Fail-closed JSON decode; bumps counter instead of inventing defaults."""
+        if raw is None:
+            return None
+        try:
+            if isinstance(raw, (bytes, bytearray)):
+                raw = raw.decode("utf-8")
+            return json.loads(raw)
+        except Exception as exc:
+            self._json_decode_failures += 1
+            logger.warning(
+                "[DB] corrupt %s JSON (decode_failures=%s): %s",
+                context or "row",
+                self._json_decode_failures,
+                exc,
+            )
+            return None
 
     # ── Инициализация ────────────────────────────────────────────────────────
 
@@ -742,21 +764,30 @@ class Database:
             row = self.conn.execute(
                 "SELECT data FROM blocks WHERE height=?", (height,)
             ).fetchone()
-            return json.loads(row["data"]) if row else None
+            if not row:
+                return None
+            return self._loads_json_or_none(row["data"], context=f"block:{height}")
 
     def get_block_by_hash(self, block_hash: str) -> Optional[Dict]:
         with self.lock:
             row = self.conn.execute(
                 "SELECT data FROM blocks WHERE hash=?", (block_hash,)
             ).fetchone()
-            return json.loads(row["data"]) if row else None
+            if not row:
+                return None
+            return self._loads_json_or_none(row["data"], context=f"block_hash:{block_hash}")
 
     def get_latest_blocks(self, limit: int = 20) -> List[Dict]:
         with self.lock:
             rows = self.conn.execute(
                 "SELECT data FROM blocks ORDER BY height DESC LIMIT ?", (limit,)
             ).fetchall()
-            return [json.loads(r["data"]) for r in rows]
+            out: List[Dict] = []
+            for r in rows:
+                parsed = self._loads_json_or_none(r["data"], context="latest_block")
+                if parsed is not None:
+                    out.append(parsed)
+            return out
 
     def get_chain_tip(self) -> int:
         """Возвращает высоту последнего блока (0 если цепь пуста)."""
@@ -1182,9 +1213,8 @@ class Database:
             ).fetchall()
             events = []
             for r in rows:
-                try:
-                    detail = json.loads(r["detail"] or "{}")
-                except Exception:
+                detail = self._loads_json_or_none(r["detail"] or "{}", context="tx_propagation_detail")
+                if detail is None:
                     detail = {}
                 events.append({
                     "stage": r["stage"],
@@ -1677,12 +1707,10 @@ class Database:
             out = []
             for row in rows:
                 item = dict(row)
-                try:
-                    item["bytecode"] = json.loads(item.get("bytecode") or "[]")
-                    item["storage"] = json.loads(item.get("storage") or "{}")
-                except Exception:
-                    item["bytecode"] = []
-                    item["storage"] = {}
+                bytecode = self._loads_json_or_none(item.get("bytecode") or "[]", context="minivm_bytecode")
+                storage = self._loads_json_or_none(item.get("storage") or "{}", context="minivm_storage")
+                item["bytecode"] = bytecode if bytecode is not None else []
+                item["storage"] = storage if storage is not None else {}
                 out.append(item)
             return out
 
@@ -1803,15 +1831,12 @@ class Database:
             logs = [row for row in logs if self._evm_log_topics_match(row.get("topics", []), topics)]
         return logs
 
-    @staticmethod
-    def _rows_to_evm_logs(rows) -> List[Dict]:
+    def _rows_to_evm_logs(self, rows) -> List[Dict]:
         out = []
         for r in rows:
             item = dict(r)
-            try:
-                item["topics"] = json.loads(item.get("topics") or "[]")
-            except Exception:
-                item["topics"] = []
+            topics = self._loads_json_or_none(item.get("topics") or "[]", context="evm_log_topics")
+            item["topics"] = topics if topics is not None else []
             out.append(item)
         return out
 
@@ -2678,6 +2703,7 @@ class Database:
                 "total_burned": self.get_total_burned(),
                 "total_supply": self.get_total_supply(),
                 "engine": self.engine,
+                "json_decode_failures": int(self._json_decode_failures),
             }
 
     # ── Утилиты ──────────────────────────────────────────────────────────────

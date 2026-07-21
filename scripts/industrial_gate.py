@@ -658,8 +658,36 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("/sharding/pending must surface sharding_missing")
         if "immutable_state_missing" not in http_py:
             errors.append("/state/stats|/state/all must surface immutable_state_missing")
+        if "smart_accounts_missing" not in http_py:
+            errors.append("unbound smart-account endpoints must surface smart_accounts_missing")
+        if "sync_engine_missing" not in http_py:
+            errors.append("/sync/peers must surface sync_engine_missing")
+        if "contract_manager_missing" not in http_py:
+            errors.append("/contracts must surface contract_manager_missing")
+        if "peer_count > 0 and not sync_engine_bound" not in http_py:
+            errors.append("/status must degrade when peers present without SyncEngine")
+        if 'mode in ("prod", "production", "staging")' not in http_py:
+            errors.append("eth_mining must refuse prod claim without P2P")
     except Exception as exc:
         errors.append(f"fail-loud api missing-error inspect failed: {exc}")
+    try:
+        ws_py = (ROOT / "network" / "websocket.py").read_text(encoding="utf-8")
+        if "broadcast send failed" not in ws_py:
+            errors.append("WebSocket _broadcast must count/log send failures")
+        mh_py = (ROOT / "network" / "p2p" / "message_handler.py").read_text(encoding="utf-8")
+        if "_send_failures" not in mh_py or "_send_unbound" not in mh_py:
+            errors.append("legacy MessageHandler._send must count unbound/send failures")
+        clone_py = (ROOT / "storage" / "chain_clone.py").read_text(encoding="utf-8")
+        if "Fail-closed: when RocksEngine is available" not in clone_py:
+            errors.append("chain_clone must fail-closed on Rocks checkpoint when native present")
+        db_py = (ROOT / "storage" / "database.py").read_text(encoding="utf-8")
+        if "_loads_json_or_none" not in db_py or "json_decode_failures" not in db_py:
+            errors.append("SQLite Database must fail-closed JSON decode with counter")
+        amount_py = (ROOT / "runtime" / "amount.py").read_text(encoding="utf-8")
+        if "_native_fallback" not in amount_py or "REQUIRE_NATIVE_CRYPTO" not in amount_py:
+            errors.append("amount.py must fail-closed when REQUIRE_NATIVE_CRYPTO is set")
+    except Exception as exc:
+        errors.append(f"fail-loud v1.3.28 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

@@ -7,6 +7,8 @@ compatibility; dual-write keeps ``balance`` (float) derived from satoshi.
 """
 from __future__ import annotations
 
+import logging
+import os
 from decimal import Decimal, ROUND_DOWN, InvalidOperation
 from typing import Any, Dict, Mapping, MutableMapping, Optional, Union
 
@@ -15,6 +17,30 @@ ABS_DECIMALS = 6
 SATOSHI_MULTIPLIER = 10 ** ABS_DECIMALS
 
 NumberLike = Union[int, float, str, Decimal]
+logger = logging.getLogger("amount")
+_native_fallback_warned = False
+
+
+def _native_required() -> bool:
+    return os.environ.get("REQUIRE_NATIVE_CRYPTO", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def _native_fallback(op: str, exc: BaseException) -> None:
+    global _native_fallback_warned
+    if _native_required():
+        raise RuntimeError(f"native amount op {op} required but failed: {exc}") from exc
+    if not _native_fallback_warned:
+        _native_fallback_warned = True
+        logger.warning(
+            "[amount] native %s failed; using Python fallback (further falls suppressed): %s",
+            op,
+            exc,
+        )
 
 
 def to_satoshi(amount_abs: NumberLike) -> int:
@@ -30,8 +56,8 @@ def to_satoshi(amount_abs: NumberLike) -> int:
             if isinstance(amount_abs, Decimal):
                 return int(native.amount_to_satoshi(format(amount_abs, "f")))
             return int(native.amount_to_satoshi(str(amount_abs)))
-    except Exception:
-        pass
+    except Exception as exc:
+        _native_fallback("amount_to_satoshi", exc)
     try:
         d = Decimal(str(amount_abs))
     except (InvalidOperation, ValueError, TypeError) as exc:
@@ -54,8 +80,8 @@ def from_satoshi_float(satoshi: int) -> float:
 
         if native.native_available() and hasattr(native, "amount_from_satoshi_float"):
             return float(native.amount_from_satoshi_float(int(satoshi)))
-    except Exception:
-        pass
+    except Exception as exc:
+        _native_fallback("amount_from_satoshi_float", exc)
     return float(from_satoshi(satoshi))
 
 
@@ -99,8 +125,8 @@ def apply_delta_satoshi(current_sat: int, delta_abs: NumberLike) -> int:
             return int(native.amount_apply_delta_satoshi(int(current_sat), delta_s))
     except TypeError:
         raise
-    except Exception:
-        pass
+    except Exception as exc:
+        _native_fallback("amount_apply_delta_satoshi", exc)
     return max(0, int(current_sat) + to_satoshi(delta_abs))
 
 
@@ -129,8 +155,8 @@ def plan_transfer_fees(
                 "miner_fee": float(miner_fee),
                 "total_cost": float(total_cost),
             }
-    except Exception:
-        pass
+    except Exception as exc:
+        _native_fallback("plan_transfer_fees", exc)
     fee = float(gas) * float(gas_price_wei)
     if gas_used is not None:
         fee = max(fee, float(gas_used) * float(gas_price_wei))
@@ -152,6 +178,6 @@ def can_afford_transfer(sender_sat: int, total_cost_abs: NumberLike) -> bool:
 
         if native.native_available() and hasattr(native, "can_afford_transfer"):
             return bool(native.can_afford_transfer(int(sender_sat), float(total_cost_abs)))
-    except Exception:
-        pass
+    except Exception as exc:
+        _native_fallback("can_afford_transfer", exc)
     return int(sender_sat) >= to_satoshi(total_cost_abs)

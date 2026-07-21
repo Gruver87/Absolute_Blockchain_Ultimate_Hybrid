@@ -57,6 +57,7 @@ POST_SOAK_TESTS = [
     "tests/unit/test_supply_broadcast_honesty.py",
     "tests/unit/test_gather_mutate_honesty.py",
     "tests/unit/test_decode_catchup_honesty.py",
+    "tests/unit/test_ws_status_clone_honesty.py",
     "tests/unit/test_sqlite_reorg_parity.py",
     "tests/unit/test_bridge_health.py",
     "tests/unit/test_rpc_methods.py",

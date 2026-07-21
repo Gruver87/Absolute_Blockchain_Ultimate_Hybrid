@@ -633,22 +633,30 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             # Config-on ≠ actively forging under mesh gate.
             if not bool(getattr(cfg, "mining_enabled", False)):
                 return False
-            if p2p is not None:
-                peers = getattr(p2p, "peers", None) or {}
-                try:
-                    connected = len(peers)
-                except Exception:
-                    connected = 0
-                min_mesh = int(getattr(cfg, "mesh_min_peers_before_mine", 0) or 0)
-                consistent = bool(getattr(p2p, "_state_consistent", False))
-                if min_mesh > 0:
-                    if connected < min_mesh:
-                        return False
-                    if not consistent:
-                        return False
-                elif connected > 0 and not consistent:
-                    # Peers present with mesh_min=0: still refuse to claim mining while inconsistent.
+            mode = str(getattr(cfg, "deployment_mode", "dev") or "dev").lower()
+            if p2p is None:
+                # Solo/dev may mine without a P2P plane; prod-like must not claim mining.
+                if mode in ("prod", "production", "staging"):
                     return False
+                return True
+            # Bound P2P that is not running cannot be forging under mesh discipline.
+            if not bool(getattr(p2p, "_running", False)):
+                return False
+            peers = getattr(p2p, "peers", None) or {}
+            try:
+                connected = len(peers)
+            except Exception:
+                connected = 0
+            min_mesh = int(getattr(cfg, "mesh_min_peers_before_mine", 0) or 0)
+            consistent = bool(getattr(p2p, "_state_consistent", False))
+            if min_mesh > 0:
+                if connected < min_mesh:
+                    return False
+                if not consistent:
+                    return False
+            elif connected > 0 and not consistent:
+                # Peers present with mesh_min=0: still refuse to claim mining while inconsistent.
+                return False
             return True
 
         if method == "eth_syncing":
@@ -1514,6 +1522,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "bridge_enabled": bool(cfg.bridge_enabled),
                     "state_root_strict_p2p": bool(getattr(cfg, "state_root_strict_p2p", True)),
                 }
+                sync_engine_bound = se_status is not None
                 self._json({
                     # Do not hard-code "running" while mesh is inconsistent, unprobed, or P2P is down.
                     "status": (
@@ -1526,9 +1535,20 @@ class RESTHandler(BaseHTTPRequestHandler):
                                 p2p is not None
                                 and not bool(getattr(p2p, "_running", False))
                             )
+                            # Peers without SyncEngine: cannot honestly claim healthy mesh sync.
+                            or (peer_count > 0 and not sync_engine_bound)
                         )
                         else "running"
                     ),
+                    "subsystems": {
+                        "p2p": bool(p2p),
+                        "p2p_running": bool(getattr(p2p, "_running", False)) if p2p else False,
+                        "sync_engine": sync_engine_bound,
+                        "consensus_adapter": self.__class__.consensus_adapter is not None,
+                        "state_engine": self.__class__.state_engine is not None,
+                        "finality_engine": self.__class__.finality_engine is not None,
+                        "immutable_state": self.__class__.immutable_state is not None,
+                    },
                     "node_version": cfg.node_version,
                     "network_name": cfg.network_name,
                     "chain_name": cfg.network_name,
@@ -3460,7 +3480,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                 elif sa and hasattr(sa, "accounts"):
                     self._json({"accounts": list(sa.accounts.keys())})
                 else:
-                    self._json({"accounts": []})
+                    self._json({
+                        "accounts": [],
+                        "enabled": bool(sa),
+                        "error": "smart_accounts_missing",
+                    })
 
             elif path.startswith("/smart-account/info/"):
                 addr = path.split("/smart-account/info/")[-1]
@@ -3524,7 +3548,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                     peers = list(se.peers.keys()) if isinstance(se.peers, dict) else se.peers
                     self._json({"peers": peers, "count": len(peers)})
                 else:
-                    self._json({"peers": [], "enabled": bool(se)})
+                    self._json({
+                        "peers": [],
+                        "count": 0,
+                        "enabled": bool(se),
+                        "error": "sync_engine_missing",
+                    })
 
             # ── Consensus committee ───────────────────────────────────────────
             elif path == "/consensus/committee":
@@ -4046,7 +4075,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                 elif cm and hasattr(cm, "contracts"):
                     self._json({"contracts": list(cm.contracts.keys())})
                 else:
-                    self._json({"contracts": []})
+                    self._json({
+                        "contracts": [],
+                        "enabled": bool(cm),
+                        "error": "contract_manager_missing",
+                    })
 
             # ── Immutable state total supply ──────────────────────────────────
             elif path == "/state/total-supply":
@@ -5590,7 +5623,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                     keys = sa.get_session_keys(account_address)
                     self._json({"session_keys": keys})
                 else:
-                    self._json({"session_keys": []})
+                    self._json({
+                        "session_keys": [],
+                        "enabled": bool(sa),
+                        "error": "smart_accounts_missing",
+                    })
 
             elif path == "/smart-account/add-guardian":
                 sa = self.__class__.smart_accounts
@@ -6111,7 +6148,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                     logins = sa.get_social_logins(account_address)
                     self._json({"social_logins": logins})
                 else:
-                    self._json({"social_logins": []})
+                    self._json({
+                        "social_logins": [],
+                        "enabled": bool(sa),
+                        "error": "smart_accounts_missing",
+                    })
 
             # ── Sharding: register node, mine shard ──────────────────────────
             elif path == "/sharding/register-node":

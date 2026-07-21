@@ -18,6 +18,8 @@ class MessageHandler:
         self.chain = chain
         self.sync_manager = sync_manager
         self.seen_inventory = set()
+        self._send_failures = 0
+        self._send_unbound = 0
 
     def handle(self, peer_id: str, raw_message: Any) -> Optional[Dict[str, Any]]:
         """Validate and route one peer message, returning the response payload."""
@@ -184,13 +186,20 @@ class MessageHandler:
                 break
         return headers
 
-    def _send(self, peer_id: str, payload: Dict[str, Any]) -> None:
+    def _send(self, peer_id: str, payload: Dict[str, Any]) -> bool:
         if not self.p2p_server:
-            return
+            self._send_unbound += 1
+            return False
         for method in ("send_message", "send"):
             if hasattr(self.p2p_server, method):
-                getattr(self.p2p_server, method)(peer_id, payload)
-                return
+                try:
+                    getattr(self.p2p_server, method)(peer_id, payload)
+                    return True
+                except Exception:
+                    self._send_failures += 1
+                    return False
+        self._send_failures += 1
+        return False
 
     def _score(self, peer_id: str, event: str) -> None:
         if self.peer_manager and hasattr(self.peer_manager, "update_score"):

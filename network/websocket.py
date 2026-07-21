@@ -153,9 +153,19 @@ class WebSocketServer:
         for ws in list(self._clients):
             try:
                 await ws.send(data)
-            except Exception:
+            except Exception as exc:
+                self._send_failures += 1
+                logger.warning("[WS] broadcast send failed: %s", exc)
                 dead.add(ws)
         self._clients -= dead
+
+    def get_stats(self) -> dict:
+        return {
+            "clients": len(self._clients),
+            "running": bool(self._running),
+            "send_failures": int(self._send_failures),
+            "handler_errors": int(self._handler_errors),
+        }
 
     async def _send_json(self, websocket, payload: dict):
         try:
