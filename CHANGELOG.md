@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.19] — 2026-07-21
+
+### Hardened — Sync incomplete, CORS miss, repair success, receipt fail-closed
+
+- P2P catch-up: Sync incomplete + reached_target gate for state_root baseline
+- CORS allowlist miss returns empty origin; repair success = repair+harness+consistent
+- SQLite receipt/tx status normalize fail-closed on missing/unknown
+
+---
+
 ## [1.3.18] — 2026-07-21
 
 ### Hardened — fast_sync honesty, ready DB probe, Rocks TX iter

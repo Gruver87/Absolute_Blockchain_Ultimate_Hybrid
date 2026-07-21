@@ -576,7 +576,10 @@ class RocksChainStore:
             "burned": tx.get("burned", 0.0),
             "nonce": tx.get("nonce", 0),
             "tx_data": tx.get("data", tx.get("tx_data", "")),
-            "status": SqliteDatabase._normalize_tx_status(tx.get("status", 1)),
+            # Default mined success only when status key omitted; None/malformed → 0.
+            "status": SqliteDatabase._normalize_tx_status(
+                1 if "status" not in tx else tx.get("status")
+            ),
             "timestamp": int(tx.get("timestamp", time.time()) or 0),
         }
         payload = json.dumps(row, ensure_ascii=False).encode("utf-8")
@@ -665,7 +668,9 @@ class RocksChainStore:
             "fee": tx.get("fee", 0.0),
             "burned": tx.get("burned", 0.0),
             "gas_used": tx.get("gas_used", tx.get("gas", 21000)),
-            "status": SqliteDatabase._normalize_tx_status(tx.get("status", 1)),
+            "status": SqliteDatabase._normalize_tx_status(
+                1 if "status" not in tx else tx.get("status")
+            ),
             "created_at": int(time.time()),
         }
         self._raw_put(
@@ -727,7 +732,7 @@ class RocksChainStore:
             "fee": row.get("fee", 0.0),
             "burned": row.get("burned", 0.0),
             "gas_used": row.get("gas_used", 0),
-            "status": row.get("status", 1),
+            "status": SqliteDatabase._normalize_tx_status(row.get("status")),
             "timestamp": row.get("created_at", row.get("timestamp", 0)),
         }
 
@@ -774,7 +779,7 @@ class RocksChainStore:
             "fee": float(row.get("fee", 0.0)),
             "burned": float(row.get("burned", 0.0)),
             "gas_used": int(row.get("gas_used", row.get("gas", 21000))),
-            "status": SqliteDatabase._normalize_tx_status(row.get("status", 1)),
+            "status": SqliteDatabase._normalize_tx_status(row.get("status")),
             "timestamp": int(row.get("timestamp", 0)),
             "direction": direction,
         }

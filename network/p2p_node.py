@@ -1493,17 +1493,28 @@ class P2PNode:
 
             peer.height = max(peer.height, self.blockchain.get_height())
 
-        print(f"[P2P] Sync complete. Our height: {self.blockchain.get_height()}")
+        tip = self.blockchain.get_height()
+        target = int(peer.height or 0)
+        reached_target = tip >= target
+        if reached_target:
+            print(f"[P2P] Sync complete. Our height: {tip}")
+        else:
+            self._sync_fail = int(self._sync_fail or 0) + 1
+            print(
+                f"[P2P] Sync incomplete. Our height: {tip} "
+                f"(peer target #{target})"
+            )
 
         if self.sync_engine:
             loop = asyncio.get_running_loop()
             ok = await loop.run_in_executor(None, self.sync_engine.sync_state)
             self._state_consistent = bool(ok)
 
-        new_h = self.blockchain.get_height()
-        if hasattr(self.blockchain, "set_state_root_baseline"):
-            self.blockchain.set_state_root_baseline(new_h)
-            print(f"[P2P] State-root baseline set to #{new_h} (strict above)")
+        # Never raise state-root baseline after a stalled/incomplete sync —
+        # that would greenwash partial catch-up as a new strict tip.
+        if reached_target and hasattr(self.blockchain, "set_state_root_baseline"):
+            self.blockchain.set_state_root_baseline(tip)
+            print(f"[P2P] State-root baseline set to #{tip} (strict above)")
 
         await self._sync_mempool_with_peer(peer)
 

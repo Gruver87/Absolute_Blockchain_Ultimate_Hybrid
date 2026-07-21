@@ -342,6 +342,10 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         errors.append("SQLite reorg_truncate_above must delete tx_propagation_events")
     if "def truncate_blocks_above" in db_py and "truncate_chain_state(height)" not in db_py:
         errors.append("SQLite truncate_blocks_above must call truncate_chain_state")
+    if "def _normalize_tx_status" not in db_py:
+        errors.append("SQLite must define _normalize_tx_status")
+    if "Missing/unknown → 0 (fail-closed)" not in db_py:
+        errors.append("SQLite _normalize_tx_status must fail-closed on missing/unknown")
     http_py = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
     if 'origins else "*"' in http_py:
         errors.append("api/http.py REST CORS must not fall back to *")
@@ -426,6 +430,12 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("/health/ready must check p2p_running in prod")
         if 'after.get("state_consistent", False)' not in http_py:
             errors.append("fork recovery must default state_consistent=False (fail-closed)")
+        if "never echo first allowlist entry" not in http_py:
+            errors.append("CORS must never echo first allowlist entry on miss")
+        if 'success = bool(repaired) and harness_ok and consistent' not in http_py:
+            errors.append(
+                "/chain/consistency/repair success must require repair+harness+consistent"
+            )
     except Exception as exc:
         errors.append(f"fail-loud http inspect failed: {exc}")
     try:
@@ -436,6 +446,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("P2P unsolicited state_root match must not flip consistent=True")
         if "State root mismatch vs" not in p2p_py:
             errors.append("P2P unsolicited state_root mismatch must clear consistent")
+        if "Sync incomplete" not in p2p_py:
+            errors.append("P2P sync must log Sync incomplete (not claim complete on stall)")
+        if "reached_target" not in p2p_py:
+            errors.append("P2P sync must gate state_root baseline on reached_target")
     except Exception as exc:
         errors.append(f"fail-loud p2p inspect failed: {exc}")
     try:

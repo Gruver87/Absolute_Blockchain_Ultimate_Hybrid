@@ -841,13 +841,16 @@ class Database:
 
     @staticmethod
     def _normalize_tx_status(status: Any) -> int:
+        """Map receipt/tx status to 0|1. Missing/unknown → 0 (fail-closed)."""
         if status is None:
-            return 1
+            return 0
         if isinstance(status, bool):
             return 1 if status else 0
         if isinstance(status, (int, float)):
             return 1 if int(status) != 0 else 0
         s = str(status).strip().lower()
+        if not s:
+            return 0
         if s in ("1", "true", "ok", "success", "confirmed", "mined"):
             return 1
         if s in ("0", "false", "failed", "reverted", "pending"):
@@ -855,7 +858,7 @@ class Database:
         try:
             return 1 if int(s) != 0 else 0
         except ValueError:
-            return 1
+            return 0
 
     def _insert_transaction(self, tx: Dict) -> None:
         self.conn.execute(
@@ -875,7 +878,10 @@ class Database:
                 tx.get("burned", 0.0),
                 tx.get("nonce", 0),
                 tx.get("data", tx.get("tx_data", "")),
-                self._normalize_tx_status(tx.get("status", 1)),
+                # Omit status → success (1); explicit None/unknown → fail-closed 0.
+                self._normalize_tx_status(
+                    1 if "status" not in tx else tx.get("status")
+                ),
                 tx.get("timestamp", int(time.time())),
             ),
         )
@@ -899,7 +905,9 @@ class Database:
                 float(tx.get("fee", 0.0)),
                 float(tx.get("burned", 0.0)),
                 int(tx.get("gas_used", tx.get("gas", 21000))),
-                self._normalize_tx_status(tx.get("status", 1)),
+                self._normalize_tx_status(
+                    1 if "status" not in tx else tx.get("status")
+                ),
                 int(tx.get("timestamp", time.time())),
             ),
         )
@@ -921,7 +929,7 @@ class Database:
                 "fee": row["fee"],
                 "burned": row["burned"],
                 "gas_used": row["gas_used"],
-                "status": row["status"],
+                "status": self._normalize_tx_status(row["status"]),
                 "timestamp": row["created_at"],
             }
 
@@ -942,7 +950,7 @@ class Database:
                     "fee": r["fee"],
                     "burned": r["burned"],
                     "gas_used": r["gas_used"],
-                    "status": r["status"],
+                    "status": self._normalize_tx_status(r["status"]),
                     "timestamp": r["created_at"],
                 }
                 for r in rows
@@ -1268,7 +1276,7 @@ class Database:
             "fee": float(row.get("fee", 0.0)),
             "burned": float(row.get("burned", 0.0)),
             "gas_used": int(row.get("gas_used", row.get("gas", 21000))),
-            "status": self._normalize_tx_status(row.get("status", 1)),
+            "status": self._normalize_tx_status(row.get("status")),
             "timestamp": int(row.get("timestamp", 0)),
             "direction": direction,
         }

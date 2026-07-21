@@ -510,6 +510,7 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
 
     @classmethod
     def _cors_origin(cls, request_origin: str = "") -> str:
+        """Allowlisted CORS Origin only — never echo first allowlist entry on miss."""
         request_origin = cls._sanitize_header_value(request_origin)
         cfg = cls.config
         origins = list(getattr(cfg, "cors_origins", ["*"]) or ["*"]) if cfg else ["*"]
@@ -517,7 +518,7 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             return "*"
         if request_origin and request_origin in origins:
             return request_origin
-        return origins[0] if origins else ""
+        return ""
 
     def do_OPTIONS(self):
         self._send_cors()
@@ -939,6 +940,7 @@ class RESTHandler(BaseHTTPRequestHandler):
 
     @classmethod
     def _cors_origin(cls, request_origin: str = "") -> str:
+        """Allowlisted CORS Origin only — never echo first allowlist entry on miss."""
         request_origin = cls._sanitize_header_value(request_origin)
         cfg = cls.config
         origins = list(getattr(cfg, "cors_origins", ["*"]) or ["*"]) if cfg else ["*"]
@@ -946,7 +948,7 @@ class RESTHandler(BaseHTTPRequestHandler):
             return "*"
         if request_origin and request_origin in origins:
             return request_origin
-        return origins[0] if origins else ""
+        return ""
 
     def _track_request(self) -> None:
         mc = self.__class__.metrics_collector
@@ -5642,11 +5644,21 @@ class RESTHandler(BaseHTTPRequestHandler):
                             sync_error = str(exc)
                     elif not harness.get("harness_healthy"):
                         p2p._state_consistent = False
+                # success requires tip repair + healthy harness + consistency
+                # (never greenwash repaired=True alone while harness/wire fail).
+                harness_ok = bool(harness.get("harness_healthy"))
+                consistent = True
+                if self.__class__.p2p is not None:
+                    consistent = bool(
+                        getattr(self.__class__.p2p, "_state_consistent", False)
+                    )
+                success = bool(repaired) and harness_ok and consistent
                 payload = {
-                    "success": bool(repaired),
+                    "success": success,
                     "repaired": bool(repaired),
                     "height": bc.get_height() if hasattr(bc, "get_height") else 0,
                     "harness": harness,
+                    "harness_healthy": harness_ok,
                     "state_consistent": bool(
                         getattr(self.__class__.p2p, "_state_consistent", False)
                     ) if self.__class__.p2p else None,
