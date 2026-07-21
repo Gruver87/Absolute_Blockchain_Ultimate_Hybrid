@@ -456,8 +456,31 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "storage" / "rocks_store.py"
         ).read_text(encoding="utf-8"):
             errors.append("rocks_store must expose json_decode_failures for /metrics")
+        if "Config-on ≠ actively forging under mesh gate" not in http_py:
+            errors.append("eth_mining must gate on mesh_min_peers / state_consistent")
     except Exception as exc:
         errors.append(f"fail-loud http inspect failed: {exc}")
+    try:
+        rocks_py = (ROOT / "storage" / "rocks_store.py").read_text(encoding="utf-8")
+        if rocks_py.count("self._json_decode_failures += 1") < 6:
+            errors.append("rocks_store list paths must bump json_decode_failures on corrupt rows")
+        if "corrupt proposer_audit row skipped" not in rocks_py:
+            errors.append("rocks_store proposer_audit must warn on corrupt decode")
+        if "corrupt bridge_lock row skipped" not in rocks_py:
+            errors.append("rocks_store bridge_locks must warn on corrupt decode")
+        if "corrupt state_root_mismatch row skipped" not in rocks_py:
+            errors.append("rocks_store state_root mismatches must warn on corrupt decode")
+    except Exception as exc:
+        errors.append(f"fail-loud rocks_store inspect failed: {exc}")
+    try:
+        metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
+        if "abs_rocksdb_json_decode_failures" not in metrics_py:
+            errors.append("metrics.py must emit abs_rocksdb_json_decode_failures")
+        alerts = (ROOT / "deploy" / "prometheus" / "alerts.yml").read_text(encoding="utf-8")
+        if "AbsoluteRocksJsonDecodeFailures" not in alerts:
+            errors.append("alerts.yml missing AbsoluteRocksJsonDecodeFailures")
+    except Exception as exc:
+        errors.append(f"fail-loud rocks metrics/alerts inspect failed: {exc}")
     try:
         sync_py = (ROOT / "sync" / "sync_engine.py").read_text(encoding="utf-8")
         if "Solo / no peers — wire probe deferred (never-probed), fail-closed" not in sync_py:
@@ -484,6 +507,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         main_py = (ROOT / "main.py").read_text(encoding="utf-8")
         if "never echo first allowlist entry" not in main_py:
             errors.append("RPC CORS proxy must never echo first allowlist entry on miss")
+        if "Production mode requires SyncEngine" not in main_py:
+            errors.append("main.py must hard-fail SyncEngine init in production")
     except Exception as exc:
         errors.append(f"fail-loud main CORS inspect failed: {exc}")
     try:
@@ -498,6 +523,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("P2P sync must log Sync incomplete (not claim complete on stall)")
         if "reached_target" not in p2p_py:
             errors.append("P2P sync must gate state_root baseline on reached_target")
+        if "consistent_ok = bool(self._state_consistent) if peers else True" not in p2p_py:
+            errors.append("topology_healthy must require state_consistent when peers present")
+        if "Reconcile \"ok\" without a SyncEngine must not leave stale mesh-green" not in p2p_py:
+            errors.append("reconcile_peers without SyncEngine must clear _state_consistent")
     except Exception as exc:
         errors.append(f"fail-loud p2p inspect failed: {exc}")
     try:

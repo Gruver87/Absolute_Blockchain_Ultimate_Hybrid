@@ -51,6 +51,7 @@ POST_SOAK_TESTS = [
     "tests/unit/test_cors_receipt_ready_honesty.py",
     "tests/unit/test_sync_mesh_bridge_honesty.py",
     "tests/unit/test_mesh_mining_ready.py",
+    "tests/unit/test_rocks_topology_honesty.py",
     "tests/unit/test_sqlite_reorg_parity.py",
     "tests/unit/test_bridge_health.py",
     "tests/unit/test_rpc_methods.py",

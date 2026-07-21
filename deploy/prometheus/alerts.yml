@@ -164,6 +164,15 @@ groups:
           summary: "Prod node using SQLite engine on {{ $labels.node_id }}"
           description: "abs_db_engine reports sqlite; industrial prod mesh expects RocksDB."
 
+      - alert: AbsoluteRocksJsonDecodeFailures
+        expr: increase(abs_rocksdb_json_decode_failures[1h]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RocksDB JSON decode failures on {{ $labels.node_id }}"
+          description: "Corrupt RocksDB rows were skipped; investigate storage integrity."
+
       - alert: AbsoluteRocksBlockCacheUnset
         expr: abs_native_crypto_required == 1 and abs_rocksdb_block_cache_mb == 0
         for: 15m

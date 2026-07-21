@@ -1145,8 +1145,16 @@ class NodeOrchestrator:
             except Exception as e:
                 self.sync_engine = None
                 print(f"[Node] SyncEngine: unavailable ({e})")
+                if self.config.is_production:
+                    raise RuntimeError(
+                        f"Production mode requires SyncEngine: {e}"
+                    ) from e
         else:
             self.sync_engine = None
+            if self.config.is_production:
+                raise RuntimeError(
+                    "Production mode requires SyncEngine module"
+                )
 
         self._finalize_boot_state()
         print("[Node] All components initialized.")

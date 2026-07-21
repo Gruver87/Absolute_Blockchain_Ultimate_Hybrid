@@ -238,6 +238,12 @@ class MetricsCollector:
                         f"abs_rocksdb_write_buffer_mb{{node_id=\"{node_id}\"}} "
                         f"{int(rocksdb_tuning.get('write_buffer_mb', 0) or 0)}"
                     ),
+                    "# HELP abs_rocksdb_json_decode_failures Corrupt RocksDB JSON rows skipped",
+                    "# TYPE abs_rocksdb_json_decode_failures counter",
+                    (
+                        f"abs_rocksdb_json_decode_failures{{node_id=\"{node_id}\"}} "
+                        f"{int(rocksdb_tuning.get('json_decode_failures', 0) or 0)}"
+                    ),
                 ]
             )
         lines.extend(

@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.22] — 2026-07-21
+
+### Hardened — Rocks decode / topology / SyncEngine prod / eth_mining mesh
+
+- Rocks corrupt list rows bump json_decode_failures; metrics + alert emit the counter
+- topology_healthy needs state_consistent with peers; reconcile without SyncEngine clears flag
+- Prod hard-fails SyncEngine init; eth_mining respects mesh_min_peers gate
+
+---
+
 ## [1.3.21] — 2026-07-21
 
 ### Hardened — sync_state / mesh / bridge-L1 / ready peer_count honesty

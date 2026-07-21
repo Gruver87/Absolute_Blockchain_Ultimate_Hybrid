@@ -840,7 +840,14 @@ class RocksChainStore:
         for _key, value in self._scan_prefix(kc.P_PROPOSER_AUDIT):
             try:
                 audit = json.loads(value.decode("utf-8"))
-            except Exception:
+            except Exception as exc:
+                self._json_decode_failures += 1
+                logger.warning(
+                    "[RocksStore] corrupt proposer_audit row skipped "
+                    "(decode_failures=%s): %s",
+                    self._json_decode_failures,
+                    exc,
+                )
                 continue
             if SqliteDatabase._normalize_address(audit.get("proposer", "")) == addr:
                 blocks_proposed += 1
@@ -869,7 +876,14 @@ class RocksChainStore:
         for _key, value in self._scan_prefix(kc.P_PROPOSER_AUDIT):
             try:
                 audit = json.loads(value.decode("utf-8"))
-            except Exception:
+            except Exception as exc:
+                self._json_decode_failures += 1
+                logger.warning(
+                    "[RocksStore] corrupt proposer_audit list row skipped "
+                    "(decode_failures=%s): %s",
+                    self._json_decode_failures,
+                    exc,
+                )
                 continue
             if proposer:
                 want = SqliteDatabase._normalize_address(proposer)
@@ -935,7 +949,14 @@ class RocksChainStore:
         for _key, value in self._scan_prefix(kc.prefix_bridge_locks()):
             try:
                 rows.append(json.loads(value.decode("utf-8")))
-            except Exception:
+            except Exception as exc:
+                self._json_decode_failures += 1
+                logger.warning(
+                    "[RocksStore] corrupt bridge_lock row skipped "
+                    "(decode_failures=%s): %s",
+                    self._json_decode_failures,
+                    exc,
+                )
                 continue
         rows.sort(key=lambda r: int(r.get("created_at", 0) or 0), reverse=True)
         return rows[:limit]
@@ -1165,7 +1186,14 @@ class RocksChainStore:
         for _key, value in self._scan_prefix(kc.P_STATE_ROOT_MM, limit=limit * 4):
             try:
                 rows.append(json.loads(value.decode("utf-8")))
-            except Exception:
+            except Exception as exc:
+                self._json_decode_failures += 1
+                logger.warning(
+                    "[RocksStore] corrupt state_root_mismatch row skipped "
+                    "(decode_failures=%s): %s",
+                    self._json_decode_failures,
+                    exc,
+                )
                 continue
         rows.sort(key=lambda r: int(r.get("created_at", 0) or 0), reverse=True)
         return rows[:limit]

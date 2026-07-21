@@ -41,8 +41,8 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.21` — sync/mesh/bridge-L1/ready honesty |
-| **Notes** | [RELEASE_NOTES_v1.3.21.md](../RELEASE_NOTES_v1.3.21.md) |
+| **Tag** | `v1.3.22` — Rocks decode / topology / SyncEngine / eth_mining |
+| **Notes** | [RELEASE_NOTES_v1.3.22.md](../RELEASE_NOTES_v1.3.22.md) |
 | **Prior** | [v1.3.19](../RELEASE_NOTES_v1.3.19.md) sync incomplete/CORS/repair; [v1.3.08](../RELEASE_NOTES_v1.3.08.md) Swiss-watch |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

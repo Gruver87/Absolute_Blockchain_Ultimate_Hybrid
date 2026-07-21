@@ -630,7 +630,21 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             return hex(cfg.chain_id)
 
         if method == "eth_mining":
-            return bool(getattr(cfg, "mining_enabled", False))
+            # Config-on ≠ actively forging under mesh gate.
+            if not bool(getattr(cfg, "mining_enabled", False)):
+                return False
+            min_mesh = int(getattr(cfg, "mesh_min_peers_before_mine", 0) or 0)
+            if min_mesh > 0 and p2p is not None:
+                peers = getattr(p2p, "peers", None) or {}
+                try:
+                    connected = len(peers)
+                except Exception:
+                    connected = 0
+                if connected < min_mesh:
+                    return False
+                if not bool(getattr(p2p, "_state_consistent", False)):
+                    return False
+            return True
 
         if method == "eth_syncing":
             status = _build_sync_status(sync_engine, p2p, bc, cfg)

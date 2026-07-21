@@ -127,6 +127,7 @@ def test_metrics_prometheus_format():
             "write_buffer_mb": 64,
             "source": "live",
             "engine": "rocksdb",
+            "json_decode_failures": 3,
         },
         sync_status={
             "state_consistent": False,
@@ -156,6 +157,7 @@ def test_metrics_prometheus_format():
     assert 'abs_rocksdb_column_families{node_id="n1"} 0' in text
     assert 'abs_rocksdb_block_cache_mb{node_id="n1"} 256' in text
     assert 'abs_rocksdb_write_buffer_mb{node_id="n1"} 64' in text
+    assert 'abs_rocksdb_json_decode_failures{node_id="n1"} 3' in text
     assert 'abs_state_consistent{node_id="n1"} 0' in text
     assert 'abs_sync_wire_probe_ok{node_id="n1"} 0' in text
     assert 'abs_sync_wire_probe_probed{node_id="n1"} 1' in text

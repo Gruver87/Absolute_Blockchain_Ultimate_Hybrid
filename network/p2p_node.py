@@ -1640,6 +1640,9 @@ class P2PNode:
             loop = asyncio.get_running_loop()
             ok = await loop.run_in_executor(None, self.sync_engine.sync_state)
             self._state_consistent = bool(ok)
+        elif self.peers:
+            # Reconcile "ok" without a SyncEngine must not leave stale mesh-green.
+            self._state_consistent = False
 
         return {
             "reconciled": results,
@@ -2308,6 +2311,10 @@ class P2PNode:
             })
         expected = int(getattr(self.config, "testnet_expected_peers", 0) or 0)
         scores = [p["score"] for p in peers]
+        peer_links_ok = (len(peers) >= expected) if expected else True
+        peers_healthy = all(p["healthy"] for p in peers) if peers else True
+        # With live peers, topology must not greenwash without state consistency.
+        consistent_ok = bool(self._state_consistent) if peers else True
         return {
             "node_id": getattr(self.config, "node_id", ""),
             "chain_id": getattr(self.config, "chain_id", 0),
@@ -2316,8 +2323,7 @@ class P2PNode:
             "local_head": self.head() or "",
             "peer_count": len(peers),
             "expected_peers": expected,
-            "topology_healthy": (len(peers) >= expected if expected else True)
-                and all(p["healthy"] for p in peers),
+            "topology_healthy": peer_links_ok and peers_healthy and consistent_ok,
             "bootstrap_peers": list(getattr(self.config, "bootstrap_peers", []) or []),
             "known_addresses": list(self._known_addrs),
             "peers": peers,
