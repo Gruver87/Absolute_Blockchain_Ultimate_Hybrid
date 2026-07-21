@@ -1667,10 +1667,15 @@ class Database:
             ).fetchall()
             return [dict(r) for r in rows]
 
-    def bridge_credit_key(self, l1_tx_hash: str, recipient: str, amount: float, from_chain: str) -> str:
+    def bridge_credit_key(self, from_chain: str, event_tx_hash: str, log_index: int = 0) -> str:
+        """Replay key from source event identity (not claim recipient/amount)."""
         from crypto import native
 
-        raw = f"{l1_tx_hash}:{recipient}:{amount}:{from_chain}".lower()
+        raw = (
+            f"{(from_chain or '').strip()}:"
+            f"{(event_tx_hash or '').strip()}:"
+            f"{int(log_index)}"
+        ).lower()
         return native.sha256_hex(raw.encode())
 
     def has_bridge_credit(self, credit_key: str) -> bool:
@@ -1680,17 +1685,66 @@ class Database:
             ).fetchone()
             return row is not None
 
-    def save_bridge_credit(self, l1_tx_hash: str, recipient: str, amount: float, from_chain: str) -> str:
-        key = self.bridge_credit_key(l1_tx_hash, recipient, amount, from_chain)
+    def save_bridge_credit(
+        self,
+        event_tx_hash: str,
+        recipient: str,
+        amount: float,
+        from_chain: str,
+        log_index: int = 0,
+    ) -> str:
+        key = self.bridge_credit_key(from_chain, event_tx_hash, log_index)
         with self.lock:
             self.conn.execute(
                 """INSERT OR IGNORE INTO bridge_credits
                    (credit_key, l1_tx_hash, recipient, amount, from_chain, credited_at)
                    VALUES (?,?,?,?,?,?)""",
-                (key, l1_tx_hash, recipient, amount, from_chain, int(time.time())),
+                (key, event_tx_hash, recipient, amount, from_chain, int(time.time())),
             )
             self.conn.commit()
         return key
+
+    def claim_and_credit_bridge_event(
+        self,
+        from_chain: str,
+        event_tx_hash: str,
+        recipient: str,
+        amount: float,
+        log_index: int = 0,
+        abs_tx_hash: str = "",
+    ) -> Dict:
+        """
+        Insert-if-absent replay claim then credit recipient in one transaction.
+        Returns {credited, duplicate, credit_key}.
+        """
+        key = self.bridge_credit_key(from_chain, event_tx_hash, log_index)
+        with self.atomic():
+            row = self.conn.execute(
+                "SELECT 1 FROM bridge_credits WHERE credit_key=?", (key,)
+            ).fetchone()
+            if row is not None:
+                return {"credited": False, "duplicate": True, "credit_key": key}
+            self.conn.execute(
+                """INSERT INTO bridge_credits
+                   (credit_key, l1_tx_hash, recipient, amount, from_chain, credited_at)
+                   VALUES (?,?,?,?,?,?)""",
+                (
+                    key,
+                    event_tx_hash,
+                    recipient,
+                    float(amount),
+                    from_chain,
+                    int(time.time()),
+                ),
+            )
+            self.balance_delta(recipient, float(amount))
+            lock_hash = (abs_tx_hash or event_tx_hash or "").strip()
+            if lock_hash:
+                self.conn.execute(
+                    "UPDATE bridge_locks SET status='confirmed' WHERE tx_hash=?",
+                    (lock_hash,),
+                )
+        return {"credited": True, "duplicate": False, "credit_key": key}
 
     def save_minivm_contract(self, address: str, bytecode: list, storage: dict, calls: int = 0) -> None:
         with self.lock:

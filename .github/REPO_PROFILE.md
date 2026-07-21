@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.32` — L1 receipt status / EVM static / NFT-PQ-will-multisig honesty |
-| **Notes** | [RELEASE_NOTES_v1.3.32.md](../RELEASE_NOTES_v1.3.32.md) |
-| **Prior** | [v1.3.31](../RELEASE_NOTES_v1.3.31.md) oracle/sync/peer; [v1.3.19](../RELEASE_NOTES_v1.3.19.md) sync incomplete/CORS/repair |
+| **Tag** | `v1.3.33` — bridge event replay / atomic credit / plasma force / smart-accounts |
+| **Notes** | [RELEASE_NOTES_v1.3.33.md](../RELEASE_NOTES_v1.3.33.md) |
+| **Prior** | [v1.3.32](../RELEASE_NOTES_v1.3.32.md) L1 receipt/EVM static; [v1.3.31](../RELEASE_NOTES_v1.3.31.md) oracle/sync/peer |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

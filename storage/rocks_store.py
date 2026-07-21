@@ -1010,10 +1010,15 @@ class RocksChainStore:
     # ── bridge (cross-chain) ─────────────────────────────────────────────
 
     @staticmethod
-    def bridge_credit_key(l1_tx_hash: str, recipient: str, amount: float, from_chain: str) -> str:
+    def bridge_credit_key(from_chain: str, event_tx_hash: str, log_index: int = 0) -> str:
+        """Replay key from source event identity (not claim recipient/amount)."""
         from crypto import native
 
-        raw = f"{l1_tx_hash}:{recipient}:{amount}:{from_chain}".lower()
+        raw = (
+            f"{(from_chain or '').strip()}:"
+            f"{(event_tx_hash or '').strip()}:"
+            f"{int(log_index)}"
+        ).lower()
         return native.sha256_hex(raw.encode())
 
     def save_bridge_lock(
@@ -1069,22 +1074,68 @@ class RocksChainStore:
         return self._raw_get(kc.key_bridge_credit(credit_key)) is not None
 
     def save_bridge_credit(
-        self, l1_tx_hash: str, recipient: str, amount: float, from_chain: str
+        self,
+        event_tx_hash: str,
+        recipient: str,
+        amount: float,
+        from_chain: str,
+        log_index: int = 0,
     ) -> str:
-        key = self.bridge_credit_key(l1_tx_hash, recipient, amount, from_chain)
+        key = self.bridge_credit_key(from_chain, event_tx_hash, log_index)
         if self.has_bridge_credit(key):
             return key
         row = {
             "credit_key": key,
-            "l1_tx_hash": l1_tx_hash,
+            "l1_tx_hash": event_tx_hash,
             "recipient": recipient,
             "amount": float(amount),
             "from_chain": from_chain,
+            "log_index": int(log_index),
             "credited_at": int(time.time()),
         }
         with self._write_lock:
             self._raw_put(kc.key_bridge_credit(key), json.dumps(row).encode("utf-8"))
         return key
+
+    def claim_and_credit_bridge_event(
+        self,
+        from_chain: str,
+        event_tx_hash: str,
+        recipient: str,
+        amount: float,
+        log_index: int = 0,
+        abs_tx_hash: str = "",
+    ) -> Dict:
+        """Insert-if-absent replay claim then credit recipient in one Rocks batch."""
+        key = self.bridge_credit_key(from_chain, event_tx_hash, log_index)
+        with self.atomic():
+            if self.has_bridge_credit(key):
+                return {"credited": False, "duplicate": True, "credit_key": key}
+            row = {
+                "credit_key": key,
+                "l1_tx_hash": event_tx_hash,
+                "recipient": recipient,
+                "amount": float(amount),
+                "from_chain": from_chain,
+                "log_index": int(log_index),
+                "credited_at": int(time.time()),
+            }
+            self._raw_put(kc.key_bridge_credit(key), json.dumps(row).encode("utf-8"))
+            self.balance_delta(recipient, float(amount))
+            lock_hash = (abs_tx_hash or event_tx_hash or "").strip()
+            if lock_hash:
+                raw = self._raw_get(kc.key_bridge_lock(lock_hash))
+                if raw:
+                    lock_row = self._loads_json_or_none(
+                        raw, context=f"bridge_lock {lock_hash[:16]}"
+                    )
+                    if lock_row is not None:
+                        lock_row["status"] = "confirmed"
+                        self._raw_put(
+                            kc.key_bridge_lock(lock_hash),
+                            json.dumps(lock_row).encode("utf-8"),
+                        )
+        return {"credited": True, "duplicate": False, "credit_key": key}
 
     # ── burn ──────────────────────────────────────────────────────────────
 

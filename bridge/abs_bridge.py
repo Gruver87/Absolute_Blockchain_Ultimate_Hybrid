@@ -305,20 +305,28 @@ class RustBridge:
 
     def confirm_incoming(self, tx_hash: str, recipient: str,
                          amount: float, from_chain: str,
-                         l1_tx_hash: str = "") -> Dict:
+                         l1_tx_hash: str = "",
+                         log_index: int = 0) -> Dict:
         """
         Подтверждает входящий перевод с внешней цепи — начисляет ABS получателю.
-        Вызывается оракулом / Rust-мостом при получении подтверждения.
+        Replay key is source-event derived: (from_chain, event_tx, log_index).
         """
-        credit_key = self.db.bridge_credit_key(tx_hash, recipient, amount, from_chain)
+        event_tx = (l1_tx_hash or tx_hash or "").strip()
+        if not event_tx or not recipient or amount <= 0:
+            return {"confirmed": False, "error": "event_tx, recipient, amount required"}
+
+        credit_key = self.db.bridge_credit_key(from_chain, event_tx, int(log_index or 0))
         if self.db.has_bridge_credit(credit_key):
             return {
                 "confirmed": True,
                 "duplicate": True,
                 "tx_hash": tx_hash,
+                "event_tx_hash": event_tx,
+                "log_index": int(log_index or 0),
                 "recipient": recipient,
                 "amount": amount,
                 "mode": self._mode,
+                "credit_key": credit_key,
             }
 
         if l1_tx_hash:
@@ -350,15 +358,42 @@ class RustBridge:
         elif self._mode != "simulator":
             return {"confirmed": False, "error": "bridge unavailable: rust binary missing or bridge mode invalid"}
 
-        self.db.update_balance(recipient, amount)
-        self.db.save_bridge_credit(tx_hash, recipient, amount, from_chain)
-        self.db.confirm_bridge_lock(tx_hash)
+        if hasattr(self.db, "claim_and_credit_bridge_event"):
+            claim = self.db.claim_and_credit_bridge_event(
+                from_chain=from_chain,
+                event_tx_hash=event_tx,
+                recipient=recipient,
+                amount=amount,
+                log_index=int(log_index or 0),
+                abs_tx_hash=tx_hash,
+            )
+            if claim.get("duplicate"):
+                return {
+                    "confirmed": True,
+                    "duplicate": True,
+                    "tx_hash": tx_hash,
+                    "event_tx_hash": event_tx,
+                    "log_index": int(log_index or 0),
+                    "recipient": recipient,
+                    "amount": amount,
+                    "mode": self._mode,
+                    "credit_key": claim.get("credit_key"),
+                }
+        else:
+            self.db.update_balance(recipient, amount)
+            self.db.save_bridge_credit(
+                event_tx, recipient, amount, from_chain, log_index=int(log_index or 0)
+            )
+            self.db.confirm_bridge_lock(tx_hash)
+
         if self._simulator:
             self._simulator.confirm_transaction(tx_hash)
 
         if self.bus:
             self.bus.emit("bridge.confirmed", {
                 "tx_hash": tx_hash,
+                "event_tx_hash": event_tx,
+                "log_index": int(log_index or 0),
                 "recipient": recipient,
                 "amount": amount,
                 "from_chain": from_chain,
@@ -367,9 +402,13 @@ class RustBridge:
         return {
             "confirmed": True,
             "tx_hash": tx_hash,
+            "event_tx_hash": event_tx,
+            "log_index": int(log_index or 0),
             "recipient": recipient,
             "amount": amount,
             "mode": self._mode,
+            "l1_event_bound": False,
+            "credit_key": credit_key,
         }
 
     def refund(self, tx_hash: str) -> Dict:
@@ -404,6 +443,9 @@ class RustBridge:
             "pending_locks": sum(1 for l in locks if l["status"] == "pending"),
             "confirmed_locks": sum(1 for l in locks if l["status"] == "confirmed"),
             "dev_simulator_stats": sim_stats,
+            # Honesty: L1 path checks confirmation depth (+ status), not escrow event logs.
+            "l1_event_bound": False,
+            "replay_key": "from_chain:event_tx_hash:log_index",
         }
 
     def estimate_fee(self, to_chain: str, amount: float) -> Dict:

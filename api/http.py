@@ -2656,12 +2656,30 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if sa:
                     try:
                         accounts = sa.list_accounts() if hasattr(sa, "list_accounts") else []
-                        self._json({"smart_accounts": accounts,
-                                    "count": len(accounts) if isinstance(accounts, list) else 0})
+                        stats = sa.get_stats() if hasattr(sa, "get_stats") else {}
+                        self._json({
+                            "smart_accounts": accounts,
+                            "count": len(accounts) if isinstance(accounts, list) else 0,
+                            "enabled": True,
+                            "persistent": bool(stats.get("persistent", False)),
+                            "execution_bound": bool(stats.get("execution_bound", False)),
+                            "in_memory_registry": True,
+                        })
                     except Exception as e:
-                        self._json({"smart_accounts": [], "error": str(e)})
+                        self._json({
+                            "smart_accounts": [],
+                            "error": str(e),
+                            "enabled": True,
+                            "persistent": False,
+                            "execution_bound": False,
+                        })
                 else:
-                    self._json({"smart_accounts": [], "enabled": False})
+                    self._json({
+                        "smart_accounts": [],
+                        "enabled": False,
+                        "persistent": False,
+                        "execution_bound": False,
+                    })
 
             # ── Multisig wallets ──────────────────────────────────────────────
             elif path == "/multisig/list":
@@ -5491,6 +5509,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "Plasma not enabled"); return
                 exit_id = body.get("exit_id", body.get("tx_id", ""))
                 force = bool(body.get("force", False))
+                if force and _is_production_cfg(self.__class__.config):
+                    self._error(403, "force plasma finalize forbidden in prod"); return
                 if hasattr(plasma, "finalize_exit"):
                     ok = plasma.finalize_exit(exit_id, force=force)
                     if ok:
@@ -5621,8 +5641,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                 from_chain = body.get("from_chain", body.get("source_chain", "ethereum"))
                 if hasattr(br, "confirm_incoming"):
                     l1_tx = body.get("l1_tx_hash", "").strip()
+                    log_index = int(body.get("log_index", 0) or 0)
                     result = br.confirm_incoming(
-                        tx_id, recipient, amount, from_chain, l1_tx_hash=l1_tx
+                        tx_id,
+                        recipient,
+                        amount,
+                        from_chain,
+                        l1_tx_hash=l1_tx,
+                        log_index=log_index,
                     )
                     self._json(result if isinstance(result, dict) else {"success": bool(result)})
                 else:
@@ -5725,8 +5751,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                 from_chain = body.get("from_chain", body.get("source_chain", "ethereum"))
                 if hasattr(br, "confirm_incoming"):
                     l1_tx = body.get("l1_tx_hash", "").strip()
+                    log_index = int(body.get("log_index", 0) or 0)
                     result = br.confirm_incoming(
-                        tx_id, recipient, amount, from_chain, l1_tx_hash=l1_tx
+                        tx_id,
+                        recipient,
+                        amount,
+                        from_chain,
+                        l1_tx_hash=l1_tx,
+                        log_index=log_index,
                     )
                     self._json(result if isinstance(result, dict) else {"success": bool(result)})
                 else:
@@ -7549,6 +7581,7 @@ def _build_bridge_relayer_status(cfg, db) -> Dict:
             "blind_pending_confirm_allowed": not relayer_require_l1_proof(),
             "readiness": readiness,
             "min_confirmations": min_confirmations(),
+            "l1_event_bound": False,
             "queue_path": qpath,
             "l1_outbound": len(queue.get("outbound", [])),
             "l1_incoming": len(queue.get("incoming", [])),

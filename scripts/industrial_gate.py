@@ -787,8 +787,24 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("PQ get_stats must expose educational capability matrix")
         if "FEATURE_NFT" not in (ROOT / "runtime" / "config.py").read_text(encoding="utf-8"):
             errors.append("config must include FEATURE_NFT prod block")
+        if "force plasma finalize forbidden in prod" not in http_py2:
+            errors.append("/plasma/finalize-exit must reject force in prod")
+        if "claim_and_credit_bridge_event" not in (
+            ROOT / "storage" / "database.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("SQLite must provide claim_and_credit_bridge_event")
+        bridge_py2 = (ROOT / "bridge" / "abs_bridge.py").read_text(encoding="utf-8")
+        if "l1_event_bound" not in bridge_py2 or "replay_key" not in bridge_py2:
+            errors.append("RustBridge stats must expose l1_event_bound / replay_key honesty")
+        if "from_chain:event_tx_hash:log_index" not in bridge_py2:
+            errors.append("bridge confirm_incoming must use event-derived replay key")
+        if "feature_smart_accounts" not in main_py2:
+            errors.append("main.py must gate Smart Accounts on feature_smart_accounts")
+        sa_py = (ROOT / "features" / "smart_accounts.py").read_text(encoding="utf-8")
+        if "execution_bound" not in sa_py or "in_memory_registry" not in sa_py:
+            errors.append("SmartAccountManager stats must expose execution_bound honesty")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28/29/30/31/32 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28/29/30/31/32/33 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

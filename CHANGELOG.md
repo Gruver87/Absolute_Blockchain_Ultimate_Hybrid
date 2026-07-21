@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.33] — 2026-07-21
+
+### Hardened — bridge event replay / atomic credit / plasma force / smart-accounts
+
+- Event-derived bridge replay key + atomic claim/credit; l1_event_bound honesty
+- Plasma force blocked in prod; Smart Accounts feature-gated with execution_bound labels
+
+---
+
 ## [1.3.32] — 2026-07-21
 
 ### Hardened — L1 receipt status / EVM static / NFT-PQ-will-multisig honesty

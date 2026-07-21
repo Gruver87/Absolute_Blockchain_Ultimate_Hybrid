@@ -378,10 +378,22 @@ def test_bridge_lock_and_credit(rocks):
     rocks.confirm_bridge_lock("0x" + "11" * 32)
     assert rocks.get_bridge_locks()[0]["status"] == "confirmed"
     l1 = "0x" + "aa" * 32
-    key = rocks.save_bridge_credit(l1, "0xrecipient", 10.0, "ethereum")
+    key = rocks.save_bridge_credit(l1, "0xrecipient", 10.0, "ethereum", log_index=0)
     assert rocks.has_bridge_credit(key)
-    assert rocks.bridge_credit_key(l1, "0xrecipient", 10.0, "ethereum") == key
+    assert rocks.bridge_credit_key("ethereum", l1, 0) == key
     assert rocks.save_bridge_credit(l1, "0xrecipient", 10.0, "ethereum") == key
+    # Same L1 event cannot be re-credited under a different claim amount/recipient.
+    alt = rocks.bridge_credit_key("ethereum", l1, 0)
+    assert alt == key
+    claim = rocks.claim_and_credit_bridge_event(
+        "ethereum", l1, "0xother", 99.0, log_index=0
+    )
+    assert claim["duplicate"] is True
+    claim2 = rocks.claim_and_credit_bridge_event(
+        "ethereum", l1, "0xother", 5.0, log_index=1
+    )
+    assert claim2["credited"] is True
+    assert rocks.get_balance("0xother") == 5.0
 
 
 def test_sqlite_to_rocks_migration(tmp_path):

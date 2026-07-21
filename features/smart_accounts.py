@@ -800,5 +800,9 @@ class SmartAccountManager:
             'total_transactions': total_txs,
             'total_volume': total_volume,
             'auth_methods': dict(auth_counts),
-            'active_sessions': sum(acc.stats['active_sessions'] for acc in self.accounts.values())
+            'active_sessions': sum(acc.stats['active_sessions'] for acc in self.accounts.values()),
+            'persistent': False,
+            'execution_bound': bool(self.transaction_executor),
+            'in_memory_registry': True,
+            'enabled': True,
         }

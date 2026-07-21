@@ -705,16 +705,21 @@ class NodeOrchestrator:
         else:
             self.multisig = None
 
-        # 14. Smart Accounts (Account Abstraction)
-        if _SMART_ACCOUNTS_AVAILABLE:
+        # 14. Smart Accounts (Account Abstraction — in-memory unless executor wired)
+        if _SMART_ACCOUNTS_AVAILABLE and getattr(config, "feature_smart_accounts", True):
             try:
                 self.smart_accounts = SmartAccountManager()
-                print("[Node] Smart Accounts: enabled (session keys, social recovery)")
+                print(
+                    "[Node] Smart Accounts: available "
+                    "(persistent=false, execution_bound=false — no chain executor)"
+                )
             except Exception as e:
                 self.smart_accounts = None
                 print(f"[Node] Smart Accounts: unavailable ({e})")
         else:
             self.smart_accounts = None
+            if not getattr(config, "feature_smart_accounts", True):
+                print("[Node] Smart Accounts: disabled")
 
         # 15. Post-Quantum Crypto
         if _POSTQUANTUM_AVAILABLE and getattr(config, "feature_pq", True):

@@ -536,16 +536,41 @@ class HybridDatabase:
         return self._core.get_bridge_locks(limit)
 
     @staticmethod
-    def bridge_credit_key(l1_tx_hash: str, recipient: str, amount: float, from_chain: str) -> str:
-        return RocksChainStore.bridge_credit_key(l1_tx_hash, recipient, amount, from_chain)
+    def bridge_credit_key(from_chain: str, event_tx_hash: str, log_index: int = 0) -> str:
+        return RocksChainStore.bridge_credit_key(from_chain, event_tx_hash, log_index)
 
     def has_bridge_credit(self, credit_key: str) -> bool:
         return self._core.has_bridge_credit(credit_key)
 
     def save_bridge_credit(
-        self, l1_tx_hash: str, recipient: str, amount: float, from_chain: str
+        self,
+        event_tx_hash: str,
+        recipient: str,
+        amount: float,
+        from_chain: str,
+        log_index: int = 0,
     ) -> str:
-        return self._core.save_bridge_credit(l1_tx_hash, recipient, amount, from_chain)
+        return self._core.save_bridge_credit(
+            event_tx_hash, recipient, amount, from_chain, log_index=log_index
+        )
+
+    def claim_and_credit_bridge_event(
+        self,
+        from_chain: str,
+        event_tx_hash: str,
+        recipient: str,
+        amount: float,
+        log_index: int = 0,
+        abs_tx_hash: str = "",
+    ) -> Dict:
+        return self._core.claim_and_credit_bridge_event(
+            from_chain,
+            event_tx_hash,
+            recipient,
+            amount,
+            log_index=log_index,
+            abs_tx_hash=abs_tx_hash,
+        )
 
     def save_evm_logs(
         self,

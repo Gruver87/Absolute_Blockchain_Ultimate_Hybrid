@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.32-industrial"
+    node_version: str = "1.3.33-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -122,6 +122,7 @@ class Config:
     feature_pq: bool = True
     feature_mev: bool = True
     feature_ai_agents: bool = True
+    feature_smart_accounts: bool = True
 
     # ── Мост (Cross-chain bridge) ────────────────────────────────────────────
     bridge_enabled: bool = False        # OFF by default (mainnet-v1 decision until L1 contracts)
@@ -356,6 +357,9 @@ class Config:
         self.feature_pq = env_bool("FEATURE_PQ", self.feature_pq)
         self.feature_mev = env_bool("FEATURE_MEV", self.feature_mev)
         self.feature_ai_agents = env_bool("FEATURE_AI_AGENTS", self.feature_ai_agents)
+        self.feature_smart_accounts = env_bool(
+            "FEATURE_SMART_ACCOUNTS", self.feature_smart_accounts
+        )
 
         peers = env_list("BOOTSTRAP_PEERS")
         if peers:
@@ -421,6 +425,7 @@ class Config:
             self.feature_nft = env_bool("FEATURE_NFT", False)
             self.feature_mev = env_bool("FEATURE_MEV", False)
             self.feature_ai_agents = env_bool("FEATURE_AI_AGENTS", False)
+            self.feature_smart_accounts = env_bool("FEATURE_SMART_ACCOUNTS", False)
             # Fail-closed: env cannot weaken these for prod (break-glass forbidden).
             self.require_wallet_file = True
             self.require_signatures = True
@@ -540,6 +545,7 @@ class Config:
                 "FEATURE_NFT": self.feature_nft,
                 "FEATURE_MEV": self.feature_mev,
                 "FEATURE_AI_AGENTS": self.feature_ai_agents,
+                "FEATURE_SMART_ACCOUNTS": self.feature_smart_accounts,
             }
             enabled_blocked = [name for name, enabled in blocked.items() if enabled]
             if enabled_blocked:
