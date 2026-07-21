@@ -6,6 +6,19 @@
 
 ---
 
+## [1.3.08] — 2026-07-21
+
+### Hardened — Swiss-watch ops honesty, JSON parity, EVM native fail-closed
+
+- Fix dead `peer_status_send_fail` (check `Peer.send` return); mid-session handshake warn logs
+- Strike-backed rejects + attestation sign fail → warning; `abs_p2p_attestation_local_fail_total`
+- Grafana ops_errors + mid_session_handshake panels; alert `AbsoluteP2POpsErrorsBurst`
+- industrial_gate freezes full prod JSON set + shared industrial keys; post_soak adds ops/status tests
+- Prod JSON parity: `state_root_legacy_cutoff_height`, k8s `rust_bridge_path`; `.env.example` mesh knobs
+- EVM CREATE/CREATE2 legacy helpers fail-closed under `ABS_REQUIRE_NATIVE_CRYPTO`
+
+---
+
 ## [1.3.07] — 2026-07-21
 
 ### Hardened — ops_errors metrics, mid-session handshake reject, prod rate hard errors

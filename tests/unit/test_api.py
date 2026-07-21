@@ -119,6 +119,7 @@ def test_metrics_prometheus_format():
                 "peer_send_fail": 4,
                 "peer_status_send_fail": 1,
             },
+            "attestation_local_fail": 3,
         },
         rocksdb_tuning={
             "column_families": False,
@@ -140,6 +141,7 @@ def test_metrics_prometheus_format():
     assert 'abs_p2p_shape_rejects_total{node_id="n1"} 5' in text
     assert 'abs_p2p_shape_rejects{node_id="n1",reason="bad_wire_tx"} 3' in text
     assert 'abs_p2p_handshake_rejects_total{node_id="n1"} 2' in text
+    assert 'abs_p2p_attestation_local_fail_total{node_id="n1"} 3' in text
     assert 'abs_p2p_rate_limit_drops_total{node_id="n1"} 7' in text
     assert 'abs_p2p_peer_send_fail_total{node_id="n1"} 4' in text
     assert 'abs_p2p_ops_errors{node_id="n1",kind="peer_send_fail"} 4' in text

@@ -1069,6 +1069,7 @@ def evm_deploy_address_create(deployer: str, block_number: int, init_code_len: i
             int(block_number),
             int(init_code_len),
         ))
+    _require_native_kernel("evm_deploy_address_create")
     seed = f"{deployer}{int(block_number)}{int(init_code_len)}"
     return "0x" + hashlib.sha256(seed.encode()).hexdigest()[:40]
 
@@ -1081,6 +1082,7 @@ def evm_deploy_address_create2_legacy(deployer: str, salt, init_code: bytes) -> 
             salt_text,
             bytes(init_code),
         ))
+    _require_native_kernel("evm_deploy_address_create2_legacy")
     seed = f"create2:{deployer}:{salt_text}:{init_code.hex()}"
     return "0x" + hashlib.sha256(seed.encode()).hexdigest()[:40]
 

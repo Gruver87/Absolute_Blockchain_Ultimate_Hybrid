@@ -763,6 +763,11 @@ class P2PNode:
         # Mid-session handshake is abuse (initial handshake uses _do_handshake recv).
         if msg_type in (MSG_HANDSHAKE, MSG_HANDSHAKE_ACK):
             self._handshake_rejects = int(self._handshake_rejects or 0) + 1
+            logger.warning(
+                "[P2P] mid-session %s from %s",
+                msg_type,
+                peer.peer_id or self._peer_key(peer),
+            )
             if self._strike_peer_sync(peer, "mid_session_handshake"):
                 self._remove_peer(peer.peer_id, peer)
             return
@@ -1032,7 +1037,10 @@ class P2PNode:
         vkeys = self.validator_keys
         if vkeys and hasattr(vkeys, "verify_attestation"):
             if not vkeys.verify_attestation(data):
-                logger.debug(f"[P2P] Invalid attestation sig from {peer.peer_id[:8]}")
+                logger.warning(
+                    "[P2P] Invalid attestation sig from %s",
+                    (peer.peer_id or "?")[:12],
+                )
                 self._strike_peer_sync(peer, "bad_attestation_sig")
                 return
         validator = data.get("validator", "")
@@ -1071,7 +1079,7 @@ class P2PNode:
         try:
             block = Block.from_dict(data)
         except Exception as e:
-            logger.debug(f"[P2P] Invalid block from {peer}: {e}")
+            logger.warning("[P2P] Invalid block from %s: %s", peer.peer_id or peer, e)
             self._strike_peer_sync(peer, "bad_block_from_dict")
             return
         local_h = self.blockchain.get_height()
@@ -1651,17 +1659,18 @@ class P2PNode:
                 None,
             )
             if already_peer:
-                try:
-                    await already_peer.send(MSG_STATUS, {
-                        "height": self.blockchain.get_height(),
-                        "head_hash": self.head() or "",
-                    })
-                except Exception as exc:
-                    self._peer_status_send_fail += 1
-                    logger.debug(
-                        "[P2P] status refresh to %s failed: %s", addr, exc
-                    )
-                attempts.append({"address": addr, "ok": True, "action": "already_connected_status_refresh"})
+                ok_send = await already_peer.send(MSG_STATUS, {
+                    "height": self.blockchain.get_height(),
+                    "head_hash": self.head() or "",
+                })
+                if not ok_send:
+                    self._peer_status_send_fail = int(self._peer_status_send_fail or 0) + 1
+                    logger.warning("[P2P] status refresh to %s failed", addr)
+                attempts.append({
+                    "address": addr,
+                    "ok": bool(ok_send),
+                    "action": "already_connected_status_refresh",
+                })
                 continue
             ok = await self.connect_peer(host, port)
             attempts.append({"address": addr, "ok": bool(ok), "action": "connect"})
@@ -1948,7 +1957,8 @@ class P2PNode:
         try:
             signed = self.validator_keys.sign_attestation(block_data, slot)
         except Exception as e:
-            logger.debug(f"[P2P] Attestation sign failed: {e}")
+            self._attestation_local_fail = int(self._attestation_local_fail or 0) + 1
+            logger.warning("[P2P] Attestation sign failed: %s", e)
             return
         if self._loop and self._running:
             asyncio.run_coroutine_threadsafe(

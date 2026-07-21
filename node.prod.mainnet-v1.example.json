@@ -63,5 +63,7 @@
   ],
   "db_path": "data/blockchain.db",
   "log_file": "data/node.log",
-  "validators_manifest_path": "validators.manifest.mainnet-v1.example.json"
+  "validators_manifest_path": "validators.manifest.mainnet-v1.example.json",
+  "rust_bridge_path": "bridge/abs_bridge_bin",
+  "bridge_auto_confirm_sec": 0
 }

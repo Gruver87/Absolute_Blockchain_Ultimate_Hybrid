@@ -94,6 +94,7 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "abs_p2p_rate_limit_drops_total",
         "abs_p2p_peer_send_fail_total",
         "abs_p2p_ops_errors",
+        "abs_p2p_attestation_local_fail_total",
         "abs_rocksdb_column_families",
     ):
         if needle not in metrics_src:
@@ -103,21 +104,49 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "abs_p2p_shape_rejects_total",
         "abs_p2p_rate_limit_drops_total",
         "abs_p2p_peer_send_fail_total",
+        "abs_p2p_handshake_rejects_total",
+        "abs_p2p_ops_errors",
         "abs_rocksdb_block_cache_mb",
     ):
         if needle not in alerts_src:
             errors.append(f"prometheus alerts.yml missing rule surface: {needle}")
+    dash_src = (ROOT / "deploy" / "grafana" / "dashboard.json").read_text(encoding="utf-8")
+    for needle in (
+        "abs_p2p_peer_send_fail_total",
+        "abs_p2p_ops_errors",
+        "mid_session_handshake",
+    ):
+        if needle not in dash_src:
+            errors.append(f"grafana dashboard.json missing panel surface: {needle}")
     try:
         from network import p2p_tls  # noqa: F401
     except ImportError as exc:
         errors.append(f"network.p2p_tls import failed: {exc}")
     # Load real prod mesh JSON (bare Config() is always deployment_mode=dev).
     prod_tls_enabled = False
-    for rel in (
+    prod_json_files = (
         "docker/node.prod.mesh1.json",
+        "docker/node.prod.mesh2.json",
+        "docker/node.prod.mesh3.json",
         "docker/node.prod.json",
+        "deploy/k8s/node.prod.k8s.json",
         "node.prod.example.json",
-    ):
+        "node.prod.mainnet-v1.example.json",
+        "node.prod.mainnet-v1.bridge.example.json",
+    )
+    shared_keys = (
+        "p2p_max_messages_per_sec",
+        "p2p_max_message_bytes",
+        "p2p_ban_seconds",
+        "p2p_rate_limit_strikes",
+        "rocksdb_sync",
+        "rocksdb_block_cache_mb",
+        "rocksdb_write_buffer_mb",
+        "rocksdb_column_families",
+        "bridge_enabled",
+        "require_native_crypto",
+    )
+    for rel in prod_json_files:
         path = ROOT / rel
         if not path.is_file():
             continue
@@ -127,6 +156,9 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
             continue
         if str(prod_cfg.get("deployment_mode", "")).lower() != "prod":
             continue
+        for key in shared_keys:
+            if key not in prod_cfg:
+                errors.append(f"{rel}: missing industrial key {key}")
         rate = int(prod_cfg.get("p2p_max_messages_per_sec", 0) or 0)
         if rate <= 0:
             errors.append(f"{rel}: p2p_max_messages_per_sec must be > 0")
@@ -136,6 +168,13 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
                 f"{rel}: p2p_max_message_bytes below industrial floor "
                 f"({DEFAULT_MAX_P2P_LINE_BYTES // 2})"
             )
+        if prod_cfg.get("bridge_enabled") is True:
+            if "bridge" in Path(rel).name.lower():
+                warnings.append(
+                    f"{rel}: bridge_enabled=true (cutover example only; keep OFF on live mesh)"
+                )
+            else:
+                errors.append(f"{rel}: bridge_enabled must be false until L1 audit")
         if prod_cfg.get("p2p_tls_enabled") is True:
             prod_tls_enabled = True
     if not prod_tls_enabled:

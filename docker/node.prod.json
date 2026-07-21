@@ -59,8 +59,11 @@
   "rocksdb_column_families": false,
   "log_json": true,
   "enable_cors_rpc_proxy": false,
-  "cors_origins": ["https://your-explorer.example.com"],
+  "cors_origins": [
+    "https://your-explorer.example.com"
+  ],
   "db_path": "data/blockchain.db",
   "log_file": "data/node.log",
-  "validators_manifest_path": "data/validators.manifest.json"
+  "validators_manifest_path": "data/validators.manifest.json",
+  "state_root_legacy_cutoff_height": 0
 }

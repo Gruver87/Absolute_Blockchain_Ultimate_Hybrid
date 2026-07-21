@@ -122,11 +122,17 @@ class MetricsCollector:
                 f"abs_l1_rpc_ok{{node_id=\"{node_id}\"}} "
                 f"{1 if (bridge_health.get('l1_rpc') or {}).get('ok') else 0}"
             ),
-            "# HELP abs_p2p_handshake_rejects_total Handshake payload rejects",
+            "# HELP abs_p2p_handshake_rejects_total Handshake rejects (payload + mid-session)",
             "# TYPE abs_p2p_handshake_rejects_total counter",
             (
                 f"abs_p2p_handshake_rejects_total{{node_id=\"{node_id}\"}} "
                 f"{int(p2p_security.get('handshake_rejects', 0) or 0)}"
+            ),
+            "# HELP abs_p2p_attestation_local_fail_total Local attestation sign failures",
+            "# TYPE abs_p2p_attestation_local_fail_total counter",
+            (
+                f"abs_p2p_attestation_local_fail_total{{node_id=\"{node_id}\"}} "
+                f"{int(p2p_security.get('attestation_local_fail', 0) or 0)}"
             ),
             "# HELP abs_p2p_shape_rejects_total Fail-closed P2P shape rejects",
             "# TYPE abs_p2p_shape_rejects_total counter",

@@ -65,5 +65,6 @@
   ],
   "db_path": "data/blockchain.db",
   "log_file": "data/node.log",
-  "validators_manifest_path": "data/validators.manifest.json"
+  "validators_manifest_path": "data/validators.manifest.json",
+  "state_root_legacy_cutoff_height": 0
 }

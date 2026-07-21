@@ -10,6 +10,7 @@ import time
 import urllib.error
 
 import pytest
+from unittest.mock import MagicMock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, ROOT)
@@ -326,7 +327,7 @@ def test_p2p_strike_bans_after_threshold():
 
 @pytest.mark.asyncio
 async def test_handle_message_rejects_mid_session_handshake():
-    from network.p2p_node import MSG_HANDSHAKE, P2PNode
+    from network.p2p_node import MSG_HANDSHAKE, MSG_HANDSHAKE_ACK, P2PNode
 
     cfg = Config()
     cfg.p2p_rate_limit_strikes = 1
@@ -342,6 +343,41 @@ async def test_handle_message_rejects_mid_session_handshake():
     sec = p2p.get_p2p_security_status()
     assert sec["handshake_rejects"] >= 1
     assert sec["shape_rejects"].get("mid_session_handshake", 0) >= 1
+
+    # ACK mid-session also rejected (fresh peer)
+    peer2 = PeerConnection(_FakeReader(b""), _FakeWriter())
+    peer2.peer_id = "hs-ack"
+    p2p.peers[peer2.peer_id] = peer2
+    removed.clear()
+    await p2p._handle_message(peer2, {"type": MSG_HANDSHAKE_ACK, "data": {"accepted": True}})
+    assert removed == ["hs-ack"]
+    assert p2p.get_p2p_security_status()["shape_rejects"].get("mid_session_handshake", 0) >= 2
+
+
+@pytest.mark.asyncio
+async def test_status_refresh_counts_peer_status_send_fail():
+    from network.p2p_node import P2PNode
+
+    class _BoomWriter(_FakeWriter):
+        def write(self, _data):
+            raise OSError("broken pipe")
+
+    cfg = Config()
+    blockchain = MagicMock()
+    blockchain.get_height.return_value = 1
+    p2p = P2PNode(cfg, blockchain, None)
+    peer = PeerConnection(_FakeReader(b""), _BoomWriter())
+    p2p._attach_peer_hooks(peer)
+    peer.peer_id = "already"
+    peer.host = "127.0.0.1"
+    peer.port = 5000
+    p2p.peers[peer.peer_id] = peer
+    p2p._known_addrs = ["127.0.0.1:5000"]
+    result = await p2p.reconnect_known_peers()
+    assert any(a.get("ok") is False for a in result.get("attempts", []))
+    sec = p2p.get_p2p_security_status()
+    assert sec["ops_errors"]["peer_status_send_fail"] >= 1
+    assert sec["ops_errors"]["peer_send_fail"] >= 1
 
 
 @pytest.mark.asyncio

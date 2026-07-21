@@ -141,6 +141,27 @@
       "targets": [
         {"expr": "abs_p2p_peer_send_fail_total", "legendFormat": "{{node_id}}"}
       ]
+    },
+    {
+      "id": 19,
+      "title": "P2P Ops Errors by Kind",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 44},
+      "targets": [
+        {"expr": "abs_p2p_ops_errors", "legendFormat": "{{kind}}"}
+      ]
+    },
+    {
+      "id": 20,
+      "title": "Mid-Session Handshake Rejects",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 44},
+      "targets": [
+        {
+          "expr": "abs_p2p_shape_rejects{reason=\"mid_session_handshake\"}",
+          "legendFormat": "{{node_id}}"
+        }
+      ]
     }
   ]
 }
