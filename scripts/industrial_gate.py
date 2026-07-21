@@ -462,6 +462,14 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("/health/ready with peers must require wire_probe_probed/ok")
         if '"degraded"' not in http_py or "peer_count > 0 and not state_consistent" not in http_py:
             errors.append("/status must report degraded when peers + inconsistent")
+        if "peer_count > 0 and not wire_probe_probed" not in http_py:
+            errors.append("/status must report degraded when peers + never wire-probed")
+        if 'checks["state_engine"]' not in http_py or 'checks["finality_engine"]' not in http_py:
+            errors.append("/health/ready prod must check state_engine and finality_engine")
+        if 'checks["immutable_state"]' not in http_py:
+            errors.append("/health/ready prod must check immutable_state")
+        if '"ims_available": False' not in http_py:
+            errors.append("abs-balance/total-supply must not claim canonical without IMS")
         if "Peers present with mesh_min=0" not in http_py:
             errors.append("eth_mining must refuse when peers present and inconsistent (mesh_min=0)")
         if 'getattr(p2p, "_server", None) is not None' not in http_py:
@@ -470,8 +478,14 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         errors.append(f"fail-loud http inspect failed: {exc}")
     try:
         rocks_py = (ROOT / "storage" / "rocks_store.py").read_text(encoding="utf-8")
-        if rocks_py.count("self._json_decode_failures += 1") < 10:
-            errors.append("rocks_store scan/reorg/list paths must bump json_decode_failures")
+        if rocks_py.count("self._json_decode_failures += 1") < 15:
+            errors.append("rocks_store scan/reorg/list/meta/tx paths must bump json_decode_failures")
+        if "corrupt meta" not in rocks_py:
+            errors.append("rocks_store get_meta must warn on corrupt decode")
+        if "corrupt address_tx row skipped" not in rocks_py:
+            errors.append("rocks_store address tx list must warn on corrupt decode")
+        if "corrupt recent_tx row skipped" not in rocks_py:
+            errors.append("rocks_store recent tx list must warn on corrupt decode")
         if "corrupt latest_block row skipped" not in rocks_py:
             errors.append("rocks_store get_latest_blocks must warn on corrupt decode")
         if "corrupt account row skipped" not in rocks_py:
@@ -493,6 +507,14 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         alerts = (ROOT / "deploy" / "prometheus" / "alerts.yml").read_text(encoding="utf-8")
         if "AbsoluteRocksJsonDecodeFailures" not in alerts:
             errors.append("alerts.yml missing AbsoluteRocksJsonDecodeFailures")
+        if "AbsoluteProdCoreEngineMissing" not in alerts:
+            errors.append("alerts.yml missing AbsoluteProdCoreEngineMissing")
+        if "abs_state_engine_available" not in metrics_py:
+            errors.append("metrics.py must emit abs_state_engine_available")
+        if "abs_finality_engine_available" not in metrics_py:
+            errors.append("metrics.py must emit abs_finality_engine_available")
+        if "abs_ims_available" not in metrics_py:
+            errors.append("metrics.py must emit abs_ims_available")
     except Exception as exc:
         errors.append(f"fail-loud rocks metrics/alerts inspect failed: {exc}")
     try:
@@ -523,6 +545,12 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("RPC CORS proxy must never echo first allowlist entry on miss")
         if "Production mode requires SyncEngine" not in main_py:
             errors.append("main.py must hard-fail SyncEngine init in production")
+        if "Production mode requires StateEngine" not in main_py:
+            errors.append("main.py must hard-fail StateEngine init in production")
+        if "Production mode requires FinalityEngine" not in main_py:
+            errors.append("main.py must hard-fail FinalityEngine init in production")
+        if "Production mode requires ImmutableStateManager" not in main_py:
+            errors.append("main.py must hard-fail ImmutableStateManager missing in production")
         if "Peers present require consistency even when mesh_min_peers_before_mine=0" not in main_py:
             errors.append("mining loop must gate consistency when peers present (mesh_min=0)")
     except Exception as exc:

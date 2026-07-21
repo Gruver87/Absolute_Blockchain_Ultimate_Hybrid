@@ -41,8 +41,8 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.23` — P2P bind / ready wire / status / peers mining |
-| **Notes** | [RELEASE_NOTES_v1.3.23.md](../RELEASE_NOTES_v1.3.23.md) |
+| **Tag** | `v1.3.24` — core engines / status wire / IMS canonical |
+| **Notes** | [RELEASE_NOTES_v1.3.24.md](../RELEASE_NOTES_v1.3.24.md) |
 | **Prior** | [v1.3.19](../RELEASE_NOTES_v1.3.19.md) sync incomplete/CORS/repair; [v1.3.08](../RELEASE_NOTES_v1.3.08.md) Swiss-watch |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

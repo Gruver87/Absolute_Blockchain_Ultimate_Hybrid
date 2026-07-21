@@ -50,7 +50,7 @@ def test_mining_loop_peers_consistency_gate():
 
 def test_rocks_scan_and_reorg_bump_decode_failures():
     rocks = Path("storage/rocks_store.py").read_text(encoding="utf-8")
-    assert rocks.count("self._json_decode_failures += 1") >= 10
+    assert rocks.count("self._json_decode_failures += 1") >= 15
     assert "corrupt latest_block row skipped" in rocks
     assert "corrupt account row skipped" in rocks
     assert "corrupt validator row skipped" in rocks

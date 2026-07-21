@@ -790,6 +790,10 @@ class NodeOrchestrator:
         except Exception as _se_err:
             self.state_engine = None
             print(f"[Node] StateEngine: unavailable ({_se_err})")
+            if self.config.is_production:
+                raise RuntimeError(
+                    f"Production mode requires StateEngine: {_se_err}"
+                ) from _se_err
 
         # 25. BlockBuilder (deterministic block assembly)
         if _BLOCK_BUILDER_AVAILABLE:
@@ -828,7 +832,10 @@ class NodeOrchestrator:
             print("[Node] ImmutableStateManager: enabled (satoshi-precision balances)")
         else:
             self.immutable_state = None
-
+            if self.config.is_production:
+                raise RuntimeError(
+                    "Production mode requires ImmutableStateManager module"
+                )
         # 27. ValidatorKeys (block/attestation signing)
         if _VALIDATOR_KEYS_AVAILABLE:
             try:
@@ -1131,9 +1138,16 @@ class NodeOrchestrator:
             except Exception as e:
                 self.finality_engine = None
                 print(f"[Node] FinalityEngine: unavailable ({e})")
+                if self.config.is_production:
+                    raise RuntimeError(
+                        f"Production mode requires FinalityEngine: {e}"
+                    ) from e
         else:
             self.finality_engine = None
-
+            if self.config.is_production:
+                raise RuntimeError(
+                    "Production mode requires FinalityEngine module"
+                )
         # 36. Sync Engine (fast-sync for P2P) — single shared instance for node + P2P
         if _SYNC_ENGINE_AVAILABLE:
             try:

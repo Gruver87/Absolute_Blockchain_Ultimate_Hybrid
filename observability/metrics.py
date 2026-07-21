@@ -41,12 +41,14 @@ class MetricsCollector:
         p2p_security: Optional[dict[str, Any]] = None,
         rocksdb_tuning: Optional[dict[str, Any]] = None,
         sync_status: Optional[dict[str, Any]] = None,
+        core_engines: Optional[dict[str, Any]] = None,
     ) -> str:
         native_crypto = native_crypto or {}
         bridge_health = bridge_health or {}
         p2p_security = p2p_security or {}
         rocksdb_tuning = rocksdb_tuning or {}
         sync_status = sync_status or {}
+        core_engines = core_engines or {}
         lines = [
             "# HELP abs_uptime_seconds Node uptime",
             "# TYPE abs_uptime_seconds gauge",
@@ -272,6 +274,24 @@ class MetricsCollector:
                 (
                     f"abs_rocksdb_tuning_source{{node_id=\"{node_id}\","
                     f"source=\"{str(rocksdb_tuning.get('source') or 'unknown')}\"}} 1"
+                ),
+                "# HELP abs_state_engine_available Deterministic StateEngine present",
+                "# TYPE abs_state_engine_available gauge",
+                (
+                    f"abs_state_engine_available{{node_id=\"{node_id}\"}} "
+                    f"{1 if core_engines.get('state_engine') else 0}"
+                ),
+                "# HELP abs_finality_engine_available FinalityEngine (Casper FFG) present",
+                "# TYPE abs_finality_engine_available gauge",
+                (
+                    f"abs_finality_engine_available{{node_id=\"{node_id}\"}} "
+                    f"{1 if core_engines.get('finality_engine') else 0}"
+                ),
+                "# HELP abs_ims_available ImmutableStateManager present",
+                "# TYPE abs_ims_available gauge",
+                (
+                    f"abs_ims_available{{node_id=\"{node_id}\"}} "
+                    f"{1 if core_engines.get('immutable_state') else 0}"
                 ),
             ]
         )

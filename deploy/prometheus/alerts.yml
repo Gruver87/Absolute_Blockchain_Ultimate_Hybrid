@@ -164,6 +164,15 @@ groups:
           summary: "Prod node using SQLite engine on {{ $labels.node_id }}"
           description: "abs_db_engine reports sqlite; industrial prod mesh expects RocksDB."
 
+      - alert: AbsoluteProdCoreEngineMissing
+        expr: abs_native_crypto_required == 1 and (abs_state_engine_available == 0 or abs_finality_engine_available == 0 or abs_ims_available == 0)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prod-like node missing core engine on {{ $labels.node_id }}"
+          description: "StateEngine, FinalityEngine, or ImmutableStateManager gauge is 0 while native crypto is required."
+
       - alert: AbsoluteRocksJsonDecodeFailures
         expr: increase(abs_rocksdb_json_decode_failures[1h]) > 0
         for: 0m

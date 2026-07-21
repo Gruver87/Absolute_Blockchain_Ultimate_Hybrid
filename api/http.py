@@ -1100,6 +1100,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                         else True
                     ),
                 }
+                if is_prod:
+                    # Prod core engines — missing is a boot failure surface, not a feature flag.
+                    checks["state_engine"] = self.__class__.state_engine is not None
+                    checks["finality_engine"] = self.__class__.finality_engine is not None
+                    checks["immutable_state"] = self.__class__.immutable_state is not None
                 if is_prod and p2p is not None:
                     # Listener must exist — bind failure clears _running (fail-closed).
                     checks["p2p_running"] = bool(getattr(p2p, "_running", False)) and (
@@ -1265,6 +1270,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                     p2p_security=p2p_security,
                     rocksdb_tuning=rocksdb_tuning,
                     sync_status=sync_status,
+                    core_engines={
+                        "state_engine": self.__class__.state_engine is not None,
+                        "finality_engine": self.__class__.finality_engine is not None,
+                        "immutable_state": self.__class__.immutable_state is not None,
+                    },
                 )
                 body = text.encode()
                 self.send_response(200)
@@ -1411,6 +1421,18 @@ class RESTHandler(BaseHTTPRequestHandler):
                 peer_count = p2p.peer_count() if p2p else 0
                 mesh_min_peers = int(getattr(cfg, "mesh_min_peers_before_mine", 0) or 0)
                 state_consistent = getattr(p2p, "_state_consistent", False) if p2p else False
+                wire_probe_probed = False
+                wire_probe_ok = False
+                se_status = getattr(self.__class__, "sync_engine", None) or (
+                    getattr(p2p, "sync_engine", None) if p2p else None
+                )
+                if se_status is not None and hasattr(se_status, "get_status"):
+                    try:
+                        _st = se_status.get_status() or {}
+                        wire_probe_probed = bool(_st.get("wire_probe_probed"))
+                        wire_probe_ok = bool(_st.get("wire_probe_ok"))
+                    except Exception as exc:
+                        logger.warning("/status sync_engine status failed: %s", exc)
                 p2p_sync_status = _derive_p2p_sync_status(
                     peer_count=peer_count,
                     peer_gap=peer_gap,
@@ -1493,11 +1515,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "state_root_strict_p2p": bool(getattr(cfg, "state_root_strict_p2p", True)),
                 }
                 self._json({
-                    # Do not hard-code "running" while mesh is inconsistent or P2P is down.
+                    # Do not hard-code "running" while mesh is inconsistent, unprobed, or P2P is down.
                     "status": (
                         "degraded"
                         if (
                             (peer_count > 0 and not state_consistent)
+                            or (peer_count > 0 and not wire_probe_probed)
+                            or (peer_count > 0 and wire_probe_probed and not wire_probe_ok)
                             or (
                                 p2p is not None
                                 and not bool(getattr(p2p, "_running", False))
@@ -3895,7 +3919,9 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json({
                         "address": addr,
                         "balance_abs": db_abs,
-                        "canonical": True,
+                        # DB-only is never IMS-canonical when shadow state is absent.
+                        "canonical": False,
+                        "ims_available": False,
                         "source": "db",
                     })
 
@@ -3971,7 +3997,9 @@ class RESTHandler(BaseHTTPRequestHandler):
                 elif db_abs is not None:
                     self._json({
                         "total_supply_abs": db_abs,
-                        "canonical": True,
+                        # DB-only is never IMS-canonical when shadow state is absent.
+                        "canonical": False,
+                        "ims_available": False,
                         "source": "db",
                     })
                 else:

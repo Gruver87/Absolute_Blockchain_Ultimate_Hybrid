@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.24] — 2026-07-21
+
+### Hardened — Core engines prod / status wire / IMS canonical / Rocks meta-tx
+
+- Prod hard-fails StateEngine/Finality/IMS; ready checks engines; status degrades on wire probe gaps
+- DB-only balances/supply never claim IMS-canonical; Rocks meta/TX list/reorg purge bump decode counter
+- Metrics + alert for missing core engines on prod-like nodes
+
+---
+
 ## [1.3.23] — 2026-07-21
 
 ### Hardened — P2P bind / ready wire / status degraded / peers mining

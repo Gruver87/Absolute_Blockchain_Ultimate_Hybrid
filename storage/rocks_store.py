@@ -245,7 +245,14 @@ class RocksChainStore:
             return default
         try:
             return json.loads(raw.decode("utf-8"))
-        except Exception:
+        except Exception as exc:
+            self._json_decode_failures += 1
+            logger.warning(
+                "[RocksStore] corrupt meta %s (decode_failures=%s): %s",
+                key,
+                self._json_decode_failures,
+                exc,
+            )
             return raw.decode("utf-8", errors="replace")
 
     # ── blocks ────────────────────────────────────────────────────────────
@@ -675,7 +682,17 @@ class RocksChainStore:
                 seen.add(tx_hash)
                 raw = self._raw_get(kc.key_tx(tx_hash))
                 if raw:
-                    rows.append(json.loads(raw.decode("utf-8")))
+                    try:
+                        rows.append(json.loads(raw.decode("utf-8")))
+                    except Exception as exc:
+                        self._json_decode_failures += 1
+                        logger.warning(
+                            "[RocksStore] corrupt address_tx row skipped "
+                            "(decode_failures=%s): %s",
+                            self._json_decode_failures,
+                            exc,
+                        )
+                        continue
         rows.sort(
             key=lambda r: (int(r.get("block_height", 0)), int(r.get("timestamp", 0))),
             reverse=True,
@@ -727,7 +744,17 @@ class RocksChainStore:
             tx_key = kc.P_TX + tx_hash_bytes
             raw = self._raw_get(tx_key)
             if raw:
-                out.append(json.loads(raw.decode("utf-8")))
+                try:
+                    out.append(json.loads(raw.decode("utf-8")))
+                except Exception as exc:
+                    self._json_decode_failures += 1
+                    logger.warning(
+                        "[RocksStore] corrupt block_tx row skipped "
+                        "(decode_failures=%s): %s",
+                        self._json_decode_failures,
+                        exc,
+                    )
+                    continue
         return out
 
     def get_recent_transactions(self, limit: int = 30) -> List[Dict]:
@@ -739,7 +766,17 @@ class RocksChainStore:
                 continue
             raw = self._raw_get(kc.key_tx(tx_hash))
             if raw:
-                out.append(json.loads(raw.decode("utf-8")))
+                try:
+                    out.append(json.loads(raw.decode("utf-8")))
+                except Exception as exc:
+                    self._json_decode_failures += 1
+                    logger.warning(
+                        "[RocksStore] corrupt recent_tx row skipped "
+                        "(decode_failures=%s): %s",
+                        self._json_decode_failures,
+                        exc,
+                    )
+                    continue
             if len(out) >= limit:
                 break
         return out
@@ -1157,8 +1194,11 @@ class RocksChainStore:
                 row = json.loads(value.decode("utf-8"))
                 bh = int(row.get("block_height", 0) or 0)
             except Exception as exc:
+                self._json_decode_failures += 1
                 logger.warning(
-                    "reorg purge: corrupt evm_log_tx JSON: %s",
+                    "reorg purge: corrupt evm_log_tx JSON "
+                    "(decode_failures=%s): %s",
+                    self._json_decode_failures,
                     exc,
                 )
                 self._raw_delete(key)
@@ -1170,8 +1210,11 @@ class RocksChainStore:
                 row = json.loads(value.decode("utf-8"))
                 bh = int(row.get("block_height", 0) or 0)
             except Exception as exc:
+                self._json_decode_failures += 1
                 logger.warning(
-                    "reorg purge: corrupt tx_propagation JSON: %s",
+                    "reorg purge: corrupt tx_propagation JSON "
+                    "(decode_failures=%s): %s",
+                    self._json_decode_failures,
                     exc,
                 )
                 self._raw_delete(key)
