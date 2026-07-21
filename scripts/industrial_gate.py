@@ -587,6 +587,14 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("reconcile_peers without SyncEngine must clear _state_consistent")
         if "_record_broadcast_results" not in p2p_py or "broadcast_fail" not in p2p_py:
             errors.append("P2P broadcast gather must record False/Exception as broadcast_fail")
+        for kind in (
+            'kind="cross_shard_ack"',
+            'kind="cross_shard_tx"',
+            'kind="shard_migration"',
+            'kind="validator_register"',
+        ):
+            if kind not in p2p_py:
+                errors.append(f"P2P must record broadcast results for {kind}")
         bind_idx = p2p_py.find("Could not bind port")
         if bind_idx < 0:
             errors.append("P2P start must log Could not bind port")
@@ -606,8 +614,36 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("rocks_store get_tx_receipt must use fail-closed JSON decode")
         if 'return self._loads_json_or_none(raw, context=f"block' not in rocks_py:
             errors.append("rocks_store get_block must use fail-closed JSON decode")
+        if 'context=f"slash_validator' not in rocks_py:
+            errors.append("rocks_store slash_validator must use fail-closed JSON decode")
+        if 'context=f"bridge_lock' not in rocks_py:
+            errors.append("rocks_store confirm_bridge_lock must use fail-closed JSON decode")
+        if 'context="burn_total"' not in rocks_py:
+            errors.append("rocks_store get_total_burned must use fail-closed JSON decode")
     except Exception as exc:
         errors.append(f"fail-loud rocks point-get inspect failed: {exc}")
+    try:
+        alerts = (ROOT / "deploy" / "prometheus" / "alerts.yml").read_text(encoding="utf-8")
+        if "AbsoluteP2PBroadcastFailBurst" not in alerts:
+            errors.append("alerts.yml missing AbsoluteP2PBroadcastFailBurst")
+    except Exception as exc:
+        errors.append(f"fail-loud broadcast alert inspect failed: {exc}")
+    try:
+        main_py = (ROOT / "main.py").read_text(encoding="utf-8")
+        if "forge still uses blockchain.create_block — not wired" not in main_py:
+            errors.append("BlockBuilder must not advertise enabled when forge path is unwired")
+    except Exception as exc:
+        errors.append(f"fail-loud BlockBuilder honesty inspect failed: {exc}")
+    try:
+        http_py = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
+        if "consensus_adapter_missing" not in http_py:
+            errors.append("/consensus/attestations must surface consensus_adapter_missing")
+        if "slashing_engine_missing" not in http_py:
+            errors.append("/slashing/status must surface slashing_engine_missing")
+        if "sharding_missing" not in http_py:
+            errors.append("/sharding/pending must surface sharding_missing")
+    except Exception as exc:
+        errors.append(f"fail-loud api missing-error inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

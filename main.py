@@ -795,12 +795,16 @@ class NodeOrchestrator:
                     f"Production mode requires StateEngine: {_se_err}"
                 ) from _se_err
 
-        # 25. BlockBuilder (deterministic block assembly)
+        # 25. BlockBuilder (optional helper — forge path still uses create_block)
         if _BLOCK_BUILDER_AVAILABLE:
             try:
                 self.block_builder = BlockBuilder(self.mempool, self.state_engine) if self.state_engine else None
                 if self.block_builder:
-                    print("[Node] BlockBuilder: enabled (deterministic tx selection)")
+                    # Honesty: constructed but not wired into mining forge.
+                    print(
+                        "[Node] BlockBuilder: constructed "
+                        "(forge still uses blockchain.create_block — not wired)"
+                    )
             except Exception as e:
                 self.block_builder = None
                 print(f"[Node] BlockBuilder: unavailable ({e})")

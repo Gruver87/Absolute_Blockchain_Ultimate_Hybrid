@@ -1067,7 +1067,8 @@ class P2PNode:
             if pid != exclude_peer:
                 tasks.append(peer.send(MSG_VALIDATOR_REGISTER, payload))
         if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            self._record_broadcast_results(results, kind="validator_register")
 
     def announce_validator(self, address: str, stake: float) -> None:
         """Gossip local validator registration to connected peers."""
@@ -2015,14 +2016,16 @@ class P2PNode:
             return
         tasks = [peer.send(MSG_CROSS_SHARD_ACK, payload) for peer in self.peers.values()]
         if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            self._record_broadcast_results(results, kind="cross_shard_ack")
 
     async def broadcast_cross_shard_tx(self, payload: Dict):
         if not isinstance(payload, dict):
             return
         tasks = [peer.send(MSG_CROSS_SHARD_TX, payload) for peer in self.peers.values()]
         if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            self._record_broadcast_results(results, kind="cross_shard_tx")
 
     async def _handle_shard_migration(self, peer: PeerConnection, data: Dict):
         parsed = native.validate_p2p_shard_migration(data)
@@ -2039,7 +2042,8 @@ class P2PNode:
             return
         tasks = [peer.send(MSG_SHARD_MIGRATION, payload) for peer in self.peers.values()]
         if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            self._record_broadcast_results(results, kind="shard_migration")
 
     async def broadcast_tx(self, tx_data: Dict):
         """Рассылает транзакцию всем пирам (full signed wire payload)."""

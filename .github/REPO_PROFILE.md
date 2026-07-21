@@ -41,8 +41,8 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.25` — supply / point-gets / broadcast_fail / core_real |
-| **Notes** | [RELEASE_NOTES_v1.3.25.md](../RELEASE_NOTES_v1.3.25.md) |
+| **Tag** | `v1.3.26` — gather / mutate / attestation errors / BlockBuilder |
+| **Notes** | [RELEASE_NOTES_v1.3.26.md](../RELEASE_NOTES_v1.3.26.md) |
 | **Prior** | [v1.3.19](../RELEASE_NOTES_v1.3.19.md) sync incomplete/CORS/repair; [v1.3.08](../RELEASE_NOTES_v1.3.08.md) Swiss-watch |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

@@ -616,7 +616,9 @@ class RocksChainStore:
             raw = self._raw_get(kc.key_validator(addr))
             if not raw:
                 return
-            row = json.loads(raw.decode("utf-8"))
+            row = self._loads_json_or_none(raw, context=f"slash_validator {addr}")
+            if row is None:
+                return
             row["slashed"] = 1
             row["active"] = 0
             self._raw_put(kc.key_validator(addr), json.dumps(row).encode("utf-8"))
@@ -1032,7 +1034,9 @@ class RocksChainStore:
             raw = self._raw_get(kc.key_bridge_lock(tx_hash))
             if not raw:
                 return
-            row = json.loads(raw.decode("utf-8"))
+            row = self._loads_json_or_none(raw, context=f"bridge_lock {tx_hash[:16]}")
+            if row is None:
+                return
             row["status"] = "confirmed"
             self._raw_put(kc.key_bridge_lock(tx_hash), json.dumps(row).encode("utf-8"))
 
@@ -1091,7 +1095,10 @@ class RocksChainStore:
         if not rows:
             return 0.0
         last = max(rows, key=lambda kv: kc.unpack_u64(kv[0][1:9]))
-        return float(json.loads(last[1].decode("utf-8")).get("total_burned", 0.0))
+        row = self._loads_json_or_none(last[1], context="burn_total")
+        if row is None:
+            return 0.0
+        return float(row.get("total_burned", 0.0) or 0.0)
 
     def get_burn_stats(self) -> Dict:
         total = self.get_total_burned()

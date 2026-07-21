@@ -2032,7 +2032,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                     rows = ca.get_attestations_by_block()
                     self._json({"count": len(rows), "blocks": rows})
                 else:
-                    self._json({"count": 0, "blocks": [], "enabled": False})
+                    self._json({
+                        "count": 0,
+                        "blocks": [],
+                        "enabled": False,
+                        "error": "consensus_adapter_missing",
+                    })
 
             elif path.startswith("/consensus/attestations/block/"):
                 block_hash = path.split("/consensus/attestations/block/", 1)[1]
@@ -2045,7 +2050,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "attestations": votes,
                     })
                 else:
-                    self._json({"block_hash": block_hash, "count": 0, "attestations": []})
+                    self._json({
+                        "block_hash": block_hash,
+                        "count": 0,
+                        "attestations": [],
+                        "enabled": False,
+                        "error": "consensus_adapter_missing",
+                    })
 
             elif path == "/consensus/attestations":
                 ca = self.__class__.consensus_adapter
@@ -2057,7 +2068,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "head": ca.get_canonical_head() if hasattr(ca, "get_canonical_head") else None,
                     })
                 else:
-                    self._json({"count": 0, "attestations": [], "enabled": False})
+                    self._json({
+                        "count": 0,
+                        "attestations": [],
+                        "enabled": False,
+                        "error": "consensus_adapter_missing",
+                    })
 
             elif path == "/auth/token":
                 if getattr(cfg, "deployment_mode", "dev") == "prod":
@@ -2323,7 +2339,11 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/sharding/pending":
                 sharding = self.__class__.sharding
                 if not sharding:
-                    self._json({"enabled": False, "pending": []})
+                    self._json({
+                        "enabled": False,
+                        "pending": [],
+                        "error": "sharding_missing",
+                    })
                     return
                 pending = []
                 for tx_id in getattr(sharding, "pending_cross_txs", []):
@@ -3502,7 +3522,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                     vals = list(ce.validators.values())
                     self._json({"committee": [v.__dict__ if hasattr(v,'__dict__') else str(v) for v in vals[:10]]})
                 else:
-                    self._json({"committee": [], "enabled": False})
+                    self._json({
+                        "committee": [],
+                        "enabled": False,
+                        "error": "consensus_engine_missing",
+                    })
 
             # ── Finality epoch ────────────────────────────────────────────────
             elif path == "/finality/epoch":
@@ -3513,7 +3537,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ep = getattr(fe, "current_epoch", None) or getattr(fe, "epoch", 0)
                     self._json({"epoch": ep})
                 else:
-                    self._json({"epoch": 0, "enabled": False})
+                    self._json({
+                        "epoch": 0,
+                        "enabled": False,
+                        "error": "finality_engine_missing",
+                    })
 
             # ── Sharding: balance and state ───────────────────────────────────
             elif path.startswith("/sharding/balance/"):
@@ -3602,7 +3630,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     info["total_active_stake"] = se.get_total_active_stake() if hasattr(se,"get_total_active_stake") else None
                     self._json(info)
                 else:
-                    self._json({"enabled": False})
+                    self._json({"enabled": False, "error": "slashing_engine_missing"})
 
             elif path == "/slashing/validators":
                 se = self.__class__.slashing_engine

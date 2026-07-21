@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.26] — 2026-07-21
+
+### Hardened — remaining gather / Rocks mutate / attestation errors / BlockBuilder
+
+- Cross-shard and validator_register gossip record broadcast_fail; Rocks mutate/burn fail-closed decode
+- Missing consensus/sharding/slashing/finality surfaces expose error keys; BlockBuilder not advertised as live forge
+
+---
+
 ## [1.3.25] — 2026-07-21
 
 ### Hardened — supply canonical / Rocks point-gets / broadcast_fail / core_real

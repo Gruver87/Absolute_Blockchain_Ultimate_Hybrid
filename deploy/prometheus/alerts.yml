@@ -83,6 +83,15 @@ groups:
           summary: "Elevated P2P ops errors on {{ $labels.node_id }}"
           description: "P2P operational error counters are rising above 0.5/sec for 5 minutes."
 
+      - alert: AbsoluteP2PBroadcastFailBurst
+        expr: rate(abs_p2p_ops_errors{kind="broadcast_fail"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P2P gossip broadcast failures on {{ $labels.node_id }}"
+          description: "block/tx/attestation/cross-shard gather send failures above 0.1/sec for 5 minutes."
+
       - alert: AbsoluteP2PAttestationLocalFailBurst
         expr: rate(abs_p2p_attestation_local_fail_total[5m]) > 0.1
         for: 5m
