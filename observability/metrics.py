@@ -134,6 +134,12 @@ class MetricsCollector:
                 f"abs_p2p_attestation_local_fail_total{{node_id=\"{node_id}\"}} "
                 f"{int(p2p_security.get('attestation_local_fail', 0) or 0)}"
             ),
+            "# HELP abs_p2p_peer_tx_reject_total Semantic peer tx rejects / mempool drops",
+            "# TYPE abs_p2p_peer_tx_reject_total counter",
+            (
+                f"abs_p2p_peer_tx_reject_total{{node_id=\"{node_id}\"}} "
+                f"{int((p2p_security.get('ops_errors') or {}).get('peer_tx_reject', 0) or 0)}"
+            ),
             "# HELP abs_p2p_shape_rejects_total Fail-closed P2P shape rejects",
             "# TYPE abs_p2p_shape_rejects_total counter",
             (

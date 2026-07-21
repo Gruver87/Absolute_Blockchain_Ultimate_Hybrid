@@ -8,7 +8,7 @@
 This document is the honest engineering checklist after a full repository scan.  
 Automated gates (`mainnet_readiness`, `prod_gate`, `industrial_gate`, `post_soak_verify`) enforce code-level fail-closed rules; **they do not replace** external audit, validator operations, or legal review.
 
-**Recent code hardening (v1.3.03–v1.3.09, not organizational proof):** P2P shape/rate-limit/ops_errors Prometheus metrics + alerts; ceremony dir auto-detect; RocksDB tuning env/JSON parity (CF remains **operator opt-in**, default false); wire-parse/rate-limit/housekeeping/mid-session-handshake rejects strike with pre-ban warning logs; CI `final_audit` blocking; honest send/status fail counters; k8s ConfigMap embed freeze; EVM CREATE native fail-closed; `.env.example` bridge default OFF.
+**Recent code hardening (v1.3.03–v1.3.10, not organizational proof):** P2P shape/rate-limit/ops_errors/peer_tx_reject Prometheus metrics + alerts; ceremony dir auto-detect; RocksDB tuning env/JSON parity (CF remains **operator opt-in**, default false); wire-parse/rate-limit/housekeeping/mid-session-handshake/semantic-tx rejects strike with pre-ban warning logs; CI `final_audit` blocking; honest send/status fail counters; k8s ConfigMap embed freeze + post_soak k8s gate; mesh Redis JSON honesty; compose↔JSON numeric freeze; EVM CREATE native fail-closed; `.env.example` bridge default OFF.
 
 **Gate honesty:** `industrial_gate` exit 0 with warnings is normal for ceremony placeholders + external audit pending + missing `abs_bridge_bin` while bridge OFF. Use `--fail-on-warnings` only for release cutovers that already completed those org steps.
 

@@ -95,11 +95,18 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "abs_p2p_peer_send_fail_total",
         "abs_p2p_ops_errors",
         "abs_p2p_attestation_local_fail_total",
+        "abs_p2p_peer_tx_reject_total",
         "abs_rocksdb_column_families",
     ):
         if needle not in metrics_src:
             errors.append(f"metrics.py missing Prometheus series: {needle}")
-    for needle in ("maintenance_loop_fail", "catch_up_loop_fail", "strike %s/%s"):
+    for needle in (
+        "maintenance_loop_fail",
+        "catch_up_loop_fail",
+        "strike %s/%s",
+        "peer_tx_reject",
+        "bad_peer_tx",
+    ):
         if needle not in p2p_mod:
             errors.append(f"p2p_node.py missing industrial surface: {needle}")
     alerts_src = (ROOT / "deploy" / "prometheus" / "alerts.yml").read_text(encoding="utf-8")
@@ -110,6 +117,7 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "abs_p2p_handshake_rejects_total",
         "abs_p2p_ops_errors",
         "abs_p2p_attestation_local_fail_total",
+        "abs_p2p_peer_tx_reject_total",
         "abs_rocksdb_block_cache_mb",
     ):
         if needle not in alerts_src:
@@ -120,6 +128,7 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "abs_p2p_ops_errors",
         "mid_session_handshake",
         "abs_p2p_attestation_local_fail_total",
+        "abs_p2p_peer_tx_reject_total",
     ):
         if needle not in dash_src:
             errors.append(f"grafana dashboard.json missing panel surface: {needle}")
@@ -144,6 +153,7 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "p2p_max_message_bytes",
         "p2p_ban_seconds",
         "p2p_rate_limit_strikes",
+        "p2p_evict_min_score",
         "rocksdb_sync",
         "rocksdb_block_cache_mb",
         "rocksdb_write_buffer_mb",
@@ -154,6 +164,7 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "rust_bridge_path",
         "bridge_auto_confirm_sec",
     )
+    mesh_json_cfgs: list[tuple[str, dict]] = []
     for rel in prod_json_files:
         path = ROOT / rel
         if not path.is_file():
@@ -185,6 +196,54 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
                 errors.append(f"{rel}: bridge_enabled must be false until L1 audit")
         if prod_cfg.get("p2p_tls_enabled") is True:
             prod_tls_enabled = True
+        mesh_min = int(prod_cfg.get("mesh_min_peers_before_mine", 0) or 0)
+        needs_redis = mesh_min >= 1 or "k8s" in Path(rel).name.lower()
+        if needs_redis:
+            if "redis_rate_limit_enabled" not in prod_cfg or "redis_url" not in prod_cfg:
+                errors.append(f"{rel}: mesh/k8s requires redis_rate_limit_enabled + redis_url")
+            elif prod_cfg.get("redis_rate_limit_enabled") is not True:
+                errors.append(f"{rel}: redis_rate_limit_enabled must be true for mesh/k8s")
+            elif not str(prod_cfg.get("redis_url") or "").strip():
+                errors.append(f"{rel}: redis_url must be non-empty for mesh/k8s")
+        if "mesh" in Path(rel).name.lower():
+            mesh_json_cfgs.append((rel, prod_cfg))
+    # Compose env numeric freeze vs mesh JSON (3-node prod mesh).
+    compose_path = ROOT / "docker-compose.prod.3node.yml"
+    if compose_path.is_file() and mesh_json_cfgs:
+        import re
+
+        compose_text = compose_path.read_text(encoding="utf-8")
+        env_map = {
+            "ROCKSDB_SYNC": "rocksdb_sync",
+            "ROCKSDB_BLOCK_CACHE_MB": "rocksdb_block_cache_mb",
+            "ROCKSDB_WRITE_BUFFER_MB": "rocksdb_write_buffer_mb",
+            "ROCKSDB_COLUMN_FAMILIES": "rocksdb_column_families",
+            "P2P_MAX_MESSAGE_BYTES": "p2p_max_message_bytes",
+            "P2P_MAX_MESSAGES_PER_SEC": "p2p_max_messages_per_sec",
+            "P2P_BAN_SECONDS": "p2p_ban_seconds",
+            "P2P_RATE_LIMIT_STRIKES": "p2p_rate_limit_strikes",
+            "P2P_EVICT_MIN_SCORE": "p2p_evict_min_score",
+        }
+        for env_key, json_key in env_map.items():
+            m = re.search(
+                rf"(?m)^\s*{re.escape(env_key)}:\s*\"?([^\"\n#]+?)\"?\s*$",
+                compose_text,
+            )
+            if not m:
+                errors.append(f"docker-compose.prod.3node.yml missing {env_key}")
+                continue
+            compose_val = m.group(1).strip()
+            for rel, prod_cfg in mesh_json_cfgs:
+                raw = prod_cfg.get(json_key)
+                if isinstance(raw, bool):
+                    json_val = "true" if raw else "false"
+                else:
+                    json_val = str(raw).strip()
+                if compose_val.lower() != json_val.lower():
+                    errors.append(
+                        f"compose↔JSON mismatch {env_key}={compose_val} vs "
+                        f"{rel}.{json_key}={json_val}"
+                    )
     if not prod_tls_enabled:
         warnings.append(
             "prod mesh JSON: p2p_tls_enabled is not true "

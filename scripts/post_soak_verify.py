@@ -5,6 +5,7 @@ Covers the Rust/P2P/consensus/state/native-hash/Rocks CF wave:
   1) abs_native kernel surface smoke
   2) targeted unit tests
   3) industrial_gate.py
+  4) k8s_prod_gate.py
 
 Usage (repo root):
   python scripts/post_soak_verify.py
@@ -85,7 +86,7 @@ def _run(cmd: list[str], *, cwd: Path | None = None, env: dict | None = None) ->
 
 
 def step_rebuild_native() -> int:
-    print("\n=== [1/4] Rebuild abs_native wheel ===")
+    print("\n=== [1/5] Rebuild abs_native wheel ===")
     crate = ROOT / "native" / "abs_native"
     out = ROOT / "dist" / "native_wheel"
     out.mkdir(parents=True, exist_ok=True)
@@ -106,7 +107,7 @@ def step_rebuild_native() -> int:
 
 
 def step_native_smoke() -> tuple[int, dict]:
-    print("\n=== [2/4] Native kernel smoke ===")
+    print("\n=== [2/5] Native kernel smoke ===")
     report: dict = {"available": False, "missing": [], "rocks_cf": False, "errors": []}
     try:
         import abs_native  # type: ignore
@@ -183,7 +184,7 @@ def step_native_smoke() -> tuple[int, dict]:
 
 
 def step_pytest() -> int:
-    print("\n=== [3/4] Targeted post-soak pytest ===")
+    print("\n=== [3/5] Targeted post-soak pytest ===")
     tests = [str(ROOT / t) for t in POST_SOAK_TESTS if (ROOT / t).is_file()]
     if not tests:
         print("FAIL: no test files found")
@@ -197,8 +198,13 @@ def step_pytest() -> int:
 
 
 def step_industrial_gate() -> int:
-    print("\n=== [4/4] Industrial gate ===")
+    print("\n=== [4/5] Industrial gate ===")
     return _run([sys.executable, str(ROOT / "scripts" / "industrial_gate.py")])
+
+
+def step_k8s_prod_gate() -> int:
+    print("\n=== [5/5] K8s prod gate ===")
+    return _run([sys.executable, str(ROOT / "scripts" / "k8s_prod_gate.py")])
 
 
 def step_clippy() -> int:
@@ -275,6 +281,11 @@ def main() -> int:
 
     rc = step_industrial_gate()
     results["steps"]["industrial_gate"] = rc
+    if rc != 0:
+        return _finish(results, started, args.json_out)
+
+    rc = step_k8s_prod_gate()
+    results["steps"]["k8s_prod_gate"] = rc
     if rc != 0:
         return _finish(results, started, args.json_out)
 

@@ -169,6 +169,15 @@
       "type": "stat",
       "gridPos": {"h": 4, "w": 6, "x": 0, "y": 52},
       "targets": [{"expr": "abs_p2p_attestation_local_fail_total"}]
+    },
+    {
+      "id": 22,
+      "title": "Peer Tx Rejects",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 6, "y": 52},
+      "targets": [
+        {"expr": "abs_p2p_peer_tx_reject_total", "legendFormat": "{{node_id}}"}
+      ]
     }
   ]
 }

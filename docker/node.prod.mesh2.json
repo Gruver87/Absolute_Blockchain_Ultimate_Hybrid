@@ -23,6 +23,8 @@
   "p2p_tls_require_client_cert": true,
   "p2p_tls_fail_closed": true,
   "p2p_tls_bind_identity": true,
+  "redis_rate_limit_enabled": true,
+  "redis_url": "redis://redis:6379/0",
   "bootstrap_peers": [
     "node1:5000"
   ],

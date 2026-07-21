@@ -302,6 +302,8 @@ class P2PNode:
         self._peer_send_fail: int = 0
         self._maintenance_loop_fail: int = 0
         self._catch_up_loop_fail: int = 0
+        self._peer_tx_reject: int = 0
+        self._last_tx_wire_reject: str = ""
         self._shape_reject_counts: Dict[str, int] = {}
         self._consensus = None
         self.validator_keys = None
@@ -1186,7 +1188,9 @@ class P2PNode:
 
     def _build_mempool_tx_from_wire(self, data: Dict):
         """Build a mempool entry from wire-format tx; None if invalid."""
+        self._last_tx_wire_reject = ""
         if not native.validate_p2p_wire_tx(data):
+            self._last_tx_wire_reject = "bad_wire_tx"
             return None
         from core.blockchain import Transaction
         from blockchain.mempool import MempoolTransaction
@@ -1214,7 +1218,7 @@ class P2PNode:
         )
         validation = self.blockchain.validate_transaction(tx)
         if not validation["valid"]:
-            logger.debug(f"[P2P] Tx rejected: {validation.get('error')}")
+            self._last_tx_wire_reject = str(validation.get("error") or "invalid")
             return None
 
         fee = float(data.get("fee", gas * getattr(self.config, "gas_price_wei", 0.001)))
@@ -1237,13 +1241,33 @@ class P2PNode:
         data: Dict,
         source: str = "p2p_gossip",
         peer_id: str = "",
+        peer: Optional[PeerConnection] = None,
+        *,
+        strike_on_reject: bool = False,
     ) -> bool:
         """Validate and add a wire-format tx to mempool; record propagation stages."""
         built = self._build_mempool_tx_from_wire(data)
         if not built:
+            err = self._last_tx_wire_reject or "invalid"
+            self._peer_tx_reject = int(self._peer_tx_reject or 0) + 1
+            logger.warning(
+                "[P2P] Tx rejected (%s peer=%s): %s",
+                source,
+                (peer_id or "?")[:12],
+                err,
+            )
+            if strike_on_reject and peer is not None:
+                self._strike_peer_sync(peer, "bad_peer_tx")
             return False
         mp_tx, tx_hash = built
         if not self.mempool.add(mp_tx):
+            self._peer_tx_reject = int(self._peer_tx_reject or 0) + 1
+            logger.warning(
+                "[P2P] Tx mempool drop (%s peer=%s hash=%s)",
+                source,
+                (peer_id or "?")[:12],
+                str(tx_hash)[:12],
+            )
             return False
 
         stage_recv = "mempool_sync" if source == "mempool_sync" else "p2p_received"
@@ -1265,7 +1289,13 @@ class P2PNode:
     async def _handle_new_tx(self, peer: PeerConnection, data: Dict):
         """Принимаем транзакцию из gossip."""
         peer_id = getattr(peer, "peer_id", "") if peer else ""
-        await self._ingest_peer_tx(data, source="p2p_gossip", peer_id=peer_id)
+        await self._ingest_peer_tx(
+            data,
+            source="p2p_gossip",
+            peer_id=peer_id,
+            peer=peer,
+            strike_on_reject=True,
+        )
 
     async def _handle_get_mempool(self, peer: PeerConnection):
         from blockchain.mempool_wire import mempool_tx_to_wire
@@ -1280,13 +1310,25 @@ class P2PNode:
         txs = data.get("transactions", [])
         peer_id = getattr(peer, "peer_id", "") if peer else ""
         mp_txs = []
+        wire_rejects = 0
         for tx_data in txs:
             built = self._build_mempool_tx_from_wire(tx_data)
             if built:
                 mp_txs.append(built[0])
+            else:
+                wire_rejects += 1
+        if wire_rejects:
+            self._peer_tx_reject = int(self._peer_tx_reject or 0) + wire_rejects
+            logger.warning(
+                "[P2P] Mempool batch rejects peer=%s count=%s",
+                (peer_id or "?")[:12],
+                wire_rejects,
+            )
         if not mp_txs:
             return
-        added, _rejected, accepted_hashes = self.mempool.add_batch(mp_txs)
+        added, batch_rejected, accepted_hashes = self.mempool.add_batch(mp_txs)
+        if batch_rejected:
+            self._peer_tx_reject = int(self._peer_tx_reject or 0) + int(batch_rejected)
         stage_recv = "mempool_sync"
         for tx_hash in accepted_hashes:
             self._record_tx_propagation(
@@ -2246,6 +2288,7 @@ class P2PNode:
                 "peer_send_fail": int(self._peer_send_fail),
                 "maintenance_loop_fail": int(self._maintenance_loop_fail),
                 "catch_up_loop_fail": int(self._catch_up_loop_fail),
+                "peer_tx_reject": int(self._peer_tx_reject),
             },
             "rate_limit_exempt_types": len(RATE_LIMIT_EXEMPT_TYPES),
             "tls": p2p_tls_status(self.config),

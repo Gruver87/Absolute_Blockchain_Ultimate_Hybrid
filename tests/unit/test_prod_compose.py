@@ -102,6 +102,17 @@ def test_k8s_prod_gate_passes():
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
+def test_prod_mesh_json_declares_redis():
+    for name in (
+        "docker/node.prod.mesh1.json",
+        "docker/node.prod.mesh2.json",
+        "docker/node.prod.mesh3.json",
+    ):
+        cfg = json.loads((ROOT / name).read_text(encoding="utf-8"))
+        assert cfg.get("redis_rate_limit_enabled") is True, name
+        assert str(cfg.get("redis_url") or "").startswith("redis://"), name
+
+
 def test_prod_mesh_requires_redis_rl():
     cfg = __import__("runtime.config", fromlist=["Config"]).Config()
     cfg.deployment_mode = "prod"

@@ -6,6 +6,17 @@
 
 ---
 
+## [1.3.10] — 2026-07-21
+
+### Hardened — Semantic peer-tx honesty, mesh Redis JSON, compose freeze
+
+- Peer tx semantic/mempool rejects → warn + `peer_tx_reject` counter; gossip strikes `bad_peer_tx`
+- `abs_p2p_peer_tx_reject_total` metric + alert/Grafana panel
+- Mesh JSON redis parity with compose; industrial_gate compose↔JSON numeric freeze
+- `post_soak_verify` includes `k8s_prod_gate`
+
+---
+
 ## [1.3.09] — 2026-07-21
 
 ### Hardened — Pre-ban strike logs, loop honesty, k8s embed freeze
