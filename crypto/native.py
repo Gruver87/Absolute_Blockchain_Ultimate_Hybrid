@@ -93,6 +93,8 @@ def native_crypto_status(required: bool = False) -> dict:
             "evm_keccak256_memory",
             "evm_pure_runner",
             "evm_run_until_halt",
+            "evm_host_snapshot_storage",
+            "evm_host_restore_storage",
             "evm_deploy_address",
             "evm_create2_eip1014",
             "validate_imported_block_chain",
@@ -1053,6 +1055,22 @@ def evm_run_until_halt(
         )
         return _parse_native_segment(seg)
     raise RuntimeError("evm_run_until_halt requires abs_native")
+
+
+def evm_host_snapshot_storage(storage: dict) -> dict:
+    _require_native_kernel("evm_host_snapshot_storage")
+    if _native is not None and hasattr(_native, "evm_host_snapshot_storage"):
+        out = _native.evm_host_snapshot_storage(storage)
+        return dict(out) if out is not None else {}
+    raise RuntimeError("evm_host_snapshot_storage requires abs_native")
+
+
+def evm_host_restore_storage(storage: dict, snapshot: dict) -> None:
+    _require_native_kernel("evm_host_restore_storage")
+    if _native is not None and hasattr(_native, "evm_host_restore_storage"):
+        _native.evm_host_restore_storage(storage, snapshot)
+        return
+    raise RuntimeError("evm_host_restore_storage requires abs_native")
 
 
 def evm_memory_copy(memory: bytearray, dest: int, src: bytes, src_offset: int, size: int) -> None:

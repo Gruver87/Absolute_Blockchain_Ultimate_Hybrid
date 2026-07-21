@@ -277,7 +277,37 @@ class EVM:
             "(ABS_REQUIRE_NATIVE_CRYPTO forbids Python fallback)"
         )
 
+    def _take_host_storage_snap(self) -> dict:
+        if hasattr(native, "evm_host_snapshot_storage"):
+            try:
+                return native.evm_host_snapshot_storage(self.storage)
+            except Exception:
+                pass
+        return dict(self.storage)
+
+    def _restore_host_storage_snap(self, snap: dict) -> None:
+        if hasattr(native, "evm_host_restore_storage"):
+            try:
+                native.evm_host_restore_storage(self.storage, snap)
+                return
+            except Exception:
+                pass
+        self.storage.clear()
+        self.storage.update(snap)
+
     def execute_bytecode(self, bytecode: bytes) -> Dict[str, Any]:
+        host_snap = self._take_host_storage_snap()
+        try:
+            result = self._execute_bytecode_impl(bytecode)
+            if result.get("reverted"):
+                self._restore_host_storage_snap(host_snap)
+                result["storage"] = self.storage.copy()
+            return result
+        except Exception:
+            self._restore_host_storage_snap(host_snap)
+            raise
+
+    def _execute_bytecode_impl(self, bytecode: bytes) -> Dict[str, Any]:
         self.pc = 0
         self.stack = []
         self.gas_used = 0

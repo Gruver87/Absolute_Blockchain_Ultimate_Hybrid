@@ -220,13 +220,20 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `fe_epoch` / `fe_quorum_reached` / `fe_can_finalize` (FinalityEngine count path)
 - [x] `slash_check_double_vote` / `slash_check_double_proposal`
 - [x] Wired in `finality_casper.py`, `finality_beacon.py`, `finality_engine.py`, `slashing.py`
-- Remaining: eth_tx decode · EVM host snapshot · Rocks codecs · P2P rate-limit
+- Remaining: Rocks codecs · P2P rate-limit · full EVM host-in-apply
 
 ### Priority 13 — Eth raw tx decode kernel ✅ (v1.3.40)
 
 - [x] `decode_eth_raw_tx` / `decode_eth_raw_tx_hex` — legacy / EIP-1559 / EIP-4844 + recover
 - [x] `crypto/eth_tx.py` prefers native JSON; blob_hashes coerced to int
-- Remaining: EVM host snapshot · Rocks codecs · P2P rate-limit
+- Remaining: Rocks codecs · P2P rate-limit · full EVM host-in-apply
+
+### Priority 14 — EVM host storage snapshot around runner ✅ (v1.3.41)
+
+- [x] `evm_host_snapshot_storage` / `evm_host_restore_storage`
+- [x] `evm_run_until_halt` restores storage on REVERT / OOG / error
+- [x] `evm_interpreter.execute_bytecode` framesnap + restore; adapter fail-closed writeback on revert
+- Remaining: Rocks codecs · P2P rate-limit · full EVM host-in-apply
 
 ## Process per module
 

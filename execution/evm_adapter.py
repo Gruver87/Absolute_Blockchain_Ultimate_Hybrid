@@ -219,15 +219,16 @@ class EVMAdapter:
             }
 
         if delegate or callcode:
-            new_storage = {str(k): v for k, v in result.get("storage", {}).items()}
-            self.db.update_account_storage(caller_ctx.address, new_storage)
-            if callcode and call_value > 0 and not result.get("reverted"):
-                wei_to_abs = call_value / 10**18
-                self.db.update_balance(caller_ctx.address, -wei_to_abs)
-                self.db.update_balance(target, wei_to_abs)
-            sub_logs = result.get("logs") or []
-            if sub_logs:
-                self._persist_logs(caller_ctx.address, sub_logs)
+            if not result.get("reverted"):
+                new_storage = {str(k): v for k, v in result.get("storage", {}).items()}
+                self.db.update_account_storage(caller_ctx.address, new_storage)
+                if callcode and call_value > 0:
+                    wei_to_abs = call_value / 10**18
+                    self.db.update_balance(caller_ctx.address, -wei_to_abs)
+                    self.db.update_balance(target, wei_to_abs)
+                sub_logs = result.get("logs") or []
+                if sub_logs:
+                    self._persist_logs(caller_ctx.address, sub_logs)
         else:
             if not result.get("reverted"):
                 new_storage = {str(k): v for k, v in result.get("storage", {}).items()}

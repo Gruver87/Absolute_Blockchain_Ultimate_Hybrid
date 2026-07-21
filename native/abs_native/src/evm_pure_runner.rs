@@ -232,6 +232,53 @@ fn storage_store(storage: Option<&Bound<'_, PyDict>>, key: U256, value: U256) ->
     Ok(())
 }
 
+fn snapshot_storage_dict(
+    storage: Option<&Bound<'_, PyDict>>,
+) -> PyResult<Option<HashMap<U256, U256>>> {
+    let Some(dict) = storage else {
+        return Ok(None);
+    };
+    let mut map = HashMap::new();
+    for (key, value) in dict.iter() {
+        let k = py_to_u256(key)?;
+        let v = py_to_u256(value)?;
+        if !v.is_zero() {
+            map.insert(k, v);
+        }
+    }
+    Ok(Some(map))
+}
+
+fn restore_storage_dict(
+    storage: Option<&Bound<'_, PyDict>>,
+    snap: &HashMap<U256, U256>,
+) -> PyResult<()> {
+    let Some(dict) = storage else {
+        return Ok(());
+    };
+    dict.clear();
+    let py = dict.py();
+    for (key, value) in snap {
+        if value.is_zero() {
+            continue;
+        }
+        dict.set_item(u256_to_py_int(py, *key)?, u256_to_py_int(py, *value)?)?;
+    }
+    Ok(())
+}
+
+fn abort_restore_host_storage(
+    storage: Option<&Bound<'_, PyDict>>,
+    snap: &Option<HashMap<U256, U256>>,
+    transient: &mut HashMap<U256, U256>,
+) -> PyResult<()> {
+    if let Some(map) = snap {
+        restore_storage_dict(storage, map)?;
+    }
+    transient.clear();
+    Ok(())
+}
+
 fn word_to_address(word: U256) -> String {
     let mask = (U256::one() << 160) - U256::one();
     format!("0x{:040x}", word & mask)
@@ -782,6 +829,7 @@ fn run_pure_segment_inner(
     storage: Option<&Bound<'_, PyDict>>,
     host_bridge: Option<&Bound<'_, PyAny>>,
     max_steps: usize,
+    host_frame_snapshot: bool,
 ) -> PyResult<PyObject> {
     if pc >= bytecode.len() {
         let stack = stack_to_pylist(py, &stack_from_py(stack_py)?)?;
@@ -812,7 +860,11 @@ fn run_pure_segment_inner(
     let mut handoff = false;
     let static_ctx = parse_static_context(host_context)?;
     let mut transient: HashMap<U256, U256> = HashMap::new();
-
+    let storage_snap = if host_frame_snapshot {
+        snapshot_storage_dict(storage)?
+    } else {
+        None
+    };
     while pc < bytecode.len() && running && steps < max_steps {
         let op = bytecode[pc];
         if opcode_stops_segment(op, host_context, host_bridge) {
@@ -832,6 +884,9 @@ fn run_pure_segment_inner(
         if cost > 0 {
             if let Err(reason) = consume_gas(&mut gas_used, gas_limit, cost) {
                 running = false;
+                if host_frame_snapshot {
+                    abort_restore_host_storage(storage, &storage_snap, &mut transient)?;
+                }
                 let stack = stack_to_pylist(py, &stack)?;
                 let memory_out = PyByteArray::new_bound(py, &memory);
                 return result_dict(
@@ -1369,6 +1424,9 @@ fn run_pure_segment_inner(
             Err(err) => {
                 let error_msg = err.to_string();
                 running = false;
+                if host_frame_snapshot {
+                    abort_restore_host_storage(storage, &storage_snap, &mut transient)?;
+                }
                 let stop = if error_msg.contains("out_of_gas") {
                     "out_of_gas"
                 } else {
@@ -1411,6 +1469,10 @@ fn run_pure_segment_inner(
     } else {
         "halt"
     };
+
+    if host_frame_snapshot && reverted {
+        abort_restore_host_storage(storage, &storage_snap, &mut transient)?;
+    }
 
     let host_opcode = if stop_reason == "host" {
         Some(bytecode[pc])
@@ -1481,6 +1543,7 @@ pub fn evm_run_pure_until_host_py(
         storage,
         host_bridge,
         MAX_PURE_STEPS,
+        false,
     )
 }
 
@@ -1517,5 +1580,28 @@ pub fn evm_run_until_halt_py(
         storage,
         host_bridge,
         MAX_FULL_STEPS,
+        true,
     )
+}
+
+#[pyfunction]
+#[pyo3(name = "evm_host_snapshot_storage")]
+pub fn evm_host_snapshot_storage_py(storage: &Bound<'_, PyDict>) -> PyResult<PyObject> {
+    let snap = snapshot_storage_dict(Some(storage))?.unwrap_or_default();
+    let out = PyDict::new_bound(storage.py());
+    let py = storage.py();
+    for (key, value) in snap {
+        out.set_item(u256_to_py_int(py, key)?, u256_to_py_int(py, value)?)?;
+    }
+    Ok(out.into())
+}
+
+#[pyfunction]
+#[pyo3(name = "evm_host_restore_storage")]
+pub fn evm_host_restore_storage_py(
+    storage: &Bound<'_, PyDict>,
+    snapshot: &Bound<'_, PyDict>,
+) -> PyResult<()> {
+    let snap = snapshot_storage_dict(Some(snapshot))?.unwrap_or_default();
+    restore_storage_dict(Some(storage), &snap)
 }

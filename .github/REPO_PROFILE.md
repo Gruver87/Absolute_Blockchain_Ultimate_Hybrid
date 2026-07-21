@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.40` — native eth raw tx decode kernel |
-| **Notes** | [RELEASE_NOTES_v1.3.40.md](../RELEASE_NOTES_v1.3.40.md) |
-| **Prior** | [v1.3.39](../RELEASE_NOTES_v1.3.39.md) FFG/slash; [v1.3.38](../RELEASE_NOTES_v1.3.38.md) GHOST/apply |
+| **Tag** | `v1.3.41` — EVM host storage snapshot around runner |
+| **Notes** | [RELEASE_NOTES_v1.3.41.md](../RELEASE_NOTES_v1.3.41.md) |
+| **Prior** | [v1.3.40](../RELEASE_NOTES_v1.3.40.md) eth_tx; [v1.3.39](../RELEASE_NOTES_v1.3.39.md) FFG/slash |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

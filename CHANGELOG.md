@@ -6,6 +6,13 @@
 
 ---
 
+## [1.3.41] — 2026-07-21
+
+### Added — EVM host storage snapshot around runner
+
+- Native storage snapshot/restore; until_halt aborts restore dirty SSTORE on REVERT/OOG
+- Interpreter frame snap + adapter fail-closed writeback on reverted delegate/callcode
+
 ## [1.3.40] — 2026-07-21
 
 ### Added — native eth raw tx decode kernel

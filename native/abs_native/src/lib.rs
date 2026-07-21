@@ -1680,6 +1680,14 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         evm_pure_runner::evm_run_pure_until_host_py,
         m
     )?)?;
+    m.add_function(wrap_pyfunction!(
+        evm_pure_runner::evm_host_snapshot_storage_py,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        evm_pure_runner::evm_host_restore_storage_py,
+        m
+    )?)?;
     m.add_function(wrap_pyfunction!(keccak256_hex, m)?)?;
     m.add_function(wrap_pyfunction!(recover_eth_address_keccak, m)?)?;
     m.add_function(wrap_pyfunction!(pubkey_to_eth_address, m)?)?;

@@ -956,8 +956,18 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         eth_tx_rs = ROOT / "native" / "abs_native" / "src" / "eth_tx.rs"
         if not eth_tx_rs.is_file():
             errors.append("native eth_tx.rs missing")
+        # v1.3.41 — EVM host storage snapshot around runner
+        for sym in ("evm_host_snapshot_storage", "evm_host_restore_storage"):
+            if f"def {sym}" not in native_py:
+                errors.append(f"crypto/native.py must export {sym} (v1.3.41)")
+        interp = (ROOT / "evm_interpreter.py").read_text(encoding="utf-8")
+        if "_take_host_storage_snap" not in interp or "evm_host_snapshot_storage" not in interp:
+            errors.append("evm_interpreter must snapshot host storage around execute")
+        adapter = (ROOT / "execution" / "evm_adapter.py").read_text(encoding="utf-8")
+        if 'if not result.get("reverted"):' not in adapter:
+            errors.append("evm_adapter must fail-closed writeback on reverted calls")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..40 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..41 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:
