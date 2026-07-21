@@ -118,6 +118,9 @@ def native_crypto_status(required: bool = False) -> dict:
             "slash_check_double_proposal",
             "decode_eth_raw_tx",
             "decode_eth_raw_tx_hex",
+            "rocks_key_account",
+            "rocks_pack_u64",
+            "rocks_key_block_height",
             "validator_selection_proposer",
             "validator_selection_proposer_weighted",
             "validator_selection_committee",
@@ -1716,6 +1719,34 @@ def decode_eth_raw_tx_hex(raw_hex: str) -> str:
     if _native is not None and hasattr(_native, "decode_eth_raw_tx_hex"):
         return str(_native.decode_eth_raw_tx_hex(str(raw_hex)))
     raise RuntimeError("decode_eth_raw_tx_hex requires abs_native")
+
+
+def rocks_key_account(address: str) -> bytes:
+    _require_native_kernel("rocks_key_account")
+    if _native is not None and hasattr(_native, "rocks_key_account"):
+        return bytes(_native.rocks_key_account(str(address)))
+    raise RuntimeError("rocks_key_account requires abs_native")
+
+
+def rocks_pack_u64(value: int) -> bytes:
+    _require_native_kernel("rocks_pack_u64")
+    if _native is not None and hasattr(_native, "rocks_pack_u64"):
+        return bytes(_native.rocks_pack_u64(int(value) & 0xFFFFFFFFFFFFFFFF))
+    raise RuntimeError("rocks_pack_u64 requires abs_native")
+
+
+def rocks_key_block_height(height: int) -> bytes:
+    _require_native_kernel("rocks_key_block_height")
+    if _native is not None and hasattr(_native, "rocks_key_block_height"):
+        return bytes(_native.rocks_key_block_height(int(height) & 0xFFFFFFFFFFFFFFFF))
+    raise RuntimeError("rocks_key_block_height requires abs_native")
+
+
+def rocks_unpack_u64(data: bytes) -> int:
+    _require_native_kernel("rocks_unpack_u64")
+    if _native is not None and hasattr(_native, "rocks_unpack_u64"):
+        return int(_native.rocks_unpack_u64(bytes(data)))
+    raise RuntimeError("rocks_unpack_u64 requires abs_native")
 
 
 def plan_transfer_fees(

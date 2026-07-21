@@ -212,7 +212,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `blockchain_apply_simple_block` — fee/burn/proposer + reward (no EVM calldata)
 - [x] `blockchain_replay_simple_blocks` — reorg/tip-repair assist for simple chains
 - [x] `core/blockchain.py` prefers native apply/replay; falls back to Python per-tx on EVM/error
-- Remaining (next waves): EVM host-in-apply, Rocks codecs, P2P rate-limit
+- Remaining (next waves): P2P rate-limit, full EVM host-in-apply
 
 ### Priority 12 — Finality FFG + slashing conflict kernels ✅ (v1.3.39)
 
@@ -220,20 +220,26 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `fe_epoch` / `fe_quorum_reached` / `fe_can_finalize` (FinalityEngine count path)
 - [x] `slash_check_double_vote` / `slash_check_double_proposal`
 - [x] Wired in `finality_casper.py`, `finality_beacon.py`, `finality_engine.py`, `slashing.py`
-- Remaining: Rocks codecs · P2P rate-limit · full EVM host-in-apply
+- Remaining: P2P rate-limit · full EVM host-in-apply
 
 ### Priority 13 — Eth raw tx decode kernel ✅ (v1.3.40)
 
 - [x] `decode_eth_raw_tx` / `decode_eth_raw_tx_hex` — legacy / EIP-1559 / EIP-4844 + recover
 - [x] `crypto/eth_tx.py` prefers native JSON; blob_hashes coerced to int
-- Remaining: Rocks codecs · P2P rate-limit · full EVM host-in-apply
+- Remaining: P2P rate-limit · full EVM host-in-apply
 
 ### Priority 14 — EVM host storage snapshot around runner ✅ (v1.3.41)
 
 - [x] `evm_host_snapshot_storage` / `evm_host_restore_storage`
 - [x] `evm_run_until_halt` restores storage on REVERT / OOG / error
 - [x] `evm_interpreter.execute_bytecode` framesnap + restore; adapter fail-closed writeback on revert
-- Remaining: Rocks codecs · P2P rate-limit · full EVM host-in-apply
+- Remaining: P2P rate-limit · full EVM host-in-apply
+
+### Priority 15 — Rocks typed key codecs ✅ (v1.3.42)
+
+- [x] `rocks_keycodec.rs` — pack/unpack + all Rocks key/prefix builders
+- [x] `storage/keycodec.py` prefers abs_native; Python fallback retained
+- Remaining: P2P rate-limit · full EVM host-in-apply
 
 ## Process per module
 

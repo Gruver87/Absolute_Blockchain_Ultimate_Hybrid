@@ -966,8 +966,18 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         adapter = (ROOT / "execution" / "evm_adapter.py").read_text(encoding="utf-8")
         if 'if not result.get("reverted"):' not in adapter:
             errors.append("evm_adapter must fail-closed writeback on reverted calls")
+        # v1.3.42 — Rocks typed key codecs
+        for sym in ("rocks_key_account", "rocks_pack_u64", "rocks_key_block_height", "rocks_unpack_u64"):
+            if f"def {sym}" not in native_py:
+                errors.append(f"crypto/native.py must export {sym} (v1.3.42)")
+        kc_py = (ROOT / "storage" / "keycodec.py").read_text(encoding="utf-8")
+        if "rocks_key_account" not in kc_py or "native_keycodec_available" not in kc_py:
+            errors.append("keycodec.py must prefer native rocks_* codecs")
+        kc_rs = ROOT / "native" / "abs_native" / "src" / "rocks_keycodec.rs"
+        if not kc_rs.is_file():
+            errors.append("native rocks_keycodec.rs missing")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..41 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..42 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

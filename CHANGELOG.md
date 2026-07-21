@@ -6,6 +6,12 @@
 
 ---
 
+## [1.3.42] — 2026-07-21
+
+### Added — native RocksDB typed key codecs
+
+- Rust `rocks_*` pack/key/prefix builders; `storage/keycodec.py` prefers abs_native
+
 ## [1.3.41] — 2026-07-21
 
 ### Added — EVM host storage snapshot around runner
