@@ -218,7 +218,20 @@ def _check_audit_pack_export() -> tuple[list[str], list[str]]:
         amount_src = (
             ROOT / "native" / "abs_native" / "src" / "amount.rs"
         ).read_text(encoding="utf-8")
-        native_surface = native_lib + "\n" + consensus_src + "\n" + p2p_wire_src + "\n" + amount_src
+        storage_src = (
+            ROOT / "native" / "abs_native" / "src" / "storage" / "mod.rs"
+        ).read_text(encoding="utf-8")
+        native_surface = (
+            native_lib
+            + "\n"
+            + consensus_src
+            + "\n"
+            + p2p_wire_src
+            + "\n"
+            + amount_src
+            + "\n"
+            + storage_src
+        )
         for needle in (
             "MAX_IMPORTED_BLOCKS",
             "MAX_PEER_HEADERS",
@@ -231,6 +244,8 @@ def _check_audit_pack_export() -> tuple[list[str], list[str]]:
             "too_many_headers",
             "block_json_too_large",
             "too_many_account_blobs",
+            "column_families",
+            "rocksdb_missing_column_family",
             "account_blob_too_large",
             "MAX_CONSENSUS_VALIDATORS",
             "too_many_validators",

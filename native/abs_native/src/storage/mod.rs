@@ -1,41 +1,72 @@
 //! RocksDB engine for Absolute chain storage (LSM, concurrent reads).
+//!
+//! Optional column-family split (`column_families=true`):
+//! - `blocks` — key prefixes 0x01..=0x08 (blocks, txs, receipts, indexes)
+//! - `state`  — key prefix 0x10 (accounts)
+//! - `index`  — validators / meta / audits / nft / evm logs / …
+//!
+//! Reads fall back to `default` so existing single-CF databases keep working
+//! after enabling the flag (new writes go to the target CF).
 
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
 use rocksdb::{
-    BlockBasedOptions, Cache, Direction, IteratorMode, Options, WriteBatch, WriteOptions, DB,
+    BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, Direction, IteratorMode,
+    Options, WriteBatch, WriteOptions, DB,
 };
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
+
+const CF_DEFAULT: &str = "default";
+const CF_BLOCKS: &str = "blocks";
+const CF_STATE: &str = "state";
+const CF_INDEX: &str = "index";
+const CF_NAMES: &[&str] = &[CF_DEFAULT, CF_BLOCKS, CF_STATE, CF_INDEX];
+
+fn cf_name_for_key(key: &[u8]) -> &'static str {
+    match key.first() {
+        Some(1..=8) => CF_BLOCKS,
+        Some(0x10) => CF_STATE,
+        _ => CF_INDEX,
+    }
+}
+
+enum BatchOp {
+    Put { key: Vec<u8>, value: Vec<u8> },
+    Delete { key: Vec<u8> },
+}
 
 #[pyclass]
 pub struct RocksWriteBatch {
-    inner: WriteBatch,
+    ops: Vec<BatchOp>,
 }
 
 #[pymethods]
 impl RocksWriteBatch {
     #[new]
     fn new() -> Self {
-        Self {
-            inner: WriteBatch::default(),
-        }
+        Self { ops: Vec::new() }
     }
 
     fn put(&mut self, key: &[u8], value: &[u8]) {
-        self.inner.put(key, value);
+        self.ops.push(BatchOp::Put {
+            key: key.to_vec(),
+            value: value.to_vec(),
+        });
     }
 
     fn delete(&mut self, key: &[u8]) {
-        self.inner.delete(key);
+        self.ops.push(BatchOp::Delete {
+            key: key.to_vec(),
+        });
     }
 
     fn clear(&mut self) {
-        self.inner.clear();
+        self.ops.clear();
     }
 
     fn len(&self) -> usize {
-        self.inner.len()
+        self.ops.len()
     }
 }
 
@@ -45,6 +76,7 @@ pub struct RocksEngine {
     sync_writes: bool,
     block_cache_mb: u32,
     write_buffer_mb: u32,
+    column_families: bool,
     _block_cache: Option<Arc<Cache>>,
 }
 
@@ -59,10 +91,44 @@ const STORAGE_PROPERTY_KEYS: &[&str] = &[
     "rocksdb.num-running-flushes",
 ];
 
+fn apply_common_opts(
+    opts: &mut Options,
+    create_if_missing: bool,
+    block_cache_mb: u32,
+    write_buffer_mb: u32,
+) -> Option<Arc<Cache>> {
+    opts.create_if_missing(create_if_missing);
+    opts.set_max_open_files(512);
+    opts.set_bytes_per_sync(1_048_576);
+    opts.set_wal_bytes_per_sync(1_048_576);
+
+    let mut block_cache = None;
+    if block_cache_mb > 0 {
+        let cache = Cache::new_lru_cache((block_cache_mb as usize) * 1024 * 1024);
+        let mut block_opts = BlockBasedOptions::default();
+        block_opts.set_block_cache(&cache);
+        opts.set_block_based_table_factory(&block_opts);
+        block_cache = Some(Arc::new(cache));
+    }
+    if write_buffer_mb > 0 {
+        opts.set_write_buffer_size((write_buffer_mb as usize) * 1024 * 1024);
+    }
+    block_cache
+}
+
 #[pymethods]
 impl RocksEngine {
     #[new]
-    #[pyo3(signature = (path, *, create_if_missing=true, sync_writes=false, block_cache_mb=0, write_buffer_mb=0, read_only=false))]
+    #[pyo3(signature = (
+        path,
+        *,
+        create_if_missing=true,
+        sync_writes=false,
+        block_cache_mb=0,
+        write_buffer_mb=0,
+        read_only=false,
+        column_families=false
+    ))]
     fn new(
         path: &str,
         create_if_missing: bool,
@@ -70,44 +136,61 @@ impl RocksEngine {
         block_cache_mb: u32,
         write_buffer_mb: u32,
         read_only: bool,
+        column_families: bool,
     ) -> PyResult<Self> {
         let mut opts = Options::default();
-        opts.create_if_missing(create_if_missing);
-        opts.create_missing_column_families(false);
-        opts.set_max_open_files(512);
-        opts.set_bytes_per_sync(1_048_576);
-        opts.set_wal_bytes_per_sync(1_048_576);
+        let block_cache =
+            apply_common_opts(&mut opts, create_if_missing, block_cache_mb, write_buffer_mb);
 
-        let mut block_cache = None;
-        if block_cache_mb > 0 {
-            let cache = Cache::new_lru_cache((block_cache_mb as usize) * 1024 * 1024);
-            let mut block_opts = BlockBasedOptions::default();
-            block_opts.set_block_cache(&cache);
-            opts.set_block_based_table_factory(&block_opts);
-            block_cache = Some(Arc::new(cache));
-        }
-        if write_buffer_mb > 0 {
-            opts.set_write_buffer_size((write_buffer_mb as usize) * 1024 * 1024);
-        }
-
-        let db = if read_only {
-            opts.create_if_missing(false);
-            DB::open_for_read_only(&opts, path, false)
+        let db = if column_families {
+            opts.create_missing_column_families(true);
+            let cf_opts = Options::default();
+            let cfs: Vec<ColumnFamilyDescriptor> = CF_NAMES
+                .iter()
+                .map(|name| ColumnFamilyDescriptor::new(*name, cf_opts.clone()))
+                .collect();
+            if read_only {
+                opts.create_if_missing(false);
+                opts.create_missing_column_families(false);
+                DB::open_cf_for_read_only(&opts, path, CF_NAMES, false)
+            } else {
+                DB::open_cf_descriptors(&opts, path, cfs)
+            }
         } else {
-            DB::open(&opts, path)
+            opts.create_missing_column_families(false);
+            if read_only {
+                opts.create_if_missing(false);
+                DB::open_for_read_only(&opts, path, false)
+            } else {
+                DB::open(&opts, path)
+            }
         }
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyOSError, _>(e.to_string()))?;
+
         Ok(Self {
             db: Arc::new(db),
             sync_writes,
             block_cache_mb,
             write_buffer_mb,
+            column_families,
             _block_cache: block_cache,
         })
     }
 
     fn get<'py>(&self, py: Python<'py>, key: &[u8]) -> PyResult<Option<Py<PyBytes>>> {
-        match self.db.get(key).map_err(map_db_err)? {
+        if !self.column_families {
+            return match self.db.get(key).map_err(map_db_err)? {
+                Some(value) => Ok(Some(PyBytes::new_bound(py, &value).unbind())),
+                None => Ok(None),
+            };
+        }
+        let cf = self.cf_handle(cf_name_for_key(key))?;
+        if let Some(value) = self.db.get_cf(cf, key).map_err(map_db_err)? {
+            return Ok(Some(PyBytes::new_bound(py, &value).unbind()));
+        }
+        // Legacy dual-read: data written before CF split lives in default.
+        let default_cf = self.cf_handle(CF_DEFAULT)?;
+        match self.db.get_cf(default_cf, key).map_err(map_db_err)? {
             Some(value) => Ok(Some(PyBytes::new_bound(py, &value).unbind())),
             None => Ok(None),
         }
@@ -116,20 +199,63 @@ impl RocksEngine {
     fn put(&self, key: &[u8], value: &[u8]) -> PyResult<()> {
         let mut write_opts = WriteOptions::default();
         write_opts.set_sync(self.sync_writes);
-        self.db.put_opt(key, value, &write_opts).map_err(map_db_err)
+        if !self.column_families {
+            return self
+                .db
+                .put_opt(key, value, &write_opts)
+                .map_err(map_db_err);
+        }
+        let cf = self.cf_handle(cf_name_for_key(key))?;
+        self.db
+            .put_cf_opt(cf, key, value, &write_opts)
+            .map_err(map_db_err)
     }
 
     fn delete(&self, key: &[u8]) -> PyResult<()> {
         let mut write_opts = WriteOptions::default();
         write_opts.set_sync(self.sync_writes);
-        self.db.delete_opt(key, &write_opts).map_err(map_db_err)
+        if !self.column_families {
+            return self.db.delete_opt(key, &write_opts).map_err(map_db_err);
+        }
+        let cf = self.cf_handle(cf_name_for_key(key))?;
+        self.db
+            .delete_cf_opt(cf, key, &write_opts)
+            .map_err(map_db_err)?;
+        // Also clear legacy default copy if present.
+        let default_cf = self.cf_handle(CF_DEFAULT)?;
+        let _ = self.db.delete_cf_opt(default_cf, key, &write_opts);
+        Ok(())
     }
 
     fn write_batch(&self, batch: &mut RocksWriteBatch) -> PyResult<()> {
         let mut write_opts = WriteOptions::default();
         write_opts.set_sync(self.sync_writes);
-        let data = std::mem::take(&mut batch.inner);
-        self.db.write_opt(data, &write_opts).map_err(map_db_err)
+        let ops = std::mem::take(&mut batch.ops);
+        let mut wb = WriteBatch::default();
+        if !self.column_families {
+            for op in ops {
+                match op {
+                    BatchOp::Put { key, value } => wb.put(key, value),
+                    BatchOp::Delete { key } => wb.delete(key),
+                }
+            }
+        } else {
+            for op in ops {
+                match op {
+                    BatchOp::Put { key, value } => {
+                        let cf = self.cf_handle(cf_name_for_key(&key))?;
+                        wb.put_cf(cf, key, value);
+                    }
+                    BatchOp::Delete { key } => {
+                        let cf = self.cf_handle(cf_name_for_key(&key))?;
+                        wb.delete_cf(cf, &key);
+                        let default_cf = self.cf_handle(CF_DEFAULT)?;
+                        wb.delete_cf(default_cf, key);
+                    }
+                }
+            }
+        }
+        self.db.write_opt(wb, &write_opts).map_err(map_db_err)
     }
 
     #[pyo3(signature = (prefix, limit=10_000))]
@@ -139,15 +265,16 @@ impl RocksEngine {
         prefix: &[u8],
         limit: usize,
     ) -> PyResult<Vec<(Py<PyBytes>, Py<PyBytes>)>> {
-        let iter = self
-            .db
-            .iterator(IteratorMode::From(prefix, Direction::Forward));
+        if !self.column_families {
+            return self.prefix_scan_single(py, None, prefix, limit);
+        }
+        let primary = cf_name_for_key(prefix);
+        let mut merged: BTreeMap<Vec<u8>, Vec<u8>> = BTreeMap::new();
+        self.collect_prefix_into(&mut merged, primary, prefix, limit)?;
+        // Dual-read legacy default CF (skip keys already present from primary).
+        self.collect_prefix_into(&mut merged, CF_DEFAULT, prefix, limit)?;
         let mut out = Vec::new();
-        for item in iter.take(limit) {
-            let (key, value) = item.map_err(map_db_err)?;
-            if !key.starts_with(prefix) {
-                break;
-            }
+        for (key, value) in merged.into_iter().take(limit) {
             out.push((
                 PyBytes::new_bound(py, &key).unbind(),
                 PyBytes::new_bound(py, &value).unbind(),
@@ -174,7 +301,18 @@ impl RocksEngine {
             "sync_writes".to_string(),
             if self.sync_writes { 1 } else { 0 },
         );
+        out.insert(
+            "column_families".to_string(),
+            if self.column_families { 1 } else { 0 },
+        );
         Ok(out)
+    }
+
+    fn column_family_names(&self) -> PyResult<Vec<String>> {
+        if !self.column_families {
+            return Ok(vec![CF_DEFAULT.to_string()]);
+        }
+        Ok(CF_NAMES.iter().map(|s| (*s).to_string()).collect())
     }
 
     fn storage_properties<'py>(&self, py: Python<'py>) -> PyResult<Py<PyDict>> {
@@ -196,15 +334,16 @@ impl RocksEngine {
                 crate::MAX_STATE_ROOT_BLOBS
             )));
         }
-        let iter = self
-            .db
-            .iterator(IteratorMode::From(prefix, Direction::Forward));
-        let mut values = Vec::new();
-        for item in iter.take(limit) {
-            let (key, value) = item.map_err(map_db_err)?;
-            if !key.starts_with(prefix) {
-                break;
-            }
+        let rows = if !self.column_families {
+            self.prefix_scan_bytes(None, prefix, limit)?
+        } else {
+            let mut merged: BTreeMap<Vec<u8>, Vec<u8>> = BTreeMap::new();
+            self.collect_prefix_into(&mut merged, CF_STATE, prefix, limit)?;
+            self.collect_prefix_into(&mut merged, CF_DEFAULT, prefix, limit)?;
+            merged.into_iter().take(limit).collect()
+        };
+        let mut values = Vec::with_capacity(rows.len());
+        for (_key, value) in rows {
             if value.len() > crate::MAX_ACCOUNT_BLOB_BYTES {
                 return Err(pyo3::exceptions::PyValueError::new_err(format!(
                     "account_blob_too_large: {} > {} bytes",
@@ -215,6 +354,86 @@ impl RocksEngine {
             values.push(value);
         }
         crate::state_trie::compute_state_root_from_account_blobs(values)
+    }
+}
+
+impl RocksEngine {
+    fn cf_handle(&self, name: &str) -> PyResult<&ColumnFamily> {
+        self.db.cf_handle(name).ok_or_else(|| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "rocksdb_missing_column_family:{name}"
+            ))
+        })
+    }
+
+    fn collect_prefix_into(
+        &self,
+        out: &mut BTreeMap<Vec<u8>, Vec<u8>>,
+        cf_name: &str,
+        prefix: &[u8],
+        limit: usize,
+    ) -> PyResult<()> {
+        if out.len() >= limit {
+            return Ok(());
+        }
+        let cf = self.cf_handle(cf_name)?;
+        let iter = self
+            .db
+            .iterator_cf(cf, IteratorMode::From(prefix, Direction::Forward));
+        for item in iter {
+            if out.len() >= limit {
+                break;
+            }
+            let (key, value) = item.map_err(map_db_err)?;
+            if !key.starts_with(prefix) {
+                break;
+            }
+            out.entry(key.to_vec()).or_insert_with(|| value.to_vec());
+        }
+        Ok(())
+    }
+
+    fn prefix_scan_bytes(
+        &self,
+        cf_name: Option<&str>,
+        prefix: &[u8],
+        limit: usize,
+    ) -> PyResult<Vec<(Vec<u8>, Vec<u8>)>> {
+        let mut out = Vec::new();
+        let iter = if let Some(name) = cf_name {
+            let cf = self.cf_handle(name)?;
+            self.db
+                .iterator_cf(cf, IteratorMode::From(prefix, Direction::Forward))
+        } else {
+            self.db
+                .iterator(IteratorMode::From(prefix, Direction::Forward))
+        };
+        for item in iter.take(limit) {
+            let (key, value) = item.map_err(map_db_err)?;
+            if !key.starts_with(prefix) {
+                break;
+            }
+            out.push((key.to_vec(), value.to_vec()));
+        }
+        Ok(out)
+    }
+
+    fn prefix_scan_single<'py>(
+        &self,
+        py: Python<'py>,
+        cf_name: Option<&str>,
+        prefix: &[u8],
+        limit: usize,
+    ) -> PyResult<Vec<(Py<PyBytes>, Py<PyBytes>)>> {
+        let rows = self.prefix_scan_bytes(cf_name, prefix, limit)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for (key, value) in rows {
+            out.push((
+                PyBytes::new_bound(py, &key).unbind(),
+                PyBytes::new_bound(py, &value).unbind(),
+            ));
+        }
+        Ok(out)
     }
 }
 

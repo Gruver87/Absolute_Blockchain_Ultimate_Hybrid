@@ -451,3 +451,31 @@ def test_rocksdb_tuning_and_properties(tmp_path):
         props = dict(store._engine.storage_properties())
         assert isinstance(props, dict)
     store.close()
+
+
+def test_rocksdb_column_families_roundtrip_and_legacy_dual_read(tmp_path):
+    from storage import keycodec as kc
+    from storage.rocks_store import RocksChainStore
+
+    legacy = str(tmp_path / "legacy")
+    store_v1 = RocksChainStore(legacy, synchronous="FULL", column_families=False)
+    store_v1.initialize()
+    store_v1.set_balance("0x" + "a" * 40, 42.0)
+    store_v1._raw_put(kc.key_block_height(1), b'{"height":1,"hash":"ab"}')
+    store_v1.close()
+
+    # Enable CF on existing DB: dual-read must see legacy default keys.
+    store_cf = RocksChainStore(legacy, synchronous="FULL", column_families=True)
+    store_cf.initialize()
+    assert store_cf.get_balance("0x" + "a" * 40) == 42.0
+    assert store_cf._raw_get(kc.key_block_height(1)) == b'{"height":1,"hash":"ab"}'
+    assert store_cf.column_families is True
+    names = store_cf._engine.column_family_names()
+    assert set(names) >= {"default", "blocks", "state", "index"}
+
+    # New writes land in CFs and remain readable.
+    store_cf.set_balance("0x" + "b" * 40, 7.5)
+    assert store_cf.get_balance("0x" + "b" * 40) == 7.5
+    stats = store_cf.get_stats()
+    assert stats["rocksdb_tuning"].get("column_families") in (True, 1, "1")
+    store_cf.close()

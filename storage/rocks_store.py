@@ -41,6 +41,7 @@ class RocksChainStore:
         synchronous: str = "FULL",
         block_cache_mb: int = 0,
         write_buffer_mb: int = 0,
+        column_families: bool = False,
     ):
         if not _rocks_available():
             raise RuntimeError(
@@ -54,17 +55,34 @@ class RocksChainStore:
         self.synchronous = sync
         self.block_cache_mb = int(block_cache_mb or 0)
         self.write_buffer_mb = int(write_buffer_mb or 0)
+        self.column_families = bool(column_families)
         self._write_lock = threading.RLock()
         self._pending_batch: Any | None = None
         os.makedirs(db_path, exist_ok=True)
-        self._engine = abs_native.RocksEngine(
-            db_path,
-            create_if_missing=True,
-            sync_writes=sync in ("FULL", "EXTRA", "STRICT"),
-            block_cache_mb=self.block_cache_mb,
-            write_buffer_mb=self.write_buffer_mb,
+        engine_kwargs = {
+            "create_if_missing": True,
+            "sync_writes": sync in ("FULL", "EXTRA", "STRICT"),
+            "block_cache_mb": self.block_cache_mb,
+            "write_buffer_mb": self.write_buffer_mb,
+        }
+        # Older wheels may lack column_families kwarg — only pass when supported.
+        try:
+            import inspect
+
+            sig = inspect.signature(abs_native.RocksEngine)
+            if "column_families" in sig.parameters:
+                engine_kwargs["column_families"] = self.column_families
+            elif self.column_families:
+                raise RuntimeError(
+                    "rocksdb_column_families requires a newer abs_native wheel"
+                )
+        except (TypeError, ValueError):
+            if self.column_families:
+                engine_kwargs["column_families"] = self.column_families
+        self._engine = abs_native.RocksEngine(db_path, **engine_kwargs)
+        self._schema_version = (
+            "rocksdb-chain-v2-cf" if self.column_families else "rocksdb-chain-v1"
         )
-        self._schema_version = "rocksdb-chain-v1"
         self._root_acc: Any | None = None
         self._batch_acc_dirty: dict[str, bytes | None] = {}
         self._ensure_schema()
@@ -1212,6 +1230,7 @@ class RocksChainStore:
                 "block_cache_mb": self.block_cache_mb,
                 "write_buffer_mb": self.write_buffer_mb,
                 "sync": self.synchronous,
+                "column_families": self.column_families,
             },
         }
         if hasattr(self._engine, "storage_properties"):

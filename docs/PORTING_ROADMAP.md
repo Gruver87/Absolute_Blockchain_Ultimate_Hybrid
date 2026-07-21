@@ -97,7 +97,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `BRIDGE_MODE=rust` enforced by `prod_gate.py`
 - [x] Real L1 RPC (`ETH_RPC_URL`, `BSC_RPC_URL`, `POLYGON_RPC_URL`)
-- [ ] PyO3 bridge helper (optional; CLI sufficient today)
+- [x] PyO3 bridge helper CLI (`scripts/native_bridge_helper.py`; rust CLI remains prod path)
 - Dev-only: `bridge/mock_l1_rpc.py`, `bridge/dev_bridge_adapter.py` — **blocked in prod**
 
 ### Priority 6 — EVM execution ✅

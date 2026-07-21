@@ -55,6 +55,7 @@ class Config:
     rocksdb_sync: str = "FULL"          # normal | full — durable WAL/fsync
     rocksdb_block_cache_mb: int = 256   # 0 = RocksDB default
     rocksdb_write_buffer_mb: int = 64   # 0 = RocksDB default
+    rocksdb_column_families: bool = False  # opt-in CF split (blocks/state/index)
     db_wal_mode: bool = True            # WAL для производительности SQLite
 
     # ── Майнинг / Консенсус ─────────────────────────────────────────────────
@@ -246,6 +247,9 @@ class Config:
         )
         self.rocksdb_write_buffer_mb = env_int(
             "ROCKSDB_WRITE_BUFFER_MB", self.rocksdb_write_buffer_mb
+        )
+        self.rocksdb_column_families = env_bool(
+            "ROCKSDB_COLUMN_FAMILIES", self.rocksdb_column_families
         )
         self.resolve_storage_paths()
 
