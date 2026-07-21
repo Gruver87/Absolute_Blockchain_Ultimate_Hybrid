@@ -1299,6 +1299,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "state_root_strict_p2p": bool(
                         getattr(cfg, "state_root_strict_p2p", True)
                     ),
+                    "state_root_policy": (
+                        bc.get_state_root_policy()
+                        if bc and hasattr(bc, "get_state_root_policy")
+                        else {}
+                    ),
                     "jwt_enforce_admin": getattr(cfg, "jwt_enforce_admin", False),
                     "rpc_api_key_required": getattr(cfg, "rpc_api_key_required", False),
                     "bridge_oracle_enabled": bool(
@@ -2073,8 +2078,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if registry and oracles and hasattr(registry, "sync_from_manager"):
                     try:
                         registry.sync_from_manager(oracles)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning("oracle registry sync failed: %s", exc)
                 if registry and hasattr(registry, "list_feeds"):
                     feeds = registry.list_feeds(limit=20)
                     if feeds:
@@ -3282,8 +3287,17 @@ class RESTHandler(BaseHTTPRequestHandler):
                             )
                         )
                         return
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning("validators registry merge failed: %s", exc)
+                        self._json(
+                            {
+                                "validators": {},
+                                "count": 0,
+                                "merge_error": str(exc),
+                                "fallback": "in_memory_registry",
+                            }
+                        )
+                        return
                 if vr and hasattr(vr, "validators"):
                     vals = vr.validators
                     self._json({"validators": {k: v.to_dict() if hasattr(v,'to_dict') else str(v)

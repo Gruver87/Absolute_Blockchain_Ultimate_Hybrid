@@ -1,0 +1,30 @@
+# Example cert-manager wiring for per-pod P2P mTLS (optional; complements p2p-tls-secret.example.yaml).
+# Requires cert-manager installed in the cluster.
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: abs-p2p-selfsigned
+  namespace: absolute-chain
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: abs-node-p2p-tls
+  namespace: absolute-chain
+spec:
+  secretName: abs-p2p-tls
+  duration: 2160h
+  renewBefore: 360h
+  commonName: abs-node
+  dnsNames:
+    - abs-node-0.abs-p2p.absolute-chain.svc.cluster.local
+    - abs-node-1.abs-p2p.absolute-chain.svc.cluster.local
+    - abs-node-2.abs-p2p.absolute-chain.svc.cluster.local
+  issuerRef:
+    name: abs-p2p-selfsigned
+    kind: Issuer
+  # Production: replace with CA Issuer + per-pod Certificates (one per StatefulSet ordinal)
+  # and map node-N.pem / node-N.key in entrypoint.sh (see deploy/k8s/entrypoint.sh).

@@ -85,6 +85,12 @@ def main() -> int:
     if "p2p_tls_secrets" not in entry:
         errors.append("entrypoint.sh: must wire P2P TLS secrets by pod ordinal")
 
+    cert_mgr = K8S / "cert-manager-p2p.example.yaml"
+    if not cert_mgr.is_file():
+        errors.append("missing deploy/k8s/cert-manager-p2p.example.yaml")
+    elif "cert-manager.io/v1" not in cert_mgr.read_text(encoding="utf-8"):
+        errors.append("cert-manager-p2p.example.yaml: must document cert-manager Certificate")
+
     if errors:
         print("FAIL: k8s prod gate")
         for err in errors:

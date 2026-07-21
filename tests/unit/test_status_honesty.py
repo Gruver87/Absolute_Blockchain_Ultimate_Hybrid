@@ -72,6 +72,10 @@ def test_status_core_real_honest_when_bridge_off(tmp_path, monkeypatch):
         mw = body.get("middleware") or {}
         assert "rate_limit_backend" in mw
         assert body.get("p2p_hardening") is not None
+        srp = body.get("state_root_policy") or {}
+        enc = (srp.get("encoding") or {}).get("active") or {}
+        assert enc.get("version") == 1
+        assert enc.get("name") == "float_b_round12"
     finally:
         server.shutdown()
         db.close()

@@ -6,6 +6,17 @@
 
 ---
 
+## [1.2.92] — 2026-07-21
+
+### Hardened — mining fail-loud, state_root encoding scaffold
+
+- Mining loop: PBS/MEV/shard/epoch/light-client errors logged
+- `runtime/state_root_encoding.py` — v1 active, v2 satoshi scaffold blocked
+- `/status` exposes `state_root_policy.encoding`
+- K8s `cert-manager-p2p.example.yaml`; industrial_gate mining log checks
+
+---
+
 ## [1.2.91] — 2026-07-21
 
 ### Hardened — P2P ops fail-loud, K8s TLS mesh, CI skip policy

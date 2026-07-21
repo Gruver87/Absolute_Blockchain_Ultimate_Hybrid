@@ -18,6 +18,7 @@ Absolute Blockchain — ядро цепочки блоков.
 import json
 import time
 import threading
+import logging
 from typing import List, Dict, Optional, Any
 
 from crypto import native
@@ -26,6 +27,8 @@ from runtime.config import Config
 from runtime.tokenomics import genesis_balances, get_tokenomics_summary, MAX_SUPPLY_ABS
 from kernel.event_bus import EventBus
 from execution.state_root import compute_db_state_root
+
+_logger = logging.getLogger("Blockchain")
 
 # --- System C: StateEngine (детерминированные state transitions) ---
 try:
@@ -355,16 +358,16 @@ class Blockchain:
             pinned = self.db.get_meta("genesis_founder")
             if pinned:
                 return str(pinned).strip()
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.debug("genesis_founder meta read failed: %s", exc)
         try:
             tok = self.db.get_meta("tokenomics")
             if isinstance(tok, dict):
                 addr = str((tok.get("founder") or {}).get("address", "") or "").strip()
                 if addr:
                     return addr
-        except Exception:
-            pass
+        except Exception as exc:
+            _logger.debug("tokenomics founder meta read failed: %s", exc)
         manifest = getattr(self.config, "validators_manifest_path", "") or ""
         if manifest:
             try:
@@ -373,8 +376,8 @@ class Blockchain:
                 addr = manifest_founder_address(manifest)
                 if addr:
                     return addr
-            except Exception:
-                pass
+            except Exception as exc:
+                _logger.debug("manifest founder resolve failed: %s", exc)
         return self._resolve_genesis_founder()
 
     def _align_block_state_root_metadata(self, height: int, state_root: str) -> bool:
@@ -460,6 +463,8 @@ class Blockchain:
         return "strict"
 
     def get_state_root_policy(self) -> Dict:
+        from runtime.state_root_encoding import state_root_encoding_status
+
         return {
             "verify_peer_state_root": bool(
                 getattr(self.config, "verify_peer_state_root", True)
@@ -476,6 +481,7 @@ class Blockchain:
                 if getattr(self.config, "state_root_strict_p2p", True)
                 else "legacy_warn"
             ),
+            "encoding": state_root_encoding_status(self.config),
         }
 
     # ── Создание блока ───────────────────────────────────────────────────────

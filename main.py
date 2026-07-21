@@ -342,10 +342,8 @@ class NodeOrchestrator:
                         config.founder_address = _waddr
                     if not config.miner_address:
                         config.miner_address = _waddr
-            except Exception:
-                pass
-
-        self._pin_chain_founder_address()
+            except Exception as exc:
+                _node_log.warning("founder wallet template read failed: %s", exc)
 
         # 3. Мемпул
         self.mempool = Mempool(max_size=10_000, min_fee=config.base_fee() * 0.5)
@@ -1478,8 +1476,8 @@ class NodeOrchestrator:
             self.bridge.stop()
         try:
             self.db.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            _node_log.warning("database close failed: %s", exc)
         print("[Node] Goodbye.")
 
     # ── Цикл майнинга ────────────────────────────────────────────────────────
@@ -1587,8 +1585,8 @@ class NodeOrchestrator:
             if self.sharding and hasattr(self.sharding, "process_cross_shard_transactions"):
                 try:
                     self.sharding.process_cross_shard_transactions()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    _node_log.warning("[Mining] cross-shard processing failed: %s", exc)
 
             # ── Proposer: solo operational wallet OR RANDAO when multiple validators ──
             proposer = None
@@ -1695,8 +1693,8 @@ class NodeOrchestrator:
                 pbs_result = self.consensus.run_pbs_auction(pending_dicts)
                 if pbs_result and pbs_result.get("transactions"):
                     pbs_tx_order = {tx["hash"] for tx in pbs_result["transactions"]}
-            except Exception:
-                pass
+            except Exception as exc:
+                _node_log.warning("[Mining] PBS auction failed: %s", exc)
 
             # ── Get mempool transactions ──────────────────────────────────────
             pending = self.mempool.get(limit=self.config.max_tx_per_block)
@@ -1713,8 +1711,8 @@ class NodeOrchestrator:
                                      mp_tx.amount, int(mp_tx.fee * 1e9), int(mp_tx.timestamp))
                                for mp_tx in pending[:10]]
                     self.mev_simulator.detect_sandwich_opportunity(mev_txs)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    _node_log.debug("[Mining] MEV scan failed: %s", exc)
 
             # ── Конвертируем MempoolTransaction → Transaction ─────────────────
             txs = []
@@ -1863,8 +1861,8 @@ class NodeOrchestrator:
                     try:
                         from core.block_header import BlockHeader
                         self.light_client.add_header(BlockHeader.from_block_dict(block.to_dict()))
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        _node_log.warning("[Mining] light client header add failed: %s", exc)
 
                 # Epoch boundary: разблокировка staking-пула
                 if self.epoch_manager and self.pool_locks:
@@ -1875,8 +1873,8 @@ class NodeOrchestrator:
                             delta = rel.get("staking_released_delta", 0)
                             if delta > 0:
                                 print(f"[Epoch] #{ep}: staking +{delta:,.0f} ABS released")
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        _node_log.warning("[Mining] epoch pool unlock failed: %s", exc)
 
                 # ChainStorage: JSON backup (non-authoritative; failures must be visible)
                 if self.chain_storage:

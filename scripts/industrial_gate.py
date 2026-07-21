@@ -122,6 +122,13 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("main.py mining loop must log sync_state probe failures")
         if "self.p2p._state_consistent = False" not in main_py:
             errors.append("main.py must clear _state_consistent on sync probe failure")
+        for needle in (
+            "[Mining] PBS auction failed",
+            "[Mining] cross-shard processing failed",
+            "[Mining] epoch pool unlock failed",
+        ):
+            if needle not in main_py:
+                errors.append(f"main.py mining loop must log: {needle}")
     except Exception as exc:
         errors.append(f"fail-loud main.py inspect failed: {exc}")
     try:
