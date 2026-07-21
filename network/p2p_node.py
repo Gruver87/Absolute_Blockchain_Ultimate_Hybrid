@@ -677,6 +677,30 @@ class P2PNode:
             return
         data = msg.get("data")
 
+        # Fail-closed shape gates before sync waiters consume the message.
+        if msg_type == MSG_STATE_ROOT_RESPONSE:
+            if not native.validate_p2p_state_root_response(data):
+                self._strike_peer_sync(peer, "bad_state_root_response")
+                return
+        elif msg_type == MSG_STATE_ROOT_REQUEST:
+            if native.validate_p2p_state_root_request(data) is None:
+                self._strike_peer_sync(peer, "bad_state_root_request")
+                return
+        elif msg_type == MSG_NEW_BLOCK:
+            if not native.validate_p2p_block_announce(data):
+                self._strike_peer_sync(peer, "bad_block_announce")
+                return
+        elif msg_type == MSG_ATTESTATION:
+            if not native.validate_p2p_attestation_payload(data):
+                self._strike_peer_sync(peer, "bad_attestation_shape")
+                return
+        elif msg_type == MSG_STATUS:
+            if native.validate_p2p_status_payload(data) is None and data is not None:
+                # Allow null/empty status keepalives; reject malformed dicts.
+                if isinstance(data, dict):
+                    self._strike_peer_sync(peer, "bad_status_payload")
+                    return
+
         waiter = self._sync_waiters.get(peer.peer_id)
         if waiter:
             expected_types, fut = waiter
@@ -765,7 +789,11 @@ class P2PNode:
             await self._handle_validator_register(peer, data)
 
         elif msg_type == MSG_STATE_ROOT_REQUEST:
-            height = int(data.get("height", self.blockchain.get_height())) if isinstance(data, dict) else self.blockchain.get_height()
+            req_h = native.validate_p2p_state_root_request(data)
+            if req_h is None:
+                self._strike_peer_sync(peer, "bad_state_root_request")
+                return
+            height = req_h if req_h > 0 else self.blockchain.get_height()
             await peer.send(MSG_STATE_ROOT_RESPONSE, {
                 "height": height,
                 "state_root": self.blockchain.get_state_root(),
@@ -773,14 +801,16 @@ class P2PNode:
             })
 
         elif msg_type == MSG_STATE_ROOT_RESPONSE:
-            if isinstance(data, dict):
-                peer_h = int(data.get("height", 0) or 0)
-                if peer_h:
-                    peer.height = max(int(peer.height or 0), peer_h)
-            if isinstance(data, dict) and waiter is None:
-                peer_root = data.get("state_root", "")
+            resp = native.validate_p2p_state_root_response(data)
+            if not resp:
+                self._strike_peer_sync(peer, "bad_state_root_response")
+                return
+            peer_h = int(resp.get("height", 0) or 0)
+            if peer_h:
+                peer.height = max(int(peer.height or 0), peer_h)
+            if waiter is None:
+                peer_root = resp.get("state_root", "")
                 local_root = self.blockchain.get_state_root()
-                peer_h = int(data.get("height", 0))
                 if peer_h == self.blockchain.get_height() and peer_root and peer_root != local_root:
                     self._state_consistent = False
                     logger.warning(
@@ -789,7 +819,6 @@ class P2PNode:
                     )
                 elif peer_h == self.blockchain.get_height() and peer_root and peer_root == local_root:
                     self._state_consistent = True
-
         elif msg_type == MSG_CROSS_SHARD_TX:
             await self._handle_cross_shard_tx(peer, data)
 
@@ -867,11 +896,13 @@ class P2PNode:
 
     async def _handle_new_block(self, peer: PeerConnection, data: Dict):
         """Принимаем анонс нового блока от пира."""
-        if not isinstance(data, dict):
+        announce = native.validate_p2p_block_announce(data)
+        if not announce:
+            self._strike_peer_sync(peer, "bad_block_announce")
             return
 
-        block_h = int(data.get("height", data.get("number", 0)) or 0)
-        block_hash = data.get("hash", "")
+        block_h = int(announce.get("height", 0) or 0)
+        block_hash = announce.get("hash", "")
         peer.height = max(peer.height, block_h)
         if block_hash:
             peer.head = block_hash
@@ -881,8 +912,8 @@ class P2PNode:
             block = Block.from_dict(data)
         except Exception as e:
             logger.debug(f"[P2P] Invalid block from {peer}: {e}")
+            self._strike_peer_sync(peer, "bad_block_from_dict")
             return
-
         local_h = self.blockchain.get_height()
         existing = self.blockchain.get_block(block.height)
         if existing:

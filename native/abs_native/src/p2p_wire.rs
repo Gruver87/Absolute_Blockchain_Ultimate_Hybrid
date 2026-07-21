@@ -287,6 +287,136 @@ fn validate_p2p_attestation_payload(data_json: String) -> PyResult<bool> {
     Ok(validate_attestation_shape_inner(&value))
 }
 
+const MAX_P2P_BLOCK_TXS: usize = 10_000;
+
+fn validate_block_announce_inner(data: &Value) -> Option<(i64, String)> {
+    let obj = data.as_object()?;
+    let height = obj
+        .get("height")
+        .or_else(|| obj.get("number"))
+        .and_then(json_i64)
+        .unwrap_or(0);
+    if height < 0 || height > MAX_P2P_HEIGHT {
+        return None;
+    }
+    let block_hash = obj
+        .get("hash")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if block_hash.is_empty() || block_hash.len() > MAX_P2P_HASH_LEN {
+        return None;
+    }
+    if let Some(parent) = obj.get("parent_hash").or_else(|| obj.get("parent")) {
+        if let Some(s) = parent.as_str() {
+            if s.len() > MAX_P2P_HASH_LEN {
+                return None;
+            }
+        } else if !parent.is_null() {
+            return None;
+        }
+    }
+    if let Some(root) = obj.get("state_root") {
+        if let Some(s) = root.as_str() {
+            if s.len() > MAX_P2P_HASH_LEN {
+                return None;
+            }
+        } else if !root.is_null() {
+            return None;
+        }
+    }
+    if let Some(txs) = obj.get("transactions") {
+        let arr = txs.as_array()?;
+        if arr.len() > MAX_P2P_BLOCK_TXS {
+            return None;
+        }
+    }
+    Some((height, block_hash))
+}
+
+fn validate_state_root_request_inner(data: &Value) -> Option<i64> {
+    let obj = data.as_object()?;
+    let height = obj.get("height").and_then(json_i64).unwrap_or(0);
+    if height < 0 || height > MAX_P2P_HEIGHT {
+        return None;
+    }
+    Some(height)
+}
+
+fn validate_state_root_response_inner(data: &Value) -> Option<(i64, String, String)> {
+    let obj = data.as_object()?;
+    let height = obj.get("height").and_then(json_i64).unwrap_or(0);
+    if height < 0 || height > MAX_P2P_HEIGHT {
+        return None;
+    }
+    let state_root = obj
+        .get("state_root")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if state_root.len() > MAX_P2P_HASH_LEN {
+        return None;
+    }
+    let head_hash = obj
+        .get("head_hash")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if head_hash.len() > MAX_P2P_HASH_LEN {
+        return None;
+    }
+    Some((height, state_root, head_hash))
+}
+
+#[pyfunction]
+fn validate_p2p_block_announce(
+    py: Python<'_>,
+    data_json: String,
+) -> PyResult<Option<PyObject>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+    let Some((height, block_hash)) = validate_block_announce_inner(&value) else {
+        return Ok(None);
+    };
+    let dict = PyDict::new_bound(py);
+    dict.set_item("height", height)?;
+    dict.set_item("hash", block_hash)?;
+    Ok(Some(dict.into_any().unbind()))
+}
+
+#[pyfunction]
+fn validate_p2p_state_root_request(data_json: String) -> PyResult<Option<i64>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+    Ok(validate_state_root_request_inner(&value))
+}
+
+#[pyfunction]
+fn validate_p2p_state_root_response(
+    py: Python<'_>,
+    data_json: String,
+) -> PyResult<Option<PyObject>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+    let Some((height, state_root, head_hash)) = validate_state_root_response_inner(&value) else {
+        return Ok(None);
+    };
+    let dict = PyDict::new_bound(py);
+    dict.set_item("height", height)?;
+    dict.set_item("state_root", state_root)?;
+    dict.set_item("head_hash", head_hash)?;
+    Ok(Some(dict.into_any().unbind()))
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_p2p_wire_line, m)?)?;
     m.add_function(wrap_pyfunction!(encode_p2p_wire_message, m)?)?;
@@ -294,6 +424,9 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(verify_attestation_secp256k1, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_status_payload, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_attestation_payload, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_p2p_block_announce, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_p2p_state_root_request, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_p2p_state_root_response, m)?)?;
     Ok(())
 }
 

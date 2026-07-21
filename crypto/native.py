@@ -110,6 +110,9 @@ def native_crypto_status(required: bool = False) -> dict:
             "verify_attestation_secp256k1",
             "validate_p2p_status_payload",
             "validate_p2p_attestation_payload",
+            "validate_p2p_block_announce",
+            "validate_p2p_state_root_request",
+            "validate_p2p_state_root_response",
             "amount_to_satoshi",
             "amount_apply_delta_satoshi",
             "state_engine_apply_transactions",
@@ -1569,6 +1572,80 @@ def validate_p2p_attestation_payload(data: Any) -> bool:
     except ValueError:
         return False
     return True
+
+
+def validate_p2p_block_announce(data: Any) -> Optional[dict]:
+    """Fail-closed block gossip shape: height + hash (+ tx count bound)."""
+    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
+    if _native is not None and hasattr(_native, "validate_p2p_block_announce"):
+        result = _native.validate_p2p_block_announce(payload)
+        return dict(result) if result is not None else None
+    if not isinstance(data, dict):
+        try:
+            data = json.loads(payload)
+        except Exception:
+            return None
+    if not isinstance(data, dict):
+        return None
+    try:
+        height = int(data.get("height", data.get("number", 0)) or 0)
+    except (TypeError, ValueError):
+        return None
+    if height < 0 or height > 1_000_000_000_000:
+        return None
+    block_hash = str(data.get("hash") or "").strip()
+    if not block_hash or len(block_hash) > 128:
+        return None
+    txs = data.get("transactions")
+    if txs is not None and (not isinstance(txs, list) or len(txs) > 10_000):
+        return None
+    return {"height": height, "hash": block_hash}
+
+
+def validate_p2p_state_root_request(data: Any) -> Optional[int]:
+    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
+    if _native is not None and hasattr(_native, "validate_p2p_state_root_request"):
+        result = _native.validate_p2p_state_root_request(payload)
+        return int(result) if result is not None else None
+    if not isinstance(data, dict):
+        try:
+            data = json.loads(payload)
+        except Exception:
+            return None
+    if not isinstance(data, dict):
+        return None
+    try:
+        height = int(data.get("height", 0) or 0)
+    except (TypeError, ValueError):
+        return None
+    if height < 0 or height > 1_000_000_000_000:
+        return None
+    return height
+
+
+def validate_p2p_state_root_response(data: Any) -> Optional[dict]:
+    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
+    if _native is not None and hasattr(_native, "validate_p2p_state_root_response"):
+        result = _native.validate_p2p_state_root_response(payload)
+        return dict(result) if result is not None else None
+    if not isinstance(data, dict):
+        try:
+            data = json.loads(payload)
+        except Exception:
+            return None
+    if not isinstance(data, dict):
+        return None
+    try:
+        height = int(data.get("height", 0) or 0)
+    except (TypeError, ValueError):
+        return None
+    if height < 0 or height > 1_000_000_000_000:
+        return None
+    state_root = str(data.get("state_root") or "").strip()
+    head_hash = str(data.get("head_hash") or "").strip()
+    if len(state_root) > 128 or len(head_hash) > 128:
+        return None
+    return {"height": height, "state_root": state_root, "head_hash": head_hash}
 
 
 def parse_p2p_wire_line(

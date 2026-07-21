@@ -82,3 +82,24 @@ def test_validate_p2p_attestation_payload_shape():
     missing = dict(good)
     missing.pop("public_key")
     assert native.validate_p2p_attestation_payload(missing) is False
+
+
+def test_validate_p2p_block_announce_and_state_root():
+    ok = native.validate_p2p_block_announce(
+        {"height": 9, "hash": "ab" * 32, "transactions": []}
+    )
+    assert ok == {"height": 9, "hash": "ab" * 32}
+    assert native.validate_p2p_block_announce({"height": 1}) is None
+    assert native.validate_p2p_block_announce(
+        {"height": 1, "hash": "ab" * 32, "transactions": [{}] * 10_001}
+    ) is None
+
+    assert native.validate_p2p_state_root_request({"height": 5}) == 5
+    assert native.validate_p2p_state_root_request({"height": -1}) is None
+
+    resp = native.validate_p2p_state_root_response(
+        {"height": 5, "state_root": "cd" * 32, "head_hash": "ef" * 32}
+    )
+    assert resp["height"] == 5
+    assert resp["state_root"] == "cd" * 32
+    assert native.validate_p2p_state_root_response({"height": 1, "state_root": "x" * 200}) is None
