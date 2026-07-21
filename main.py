@@ -636,9 +636,18 @@ class NodeOrchestrator:
                 "set BRIDGE_MODE=rust for real L1 cross-chain path"
             )
 
-        # 9. NFT маркетплейс
-        self.nft = NFTMarketplace(db=self.db, bus=self.bus)
-        print(f"[Node] NFT Marketplace: {len(self.nft.tokens)} tokens (persisted={self.nft.get_stats().get('persisted', False)})")
+        # 9. NFT маркетплейс (off by default in prod via feature_nft)
+        if getattr(config, "feature_nft", True):
+            self.nft = NFTMarketplace(db=self.db, bus=self.bus)
+            stats = self.nft.get_stats()
+            print(
+                f"[Node] NFT Marketplace: {len(self.nft.tokens)} tokens "
+                f"(persisted={stats.get('persisted', False)}, "
+                f"execution_bound={stats.get('execution_bound', False)})"
+            )
+        else:
+            self.nft = None
+            print("[Node] NFT Marketplace: disabled")
 
         # 10. ZK Proof System (R&D; disabled by prod profile)
         self.zk = ZKProofSystem() if getattr(config, "feature_zk", True) else None
@@ -686,10 +695,13 @@ class NodeOrchestrator:
                 self.feature_init_errors["oracles"] = str(e)
                 print(f"[Node] Oracles: live feeds unavailable ({e})")
 
-        # 13. Multisig support
+        # 13. Multisig support (in-memory registry; no chain executor by default)
         if _MULTISIG_AVAILABLE:
             self.multisig = MultiSigWallet  # pass class for API to instantiate
-            print("[Node] Multisig: enabled")
+            print(
+                "[Node] Multisig: available "
+                "(persistent=false, execution_bound=false — in-memory only)"
+            )
         else:
             self.multisig = None
 
@@ -743,11 +755,14 @@ class NodeOrchestrator:
         else:
             self.chain_storage = None
 
-        # 20. Post-Quantum Manager (full suite: Kyber, Dilithium, Falcon)
+        # 20. Post-Quantum Manager (educational / R&D — not NIST production backends)
         if _PQ_MANAGER_AVAILABLE and getattr(config, "feature_pq", True):
             try:
                 self.pq_manager = PostQuantumManager()
-                print("[Node] PostQuantumManager: Kyber/Dilithium/Falcon enabled")
+                print(
+                    "[Node] PostQuantumManager: educational suite loaded "
+                    "(Dilithium=hash-demo; Kyber/Falcon=NotImplemented — not prod-ready)"
+                )
             except Exception as e:
                 self.pq_manager = None
                 print(f"[Node] PostQuantumManager: unavailable ({e})")

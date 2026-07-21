@@ -491,8 +491,7 @@ class PostQuantumManager:
         return self.signatures.get(sig_id)
     
     def get_stats(self) -> Dict:
-        """Статистика пост-квантовой криптографии"""
-        
+        """Статистика пост-квантовой криптографии + honesty capability matrix."""
         return {
             'keypairs': len(self.keypairs),
             'signatures': len(self.signatures),
@@ -500,7 +499,31 @@ class PostQuantumManager:
             'by_algorithm': {
                 algo.value: len([k for k in self.keypairs.values() if k.algorithm == algo])
                 for algo in PQAlgorithm
-            }
+            },
+            'production_ready': False,
+            'educational_only': True,
+            'capabilities': {
+                'dilithium': {
+                    'callable': True,
+                    'backend': 'educational_hash',
+                    'nist_ml_dsa': False,
+                },
+                'kyber': {
+                    'callable': False,
+                    'backend': None,
+                    'reason': 'NotImplementedError',
+                },
+                'falcon': {
+                    'callable': False,
+                    'backend': None,
+                    'reason': 'NotImplementedError',
+                },
+                'sphincs_plus': {
+                    'callable': False,
+                    'backend': None,
+                    'reason': 'NotImplementedError',
+                },
+            },
         }
 
     def _parse_algorithm(self, name: str) -> PQAlgorithm:

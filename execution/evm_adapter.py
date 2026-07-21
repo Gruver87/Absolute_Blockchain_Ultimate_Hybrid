@@ -58,6 +58,8 @@ class EVMAdapter:
     def __init__(self, db: Database, config: Config):
         self.db = db
         self.config = config
+        self._storage_decode_failures = 0
+        self._calldata_decode_failures = 0
 
     def _code_bytes(self, addr: str) -> bytes:
         account = self.db.get_account(self._normalize_addr(addr))
@@ -109,10 +111,17 @@ class EVMAdapter:
         self.db.save_evm_logs(contract_addr, logs, block_height=tip, tx_hash=tx_hash)
 
     def _make_context(self, caller: str, contract_addr: str = "",
-                      calldata: bytes = b"", value: int = 0) -> EVMContext:
+                      calldata: bytes = b"", value: int = 0,
+                      *, read_only: bool = False) -> EVMContext:
         tip = self.db.get_chain_tip() if hasattr(self.db, "get_chain_tip") else 0
         last = self.db.get_last_block() if hasattr(self.db, "get_last_block") else None
         ts = int(last.get("timestamp", 0)) if last else int(time.time())
+
+        def _selfdestruct(beneficiary: str) -> None:
+            if read_only:
+                raise RuntimeError("static_selfdestruct_rejected")
+            self._selfdestruct_contract(contract_addr, beneficiary)
+
         ctx = EVMContext(
             caller=caller or "",
             origin=caller or "",
@@ -125,12 +134,23 @@ class EVMAdapter:
             balance_of=lambda addr: int(self.db.get_balance(addr) * 10**18),
             code_size_of=lambda addr: len(self._code_bytes(addr)),
             code_copy_of=lambda addr, off, size: self._code_bytes(addr)[off:off + size],
-            selfdestruct=lambda beneficiary: self._selfdestruct_contract(
-                contract_addr, beneficiary
-            ),
+            selfdestruct=_selfdestruct,
             block_hash_of=self._block_hash_word,
         )
         return ctx
+
+    def _loads_contract_storage(self, storage_raw: Any) -> Optional[Dict[int, int]]:
+        """Fail-closed storage decode; None means corrupt."""
+        try:
+            raw = storage_raw or "{}"
+            if isinstance(raw, dict):
+                parsed = raw
+            else:
+                parsed = json.loads(raw)
+            return {int(k): int(v) for k, v in parsed.items()}
+        except Exception:
+            self._storage_decode_failures += 1
+            return None
 
     def _normalize_addr(self, word_or_addr: str) -> str:
         raw = str(word_or_addr).replace("0x", "").lower()
@@ -163,23 +183,34 @@ class EVMAdapter:
             call_value = value
             caller = caller_ctx.address
 
-        try:
-            storage = {int(k): int(v) for k, v in json.loads(storage_src).items()}
-        except Exception:
-            storage = {}
+        storage = self._loads_contract_storage(storage_src)
+        if storage is None:
+            return {"success": False, "reverted": True, "return_data": b"", "error": "corrupt_storage"}
 
-        sub_ctx = self._make_context(caller, exec_addr, calldata, call_value)
+        nested_ro = bool(static) or bool(getattr(caller_ctx, "_abs_read_only", False))
+        sub_ctx = self._make_context(
+            caller, exec_addr, calldata, call_value, read_only=nested_ro
+        )
+        sub_ctx._abs_read_only = nested_ro
         sub_ctx.contract_call = lambda t, d, v, g, delg, st, cc=False: self._contract_call_hook(
             t, d, v, g, delg, st, sub_ctx, callcode=cc
         )
-        sub_ctx.contract_create = lambda code, val, ctx, salt=None: self._contract_create_hook(
-            code, val, ctx, salt
-        )
+        if nested_ro:
+            sub_ctx.contract_create = lambda code, val, ctx, salt=None: {
+                "success": False,
+                "reverted": True,
+                "gas_used": 0,
+                "error": "static_create_rejected",
+            }
+        else:
+            sub_ctx.contract_create = lambda code, val, ctx, salt=None: self._contract_create_hook(
+                code, val, ctx, salt
+            )
         evm = EVM(gas_limit=gas or self.config.evm_gas_limit, context=sub_ctx)
         evm.storage = dict(storage)
         result = evm.execute_bytecode(bytecode)
 
-        if static:
+        if static or nested_ro:
             return {
                 "success": not result.get("reverted"),
                 "reverted": result.get("reverted", False),
@@ -282,14 +313,26 @@ class EVMAdapter:
 
     def _run_evm(self, bytecode: bytes, storage: Dict[int, int], gas_limit: int,
                  caller: str = "", contract_addr: str = "",
-                 calldata: bytes = b"", value: int = 0) -> Dict:
-        ctx = self._make_context(caller, contract_addr, calldata, value)
+                 calldata: bytes = b"", value: int = 0,
+                 *, read_only: bool = False) -> Dict:
+        ctx = self._make_context(
+            caller, contract_addr, calldata, value, read_only=read_only
+        )
+        ctx._abs_read_only = bool(read_only)
         ctx.contract_call = lambda t, d, v, g, delg, st, cc=False: self._contract_call_hook(
             t, d, v, g, delg, st, ctx, callcode=cc
         )
-        ctx.contract_create = lambda code, val, c, salt=None: self._contract_create_hook(
-            code, val, c, salt
-        )
+        if read_only:
+            ctx.contract_create = lambda code, val, c, salt=None: {
+                "success": False,
+                "reverted": True,
+                "gas_used": 0,
+                "error": "static_create_rejected",
+            }
+        else:
+            ctx.contract_create = lambda code, val, c, salt=None: self._contract_create_hook(
+                code, val, c, salt
+            )
         evm = EVM(gas_limit=gas_limit, context=ctx)
         evm.storage = dict(storage)
         result = evm.execute_bytecode(bytecode)
@@ -418,17 +461,14 @@ class EVMAdapter:
         except ValueError as e:
             return EVMResult(success=False, error=f"invalid_stored_bytecode: {e}")
 
-        # Загружаем хранилище контракта
-        storage_raw = account.get("storage") or "{}"
-        try:
-            storage = {int(k): int(v) for k, v in json.loads(storage_raw).items()}
-        except Exception:
-            storage = {}
+        storage = self._loads_contract_storage(account.get("storage") or "{}")
+        if storage is None:
+            return EVMResult(success=False, error="corrupt_storage")
 
         try:
             calldata = bytes.fromhex(calldata_hex.replace("0x", "")) if calldata_hex else b""
         except ValueError:
-            calldata = b""
+            return EVMResult(success=False, error="invalid_calldata")
 
         try:
             result = self._run_evm(
@@ -477,7 +517,7 @@ class EVMAdapter:
                     calldata_hex: str = "", gas_limit: int = 0) -> EVMResult:
         """
         Вызывает контракт без изменения состояния (eth_call).
-        Storage НЕ сохраняется.
+        Storage НЕ сохраняется. Nested CREATE/SELFDESTRUCT are rejected.
         """
         gas_limit = gas_limit or self.config.evm_gas_limit
 
@@ -490,16 +530,14 @@ class EVMAdapter:
         except ValueError as e:
             return EVMResult(success=False, error=f"invalid_bytecode: {e}")
 
-        storage_raw = account.get("storage") or "{}"
-        try:
-            storage = {int(k): int(v) for k, v in json.loads(storage_raw).items()}
-        except Exception:
-            storage = {}
+        storage = self._loads_contract_storage(account.get("storage") or "{}")
+        if storage is None:
+            return EVMResult(success=False, error="corrupt_storage")
 
         try:
             calldata = bytes.fromhex(calldata_hex.replace("0x", "")) if calldata_hex else b""
         except ValueError:
-            calldata = b""
+            return EVMResult(success=False, error="invalid_calldata")
 
         try:
             result = self._run_evm(
@@ -507,6 +545,7 @@ class EVMAdapter:
                 caller="",
                 contract_addr=contract_addr,
                 calldata=calldata,
+                read_only=True,
             )
         except Exception as e:
             return EVMResult(success=False, error=str(e), gas_used=0)

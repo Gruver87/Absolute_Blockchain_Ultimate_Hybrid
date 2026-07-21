@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.32] — 2026-07-21
+
+### Hardened — L1 receipt status / EVM static / NFT-PQ-will-multisig honesty
+
+- L1 confirmations require successful receipt status; EVM corrupt storage + static_call read-only
+- NFT feature gate (off in prod); will force blocked in prod; PQ/multisig honesty labels
+
+---
+
 ## [1.3.31] — 2026-07-21
 
 ### Hardened — oracle quorum / sync finally / peer fork / bridge-MEV-AI-will

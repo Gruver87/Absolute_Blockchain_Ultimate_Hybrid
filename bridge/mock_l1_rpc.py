@@ -41,7 +41,11 @@ class _MockL1Handler(BaseHTTPRequestHandler):
         if method == "eth_getTransactionReceipt":
             tx = str(params[0] if params else "").lower()
             block = self.registry.get(tx)
-            result = {"blockNumber": hex(block)} if block is not None else None
+            result = (
+                {"blockNumber": hex(block), "status": "0x1"}
+                if block is not None
+                else None
+            )
         elif method == "eth_blockNumber":
             result = hex(self.head_block)
         elif method == "net_version":

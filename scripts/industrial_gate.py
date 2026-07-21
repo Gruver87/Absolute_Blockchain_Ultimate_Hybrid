@@ -765,8 +765,30 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         will_py = (ROOT / "features" / "crypto_will.py").read_text(encoding="utf-8")
         if "create persist failed, refunded" not in will_py:
             errors.append("CryptoWill create must refund on persist failure")
+        l1_rpc_py = (ROOT / "bridge" / "l1_rpc.py").read_text(encoding="utf-8")
+        if "_receipt_status_ok" not in l1_rpc_py or "status-less" not in l1_rpc_py:
+            errors.append("L1 RPC confirmations must require successful receipt status")
+        evm_ad = (ROOT / "execution" / "evm_adapter.py").read_text(encoding="utf-8")
+        if "_loads_contract_storage" not in evm_ad or "corrupt_storage" not in evm_ad:
+            errors.append("EVM adapter must fail-closed on corrupt contract storage")
+        if "static_create_rejected" not in evm_ad or "read_only=True" not in evm_ad:
+            errors.append("EVM static_call must reject nested CREATE and use read_only")
+        if "force will execute forbidden in prod" not in http_py2:
+            errors.append("/will/execute must reject force in prod")
+        if '"execution_bound": False' not in http_py2 or "in_memory_registry" not in http_py2:
+            errors.append("multisig list must expose execution_bound/persistent honesty")
+        nft_py = (ROOT / "features" / "nft.py").read_text(encoding="utf-8")
+        if "on_chain_standard" not in nft_py or "execution_bound" not in nft_py:
+            errors.append("NFT get_stats must expose execution_bound honesty labels")
+        if "feature_nft" not in main_py2 or "NFT Marketplace: disabled" not in main_py2:
+            errors.append("main.py must gate NFT on feature_nft")
+        pq_py = (ROOT / "features" / "postquantum.py").read_text(encoding="utf-8")
+        if "educational_only" not in pq_py or "nist_ml_dsa" not in pq_py:
+            errors.append("PQ get_stats must expose educational capability matrix")
+        if "FEATURE_NFT" not in (ROOT / "runtime" / "config.py").read_text(encoding="utf-8"):
+            errors.append("config must include FEATURE_NFT prod block")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28/29/30/31 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28/29/30/31/32 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

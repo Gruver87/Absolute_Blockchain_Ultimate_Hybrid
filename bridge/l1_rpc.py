@@ -171,13 +171,18 @@ def get_contract_code(
 
 def get_tx_confirmations(rpc_url: str, tx_hash: str) -> Optional[int]:
     """
-    Return confirmation count for a mined tx, or None if not found / RPC error.
+    Return confirmation count for a mined successful tx, or None if not found / RPC error.
+
+    Fail-closed: receipt must include status=0x1 (success). Failed or status-less
+    receipts do not count as confirmed.
     """
     if not rpc_url or not tx_hash:
         return None
     try:
         receipt = _rpc_call(rpc_url, "eth_getTransactionReceipt", [tx_hash])
         if not receipt:
+            return 0
+        if not _receipt_status_ok(receipt):
             return 0
         block_num = _parse_hex_int(receipt.get("blockNumber"))
         if block_num <= 0:
@@ -186,6 +191,22 @@ def get_tx_confirmations(rpc_url: str, tx_hash: str) -> Optional[int]:
         return max(0, head - block_num + 1)
     except (urllib.error.URLError, urllib.error.HTTPError, RuntimeError, ValueError, TimeoutError):
         return None
+
+
+def _receipt_status_ok(receipt: dict) -> bool:
+    """True only when eth_getTransactionReceipt reports successful execution."""
+    status = receipt.get("status")
+    if status is None:
+        # Pre-Byzantium / incomplete mocks — do not invent success.
+        return False
+    try:
+        if isinstance(status, str):
+            value = int(status, 16) if status.startswith("0x") else int(status)
+        else:
+            value = int(status)
+    except (TypeError, ValueError):
+        return False
+    return value == 1
 
 
 def is_tx_confirmed(rpc_url: str, tx_hash: str, required: Optional[int] = None) -> bool:

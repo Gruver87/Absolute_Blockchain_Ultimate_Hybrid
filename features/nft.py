@@ -301,6 +301,8 @@ class NFTMarketplace:
 
     def get_stats(self) -> Dict:
         with self.lock:
+            persisted = bool(self.db and hasattr(self.db, "get_nft_tokens"))
+            balance_bound = self._has_balance_backend()
             return {
                 "total_tokens": len(self.tokens),
                 "on_sale": sum(1 for t in self.tokens.values() if t.for_sale),
@@ -311,7 +313,12 @@ class NFTMarketplace:
                 "total_sales": len(self.sales_history),
                 "total_offers": len(self.offers),
                 "active_auctions": sum(1 for a in self.auctions.values() if a.get("status") == "active"),
-                "persisted": bool(self.db and hasattr(self.db, "get_nft_tokens")),
+                "persisted": persisted,
+                "balance_backend": balance_bound,
+                # Marketplace mutates DB balances when bound; not an on-chain NFT standard.
+                "execution_bound": balance_bound,
+                "on_chain_standard": False,
+                "enabled": True,
             }
 
     # ── Offers ────────────────────────────────────────────────────────────────

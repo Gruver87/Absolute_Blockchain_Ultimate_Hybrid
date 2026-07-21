@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.31-industrial"
+    node_version: str = "1.3.32-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -418,6 +418,7 @@ class Config:
             self.feature_plasma = env_bool("FEATURE_PLASMA", False)
             self.feature_lightning = env_bool("FEATURE_LIGHTNING", False)
             self.feature_pq = env_bool("FEATURE_PQ", False)
+            self.feature_nft = env_bool("FEATURE_NFT", False)
             self.feature_mev = env_bool("FEATURE_MEV", False)
             self.feature_ai_agents = env_bool("FEATURE_AI_AGENTS", False)
             # Fail-closed: env cannot weaken these for prod (break-glass forbidden).
@@ -536,6 +537,7 @@ class Config:
                 "FEATURE_PLASMA": self.feature_plasma,
                 "FEATURE_LIGHTNING": self.feature_lightning,
                 "FEATURE_PQ": self.feature_pq,
+                "FEATURE_NFT": self.feature_nft,
                 "FEATURE_MEV": self.feature_mev,
                 "FEATURE_AI_AGENTS": self.feature_ai_agents,
             }

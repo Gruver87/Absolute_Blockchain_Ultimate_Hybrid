@@ -61,6 +61,7 @@ POST_SOAK_TESTS = [
     "tests/unit/test_v1329_honesty.py",
     "tests/unit/test_v1330_honesty.py",
     "tests/unit/test_v1331_honesty.py",
+    "tests/unit/test_v1332_honesty.py",
     "tests/unit/test_sqlite_reorg_parity.py",
     "tests/unit/test_bridge_health.py",
     "tests/unit/test_rpc_methods.py",

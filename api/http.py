@@ -2625,14 +2625,30 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if pqm:
                     try:
                         stats = pqm.get_stats() if hasattr(pqm, "get_stats") else {"enabled": True}
-                        self._json({"post_quantum": "enabled", "stats": stats})
+                        self._json({
+                            "post_quantum": "enabled",
+                            "enabled": True,
+                            "production_ready": bool(stats.get("production_ready", False)),
+                            "educational_only": bool(stats.get("educational_only", True)),
+                            "stats": stats,
+                        })
                     except Exception as e:
-                        self._json({"post_quantum": "enabled", "error": str(e)})
+                        self._json({
+                            "post_quantum": "enabled",
+                            "enabled": True,
+                            "production_ready": False,
+                            "error": str(e),
+                        })
                 else:
                     from features import probe_optional_module
 
                     probe = probe_optional_module("features.postquantum", "PostQuantumManager")
-                    self._json({"post_quantum": "disabled", "enabled": False, **probe})
+                    self._json({
+                        "post_quantum": "disabled",
+                        "enabled": False,
+                        "production_ready": False,
+                        **probe,
+                    })
 
             # ── Smart Accounts ────────────────────────────────────────────────
             elif path == "/smart-account/list":
@@ -2653,11 +2669,28 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if ms:
                     try:
                         wallets = ms.list_wallets() if hasattr(ms, "list_wallets") else []
-                        self._json({"multisig_wallets": wallets})
+                        self._json({
+                            "multisig_wallets": wallets,
+                            "enabled": True,
+                            "persistent": False,
+                            "execution_bound": False,
+                            "in_memory_registry": True,
+                        })
                     except Exception as e:
-                        self._json({"multisig_wallets": [], "error": str(e)})
+                        self._json({
+                            "multisig_wallets": [],
+                            "enabled": True,
+                            "persistent": False,
+                            "execution_bound": False,
+                            "error": str(e),
+                        })
                 else:
-                    self._json({"multisig_wallets": [], "enabled": False})
+                    self._json({
+                        "multisig_wallets": [],
+                        "enabled": False,
+                        "persistent": False,
+                        "execution_bound": False,
+                    })
 
             # ── Chain storage (JSON file backup) ──────────────────────────────
             elif path.startswith("/chain/block/"):
@@ -3147,7 +3180,13 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/nft/stats":
                 nft = self.__class__.nft
                 if not nft:
-                    self._json({"enabled": False}); return
+                    self._json({
+                        "enabled": False,
+                        "execution_bound": False,
+                        "persisted": False,
+                        "on_chain_standard": False,
+                    })
+                    return
                 self._json(nft.get_stats())
 
             # ── Lightning Network ─────────────────────────────────────────────
@@ -5180,6 +5219,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "CryptoWill not enabled"); return
                 wid = body.get("will_id", "")
                 force = bool(body.get("force", False))
+                if force and _is_production_cfg(self.__class__.config):
+                    self._error(403, "force will execute forbidden in prod"); return
                 if not wid:
                     self._error(400, "will_id required"); return
                 ok = cw.execute_will(wid, force=force) if hasattr(cw, "execute_will") else False

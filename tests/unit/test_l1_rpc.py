@@ -32,7 +32,7 @@ def test_is_tx_confirmed_mock(monkeypatch):
     def fake_rpc(url, method, params, timeout=15):
         calls.append(method)
         if method == "eth_getTransactionReceipt":
-            return {"blockNumber": "0x64"}
+            return {"blockNumber": "0x64", "status": "0x1"}
         if method == "eth_blockNumber":
             return "0x6e"
         return None
@@ -45,6 +45,31 @@ def test_is_tx_confirmed_mock(monkeypatch):
 
 def test_get_tx_confirmations_pending(monkeypatch):
     monkeypatch.setattr(l1_rpc, "_rpc_call", lambda *a, **k: None)
+    assert l1_rpc.get_tx_confirmations("http://rpc", "0xabc") == 0
+
+
+def test_get_tx_confirmations_failed_receipt(monkeypatch):
+    def fake_rpc(url, method, params=None):
+        if method == "eth_getTransactionReceipt":
+            return {"blockNumber": "0x64", "status": "0x0"}
+        if method == "eth_blockNumber":
+            return "0x6e"
+        return None
+
+    monkeypatch.setattr(l1_rpc, "_rpc_call", fake_rpc)
+    assert l1_rpc.get_tx_confirmations("http://rpc", "0xabc") == 0
+    assert l1_rpc.is_tx_confirmed("http://rpc", "0xabc", required=1) is False
+
+
+def test_get_tx_confirmations_status_less(monkeypatch):
+    def fake_rpc(url, method, params=None):
+        if method == "eth_getTransactionReceipt":
+            return {"blockNumber": "0x64"}
+        if method == "eth_blockNumber":
+            return "0x6e"
+        return None
+
+    monkeypatch.setattr(l1_rpc, "_rpc_call", fake_rpc)
     assert l1_rpc.get_tx_confirmations("http://rpc", "0xabc") == 0
 
 
