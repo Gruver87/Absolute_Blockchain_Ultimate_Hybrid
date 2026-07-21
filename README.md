@@ -10,14 +10,14 @@
 [![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
 [![48h soak](https://img.shields.io/badge/48h%20soak-PASS%20Jul%202026-brightgreen)](docs/EVIDENCE_MATRIX.md)
-[![Release](https://img.shields.io/badge/Release-v1.2.85-blue)](RELEASE_NOTES_v1.2.85.md)
+[![Release](https://img.shields.io/badge/Release-v1.2.86-blue)](RELEASE_NOTES_v1.2.86.md)
 
 **Repo:** [github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · **Default branch:** `master`  
 **Author:** **ULADZIMIR DABRANSKI** (D.U.P.) · **Owner:** Gruver87
 
 | | |
 |---|---|
-| **Release** | **v1.2.85** — [notes](RELEASE_NOTES_v1.2.85.md) · [CHANGELOG](CHANGELOG.md) |
+| **Release** | **v1.2.86** — [notes](RELEASE_NOTES_v1.2.86.md) · [CHANGELOG](CHANGELOG.md) |
 | **Entry** | `python main.py` |
 | **Dev chain** | `77777` |
 | **Mainnet-v1 prep chain** | `778888` (prod profile — **not** a public mainnet) |
@@ -244,9 +244,9 @@ Code: `runtime/tokenomics.py` · `GET /tokenomics` — **not** a listed token.
 | Jul 13–17 | Prod mesh hardening, P2P/TLS/resilience, industrial gates |
 | Jul 17–18 | First 48h attempt interrupted (Docker OOM / corrupted `daemon.json`) |
 | Jul 19–21 | Clean **48h soak PASS** after log rotation + Docker RAM headroom |
-| Jul 21 | `industrial_gate --min-soak-hours 48` + testnet readiness OK · **v1.2.85** |
+| Jul 21 | 48h soak PASS · **v1.2.85** · pre-audit polish **v1.2.86** (fail-closed + TLS default) |
 
-Details: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) · [RELEASE_NOTES_v1.2.85](RELEASE_NOTES_v1.2.85.md)
+Details: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) · [RELEASE_NOTES_v1.2.86](RELEASE_NOTES_v1.2.86.md)
 
 ---
 
@@ -256,4 +256,4 @@ MIT — see [LICENSE](LICENSE).
 
 ---
 
-*Last update: 2026-07-21 — **v1.2.85** (48h soak PASS + soak-safe Docker logging). Not a launched public mainnet. Evidence: [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md).*
+*Last update: 2026-07-21 — **v1.2.86** (pre-audit fail-closed + default P2P TLS; 48h soak PASS). Not a launched public mainnet. Evidence: [docs/EVIDENCE_MATRIX.md](docs/EVIDENCE_MATRIX.md).*

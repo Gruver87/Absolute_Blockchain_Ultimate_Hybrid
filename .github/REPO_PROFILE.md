@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.2.85` — 48h soak PASS + Docker log rotation |
-| **Notes** | [RELEASE_NOTES_v1.2.85.md](../RELEASE_NOTES_v1.2.85.md) |
-| **Prior** | [v1.2.84](../RELEASE_NOTES_v1.2.84.md) fail-loud honesty |
+| **Tag** | `v1.2.86` — pre-audit fail-closed gates + default P2P TLS |
+| **Notes** | [RELEASE_NOTES_v1.2.86.md](../RELEASE_NOTES_v1.2.86.md) |
+| **Prior** | [v1.2.85](../RELEASE_NOTES_v1.2.85.md) 48h soak PASS |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |
