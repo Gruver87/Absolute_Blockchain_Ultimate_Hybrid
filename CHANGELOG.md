@@ -6,6 +6,34 @@
 
 ---
 
+## [1.2.86] — 2026-07-21
+
+### Fixed / hardened
+
+- **Prod Config:** pply_env / alidate cannot weaken signatures, proposer, peer state_root, JWT admin, RPC keys; forbid RATE_LIMIT_RPM=0 and ALLOW_INSECURE_PUBLIC_BIND
+- **Slash persist / callback:** fail-loud (no silent swallow)
+- **Rate limiter:** prod requires working limiter; Redis errors fail-closed when Redis RL enabled; RPC auth ImportError fails start when required
+- **Compose:** mem_limit/cpus + log rotation on prod + prod.3node
+- **External audit tracker:** human items need real note + http(s) evidence URL (rejects template stubs)
+- **industrial_gate:** TLS warning reads prod mesh JSON (was dead on bare Config())
+
+### Changed
+
+- **docker_prod_3node.ps1:** TLS+mTLS overlay **default** (-NoP2pTls to opt out)
+- Mesh JSON + compose overlay: P2P_TLS_REQUIRE_CLIENT_CERT=true
+- Threat model documented in docs/P2P_TLS.md
+
+### Evidence / docs
+
+- Bridge decision **OFF** recorded for mainnet-v1 / pre-audit until audited L1 contracts
+- Soak checkbox synced; float tip-root known-limitation stamp for auditors
+
+### Notes
+
+- Prepares stack for **external audit engagement**; does **not** claim audit complete or public mainnet
+
+---
+
 ## [1.2.85] — 2026-07-21
 
 ### Proven (ops)

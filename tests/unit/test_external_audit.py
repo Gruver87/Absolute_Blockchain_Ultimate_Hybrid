@@ -23,7 +23,9 @@ def test_evaluate_pending_by_default():
 def test_set_item_done_marks_complete():
     with tempfile.TemporaryDirectory() as tmp:
         path = __import__("pathlib").Path(tmp) / "status.json"
-        label = DEFAULT_CHECKLIST[0]
+        # Non-human checklist item (human items require evidence_url)
+        label = "Incident response runbook documented"
+        assert label in DEFAULT_CHECKLIST
         set_item_done(label, done=True, note="scheduled Q3", status_path=path)
         warnings, completed, summary = evaluate(DEFAULT_CHECKLIST, path)
         assert label in completed

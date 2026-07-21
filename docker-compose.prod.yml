@@ -40,6 +40,13 @@ x-abs-prod-env: &abs-prod-env
   GENESIS_STRICT_MAINNET: ${GENESIS_STRICT_MAINNET:-false}
   VALIDATORS_MANIFEST_PATH: ${VALIDATORS_MANIFEST_PATH:-validators.manifest.mainnet-v1.example.json}
 
+# Prevent unbounded container json logs / Docker VM disk fill on long runs.
+x-abs-logging: &abs-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "3"
+
 services:
   node:
     build:
@@ -59,6 +66,9 @@ services:
       - abs-prod-data:/app/data
       - ./data/wallet.json:/app/data/wallet.json:ro
       - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro
+    mem_limit: 1536m
+    cpus: "1.5"
+    logging: *abs-logging
     healthcheck:
       test:
         [
@@ -98,6 +108,9 @@ services:
       - abs-prod-data:/app/data
       - ./data/wallet.json:/app/data/wallet.json:ro
       - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro
+    mem_limit: 512m
+    cpus: "0.5"
+    logging: *abs-logging
     depends_on:
       node:
         condition: service_healthy

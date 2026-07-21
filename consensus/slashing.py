@@ -129,8 +129,9 @@ class SlashingEngine:
         if self._on_slash_callback:
             try:
                 self._on_slash_callback(validator, reason, epoch, penalty)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"   FAIL: slash callback for {validator[:16]}...: {e}")
+                raise
     
     def register_slash_callback(self, callback) -> None:
         self._on_slash_callback = callback

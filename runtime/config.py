@@ -406,6 +406,16 @@ class Config:
             self.feature_pq = env_bool("FEATURE_PQ", False)
             self.feature_mev = env_bool("FEATURE_MEV", False)
             self.feature_ai_agents = env_bool("FEATURE_AI_AGENTS", False)
+            # Fail-closed: env cannot weaken these for prod (break-glass forbidden).
+            self.require_signatures = True
+            self.enforce_proposer = True
+            self.verify_peer_state_root = True
+            self.state_root_strict_p2p = True
+            self.jwt_enforce_admin = True
+            self.rpc_api_key_required = True
+            self.allow_insecure_public_bind = False
+            if int(self.rate_limit_rpm or 0) <= 0:
+                self.rate_limit_rpm = 120
             if self.cors_origins == ["*"]:
                 self.cors_origins = env_list("CORS_ORIGINS", [])
 
@@ -555,6 +565,23 @@ class Config:
             if (public_http or public_rpc) and "*" in self.cors_origins:
                 errors.append("non-dev public bind forbids wildcard CORS_ORIGINS")
         if self.is_production:
+            if not self.require_signatures:
+                errors.append("prod mode requires REQUIRE_SIGNATURES=true")
+            if not self.enforce_proposer:
+                errors.append("prod mode requires ENFORCE_PROPOSER=true")
+            if not self.verify_peer_state_root:
+                errors.append("prod mode requires VERIFY_PEER_STATE_ROOT=true")
+            if not self.jwt_enforce_admin:
+                errors.append("prod mode requires JWT_ENFORCE_ADMIN=true")
+            if not self.rpc_api_key_required:
+                errors.append("prod mode requires RPC_API_KEY_REQUIRED=true")
+            if int(self.rate_limit_rpm or 0) <= 0:
+                errors.append("prod mode forbids RATE_LIMIT_RPM=0 (rate limit required)")
+            if self.allow_insecure_public_bind:
+                errors.append(
+                    "prod mode forbids ALLOW_INSECURE_PUBLIC_BIND "
+                    "(break-glass not allowed on mainnet-prep profiles)"
+                )
             if not self.state_root_strict_p2p:
                 errors.append("prod mode requires state_root_strict_p2p=true")
             if self.allow_state_root_rewrite:
@@ -638,6 +665,17 @@ class Config:
                     errors.extend([f"validators_manifest:{e}" for e in manifest_errors])
                 except Exception as e:
                     errors.append(f"validators_manifest:check_failed:{e}")
+        if self.p2p_tls_enabled:
+            for attr, label in (
+                ("p2p_tls_cert_path", "P2P_TLS_CERT_PATH"),
+                ("p2p_tls_key_path", "P2P_TLS_KEY_PATH"),
+                ("p2p_tls_ca_path", "P2P_TLS_CA_PATH"),
+            ):
+                if not str(getattr(self, attr, "") or "").strip():
+                    errors.append(f"p2p_tls_enabled requires {label}")
+            if self.is_production and self.p2p_tls_require_client_cert:
+                if not str(self.p2p_tls_ca_path or "").strip():
+                    errors.append("prod mTLS requires P2P_TLS_CA_PATH")
         return errors
 
     def __repr__(self) -> str:

@@ -2,6 +2,17 @@
 
 **Profile:** `node.prod.mainnet-v1.bridge.example.json` (`bridge_enabled: true`)
 
+## Recorded decision (2026-07-21)
+
+**Mainnet-v1 / pre-audit: bridge stays OFF.**
+
+| Field | Value |
+|-------|-------|
+| Decision | `bridge_enabled=false` on prod mesh and `node.prod.mainnet-v1.example.json` |
+| Reason | No audited L1 lock/mint contracts; no production L1 RPC cutover |
+| Evidence | `record_evidence_run.py --name bridge_decision_off` |
+| Revisit when | Audited contracts + live RPC + relayer SLOs (checklist below) |
+
 Mainnet v1 default keeps bridge **off** until L1 lock contracts and RPC are production-ready.
 
 ---

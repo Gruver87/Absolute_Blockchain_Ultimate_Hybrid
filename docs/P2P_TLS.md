@@ -1,16 +1,24 @@
-# P2P wire TLS (optional)
+# P2P wire TLS (prod mesh default)
 
-TLS on the **P2P port** (default `:5000`) is separate from HTTP/RPC TLS (nginx). Enable for public mainnet or VPS mesh where the P2P port is exposed.
+TLS on the **P2P port** (default `:5000`) is separate from HTTP/RPC TLS (nginx).
+
+**Prod 3-node mesh:** P2P TLS + mTLS is the **default** (`.\scripts\docker_prod_3node.ps1`). Use `-NoP2pTls` only for local plaintext labs.
+
+## Threat model (honest)
+
+- TLS encrypts the P2P wire.
+- mTLS (`P2P_TLS_REQUIRE_CLIENT_CERT`) authenticates peer certificates against the mesh CA.
+- Application handshake identity is **not** cryptographically bound to cert CN/SAN in this release — do not claim that equivalence without a follow-up design.
 
 ## Config / env
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `P2P_TLS_ENABLED` | `false` | Wrap P2P TCP with TLS 1.2+ |
+| `P2P_TLS_ENABLED` | `false` (dev) / **true** on prod mesh JSON | Wrap P2P TCP with TLS 1.2+ |
 | `P2P_TLS_CERT_PATH` | — | Node certificate (PEM) |
 | `P2P_TLS_KEY_PATH` | — | Node private key (PEM) |
 | `P2P_TLS_CA_PATH` | — | CA bundle to verify peers |
-| `P2P_TLS_REQUIRE_CLIENT_CERT` | `false` | mTLS: require client cert |
+| `P2P_TLS_REQUIRE_CLIENT_CERT` | **true** on prod mesh | mTLS: require client cert |
 
 All peers in a mesh must use the same CA and compatible certs.
 
@@ -22,17 +30,13 @@ python scripts/gen_p2p_dev_tls.py --out-dir data/p2p_tls_dev --node-id dev-node-
 
 **Windows:** `gen_p2p_mesh_tls.py` uses OpenSSL from PATH if present (e.g. Git for Windows), otherwise falls back to the `cryptography` Python package (already in `requirements.txt`).
 
-Copy the printed env vars into `.env` or node config for each node (unique CN per node, same `P2P_TLS_CA_PATH`).
-
 ## Docker prod 3-node mesh
 
-Generate mesh certs and start with P2P TLS overlay:
-
 ```powershell
-python scripts/gen_p2p_mesh_tls.py
-.\scripts\docker_prod_3node_p2ptls.ps1
-# or
-.\scripts\docker_prod_3node.ps1 -P2pTls
+python scripts/gen_p2p_mesh_tls.py   # if certs missing, docker_prod_3node.ps1 does this
+.\scripts\docker_prod_3node.ps1      # TLS+mTLS overlay ON by default
+# plaintext lab only:
+.\scripts\docker_prod_3node.ps1 -NoP2pTls
 ```
 
 Uses `docker-compose.prod.3node.p2ptls.yml` (mounts `data/p2p_tls_prod_mesh/nodeN` → `/app/p2p_tls`).

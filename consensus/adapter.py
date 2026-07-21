@@ -136,13 +136,24 @@ class ConsensusAdapter:
             self.slashing_engine.slashing.register_slash_callback(self._on_validator_slashed)
 
     def _on_validator_slashed(self, address: str, reason: str, slot: int, penalty: int):
-        """Persist slash to SQLite and validator registry."""
+        """Persist slash to SQLite and validator registry (fail-loud on DB errors)."""
+        persist_err: Optional[BaseException] = None
         try:
             self.db.slash_validator(address)
-        except Exception:
-            pass
+        except Exception as e:
+            persist_err = e
+            print(f"[Consensus] FAIL: slash persist for {address[:16]}...: {e}")
         if self.validator_registry:
-            self.validator_registry.slash_validator(address)
+            try:
+                self.validator_registry.slash_validator(address)
+            except Exception as e:
+                print(f"[Consensus] FAIL: slash registry for {address[:16]}...: {e}")
+                if persist_err is None:
+                    persist_err = e
+        if persist_err is not None:
+            raise RuntimeError(
+                f"slash persist failed for {address}: {persist_err}"
+            ) from persist_err
 
     def _register_validator_all(self, address: str, stake: float):
         """Регистрирует валидатора во всех подсистемах."""

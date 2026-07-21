@@ -25,9 +25,20 @@ Compared to documentation-only claims, **evidence level increased** in Jul 2026:
 | `prod_evm_smoke.py` (mempool, 3 RPC) | **PASS** | docker mesh Jul 12 evening + **re-PASS block #7** Jul 12 post-v1.2.29 |
 | `soak_monitor.ps1 -ProdMesh -Hours 7` | **PASS** | `logs/soak_report.json` (159 cycles, 0 fail) |
 | `soak_monitor.ps1 -ProdMesh -Hours 48` | **PASS** (2026-07-19 → 2026-07-21, v1.2.84) | `logs/soak_48h_v1.2.84_rerun3.log` + `logs/soak_report_48h.json` (`passed=true`, 0 FAIL; 11 transient ±1 height mesh WARNs accepted on rescore) |
-| `testnet_readiness.ps1 -MinSoakHours 7` | **WARN** | re-run after mesh mining gate fixes recommended |
+| `bridge_decision_off` | **PASS** (2026-07-21) | Bridge stays OFF until audited L1 contracts — see [BRIDGE_L1_MAINNET](BRIDGE_L1_MAINNET.md) |
+| `testnet_readiness.ps1 -MinSoakHours 48` | **PASS** | After 48h soak report |
 
 Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) (live runs: `data/evidence_run.json`, gitignored)
+
+### Known limitations (auditor stamp)
+
+| Topic | Honest status |
+|-------|----------------|
+| Tip `state_root` | Still float `"b"` / `round(balance,12)` — **not** satoshi tip roots; dual-write satoshi is storage/read path only ([STORAGE_ROCKSDB](STORAGE_ROCKSDB.md)) |
+| External audit | **Not completed** — tracker rejects template notes; requires real evidence URL |
+| Public VPS / DNS | Not claimed |
+| Bridge L1 | **OFF by recorded decision** |
+| P2P TLS | Default ON for prod mesh (+mTLS); handshake identity ≠ cert CN binding |
 
 **Industrial fixes applied (Jul 12 evening):** mesh mining gate no longer latches on stale P2P wire roots; hub uses live STATUS heights; P2P broadcast non-blocking; `add_block` runs in worker thread so EVM apply cannot freeze the event loop; parallel peer state-root RPC.
 

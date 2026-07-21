@@ -62,8 +62,30 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         from network import p2p_tls  # noqa: F401
     except ImportError as exc:
         errors.append(f"network.p2p_tls import failed: {exc}")
-    if getattr(cfg, "deployment_mode", "") == "prod" and not getattr(cfg, "p2p_tls_enabled", False):
-        warnings.append("prod profile: p2p_tls_enabled=false (enable for public mainnet wire)")
+    # Load real prod mesh JSON (bare Config() is always deployment_mode=dev).
+    prod_tls_enabled = False
+    for rel in (
+        "docker/node.prod.mesh1.json",
+        "docker/node.prod.json",
+        "node.prod.example.json",
+    ):
+        path = ROOT / rel
+        if not path.is_file():
+            continue
+        try:
+            prod_cfg = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if str(prod_cfg.get("deployment_mode", "")).lower() != "prod":
+            continue
+        if prod_cfg.get("p2p_tls_enabled") is True:
+            prod_tls_enabled = True
+            break
+    if not prod_tls_enabled:
+        warnings.append(
+            "prod mesh JSON: p2p_tls_enabled is not true "
+            "(enable TLS overlay / -P2pTls for public mainnet wire)"
+        )
     return errors, warnings
 
 

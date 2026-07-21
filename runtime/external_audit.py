@@ -47,6 +47,27 @@ HUMAN_REQUIRED_AUDIT_ITEMS = frozenset({
     "Third-party smart-contract / L1 security audit completed",
 })
 
+_TEMPLATE_NOTE_RE = re.compile(
+    r"Vendor\s+YYYY-MM-DD|report\s*#\s*ID|\bTODO\b|\bTBD\b|placeholder|example\.com/audit",
+    re.I,
+)
+
+
+def human_audit_evidence_accepted(row: Dict[str, Any] | None) -> bool:
+    """Human audit items need a real note + https evidence URL (no templates)."""
+    row = row or {}
+    note = str(row.get("note") or "").strip()
+    url = str(row.get("evidence_url") or "").strip()
+    if len(note) < 8 or note.startswith("auto:"):
+        return False
+    if _TEMPLATE_NOTE_RE.search(note):
+        return False
+    if not (url.startswith("https://") or url.startswith("http://")):
+        return False
+    if "example.com" in url.lower() or "yyyy-mm-dd" in url.lower():
+        return False
+    return True
+
 AUTOMATED_ITEMS = {
     "Disaster recovery drill for multi-node devnet completed",
     "CORS and RPC API keys reviewed for production origins",
@@ -232,7 +253,7 @@ def evaluate(
         done = bool(row.get("done"))
         note = str(row.get("note") or "")
         if done and label in HUMAN_REQUIRED_AUDIT_ITEMS:
-            if note.startswith("auto:") or len(note.strip()) < 8:
+            if not human_audit_evidence_accepted(row):
                 done = False
         rows.append({
             "label": label,
@@ -275,6 +296,12 @@ def set_item_done(
         entry["evidence_url"] = evidence_url.strip()
     if evidence_note:
         entry["evidence_note"] = evidence_note.strip()
+    if done and label in HUMAN_REQUIRED_AUDIT_ITEMS:
+        if not human_audit_evidence_accepted(entry):
+            raise ValueError(
+                f"{label}: human audit items require a non-template note "
+                "and a real http(s) evidence_url (not example.com / Vendor YYYY-MM-DD)"
+            )
     if done:
         entry["completed_at"] = datetime.now(timezone.utc).isoformat()
     items[label] = entry

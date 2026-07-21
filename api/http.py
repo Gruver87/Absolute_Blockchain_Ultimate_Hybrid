@@ -46,7 +46,10 @@ def configure_rate_limiter(config) -> None:
     if not config:
         return
     rpm = int(getattr(config, "rate_limit_rpm", 120) or 0)
+    prod = _is_production_cfg(config)
     if rpm <= 0:
+        if prod:
+            raise RuntimeError("prod forbids rate_limit_rpm<=0 (rate limiter required)")
         _rate_limiter = None
         _RATE_LIMIT_AVAILABLE = False
         logger.info("Rate limiter: disabled (rate_limit_rpm=%s)", rpm)
@@ -58,13 +61,45 @@ def configure_rate_limiter(config) -> None:
             redis_enabled=getattr(config, "redis_rate_limit_enabled", False),
             requests_per_minute=getattr(config, "rate_limit_rpm", 120),
             window_seconds=60,
+            fail_closed=prod and bool(getattr(config, "redis_rate_limit_enabled", False)),
         )
         _RATE_LIMIT_AVAILABLE = _rate_limiter is not None
+        if prod and not _RATE_LIMIT_AVAILABLE:
+            raise RuntimeError("prod requires a working rate limiter")
         backend = "redis" if getattr(config, "redis_rate_limit_enabled", False) else "memory"
         logger.info("Rate limiter: %s (%s rpm)", backend, getattr(config, "rate_limit_rpm", 120))
-    except ImportError:
+    except ImportError as e:
         _rate_limiter = None
         _RATE_LIMIT_AVAILABLE = False
+        if prod:
+            raise RuntimeError("prod requires rate limiter module") from e
+
+
+def _check_rate_limit(handler, path: Optional[str] = None) -> bool:
+    """Return True if request may proceed; sends 429 and returns False when limited."""
+    cfg = getattr(handler.__class__, "config", None)
+    if not _RATE_LIMIT_AVAILABLE or not _rate_limiter:
+        if _is_production_cfg(cfg):
+            handler.send_response(503)
+            handler.send_header("Content-Type", "application/json")
+            handler.end_headers()
+            handler.wfile.write(json.dumps({"error": "rate_limiter_unavailable"}).encode())
+            return False
+        return True
+    if path is None:
+        path = urlparse(handler.path).path
+    if _is_rate_limit_exempt(path):
+        return True
+    client_ip = handler.client_address[0]
+    allowed, _remaining = _rate_limiter.allow_request(client_ip)
+    if allowed:
+        return True
+    handler.send_response(429)
+    handler.send_header("Content-Type", "application/json")
+    handler.send_header("Retry-After", "60")
+    handler.end_headers()
+    handler.wfile.write(json.dumps({"error": "rate_limit_exceeded"}).encode())
+    return False
 
 # --- Input validators (middleware/validators.py) ---
 try:
@@ -290,25 +325,6 @@ def _is_rate_limit_exempt(path: str) -> bool:
     p = (path or "").rstrip("/")
     return p in _RATE_LIMIT_EXEMPT_PATHS or p.startswith("/health/")
 
-
-def _check_rate_limit(handler, path: Optional[str] = None) -> bool:
-    """Return True if request may proceed; sends 429 and returns False when limited."""
-    if not _RATE_LIMIT_AVAILABLE or not _rate_limiter:
-        return True
-    if path is None:
-        path = urlparse(handler.path).path
-    if _is_rate_limit_exempt(path):
-        return True
-    client_ip = handler.client_address[0]
-    allowed, _remaining = _rate_limiter.allow_request(client_ip)
-    if allowed:
-        return True
-    handler.send_response(429)
-    handler.send_header("Content-Type", "application/json")
-    handler.send_header("Retry-After", "60")
-    handler.end_headers()
-    handler.wfile.write(json.dumps({"error": "rate_limit_exceeded"}).encode())
-    return False
 
 # Ключевые маршруты для /openapi.json и /docs
 _PUBLIC_API_ROUTES = [
@@ -7197,8 +7213,16 @@ def create_rpc_server(blockchain, mempool, config, evm=None, p2p=None, wallet=No
         JSONRPCHandler.rpc_auth = RPCApiKeyAuth.from_config(config)
         if JSONRPCHandler.rpc_auth.enabled:
             logger.info("RPC API key auth: enabled")
-    except ImportError:
+    except ImportError as e:
         JSONRPCHandler.rpc_auth = None
+        if getattr(config, "rpc_api_key_required", False) or _is_production_cfg(config):
+            raise RuntimeError(
+                "RPC_API_KEY_REQUIRED/prod requires middleware.rpc_auth"
+            ) from e
+    if getattr(config, "rpc_api_key_required", False) and (
+        JSONRPCHandler.rpc_auth is None or not getattr(JSONRPCHandler.rpc_auth, "enabled", False)
+    ):
+        raise RuntimeError("RPC_API_KEY_REQUIRED=true but RPC auth is not enabled")
     JSONRPCHandler.blockchain = blockchain
     JSONRPCHandler.mempool = mempool
     JSONRPCHandler.config = config

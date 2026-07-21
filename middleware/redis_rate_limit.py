@@ -15,6 +15,7 @@ class RedisRateLimiter:
         requests_per_minute: int = 120,
         window_seconds: int = 60,
         key_prefix: str = "abs:rl",
+        fail_closed: bool = False,
     ):
         import redis
 
@@ -23,6 +24,7 @@ class RedisRateLimiter:
         self.requests_per_minute = requests_per_minute
         self.window_seconds = window_seconds
         self.key_prefix = key_prefix
+        self.fail_closed = bool(fail_closed)
 
     def _bucket_key(self, client_id: str) -> str:
         window_id = int(time.time()) // self.window_seconds
@@ -37,6 +39,8 @@ class RedisRateLimiter:
             remaining = max(0, self.requests_per_minute - count)
             return count <= self.requests_per_minute, remaining
         except Exception:
+            if self.fail_closed:
+                return False, 0
             return True, self.requests_per_minute
 
     def reset(self, client_id: str) -> None:
@@ -52,10 +56,16 @@ def try_create_redis_limiter(
     redis_url: str,
     requests_per_minute: int = 120,
     window_seconds: int = 60,
+    fail_closed: bool = False,
 ) -> Optional[RedisRateLimiter]:
     if not redis_url:
         return None
     try:
-        return RedisRateLimiter(redis_url, requests_per_minute, window_seconds)
+        return RedisRateLimiter(
+            redis_url,
+            requests_per_minute,
+            window_seconds,
+            fail_closed=fail_closed,
+        )
     except Exception:
         return None

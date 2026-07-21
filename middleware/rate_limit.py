@@ -51,12 +51,18 @@ def create_rate_limiter(
     redis_enabled: bool = False,
     requests_per_minute: int = 120,
     window_seconds: int = 60,
+    fail_closed: bool = False,
 ):
     """In-memory или Redis (если включён и доступен)."""
     if redis_enabled and redis_url:
         from middleware.redis_rate_limit import try_create_redis_limiter
 
-        rl = try_create_redis_limiter(redis_url, requests_per_minute, window_seconds)
+        rl = try_create_redis_limiter(
+            redis_url,
+            requests_per_minute,
+            window_seconds,
+            fail_closed=fail_closed,
+        )
         if rl:
             return rl
     return RateLimiter(requests_per_minute=requests_per_minute, window_seconds=window_seconds)

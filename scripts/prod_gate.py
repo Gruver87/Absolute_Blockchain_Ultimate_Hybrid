@@ -122,6 +122,22 @@ def check_file(path: str) -> list[str]:
     if cfg.get("allow_state_root_rewrite") is True:
         errors.append(f"{path}: allow_state_root_rewrite must not be true in prod")
 
+    if cfg.get("allow_insecure_public_bind") is True:
+        errors.append(f"{path}: allow_insecure_public_bind must not be true in prod")
+
+    if int(cfg.get("rate_limit_rpm", 120) or 0) <= 0:
+        errors.append(f"{path}: rate_limit_rpm must be > 0 in prod")
+
+    # Prod mesh profiles require P2P TLS(+mTLS) for mainnet-prep wire.
+    if "mesh" in path.replace("\\", "/"):
+        if cfg.get("p2p_tls_enabled") is not True:
+            errors.append(f"{path}: p2p_tls_enabled must be true for prod mesh")
+        if cfg.get("p2p_tls_require_client_cert") is not True:
+            errors.append(f"{path}: p2p_tls_require_client_cert must be true for prod mesh mTLS")
+        for key in ("p2p_tls_cert_path", "p2p_tls_key_path", "p2p_tls_ca_path"):
+            if not str(cfg.get(key) or "").strip():
+                errors.append(f"{path}: {key} required when P2P TLS is enabled")
+
     if "mesh1" in path.replace("\\", "/"):
         if int(cfg.get("mesh_min_peers_before_mine", 0) or 0) < 1:
             errors.append(

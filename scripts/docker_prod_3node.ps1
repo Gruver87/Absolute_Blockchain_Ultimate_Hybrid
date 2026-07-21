@@ -6,7 +6,9 @@ param(
     [switch]$KeepVolumes,
     [switch]$PullLatest,
     [switch]$RecoveryDrill,
+    # P2P TLS is ON by default for prod mesh. Use -NoP2pTls only for local plaintext labs.
     [switch]$P2pTls,
+    [switch]$NoP2pTls,
     [string]$ProdImage = "ghcr.io/gruver87/abs-blockchain-node:latest"
 )
 
@@ -89,7 +91,11 @@ $composeTlsFile = "docker-compose.prod.3node.p2ptls.yml"
 $ComposeProject = "abs-prod-mesh3"
 $composeArgs = @("-p", $ComposeProject, "-f", $composeFile)
 
-if ($P2pTls) {
+# Default: P2P TLS + mTLS overlay. Opt out with -NoP2pTls.
+$enableP2pTls = -not $NoP2pTls
+if ($P2pTls) { $enableP2pTls = $true }
+
+if ($enableP2pTls) {
     $tlsRoot = Join-Path (Get-Location) "data\p2p_tls_prod_mesh\node1\node.pem"
     if (-not (Test-Path $tlsRoot)) {
         Write-Host "Generating prod mesh P2P TLS material..." -ForegroundColor Cyan
@@ -101,7 +107,10 @@ if ($P2pTls) {
         exit 1
     }
     $composeArgs += @("-f", $composeTlsFile)
-    Write-Host "P2P wire TLS enabled (overlay $composeTlsFile)" -ForegroundColor Cyan
+    $env:P2P_TLS_REQUIRE_CLIENT_CERT = "true"
+    Write-Host "P2P wire TLS+mTLS enabled (overlay $composeTlsFile)" -ForegroundColor Cyan
+} else {
+    Write-Host "WARN: P2P TLS disabled (-NoP2pTls) — plaintext mesh for lab only" -ForegroundColor Yellow
 }
 
 function Invoke-MeshCompose {
@@ -249,7 +258,7 @@ if ($LASTEXITCODE -ne 0) {
 python scripts/prod_smoke.py http://127.0.0.1:18180
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-if ($P2pTls) {
+if ($enableP2pTls) {
     Write-Host "Verifying P2P wire TLS on mesh nodes..." -ForegroundColor Cyan
     foreach ($port in @(18180, 18181, 18182)) {
         try {
@@ -279,8 +288,10 @@ if ($RecoveryDrill) {
 }
 
 Write-Host "OK: prod 3-node mesh" -ForegroundColor Green
-if ($P2pTls) {
-    Write-Host "  P2P wire TLS: enabled on all nodes" -ForegroundColor Gray
+if ($enableP2pTls) {
+    Write-Host "  P2P wire TLS+mTLS: enabled on all nodes" -ForegroundColor Gray
+} else {
+    Write-Host "  P2P wire TLS: disabled (-NoP2pTls)" -ForegroundColor Yellow
 }
 Write-Host "  node1 http://127.0.0.1:18180" -ForegroundColor Gray
 Write-Host "  node2 http://127.0.0.1:18181" -ForegroundColor Gray

@@ -1,6 +1,10 @@
 # P2P TLS overlay for docker-compose.prod.3node.yml
-# Usage: docker compose -f docker-compose.prod.3node.yml -f docker-compose.prod.3node.p2ptls.yml up -d
-# Or: .\scripts\docker_prod_3node.ps1 -P2pTls
+# Default via: .\scripts\docker_prod_3node.ps1  (opt out: -NoP2pTls)
+# Manual: docker compose -f docker-compose.prod.3node.yml -f docker-compose.prod.3node.p2ptls.yml up -d
+#
+# Threat model (honest): TLS encrypts the wire and mTLS authenticates peer certs
+# against the mesh CA. Application handshake identity is separate; cert CN binding
+# to validator addresses is not claimed here.
 
 services:
   node1:
@@ -9,6 +13,7 @@ services:
       P2P_TLS_CERT_PATH: /app/p2p_tls/node.pem
       P2P_TLS_KEY_PATH: /app/p2p_tls/node.key
       P2P_TLS_CA_PATH: /app/p2p_tls/ca.pem
+      P2P_TLS_REQUIRE_CLIENT_CERT: "true"
     volumes:
       - ./data/p2p_tls_prod_mesh/node1:/app/p2p_tls:ro
 
@@ -18,6 +23,7 @@ services:
       P2P_TLS_CERT_PATH: /app/p2p_tls/node.pem
       P2P_TLS_KEY_PATH: /app/p2p_tls/node.key
       P2P_TLS_CA_PATH: /app/p2p_tls/ca.pem
+      P2P_TLS_REQUIRE_CLIENT_CERT: "true"
     volumes:
       - ./data/p2p_tls_prod_mesh/node2:/app/p2p_tls:ro
 
@@ -27,5 +33,6 @@ services:
       P2P_TLS_CERT_PATH: /app/p2p_tls/node.pem
       P2P_TLS_KEY_PATH: /app/p2p_tls/node.key
       P2P_TLS_CA_PATH: /app/p2p_tls/ca.pem
+      P2P_TLS_REQUIRE_CLIENT_CERT: "true"
     volumes:
       - ./data/p2p_tls_prod_mesh/node3:/app/p2p_tls:ro

@@ -80,12 +80,16 @@ Report file: `logs/soak_report_48h.json` (48h run; legacy `soak_report.json` is 
 
 ## Phase 5 — Bridge decision
 
+### Recorded: Bridge OFF (2026-07-21)
+
+Pre-audit / mainnet-v1 prep chose **path A**. Evidence step: `bridge_decision_off`.
+
 ### A) Bridge off (mainnet v1 default)
 
 ```powershell
 python scripts/bridge_l1_preflight.py --config node.prod.mainnet-v1.example.json
 # WARN: bridge_disabled — expected
-python scripts/record_evidence_run.py --name bridge_decision --result PASS --notes "bridge_enabled=false for mainnet v1"
+python scripts/record_evidence_run.py --name bridge_decision_off --result PASS --notes "bridge_enabled=false for mainnet v1 / pre-audit"
 ```
 
 ### B) Bridge on (after L1 contracts)

@@ -15,7 +15,9 @@
 | IMS shadow | **reconcile_from_store** after blocks (v1.2.83) | Not a second ledger; mirrors DB satoshi; `/state/*` labels `canonical` |
 | API / `Blockchain.get_balance` | ABS float via `runtime.state_truth` | Derived from satoshi when available |
 
-**Not done yet:** drop float `balance` column; tip state-root payload → satoshi (coordinated rebuild).
+**Not done yet:** drop float `balance` column; tip state-root payload → satoshi (coordinated rebuild — **known limitation before external audit**; tip root still hashes float `"b"`).
+
+**Auditor stamp:** consensus tip `state_root` uses float `round(balance, 12)` encoding (`crypto/native.py`). Dual-write satoshi is for storage/truth reads; **do not claim satoshi tip roots** until a versioned migration + ceremony rebuild.
 
 ---
 
@@ -128,7 +130,7 @@ Then set `DB_ENGINE=rocksdb` / `"db_engine": "rocksdb"` in config.
 
 - [x] Prod mesh on RocksDB
 - [x] Backup/restore scripts + CI rocks drill
-- [ ] 24–48 h soak **completed** with `passed: true` in `logs/soak_report.json` (in-progress runs do not count)
+- [x] 24–48 h soak **completed** with `passed: true` (`logs/soak_report_48h.json`, 2026-07-19→21, v1.2.85)
 - [x] Documented DR restore rehearsal on test volume (`scripts/dr_restore_rehearsal.ps1`)
 - [x] `health_watch.ps1` quick/full harness polls + mesh height alignment
 

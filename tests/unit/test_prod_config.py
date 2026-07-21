@@ -277,6 +277,92 @@ def test_non_dev_public_bind_allowed_when_protected():
     assert not any("wildcard CORS" in e for e in errs)
 
 
+def test_prod_validate_requires_core_security_flags():
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.require_wallet_file = False
+    cfg.require_signatures = False
+    cfg.enforce_proposer = False
+    cfg.verify_peer_state_root = False
+    cfg.jwt_enforce_admin = False
+    cfg.rpc_api_key_required = False
+    cfg.rate_limit_rpm = 0
+    cfg.allow_insecure_public_bind = True
+    cfg.chain_id = 778888
+    cfg.evm_create2_eip1014 = True
+    cfg.evm_require_deploy_salt = True
+    cfg.require_native_crypto = False
+    errs = cfg.validate()
+    assert any("REQUIRE_SIGNATURES" in e for e in errs)
+    assert any("ENFORCE_PROPOSER" in e for e in errs)
+    assert any("VERIFY_PEER_STATE_ROOT" in e for e in errs)
+    assert any("JWT_ENFORCE_ADMIN" in e for e in errs)
+    assert any("RPC_API_KEY_REQUIRED" in e for e in errs)
+    assert any("RATE_LIMIT_RPM" in e for e in errs)
+    assert any("ALLOW_INSECURE_PUBLIC_BIND" in e for e in errs)
+
+
+def test_prod_apply_env_forces_security_flags(monkeypatch):
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    monkeypatch.setenv("REQUIRE_SIGNATURES", "false")
+    monkeypatch.setenv("ENFORCE_PROPOSER", "false")
+    monkeypatch.setenv("VERIFY_PEER_STATE_ROOT", "false")
+    monkeypatch.setenv("JWT_ENFORCE_ADMIN", "false")
+    monkeypatch.setenv("RPC_API_KEY_REQUIRED", "false")
+    monkeypatch.setenv("ALLOW_INSECURE_PUBLIC_BIND", "true")
+    monkeypatch.setenv("RATE_LIMIT_RPM", "0")
+    cfg.apply_env()
+    assert cfg.require_signatures is True
+    assert cfg.enforce_proposer is True
+    assert cfg.verify_peer_state_root is True
+    assert cfg.jwt_enforce_admin is True
+    assert cfg.rpc_api_key_required is True
+    assert cfg.allow_insecure_public_bind is False
+    assert cfg.rate_limit_rpm == 120
+
+
+def test_static_prod_gate_rejects_insecure_bind_and_zero_rpm(tmp_path, monkeypatch):
+    root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    script_path = os.path.join(root, "scripts", "prod_gate.py")
+    spec = importlib.util.spec_from_file_location("prod_gate_for_test2", script_path)
+    prod_gate = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(prod_gate)
+
+    prod_dir = tmp_path / "docker"
+    prod_dir.mkdir()
+    config_path = prod_dir / "node.prod.json"
+    config = {
+        "deployment_mode": "prod",
+        "bridge_enabled": False,
+        "chain_id": 778888,
+        "require_signatures": True,
+        "enforce_proposer": True,
+        "verify_peer_state_root": True,
+        "state_root_strict_p2p": True,
+        "rpc_api_key_required": True,
+        "jwt_enforce_admin": True,
+        "require_wallet_file": True,
+        "bridge_require_l1_proof": True,
+        "require_native_crypto": True,
+        "evm_create2_eip1014": True,
+        "evm_require_deploy_salt": True,
+        "validators_manifest_path": "validators.manifest.example.json",
+        "cors_origins": ["https://explorer.example.com"],
+        "db_engine": "rocksdb",
+        "allow_insecure_public_bind": True,
+        "rate_limit_rpm": 0,
+    }
+    for feature in prod_gate.BLOCKED_FEATURES:
+        config[feature] = False
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(prod_gate, "ROOT", Path(tmp_path))
+    errors = prod_gate.check_file("docker/node.prod.json")
+    assert any("allow_insecure_public_bind" in err for err in errors)
+    assert any("rate_limit_rpm" in err for err in errors)
+
+
 def test_prod_example_json_structure():
     root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     path = os.path.join(root, "node.prod.example.json")
