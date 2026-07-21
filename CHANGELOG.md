@@ -6,6 +6,13 @@
 
 ---
 
+## [1.3.37] — 2026-07-21
+
+### Hardened — bridge L1-proof / light / PBS / AI honesty
+
+- Prod forbids weakening `BRIDGE_REQUIRE_L1_PROOF` via env; relayer blind-confirm hard-fails on prod API
+- Light client rejects unanchored peer bootstrap; PBS fee-bid simulation (not MEV protection); AI validator feature-gated + no invented MEV numbers
+
 ## [1.3.36] — 2026-07-21
 
 ### Hardened — WASM/finality/reorg/RANDAO honesty + atomic chain backup replace

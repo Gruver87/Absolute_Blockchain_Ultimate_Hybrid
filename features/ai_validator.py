@@ -1,9 +1,7 @@
 ﻿#!/usr/bin/env python3
-"""AI VALIDATOR ENGINE - обучение стратегий стейкинга"""
+"""AI VALIDATOR ENGINE — simulation / research surface (not consensus-wired)."""
 
 import random
-import json
-import time
 from typing import Dict, List, Any
 from dataclasses import dataclass
 
@@ -17,7 +15,7 @@ class Validator:
     slashed: bool = False
 
 class AIValidatorEngine:
-    """Искусственный интеллект для валидаторов"""
+    """Heuristic validator scoring — simulation_only, not bound to block production."""
     
     def __init__(self):
         self.validators: Dict[str, Validator] = {}
@@ -36,7 +34,7 @@ class AIValidatorEngine:
         return min(1.0, score)
     
     def select_proposer(self) -> str:
-        """Выбор proposer на основе AI-оценки"""
+        """Heuristic proposer pick — not used by consensus forge path."""
         scores = [(addr, self.calculate_score(v)) for addr, v in self.validators.items()]
         scores.sort(key=lambda x: x[1], reverse=True)
         
@@ -57,57 +55,75 @@ class AIValidatorEngine:
                 val.performance = max(0, val.performance - 0.1)
     
     def detect_mev_opportunity(self, mempool: List) -> Dict:
-        """AI-детектор MEV-возможностей"""
+        """
+        Simulation-only MEV pattern stub.
+
+        Does not claim measured profit or model-bound detection — returns
+        heuristic placeholders labeled as such.
+        """
         opportunities = []
         
-        # Сэндвич атака
         if len(mempool) >= 3:
-            # Ищем паттерны
             opportunities.append({
                 "type": "sandwich",
-                "probability": random.uniform(0.1, 0.5),
-                "profit": random.uniform(10, 100)
+                "probability": None,
+                "profit": None,
+                "heuristic": True,
+                "invented_numbers": False,
+                "note": "pattern stub only; no profit/probability invented",
             })
         
-        # Арбитраж
-        opportunities.append({
-            "type": "arbitrage",
-            "probability": random.uniform(0.2, 0.6),
-            "profit": random.uniform(50, 500)
-        })
+        if len(mempool) >= 2:
+            opportunities.append({
+                "type": "arbitrage",
+                "probability": None,
+                "profit": None,
+                "heuristic": True,
+                "invented_numbers": False,
+                "note": "pattern stub only; no profit/probability invented",
+            })
         
-        return {"opportunities": opportunities, "total": len(opportunities)}
+        return {
+            "opportunities": opportunities,
+            "total": len(opportunities),
+            "simulation_only": True,
+            "consensus_wired": False,
+            "model_bound": False,
+            "invented_numbers": False,
+        }
     
     def get_stats(self) -> Dict:
         return {
             "validators": len(self.validators),
             "total_stake": sum(v.stake for v in self.validators.values()),
             "avg_performance": sum(v.performance for v in self.validators.values()) / max(1, len(self.validators)),
-            "total_rewards": sum(v.rewards for v in self.validators.values())
+            "total_rewards": sum(v.rewards for v in self.validators.values()),
+            "simulation_only": True,
+            "consensus_wired": False,
+            "model_bound": False,
+            "note": "AI validator is a research/sim surface; not used for block proposer selection",
         }
 
 def test_ai_validator():
-    print("🧠 AI Validator Engine Test")
+    print("AI Validator Engine Test (simulation_only)")
     print("=" * 40)
     
     engine = AIValidatorEngine()
     
-    # Добавляем валидаторов
     for i in range(10):
-        engine.add_validator(f"0xval_{i}", random.uniform(100, 1000))
+        engine.add_validator(f"0xval_{i}", 100.0 + i * 50.0)
     
     stats = engine.get_stats()
-    print(f"   👥 Validators: {stats['validators']}")
-    print(f"   💰 Total stake: {stats['total_stake']:.0f}")
-    print(f"   📊 Avg performance: {stats['avg_performance']:.2f}")
+    print(f"   Validators: {stats['validators']}")
+    print(f"   Total stake: {stats['total_stake']:.0f}")
+    print(f"   Avg performance: {stats['avg_performance']:.2f}")
+    print(f"   consensus_wired={stats['consensus_wired']} model_bound={stats['model_bound']}")
     
-    # Выбираем proposer
     proposer = engine.select_proposer()
-    print(f"   🎯 AI selected proposer: {proposer[:16]}...")
+    print(f"   Heuristic proposer: {proposer[:16]}...")
     
-    # MEV детекция
     mev = engine.detect_mev_opportunity([])
-    print(f"   💣 MEV opportunities: {mev['total']}")
+    print(f"   MEV stub opportunities: {mev['total']} invented_numbers={mev['invented_numbers']}")
     
     return True
 

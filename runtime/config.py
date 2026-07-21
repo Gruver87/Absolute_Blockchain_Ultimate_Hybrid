@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.36-industrial"
+    node_version: str = "1.3.37-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -123,6 +123,7 @@ class Config:
     feature_pq: bool = True
     feature_mev: bool = True
     feature_ai_agents: bool = True
+    feature_ai_validator: bool = True
     feature_smart_accounts: bool = True
     feature_validator_selection: bool = True
 
@@ -361,6 +362,9 @@ class Config:
         self.feature_pq = env_bool("FEATURE_PQ", self.feature_pq)
         self.feature_mev = env_bool("FEATURE_MEV", self.feature_mev)
         self.feature_ai_agents = env_bool("FEATURE_AI_AGENTS", self.feature_ai_agents)
+        self.feature_ai_validator = env_bool(
+            "FEATURE_AI_VALIDATOR", self.feature_ai_validator
+        )
         self.feature_smart_accounts = env_bool(
             "FEATURE_SMART_ACCOUNTS", self.feature_smart_accounts
         )
@@ -421,7 +425,8 @@ class Config:
             self.rocksdb_sync = env_str("ROCKSDB_SYNC", "FULL")
             self.enable_cors_rpc_proxy = env_bool("ENABLE_CORS_RPC_PROXY", False)
             self.log_json = env_bool("LOG_JSON", True)
-            self.bridge_require_l1_proof = env_bool("BRIDGE_REQUIRE_L1_PROOF", True)
+            # Fail-closed: env cannot weaken L1 proof requirement in prod.
+            self.bridge_require_l1_proof = True
             self.evm_create2_eip1014 = env_bool("EVM_CREATE2_EIP1014", True)
             self.evm_require_deploy_salt = env_bool("EVM_REQUIRE_DEPLOY_SALT", True)
             self.allow_state_root_rewrite = env_bool("ALLOW_STATE_ROOT_REWRITE", False)
@@ -436,6 +441,7 @@ class Config:
             self.feature_nft = env_bool("FEATURE_NFT", False)
             self.feature_mev = env_bool("FEATURE_MEV", False)
             self.feature_ai_agents = env_bool("FEATURE_AI_AGENTS", False)
+            self.feature_ai_validator = env_bool("FEATURE_AI_VALIDATOR", False)
             self.feature_smart_accounts = env_bool("FEATURE_SMART_ACCOUNTS", False)
             self.feature_validator_selection = env_bool(
                 "FEATURE_VALIDATOR_SELECTION", False
@@ -492,9 +498,15 @@ class Config:
         if "BRIDGE_ENABLED" in os.environ:
             self.bridge_enabled = env_bool("BRIDGE_ENABLED", self.bridge_enabled)
         if "BRIDGE_REQUIRE_L1_PROOF" in os.environ:
-            self.bridge_require_l1_proof = env_bool(
-                "BRIDGE_REQUIRE_L1_PROOF", self.bridge_require_l1_proof
-            )
+            if self.is_production:
+                # Env cannot weaken prod L1-proof invariant.
+                self.bridge_require_l1_proof = True
+            else:
+                self.bridge_require_l1_proof = env_bool(
+                    "BRIDGE_REQUIRE_L1_PROOF", self.bridge_require_l1_proof
+                )
+        elif self.is_production:
+            self.bridge_require_l1_proof = True
         return self
 
     def validate(self) -> List[str]:
@@ -560,6 +572,7 @@ class Config:
                 "FEATURE_NFT": self.feature_nft,
                 "FEATURE_MEV": self.feature_mev,
                 "FEATURE_AI_AGENTS": self.feature_ai_agents,
+                "FEATURE_AI_VALIDATOR": self.feature_ai_validator,
                 "FEATURE_SMART_ACCOUNTS": self.feature_smart_accounts,
                 "FEATURE_VALIDATOR_SELECTION": self.feature_validator_selection,
             }
@@ -666,6 +679,16 @@ class Config:
                 errors.append("prod bridge requires at least one L1 RPC URL (ETH_RPC_URL/BSC_RPC_URL/POLYGON_RPC_URL)")
             if not self.bridge_require_l1_proof:
                 errors.append("prod bridge requires BRIDGE_REQUIRE_L1_PROOF=true")
+            if os.environ.get("BRIDGE_REQUIRE_L1_PROOF", "").strip().lower() in (
+                "0",
+                "false",
+                "no",
+                "off",
+            ):
+                errors.append(
+                    "prod forbids BRIDGE_REQUIRE_L1_PROOF=false "
+                    "(env cannot weaken L1 proof requirement)"
+                )
             if self.bridge_require_l1_event:
                 lock = str(getattr(self, "bridge_l1_lock_contract", "") or "").strip().lower()
                 if not lock.startswith("0x") or len(lock) < 42 or "placeholder" in lock:

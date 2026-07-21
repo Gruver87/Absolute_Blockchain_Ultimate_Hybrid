@@ -865,8 +865,41 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         chain_st = (ROOT / "storage" / "chain_storage.py").read_text(encoding="utf-8")
         if "abs_chain_replace_" not in chain_st or "os.rename(tmp_blocks" not in chain_st:
             errors.append("ChainStorage.replace_chain must atomically swap temp blocks dir")
+        # v1.3.37 — bridge L1 proof / blind confirm / light / PBS / AI honesty
+        cfg_py = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
+        if "env cannot weaken L1 proof requirement" not in cfg_py:
+            errors.append("prod config must forbid BRIDGE_REQUIRE_L1_PROOF=false via env")
+        if "FEATURE_AI_VALIDATOR" not in cfg_py:
+            errors.append("config must include FEATURE_AI_VALIDATOR")
+        relayer_py = (ROOT / "scripts" / "bridge_relayer.py").read_text(encoding="utf-8")
+        if "refusing --allow-blind-confirm against prod API" not in relayer_py:
+            errors.append("bridge_relayer must hard-fail --allow-blind-confirm on prod API")
+        light_py = (ROOT / "light" / "light_client.py").read_text(encoding="utf-8")
+        if "require_trusted_anchor" not in light_py or "trusted_local_replay" not in light_py:
+            errors.append("light client must reject unanchored peer bootstrap")
+        if "peer_import_requires_trusted_anchor" not in light_py:
+            errors.append("light get_stats must expose peer_import_requires_trusted_anchor")
+        pbs_py = (ROOT / "consensus" / "pbs.py").read_text(encoding="utf-8")
+        if '"mev_protection": False' not in pbs_py or '"ordering_applied": False' not in pbs_py:
+            errors.append("PBS must label mev_protection/ordering_applied false")
+        if "PBS auction (MEV protection)" in main_py2 or "PBS handles protection" in main_py2:
+            errors.append("main.py must not claim PBS MEV protection")
+        if "feature_ai_validator" not in main_py2:
+            errors.append("main.py must gate AIValidatorEngine on feature_ai_validator")
+        ai_py = (ROOT / "features" / "ai_validator.py").read_text(encoding="utf-8")
+        if "invented_numbers" not in ai_py or "consensus_wired" not in ai_py:
+            errors.append("AI validator must expose simulation honesty (no invented MEV numbers)")
+        if "random.uniform" in ai_py and "detect_mev_opportunity" in ai_py:
+            # Fail if invented MEV numbers remain inside detect_mev_opportunity body.
+            start = ai_py.find("def detect_mev_opportunity")
+            end = ai_py.find("\n    def ", start + 1)
+            body = ai_py[start:end] if start >= 0 else ai_py
+            if "random.uniform" in body:
+                errors.append("AI validator must not invent MEV profit/probability via random.uniform")
+        if "consensus_wired" not in http_py2 or "model_bound" not in http_py2:
+            errors.append("/ai/* API must expose consensus_wired / model_bound honesty")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..36 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..37 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

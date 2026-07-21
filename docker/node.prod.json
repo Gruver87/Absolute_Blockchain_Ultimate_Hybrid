@@ -51,6 +51,7 @@
   "feature_pq": false,
   "feature_mev": false,
   "feature_ai_agents": false,
+  "feature_ai_validator": false,
   "sqlite_synchronous": "FULL",
   "db_engine": "rocksdb",
   "rocksdb_sync": "FULL",

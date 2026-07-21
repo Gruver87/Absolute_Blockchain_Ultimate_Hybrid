@@ -8,7 +8,7 @@ Consensus Adapter — связывает все компоненты консе�
   - ConsensusEngine          : PoS proposer rotation, slots/epochs (fallback)
   - FinalityEngine           : Casper FFG checkpoint finalization
   - ValidatorRegistry        : Репутация, слэшинг, статистика валидаторов
-  - PBSMarket                : Proposer/Builder Separation (MEV protection)
+  - PBSMarket                : fee-bid PBS simulation (not MEV protection)
 """
 
 import time
@@ -62,7 +62,7 @@ class ConsensusAdapter:
     System C (расширенная):
       ConsensusEngineSlashing → LMD-GHOST fork choice + slashing protection
       ValidatorRegistry       → reputation, missed-block penalties
-      PBSMarket               → proposer/builder separation (MEV)
+      PBSMarket               → fee-bid PBS simulation (not MEV protection)
     """
 
     def __init__(self, config: Config, db: Database, bus: Optional[EventBus] = None):
@@ -81,12 +81,15 @@ class ConsensusAdapter:
             epoch_size = getattr(config, "epoch_size", 32)
             self.slashing_engine = ConsensusEngineSlashing(epoch_size=epoch_size)
             self.validator_registry = ValidatorRegistry()
-            # PBS is MEV surface — only when feature_mev is explicitly enabled (prod blocks it).
+            # PBS is fee-bid simulation — only when feature_mev is enabled (prod blocks it).
             if bool(getattr(config, "feature_mev", False)):
                 self.pbs_market = PBSMarket()
                 self.pbs_market.add_builder(Builder("default-builder"))
                 self.pbs_market.add_proposer(Proposer("default-proposer"))
-                print("[Consensus] LMD-GHOST + Slashing + ValidatorRegistry + PBS: enabled")
+                print(
+                    "[Consensus] LMD-GHOST + Slashing + ValidatorRegistry + PBS: "
+                    "enabled (fee-bid simulation; mev_protection=false)"
+                )
             else:
                 self.pbs_market = None
                 print("[Consensus] LMD-GHOST + Slashing + ValidatorRegistry: enabled (PBS off)")
@@ -290,12 +293,12 @@ class ConsensusAdapter:
             return self.slashing_engine.get_cumulative_weight(block_hash)
         return 0
 
-    # ── PBS (MEV protection) ─────────────────────────────────────────────────
+    # ── PBS (fee-bid simulation; not MEV protection) ─────────────────────────
 
     def run_pbs_auction(self, pending_txs: List[Dict]) -> Optional[Dict]:
         """
-        Запускает аукцион PBS: builders создают блоки,
-        proposer выбирает наиболее доходный.
+        Fee-bid PBS simulation: builders score the same tx set;
+        proposer selects highest fee sum. Does not reorder or protect MEV.
         """
         if self.pbs_market and pending_txs:
             return self.pbs_market.run_auction(pending_txs)
@@ -461,6 +464,10 @@ class ConsensusAdapter:
                 "gossip is not production-complete"
             ),
             "pbs_enabled": pbs_on,
+            "pbs_mev_protection": False,
+            "pbs_ordering_applied": False,
+            "pbs_simulation_only": True,
+            "pbs_note": "fee-bid PBS simulation; not MEV protection",
             "validator_registry": registry_on,
             "beacon_enabled": self.beacon_engine is not None,
             "casper_ingest_fail": int(self._casper_ingest_fail),

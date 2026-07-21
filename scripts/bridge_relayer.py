@@ -91,9 +91,24 @@ def main() -> int:
                 "(or pass --allow-blind-confirm for dev only)"
             )
             return 1
+        # Hard-fail blind confirm against a prod API (deployment_mode from /status).
+        try:
+            st = http_get_json(f"{args.api.rstrip('/')}/status")
+            mode = str(st.get("deployment_mode") or "").strip().lower()
+        except Exception as exc:
+            print(
+                f"FAIL: cannot verify deployment_mode before --allow-blind-confirm: {exc}"
+            )
+            return 1
+        if mode in ("prod", "production"):
+            print(
+                "FAIL: refusing --allow-blind-confirm against prod API "
+                f"(deployment_mode={mode!r}); audited L1 + --watch-l1 required"
+            )
+            return 1
         print(
             "WARN: allow-blind-confirm enabled while BRIDGE_REQUIRE_L1_PROOF=true "
-            "(dev-only; do not use in production)"
+            f"(non-prod only; deployment_mode={mode!r})"
         )
 
     interval = 0 if args.once else (args.interval or 0)

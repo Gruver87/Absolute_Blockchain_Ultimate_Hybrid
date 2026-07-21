@@ -35,6 +35,7 @@ BLOCKED_FEATURES = [
     "feature_pq",
     "feature_mev",
     "feature_ai_agents",
+    "feature_ai_validator",
 ]
 
 REQUIRED_TRUE = [

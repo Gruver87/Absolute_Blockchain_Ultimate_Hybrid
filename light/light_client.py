@@ -8,7 +8,7 @@ import json
 from typing import List, Dict, Optional, Any
 
 from crypto import native
-from crypto.merkle import verify_proof, generate_proof, merkle_root
+from crypto.merkle import verify_proof, generate_proof
 from core.block_header import BlockHeader
 
 
@@ -19,6 +19,10 @@ class LightClient:
         self.headers: List[BlockHeader] = []
         self.header_by_hash: Dict[str, BlockHeader] = {}
         self.header_by_number: Dict[int, BlockHeader] = {}
+        # trusted_local_replay = synced from local canonical chain;
+        # unanchored = empty (no trusted checkpoint yet).
+        self._trust_mode: str = "unanchored"
+        self._peer_import_rejected: int = 0
 
     def add_header(self, header: BlockHeader) -> bool:
         """Добавить заголовок (пропускает дубликаты по номеру)."""
@@ -29,8 +33,17 @@ class LightClient:
         self.header_by_number[header.number] = header
         return True
 
-    def add_headers(self, headers: List[BlockHeader]) -> int:
-        """Добавить пачку заголовков с native batch hash + chain validation."""
+    def add_headers(
+        self,
+        headers: List[BlockHeader],
+        *,
+        require_trusted_anchor: bool = False,
+    ) -> int:
+        """Добавить пачку заголовков с native batch hash + chain validation.
+
+        Peer import must set require_trusted_anchor=True so an empty client
+        cannot bootstrap trust from the candidate headers themselves.
+        """
         candidates = sorted(
             [h for h in headers if h.number not in self.header_by_number],
             key=lambda item: item.number,
@@ -39,6 +52,10 @@ class LightClient:
             return 0
 
         latest = self.get_latest_header()
+        if require_trusted_anchor and latest is None:
+            self._peer_import_rejected += 1
+            return 0
+
         anchor_height = latest.number if latest else candidates[0].number - 1
         anchor_parent = latest.hash() if latest else candidates[0].parent_hash
         chain_payload = [
@@ -59,6 +76,8 @@ class LightClient:
             expected_parent_hash=anchor_parent,
             start_height=anchor_height,
         ):
+            if require_trusted_anchor:
+                self._peer_import_rejected += 1
             return 0
 
         hashes = BlockHeader.batch_hash(candidates)
@@ -82,14 +101,16 @@ class LightClient:
                 continue
             if self.add_header(BlockHeader.from_block_dict(block)):
                 added += 1
+        if added or self.headers:
+            self._trust_mode = "trusted_local_replay"
         return added
 
     def sync_headers_from_peers(self, peer_headers: List[Dict]) -> int:
-        """Import peer header chain (untrusted — validated in add_headers)."""
+        """Import peer headers only when a trusted local checkpoint exists."""
         if not peer_headers:
             return 0
         headers = [BlockHeader.from_dict(item) for item in peer_headers]
-        return self.add_headers(headers)
+        return self.add_headers(headers, require_trusted_anchor=True)
 
     def get_header(self, number: int) -> Optional[BlockHeader]:
         return self.header_by_number.get(number)
@@ -156,6 +177,10 @@ class LightClient:
             "latest_hash": latest.hash() if latest else None,
             "latest_tx_root": latest.tx_root if latest else None,
             "latest_state_root": latest.state_root if latest else None,
+            "trust_mode": self._trust_mode,
+            "peer_import_requires_trusted_anchor": True,
+            "peer_import_rejected": int(self._peer_import_rejected),
+            "unanchored_peer_bootstrap": False,
         }
 
     def get_headers(self, from_num: int = 0, limit: int = 50) -> List[Dict]:

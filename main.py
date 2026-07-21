@@ -793,12 +793,17 @@ class NodeOrchestrator:
         else:
             self.tx_validator = None
 
-        # 22. AI Validator Engine (performance-weighted proposer selection)
-        if _AI_VALIDATOR_AVAILABLE:
+        # 22. AI Validator Engine (simulation_only; off in prod via FEATURE_AI_VALIDATOR)
+        if _AI_VALIDATOR_AVAILABLE and getattr(config, "feature_ai_validator", True):
             self.ai_validator = AIValidatorEngine()
-            print("[Node] AIValidatorEngine: enabled (performance-weighted proposer selection)")
+            print(
+                "[Node] AIValidatorEngine: enabled "
+                "(simulation_only; consensus_wired=false; model_bound=false)"
+            )
         else:
             self.ai_validator = None
+            if _AI_VALIDATOR_AVAILABLE:
+                print("[Node] AIValidatorEngine: disabled (feature_ai_validator=false)")
 
         # 23. Reorg Predictor
         if _REORG_PREDICTOR_AVAILABLE:
@@ -1798,30 +1803,25 @@ class NodeOrchestrator:
                 if proposer.lower() not in _local:
                     continue
 
-            # ── PBS auction (MEV protection) ──────────────────────────────────
-            pbs_tx_order = None
+            # ── PBS fee-bid simulation (not MEV protection; no reorder) ───────
             try:
                 pending_dicts = [{"hash": t.tx_hash, "from": t.from_addr, "to": t.to_addr,
                                   "value": t.amount, "gasPrice": int(t.fee * 1e9),
                                   "gas": int(getattr(t, "gas", 0) or 21000),
                                   "nonce": t.nonce,
                                   "data": getattr(t, "data", "") or "",
-                                  "timestamp": t.timestamp}
+                                  "timestamp": t.timestamp,
+                                  "gas_price": int(t.fee * 1e9)}
                                  for t in self.mempool.get(limit=self.config.max_tx_per_block)]
-                pbs_result = self.consensus.run_pbs_auction(pending_dicts)
-                if pbs_result and pbs_result.get("transactions"):
-                    pbs_tx_order = {tx["hash"] for tx in pbs_result["transactions"]}
+                # Fee-bid auction result is observational only (ordering_applied=false).
+                self.consensus.run_pbs_auction(pending_dicts)
             except Exception as exc:
                 _node_log.warning("[Mining] PBS auction failed: %s", exc)
 
-            # ── Get mempool transactions ──────────────────────────────────────
+            # ── Get mempool transactions (mempool order; PBS does not reorder) ─
             pending = self.mempool.get(limit=self.config.max_tx_per_block)
 
-            # Re-order by PBS if auction ran
-            if pbs_tx_order:
-                pending = sorted(pending, key=lambda t: 0 if t.tx_hash in pbs_tx_order else 1)
-
-            # ── MEV scan (monitoring, PBS handles protection) ─────────────────
+            # ── MEV scan (monitoring only; PBS is fee-bid simulation) ─────────
             if self.mev_simulator and len(pending) >= 2:
                 try:
                     from features.mev_analyzer import Transaction as MevTx

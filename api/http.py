@@ -2773,23 +2773,46 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/ai/validators":
                 ai = self.__class__.ai_validator
                 if ai:
-                    self._json({"stats": ai.get_stats(),
-                                "validators": {addr: {"performance": v.performance,
-                                                       "reliability": v.reliability,
-                                                       "stake": v.stake,
-                                                       "rewards": v.rewards}
-                                               for addr, v in ai.validators.items()}})
+                    self._json({
+                        "enabled": True,
+                        "simulation_only": True,
+                        "consensus_wired": False,
+                        "model_bound": False,
+                        "stats": ai.get_stats(),
+                        "validators": {addr: {"performance": v.performance,
+                                               "reliability": v.reliability,
+                                               "stake": v.stake,
+                                               "rewards": v.rewards}
+                                       for addr, v in ai.validators.items()},
+                    })
                 else:
-                    self._json({"enabled": False})
+                    self._json({
+                        "enabled": False,
+                        "simulation_only": True,
+                        "consensus_wired": False,
+                        "model_bound": False,
+                    })
 
             elif path == "/ai/proposer":
                 ai = self.__class__.ai_validator
                 if ai:
                     proposer = ai.select_proposer()
-                    self._json({"proposer": proposer,
-                                "stats": ai.get_stats()})
+                    self._json({
+                        "enabled": True,
+                        "proposer": proposer,
+                        "stats": ai.get_stats(),
+                        "simulation_only": True,
+                        "consensus_wired": False,
+                        "model_bound": False,
+                        "note": "heuristic pick; not used by block forge",
+                    })
                 else:
-                    self._json({"enabled": False})
+                    self._json({
+                        "enabled": False,
+                        "simulation_only": True,
+                        "consensus_wired": False,
+                        "model_bound": False,
+                    })
 
             elif path == "/ai/mev-scan":
                 ai = self.__class__.ai_validator
@@ -2797,9 +2820,16 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if ai and mp:
                     pending = mp.get(limit=50)
                     mev_data = ai.detect_mev_opportunity(pending)
+                    mev_data["enabled"] = True
                     self._json(mev_data)
                 else:
-                    self._json({"enabled": False})
+                    self._json({
+                        "enabled": False,
+                        "simulation_only": True,
+                        "consensus_wired": False,
+                        "model_bound": False,
+                        "invented_numbers": False,
+                    })
 
             # ── Reorg Predictor ───────────────────────────────────────────────
             elif path == "/consensus/casper":
@@ -4897,8 +4927,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not address:
                     self._error(400, "address required"); return
                 ai.add_validator(address, stake)
-                self._json({"registered": address, "stake": stake,
-                            "total_validators": len(ai.validators)})
+                self._json({
+                    "registered": address,
+                    "stake": stake,
+                    "total_validators": len(ai.validators),
+                    "simulation_only": True,
+                    "consensus_wired": False,
+                    "model_bound": False,
+                })
 
             # ── MEV: analyze mempool ───────────────────────────────────────────
             elif path == "/mev/analyze":

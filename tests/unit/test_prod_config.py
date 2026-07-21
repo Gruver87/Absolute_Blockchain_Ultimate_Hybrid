@@ -378,6 +378,7 @@ def test_prod_example_json_structure():
     assert cfg.chain_id == 778888
     assert cfg.feature_mev is False
     assert cfg.feature_ai_agents is False
+    assert cfg.feature_ai_validator is False
     assert cfg.validators_manifest_path == "validators.manifest.example.json"
 
 
