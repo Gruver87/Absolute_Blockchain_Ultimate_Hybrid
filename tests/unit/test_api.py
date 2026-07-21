@@ -221,7 +221,7 @@ def test_bridge_overview(api_server):
     status, body = _get(f"{base}/bridge")
     data = json.loads(body)
     assert status == 200
-    assert data["enabled"] is True
+    assert data["enabled"] is False
     assert data["mode"] in ("simulator", "rust")
     assert "locks" in data
     assert "supported_chains" in data
@@ -235,7 +235,7 @@ def test_prod_health_ready_fails_when_required_rust_bridge_is_bad(tmp_path, monk
     cfg.deployment_mode = "prod"
     cfg.bridge_enabled = True
     cfg.bridge_mode = "rust"
-    cfg.rate_limit_rpm = 0
+    cfg.rate_limit_rpm = 120
     cfg.require_native_crypto = False
     db = Database(cfg.db_path, synchronous="NORMAL")
     db.initialize()

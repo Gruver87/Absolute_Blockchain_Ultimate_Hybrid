@@ -26,7 +26,7 @@ def test_status_includes_hybrid_consensus_fields():
     cfg.deployment_mode = "prod"
     cfg.consensus_mode = "unified"
     cfg.http_port = 15380
-    cfg.rate_limit_rpm = 0
+    cfg.rate_limit_rpm = 120
     cfg.jwt_enforce_admin = False
     db = Database(path)
     db.initialize()

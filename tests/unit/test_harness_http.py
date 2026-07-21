@@ -13,7 +13,7 @@ from runtime.config import Config
 from storage.database import Database
 from core.blockchain import Blockchain
 from blockchain.mempool import Mempool
-from api.http import RESTHandler, ThreadedHTTPServer
+from api.http import RESTHandler, ThreadedHTTPServer, configure_rate_limiter
 
 
 def _free_port():
@@ -37,6 +37,7 @@ def test_harness_http_peer_probe_ok_and_encoding(tmp_path, monkeypatch):
     cfg.jwt_enforce_admin = False
     cfg.rpc_api_key_required = False
     cfg.require_wallet_file = False
+    cfg.rate_limit_rpm = 120
     db = Database(path)
     db.initialize()
     bc = Blockchain(cfg, db)
@@ -47,6 +48,7 @@ def test_harness_http_peer_probe_ok_and_encoding(tmp_path, monkeypatch):
     RESTHandler.db = db
     RESTHandler.p2p = None
     RESTHandler.consensus_adapter = None
+    configure_rate_limiter(cfg)
     server = ThreadedHTTPServer(("127.0.0.1", cfg.http_port), RESTHandler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     time.sleep(0.25)

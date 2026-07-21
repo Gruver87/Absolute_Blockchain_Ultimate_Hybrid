@@ -103,6 +103,14 @@ def export_audit_pack(
     (gates_dir / "prod_gate.txt").write_text(text, encoding="utf-8")
     gate_results["prod_gate"] = {"exit_code": rc}
 
+    rc, text = _run_python("scripts/bridge_off_audit_gate.py")
+    (gates_dir / "bridge_off_audit_gate.txt").write_text(text, encoding="utf-8")
+    gate_results["bridge_off_audit_gate"] = {"exit_code": rc}
+    _copy_if_exists(
+        ROOT / "data" / "bridge_off_audit_gate.json",
+        gates_dir / "bridge_off_audit_gate.json",
+    )
+
     # Docs
     for name in (
         "EVIDENCE_MATRIX.md",
@@ -110,6 +118,7 @@ def export_audit_pack(
         "INCIDENT_RESPONSE.md",
         "PUBLIC_TESTNET.md",
         "MAINNET_CUTOVER.md",
+        "STATE_ROOT_ENCODING_MIGRATION.md",
     ):
         _copy_if_exists(ROOT / "docs" / name, docs_dir / name)
 

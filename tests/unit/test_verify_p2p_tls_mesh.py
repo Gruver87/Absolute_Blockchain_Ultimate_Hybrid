@@ -24,9 +24,11 @@ def test_p2p_tls_scripts_exist():
     assert (ROOT / "scripts" / "docker_prod_3node_p2ptls.ps1").is_file()
 
 
-def test_static_tls_material_requires_node_dirs():
+def test_static_tls_material_requires_node_dirs(tmp_path):
     mod = _load("verify_p2p_tls_mesh", "scripts/verify_p2p_tls_mesh.py")
-    errors, _warnings, meta = mod.check_static_tls_material()
+    empty_root = tmp_path / "empty_tls_mesh"
+    with patch.object(mod, "TLS_MESH_ROOT", empty_root):
+        errors, _warnings, meta = mod.check_static_tls_material()
     assert meta["nodes"]
     assert any("missing TLS file" in e for e in errors)
 

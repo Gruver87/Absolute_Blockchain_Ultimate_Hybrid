@@ -22,6 +22,20 @@ def test_probe_plasma_importable():
     assert probe["module_importable"] is True
 
 
+def test_probe_lightning_importable():
+    probe = probe_optional_module(*OPTIONAL_MODULE_PROBES["lightning"])
+    assert probe["module_importable"] is True
+
+
+def test_probe_zk_importable():
+    probe = probe_optional_module(*OPTIONAL_MODULE_PROBES["zk"])
+    assert probe["module_importable"] is True
+
+
+def test_optional_module_probes_registry():
+    assert set(OPTIONAL_MODULE_PROBES) >= {"wasm", "plasma", "lightning", "zk"}
+
+
 def test_probe_unknown_module_fail_loud():
     probe = probe_optional_module("features.no_such_module_xyz", "NoClass")
     assert probe["module_importable"] is False

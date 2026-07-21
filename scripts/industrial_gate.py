@@ -160,6 +160,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("state consistency harness must include peer_probe_ok check")
         if "module_probes" not in http_py:
             errors.append("GET /features must expose module_probes for wasm/plasma")
+        feat_init = (ROOT / "features" / "__init__.py").read_text(encoding="utf-8")
+        for name in ("lightning", "zk"):
+            if f'"{name}"' not in feat_init:
+                errors.append(f"OPTIONAL_MODULE_PROBES must include {name}")
     except Exception as exc:
         errors.append(f"fail-loud http inspect failed: {exc}")
     return errors, warnings

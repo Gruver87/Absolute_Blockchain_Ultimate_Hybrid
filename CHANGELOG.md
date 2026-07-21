@@ -6,6 +6,15 @@
 
 ---
 
+## [1.2.97] — 2026-07-21
+
+### Hardened — Lightning/ZK probes, CI bridge gate, audit pack
+
+- module_probes: lightning + zk; /lightning/stats and /zk/info import_error
+- GitHub Actions bridge_off_audit_gate; export_audit_pack includes gate JSON
+
+---
+
 ## [1.2.96] — 2026-07-21
 
 ### Hardened — evidence bridge gate, WASM/Plasma probes, release stamp

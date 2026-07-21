@@ -36,6 +36,8 @@ def test_prod_node_config_has_industrial_flags():
     assert cfg["evm_require_deploy_salt"] is True
     assert cfg["evm_create2_eip1014"] is True
     assert cfg["bridge_enabled"] is False
+    assert cfg["allow_state_root_rewrite"] is False
+    assert cfg["rate_limit_rpm"] == 120
     assert cfg["feature_wasm"] is False
     from runtime.prod_smoke_profile import rocks_engine_available
 

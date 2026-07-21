@@ -2010,9 +2010,13 @@ class RESTHandler(BaseHTTPRequestHandler):
             # ── ZK Proofs ─────────────────────────────────────────────────────
             elif path == "/zk/info":
                 zk = self.__class__.zk
-                if not zk:
-                    self._error(503, "ZK module not enabled"); return
-                self._json(zk.get_system_info())
+                if zk:
+                    self._json(zk.get_system_info())
+                else:
+                    from features import probe_optional_module
+
+                    probe = probe_optional_module("features.zk", "ZKProofSystem")
+                    self._json({"enabled": False, **probe})
 
             # ── Sharding ──────────────────────────────────────────────────────
             elif path in ("/sharding/stats", "/sharding"):
@@ -2726,7 +2730,13 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             elif path == "/lightning/stats":
                 ln = self.__class__.lightning
-                self._json(ln.get_stats() if ln else {"enabled": False})
+                if ln:
+                    self._json(ln.get_stats())
+                else:
+                    from features import probe_optional_module
+
+                    probe = probe_optional_module("features.lightning", "LightningNetwork")
+                    self._json({"enabled": False, **probe})
 
             elif path == "/lightning/channels":
                 ln = self.__class__.lightning

@@ -249,6 +249,8 @@ def prod_node_config(
         "feature_pq": False,
         "feature_mev": False,
         "feature_ai_agents": False,
+        "allow_state_root_rewrite": False,
+        "rate_limit_rpm": 120,
         "log_json": False,
         "enable_cors_rpc_proxy": False,
         "cors_origins": ["https://explorer.example.com"],

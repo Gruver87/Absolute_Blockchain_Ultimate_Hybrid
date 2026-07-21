@@ -216,6 +216,10 @@ jobs:
       if: matrix.python-version == '3.12'
       run: python scripts/public_testnet_gate.py
 
+    - name: Bridge OFF audit gate
+      if: matrix.python-version == '3.12'
+      run: python scripts/bridge_off_audit_gate.py
+
     - name: Industrial static gate
       if: matrix.python-version == '3.12'
       run: python scripts/industrial_gate.py

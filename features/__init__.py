@@ -97,4 +97,6 @@ def probe_optional_module(module_path: str, class_name: str) -> Dict[str, Any]:
 OPTIONAL_MODULE_PROBES: Dict[str, tuple[str, str]] = {
     "wasm": ("features.wasm_vm", "WASMVirtualMachine"),
     "plasma": ("features.plasma", "PlasmaChain"),
+    "lightning": ("features.lightning", "LightningNetwork"),
+    "zk": ("features.zk", "ZKProofSystem"),
 }
