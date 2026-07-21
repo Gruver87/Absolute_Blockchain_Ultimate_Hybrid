@@ -205,6 +205,15 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] EIP-4844 blob transaction type in `eth_sendRawTransaction` (type 0x03 decode + verify)
 - [x] EOF container rejected at deploy (`eof_container_not_supported`; full EOF VM optional)
 
+### Priority 11 — Fork-choice + simple state mutation kernels ✅ (v1.3.38)
+
+- [x] `ghost_select_head` / `ghost_cumulative_weight` / `ghost_chain_from_head` in Rust
+- [x] `lmd_compute_weights` in Rust; `consensus/ghost.py` + `lmd.py` wired
+- [x] `blockchain_apply_simple_block` — fee/burn/proposer + reward (no EVM calldata)
+- [x] `blockchain_replay_simple_blocks` — reorg/tip-repair assist for simple chains
+- [x] `core/blockchain.py` prefers native apply/replay; falls back to Python per-tx on EVM/error
+- Remaining (next waves): full EVM host-in-apply, finality/slashing conflict kernels, eth_tx decode, Rocks codecs, P2P rate-limit
+
 ## Process per module
 
 1. Python tests + golden vectors first.

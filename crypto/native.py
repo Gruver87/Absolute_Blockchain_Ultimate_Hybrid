@@ -99,6 +99,12 @@ def native_crypto_status(required: bool = False) -> dict:
             "validate_peer_header_chain",
             "consensus_stake_weighted_proposer",
             "consensus_fisher_yates_committee",
+            "ghost_select_head",
+            "ghost_cumulative_weight",
+            "ghost_chain_from_head",
+            "lmd_compute_weights",
+            "blockchain_apply_simple_block",
+            "blockchain_replay_simple_blocks",
             "validator_selection_proposer",
             "validator_selection_proposer_weighted",
             "validator_selection_committee",
@@ -1502,6 +1508,90 @@ def state_engine_apply_transactions(accounts_json: str, txs_json: str) -> str:
     if _native is not None and hasattr(_native, "state_engine_apply_transactions"):
         return str(_native.state_engine_apply_transactions(accounts_json, txs_json))
     raise RuntimeError("state_engine_apply_transactions requires abs_native")
+
+
+def ghost_cumulative_weight(block_hash: str, tree_json: str, weights_json: str) -> int:
+    _require_native_kernel("ghost_cumulative_weight")
+    if _native is not None and hasattr(_native, "ghost_cumulative_weight"):
+        return int(_native.ghost_cumulative_weight(block_hash, tree_json, weights_json))
+    raise RuntimeError("ghost_cumulative_weight requires abs_native")
+
+
+def ghost_select_head(tree_json: str, weights_json: str):
+    _require_native_kernel("ghost_select_head")
+    if _native is not None and hasattr(_native, "ghost_select_head"):
+        return _native.ghost_select_head(tree_json, weights_json)
+    raise RuntimeError("ghost_select_head requires abs_native")
+
+
+def ghost_chain_from_head(tree_json: str, weights_json: str):
+    _require_native_kernel("ghost_chain_from_head")
+    if _native is not None and hasattr(_native, "ghost_chain_from_head"):
+        return list(_native.ghost_chain_from_head(tree_json, weights_json))
+    raise RuntimeError("ghost_chain_from_head requires abs_native")
+
+
+def lmd_compute_weights(votes_json: str, stakes_json: str) -> str:
+    _require_native_kernel("lmd_compute_weights")
+    if _native is not None and hasattr(_native, "lmd_compute_weights"):
+        return str(_native.lmd_compute_weights(votes_json, stakes_json))
+    raise RuntimeError("lmd_compute_weights requires abs_native")
+
+
+def blockchain_apply_simple_block(
+    accounts_json: str,
+    txs_json: str,
+    gas_price_wei: float,
+    burn_rate: float,
+    proposer: str,
+    burn_address: str,
+    block_reward_abs: float,
+    current_supply_sat: int,
+    max_supply_sat: int,
+) -> str:
+    _require_native_kernel("blockchain_apply_simple_block")
+    if _native is not None and hasattr(_native, "blockchain_apply_simple_block"):
+        return str(
+            _native.blockchain_apply_simple_block(
+                accounts_json,
+                txs_json,
+                float(gas_price_wei),
+                float(burn_rate),
+                str(proposer or ""),
+                str(burn_address or ""),
+                float(block_reward_abs),
+                int(current_supply_sat),
+                int(max_supply_sat),
+            )
+        )
+    raise RuntimeError("blockchain_apply_simple_block requires abs_native")
+
+
+def blockchain_replay_simple_blocks(
+    accounts_json: str,
+    blocks_json: str,
+    gas_price_wei: float,
+    burn_rate: float,
+    burn_address: str,
+    block_reward_abs: float,
+    current_supply_sat: int,
+    max_supply_sat: int,
+) -> str:
+    _require_native_kernel("blockchain_replay_simple_blocks")
+    if _native is not None and hasattr(_native, "blockchain_replay_simple_blocks"):
+        return str(
+            _native.blockchain_replay_simple_blocks(
+                accounts_json,
+                blocks_json,
+                float(gas_price_wei),
+                float(burn_rate),
+                str(burn_address or ""),
+                float(block_reward_abs),
+                int(current_supply_sat),
+                int(max_supply_sat),
+            )
+        )
+    raise RuntimeError("blockchain_replay_simple_blocks requires abs_native")
 
 
 def plan_transfer_fees(

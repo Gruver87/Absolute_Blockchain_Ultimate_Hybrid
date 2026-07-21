@@ -2,13 +2,48 @@
 """
 Pure GHOST fork choice
 No votes inside — only tree + weights
+
+Hot path prefers abs_native kernels (ghost_select_head / ghost_cumulative_weight)
+with a Python reference fallback for byte-aligned behavior.
 """
 
+from __future__ import annotations
+
+import json
 from typing import Dict, List, Optional
+
+from crypto import native
+
+
+def _native_required() -> bool:
+    return bool(native.native_crypto_status(required=False).get("required"))
+
+
+def _tree_json(tree: Dict) -> str:
+    return json.dumps(tree, separators=(",", ":"), ensure_ascii=False)
+
+
+def _weights_json(weights: Dict[str, int]) -> str:
+    return json.dumps(
+        {str(k): int(v) for k, v in weights.items()},
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
 
 
 def get_cumulative_weight(block_hash: str, tree: Dict, weights: Dict[str, int]) -> int:
     """Cumulative weight of block and descendants (iterative — safe on long chains)."""
+    if native.native_available() and hasattr(native, "ghost_cumulative_weight"):
+        try:
+            return int(
+                native.ghost_cumulative_weight(
+                    str(block_hash), _tree_json(tree), _weights_json(weights)
+                )
+            )
+        except Exception:
+            if _native_required():
+                raise
+
     memo: Dict[str, int] = {}
     stack: List[tuple] = [(block_hash, False)]
 
@@ -32,6 +67,14 @@ def select_head(tree: Dict, weights: Dict[str, int]) -> Optional[str]:
     """
     Pure GHOST: start from genesis, always pick child with highest cumulative weight
     """
+    if native.native_available() and hasattr(native, "ghost_select_head"):
+        try:
+            head = native.ghost_select_head(_tree_json(tree), _weights_json(weights))
+            return str(head) if head else None
+        except Exception:
+            if _native_required():
+                raise
+
     if not tree:
         return None
 
@@ -82,6 +125,14 @@ def select_head(tree: Dict, weights: Dict[str, int]) -> Optional[str]:
 
 def get_chain_from_head(tree: Dict, weights: Dict[str, int]) -> List[str]:
     """Get full chain from genesis to head"""
+    if native.native_available() and hasattr(native, "ghost_chain_from_head"):
+        try:
+            chain = native.ghost_chain_from_head(_tree_json(tree), _weights_json(weights))
+            return [str(h) for h in chain]
+        except Exception:
+            if _native_required():
+                raise
+
     head = select_head(tree, weights)
     if not head:
         return []

@@ -308,6 +308,338 @@ fn state_engine_apply_transactions(accounts_json: String, txs_json: String) -> P
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
 }
 
+fn tx_has_calldata(tx: &Value) -> bool {
+    let obj = match tx.as_object() {
+        Some(o) => o,
+        None => return false,
+    };
+    let data = obj
+        .get("data")
+        .or_else(|| obj.get("input"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim();
+    !data.is_empty() && data != "0x" && data != "0X"
+}
+
+fn apply_simple_transfer_with_fees(
+    accounts: &mut BTreeMap<String, Value>,
+    tx: &Value,
+    gas_price_wei: f64,
+    burn_rate: f64,
+    proposer: &str,
+    burn_address: &str,
+) -> PyResult<i64> {
+    if tx_has_calldata(tx) {
+        return Err(pyo3::exceptions::PyRuntimeError::new_err(
+            "evm_tx_not_supported",
+        ));
+    }
+    let obj = tx
+        .as_object()
+        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("tx must be object"))?;
+    let from_addr = obj
+        .get("from")
+        .or_else(|| obj.get("from_addr"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let to_addr = obj
+        .get("to")
+        .or_else(|| obj.get("to_addr"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    if from_addr.is_empty() || to_addr.is_empty() {
+        return Err(pyo3::exceptions::PyValueError::new_err("missing_address"));
+    }
+
+    let value_abs = obj
+        .get("value")
+        .or_else(|| obj.get("amount"))
+        .cloned()
+        .unwrap_or(Value::Number(0.into()));
+    let value_f = match &value_abs {
+        Value::Number(n) => n.as_f64().unwrap_or(0.0),
+        Value::String(s) => s.parse::<f64>().unwrap_or(0.0),
+        _ => 0.0,
+    };
+    let gas = obj
+        .get("gas")
+        .and_then(|v| v.as_u64().or_else(|| v.as_i64().map(|i| i as u64)))
+        .unwrap_or(21_000);
+
+    let (fee, burned, miner_fee, total_cost) =
+        plan_transfer_fees(gas, gas_price_wei, burn_rate, value_f, None)?;
+    let value_sat = to_satoshi_inner(&value_f.to_string())?;
+    let fee_sat = to_satoshi_inner(&fee.to_string())?;
+    let burned_sat = to_satoshi_inner(&burned.to_string())?;
+    let miner_fee_sat = to_satoshi_inner(&miner_fee.to_string())?;
+    let total_sat = to_satoshi_inner(&total_cost.to_string())?;
+
+    if !accounts.contains_key(&from_addr) {
+        accounts.insert(from_addr.clone(), empty_account());
+    }
+    let from_bal = account_balance(accounts.get(&from_addr).unwrap());
+    let from_nonce = account_nonce(accounts.get(&from_addr).unwrap());
+    if from_bal < total_sat {
+        return Err(pyo3::exceptions::PyRuntimeError::new_err(
+            "insufficient_funds",
+        ));
+    }
+    let tx_nonce = obj
+        .get("nonce")
+        .and_then(|v| v.as_i64().or_else(|| v.as_u64().map(|u| u as i64)))
+        .unwrap_or(from_nonce);
+    if tx_nonce != from_nonce {
+        return Err(pyo3::exceptions::PyRuntimeError::new_err(format!(
+            "Invalid nonce: expected {from_nonce}, got {tx_nonce}"
+        )));
+    }
+
+    {
+        let from = accounts.get_mut(&from_addr).unwrap();
+        set_account_balance(from, from_bal - total_sat, from_nonce + 1);
+    }
+    if !accounts.contains_key(&to_addr) {
+        accounts.insert(to_addr.clone(), empty_account());
+    }
+    {
+        let to = accounts.get_mut(&to_addr).unwrap();
+        let to_bal = account_balance(to);
+        let to_nonce = account_nonce(to);
+        set_account_balance(to, to_bal + value_sat, to_nonce);
+    }
+    if miner_fee_sat > 0 && !proposer.is_empty() {
+        if !accounts.contains_key(proposer) {
+            accounts.insert(proposer.to_string(), empty_account());
+        }
+        let row = accounts.get_mut(proposer).unwrap();
+        let bal = account_balance(row);
+        let nonce = account_nonce(row);
+        set_account_balance(row, bal + miner_fee_sat, nonce);
+    }
+    if burned_sat > 0 && !burn_address.is_empty() {
+        if !accounts.contains_key(burn_address) {
+            accounts.insert(burn_address.to_string(), empty_account());
+        }
+        let row = accounts.get_mut(burn_address).unwrap();
+        let bal = account_balance(row);
+        let nonce = account_nonce(row);
+        set_account_balance(row, bal + burned_sat, nonce);
+    }
+    let _ = fee_sat; // fee = miner + burned (satoshi rounding may leave dust burned nowhere)
+    Ok(burned_sat)
+}
+
+fn apply_block_reward_sat(
+    accounts: &mut BTreeMap<String, Value>,
+    proposer: &str,
+    reward_abs: f64,
+    current_supply_sat: i64,
+    max_supply_sat: i64,
+) -> PyResult<i64> {
+    if proposer.is_empty() || reward_abs <= 0.0 {
+        return Ok(0);
+    }
+    let mut reward_sat = to_satoshi_inner(&reward_abs.to_string())?;
+    if current_supply_sat + reward_sat > max_supply_sat {
+        reward_sat = (max_supply_sat - current_supply_sat).max(0);
+    }
+    if reward_sat <= 0 {
+        return Ok(0);
+    }
+    if !accounts.contains_key(proposer) {
+        accounts.insert(proposer.to_string(), empty_account());
+    }
+    let row = accounts.get_mut(proposer).unwrap();
+    let bal = account_balance(row);
+    let nonce = account_nonce(row);
+    set_account_balance(row, bal + reward_sat, nonce);
+    Ok(reward_sat)
+}
+
+fn accounts_to_json(accounts: &BTreeMap<String, Value>) -> PyResult<String> {
+    let mut out = Map::new();
+    for (addr, row) in accounts {
+        out.insert(addr.clone(), row.clone());
+    }
+    serde_json::to_string(&Value::Object(out))
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
+/// Apply one block of simple transfers (+ fee burn + proposer fee + block reward).
+/// Rejects any tx with calldata (EVM stays on Python host path).
+#[pyfunction]
+#[pyo3(signature = (
+    accounts_json,
+    txs_json,
+    gas_price_wei,
+    burn_rate,
+    proposer,
+    burn_address,
+    block_reward_abs,
+    current_supply_sat,
+    max_supply_sat
+))]
+fn blockchain_apply_simple_block(
+    accounts_json: String,
+    txs_json: String,
+    gas_price_wei: f64,
+    burn_rate: f64,
+    proposer: String,
+    burn_address: String,
+    block_reward_abs: f64,
+    current_supply_sat: i64,
+    max_supply_sat: i64,
+) -> PyResult<String> {
+    let mut accounts = parse_accounts_map(&accounts_json)?;
+    let txs: Value = serde_json::from_str(&txs_json)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let txs = txs
+        .as_array()
+        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("txs_json must be an array"))?;
+    if txs.len() > MAX_STATE_ENGINE_TXS {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "too_many_txs: {} > {}",
+            txs.len(),
+            MAX_STATE_ENGINE_TXS
+        )));
+    }
+    let mut total_burned_sat: i64 = 0;
+    for tx in txs {
+        total_burned_sat = total_burned_sat.saturating_add(apply_simple_transfer_with_fees(
+            &mut accounts,
+            tx,
+            gas_price_wei,
+            burn_rate,
+            &proposer,
+            &burn_address,
+        )?);
+    }
+    let reward_sat = apply_block_reward_sat(
+        &mut accounts,
+        &proposer,
+        block_reward_abs,
+        current_supply_sat,
+        max_supply_sat,
+    )?;
+    let mut result = Map::new();
+    result.insert(
+        "accounts".to_string(),
+        serde_json::from_str(&accounts_to_json(&accounts)?)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?,
+    );
+    result.insert(
+        "total_burned_sat".to_string(),
+        Value::Number(total_burned_sat.into()),
+    );
+    result.insert("reward_sat".to_string(), Value::Number(reward_sat.into()));
+    result.insert("evm".to_string(), Value::Bool(false));
+    result.insert("native_apply".to_string(), Value::Bool(true));
+    serde_json::to_string(&Value::Object(result))
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
+/// Replay multiple simple blocks from an account snapshot (reorg/tip-repair assist).
+#[pyfunction]
+#[pyo3(signature = (
+    accounts_json,
+    blocks_json,
+    gas_price_wei,
+    burn_rate,
+    burn_address,
+    block_reward_abs,
+    current_supply_sat,
+    max_supply_sat
+))]
+fn blockchain_replay_simple_blocks(
+    accounts_json: String,
+    blocks_json: String,
+    gas_price_wei: f64,
+    burn_rate: f64,
+    burn_address: String,
+    block_reward_abs: f64,
+    current_supply_sat: i64,
+    max_supply_sat: i64,
+) -> PyResult<String> {
+    let mut accounts = parse_accounts_map(&accounts_json)?;
+    let blocks: Value = serde_json::from_str(&blocks_json)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let blocks = blocks
+        .as_array()
+        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("blocks_json must be an array"))?;
+    if blocks.len() > MAX_STATE_ENGINE_TXS {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "too_many_blocks: {} > {}",
+            blocks.len(),
+            MAX_STATE_ENGINE_TXS
+        )));
+    }
+    let mut supply = current_supply_sat;
+    let mut total_burned_sat: i64 = 0;
+    let mut blocks_applied: i64 = 0;
+    for block in blocks {
+        let obj = block
+            .as_object()
+            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("block must be object"))?;
+        let proposer = obj
+            .get("miner")
+            .or_else(|| obj.get("proposer"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let txs = obj
+            .get("transactions")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        if txs.len() > MAX_STATE_ENGINE_TXS {
+            return Err(pyo3::exceptions::PyValueError::new_err("too_many_txs"));
+        }
+        for tx in &txs {
+            total_burned_sat = total_burned_sat.saturating_add(apply_simple_transfer_with_fees(
+                &mut accounts,
+                tx,
+                gas_price_wei,
+                burn_rate,
+                &proposer,
+                &burn_address,
+            )?);
+        }
+        let reward = apply_block_reward_sat(
+            &mut accounts,
+            &proposer,
+            block_reward_abs,
+            supply,
+            max_supply_sat,
+        )?;
+        supply = supply.saturating_add(reward);
+        blocks_applied += 1;
+    }
+    let mut result = Map::new();
+    result.insert(
+        "accounts".to_string(),
+        serde_json::from_str(&accounts_to_json(&accounts)?)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?,
+    );
+    result.insert(
+        "total_burned_sat".to_string(),
+        Value::Number(total_burned_sat.into()),
+    );
+    result.insert(
+        "current_supply_sat".to_string(),
+        Value::Number(supply.into()),
+    );
+    result.insert(
+        "blocks_applied".to_string(),
+        Value::Number(blocks_applied.into()),
+    );
+    result.insert("native_replay".to_string(), Value::Bool(true));
+    serde_json::to_string(&Value::Object(result))
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(amount_to_satoshi, m)?)?;
     m.add_function(wrap_pyfunction!(amount_apply_delta_satoshi, m)?)?;
@@ -315,6 +647,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(plan_transfer_fees, m)?)?;
     m.add_function(wrap_pyfunction!(can_afford_transfer, m)?)?;
     m.add_function(wrap_pyfunction!(state_engine_apply_transactions, m)?)?;
+    m.add_function(wrap_pyfunction!(blockchain_apply_simple_block, m)?)?;
+    m.add_function(wrap_pyfunction!(blockchain_replay_simple_blocks, m)?)?;
     Ok(())
 }
 

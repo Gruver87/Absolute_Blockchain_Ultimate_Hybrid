@@ -3,9 +3,20 @@
 LMD Table — Latest Message Driven
 Only tracks latest attestation per validator
 Strict slot-based overwrite
+
+Weight aggregation prefers abs_native.lmd_compute_weights when available.
 """
 
+from __future__ import annotations
+
+import json
 from typing import Dict, Optional, Tuple
+
+from crypto import native
+
+
+def _native_required() -> bool:
+    return bool(native.native_crypto_status(required=False).get("required"))
 
 
 class LMDTable:
@@ -40,6 +51,23 @@ class LMDTable:
         Calculate block weights from latest votes
         Each vote contributes validator's stake to its block
         """
+        if native.native_available() and hasattr(native, "lmd_compute_weights"):
+            try:
+                votes = {
+                    v: [block_hash, int(slot)]
+                    for v, (block_hash, slot) in self.latest_vote.items()
+                }
+                stakes = {v: int(s) for v, s in self.validator_stake.items()}
+                raw = native.lmd_compute_weights(
+                    json.dumps(votes, separators=(",", ":"), ensure_ascii=False),
+                    json.dumps(stakes, separators=(",", ":"), ensure_ascii=False),
+                )
+                parsed = json.loads(raw)
+                return {str(k): int(v) for k, v in parsed.items()}
+            except Exception:
+                if _native_required():
+                    raise
+
         weights = {}
         for validator, (block_hash, _) in self.latest_vote.items():
             stake = self.validator_stake.get(validator, 0)
@@ -54,5 +82,8 @@ class LMDTable:
             "validators": len(self.validator_stake),
             "active_votes": len(self.latest_vote),
             "total_stake": sum(self.validator_stake.values()),
-            "blocks_with_votes": len(self.get_weights())
+            "blocks_with_votes": len(self.get_weights()),
+            "native_weights": bool(
+                native.native_available() and hasattr(native, "lmd_compute_weights")
+            ),
         }

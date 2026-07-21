@@ -546,15 +546,31 @@ class Blockchain:
             try:
                 with self.db.atomic():
                     block_burned = 0.0
-                    for tx in block.transactions:
-                        result = self._apply_transaction(
-                            tx, block.height, proposer=block.miner, in_atomic=True
-                        )
-                        if not result["success"]:
-                            raise RuntimeError(result.get("error", "tx_failed"))
-                        block_burned += tx.burned
+                    native_applied = False
+                    if (
+                        native.native_available()
+                        and hasattr(native, "blockchain_apply_simple_block")
+                        and self._block_transactions_are_simple(block.transactions)
+                    ):
+                        try:
+                            block_burned = self._apply_simple_block_native(block)
+                            native_applied = True
+                        except Exception as native_exc:
+                            _logger.debug(
+                                "[Blockchain] native simple apply fallback #%s: %s",
+                                block.height,
+                                native_exc,
+                            )
+                    if not native_applied:
+                        for tx in block.transactions:
+                            result = self._apply_transaction(
+                                tx, block.height, proposer=block.miner, in_atomic=True
+                            )
+                            if not result["success"]:
+                                raise RuntimeError(result.get("error", "tx_failed"))
+                            block_burned += tx.burned
+                        self._apply_block_reward(block.miner, in_atomic=True)
 
-                    self._apply_block_reward(block.miner, in_atomic=True)
                     block.total_burned = block_burned
                     computed_root = self._compute_state_root_from_db()
                     if peer_state_root:
@@ -703,6 +719,163 @@ class Blockchain:
         if hasattr(self.db, "compute_state_root"):
             return self.db.compute_state_root()
         return compute_db_state_root(self.db.get_all_accounts())
+
+    # ── Native simple-block apply / reorg assist ─────────────────────────────
+
+    @staticmethod
+    def _tx_is_simple(tx) -> bool:
+        data = (getattr(tx, "data", None) or "").strip()
+        if not data or data in ("0x", "0X"):
+            return True
+        return False
+
+    def _block_transactions_are_simple(self, transactions) -> bool:
+        return all(self._tx_is_simple(tx) for tx in transactions)
+
+    def _collect_addrs_for_simple_block(self, block: "Block") -> set:
+        addrs = set()
+        proposer = block.miner or ""
+        if proposer:
+            addrs.add(proposer)
+        burn = getattr(self.config, "burn_address", "") or ""
+        if burn:
+            addrs.add(burn)
+        for tx in block.transactions:
+            if getattr(tx, "from_addr", None):
+                addrs.add(tx.from_addr)
+            if getattr(tx, "to_addr", None):
+                addrs.add(tx.to_addr)
+        return addrs
+
+    def _accounts_sat_snapshot(self, addresses) -> Dict[str, Dict[str, int]]:
+        out: Dict[str, Dict[str, int]] = {}
+        for addr in addresses:
+            if not addr:
+                continue
+            out[addr] = {
+                "balance": int(self.db.get_balance_satoshi(addr)),
+                "nonce": int(self.db.get_nonce(addr)),
+            }
+        return out
+
+    def _writeback_accounts_sat(self, accounts: Dict[str, Any]) -> None:
+        from runtime.amount import from_satoshi_float
+
+        for addr, row in accounts.items():
+            sat = int(row.get("balance", 0) or 0)
+            nonce = int(row.get("nonce", 0) or 0)
+            bal_abs = from_satoshi_float(sat)
+            if hasattr(self.db, "save_account"):
+                self.db.save_account(addr, balance=bal_abs, nonce=nonce)
+            else:
+                self.db.set_balance(addr, bal_abs)
+                while self.db.get_nonce(addr) < nonce:
+                    if hasattr(self.db, "nonce_increment"):
+                        self.db.nonce_increment(addr)
+                    else:
+                        self.db.increment_nonce(addr)
+
+    def _apply_simple_block_native(self, block: "Block") -> float:
+        """Apply simple transfers via abs_native; returns burned ABS (float)."""
+        from runtime.amount import from_satoshi_float, to_satoshi
+
+        addrs = self._collect_addrs_for_simple_block(block)
+        snap = self._accounts_sat_snapshot(addrs)
+        txs = []
+        for tx in block.transactions:
+            txs.append(
+                {
+                    "from": tx.from_addr,
+                    "to": tx.to_addr,
+                    "value": float(tx.value),
+                    "gas": int(tx.gas or 21000),
+                    "nonce": int(tx.nonce),
+                    "data": getattr(tx, "data", "") or "",
+                }
+            )
+        supply_sat = 0
+        if hasattr(self.db, "get_total_supply"):
+            supply_sat = int(to_satoshi(self.db.get_total_supply()))
+        else:
+            supply_sat = sum(int(v["balance"]) for v in snap.values())
+        max_supply_sat = int(to_satoshi(float(getattr(self.config, "max_supply", MAX_SUPPLY_ABS))))
+        raw = native.blockchain_apply_simple_block(
+            json.dumps(snap, separators=(",", ":"), ensure_ascii=False),
+            json.dumps(txs, separators=(",", ":"), ensure_ascii=False),
+            float(self.config.gas_price_wei),
+            float(self.config.burn_rate),
+            str(block.miner or ""),
+            str(getattr(self.config, "burn_address", "") or ""),
+            float(self.config.block_reward),
+            supply_sat,
+            max_supply_sat,
+        )
+        result = json.loads(raw)
+        accounts = result.get("accounts") or {}
+        self._writeback_accounts_sat(accounts)
+        burned_sat = int(result.get("total_burned_sat", 0) or 0)
+        burned_abs = float(from_satoshi_float(burned_sat))
+        # Mirror fee/burn fields onto tx objects for persistence.
+        from runtime.amount import plan_transfer_fees
+
+        for tx in block.transactions:
+            plan = plan_transfer_fees(
+                tx.gas,
+                self.config.gas_price_wei,
+                self.config.burn_rate,
+                tx.value,
+            )
+            tx.fee = plan["fee"]
+            tx.burned = plan["burned"]
+            tx.gas_used = tx.gas
+            tx.block_height = block.height
+        return burned_abs
+
+    def _blocks_range_are_simple(self, from_h: int, to_h: int) -> bool:
+        for h in range(from_h, to_h + 1):
+            block_dict = self.db.get_block(h)
+            if not block_dict:
+                return False
+            for tx in block_dict.get("transactions") or []:
+                data = str(tx.get("data") or tx.get("input") or "").strip()
+                if data and data not in ("0x", "0X"):
+                    return False
+        return True
+
+    def _replay_simple_range_native(self, ancestor_height: int, alloc: Dict[str, Any]) -> float:
+        """Native reorg/tip replay for simple-transfer chains. Returns total burned ABS."""
+        from runtime.amount import from_satoshi_float, to_satoshi
+
+        accounts = {
+            str(addr): {"balance": int(to_satoshi(amt)), "nonce": 0}
+            for addr, amt in (alloc or {}).items()
+        }
+        supply_sat = sum(int(v["balance"]) for v in accounts.values())
+        max_supply_sat = int(to_satoshi(float(getattr(self.config, "max_supply", MAX_SUPPLY_ABS))))
+        blocks = []
+        for h in range(1, ancestor_height + 1):
+            block_dict = self.db.get_block(h)
+            if not block_dict:
+                raise RuntimeError(f"missing_block_at_replay_{h}")
+            blocks.append(
+                {
+                    "miner": block_dict.get("miner") or block_dict.get("proposer") or "",
+                    "transactions": block_dict.get("transactions") or [],
+                }
+            )
+        raw = native.blockchain_replay_simple_blocks(
+            json.dumps(accounts, separators=(",", ":"), ensure_ascii=False),
+            json.dumps(blocks, separators=(",", ":"), ensure_ascii=False),
+            float(self.config.gas_price_wei),
+            float(self.config.burn_rate),
+            str(getattr(self.config, "burn_address", "") or ""),
+            float(self.config.block_reward),
+            supply_sat,
+            max_supply_sat,
+        )
+        result = json.loads(raw)
+        self._writeback_accounts_sat(result.get("accounts") or {})
+        return float(from_satoshi_float(int(result.get("total_burned_sat", 0) or 0)))
 
     # ── Применение транзакции ────────────────────────────────────────────────
 
@@ -1119,18 +1292,34 @@ class Blockchain:
 
                     self.db.reset_accounts_from_alloc(alloc, _in_atomic=True)
 
-                    for h in range(1, ancestor_height + 1):
-                        block_dict = self.db.get_block(h)
-                        if not block_dict:
-                            raise RuntimeError(f"missing_block_at_replay_{h}")
-                        block = Block.from_dict(block_dict)
-                        for tx in block.transactions:
-                            result = self._apply_transaction(
-                                tx, block.height, proposer=block.miner, in_atomic=True
+                    native_replayed = False
+                    if (
+                        ancestor_height >= 1
+                        and native.native_available()
+                        and hasattr(native, "blockchain_replay_simple_blocks")
+                        and self._blocks_range_are_simple(1, ancestor_height)
+                    ):
+                        try:
+                            self._replay_simple_range_native(ancestor_height, alloc)
+                            native_replayed = True
+                        except Exception as native_exc:
+                            _logger.debug(
+                                "[Blockchain] native reorg replay fallback: %s", native_exc
                             )
-                            if not result["success"]:
-                                raise RuntimeError(result.get("error", "replay_tx_failed"))
-                        self._apply_block_reward(block.miner, in_atomic=True)
+
+                    if not native_replayed:
+                        for h in range(1, ancestor_height + 1):
+                            block_dict = self.db.get_block(h)
+                            if not block_dict:
+                                raise RuntimeError(f"missing_block_at_replay_{h}")
+                            block = Block.from_dict(block_dict)
+                            for tx in block.transactions:
+                                result = self._apply_transaction(
+                                    tx, block.height, proposer=block.miner, in_atomic=True
+                                )
+                                if not result["success"]:
+                                    raise RuntimeError(result.get("error", "replay_tx_failed"))
+                            self._apply_block_reward(block.miner, in_atomic=True)
 
                     replay_root = self._compute_state_root_from_db()
                     ancestor_block = self.db.get_block(cut)

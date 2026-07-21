@@ -6,6 +6,13 @@
 
 ---
 
+## [1.3.38] — 2026-07-21
+
+### Added — native GHOST + simple block apply/replay
+
+- Rust GHOST/LMD kernels; `blockchain_apply_simple_block` / `blockchain_replay_simple_blocks` for fee+reward simple transfers
+- Blockchain add_block/reorg prefer native when chain has no EVM calldata
+
 ## [1.3.37] — 2026-07-21
 
 ### Hardened — bridge L1-proof / light / PBS / AI honesty

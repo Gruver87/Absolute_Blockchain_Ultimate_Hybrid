@@ -898,8 +898,30 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
                 errors.append("AI validator must not invent MEV profit/probability via random.uniform")
         if "consensus_wired" not in http_py2 or "model_bound" not in http_py2:
             errors.append("/ai/* API must expose consensus_wired / model_bound honesty")
+        # v1.3.38 — native GHOST + simple block apply/replay
+        ghost_py = (ROOT / "consensus" / "ghost.py").read_text(encoding="utf-8")
+        if "ghost_select_head" not in ghost_py or "ghost_cumulative_weight" not in ghost_py:
+            errors.append("ghost.py must route fork-choice to abs_native kernels")
+        if "blockchain_apply_simple_block" not in main_py2 and "blockchain_apply_simple_block" not in (
+            ROOT / "core" / "blockchain.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("blockchain.py must wire blockchain_apply_simple_block")
+        bc_py = (ROOT / "core" / "blockchain.py").read_text(encoding="utf-8")
+        if "_apply_simple_block_native" not in bc_py or "_replay_simple_range_native" not in bc_py:
+            errors.append("blockchain must expose native simple apply/replay helpers")
+        if "blockchain_replay_simple_blocks" not in bc_py:
+            errors.append("blockchain reorg must prefer blockchain_replay_simple_blocks")
+        native_py = (ROOT / "crypto" / "native.py").read_text(encoding="utf-8")
+        for sym in (
+            "ghost_select_head",
+            "blockchain_apply_simple_block",
+            "blockchain_replay_simple_blocks",
+            "lmd_compute_weights",
+        ):
+            if f"def {sym}" not in native_py:
+                errors.append(f"crypto/native.py must export {sym}")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..37 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..38 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

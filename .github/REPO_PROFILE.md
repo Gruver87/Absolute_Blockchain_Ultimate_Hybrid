@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.37` — bridge L1-proof / light / PBS / AI honesty |
-| **Notes** | [RELEASE_NOTES_v1.3.37.md](../RELEASE_NOTES_v1.3.37.md) |
-| **Prior** | [v1.3.36](../RELEASE_NOTES_v1.3.36.md) WASM/finality/reorg; [v1.3.35](../RELEASE_NOTES_v1.3.35.md) MiniVM/ZK/Lightning/DAO |
+| **Tag** | `v1.3.38` — native GHOST + simple block apply/replay |
+| **Notes** | [RELEASE_NOTES_v1.3.38.md](../RELEASE_NOTES_v1.3.38.md) |
+| **Prior** | [v1.3.37](../RELEASE_NOTES_v1.3.37.md) bridge/light/PBS/AI; [v1.3.36](../RELEASE_NOTES_v1.3.36.md) WASM/finality/reorg |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

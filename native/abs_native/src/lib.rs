@@ -4,6 +4,7 @@
 #![allow(clippy::type_complexity)]
 
 mod amount;
+mod consensus_ghost;
 mod consensus_select;
 mod evm_pure_runner;
 mod p2p_wire;
@@ -1709,6 +1710,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     storage::register(m)?;
     state_trie::register(m)?;
     consensus_select::register(m)?;
+    consensus_ghost::register(m)?;
     p2p_wire::register(m)?;
     amount::register(m)?;
     Ok(())
