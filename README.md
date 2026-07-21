@@ -81,7 +81,7 @@ Most “blockchain” GitHub pages advertise features. This one separates **code
 | **L2 / PQ / ZK modules** | R&D | Unit-tested; not mainnet Lightning/Plasma/audited SNARKs |
 | **Public mainnet** | **Not launched** | External audit + validator ops + L1 cutover remaining |
 
-**Quality gate:** CI badges · `.\scripts\check_hybrid_full.ps1` · **824+** tests (`pytest tests/ --collect-only`)
+**Quality gate:** CI badges · `.\scripts\check_hybrid_full.ps1` · **1100+** tests (`pytest tests/ --collect-only`)
 
 ---
 
