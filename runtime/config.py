@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.19-industrial"
+    node_version: str = "1.3.20-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -142,10 +142,11 @@ class Config:
     log_json: bool = False                # structured JSON logs (prod)
 
     # ── Промышленный профиль ────────────────────────────────────────────────
-    cors_origins: List[str] = field(default_factory=lambda: ["*"])
+    # Fail-closed defaults: empty CORS / proxy off (opt-in via env or JSON).
+    cors_origins: List[str] = field(default_factory=list)
     jwt_enforce_admin: bool = False       # prod: требовать JWT на POST/admin
     require_wallet_file: bool = False     # prod: не генерировать кошелёк автоматически
-    enable_cors_rpc_proxy: bool = True    # dev-only RPC proxy :8082
+    enable_cors_rpc_proxy: bool = False   # opt-in RPC proxy :8082 (never default-on)
     allow_insecure_public_bind: bool = False
     sqlite_synchronous: str = "NORMAL"      # prod: FULL
     metrics_enabled: bool = True

@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.19` — sync incomplete, CORS, repair, receipt fail-closed |
-| **Notes** | [RELEASE_NOTES_v1.3.19.md](../RELEASE_NOTES_v1.3.19.md) |
-| **Prior** | [v1.3.08](../RELEASE_NOTES_v1.3.08.md) Swiss-watch; [v1.3.07](../RELEASE_NOTES_v1.3.07.md) ops_errors |
+| **Tag** | `v1.3.20` — proxy CORS, receipt omit→0, ready/sync honesty |
+| **Notes** | [RELEASE_NOTES_v1.3.20.md](../RELEASE_NOTES_v1.3.20.md) |
+| **Prior** | [v1.3.19](../RELEASE_NOTES_v1.3.19.md) sync incomplete/CORS/repair; [v1.3.08](../RELEASE_NOTES_v1.3.08.md) Swiss-watch |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

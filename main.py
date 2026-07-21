@@ -1295,12 +1295,13 @@ class NodeOrchestrator:
                     )
 
                 def _proxy_cors_origin(request_origin: str) -> str:
+                    # Match REST CORS honesty: never echo first allowlist entry on miss.
                     origin = (request_origin or "").strip()
                     if "*" in _cors_origins:
                         return "*"
                     if origin and origin in _cors_origins:
                         return origin
-                    return _cors_origins[0] if _cors_origins else ""
+                    return ""
 
                 class _CORSProxy(_BH):
                     def do_OPTIONS(self):

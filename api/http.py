@@ -482,6 +482,30 @@ except ImportError:
     _METRICS_AVAILABLE = False
 
 
+def _resolve_cors_allow_origin(config, request_origin: str = "") -> str:
+    """Allowlisted CORS Origin only.
+
+    empty cors_origins must not promote to * — omit ACAO via empty string.
+    never echo first allowlist entry on miss.
+    """
+    allowed = list(getattr(config, "cors_origins", None) or [])
+    # Do not coerce empty allowlist to ["*"] (prod default is []).
+    if not allowed:
+        return ""
+    if "*" in allowed:
+        return "*"
+    origin = (request_origin or "").strip()
+    if origin and origin in allowed:
+        return origin
+    return ""
+
+
+def _send_acao_header(handler, origin: str) -> None:
+    """Send Access-Control-Allow-Origin only when allow origin is non-empty."""
+    if origin:
+        handler.send_header("Access-Control-Allow-Origin", origin)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  JSON-RPC 2.0  (порт 8545, Ethereum-совместимый)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -511,14 +535,7 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
     @classmethod
     def _cors_origin(cls, request_origin: str = "") -> str:
         """Allowlisted CORS Origin only — never echo first allowlist entry on miss."""
-        request_origin = cls._sanitize_header_value(request_origin)
-        cfg = cls.config
-        origins = list(getattr(cfg, "cors_origins", ["*"]) or ["*"]) if cfg else ["*"]
-        if "*" in origins:
-            return "*"
-        if request_origin and request_origin in origins:
-            return request_origin
-        return ""
+        return _resolve_cors_allow_origin(cls.config, request_origin)
 
     def do_OPTIONS(self):
         self._send_cors()
@@ -528,13 +545,13 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
         if _is_production_cfg(self.__class__.config):
             self.send_response(405)
             self.send_header("Allow", "POST, OPTIONS")
-            self.send_header("Access-Control-Allow-Origin", self._cors_origin(self.headers.get("Origin", "")))
+            _send_acao_header(self, self._cors_origin(self.headers.get("Origin", "")))
             self.end_headers()
             return
         http_port = self.__class__.config.http_port if self.__class__.config else 8080
         self.send_response(302)
         self.send_header("Location", f"http://localhost:{http_port}/")
-        self.send_header("Access-Control-Allow-Origin", self._cors_origin(self.headers.get("Origin", "")))
+        _send_acao_header(self, self._cors_origin(self.headers.get("Origin", "")))
         self.end_headers()
 
     def do_POST(self):
@@ -547,7 +564,7 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             if not ok:
                 self.send_response(401)
                 self.send_header("Content-Type", "application/json")
-                self.send_header("Access-Control-Allow-Origin", self._cors_origin(self.headers.get("Origin", "")))
+                _send_acao_header(self, self._cors_origin(self.headers.get("Origin", "")))
                 self.end_headers()
                 self.wfile.write(json.dumps({
                     "jsonrpc": "2.0",
@@ -853,7 +870,7 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
 
     def _send_cors(self):
         self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", self._cors_origin(self.headers.get("Origin", "")))
+        _send_acao_header(self, self._cors_origin(self.headers.get("Origin", "")))
         self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, X-API-Key, Authorization")
         self.end_headers()
@@ -862,7 +879,7 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
         body = json.dumps(data).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", self._cors_origin(self.headers.get("Origin", "")))
+        _send_acao_header(self, self._cors_origin(self.headers.get("Origin", "")))
         self.send_header("Content-Length", len(body))
         self.end_headers()
         self.wfile.write(body)
@@ -941,14 +958,7 @@ class RESTHandler(BaseHTTPRequestHandler):
     @classmethod
     def _cors_origin(cls, request_origin: str = "") -> str:
         """Allowlisted CORS Origin only — never echo first allowlist entry on miss."""
-        request_origin = cls._sanitize_header_value(request_origin)
-        cfg = cls.config
-        origins = list(getattr(cfg, "cors_origins", ["*"]) or ["*"]) if cfg else ["*"]
-        if "*" in origins:
-            return "*"
-        if request_origin and request_origin in origins:
-            return request_origin
-        return ""
+        return _resolve_cors_allow_origin(cls.config, request_origin)
 
     def _track_request(self) -> None:
         mc = self.__class__.metrics_collector
@@ -1069,6 +1079,17 @@ class RESTHandler(BaseHTTPRequestHandler):
                 }
                 if is_prod and p2p is not None:
                     checks["p2p_running"] = bool(getattr(p2p, "_running", False))
+                    # With peers, ready requires state consistency (solo may stay ready).
+                    peer_count = 0
+                    if hasattr(p2p, "peer_count"):
+                        try:
+                            peer_count = int(p2p.peer_count() or 0)
+                        except Exception:
+                            peer_count = 0
+                    if peer_count > 0:
+                        checks["state_consistent"] = bool(
+                            getattr(p2p, "_state_consistent", False)
+                        )
                 ready = all(checks.values())
                 payload = {
                     "status": "ready" if ready else "not_ready",
@@ -1087,7 +1108,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     origin = self._cors_origin(self.headers.get("Origin", ""))
                     self.send_response(503)
                     self.send_header("Content-Type", "application/json")
-                    self.send_header("Access-Control-Allow-Origin", origin)
+                    _send_acao_header(self, origin)
                     self.send_header("Content-Length", len(body))
                     self.end_headers()
                     self.wfile.write(body)
@@ -1240,7 +1261,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 self.send_header("Content-Length", len(body))
                 self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
                 self.send_header("Pragma", "no-cache")
-                self.send_header("Access-Control-Allow-Origin", self._cors_origin(self.headers.get("Origin", "")))
+                _send_acao_header(self, self._cors_origin(self.headers.get("Origin", "")))
                 self.end_headers()
                 self.wfile.write(body)
                 return
@@ -3079,7 +3100,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", len(body))
-                self.send_header("Access-Control-Allow-Origin", self._cors_origin(self.headers.get("Origin", "")))
+                _send_acao_header(self, self._cors_origin(self.headers.get("Origin", "")))
                 self.end_headers()
                 self.wfile.write(body)
                 return
@@ -6162,7 +6183,7 @@ class RESTHandler(BaseHTTPRequestHandler):
         origin = self._cors_origin(self.headers.get("Origin", ""))
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", origin)
+        _send_acao_header(self, origin)
         self.send_header("Content-Length", len(body))
         self.end_headers()
         self.wfile.write(body)
@@ -6175,7 +6196,7 @@ class RESTHandler(BaseHTTPRequestHandler):
         origin = self._cors_origin(self.headers.get("Origin", ""))
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", origin)
+        _send_acao_header(self, origin)
         self.send_header("Content-Length", len(body))
         self.end_headers()
         self.wfile.write(body)
@@ -6183,7 +6204,7 @@ class RESTHandler(BaseHTTPRequestHandler):
     def _cors(self):
         origin = self._cors_origin(self.headers.get("Origin", ""))
         self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", origin)
+        _send_acao_header(self, origin)
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
@@ -6249,6 +6270,8 @@ def _format_tx(tx: Optional[Dict]) -> Optional[Dict]:
 def _format_receipt(tx: Optional[Dict], bc=None) -> Optional[Dict]:
     if not tx:
         return None
+    from storage.database import Database
+
     tx_hash = tx.get("hash", tx.get("tx_hash", ""))
     logs: List[Dict] = []
     if bc and hasattr(bc, "db") and hasattr(bc.db, "get_evm_logs_by_tx"):
@@ -6256,12 +6279,14 @@ def _format_receipt(tx: Optional[Dict], bc=None) -> Optional[Dict]:
             _format_eth_log(row, bc)
             for row in bc.db.get_evm_logs_by_tx(tx_hash)
         ]
+    # Omitted/None/unknown status → fail-closed 0x0 (never default to success).
+    status_i = Database._normalize_tx_status(tx.get("status"))
     return {
         "transactionHash": tx_hash,
         "blockNumber": hex(tx.get("block_height", 0)),
         "from": tx.get("from_addr", tx.get("from", "")),
         "to": tx.get("to_addr", tx.get("to", "")),
-        "status": hex(tx.get("status", 1)),
+        "status": hex(status_i),
         "gasUsed": hex(tx.get("gas_used", tx.get("gas", 21000))),
         "logs": logs,
         "burned": tx.get("burned", 0.0),
@@ -6895,8 +6920,9 @@ def _build_sync_status(se, p2p, bc, cfg) -> Dict:
         se = getattr(p2p, "sync_engine", None)
     local_h = bc.get_height() if bc and hasattr(bc, "get_height") else 0
     state_root = bc.get_state_root() if bc and hasattr(bc, "get_state_root") else ""
-    peer_count = p2p.peer_count() if p2p else 0
     peers_info = p2p.get_peers_info() if p2p else []
+    raw_peer_count = p2p.peer_count() if p2p and hasattr(p2p, "peer_count") else None
+    peer_count = raw_peer_count if isinstance(raw_peer_count, int) and not isinstance(raw_peer_count, bool) else len(peers_info)
     best_peer_height = max((p.get("height", 0) for p in peers_info), default=local_h)
     state_consistent = getattr(p2p, "_state_consistent", False) if p2p else False
     root_fields = {
@@ -6926,10 +6952,11 @@ def _build_sync_status(se, p2p, bc, cfg) -> Dict:
         return status
 
     # No SyncEngine: fail-closed wire-probe fields (never claim a completed probe).
+    # With peers, do not claim synced — SyncEngine missing means we cannot prove tip.
     return {
         "enabled": True,
         "source": "p2p_fallback",
-        "syncing": False,
+        "syncing": peer_count > 0,
         "local_height": local_h,
         "best_peer_height": best_peer_height,
         "behind": max(0, best_peer_height - local_h),
@@ -6944,7 +6971,7 @@ def _build_sync_status(se, p2p, bc, cfg) -> Dict:
             "Solo node is normal locally. Connect peers: "
             "python main.py --peers 127.0.0.1:5000 or bootstrap_peers in config"
             if peer_count == 0 else
-            "SyncEngine missing — wire probe not available (fail-closed)"
+            "SyncEngine missing — wire probe not available; treating as syncing (fail-closed)"
         ),
     }
 

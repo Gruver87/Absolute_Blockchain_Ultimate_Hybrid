@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.20] — 2026-07-21
+
+### Hardened — Proxy CORS, receipt omit→0, ready/sync honesty
+
+- CORS miss never echoes allowlist; empty list never promotes to `*`
+- Ready with peers requires state_consistent; SyncEngine missing → p2p_fallback fail-closed
+- Receipt status omit/unknown → 0x0
+
+---
+
 ## [1.3.19] — 2026-07-21
 
 ### Hardened — Sync incomplete, CORS miss, repair success, receipt fail-closed

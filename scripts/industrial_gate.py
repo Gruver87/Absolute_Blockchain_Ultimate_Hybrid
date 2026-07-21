@@ -432,12 +432,30 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("fork recovery must default state_consistent=False (fail-closed)")
         if "never echo first allowlist entry" not in http_py:
             errors.append("CORS must never echo first allowlist entry on miss")
+        if "empty cors_origins must not promote to *" not in http_py:
+            errors.append("CORS empty allowlist must not promote to *")
         if 'success = bool(repaired) and harness_ok and consistent' not in http_py:
             errors.append(
                 "/chain/consistency/repair success must require repair+harness+consistent"
             )
+        if 'if peer_count > 0:' not in http_py or 'checks["state_consistent"]' not in http_py:
+            errors.append("/health/ready with peers must require state_consistent")
+        if 'p2p_fallback' not in http_py or "SyncEngine missing" not in http_py:
+            errors.append("p2p_fallback sync status must fail-closed when SyncEngine missing")
+        if "Database._normalize_tx_status(tx.get(\"status\"))" not in http_py:
+            errors.append("receipt format must normalize omitted status fail-closed to 0")
+        if "json_decode_failures" not in (
+            ROOT / "storage" / "rocks_store.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("rocks_store must expose json_decode_failures for /metrics")
     except Exception as exc:
         errors.append(f"fail-loud http inspect failed: {exc}")
+    try:
+        main_py = (ROOT / "main.py").read_text(encoding="utf-8")
+        if "never echo first allowlist entry" not in main_py:
+            errors.append("RPC CORS proxy must never echo first allowlist entry on miss")
+    except Exception as exc:
+        errors.append(f"fail-loud main CORS inspect failed: {exc}")
     try:
         p2p_py = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
         if "self._state_consistent = False" not in p2p_py:

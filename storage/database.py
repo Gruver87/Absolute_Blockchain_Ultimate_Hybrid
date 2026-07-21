@@ -219,7 +219,7 @@ class Database:
                 burned       REAL    NOT NULL DEFAULT 0.0,
                 nonce        INTEGER NOT NULL DEFAULT 0,
                 tx_data      TEXT    DEFAULT '',
-                status       INTEGER DEFAULT 1,
+                status       INTEGER DEFAULT 0,
                 timestamp    INTEGER NOT NULL DEFAULT 0
             );
 
@@ -529,7 +529,7 @@ class Database:
                 fee           REAL NOT NULL DEFAULT 0,
                 burned        REAL NOT NULL DEFAULT 0,
                 gas_used      INTEGER NOT NULL DEFAULT 0,
-                status        INTEGER NOT NULL DEFAULT 1,
+                status        INTEGER NOT NULL DEFAULT 0,
                 created_at    INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_tx_receipt_block ON tx_receipts(block_height);
@@ -878,10 +878,8 @@ class Database:
                 tx.get("burned", 0.0),
                 tx.get("nonce", 0),
                 tx.get("data", tx.get("tx_data", "")),
-                # Omit status → success (1); explicit None/unknown → fail-closed 0.
-                self._normalize_tx_status(
-                    1 if "status" not in tx else tx.get("status")
-                ),
+                # Omit / None / unknown → fail-closed 0 (never invent success).
+                self._normalize_tx_status(tx.get("status")),
                 tx.get("timestamp", int(time.time())),
             ),
         )
@@ -905,9 +903,8 @@ class Database:
                 float(tx.get("fee", 0.0)),
                 float(tx.get("burned", 0.0)),
                 int(tx.get("gas_used", tx.get("gas", 21000))),
-                self._normalize_tx_status(
-                    1 if "status" not in tx else tx.get("status")
-                ),
+                # Omitted status → fail-closed (normalize None → 0).
+                self._normalize_tx_status(tx.get("status")),
                 int(tx.get("timestamp", time.time())),
             ),
         )
