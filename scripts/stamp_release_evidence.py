@@ -71,6 +71,12 @@ def main() -> int:
         help="Do not record state_root_encoding_v1 stamp",
     )
     parser.add_argument(
+        "--require-soak-hours",
+        type=float,
+        default=0,
+        help="Fail if soak report missing, passed=false, or hours_requested < N (0=warn only)",
+    )
+    parser.add_argument(
         "--out",
         default=os.environ.get("EVIDENCE_RUN_PATH", str(ROOT / "data" / "evidence_run.json")),
         help="Evidence JSON path",
@@ -129,21 +135,39 @@ def main() -> int:
 
     if not args.skip_soak:
         soak_path = ROOT / args.soak_report
-        if soak_path.is_file():
+        if not soak_path.is_file():
+            msg = f"soak report missing: {soak_path}"
+            if args.require_soak_hours > 0:
+                print(f"FAIL: {msg}", file=sys.stderr)
+                return 1
+            print(f"WARN: {msg}")
+        else:
             soak = json.loads(soak_path.read_text(encoding="utf-8"))
             passed = bool(soak.get("passed"))
-            hrs = int(float(soak.get("hours_requested", 0) or 0))
+            hrs = float(soak.get("hours_requested", 0) or 0)
+            if args.require_soak_hours > 0:
+                if hrs < args.require_soak_hours:
+                    print(
+                        f"FAIL: soak hours_requested={hrs} < {args.require_soak_hours}",
+                        file=sys.stderr,
+                    )
+                    return 1
+                if not passed:
+                    print("FAIL: soak_report passed=false", file=sys.stderr)
+                    return 1
+            soak_tag = str(soak.get("git_tag", "") or "").strip()
+            notes = f"referenced {soak_path.name} at {tag or 'local'}"
+            if soak_tag:
+                notes += f"; soak_git_tag={soak_tag}"
             _append_step(
                 out,
-                f"soak_{hrs}h_stamp",
+                f"soak_{int(hrs)}h_stamp",
                 "PASS" if passed else "FAIL",
-                notes=f"referenced {soak_path.name} at {tag or 'local'}",
+                notes=notes,
                 artifact=str(soak_path),
                 tag=tag,
             )
-            print(f"recorded soak_{hrs}h_stamp={'PASS' if passed else 'FAIL'}")
-        else:
-            print(f"WARN: soak report missing: {soak_path}")
+            print(f"recorded soak_{int(hrs)}h_stamp={'PASS' if passed else 'FAIL'}")
 
     print("OK: release evidence stamped")
     return 0

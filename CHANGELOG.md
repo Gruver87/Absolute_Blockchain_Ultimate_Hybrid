@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.01] — 2026-07-21
+
+### Hardened — Soak evidence strict mode, CI audit pack, devnet manifest fail-loud
+
+- stamp_release_evidence --require-soak-hours; CI export_audit_pack step
+- main.py devnet manifest resolve fail-loud; soak stamp hints in PS scripts
+
+---
+
 ## [1.3.00] — 2026-07-21
 
 ### Hardened — Audit pack encoding snapshot, founder pin fail-loud

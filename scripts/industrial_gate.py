@@ -187,6 +187,11 @@ def _check_audit_pack_export() -> tuple[list[str], list[str]]:
         main_py = (ROOT / "main.py").read_text(encoding="utf-8")
         if "genesis_founder meta read failed" not in main_py:
             errors.append("main.py must fail-loud on genesis_founder meta read")
+        if "devnet manifest resolve failed" not in main_py:
+            errors.append("main.py must fail-loud on devnet manifest resolve")
+        stamp = (ROOT / "scripts" / "stamp_release_evidence.py").read_text(encoding="utf-8")
+        if "require-soak-hours" not in stamp:
+            errors.append("stamp_release_evidence must support --require-soak-hours")
     except Exception as exc:
         errors.append(f"audit pack export inspect failed: {exc}")
     return errors, warnings

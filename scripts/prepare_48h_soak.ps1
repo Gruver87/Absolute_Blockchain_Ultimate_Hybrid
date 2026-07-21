@@ -17,6 +17,7 @@ if ($SkipP2pTlsCheck) { $wantTls = $false }
 elseif ($PSBoundParameters.ContainsKey("RequireP2pTls") -and -not $RequireP2pTls) { $wantTls = $false }
 
 Write-Host "Soak preflight (${Hours}h planned) - mesh must be up on :18180-:18182" -ForegroundColor Cyan
+Write-Host "  after soak PASS: python scripts/stamp_release_evidence.py --require-soak-hours $Hours" -ForegroundColor DarkGray
 $argsList = @("scripts/soak_preflight.py", "--hours", $Hours, "--interval-sec", $IntervalSec)
 if ($wantTls) { $argsList += "--require-p2p-tls" }
 python @argsList

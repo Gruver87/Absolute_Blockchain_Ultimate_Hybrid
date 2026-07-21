@@ -563,7 +563,8 @@ class NodeOrchestrator:
             try:
                 from runtime.devnet_validators import resolve_manifest_path
                 _manifest = resolve_manifest_path(config)
-            except Exception:
+            except Exception as exc:
+                _node_log.warning("devnet manifest resolve failed: %s", exc)
                 _manifest = ""
         if _manifest and os.path.isfile(_manifest) and config.deployment_mode == "dev":
             try:

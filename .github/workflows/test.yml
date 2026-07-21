@@ -220,6 +220,10 @@ jobs:
       if: matrix.python-version == '3.12'
       run: python scripts/bridge_off_audit_gate.py
 
+    - name: Export audit pack (soak-safe static)
+      if: matrix.python-version == '3.12'
+      run: python scripts/export_audit_pack.py --no-sync-automated --no-zip --out-dir logs/ci_audit_pack
+
     - name: Industrial static gate
       if: matrix.python-version == '3.12'
       run: python scripts/industrial_gate.py

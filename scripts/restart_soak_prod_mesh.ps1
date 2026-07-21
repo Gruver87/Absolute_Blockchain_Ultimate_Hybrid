@@ -91,4 +91,5 @@ Write-Host "OK: soak started in background" -ForegroundColor Green
 Write-Host "  stdout: $outLog" -ForegroundColor DarkGray
 Write-Host "  tail:   Get-Content $LogFile -Tail 20 -Wait" -ForegroundColor DarkGray
 Write-Host "  report: $ReportFile (on completion)" -ForegroundColor DarkGray
+Write-Host "  after PASS: python scripts/stamp_release_evidence.py --require-soak-hours $Hours --soak-report $ReportFile" -ForegroundColor DarkGray
 exit 0
