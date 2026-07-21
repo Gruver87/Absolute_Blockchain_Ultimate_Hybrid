@@ -105,6 +105,15 @@ def native_crypto_status(required: bool = False) -> dict:
             "lmd_compute_weights",
             "blockchain_apply_simple_block",
             "blockchain_replay_simple_blocks",
+            "ffg_threshold",
+            "ffg_evaluate_epoch",
+            "ffg_accumulate_vote",
+            "ffg_best_checkpoint",
+            "fe_epoch",
+            "fe_quorum_reached",
+            "fe_can_finalize",
+            "slash_check_double_vote",
+            "slash_check_double_proposal",
             "validator_selection_proposer",
             "validator_selection_proposer_weighted",
             "validator_selection_committee",
@@ -1592,6 +1601,87 @@ def blockchain_replay_simple_blocks(
             )
         )
     raise RuntimeError("blockchain_replay_simple_blocks requires abs_native")
+
+
+def ffg_threshold(total_stake: int, threshold_numer: int = 2, threshold_denom: int = 3) -> int:
+    _require_native_kernel("ffg_threshold")
+    if _native is not None and hasattr(_native, "ffg_threshold"):
+        return int(_native.ffg_threshold(int(total_stake), int(threshold_numer), int(threshold_denom)))
+    raise RuntimeError("ffg_threshold requires abs_native")
+
+
+def ffg_best_checkpoint(votes_json: str):
+    _require_native_kernel("ffg_best_checkpoint")
+    if _native is not None and hasattr(_native, "ffg_best_checkpoint"):
+        return _native.ffg_best_checkpoint(votes_json)
+    raise RuntimeError("ffg_best_checkpoint requires abs_native")
+
+
+def ffg_accumulate_vote(votes_json: str, block_hash: str, weight: int) -> str:
+    _require_native_kernel("ffg_accumulate_vote")
+    if _native is not None and hasattr(_native, "ffg_accumulate_vote"):
+        return str(_native.ffg_accumulate_vote(votes_json, str(block_hash), int(weight)))
+    raise RuntimeError("ffg_accumulate_vote requires abs_native")
+
+
+def ffg_evaluate_epoch(
+    epoch: int,
+    votes_for_epoch_json: str,
+    total_stake: int,
+    justified_epochs_json: str,
+    finalized_epochs_json: str,
+    threshold_numer: int = 2,
+    threshold_denom: int = 3,
+) -> str:
+    _require_native_kernel("ffg_evaluate_epoch")
+    if _native is not None and hasattr(_native, "ffg_evaluate_epoch"):
+        return str(
+            _native.ffg_evaluate_epoch(
+                int(epoch),
+                votes_for_epoch_json,
+                int(total_stake),
+                justified_epochs_json,
+                finalized_epochs_json,
+                int(threshold_numer),
+                int(threshold_denom),
+            )
+        )
+    raise RuntimeError("ffg_evaluate_epoch requires abs_native")
+
+
+def fe_epoch(block_number: int, epoch_length: int = 32) -> int:
+    _require_native_kernel("fe_epoch")
+    if _native is not None and hasattr(_native, "fe_epoch"):
+        return int(_native.fe_epoch(int(block_number), int(epoch_length)))
+    raise RuntimeError("fe_epoch requires abs_native")
+
+
+def fe_quorum_reached(vote_count: int, active_validator_count: int) -> bool:
+    _require_native_kernel("fe_quorum_reached")
+    if _native is not None and hasattr(_native, "fe_quorum_reached"):
+        return bool(_native.fe_quorum_reached(int(vote_count), int(active_validator_count)))
+    raise RuntimeError("fe_quorum_reached requires abs_native")
+
+
+def fe_can_finalize(epoch: int, justified_epochs_json: str) -> bool:
+    _require_native_kernel("fe_can_finalize")
+    if _native is not None and hasattr(_native, "fe_can_finalize"):
+        return bool(_native.fe_can_finalize(int(epoch), justified_epochs_json))
+    raise RuntimeError("fe_can_finalize requires abs_native")
+
+
+def slash_check_double_vote(new_hash: str, prior_hash: Optional[str] = None) -> str:
+    _require_native_kernel("slash_check_double_vote")
+    if _native is not None and hasattr(_native, "slash_check_double_vote"):
+        return str(_native.slash_check_double_vote(str(new_hash), prior_hash))
+    raise RuntimeError("slash_check_double_vote requires abs_native")
+
+
+def slash_check_double_proposal(already_proposed: bool) -> str:
+    _require_native_kernel("slash_check_double_proposal")
+    if _native is not None and hasattr(_native, "slash_check_double_proposal"):
+        return str(_native.slash_check_double_proposal(bool(already_proposed)))
+    raise RuntimeError("slash_check_double_proposal requires abs_native")
 
 
 def plan_transfer_fees(

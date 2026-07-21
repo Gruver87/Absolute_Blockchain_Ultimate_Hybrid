@@ -3,6 +3,9 @@ from typing import Dict, Set, Optional, List
 from dataclasses import dataclass
 from datetime import datetime
 from collections import defaultdict
+import json
+
+from crypto import native
 
 @dataclass
 class SlashEvent:
@@ -70,6 +73,23 @@ class SlashingEngine:
         if validator not in self.votes:
             self.votes[validator] = {}
 
+        prior = self.votes[validator].get(slot)
+        if native.native_available() and hasattr(native, "slash_check_double_vote"):
+            try:
+                raw = native.slash_check_double_vote(
+                    str(block_hash),
+                    None if prior is None else str(prior),
+                )
+                result = json.loads(raw)
+                if not result.get("accept", False):
+                    self._slash(validator, str(result.get("slash") or "double_vote"), slot)
+                    return False
+                if prior is None:
+                    self.votes[validator][slot] = block_hash
+                return True
+            except Exception:
+                pass
+
         if slot in self.votes[validator]:
             if self.votes[validator][slot] != block_hash:
                 self._slash(validator, "double_vote", slot)
@@ -83,11 +103,28 @@ class SlashingEngine:
         """Record block proposal, check for double proposal"""
         if validator in self.slashed:
             return False
-        
-        if height in self.proposals and validator in self.proposals[height]:
+
+        already = height in self.proposals and validator in self.proposals[height]
+        if native.native_available() and hasattr(native, "slash_check_double_proposal"):
+            try:
+                raw = native.slash_check_double_proposal(bool(already))
+                result = json.loads(raw)
+                if not result.get("accept", False):
+                    self._slash(
+                        validator,
+                        str(result.get("slash") or "double_proposal"),
+                        height // 32,
+                    )
+                    return False
+                self.proposals[height].add(validator)
+                return True
+            except Exception:
+                pass
+
+        if already:
             self._slash(validator, "double_proposal", height // 32)
             return False
-        
+
         self.proposals[height].add(validator)
         return True
     

@@ -6,6 +6,13 @@
 
 ---
 
+## [1.3.39] — 2026-07-21
+
+### Added — native FFG finality + slashing conflict kernels
+
+- Rust Casper/Beacon evaluate + FinalityEngine quorum helpers; double-vote/proposal conflict checks
+- Python finality/slashing modules prefer abs_native with fallback
+
 ## [1.3.38] — 2026-07-21
 
 ### Added — native GHOST + simple block apply/replay

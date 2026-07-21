@@ -920,8 +920,34 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         ):
             if f"def {sym}" not in native_py:
                 errors.append(f"crypto/native.py must export {sym}")
+        # v1.3.39 — FFG finality + slashing conflict kernels
+        for sym in (
+            "ffg_evaluate_epoch",
+            "ffg_threshold",
+            "slash_check_double_vote",
+            "slash_check_double_proposal",
+            "fe_quorum_reached",
+            "fe_can_finalize",
+        ):
+            if f"def {sym}" not in native_py:
+                errors.append(f"crypto/native.py must export {sym} (v1.3.39)")
+        if "ffg_evaluate_epoch" not in (
+            ROOT / "consensus" / "finality_casper.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("finality_casper.py must route to ffg_evaluate_epoch")
+        if "slash_check_double_vote" not in (
+            ROOT / "consensus" / "slashing.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("slashing.py must route to slash_check_double_vote")
+        if "fe_quorum_reached" not in (
+            ROOT / "finality_engine.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("finality_engine.py must route to fe_quorum_reached")
+        ffg_rs = ROOT / "native" / "abs_native" / "src" / "consensus_ffg.rs"
+        if not ffg_rs.is_file():
+            errors.append("native consensus_ffg.rs missing")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..38 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..39 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

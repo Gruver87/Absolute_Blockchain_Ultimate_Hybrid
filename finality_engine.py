@@ -8,6 +8,8 @@ from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from collections import defaultdict
 
+from crypto import native
+
 @dataclass
 class Checkpoint:
     epoch: int
@@ -36,6 +38,11 @@ class FinalityEngine:
     
     def get_epoch(self, block_number: int) -> int:
         """Получение эпохи для блока"""
+        if native.native_available() and hasattr(native, "fe_epoch"):
+            try:
+                return int(native.fe_epoch(int(block_number), int(self.EPOCH_LENGTH)))
+            except Exception:
+                pass
         return block_number // self.EPOCH_LENGTH
     
     def create_checkpoint(self, block_number: int, block_hash: str) -> Checkpoint:
@@ -60,29 +67,58 @@ class FinalityEngine:
         
         # Проверяем justification (2/3 голосов от активного набора валидаторов)
         total_validators = max(1, self.active_validator_count)
-        if checkpoint.votes >= total_validators * 2 / 3:
+        quorum = False
+        if native.native_available() and hasattr(native, "fe_quorum_reached"):
+            try:
+                quorum = bool(
+                    native.fe_quorum_reached(int(checkpoint.votes), int(total_validators))
+                )
+            except Exception:
+                quorum = checkpoint.votes >= total_validators * 2 / 3
+        else:
+            quorum = checkpoint.votes >= total_validators * 2 / 3
+        if quorum:
             if not checkpoint.is_justified:
                 checkpoint.is_justified = True
                 self.justified_checkpoints.append(target_epoch)
-                print(f"   🔵 Justified checkpoint: epoch {target_epoch}")
+                print(f"   Justified checkpoint: epoch {target_epoch}")
         
         return True
     
     def finalize_checkpoint(self, epoch: int) -> bool:
         """Финализация чекпоинта (требует два последовательных justified)"""
-        if epoch not in self.justified_checkpoints:
+        can = False
+        if native.native_available() and hasattr(native, "fe_can_finalize"):
+            try:
+                can = bool(
+                    native.fe_can_finalize(
+                        int(epoch),
+                        json.dumps(list(self.justified_checkpoints)),
+                    )
+                )
+            except Exception:
+                can = (
+                    epoch in self.justified_checkpoints
+                    and (epoch - 1) in self.justified_checkpoints
+                )
+        else:
+            can = (
+                epoch in self.justified_checkpoints
+                and (epoch - 1) in self.justified_checkpoints
+            )
+        if not can:
             return False
-        
-        if epoch - 1 not in self.justified_checkpoints:
+
+        if epoch not in self.checkpoints:
             return False
-        
+
         checkpoint = self.checkpoints[epoch]
         if not checkpoint.is_finalized:
             checkpoint.is_finalized = True
             self.finalized_checkpoints.append(epoch)
-            print(f"   🔒 FINALIZED checkpoint: epoch {epoch}, block #{checkpoint.block_number}")
+            print(f"   FINALIZED checkpoint: epoch {epoch}, block #{checkpoint.block_number}")
             return True
-        
+
         return False
     
     def process_block(self, block_number: int, block_hash: str, validator: str) -> Dict:

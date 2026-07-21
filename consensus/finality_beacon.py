@@ -4,9 +4,17 @@ Beacon Chain Finality Engine — Correct Casper FFG
 - Checkpoint-based finality
 - Event-driven justification and finalization
 - No backward inconsistencies
+Hot path prefers abs_native FFG kernels with Python fallback.
 """
 
 from typing import Dict, Optional, Set
+import json
+
+from crypto import native
+
+
+def _native_required() -> bool:
+    return bool(native.native_crypto_status(required=False).get("required"))
 
 
 class BeaconFinality:
@@ -40,15 +48,38 @@ class BeaconFinality:
         self.total_stake = total_stake
 
     def _get_epoch(self, block_number: int) -> int:
+        if native.native_available() and hasattr(native, "fe_epoch"):
+            try:
+                return int(native.fe_epoch(int(block_number), int(self.epoch_size)))
+            except Exception:
+                if _native_required():
+                    raise
         return block_number // self.epoch_size
 
     def _get_threshold(self) -> int:
+        if native.native_available() and hasattr(native, "ffg_threshold"):
+            try:
+                return int(native.ffg_threshold(int(self.total_stake), 2, 3))
+            except Exception:
+                if _native_required():
+                    raise
         return int(self.total_stake * self.threshold_ratio)
 
     def _get_best_checkpoint(self, epoch: int) -> Optional[tuple]:
         """Returns (block_hash, weight) for best checkpoint in epoch"""
         if epoch not in self.votes:
             return None
+        if native.native_available() and hasattr(native, "ffg_best_checkpoint"):
+            try:
+                best = native.ffg_best_checkpoint(
+                    json.dumps(self.votes[epoch], separators=(",", ":"), ensure_ascii=False)
+                )
+                if best is None:
+                    return None
+                return (str(best[0]), int(best[1]))
+            except Exception:
+                if _native_required():
+                    raise
         return max(self.votes[epoch].items(), key=lambda x: x[1])
 
     def add_vote(self, validator_id: str, block_hash: str, slot: int, weight: int):
@@ -57,36 +88,76 @@ class BeaconFinality:
         Called every time a validator attests.
         """
         epoch = self._get_epoch(slot)
-        
+
         if epoch not in self.votes:
             self.votes[epoch] = {}
-        
-        self.votes[epoch][block_hash] = self.votes[epoch].get(block_hash, 0) + weight
-        
-        # Trigger finality evaluation immediately
+
+        if native.native_available() and hasattr(native, "ffg_accumulate_vote"):
+            try:
+                updated = native.ffg_accumulate_vote(
+                    json.dumps(self.votes[epoch], separators=(",", ":"), ensure_ascii=False),
+                    str(block_hash),
+                    int(weight),
+                )
+                self.votes[epoch] = {str(k): int(v) for k, v in json.loads(updated).items()}
+            except Exception:
+                if _native_required():
+                    raise
+                self.votes[epoch][block_hash] = self.votes[epoch].get(block_hash, 0) + weight
+        else:
+            self.votes[epoch][block_hash] = self.votes[epoch].get(block_hash, 0) + weight
+
         self._evaluate(epoch)
 
     def _evaluate(self, epoch: int):
         """Evaluate justification and finalization for checkpoint"""
+        if native.native_available() and hasattr(native, "ffg_evaluate_epoch") and epoch in self.votes:
+            try:
+                raw = native.ffg_evaluate_epoch(
+                    int(epoch),
+                    json.dumps(self.votes[epoch], separators=(",", ":"), ensure_ascii=False),
+                    int(self.total_stake),
+                    json.dumps(sorted(self.justified_epochs)),
+                    json.dumps(sorted(self.finalized_epochs)),
+                    2,
+                    3,
+                )
+                result = json.loads(raw)
+                if result.get("justified_block") and epoch not in self.justified_epochs:
+                    block_hash = str(result["justified_block"])
+                    self.justified_epochs.add(epoch)
+                    self.justified_blocks[epoch] = block_hash
+                    self.justified_checkpoint = epoch
+                    self.justified_block = block_hash
+                if result.get("finalize_prev"):
+                    prev_epoch = epoch - 1
+                    if (
+                        prev_epoch in self.justified_epochs
+                        and prev_epoch not in self.finalized_epochs
+                    ):
+                        self.finalized_epochs.add(prev_epoch)
+                        self.finalized_checkpoint = prev_epoch
+                        self.finalized_block = self.justified_blocks.get(prev_epoch)
+                return
+            except Exception:
+                if _native_required():
+                    raise
+
         best = self._get_best_checkpoint(epoch)
         if not best:
             return
-        
+
         block_hash, weight = best
         threshold = self._get_threshold()
-        
+
         if weight >= threshold:
-            # This checkpoint is justified
             if epoch not in self.justified_epochs:
                 self.justified_epochs.add(epoch)
                 self.justified_blocks[epoch] = block_hash
-                
-                # Update current justified checkpoint
+
                 self.justified_checkpoint = epoch
                 self.justified_block = block_hash
-                
-                # 🔥 CASPER FFG FINALITY RULE:
-                # When epoch N becomes justified, check if epoch N-1 can be finalized
+
                 prev_epoch = epoch - 1
                 if prev_epoch in self.justified_epochs and prev_epoch not in self.finalized_epochs:
                     self.finalized_epochs.add(prev_epoch)
