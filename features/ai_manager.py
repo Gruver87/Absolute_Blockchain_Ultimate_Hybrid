@@ -37,11 +37,19 @@ class AIAgent:
     def predict(self, market_data: Dict) -> Dict:
         features = market_data.get("features") or market_data.get("prices", [])
         if not features:
-            return {"prediction": 0, "confidence": 0}
+            return {
+                "prediction": 0,
+                "confidence": None,
+                "model_bound": False,
+                "prediction_method": "none",
+            }
         avg = sum(features) / len(features)
         return {
             "prediction": avg,
-            "confidence": 0.75,
+            # No ML model is bound — do not invent a confidence score.
+            "confidence": None,
+            "model_bound": False,
+            "prediction_method": "feature_average",
             "agent_type": self.agent_type,
         }
 
@@ -263,4 +271,8 @@ class AIAgentManager:
             "total_trades": sum(a.actions_count for a in self.agents.values()),
             "persisted": bool(self.db),
             "create_fee": self.CREATE_FEE,
+            "model_bound": False,
+            "executor_bound": False,
+            "operational": False,
+            "note": "agent registry only — no ML model or trade executor bound",
         }

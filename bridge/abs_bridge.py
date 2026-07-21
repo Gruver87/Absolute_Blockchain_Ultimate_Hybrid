@@ -108,6 +108,11 @@ class RustBridge:
 
         # Если включён Rust-режим — проверяем наличие бинарника
         self._rust_bin = self._resolve_rust_bin()
+        self._rust_decode_fail = 0
+        self._rust_timeout = 0
+        self._rust_bin_fail = 0
+        self._rust_cmd_fail = 0
+        self._rust_last_error = ""
         if config.bridge_mode == "rust":
             if not self._rust_bin:
                 msg = "Rust bridge binary not found"
@@ -566,6 +571,8 @@ class RustBridge:
         """Вызывает Rust-бинарник и возвращает полный JSON-ответ."""
         exe = self._rust_bin or self._resolve_rust_bin()
         if not exe:
+            self._rust_bin_fail += 1
+            self._rust_last_error = "rust_binary_missing"
             return None
         try:
             payload = json.dumps({"command": command, "args": args})
@@ -577,14 +584,44 @@ class RustBridge:
                 env=self._rust_subprocess_env(),
             )
             if result.returncode == 0:
-                return json.loads(result.stdout.decode())
+                try:
+                    return json.loads(result.stdout.decode())
+                except json.JSONDecodeError as e:
+                    self._rust_decode_fail += 1
+                    self._rust_last_error = f"decode:{e}"
+                    print(f"[Bridge] Rust JSON decode failed: {e}.")
+                    return None
+            self._rust_cmd_fail += 1
             err = (result.stderr or b"").decode(errors="replace").strip()
             out = (result.stdout or b"").decode(errors="replace").strip()
+            self._rust_last_error = err or f"rc={result.returncode}"
             print(
                 f"[Bridge] Rust call rc={result.returncode}"
                 f"{(': ' + err) if err else ''}"
                 f"{(' stdout=' + out[:200]) if out else ''}"
             )
-        except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError) as e:
+        except subprocess.TimeoutExpired as e:
+            self._rust_timeout += 1
+            self._rust_last_error = "timeout"
+            print(f"[Bridge] Rust call failed: {e}.")
+        except FileNotFoundError as e:
+            self._rust_bin_fail += 1
+            self._rust_last_error = str(e)
+            print(f"[Bridge] Rust call failed: {e}.")
+        except Exception as e:
+            self._rust_cmd_fail += 1
+            self._rust_last_error = str(e)
             print(f"[Bridge] Rust call failed: {e}.")
         return None
+
+    def get_ops_errors(self) -> Dict:
+        """Operational counters for metrics / status honesty."""
+        return {
+            "rust_decode_fail": int(self._rust_decode_fail),
+            "rust_timeout": int(self._rust_timeout),
+            "rust_bin_fail": int(self._rust_bin_fail),
+            "rust_cmd_fail": int(self._rust_cmd_fail),
+            "last_error": self._rust_last_error or "",
+            "mode": getattr(self, "_mode", "unknown"),
+            "running": bool(self._running),
+        }

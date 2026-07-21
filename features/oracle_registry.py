@@ -127,17 +127,26 @@ class OracleFeedRegistry:
         symbol = (symbol or "").strip().lower()
         if not symbol or not reporter:
             return {"ok": False, "error": "symbol and reporter required"}
+        now = int(time.time())
         body = payload or {
             "symbol": symbol,
             "value": float(value),
             "reporter": reporter,
-            "ts": int(time.time()),
+            "ts": now,
         }
         raw = json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
-        if self.secret and signature:
+        # When a secret is configured, unsigned reports must not count toward quorum.
+        if self.secret:
+            if not signature:
+                return {"ok": False, "error": "oracle signature required"}
             if not verify_signature(self.secret, raw, signature):
                 return {"ok": False, "error": "invalid oracle signature"}
-        ts = int(body.get("ts", time.time()))
+        elif signature:
+            # Signature provided without a configured secret cannot be verified.
+            return {"ok": False, "error": "oracle secret not configured"}
+        ts = int(body.get("ts", now))
+        if abs(now - ts) > max(30, int(max_age_sec or 300)):
+            return {"ok": False, "error": "stale or future oracle report"}
         report_id = native.sha256_hex(f"{symbol}:{reporter}:{ts}".encode())[:32]
         if hasattr(self.db, "save_oracle_report"):
             self.db.save_oracle_report({
@@ -159,28 +168,41 @@ class OracleFeedRegistry:
         max_age_sec: int = 300,
         max_deviation_pct: float = 5.0,
     ) -> Optional[Dict[str, Any]]:
-        """Median price from recent reporter submissions (quorum gate)."""
+        """Median price from recent unique reporters (quorum gate)."""
         symbol = (symbol or "").strip().lower()
         if not symbol or not hasattr(self.db, "get_oracle_reports"):
             return None
         cutoff = int(time.time()) - max(30, max_age_sec)
         rows = self.db.get_oracle_reports(symbol=symbol, since=cutoff, limit=50)
-        if len(rows) < quorum:
+        # One vote per reporter — keep the latest submission.
+        by_reporter: Dict[str, Dict[str, Any]] = {}
+        for r in rows:
+            rep = str(r.get("reporter") or "")
+            if not rep:
+                continue
+            prev = by_reporter.get(rep)
+            if prev is None or int(r.get("submitted_at", 0) or 0) >= int(
+                prev.get("submitted_at", 0) or 0
+            ):
+                by_reporter[rep] = r
+        unique = list(by_reporter.values())
+        if len(unique) < quorum:
             return None
-        values = sorted(float(r["value"]) for r in rows)
+        values = sorted(float(r["value"]) for r in unique)
         mid = values[len(values) // 2]
         if len(values) >= 2:
             dev = abs(values[-1] - values[0]) / max(mid, 1e-9) * 100.0
             if dev > max_deviation_pct:
                 return None
         canonical = self.ingest_internal(symbol, mid, "quorum_median", {
-            "quorum": len(rows),
-            "reporters": [r["reporter"] for r in rows[:5]],
+            "quorum": len(unique),
+            "reporters": [r["reporter"] for r in unique[:5]],
         })
         return {
             "symbol": symbol,
             "value": mid,
-            "quorum": len(rows),
+            "quorum": len(unique),
+            "unique_reporters": len(unique),
             "feed_id": canonical,
             "source": "quorum_median",
         }

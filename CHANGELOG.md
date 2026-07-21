@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.31] — 2026-07-21
+
+### Hardened — oracle quorum / sync finally / peer fork / bridge-MEV-AI-will
+
+- Oracle signature+unique reporters; consensus healthy from ingest_fail
+- Sync finally + fail counters; P2P chain_compatible; bridge/MEV/AI/will honesty
+
+---
+
 ## [1.3.30] — 2026-07-21
 
 ### Hardened — ready/WS / feature init / bridge proof / L2 missing / storage / consensus

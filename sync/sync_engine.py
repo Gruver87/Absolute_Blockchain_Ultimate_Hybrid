@@ -7,6 +7,7 @@ Sync Engine — fast catch-up for late-joining nodes
 """
 
 from typing import List, Dict, Optional
+import time
 
 from crypto import native
 
@@ -22,6 +23,9 @@ class SyncEngine:
         self.is_syncing = False
         self.sync_progress = 0
         self._last_wire_probe_ok = None
+        self._sync_fail = 0
+        self._last_sync_error = ""
+        self._last_sync_ok_at = 0
 
     def add_peer(self, peer):
         """Добавляет пира для синхронизации"""
@@ -193,89 +197,113 @@ class SyncEngine:
         local_h = self._local_height()
         print(f"[Sync] Starting fast sync from height {local_h}...")
         self.is_syncing = True
-
-        heads = self.request_heads()
-        if not heads:
-            print("[Sync] No peers available")
-            self.is_syncing = False
-            return False
-
-        best_head = self.select_best_head(heads)
-        if not best_head:
-            print("[Sync] No valid head selected")
-            self.is_syncing = False
-            return False
-
-        best_peer_h = max(int(h.get("height", 0) or 0) for h in heads)
-        if target_block > 0:
-            best_peer_h = min(best_peer_h, int(target_block))
-
-        if best_peer_h <= local_h:
-            print(f"[Sync] Already at head (local={local_h}, peer={best_peer_h})")
-            ok = bool(self.sync_state())
-            self.is_syncing = False
-            return ok
-
-        print(f"[Sync] Selected head: {best_head[:8]}... (peer height {best_peer_h})")
-
-        chain = self.download_chain(best_head, stop_at_height=local_h)
-        if not chain:
-            print("[Sync] Chain download failed")
-            self.is_syncing = False
-            return False
-
-        target_h = best_peer_h if target_block > 0 else None
-        to_import = []
-        needs_genesis = False
-        if hasattr(self.node, "blockchain") and self.node.blockchain is not None:
-            bc_db = getattr(self.node.blockchain, "db", None)
-            if bc_db is not None and bc_db.get_last_block() is None:
-                needs_genesis = True
-        import_floor = -1 if needs_genesis else local_h
-        for block in chain:
-            height = self._block_height(block)
-            if height <= import_floor:
-                continue
-            if target_h is not None and height > target_h:
-                continue
-            to_import.append(block)
-        to_import.sort(key=self._block_height)
-
-        if not to_import:
-            print(f"[Sync] No new blocks (local={local_h}, chain_len={len(chain)})")
-            ok = bool(self.sync_state())
-            self.is_syncing = False
-            return ok
-
-        if not self._validate_downloaded_chain(to_import, local_h):
-            print("[Sync] Downloaded chain is not contiguous")
-            self.is_syncing = False
-            return False
-
-        imported = 0
-        for i, block in enumerate(to_import):
-            ok = False
-            if hasattr(self.node, "import_block"):
-                ok = bool(self.node.import_block(block))
-            elif hasattr(self.node, "consensus") and hasattr(self.node.consensus, "add_block"):
-                ok = bool(self.node.consensus.add_block(block))
-            if ok:
-                imported += 1
-            else:
-                print(f"[Sync] Import failed at height {self._block_height(block)}")
-                self.is_syncing = False
+        ok = False
+        try:
+            heads = self.request_heads()
+            if not heads:
+                print("[Sync] No peers available")
+                self._last_sync_error = "no_peers"
                 return False
-            self.sync_progress = i + 1
 
-        if hasattr(self.node, "consensus") and hasattr(self.node.consensus, "set_head"):
-            self.node.consensus.set_head(best_head)
-        elif hasattr(self.node, "chain") and hasattr(self.node.chain, "set_head"):
-            self.node.chain.set_head(best_head)
+            best_head = self.select_best_head(heads)
+            if not best_head:
+                print("[Sync] No valid head selected")
+                self._last_sync_error = "no_valid_head"
+                return False
 
-        ok = bool(self.sync_state())
-        self.is_syncing = False
-        print(f"[Sync] Done: imported {imported}/{len(to_import)} blocks (local now {self._local_height()})")
-        return ok
+            best_peer_h = max(int(h.get("height", 0) or 0) for h in heads)
+            if target_block > 0:
+                best_peer_h = min(best_peer_h, int(target_block))
+
+            if best_peer_h <= local_h:
+                print(f"[Sync] Already at head (local={local_h}, peer={best_peer_h})")
+                ok = bool(self.sync_state())
+                if ok:
+                    self._last_sync_ok_at = int(time.time())
+                    self._last_sync_error = ""
+                else:
+                    self._last_sync_error = "state_sync_failed"
+                return ok
+
+            print(f"[Sync] Selected head: {best_head[:8]}... (peer height {best_peer_h})")
+
+            chain = self.download_chain(best_head, stop_at_height=local_h)
+            if not chain:
+                print("[Sync] Chain download failed")
+                self._last_sync_error = "download_failed"
+                return False
+
+            target_h = best_peer_h if target_block > 0 else None
+            to_import = []
+            needs_genesis = False
+            if hasattr(self.node, "blockchain") and self.node.blockchain is not None:
+                bc_db = getattr(self.node.blockchain, "db", None)
+                if bc_db is not None and bc_db.get_last_block() is None:
+                    needs_genesis = True
+            import_floor = -1 if needs_genesis else local_h
+            for block in chain:
+                height = self._block_height(block)
+                if height <= import_floor:
+                    continue
+                if target_h is not None and height > target_h:
+                    continue
+                to_import.append(block)
+            to_import.sort(key=self._block_height)
+
+            if not to_import:
+                print(f"[Sync] No new blocks (local={local_h}, chain_len={len(chain)})")
+                ok = bool(self.sync_state())
+                if ok:
+                    self._last_sync_ok_at = int(time.time())
+                    self._last_sync_error = ""
+                else:
+                    self._last_sync_error = "state_sync_failed"
+                return ok
+
+            if not self._validate_downloaded_chain(to_import, local_h):
+                print("[Sync] Downloaded chain is not contiguous")
+                self._last_sync_error = "non_contiguous_chain"
+                return False
+
+            imported = 0
+            for i, block in enumerate(to_import):
+                block_ok = False
+                if hasattr(self.node, "import_block"):
+                    block_ok = bool(self.node.import_block(block))
+                elif hasattr(self.node, "consensus") and hasattr(self.node.consensus, "add_block"):
+                    block_ok = bool(self.node.consensus.add_block(block))
+                if block_ok:
+                    imported += 1
+                else:
+                    print(f"[Sync] Import failed at height {self._block_height(block)}")
+                    self._last_sync_error = f"import_failed:{self._block_height(block)}"
+                    return False
+                self.sync_progress = i + 1
+
+            if hasattr(self.node, "consensus") and hasattr(self.node.consensus, "set_head"):
+                self.node.consensus.set_head(best_head)
+            elif hasattr(self.node, "chain") and hasattr(self.node.chain, "set_head"):
+                self.node.chain.set_head(best_head)
+
+            ok = bool(self.sync_state())
+            if ok:
+                self._last_sync_ok_at = int(time.time())
+                self._last_sync_error = ""
+            else:
+                self._last_sync_error = "state_sync_failed"
+            print(
+                f"[Sync] Done: imported {imported}/{len(to_import)} blocks "
+                f"(local now {self._local_height()})"
+            )
+            return ok
+        except Exception as exc:
+            self._sync_fail += 1
+            self._last_sync_error = str(exc)
+            print(f"[Sync] fast_sync failed: {exc}")
+            return False
+        finally:
+            # Fail-closed: never leave is_syncing stuck after unexpected errors.
+            self.is_syncing = False
 
     def _set_state_consistent(self, ok: bool) -> None:
         """Mirror consistency on AbsoluteNode and/or nested P2PNode."""
@@ -418,6 +446,9 @@ class SyncEngine:
             # Unknown (never probed) is fail-closed False for status honesty.
             "wire_probe_ok": True if probe is True else False,
             "wire_probe_probed": probe is not None,
+            "sync_fail": int(self._sync_fail),
+            "last_sync_error": self._last_sync_error or "",
+            "last_sync_ok_at": int(self._last_sync_ok_at or 0),
         }
 
     def reset(self):

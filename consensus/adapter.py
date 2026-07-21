@@ -398,11 +398,12 @@ class ConsensusAdapter:
         if not self.casper_engine:
             return {"enabled": False, "healthy": False}
         try:
+            ingest_fail = int(self._casper_ingest_fail)
             return {
                 "enabled": True,
-                "healthy": True,
+                "healthy": ingest_fail == 0,
                 "finality": self.casper_engine.get_finality_status(),
-                "ingest_fail": int(self._casper_ingest_fail),
+                "ingest_fail": ingest_fail,
             }
         except Exception as e:
             return {
@@ -417,11 +418,12 @@ class ConsensusAdapter:
         if not self.beacon_engine:
             return {"enabled": False, "healthy": False}
         try:
+            ingest_fail = int(self._beacon_ingest_fail)
             return {
                 "enabled": True,
-                "healthy": True,
+                "healthy": ingest_fail == 0,
                 "stats": self.beacon_engine.get_stats(),
-                "ingest_fail": int(self._beacon_ingest_fail),
+                "ingest_fail": ingest_fail,
             }
         except Exception as e:
             return {

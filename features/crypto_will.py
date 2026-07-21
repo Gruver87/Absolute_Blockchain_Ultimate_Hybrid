@@ -64,6 +64,7 @@ class CryptoWillManager:
         self.blockchain = blockchain
         self.db = db
         self._lock = threading.RLock()
+        self._monitor_errors = 0
         self._load_from_db()
         self._monitor_thread = threading.Thread(
             target=self._check_wills_loop, daemon=True
@@ -136,8 +137,15 @@ class CryptoWillManager:
             execution_time, witnesses or [],
         )
         with self._lock:
+            try:
+                self._persist(will)
+            except Exception as exc:
+                self._monitor_errors += 1
+                # Fail-closed: refund locked funds if persistence fails.
+                self._credit(owner, amount)
+                print(f"[CryptoWill] create persist failed, refunded: {exc}")
+                return None
             self.wills[will_id] = will
-            self._persist(will)
         print(f"[CryptoWill] Created: {will_id} owner={owner[:12]}... "
               f"heir={heir[:12]}... amount={amount} (locked)")
         return will_id
@@ -180,11 +188,22 @@ class CryptoWillManager:
                 return False
             if not force and int(time.time()) < w.execution_time:
                 return False
-            if not self._credit(w.heir, w.amount):
-                return False
-        with self._lock:
+            # Mark executed before credit so a crash cannot re-run the same will.
             w.status = "executed"
-            self._persist(w)
+            try:
+                self._persist(w)
+            except Exception as exc:
+                w.status = "pending"
+                self._monitor_errors += 1
+                print(f"[CryptoWill] execute persist failed: {exc}")
+                return False
+            if not self._credit(w.heir, w.amount):
+                w.status = "pending"
+                try:
+                    self._persist(w)
+                except Exception:
+                    self._monitor_errors += 1
+                return False
             del self.wills[will_id]
         print(f"[CryptoWill] EXECUTED: {will_id} — {w.amount} ABS → {w.heir[:12]}...")
         return True
@@ -200,12 +219,18 @@ class CryptoWillManager:
             "total_locked_amount": total_amount,
             "persisted": bool(self.db),
             "min_delay_sec": self.MIN_DELAY,
+            "monitor_errors": int(getattr(self, "_monitor_errors", 0) or 0),
+            "healthy": int(getattr(self, "_monitor_errors", 0) or 0) == 0,
         }
 
     def _check_wills_loop(self):
         while True:
             time.sleep(3600)
-            self._execute_due_wills()
+            try:
+                self._execute_due_wills()
+            except Exception as exc:
+                self._monitor_errors += 1
+                print(f"[CryptoWill] monitor loop error: {exc}")
 
     def _execute_due_wills(self):
         now = int(time.time())

@@ -81,9 +81,12 @@ class MEVAnalyzer:
             "type": "sandwich",
             "victim": victim.hash[:16],
             "profit": round(profit, 6),
+            "model_estimate": round(profit, 6),
             "fee_spread": spread,
             "probability": min(0.95, spread / max(top_fee, 1)),
+            "executed": False,
             "source": "mempool_fee_order",
+            "note": "heuristic signal — not a confirmed on-chain attack",
         }
         self._record("sandwich", profit, result)
         return result
@@ -109,9 +112,12 @@ class MEVAnalyzer:
             "opportunity": True,
             "type": "arbitrage",
             "profit": round(profit, 6),
+            "model_estimate": round(profit, 6),
             "fee_spread": spread,
             "probability": min(0.9, spread / max(fees[0], 1)),
+            "executed": False,
             "source": "mempool_fee_spread",
+            "note": "heuristic signal — not a confirmed on-chain attack",
         }
         self._record("arbitrage", profit, result)
         return result
@@ -138,11 +144,15 @@ class MEVAnalyzer:
         return list(reversed(self.attack_history[-limit:]))
 
     def get_statistics(self) -> Dict[str, Any]:
+        n = len(self.attack_history)
+        model_est = round(sum(a.get("profit", 0) for a in self.attack_history), 4)
         return {
-            "total_attacks": len(self.attack_history),
-            "estimated_profit": round(
-                sum(a.get("profit", 0) for a in self.attack_history), 4
-            ),
+            # Legacy key kept for API compatibility; prefer heuristic_signals.
+            "total_attacks": n,
+            "heuristic_signals": n,
+            "estimated_profit": model_est,
+            "model_estimate_profit": model_est,
+            "executed": False,
             "attack_types": {
                 "sandwich": sum(
                     1 for a in self.attack_history if a.get("type") == "sandwich"
@@ -155,4 +165,5 @@ class MEVAnalyzer:
                 ),
             },
             "persisted": bool(self.db),
+            "note": "heuristic mempool signals — not confirmed on-chain attacks",
         }

@@ -41,8 +41,8 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.30` — ready/WS / feature init / bridge proof / L2 missing / storage / consensus |
-| **Notes** | [RELEASE_NOTES_v1.3.30.md](../RELEASE_NOTES_v1.3.30.md) |
+| **Tag** | `v1.3.31` — oracle quorum / sync finally / peer fork / bridge-MEV-AI-will |
+| **Notes** | [RELEASE_NOTES_v1.3.31.md](../RELEASE_NOTES_v1.3.31.md) |
 | **Prior** | [v1.3.19](../RELEASE_NOTES_v1.3.19.md) sync incomplete/CORS/repair; [v1.3.08](../RELEASE_NOTES_v1.3.08.md) Swiss-watch |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

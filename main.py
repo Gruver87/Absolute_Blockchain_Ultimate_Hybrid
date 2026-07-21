@@ -927,7 +927,7 @@ class NodeOrchestrator:
         if _AI_MANAGER_AVAILABLE and getattr(config, "feature_ai_agents", True):
             try:
                 self.ai_manager = AIAgentManager(db=self.db)
-                print("[Node] AI Agent Manager: trading agents ready")
+                print("[Node] AI Agent Manager: registry ready (no model/executor bound)")
             except Exception as e:
                 self.ai_manager = None
                 print(f"[Node] AI Manager: unavailable ({e})")

@@ -738,8 +738,35 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         adapter_py = (ROOT / "consensus" / "adapter.py").read_text(encoding="utf-8")
         if "_casper_ingest_fail" not in adapter_py or "casper_ingest_fail" not in adapter_py:
             errors.append("consensus adapter must count casper/beacon ingest failures")
+        if '"healthy": ingest_fail == 0' not in adapter_py:
+            errors.append("casper/beacon healthy must require zero ingest_fail")
+        sync_py = (ROOT / "sync" / "sync_engine.py").read_text(encoding="utf-8")
+        if "never leave is_syncing stuck" not in sync_py:
+            errors.append("SyncEngine.fast_sync must clear is_syncing in finally")
+        if "sync_fail" not in sync_py or "last_sync_error" not in sync_py:
+            errors.append("SyncEngine status must expose sync_fail/last_sync_error")
+        p2p_py2 = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+        if "chain_compatible" not in p2p_py2 or "transport_healthy" not in p2p_py2:
+            errors.append("P2P topology must separate transport_healthy and chain_compatible")
+        oracle_py = (ROOT / "features" / "oracle_registry.py").read_text(encoding="utf-8")
+        if "oracle signature required" not in oracle_py:
+            errors.append("oracle submit_report must require signature when secret set")
+        if "One vote per reporter" not in oracle_py:
+            errors.append("oracle aggregate must dedupe reporters")
+        bridge_py = (ROOT / "bridge" / "abs_bridge.py").read_text(encoding="utf-8")
+        if "_rust_decode_fail" not in bridge_py or "get_ops_errors" not in bridge_py:
+            errors.append("RustBridge must expose decode/timeout ops error counters")
+        mev_py = (ROOT / "features" / "mev_analyzer.py").read_text(encoding="utf-8")
+        if "heuristic_signals" not in mev_py:
+            errors.append("MEV stats must expose heuristic_signals honesty labels")
+        ai_py = (ROOT / "features" / "ai_manager.py").read_text(encoding="utf-8")
+        if "model_bound" not in ai_py or "executor_bound" not in ai_py:
+            errors.append("AI manager must expose model_bound/executor_bound")
+        will_py = (ROOT / "features" / "crypto_will.py").read_text(encoding="utf-8")
+        if "create persist failed, refunded" not in will_py:
+            errors.append("CryptoWill create must refund on persist failure")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28/29/30 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28/29/30/31 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

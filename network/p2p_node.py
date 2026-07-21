@@ -2305,6 +2305,7 @@ class P2PNode:
     def get_topology(self) -> Dict:
         """Operational P2P topology for real multi-node devnet diagnostics."""
         local_height = self.blockchain.get_height() if self.blockchain else 0
+        local_head = self.head() or ""
         peers = []
         now = time.time()
         health_timeout = max(
@@ -2320,6 +2321,12 @@ class P2PNode:
                 health_timeout=health_timeout,
             )
             strikes = int(self._peer_strikes.get(self._peer_key(p), 0) or 0)
+            peer_head = str(p.head or "")
+            transport_healthy = gap <= 2 and last_seen_age < health_timeout
+            # Same-height divergent head is not chain-compatible.
+            chain_compatible = True
+            if peer_head and local_head and gap == 0:
+                chain_compatible = peer_head == local_head
             peers.append({
                 "peer_id": p.peer_id,
                 "address": f"{p.host}:{p.listen_port or p.port}",
@@ -2327,11 +2334,13 @@ class P2PNode:
                 "listen_port": p.listen_port,
                 "height": p.height,
                 "height_gap": gap,
-                "head": p.head or "",
+                "head": peer_head,
                 "connected_for_sec": int(now - p.connected_at),
                 "last_seen_age_sec": round(last_seen_age, 3),
                 "health_timeout_sec": int(health_timeout),
-                "healthy": gap <= 2 and last_seen_age < health_timeout,
+                "transport_healthy": transport_healthy,
+                "chain_compatible": chain_compatible,
+                "healthy": transport_healthy and chain_compatible,
                 "score": score,
                 "strikes": strikes,
                 "banned": self._is_banned(self._peer_key(p)),
@@ -2352,7 +2361,7 @@ class P2PNode:
             "chain_id": getattr(self.config, "chain_id", 0),
             "running": self._running,
             "local_height": local_height,
-            "local_head": self.head() or "",
+            "local_head": local_head,
             "peer_count": len(peers),
             "expected_peers": expected,
             "topology_healthy": peer_links_ok and peers_healthy and consistent_ok,
