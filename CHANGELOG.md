@@ -6,6 +6,12 @@
 
 ---
 
+## [1.3.44] — 2026-07-21
+
+### Added — EVM host-in-apply fee effects
+
+- Rust `blockchain_apply_host_effects`; all-EVM blocks run host then native fee/nonce/reward
+
 ## [1.3.43] — 2026-07-21
 
 ### Added — native P2P rate-limit / strike table

@@ -561,6 +561,21 @@ class Blockchain:
                                 block.height,
                                 native_exc,
                             )
+                    if (
+                        not native_applied
+                        and native.native_available()
+                        and hasattr(native, "blockchain_apply_host_effects")
+                        and self._block_transactions_are_all_evm(block.transactions)
+                    ):
+                        try:
+                            block_burned = self._apply_evm_host_block_native(block)
+                            native_applied = True
+                        except Exception as native_exc:
+                            _logger.debug(
+                                "[Blockchain] native host-effects apply fallback #%s: %s",
+                                block.height,
+                                native_exc,
+                            )
                     if not native_applied:
                         for tx in block.transactions:
                             result = self._apply_transaction(
@@ -732,6 +747,13 @@ class Blockchain:
     def _block_transactions_are_simple(self, transactions) -> bool:
         return all(self._tx_is_simple(tx) for tx in transactions)
 
+    def _block_transactions_are_all_evm(self, transactions) -> bool:
+        if not transactions:
+            return False
+        if not getattr(self, "evm", None):
+            return False
+        return all(not self._tx_is_simple(tx) for tx in transactions)
+
     def _collect_addrs_for_simple_block(self, block: "Block") -> set:
         addrs = set()
         proposer = block.miner or ""
@@ -830,6 +852,106 @@ class Blockchain:
             tx.gas_used = tx.gas
             tx.block_height = block.height
         return burned_abs
+
+    def _run_evm_host_only(self, tx: "Transaction", block_height: int) -> Dict:
+        """Execute EVM call/deploy (storage/code/value) without fee/nonce writes."""
+        if not getattr(self, "evm", None):
+            return {"success": False, "error": "evm_unavailable"}
+        target_acct = self.db.get_account(tx.to_addr) if tx.to_addr else None
+        if target_acct and target_acct.get("code"):
+            evm_res = self.evm.call_contract(
+                tx.from_addr,
+                tx.to_addr,
+                tx.data,
+                tx.value,
+                gas_limit=tx.gas or self.config.evm_gas_limit,
+            )
+            if not evm_res.success:
+                return {"success": False, "error": evm_res.error or "evm_call_failed"}
+            return {
+                "success": True,
+                "gas_used": int(evm_res.gas_used or tx.gas or 0),
+                "contract_address": None,
+            }
+        deploy_data = (tx.data or "").strip()
+        hex_body = deploy_data.replace("0x", "")
+        if deploy_data and len(hex_body) >= 4 and len(hex_body) % 2 == 0:
+            deploy_salt = f"{block_height}:{tx.nonce}:{tx.hash}"
+            evm_res = self.evm.deploy_contract(
+                tx.from_addr,
+                deploy_data,
+                tx.value,
+                gas_limit=tx.gas or self.config.evm_gas_limit,
+                salt=deploy_salt,
+                block_number=block_height,
+            )
+            if not evm_res.success:
+                return {"success": False, "error": evm_res.error or "evm_deploy_failed"}
+            return {
+                "success": True,
+                "gas_used": int(evm_res.gas_used or tx.gas or 0),
+                "contract_address": evm_res.return_value,
+            }
+        return {"success": False, "error": "evm_unsupported_tx"}
+
+    def _apply_evm_host_block_native(self, block: "Block") -> float:
+        """Run EVM host per tx, then native fee/nonce/reward apply. Returns burned ABS."""
+        from runtime.amount import from_satoshi_float, plan_transfer_fees, to_satoshi
+
+        effects = []
+        addrs = self._collect_addrs_for_simple_block(block)
+        for tx in block.transactions:
+            host = self._run_evm_host_only(tx, block.height)
+            if not host.get("success"):
+                raise RuntimeError(host.get("error") or "evm_host_failed")
+            gas_used = int(host.get("gas_used") or tx.gas or 0)
+            effects.append(
+                {
+                    "from": tx.from_addr,
+                    "to": tx.to_addr or "",
+                    "value": float(tx.value or 0),
+                    "apply_value": False,
+                    "gas": int(tx.gas or 21000),
+                    "gas_used": gas_used,
+                    "nonce": int(tx.nonce),
+                }
+            )
+            if host.get("contract_address"):
+                addrs.add(str(host["contract_address"]))
+            plan = plan_transfer_fees(
+                tx.gas,
+                self.config.gas_price_wei,
+                self.config.burn_rate,
+                0.0,
+                gas_used=gas_used,
+            )
+            tx.fee = plan["fee"]
+            tx.burned = plan["burned"]
+            tx.gas_used = gas_used
+            tx.block_height = block.height
+
+        snap = self._accounts_sat_snapshot(addrs)
+        supply_sat = 0
+        if hasattr(self.db, "get_total_supply"):
+            supply_sat = int(to_satoshi(self.db.get_total_supply()))
+        else:
+            supply_sat = sum(int(v["balance"]) for v in snap.values())
+        max_supply_sat = int(to_satoshi(float(getattr(self.config, "max_supply", MAX_SUPPLY_ABS))))
+        raw = native.blockchain_apply_host_effects(
+            json.dumps(snap, separators=(",", ":"), ensure_ascii=False),
+            json.dumps(effects, separators=(",", ":"), ensure_ascii=False),
+            float(self.config.gas_price_wei),
+            float(self.config.burn_rate),
+            str(block.miner or ""),
+            str(getattr(self.config, "burn_address", "") or ""),
+            float(self.config.block_reward),
+            supply_sat,
+            max_supply_sat,
+        )
+        result = json.loads(raw)
+        self._writeback_accounts_sat(result.get("accounts") or {})
+        burned_sat = int(result.get("total_burned_sat", 0) or 0)
+        return float(from_satoshi_float(burned_sat))
 
     def _blocks_range_are_simple(self, from_h: int, to_h: int) -> bool:
         for h in range(from_h, to_h + 1):

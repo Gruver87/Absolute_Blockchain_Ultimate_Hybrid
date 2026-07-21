@@ -106,6 +106,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "ghost_chain_from_head",
             "lmd_compute_weights",
             "blockchain_apply_simple_block",
+            "blockchain_apply_host_effects",
             "blockchain_replay_simple_blocks",
             "ffg_threshold",
             "ffg_evaluate_epoch",
@@ -1601,6 +1602,35 @@ def blockchain_apply_simple_block(
             )
         )
     raise RuntimeError("blockchain_apply_simple_block requires abs_native")
+
+
+def blockchain_apply_host_effects(
+    accounts_json: str,
+    effects_json: str,
+    gas_price_wei: float,
+    burn_rate: float,
+    proposer: str,
+    burn_address: str,
+    block_reward_abs: float,
+    current_supply_sat: int,
+    max_supply_sat: int,
+) -> str:
+    _require_native_kernel("blockchain_apply_host_effects")
+    if _native is not None and hasattr(_native, "blockchain_apply_host_effects"):
+        return str(
+            _native.blockchain_apply_host_effects(
+                accounts_json,
+                effects_json,
+                float(gas_price_wei),
+                float(burn_rate),
+                str(proposer or ""),
+                str(burn_address or ""),
+                float(block_reward_abs),
+                int(current_supply_sat),
+                int(max_supply_sat),
+            )
+        )
+    raise RuntimeError("blockchain_apply_host_effects requires abs_native")
 
 
 def blockchain_replay_simple_blocks(

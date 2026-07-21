@@ -988,8 +988,18 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         rl_rs = ROOT / "native" / "abs_native" / "src" / "p2p_rate_limit.rs"
         if not rl_rs.is_file():
             errors.append("native p2p_rate_limit.rs missing")
+        # v1.3.44 — EVM host-in-apply fee effects
+        if "def blockchain_apply_host_effects" not in native_py:
+            errors.append("crypto/native.py must export blockchain_apply_host_effects (v1.3.44)")
+        bc_py = (ROOT / "core" / "blockchain.py").read_text(encoding="utf-8")
+        if "blockchain_apply_host_effects" not in bc_py or "_apply_evm_host_block_native" not in bc_py:
+            errors.append("blockchain.py must wire blockchain_apply_host_effects")
+        if "blockchain_apply_host_effects" not in (
+            ROOT / "native" / "abs_native" / "src" / "amount.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append("amount.rs must define blockchain_apply_host_effects")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..43 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..44 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

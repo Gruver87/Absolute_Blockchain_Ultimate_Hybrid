@@ -432,6 +432,127 @@ fn apply_simple_transfer_with_fees(
     Ok(burned_sat)
 }
 
+/// Apply EVM-host fee (and optional value) effect after Python host ran storage/code/value.
+fn apply_host_fee_effect(
+    accounts: &mut BTreeMap<String, Value>,
+    effect: &Value,
+    gas_price_wei: f64,
+    burn_rate: f64,
+    proposer: &str,
+    burn_address: &str,
+) -> PyResult<i64> {
+    let obj = effect
+        .as_object()
+        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("effect must be object"))?;
+    let from_addr = obj
+        .get("from")
+        .or_else(|| obj.get("from_addr"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    if from_addr.is_empty() {
+        return Err(pyo3::exceptions::PyValueError::new_err("missing_from"));
+    }
+    let apply_value = obj
+        .get("apply_value")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let to_addr = obj
+        .get("to")
+        .or_else(|| obj.get("to_addr"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let value_f = if apply_value {
+        let value_abs = obj
+            .get("value")
+            .or_else(|| obj.get("amount"))
+            .cloned()
+            .unwrap_or(Value::Number(0.into()));
+        match &value_abs {
+            Value::Number(n) => n.as_f64().unwrap_or(0.0),
+            Value::String(s) => s.parse::<f64>().unwrap_or(0.0),
+            _ => 0.0,
+        }
+    } else {
+        0.0
+    };
+    let gas = obj
+        .get("gas")
+        .and_then(|v| v.as_u64().or_else(|| v.as_i64().map(|i| i as u64)))
+        .unwrap_or(21_000);
+    let gas_used = obj
+        .get("gas_used")
+        .and_then(|v| v.as_u64().or_else(|| v.as_i64().map(|i| i as u64)));
+
+    let (_fee, burned, miner_fee, total_cost) =
+        plan_transfer_fees(gas, gas_price_wei, burn_rate, value_f, gas_used)?;
+    let value_sat = if apply_value {
+        to_satoshi_inner(&value_f.to_string())?
+    } else {
+        0
+    };
+    let burned_sat = to_satoshi_inner(&burned.to_string())?;
+    let miner_fee_sat = to_satoshi_inner(&miner_fee.to_string())?;
+    let total_sat = to_satoshi_inner(&total_cost.to_string())?;
+
+    if !accounts.contains_key(&from_addr) {
+        accounts.insert(from_addr.clone(), empty_account());
+    }
+    let from_bal = account_balance(accounts.get(&from_addr).unwrap());
+    let from_nonce = account_nonce(accounts.get(&from_addr).unwrap());
+    if from_bal < total_sat {
+        return Err(pyo3::exceptions::PyRuntimeError::new_err(
+            "insufficient_funds",
+        ));
+    }
+    let tx_nonce = obj
+        .get("nonce")
+        .and_then(|v| v.as_i64().or_else(|| v.as_u64().map(|u| u as i64)))
+        .unwrap_or(from_nonce);
+    if tx_nonce != from_nonce {
+        return Err(pyo3::exceptions::PyRuntimeError::new_err(format!(
+            "Invalid nonce: expected {from_nonce}, got {tx_nonce}"
+        )));
+    }
+
+    {
+        let from = accounts.get_mut(&from_addr).unwrap();
+        set_account_balance(from, from_bal - total_sat, from_nonce + 1);
+    }
+    if apply_value {
+        if to_addr.is_empty() {
+            return Err(pyo3::exceptions::PyValueError::new_err("missing_to"));
+        }
+        if !accounts.contains_key(&to_addr) {
+            accounts.insert(to_addr.clone(), empty_account());
+        }
+        let to = accounts.get_mut(&to_addr).unwrap();
+        let to_bal = account_balance(to);
+        let to_nonce = account_nonce(to);
+        set_account_balance(to, to_bal + value_sat, to_nonce);
+    }
+    if miner_fee_sat > 0 && !proposer.is_empty() {
+        if !accounts.contains_key(proposer) {
+            accounts.insert(proposer.to_string(), empty_account());
+        }
+        let row = accounts.get_mut(proposer).unwrap();
+        let bal = account_balance(row);
+        let nonce = account_nonce(row);
+        set_account_balance(row, bal + miner_fee_sat, nonce);
+    }
+    if burned_sat > 0 && !burn_address.is_empty() {
+        if !accounts.contains_key(burn_address) {
+            accounts.insert(burn_address.to_string(), empty_account());
+        }
+        let row = accounts.get_mut(burn_address).unwrap();
+        let bal = account_balance(row);
+        let nonce = account_nonce(row);
+        set_account_balance(row, bal + burned_sat, nonce);
+    }
+    Ok(burned_sat)
+}
+
 fn apply_block_reward_sat(
     accounts: &mut BTreeMap<String, Value>,
     proposer: &str,
@@ -465,6 +586,80 @@ fn accounts_to_json(accounts: &BTreeMap<String, Value>) -> PyResult<String> {
         out.insert(addr.clone(), row.clone());
     }
     serde_json::to_string(&Value::Object(out))
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
+/// Apply host effects for a block after Python EVM host mutated storage/code/value.
+/// Each effect: fee (+ optional value when apply_value=true) + nonce + reward.
+#[pyfunction]
+#[pyo3(signature = (
+    accounts_json,
+    effects_json,
+    gas_price_wei,
+    burn_rate,
+    proposer,
+    burn_address,
+    block_reward_abs,
+    current_supply_sat,
+    max_supply_sat
+))]
+fn blockchain_apply_host_effects(
+    accounts_json: String,
+    effects_json: String,
+    gas_price_wei: f64,
+    burn_rate: f64,
+    proposer: String,
+    burn_address: String,
+    block_reward_abs: f64,
+    current_supply_sat: i64,
+    max_supply_sat: i64,
+) -> PyResult<String> {
+    let mut accounts = parse_accounts_map(&accounts_json)?;
+    let effects: Value = serde_json::from_str(&effects_json)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let effects = effects
+        .as_array()
+        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("effects_json must be an array"))?;
+    if effects.len() > MAX_STATE_ENGINE_TXS {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "too_many_effects: {} > {}",
+            effects.len(),
+            MAX_STATE_ENGINE_TXS
+        )));
+    }
+    let mut total_burned_sat: i64 = 0;
+    for effect in effects {
+        total_burned_sat = total_burned_sat.saturating_add(apply_host_fee_effect(
+            &mut accounts,
+            effect,
+            gas_price_wei,
+            burn_rate,
+            &proposer,
+            &burn_address,
+        )?);
+    }
+    let reward_sat = apply_block_reward_sat(
+        &mut accounts,
+        &proposer,
+        block_reward_abs,
+        current_supply_sat,
+        max_supply_sat,
+    )?;
+    let mut result = Map::new();
+    result.insert(
+        "accounts".to_string(),
+        serde_json::from_str(&accounts_to_json(&accounts)?)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?,
+    );
+    result.insert(
+        "total_burned_sat".to_string(),
+        Value::Number(total_burned_sat.into()),
+    );
+    result.insert("reward_sat".to_string(), Value::Number(reward_sat.into()));
+    result.insert("evm".to_string(), Value::Bool(true));
+    result.insert("native_apply".to_string(), Value::Bool(true));
+    result.insert("host_effects".to_string(), Value::Bool(true));
+    serde_json::to_string(&Value::Object(result))
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
 }
 
@@ -648,6 +843,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(can_afford_transfer, m)?)?;
     m.add_function(wrap_pyfunction!(state_engine_apply_transactions, m)?)?;
     m.add_function(wrap_pyfunction!(blockchain_apply_simple_block, m)?)?;
+    m.add_function(wrap_pyfunction!(blockchain_apply_host_effects, m)?)?;
     m.add_function(wrap_pyfunction!(blockchain_replay_simple_blocks, m)?)?;
     Ok(())
 }

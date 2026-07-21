@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.43` — native P2P rate-limit / strike table |
-| **Notes** | [RELEASE_NOTES_v1.3.43.md](../RELEASE_NOTES_v1.3.43.md) |
-| **Prior** | [v1.3.42](../RELEASE_NOTES_v1.3.42.md) Rocks codecs; [v1.3.41](../RELEASE_NOTES_v1.3.41.md) EVM snap |
+| **Tag** | `v1.3.44` — EVM host-in-apply fee effects |
+| **Notes** | [RELEASE_NOTES_v1.3.44.md](../RELEASE_NOTES_v1.3.44.md) |
+| **Prior** | [v1.3.43](../RELEASE_NOTES_v1.3.43.md) P2P rate; [v1.3.42](../RELEASE_NOTES_v1.3.42.md) Rocks codecs |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |
