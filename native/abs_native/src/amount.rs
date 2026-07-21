@@ -237,6 +237,54 @@ fn amount_from_satoshi_float(satoshi: i64) -> PyResult<f64> {
     Ok(from_satoshi_float_inner(satoshi))
 }
 
+/// L1 transfer fee split matching Python float math:
+/// fee = gas * gas_price_wei (optionally max with gas_used),
+/// burned = fee * burn_rate, miner_fee = fee - burned, total = value + fee.
+#[pyfunction]
+#[pyo3(signature = (gas, gas_price_wei, burn_rate, value, gas_used=None))]
+fn plan_transfer_fees(
+    gas: u64,
+    gas_price_wei: f64,
+    burn_rate: f64,
+    value: f64,
+    gas_used: Option<u64>,
+) -> PyResult<(f64, f64, f64, f64)> {
+    if !gas_price_wei.is_finite() || !burn_rate.is_finite() || !value.is_finite() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "non_finite_fee_inputs",
+        ));
+    }
+    if gas_price_wei < 0.0 || burn_rate < 0.0 || value < 0.0 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "negative_fee_inputs",
+        ));
+    }
+    let mut fee = (gas as f64) * gas_price_wei;
+    if let Some(used) = gas_used {
+        fee = fee.max((used as f64) * gas_price_wei);
+    }
+    let rate = burn_rate.clamp(0.0, 1.0);
+    let burned = fee * rate;
+    let miner_fee = fee - burned;
+    let total_cost = value + fee;
+    Ok((fee, burned, miner_fee, total_cost))
+}
+
+/// True when sender_sat covers to_satoshi(total_cost_abs).
+#[pyfunction]
+fn can_afford_transfer(sender_sat: i64, total_cost_abs: f64) -> PyResult<bool> {
+    if !total_cost_abs.is_finite() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "non_finite_total_cost",
+        ));
+    }
+    if total_cost_abs < 0.0 {
+        return Ok(false);
+    }
+    let need = to_satoshi_inner(&total_cost_abs.to_string())?;
+    Ok(sender_sat >= need)
+}
+
 #[pyfunction]
 fn state_engine_apply_transactions(accounts_json: String, txs_json: String) -> PyResult<String> {
     let mut accounts = parse_accounts_map(&accounts_json)?;
@@ -267,6 +315,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(amount_to_satoshi, m)?)?;
     m.add_function(wrap_pyfunction!(amount_apply_delta_satoshi, m)?)?;
     m.add_function(wrap_pyfunction!(amount_from_satoshi_float, m)?)?;
+    m.add_function(wrap_pyfunction!(plan_transfer_fees, m)?)?;
+    m.add_function(wrap_pyfunction!(can_afford_transfer, m)?)?;
     m.add_function(wrap_pyfunction!(state_engine_apply_transactions, m)?)?;
     Ok(())
 }
@@ -286,5 +336,15 @@ mod tests {
     fn apply_delta_never_negative() {
         assert_eq!(apply_delta_satoshi_inner(1_000_000, "-0.25").unwrap(), 750_000);
         assert_eq!(apply_delta_satoshi_inner(100, "-1").unwrap(), 0);
+    }
+
+    #[test]
+    fn plan_transfer_fees_splits_burn() {
+        let (fee, burned, miner, total) =
+            plan_transfer_fees(21_000, 0.000_000_1, 0.02, 1.0, None).unwrap();
+        assert!((fee - 0.0021).abs() < 1e-12);
+        assert!((burned - fee * 0.02).abs() < 1e-15);
+        assert!((miner - (fee - burned)).abs() < 1e-15);
+        assert!((total - (1.0 + fee)).abs() < 1e-15);
     }
 }

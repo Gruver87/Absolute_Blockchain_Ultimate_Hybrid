@@ -70,6 +70,8 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `amount_to_satoshi` / `amount_apply_delta_satoshi` / `amount_from_satoshi_float`
 - [x] `state_engine_apply_transactions` — in-memory batch apply (fee burned)
 - [x] `runtime/amount.py` + `execution/state_engine.py` wired to native kernels
+- [x] `plan_transfer_fees` / `can_afford_transfer` — L1 fee split + affordability gate
+- [x] `core/blockchain.py` validate/apply simple + EVM fee paths use native planner
 
 ### Priority 5 — Bridge (no simulators in prod)
 

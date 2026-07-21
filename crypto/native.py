@@ -111,6 +111,8 @@ def native_crypto_status(required: bool = False) -> dict:
             "amount_to_satoshi",
             "amount_apply_delta_satoshi",
             "state_engine_apply_transactions",
+            "plan_transfer_fees",
+            "can_afford_transfer",
             "merkle",
             "state_root",
             "secp256k1_verify",
@@ -1479,6 +1481,35 @@ def state_engine_apply_transactions(accounts_json: str, txs_json: str) -> str:
     if _native is not None and hasattr(_native, "state_engine_apply_transactions"):
         return str(_native.state_engine_apply_transactions(accounts_json, txs_json))
     raise RuntimeError("state_engine_apply_transactions requires abs_native")
+
+
+def plan_transfer_fees(
+    gas: int,
+    gas_price_wei: float,
+    burn_rate: float,
+    value: float = 0.0,
+    gas_used: Optional[int] = None,
+):
+    if _native is not None and hasattr(_native, "plan_transfer_fees"):
+        return _native.plan_transfer_fees(
+            int(gas),
+            float(gas_price_wei),
+            float(burn_rate),
+            float(value),
+            int(gas_used) if gas_used is not None else None,
+        )
+    fee = float(gas) * float(gas_price_wei)
+    if gas_used is not None:
+        fee = max(fee, float(gas_used) * float(gas_price_wei))
+    rate = max(0.0, min(1.0, float(burn_rate)))
+    burned = fee * rate
+    return fee, burned, fee - burned, float(value) + fee
+
+
+def can_afford_transfer(sender_sat: int, total_cost_abs: float) -> bool:
+    if _native is not None and hasattr(_native, "can_afford_transfer"):
+        return bool(_native.can_afford_transfer(int(sender_sat), float(total_cost_abs)))
+    return int(sender_sat) >= amount_to_satoshi(str(total_cost_abs))
 
 
 def parse_p2p_wire_line(

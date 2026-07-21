@@ -714,19 +714,25 @@ class Blockchain:
         Реализует механизм сжигания: burn_rate% от комиссии уничтожается.
         """
         proposer = proposer or self.config.miner_address or "genesis"
-        fee = tx.gas * self.config.gas_price_wei
-        burn_amount = fee * self.config.burn_rate
-        miner_fee = fee - burn_amount
+        from runtime.amount import can_afford_transfer, from_satoshi_float, plan_transfer_fees
+
+        plan = plan_transfer_fees(
+            tx.gas,
+            self.config.gas_price_wei,
+            self.config.burn_rate,
+            tx.value,
+        )
+        fee = plan["fee"]
+        burn_amount = plan["burned"]
+        miner_fee = plan["miner_fee"]
+        total_cost = plan["total_cost"]
 
         expected_nonce = self.db.get_nonce(tx.from_addr)
         if tx.nonce != expected_nonce:
             return {"success": False, "error": "nonce_mismatch"}
 
-        from runtime.amount import from_satoshi_float, to_satoshi
-
-        total_cost = tx.value + fee
         sender_sat = self.db.get_balance_satoshi(tx.from_addr)
-        if sender_sat < to_satoshi(total_cost):
+        if not can_afford_transfer(sender_sat, total_cost):
             return {"success": False, "error": "insufficient_funds"}
         sender_balance = from_satoshi_float(sender_sat)
 
@@ -754,11 +760,18 @@ class Blockchain:
                 )
                 if not evm_res.success:
                     return {"success": False, "error": evm_res.error or "evm_call_failed"}
-                fee = max(fee, evm_res.gas_used * self.config.gas_price_wei)
-                burn_amount = fee * self.config.burn_rate
-                miner_fee = fee - burn_amount
-                total_cost = tx.value + fee
-                if sender_sat < to_satoshi(total_cost):
+                plan = plan_transfer_fees(
+                    tx.gas,
+                    self.config.gas_price_wei,
+                    self.config.burn_rate,
+                    tx.value,
+                    gas_used=evm_res.gas_used,
+                )
+                fee = plan["fee"]
+                burn_amount = plan["burned"]
+                miner_fee = plan["miner_fee"]
+                total_cost = plan["total_cost"]
+                if not can_afford_transfer(sender_sat, total_cost):
                     return {"success": False, "error": "insufficient_funds"}
                 if in_atomic:
                     self.db.balance_delta(tx.from_addr, -fee)
@@ -802,10 +815,17 @@ class Blockchain:
                 )
                 if not evm_res.success:
                     return {"success": False, "error": evm_res.error or "evm_deploy_failed"}
-                fee = max(fee, evm_res.gas_used * self.config.gas_price_wei)
-                burn_amount = fee * self.config.burn_rate
-                miner_fee = fee - burn_amount
-                deploy_cost = fee + tx.value
+                plan = plan_transfer_fees(
+                    tx.gas,
+                    self.config.gas_price_wei,
+                    self.config.burn_rate,
+                    tx.value,
+                    gas_used=evm_res.gas_used,
+                )
+                fee = plan["fee"]
+                burn_amount = plan["burned"]
+                miner_fee = plan["miner_fee"]
+                deploy_cost = plan["total_cost"]
                 if sender_balance < deploy_cost:
                     return {"success": False, "error": "insufficient_funds_for_deploy"}
                 if in_atomic:
@@ -885,12 +905,18 @@ class Blockchain:
         if tx.nonce != expected_nonce:
             return {"valid": False, "error": f"nonce_mismatch (got {tx.nonce}, expected {expected_nonce})"}
 
-        fee = tx.gas * self.config.gas_price_wei
-        from runtime.amount import from_satoshi_float, to_satoshi
+        from runtime.amount import can_afford_transfer, from_satoshi_float, plan_transfer_fees
 
+        fee_plan = plan_transfer_fees(
+            tx.gas,
+            self.config.gas_price_wei,
+            self.config.burn_rate,
+            tx.value,
+        )
+        fee = fee_plan["fee"]
         balance_sat = self.db.get_balance_satoshi(tx.from_addr)
-        total_cost = tx.value + fee
-        if balance_sat < to_satoshi(total_cost):
+        total_cost = fee_plan["total_cost"]
+        if not can_afford_transfer(balance_sat, total_cost):
             return {"valid": False, "error": "insufficient_funds"}
         balance = from_satoshi_float(balance_sat)
 

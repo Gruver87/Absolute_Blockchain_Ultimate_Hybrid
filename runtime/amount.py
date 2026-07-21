@@ -102,3 +102,56 @@ def apply_delta_satoshi(current_sat: int, delta_abs: NumberLike) -> int:
     except Exception:
         pass
     return max(0, int(current_sat) + to_satoshi(delta_abs))
+
+
+def plan_transfer_fees(
+    gas: int,
+    gas_price_wei: float,
+    burn_rate: float,
+    value: float = 0.0,
+    gas_used: Optional[int] = None,
+) -> Dict[str, float]:
+    """Split L1 transfer fee into fee/burned/miner_fee/total_cost (ABS floats)."""
+    try:
+        from crypto import native
+
+        if native.native_available() and hasattr(native, "plan_transfer_fees"):
+            fee, burned, miner_fee, total_cost = native.plan_transfer_fees(
+                int(gas),
+                float(gas_price_wei),
+                float(burn_rate),
+                float(value),
+                int(gas_used) if gas_used is not None else None,
+            )
+            return {
+                "fee": float(fee),
+                "burned": float(burned),
+                "miner_fee": float(miner_fee),
+                "total_cost": float(total_cost),
+            }
+    except Exception:
+        pass
+    fee = float(gas) * float(gas_price_wei)
+    if gas_used is not None:
+        fee = max(fee, float(gas_used) * float(gas_price_wei))
+    rate = max(0.0, min(1.0, float(burn_rate)))
+    burned = fee * rate
+    miner_fee = fee - burned
+    return {
+        "fee": fee,
+        "burned": burned,
+        "miner_fee": miner_fee,
+        "total_cost": float(value) + fee,
+    }
+
+
+def can_afford_transfer(sender_sat: int, total_cost_abs: NumberLike) -> bool:
+    """True if sender satoshi balance covers ABS total cost."""
+    try:
+        from crypto import native
+
+        if native.native_available() and hasattr(native, "can_afford_transfer"):
+            return bool(native.can_afford_transfer(int(sender_sat), float(total_cost_abs)))
+    except Exception:
+        pass
+    return int(sender_sat) >= to_satoshi(total_cost_abs)

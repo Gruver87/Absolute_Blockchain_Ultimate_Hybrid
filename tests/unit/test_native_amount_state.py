@@ -78,3 +78,27 @@ def test_native_state_engine_rejects_too_many_txs():
     txs = json.dumps([{"from": "a", "to": "b", "amount": 0, "nonce": 0}] * 100_001)
     with pytest.raises(ValueError, match="too_many_txs"):
         abs_native.state_engine_apply_transactions(accounts, txs)
+
+
+def test_plan_transfer_fees_matches_python_float_math():
+    from runtime.amount import plan_transfer_fees
+
+    gas, price, burn, value = 21_000, 0.000_000_1, 0.02, 1.0
+    plan = plan_transfer_fees(gas, price, burn, value)
+    fee = gas * price
+    assert abs(plan["fee"] - fee) < 1e-15
+    assert abs(plan["burned"] - fee * burn) < 1e-15
+    assert abs(plan["miner_fee"] - (fee - fee * burn)) < 1e-15
+    assert abs(plan["total_cost"] - (value + fee)) < 1e-15
+
+    plan2 = plan_transfer_fees(gas, price, burn, value, gas_used=50_000)
+    assert abs(plan2["fee"] - 50_000 * price) < 1e-15
+
+
+def test_can_afford_transfer_uses_satoshi_floor():
+    from runtime.amount import can_afford_transfer, to_satoshi
+
+    cost = 1.5
+    need = to_satoshi(cost)
+    assert can_afford_transfer(need, cost) is True
+    assert can_afford_transfer(need - 1, cost) is False
