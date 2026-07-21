@@ -2296,8 +2296,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                             "module_importable": True,
                             "note": "CasperFinality module present but not live on this node",
                         })
-                    except Exception:
-                        self._json({"enabled": False, "module_importable": False})
+                    except Exception as exc:
+                        logger.debug("CasperFinality import probe failed: %s", exc)
+                        self._json({
+                            "enabled": False,
+                            "module_importable": False,
+                            "import_error": str(exc),
+                        })
 
             elif path == "/consensus/beacon":
                 bc_obj = self.__class__.blockchain
@@ -2312,8 +2317,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                             "module_importable": True,
                             "note": "BeaconEngine module present but not live on this node",
                         })
-                    except Exception:
-                        self._json({"enabled": False, "module_importable": False})
+                    except Exception as exc:
+                        logger.debug("BeaconEngine import probe failed: %s", exc)
+                        self._json({
+                            "enabled": False,
+                            "module_importable": False,
+                            "import_error": str(exc),
+                        })
 
             # ── Immutable State (satoshi balances) ────────────────────────────
             elif path == "/state/stats":

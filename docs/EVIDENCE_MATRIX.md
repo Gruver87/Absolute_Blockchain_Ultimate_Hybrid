@@ -95,7 +95,7 @@ Bridge remains **disabled** on prod mesh until audited L1 contracts ship. Use th
 | 7 | Oracle secret | Not required while bridge off | prod mesh without `BRIDGE_ORACLE_SECRET` OK |
 | 8 | Queue file | Path configured; no unaudited L1 writes | `bridge_l1_queue.json` audit log only |
 | 9 | CI isolation | Bridge tests only in `ci-bridge*` modes | `verify_p2p_ci.py --mode ci-bridge` |
-| 10 | Decision record | `bridge_decision_off` step PASS | `testnet_readiness.ps1`, evidence run JSON |
+| 10 | Decision record | `bridge_decision_off` step PASS | `scripts/bridge_off_audit_gate.py`, `testnet_readiness.ps1` |
 
 **Not satisfied until:** third-party smart-contract audit + operator sign-off per [BRIDGE_L1_MAINNET.md](BRIDGE_L1_MAINNET.md).
 
@@ -125,6 +125,7 @@ Bridge remains **disabled** on prod mesh until audited L1 contracts ship. Use th
 6. `.\scripts\soak_monitor.ps1 -ProdMesh -Hours 48 -IntervalSec 300`
 7. `.\scripts\testnet_readiness.ps1 -ProdMesh -MinSoakHours 48`
 8. External audit tracker → third-party review
+9. `python scripts/bridge_off_audit_gate.py` — Bridge OFF checklist (10 controls)
 
 ---
 

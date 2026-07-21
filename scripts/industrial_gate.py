@@ -429,6 +429,7 @@ def run_industrial_gate(
         ("runbook", ("runbook_check.py", "main")),
         ("evm_opcode_parity", ("evm_opcode_parity_gate.py", "main")),
         ("prod_gate", ("prod_gate.py", "main")),
+        ("bridge_off_audit", ("bridge_off_audit_gate.py", "main")),
     ):
         import importlib.util
 

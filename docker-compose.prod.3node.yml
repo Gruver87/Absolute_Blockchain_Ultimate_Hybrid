@@ -22,10 +22,10 @@ x-abs-prod-env: &abs-prod-env
   BRIDGE_PROBE_L1_RPC: ${BRIDGE_PROBE_L1_RPC:-false}
   BRIDGE_ENABLED: ${BRIDGE_ENABLED:-false}
   BRIDGE_L1_QUEUE_PATH: /app/data/bridge_l1_queue.json
-  ETH_RPC_URL: ${ETH_RPC_URL:?set ETH_RPC_URL before starting prod mesh}
+  ETH_RPC_URL: ${ETH_RPC_URL:-}
   JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET before starting prod}
   RPC_API_KEYS: ${RPC_API_KEYS:?set RPC_API_KEYS before starting prod}
-  BRIDGE_ORACLE_SECRET: ${BRIDGE_ORACLE_SECRET:?set BRIDGE_ORACLE_SECRET before starting prod}
+  BRIDGE_ORACLE_SECRET: ${BRIDGE_ORACLE_SECRET:-}
   RPC_API_KEY_REQUIRED: "true"
   JWT_ENFORCE_ADMIN: "true"
   REQUIRE_WALLET_FILE: "true"

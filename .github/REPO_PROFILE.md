@@ -41,8 +41,8 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.2.94` — K8s per-pod TLS, supply/repair fail-loud, bridge checklist |
-| **Notes** | [RELEASE_NOTES_v1.2.94.md](../RELEASE_NOTES_v1.2.94.md) |
+| **Tag** | `v1.2.95` — bridge OFF audit gate, K8s TLS merge job |
+| **Notes** | [RELEASE_NOTES_v1.2.95.md](../RELEASE_NOTES_v1.2.95.md) |
 | **Prior** | [v1.2.87](../RELEASE_NOTES_v1.2.87.md) pre-audit fail-closed + P2P TLS |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

@@ -1,0 +1,85 @@
+# Optional Job: merge cert-manager per-pod secrets into abs-p2p-tls (legacy single-secret layout).
+# Apply RBAC separately in your cluster. Prefer StatefulSet projected volume (statefulset.yaml).
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: abs-p2p-tls-merger
+  namespace: absolute-chain
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: abs-p2p-tls-merger
+  namespace: absolute-chain
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: abs-p2p-tls-merger
+  namespace: absolute-chain
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: abs-p2p-tls-merger
+subjects:
+  - kind: ServiceAccount
+    name: abs-p2p-tls-merger
+    namespace: absolute-chain
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: abs-p2p-tls-merge-script
+  namespace: absolute-chain
+data:
+  merge_p2p_tls_secrets.sh: |
+    #!/bin/sh
+    set -eu
+    NS="${NAMESPACE:-absolute-chain}"
+    OUT_SECRET="${OUT_SECRET:-abs-p2p-tls}"
+    TMP="$(mktemp -d)"
+    trap 'rm -rf "${TMP}"' EXIT
+    for i in 0 1 2; do
+      S="abs-p2p-tls-node-${i}"
+      if kubectl -n "${NS}" get secret "${S}" >/dev/null 2>&1; then
+        kubectl -n "${NS}" get secret "${S}" -o jsonpath='{.data.tls\.crt}' | base64 -d > "${TMP}/node-${i}.pem"
+        kubectl -n "${NS}" get secret "${S}" -o jsonpath='{.data.tls\.key}' | base64 -d > "${TMP}/node-${i}.key"
+      fi
+    done
+    kubectl -n "${NS}" create secret generic "${OUT_SECRET}" \
+      --from-file="${TMP}" --dry-run=client -o yaml | kubectl apply -f -
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: abs-p2p-tls-merge
+  namespace: absolute-chain
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      serviceAccountName: abs-p2p-tls-merger
+      restartPolicy: OnFailure
+      containers:
+        - name: merge
+          image: bitnami/kubectl:1.30
+          command: ["/bin/sh", "/scripts/merge_p2p_tls_secrets.sh"]
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: abs-p2p-tls-merge-script
+            defaultMode: 0555

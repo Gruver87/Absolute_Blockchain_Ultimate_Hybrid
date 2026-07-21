@@ -6,6 +6,16 @@
 
 ---
 
+## [1.2.95] — 2026-07-21
+
+### Hardened — bridge OFF audit gate, K8s TLS merge, consensus import errors
+
+- `bridge_off_audit_gate.py` automates EVIDENCE_MATRIX 10-control checklist
+- K8s TLS merge script + Job example for abs-p2p-tls
+- Casper/beacon endpoints expose import_error on probe failure
+
+---
+
 ## [1.2.94] — 2026-07-21
 
 ### Hardened — K8s per-pod TLS, supply/repair fail-loud, bridge audit checklist

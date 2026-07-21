@@ -102,6 +102,13 @@ def main() -> int:
             if ordinal not in perpod_txt:
                 errors.append(f"cert-manager-p2p-perpod.example.yaml: missing {ordinal}")
 
+    merge_job = K8S / "p2p-tls-merge-job.example.yaml"
+    merge_sh = K8S / "merge_p2p_tls_secrets.sh"
+    if not merge_sh.is_file():
+        errors.append("missing deploy/k8s/merge_p2p_tls_secrets.sh")
+    if not merge_job.is_file() or "abs-p2p-tls-merge" not in merge_job.read_text(encoding="utf-8"):
+        errors.append("missing deploy/k8s/p2p-tls-merge-job.example.yaml")
+
     if errors:
         print("FAIL: k8s prod gate")
         for err in errors:

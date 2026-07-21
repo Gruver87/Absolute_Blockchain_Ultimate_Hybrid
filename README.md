@@ -10,14 +10,14 @@
 [![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
 [![48h soak](https://img.shields.io/badge/48h%20soak-PASS%20Jul%202026-brightgreen)](docs/EVIDENCE_MATRIX.md)
-[![Release](https://img.shields.io/badge/Release-v1.2.94-blue)](RELEASE_NOTES_v1.2.94.md)
+[![Release](https://img.shields.io/badge/Release-v1.2.95-blue)](RELEASE_NOTES_v1.2.95.md)
 
 **Repo:** [github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · **Default branch:** `master`  
 **Author:** **ULADZIMIR DABRANSKI** (D.U.P.) · **Owner:** Gruver87
 
 | | |
 |---|---|
-| **Release** | **v1.2.94** - [notes](RELEASE_NOTES_v1.2.94.md) — [CHANGELOG](CHANGELOG.md) |
+| **Release** | **v1.2.95** - [notes](RELEASE_NOTES_v1.2.95.md) — [CHANGELOG](CHANGELOG.md) |
 | **Entry** | `python main.py` |
 | **Dev chain** | `77777` |
 | **Mainnet-v1 prep chain** | `778888` (prod profile — **not** a public mainnet) |
@@ -244,9 +244,9 @@ Code: `runtime/tokenomics.py` · `GET /tokenomics` — **not** a listed token.
 | Jul 13–17 | Prod mesh hardening, P2P/TLS/resilience, industrial gates |
 | Jul 17–18 | First 48h attempt interrupted (Docker OOM / corrupted `daemon.json`) |
 | Jul 19–21 | Clean **48h soak PASS** after log rotation + Docker RAM headroom |
-| Jul 21 | 48h soak PASS · **v1.2.85**–**v1.2.94** industrial hardening wave |
+| Jul 21 | 48h soak PASS · **v1.2.85**–**v1.2.95** industrial hardening wave |
 
-Details: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) · [RELEASE_NOTES_v1.2.94](RELEASE_NOTES_v1.2.94.md)
+Details: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) · [RELEASE_NOTES_v1.2.95](RELEASE_NOTES_v1.2.95.md)
 
 ---
 
@@ -256,4 +256,4 @@ MIT — see [LICENSE](LICENSE).
 
 ---
 
-*Last update: 2026-07-21 — **v1.2.94** (K8s per-pod TLS, supply/repair fail-loud, bridge audit checklist). Not a launched public mainnet.*
+*Last update: 2026-07-21 — **v1.2.95** (bridge OFF audit gate, K8s TLS merge job). Not a launched public mainnet.*
