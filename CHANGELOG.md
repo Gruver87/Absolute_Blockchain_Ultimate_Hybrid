@@ -6,6 +6,17 @@
 
 ---
 
+## [1.2.94] — 2026-07-21
+
+### Hardened — K8s per-pod TLS, supply/repair fail-loud, bridge audit checklist
+
+- StatefulSet projected P2P TLS (CA + per-ordinal cert-manager secrets)
+- Supply/repair/sync/L1 RPC errors exposed + logged
+- EVIDENCE_MATRIX Bridge OFF pre-enable checklist (10 items)
+- test_harness_http.py for peer_probe_ok via HTTP
+
+---
+
 ## [1.2.93] — 2026-07-21
 
 ### Hardened — API repair fail-loud, verify_p2p strict skips, cert-manager per-pod

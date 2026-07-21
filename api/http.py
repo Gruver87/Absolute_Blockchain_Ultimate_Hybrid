@@ -2951,13 +2951,16 @@ class RESTHandler(BaseHTTPRequestHandler):
                 supply = None
                 source = None
                 canonical = False
+                supply_error = None
                 if bc and hasattr(bc, "db") and hasattr(bc.db, "get_total_supply"):
                     try:
                         supply = float(bc.db.get_total_supply())
                         source = "db"
                         canonical = True
-                    except Exception:
+                    except Exception as exc:
+                        logger.warning("/state/supply db read failed: %s", exc)
                         supply = None
+                        supply_error = str(exc)
                 if supply is None and ims and hasattr(ims, "get_total_supply_abs"):
                     supply = ims.get_total_supply_abs()
                     source = "immutable_state"
@@ -2971,6 +2974,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "symbol": "ABS",
                     "source": source,
                     "canonical": canonical,
+                    **({"supply_error": supply_error} if supply_error else {}),
                 })
 
             elif path == "/state/engine":
@@ -3638,11 +3642,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                 ims = self.__class__.immutable_state
                 bc = self.__class__.blockchain
                 db_abs = None
+                db_supply_error = None
                 if bc and hasattr(bc, "db") and hasattr(bc.db, "get_total_supply"):
                     try:
                         db_abs = float(bc.db.get_total_supply())
-                    except Exception:
+                    except Exception as exc:
+                        logger.warning("/state/total-supply db read failed: %s", exc)
                         db_abs = None
+                        db_supply_error = str(exc)
                 if ims and hasattr(ims, "get_total_supply_abs"):
                     ims_abs = ims.get_total_supply_abs()
                     self._json({
@@ -3660,7 +3667,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "source": "db",
                     })
                 else:
-                    self._json({"total_supply_abs": None, "enabled": False})
+                    self._json({
+                        "total_supply_abs": None,
+                        "enabled": False,
+                        **({"db_supply_error": db_supply_error} if db_supply_error else {}),
+                    })
 
             else:
                 self._error(404, "Endpoint not found")
@@ -5393,7 +5404,13 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/chain/consistency/repair":
                 if not bc or not hasattr(bc, "ensure_state_at_tip"):
                     self._error(503, "state repair not available"); return
-                repaired = bc.ensure_state_at_tip()
+                repair_error = None
+                try:
+                    repaired = bool(bc.ensure_state_at_tip())
+                except Exception as exc:
+                    repair_error = str(exc)
+                    logger.warning("/chain/consistency/repair failed: %s", exc)
+                    repaired = False
                 harness = _build_state_consistency_harness(
                     self.__class__.p2p, bc, cfg, self.__class__.db
                 )
@@ -5420,6 +5437,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                 }
                 if sync_error:
                     payload["sync_error"] = sync_error
+                if repair_error:
+                    payload["repair_error"] = repair_error
                 self._json(payload)
 
             elif path == "/testnet/reorg-exercise":
@@ -6499,7 +6518,8 @@ def _build_testnet_validators_status(db, cfg, bc) -> Dict:
                 if row.get("mines", True) and row.get("address")
             ]
             manifest_count = len(manifest_rows)
-        except Exception:
+        except Exception as exc:
+            logger.debug("validator manifest load failed: %s", exc)
             manifest_count = 0
     effective_active = max(len(active), len(observed))
     validators_healthy = len(active) >= expected
@@ -6655,11 +6675,14 @@ def _build_sync_status(se, p2p, bc, cfg) -> Dict:
             )
         return status
     p2p_sync = {}
+    p2p_sync_error = None
     if p2p and getattr(p2p, "sync_engine", None):
         try:
             p2p_sync = p2p.sync_engine.get_status()
-        except Exception:
-            p2p_sync = {}
+        except Exception as exc:
+            logger.warning("sync_engine.get_status failed: %s", exc)
+            p2p_sync = {"status_error": str(exc)}
+            p2p_sync_error = str(exc)
 
     return {
         "enabled": True,
@@ -6672,6 +6695,7 @@ def _build_sync_status(se, p2p, bc, cfg) -> Dict:
         "solo_mode": peer_count == 0,
         "bootstrap_peers": getattr(cfg, "bootstrap_peers", []) if cfg else [],
         **root_fields,
+        **({"p2p_sync_error": p2p_sync_error} if p2p_sync_error else {}),
         "hint": (
             "Solo node is normal locally. Connect peers: "
             "python main.py --peers 127.0.0.1:5000 or bootstrap_peers in config"
@@ -6967,8 +6991,9 @@ def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
             "endpoints": l1_health.get("endpoints", []),
             "error": l1_health.get("error", ""),
         }
-    except Exception:
-        overview["l1_rpc"] = {"eth_configured": False}
+    except Exception as exc:
+        logger.warning("bridge l1_rpc health probe failed: %s", exc)
+        overview["l1_rpc"] = {"eth_configured": False, "error": str(exc)}
     overview["rust_bridge_health"] = _rust_bridge_health(cfg)
     if rb and hasattr(rb, "get_stats"):
         overview["rust_bridge"] = rb.get_stats()

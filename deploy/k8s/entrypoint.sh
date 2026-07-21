@@ -22,6 +22,9 @@ if [ -d "${TLS_SRC}" ]; then
   if [ -f "${NODE_CERT}" ] && [ -f "${NODE_KEY}" ]; then
     cp "${NODE_CERT}" "${TLS_DST}/node.pem"
     cp "${NODE_KEY}" "${TLS_DST}/node.key"
+  elif [ -f "${TLS_SRC}/tls.crt" ] && [ -f "${TLS_SRC}/tls.key" ]; then
+    cp "${TLS_SRC}/tls.crt" "${TLS_DST}/node.pem"
+    cp "${TLS_SRC}/tls.key" "${TLS_DST}/node.key"
   else
     echo "[entrypoint] WARN: missing P2P TLS material for ordinal ${ORDINAL}" >&2
   fi

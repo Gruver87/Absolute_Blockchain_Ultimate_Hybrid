@@ -89,8 +89,39 @@ spec:
               - key: node.prod.k8s.json
                 path: node.prod.k8s.json
         - name: p2p-tls-secrets
-          secret:
-            secretName: abs-p2p-tls
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: abs-p2p-tls
+                  optional: true
+                  items:
+                    - key: ca.pem
+                      path: ca.pem
+              - secret:
+                  name: abs-p2p-tls-node-0
+                  optional: true
+                  items:
+                    - key: tls.crt
+                      path: node-0.pem
+                    - key: tls.key
+                      path: node-0.key
+              - secret:
+                  name: abs-p2p-tls-node-1
+                  optional: true
+                  items:
+                    - key: tls.crt
+                      path: node-1.pem
+                    - key: tls.key
+                      path: node-1.key
+              - secret:
+                  name: abs-p2p-tls-node-2
+                  optional: true
+                  items:
+                    - key: tls.crt
+                      path: node-2.pem
+                    - key: tls.key
+                      path: node-2.key
   volumeClaimTemplates:
     - metadata:
         name: data

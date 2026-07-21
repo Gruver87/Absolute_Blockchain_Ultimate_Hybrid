@@ -154,6 +154,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("state consistency harness must expose/log peer_probe_error")
         if "prices_error" not in http_py:
             errors.append("/oracles/all must expose prices_error on failure")
+        if "repair_error" not in http_py:
+            errors.append("POST /chain/consistency/repair must expose repair_error")
+        if "peer_probe_ok" not in http_py:
+            errors.append("state consistency harness must include peer_probe_ok check")
     except Exception as exc:
         errors.append(f"fail-loud http inspect failed: {exc}")
     return errors, warnings

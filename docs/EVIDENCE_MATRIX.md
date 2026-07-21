@@ -37,7 +37,7 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | Tip `state_root` | Still float `"b"` / `round(balance,12)` — **not** satoshi tip roots; dual-write satoshi is storage/read path only ([STORAGE_ROCKSDB](STORAGE_ROCKSDB.md)) |
 | External audit | **Not completed** — tracker rejects template notes; requires real evidence URL |
 | Public VPS / DNS | Not claimed |
-| Bridge L1 | **OFF by recorded decision** |
+| Bridge L1 | **OFF by recorded decision** — see [Bridge OFF audit checklist](#bridge-off--pre-enable-audit-checklist) |
 | P2P TLS | Default ON for prod mesh (+mTLS); handshake `node_id` bound to cert CN/SAN (v1.2.87) |
 | JWT admin | `role=admin` enforced on protected POSTs; mint via `scripts/mint_admin_jwt.py` |
 
@@ -77,6 +77,27 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | **Ceremony + secret rotation automation** | **Scripts proven** (v1.2.32): `ceremony_preflight`, `rotate_prod_secrets.ps1` | Operator runs pin + `-Force` rotation before cutover — see `docs/MAINNET_CUTOVER.md` |
 | **Public testnet seed (local Docker)** | **PASS** Jul 12 — chain 77777 on :19080, `public_testnet_gate --live` | `.\scripts\testnet_evidence_suite.ps1` |
 | **Public testnet / VPS + DNS** | Local seed proven; no public URL/TLS yet | VPS + `vps_testnet_bootstrap.sh` + nginx TLS |
+
+---
+
+## Bridge OFF — pre-enable audit checklist
+
+Bridge remains **disabled** on prod mesh until audited L1 contracts ship. Use this checklist before any `bridge_enabled=true` cutover.
+
+| # | Control | Expected | Verify |
+|---|---------|----------|--------|
+| 1 | Prod mesh config | `bridge_enabled: false` | `scripts/prod_gate.py`, `node.prod.*.json` |
+| 2 | Docker compose prod | `BRIDGE_ENABLED=false` | `docker-compose.prod.3node.yml` |
+| 3 | K8s configmap | `BRIDGE_ENABLED: "false"` | `deploy/k8s/configmap.yaml` |
+| 4 | API honesty | `/status` → `bridge_relayer_live=false` when off | `tests/unit/test_status_honesty.py` |
+| 5 | L1 RPC keys | Not dev placeholders in prod secrets | `external_audit_tracker`, env at deploy |
+| 6 | Rust bridge path | Present but idle; no live lock/mint | `GET /bridge/health`, `BRIDGE_L1_MAINNET.md` |
+| 7 | Oracle secret | Not required while bridge off | prod mesh without `BRIDGE_ORACLE_SECRET` OK |
+| 8 | Queue file | Path configured; no unaudited L1 writes | `bridge_l1_queue.json` audit log only |
+| 9 | CI isolation | Bridge tests only in `ci-bridge*` modes | `verify_p2p_ci.py --mode ci-bridge` |
+| 10 | Decision record | `bridge_decision_off` step PASS | `testnet_readiness.ps1`, evidence run JSON |
+
+**Not satisfied until:** third-party smart-contract audit + operator sign-off per [BRIDGE_L1_MAINNET.md](BRIDGE_L1_MAINNET.md).
 
 ---
 

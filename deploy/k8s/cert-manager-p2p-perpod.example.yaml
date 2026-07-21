@@ -67,4 +67,5 @@ spec:
     annotations:
       absolute-chain/ordinal: "2"
 # Merge per-pod secrets into abs-p2p-tls (node-N.pem/key + ca.pem) via your deploy
-# pipeline, or mount each secret subpath in a future StatefulSet revision.
+# pipeline, or use StatefulSet projected volume (deploy/k8s/statefulset.yaml) which maps:
+#   abs-p2p-tls-node-N.tls.crt -> node-N.pem, tls.key -> node-N.key

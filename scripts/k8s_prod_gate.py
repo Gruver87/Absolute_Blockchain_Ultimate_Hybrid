@@ -66,6 +66,8 @@ def main() -> int:
         errors.append("statefulset.yaml: initContainer wait-redis required")
     if "abs-p2p-tls" not in sts or "p2p_tls_secrets" not in sts:
         errors.append("statefulset.yaml: abs-p2p-tls secret mount required")
+    if "projected:" not in sts or "abs-p2p-tls-node-0" not in sts:
+        errors.append("statefulset.yaml: projected per-pod P2P TLS secrets required")
 
     cm_json_start = cm.find("node.prod.k8s.json:")
     if cm_json_start < 0:
