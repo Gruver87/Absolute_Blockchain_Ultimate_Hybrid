@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.35] — 2026-07-21
+
+### Hardened — MiniVM/ZK/Lightning/DAO honesty + relayer status
+
+- MiniVM feature-gated; Lightning direct-only; unsigned DAO vote blocked in prod
+- ZK no invented validity / no GET private keys; bridge_relayer_live ≠ binary smoke
+
+---
+
 ## [1.3.34] — 2026-07-21
 
 ### Hardened — Rust L1 lock verify / receipt status / event-log address / atomic debit

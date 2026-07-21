@@ -57,6 +57,9 @@ def test_bridge_relayer_live_requires_rust_smoke():
     text = Path("api/http.py").read_text(encoding="utf-8")
     assert 'and getattr(cfg, "bridge_mode", "") == "rust"' in text
     assert "bool(bridge_health.get(\"ok\"))" in text
+    assert '"bridge_rust_binary_healthy"' in text
+    assert '"relayer_observed"' in text
+    assert '"bridge_relayer_live": False' in text
     assert '"bridge_relayer_live": bool(cfg.bridge_enabled)' not in text
 
 

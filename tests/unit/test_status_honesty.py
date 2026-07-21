@@ -67,6 +67,8 @@ def test_status_core_real_honest_when_bridge_off(tmp_path, monkeypatch):
             body = json.loads(resp.read().decode())
         core = body.get("core_real") or {}
         assert core.get("bridge_relayer_live") is False
+        assert core.get("relayer_observed") is False
+        assert "bridge_rust_binary_healthy" in core
         assert core.get("bridge_production_path") is False
         assert "note" in core
         mw = body.get("middleware") or {}

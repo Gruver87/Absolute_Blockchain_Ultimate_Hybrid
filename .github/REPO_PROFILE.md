@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.34` — Rust L1 lock verify / receipt status / event-log address / atomic debit |
-| **Notes** | [RELEASE_NOTES_v1.3.34.md](../RELEASE_NOTES_v1.3.34.md) |
-| **Prior** | [v1.3.33](../RELEASE_NOTES_v1.3.33.md) bridge replay/plasma/smart-accounts; [v1.3.32](../RELEASE_NOTES_v1.3.32.md) L1 receipt/EVM static |
+| **Tag** | `v1.3.35` — MiniVM/ZK/Lightning/DAO honesty + relayer status |
+| **Notes** | [RELEASE_NOTES_v1.3.35.md](../RELEASE_NOTES_v1.3.35.md) |
+| **Prior** | [v1.3.34](../RELEASE_NOTES_v1.3.34.md) Rust L1 lock/event; [v1.3.33](../RELEASE_NOTES_v1.3.33.md) bridge replay/plasma/smart-accounts |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

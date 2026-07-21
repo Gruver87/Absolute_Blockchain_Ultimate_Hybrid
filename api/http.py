@@ -199,15 +199,21 @@ _PROD_BLOCKED_PATHS = frozenset({
     "/crypto/eth-address",
     "/crypto/keygen",
     "/crypto/sign",
+    "/minivm/compile",
+    "/minivm/deploy",
+    "/minivm/call",
     "/p2p/reconnect",
     "/pq/decapsulate",
     "/pq/hybrid-decrypt",
     "/pq/hybrid-sign",
     "/pq/sphincs/sign",
+    "/pools/dao/vote",
     "/pools/spend",
     "/state/credit",
     "/sync/add-peer",
     "/tx/sign",
+    "/zk/transaction",
+    "/zk/create-tx",
 })
 
 _BRIDGE_ORACLE_PATHS = frozenset({
@@ -455,7 +461,7 @@ _PUBLIC_API_ROUTES = [
     {"method": "GET", "path": "/lightning/htlcs", "summary": "Lightning HTLC list (SQLite)"},
     {"method": "POST", "path": "/lightning/htlc/add", "summary": "Add HTLC to channel"},
     {"method": "POST", "path": "/lightning/htlc/settle", "summary": "Settle HTLC with preimage"},
-    {"method": "POST", "path": "/lightning/route", "summary": "Multi-hop HTLC route payment"},
+    {"method": "POST", "path": "/lightning/route", "summary": "Direct-channel HTLC payment (multi-hop not implemented)"},
     {"method": "GET", "path": "/plasma/proof", "summary": "Plasma Merkle inclusion proof"},
     {"method": "POST", "path": "/oracles/reports/submit", "summary": "Oracle reporter submission (quorum)"},
     {"method": "POST", "path": "/oracles/aggregate", "summary": "Aggregate oracle reports (median quorum)"},
@@ -1691,12 +1697,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                         ),
                         "bridge_l1_queue": bool(getattr(cfg, "bridge_l1_queue_path", "")),
                         "bridge2_rust_path": bool(getattr(self.__class__, "bridge", None)),
-                        # Config-on ≠ live: require rust bridge smoke (and L1 when required).
-                        "bridge_relayer_live": bool(
+                        # Binary smoke ≠ running relayer process / L1 callbacks.
+                        "bridge_rust_binary_healthy": bool(
                             cfg.bridge_enabled
                             and getattr(cfg, "bridge_mode", "") == "rust"
                             and bool(bridge_health.get("ok"))
                         ),
+                        "bridge_relayer_live": False,
+                        "relayer_observed": False,
                         "bridge_ci_l1_rpc": bool(
                             os.environ.get("ETH_RPC_URL", "")
                             or os.environ.get("ETHEREUM_RPC_URL", "")
@@ -2605,9 +2613,21 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/minivm/contracts":
                 cm = self.__class__.contract_manager
                 if cm:
-                    self._json({"contracts": cm.get_stats()})
+                    stats = cm.get_stats() if hasattr(cm, "get_stats") else {}
+                    self._json({
+                        "contracts": stats,
+                        "enabled": True,
+                        "execution_bound": False,
+                        "canonical": False,
+                        "r_and_d": True,
+                    })
                 else:
-                    self._json({"contracts": {}, "enabled": False})
+                    self._json({
+                        "contracts": {},
+                        "enabled": False,
+                        "execution_bound": False,
+                        "canonical": False,
+                    })
 
             elif path.startswith("/minivm/storage/"):
                 cm = self.__class__.contract_manager
@@ -4229,25 +4249,29 @@ class RESTHandler(BaseHTTPRequestHandler):
                 max_v  = int(qs.get("max", ["100"])[0])
                 if zk and hasattr(zk, "prove_range"):
                     proof = zk.prove_range(value, min_v, max_v)
-                    self._json({"proof": proof.__dict__ if hasattr(proof,'__dict__') else str(proof),
-                                "valid": True, "range": f"[{min_v}, {max_v}]"})
+                    self._json({
+                        "proof": proof.__dict__ if hasattr(proof,'__dict__') else str(proof),
+                        "valid": True,
+                        "range": f"[{min_v}, {max_v}]",
+                        "canonical": False,
+                        "educational_only": True,
+                    })
                 else:
-                    self._json({"valid": value >= min_v and value <= max_v,
-                                "range": f"[{min_v}, {max_v}]", "value": value})
+                    self._json({
+                        "enabled": False,
+                        "valid": False,
+                        "canonical": False,
+                        "error": "zk_missing",
+                        "range": f"[{min_v}, {max_v}]",
+                    })
 
             elif path == "/zk/transaction":
-                zk = self.__class__.zk
-                if zk and hasattr(zk, "create_zk_transaction"):
-                    tx, proof = zk.create_zk_transaction(
-                        from_addr=qs.get("from", qs.get("sender", [""]))[0],
-                        to_addr=qs.get("to", [""])[0],
-                        amount=int(qs.get("amount", ["1"])[0]),
-                        private_key=int(qs.get("private_key", ["0"])[0]),
-                        public_key=int(qs.get("public_key", ["0"])[0]),
-                    )
-                    self._json({"tx": tx, "proof": proof.to_dict()})
-                else:
-                    self._json({"error": "ZK transactions not available"})
+                # Never accept private keys via GET query string.
+                self._error(
+                    403,
+                    "GET /zk/transaction disabled (private keys in query forbidden); "
+                    "use POST /zk/create-tx in non-prod only",
+                )
 
             # ── Contracts list ────────────────────────────────────────────────
             elif path == "/contracts":
@@ -4637,8 +4661,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ok = cm.deploy(bytecode, address,
                                    initial_storage=body.get("initial_storage"))
                     if ok:
-                        self._json({"success": True, "address": address,
-                                    "instructions": len(bytecode)})
+                        self._json({
+                            "success": True,
+                            "address": address,
+                            "instructions": len(bytecode),
+                            "execution_bound": False,
+                            "canonical": False,
+                            "r_and_d": True,
+                        })
                     else:
                         self._error(409, f"Contract already deployed at {address}")
                 except Exception as e:
@@ -4657,6 +4687,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if result is None:
                     self._error(404, f"No contract at {address}")
                 else:
+                    if isinstance(result, dict):
+                        result = {
+                            **result,
+                            "execution_bound": False,
+                            "canonical": False,
+                            "r_and_d": True,
+                        }
                     self._json(result)
 
             # ── Post-Quantum crypto ───────────────────────────────────────────
@@ -5079,6 +5116,12 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             # ── Pool DAO vote ───────────────────────────────────────────────
             elif path == "/pools/dao/vote":
+                if _is_production_cfg(self.__class__.config):
+                    self._error(
+                        403,
+                        "unsigned DAO vote forbidden in prod; use signed consensus path",
+                    )
+                    return
                 pl = self.__class__.pool_locks
                 vr = self.__class__.validator_registry
                 if not pl:
@@ -5088,6 +5131,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not pool_id or not voter:
                     self._error(400, "pool_id and voter required"); return
                 result = pl.dao_vote(pool_id, voter, validator_registry=vr)
+                if isinstance(result, dict):
+                    result = {
+                        **result,
+                        "signature_bound": False,
+                        "dev_simulation": True,
+                        "canonical": False,
+                    }
                 self._json(result)
 
             # ── Light client SPV verify ─────────────────────────────────────
@@ -5194,11 +5244,25 @@ class RESTHandler(BaseHTTPRequestHandler):
                 preimage = body.get("preimage", "")
                 if not destination or amount <= 0 or not preimage:
                     self._error(400, "destination, amount, preimage required"); return
+                path_ids = ln.find_route(destination, amount) if hasattr(ln, "find_route") else []
+                if len(path_ids) != 1:
+                    self._error(
+                        501,
+                        "multi-hop lightning routing not implemented "
+                        "(direct channel only)",
+                    )
+                    return
                 htlc_id = ln.route_payment(destination, amount, preimage)
                 if htlc_id:
-                    self._json({"success": True, "htlc_id": htlc_id, "path": ln.find_route(destination, amount)})
+                    self._json({
+                        "success": True,
+                        "htlc_id": htlc_id,
+                        "path": path_ids,
+                        "direct_channel_only": True,
+                        "multi_hop_implemented": False,
+                    })
                 else:
-                    self._error(400, "Route payment failed")
+                    self._error(400, "Direct channel payment failed")
 
             # ── Crypto Will ───────────────────────────────────────────────────
             elif path == "/will/create":
@@ -6574,6 +6638,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(503, "ZK range proofs not available")
 
             elif path == "/zk/create-tx":
+                if _is_production_cfg(self.__class__.config):
+                    self._error(403, "ZK create-tx forbidden in prod"); return
                 zk = self.__class__.zk
                 if zk and hasattr(zk, "create_zk_transaction"):
                     tx, proof = zk.create_zk_transaction(
@@ -6583,7 +6649,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                         private_key=int(body.get("private_key", 0)),
                         public_key=int(body.get("public_key", 0)),
                     )
-                    self._json({"tx": tx, "proof": proof.to_dict(), "success": True})
+                    self._json({
+                        "tx": tx,
+                        "proof": proof.to_dict(),
+                        "success": True,
+                        "canonical": False,
+                        "submitted": False,
+                        "educational_only": True,
+                    })
                 else:
                     self._json({"success": False, "error": "ZK transactions not available"})
 

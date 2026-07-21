@@ -734,14 +734,19 @@ class NodeOrchestrator:
             config=config,
         )
 
-        # 17. MiniVM Contract Manager + Assembler
-        if _MINIVM_CONTRACTS_AVAILABLE:
+        # 17. MiniVM Contract Manager + Assembler (R&D — not chain-canonical)
+        if _MINIVM_CONTRACTS_AVAILABLE and getattr(config, "feature_minivm", True):
             self.contract_manager = ContractManager(db=self.db)
             self.assembler = Assembler()
-            print("[Node] MiniVM ContractManager: ready (deploy/call via /minivm/*)")
+            print(
+                "[Node] MiniVM ContractManager: available "
+                "(execution_bound=false, canonical=false — R&D registry only)"
+            )
         else:
             self.contract_manager = None
             self.assembler = None
+            if not getattr(config, "feature_minivm", True):
+                print("[Node] MiniVM: disabled")
 
         # 18. RANDAO Validator Selection
         if _VALIDATOR_SELECTION_AVAILABLE:

@@ -488,18 +488,17 @@ class LightningNetwork:
         return []
 
     def route_payment(self, destination: str, amount: float, preimage: str) -> Optional[str]:
+        """Direct-channel payment only. Multi-hop remote messaging is not implemented."""
         path = self.find_route(destination, amount)
-        if not path:
+        if len(path) != 1:
             return None
         ph = payment_hash(preimage)
-        last_htlc = None
-        for cid in path:
-            ch = self.channels[cid]
-            receiver = ch.node2 if self.node_address == ch.node1 else ch.node1
-            last_htlc = self.add_htlc(cid, receiver, amount, ph)
-            if not last_htlc:
-                return None
-        return last_htlc
+        cid = path[0]
+        ch = self.channels[cid]
+        receiver = ch.node2 if self.node_address == ch.node1 else ch.node1
+        if receiver != destination:
+            return None
+        return self.add_htlc(cid, receiver, amount, ph)
 
     def get_channel_info(self, channel_id: str) -> Optional[Dict]:
         ch = self.channels.get(channel_id)
@@ -535,5 +534,7 @@ class LightningNetwork:
             "persisted": bool(self.db),
             "node_address": self.node_address,
             "htlc_enabled": True,
-            "routing_enabled": True,
+            "routing_enabled": False,
+            "direct_channel_only": True,
+            "multi_hop_implemented": False,
         }

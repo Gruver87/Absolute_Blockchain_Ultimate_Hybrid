@@ -448,8 +448,14 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("receipt format must normalize omitted status fail-closed to 0")
         if '"bridge_relayer_live": bool(cfg.bridge_enabled)' in http_py:
             errors.append("bridge_relayer_live must not equal bridge_enabled alone")
+        if '"bridge_rust_binary_healthy"' not in http_py:
+            errors.append("core_real must expose bridge_rust_binary_healthy separately from relayer_live")
+        if '"relayer_observed"' not in http_py:
+            errors.append("core_real must expose relayer_observed honesty flag")
         if 'and bool(bridge_health.get("ok"))' not in http_py:
-            errors.append("bridge_relayer_live must require rust bridge health ok")
+            errors.append("bridge_rust_binary_healthy must require rust bridge health ok")
+        if '"bridge_relayer_live": False' not in http_py:
+            errors.append("bridge_relayer_live must stay false until relayer heartbeat observed")
         if 'out["error"] = "bridge_disabled"' not in http_py:
             errors.append("_rust_bridge_health must fail-closed when bridge disabled")
         if "json_decode_failures" not in (
@@ -816,8 +822,23 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         sa_py = (ROOT / "features" / "smart_accounts.py").read_text(encoding="utf-8")
         if "execution_bound" not in sa_py or "in_memory_registry" not in sa_py:
             errors.append("SmartAccountManager stats must expose execution_bound honesty")
+        if "feature_minivm" not in main_py2 or "MiniVM: disabled" not in main_py2:
+            errors.append("main.py must gate MiniVM on feature_minivm")
+        if "unsigned DAO vote forbidden in prod" not in http_py2:
+            errors.append("/pools/dao/vote must reject unsigned votes in prod")
+        if "multi-hop lightning routing not implemented" not in http_py2:
+            errors.append("/lightning/route must reject multi-hop until implemented")
+        if "private keys in query forbidden" not in http_py2:
+            errors.append("GET /zk/transaction must forbid private keys in query")
+        if "zk_missing" not in http_py2:
+            errors.append("ZK prove/range must not invent arithmetic validity when ZK missing")
+        ln_py = (ROOT / "features" / "lightning.py").read_text(encoding="utf-8")
+        if '"routing_enabled": False' not in ln_py or "direct_channel_only" not in ln_py:
+            errors.append("Lightning stats must not claim multi-hop routing_enabled")
+        if "FEATURE_MINIVM" not in (ROOT / "runtime" / "config.py").read_text(encoding="utf-8"):
+            errors.append("config must include FEATURE_MINIVM prod block")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28/29/30/31/32/33/34 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..35 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

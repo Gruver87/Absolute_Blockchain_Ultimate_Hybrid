@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.34-industrial"
+    node_version: str = "1.3.35-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -111,6 +111,7 @@ class Config:
     evm_require_deploy_salt: bool = False  # prod: reject non-deterministic EVM deploy addresses
     feature_nft: bool = True
     feature_zk: bool = True
+    feature_minivm: bool = True
     feature_sharding: bool = True
     num_shards: int = 4
     assigned_shard_id: int = -1          # distributed: 0..N-1; -1 = legacy routing coordinator
@@ -347,6 +348,7 @@ class Config:
 
         self.feature_nft = env_bool("FEATURE_NFT", self.feature_nft)
         self.feature_zk = env_bool("FEATURE_ZK", self.feature_zk)
+        self.feature_minivm = env_bool("FEATURE_MINIVM", self.feature_minivm)
         self.feature_sharding = env_bool("FEATURE_SHARDING", self.feature_sharding)
         self.num_shards = env_int("NUM_SHARDS", self.num_shards)
         self.assigned_shard_id = env_int("ASSIGNED_SHARD_ID", self.assigned_shard_id)
@@ -420,6 +422,7 @@ class Config:
             self.evm_require_deploy_salt = env_bool("EVM_REQUIRE_DEPLOY_SALT", True)
             self.allow_state_root_rewrite = env_bool("ALLOW_STATE_ROOT_REWRITE", False)
             self.feature_zk = env_bool("FEATURE_ZK", False)
+            self.feature_minivm = env_bool("FEATURE_MINIVM", False)
             self.feature_sharding = env_bool("FEATURE_SHARDING", False)
             self.feature_oracles = env_bool("FEATURE_ORACLES", False)
             self.feature_wasm = env_bool("FEATURE_WASM", False)
@@ -540,6 +543,7 @@ class Config:
                 errors.append("prod mode forbids localhost CORS_ORIGINS")
             blocked = {
                 "FEATURE_ZK": self.feature_zk,
+                "FEATURE_MINIVM": self.feature_minivm,
                 "FEATURE_SHARDING": self.feature_sharding,
                 "FEATURE_ORACLES": self.feature_oracles,
                 "FEATURE_WASM": self.feature_wasm,
