@@ -1788,8 +1788,16 @@ class NodeOrchestrator:
                 # LMD-GHOST: attest at current slot, then advance for next block
                 try:
                     self.consensus.attest(proposer, block.hash)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger = getattr(self, "logger", None) or __import__("logging").getLogger("Node")
+                    logger.error(
+                        "Consensus attest failed (height=%s hash=%s): %s",
+                        getattr(block, "height", "?"),
+                        getattr(block, "hash", "?"),
+                        exc,
+                    )
+                    if bool(getattr(self.config, "is_production", False)):
+                        raise
 
                 self.consensus.mark_block_produced(proposer=proposer)
 

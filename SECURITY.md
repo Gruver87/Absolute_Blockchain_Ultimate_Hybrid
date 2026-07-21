@@ -33,6 +33,17 @@ Transaction ECDSA uses **`cryptography`** (OpenSSL), not `python-ecdsa` (CVE-202
 
 Production profile requires Rust/PyO3 `abs_native` (`ABS_REQUIRE_NATIVE_CRYPTO=true`).
 
+## Admin JWT (production)
+
+`GET /auth/token` is **disabled** in prod. Mint an admin token from `JWT_SECRET`:
+
+```bash
+python scripts/mint_admin_jwt.py --address ops-admin --hours 24
+# Authorization: Bearer <token>
+```
+
+Protected admin POSTs require JWT claim `role=admin` (user role → 403).
+
 ## Pre-push check
 
 ```bash

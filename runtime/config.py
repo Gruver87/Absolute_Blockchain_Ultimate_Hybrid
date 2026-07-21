@@ -98,6 +98,9 @@ class Config:
     p2p_tls_key_path: str = ""                    # node private key (PEM)
     p2p_tls_ca_path: str = ""                     # CA bundle for peer verify / mTLS
     p2p_tls_require_client_cert: bool = False     # mTLS: require client cert from peers
+    p2p_tls_fail_closed: bool = True              # TLS on ⇒ CERT_REQUIRED (never CERT_NONE)
+    p2p_tls_bind_identity: bool = True            # bind handshake node_id to cert CN/SAN
+    p2p_tls_peer_fingerprints: str = ""           # optional SHA-256 DER allowlist (csv)
     sync_batch_size: int = 100          # блоков за один запрос синхронизации
 
     # ── EVM ─────────────────────────────────────────────────────────────────
@@ -120,7 +123,7 @@ class Config:
     feature_ai_agents: bool = True
 
     # ── Мост (Cross-chain bridge) ────────────────────────────────────────────
-    bridge_enabled: bool = True
+    bridge_enabled: bool = False        # OFF by default (mainnet-v1 decision until L1 contracts)
     bridge_mode: str = "rust"           # "rust" | explicit dev/test-only "simulator"
     bridge_auto_confirm_sec: int = 0    # 0 = manual POST /bridge/confirm-lock only
     bridge_require_l1_proof: bool = False
@@ -277,6 +280,15 @@ class Config:
         self.p2p_tls_require_client_cert = env_bool(
             "P2P_TLS_REQUIRE_CLIENT_CERT", self.p2p_tls_require_client_cert
         )
+        self.p2p_tls_fail_closed = env_bool(
+            "P2P_TLS_FAIL_CLOSED", self.p2p_tls_fail_closed
+        )
+        self.p2p_tls_bind_identity = env_bool(
+            "P2P_TLS_BIND_IDENTITY", self.p2p_tls_bind_identity
+        )
+        self.p2p_tls_peer_fingerprints = env_str(
+            "P2P_TLS_PEER_FINGERPRINTS", self.p2p_tls_peer_fingerprints
+        )
         self.log_level = env_str("LOG_LEVEL", self.log_level)
         self.log_json = env_bool("LOG_JSON", self.log_json)
         self.mining_enabled = env_bool("MINING_ENABLED", self.mining_enabled)
@@ -386,13 +398,10 @@ class Config:
             self.cors_origins = origins
 
         if self.is_production:
-            self.require_wallet_file = env_bool("REQUIRE_WALLET_FILE", True)
-            self.jwt_enforce_admin = env_bool("JWT_ENFORCE_ADMIN", True)
             self.sqlite_synchronous = env_str("SQLITE_SYNCHRONOUS", "FULL")
             self.rocksdb_sync = env_str("ROCKSDB_SYNC", "FULL")
             self.enable_cors_rpc_proxy = env_bool("ENABLE_CORS_RPC_PROXY", False)
             self.log_json = env_bool("LOG_JSON", True)
-            self.rpc_api_key_required = env_bool("RPC_API_KEY_REQUIRED", True)
             self.bridge_require_l1_proof = env_bool("BRIDGE_REQUIRE_L1_PROOF", True)
             self.evm_create2_eip1014 = env_bool("EVM_CREATE2_EIP1014", True)
             self.evm_require_deploy_salt = env_bool("EVM_REQUIRE_DEPLOY_SALT", True)
@@ -407,6 +416,7 @@ class Config:
             self.feature_mev = env_bool("FEATURE_MEV", False)
             self.feature_ai_agents = env_bool("FEATURE_AI_AGENTS", False)
             # Fail-closed: env cannot weaken these for prod (break-glass forbidden).
+            self.require_wallet_file = True
             self.require_signatures = True
             self.enforce_proposer = True
             self.verify_peer_state_root = True
@@ -414,6 +424,10 @@ class Config:
             self.jwt_enforce_admin = True
             self.rpc_api_key_required = True
             self.allow_insecure_public_bind = False
+            self.p2p_tls_fail_closed = True
+            self.p2p_tls_bind_identity = True
+            if str(self.consensus_mode or "").strip().lower() == "parallel":
+                self.consensus_mode = "unified"
             if int(self.rate_limit_rpm or 0) <= 0:
                 self.rate_limit_rpm = 120
             if self.cors_origins == ["*"]:
@@ -657,7 +671,8 @@ class Config:
                 try:
                     from runtime.genesis_ceremony import verify_live_manifest
 
-                    strict = env_bool("GENESIS_STRICT_MAINNET", False)
+                    # Prod default strict; break-glass: GENESIS_STRICT_MAINNET=false
+                    strict = env_bool("GENESIS_STRICT_MAINNET", True)
                     manifest_errors, _artifact = verify_live_manifest(
                         self,
                         strict_addresses=strict,
@@ -665,6 +680,13 @@ class Config:
                     errors.extend([f"validators_manifest:{e}" for e in manifest_errors])
                 except Exception as e:
                     errors.append(f"validators_manifest:check_failed:{e}")
+            mode = str(getattr(self, "consensus_mode", "auto") or "auto").strip().lower()
+            if mode == "parallel":
+                errors.append("prod forbids consensus_mode=parallel (use unified or auto)")
+            if not self.p2p_tls_fail_closed:
+                errors.append("prod requires p2p_tls_fail_closed=true")
+            if not self.p2p_tls_bind_identity:
+                errors.append("prod requires p2p_tls_bind_identity=true")
         if self.p2p_tls_enabled:
             for attr, label in (
                 ("p2p_tls_cert_path", "P2P_TLS_CERT_PATH"),

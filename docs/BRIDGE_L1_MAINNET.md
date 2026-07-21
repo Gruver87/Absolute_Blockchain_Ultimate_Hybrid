@@ -15,6 +15,16 @@
 
 Mainnet v1 default keeps bridge **off** until L1 lock contracts and RPC are production-ready.
 
+### Industrial tooling (v1.2.87+) — still OFF, harder gates
+
+Even while bridge is OFF, cutover/relayer tooling is fail-closed:
+
+- Atomic durable `save_l1_queue` (temp + `os.replace`)
+- `eth_getCode` raises on RPC failure (does not pretend empty bytecode)
+- Live cutover: relayer preflight / watch-l1 exceptions → **errors** (not soft skips)
+- API honesty: production `supported_chains` = ethereum/bsc/polygon/absolute; Solana marked `dev_only`
+- Rust bridge stderr logged on non-zero exit
+
 ---
 
 ## Prerequisites

@@ -875,9 +875,10 @@ class RESTHandler(BaseHTTPRequestHandler):
         if not _JWT_AVAILABLE or not jwt_auth:
             self._error(503, "JWT auth not available (install PyJWT)")
             return False
-        ok, _payload = jwt_auth.verify_token(auth[7:].strip())
+        ok, _payload, err = jwt_auth.require_role(auth[7:].strip(), role="admin")
         if not ok:
-            self._error(401, "Invalid or expired JWT")
+            code = 403 if _payload is not None else 401
+            self._error(code, err or "Invalid or expired JWT")
             return False
         return True
 
@@ -901,7 +902,7 @@ class RESTHandler(BaseHTTPRequestHandler):
         self._cors()
 
     def do_GET(self):
-        # Read-only Explorer/dashboard traffic — no rate limit on GET
+        # Explorer/dashboard GETs share the same RPM limiter (health paths exempt).
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
         qs = parse_qs(parsed.query)
@@ -914,6 +915,8 @@ class RESTHandler(BaseHTTPRequestHandler):
         evm_adapter = self.__class__.evm
 
         try:
+            if not _check_rate_limit(self, path):
+                return
             self._track_request()
             if _is_prod_blocked_path(path, cfg):
                 self._error(403, "dev/testnet endpoint disabled in production")
@@ -1699,9 +1702,18 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(403, "GET /auth/token disabled in production")
                     return
                 addr = qs.get("address", [""])[0]
+                role = (qs.get("role", ["user"])[0] or "user").strip().lower()
+                if role not in ("user", "admin"):
+                    self._error(400, "role must be user or admin")
+                    return
                 if _JWT_AVAILABLE and jwt_auth and addr:
-                    token = jwt_auth.generate_token(addr)
-                    self._json({"token": token, "address": addr, "expires_in": 86400})
+                    token = jwt_auth.generate_token(addr, role=role)
+                    self._json({
+                        "token": token,
+                        "address": addr,
+                        "role": role,
+                        "expires_in": 86400,
+                    })
                 elif not addr:
                     self._error(400, "address parameter required")
                 else:
@@ -6796,7 +6808,15 @@ def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
             if int(getattr(cfg, "bridge_auto_confirm_sec", 0) or 0) <= 0
             else "Devnet-only auto-confirm after bridge_auto_confirm_sec"
         ),
-        "supported_chains": ["ethereum", "bsc", "solana", "absolute"],
+        "supported_chains": ["ethereum", "bsc", "polygon", "absolute"],
+        "dev_only_chains": ["solana"],
+        "unsupported_production": ["solana"],
+        "chain_notes": {
+            "solana": "dev/simulator only — not production L1 RPC in rust bridge",
+            "ethereum": "production path when bridge_enabled + audited contracts",
+            "bsc": "production path when bridge_enabled + audited contracts",
+            "polygon": "production path when bridge_enabled + audited contracts",
+        },
         "endpoints": {
             "locks": "GET /bridge/locks",
             "l1_queue": "GET /bridge/l1-queue",

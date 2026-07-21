@@ -6,6 +6,34 @@
 
 ---
 
+## [1.2.87] — 2026-07-21
+
+### Hardened — P2P
+
+- TLS enabled ⇒ always `CERT_REQUIRED` (removed `CERT_NONE` path)
+- Handshake `node_id` cryptographically bound to peer cert CN/SAN
+- Optional `P2P_TLS_PEER_FINGERPRINTS` allowlist; richer `/p2p/security` tls block
+- Prod gate: TLS+mTLS required on **all** prod profiles (not only mesh)
+
+### Hardened — Auth / API / config
+
+- JWT admin requires `role=admin`; `scripts/mint_admin_jwt.py` for prod ops
+- Constant-time RPC API key verify; GET rate-limited
+- `bridge_enabled` default false; prod forces wallet + TLS bind/fail-closed
+- Genesis strict default in prod; PBS behind `feature_mev`; slash honesty fields
+
+### Hardened — L1 bridge tooling (bridge remains OFF)
+
+- Atomic `save_l1_queue`; fail-loud `get_contract_code` on RPC errors
+- Cutover: relayer / L1 probe exceptions → errors
+- API honesty: Solana marked dev-only; rust stderr logged
+
+### Docs
+
+- [docs/P2P_TLS.md](docs/P2P_TLS.md), [docs/BRIDGE_L1_MAINNET.md](docs/BRIDGE_L1_MAINNET.md), [RELEASE_NOTES_v1.2.87.md](RELEASE_NOTES_v1.2.87.md), [SECURITY.md](SECURITY.md)
+
+---
+
 ## [1.2.86] — 2026-07-21
 
 ### Fixed / hardened

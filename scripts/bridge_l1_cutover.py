@@ -96,7 +96,7 @@ def check_live_bridge_cutover(base_url: str) -> Tuple[List[str], List[str]]:
             detail = (proc.stdout or proc.stderr or "").strip()
             errors.append(f"bridge_relayer preflight failed: {detail or proc.returncode}")
     except Exception as exc:
-        warnings.append(f"bridge_relayer preflight skipped: {exc}")
+        errors.append(f"bridge_relayer preflight failed: {exc}")
 
     # Fail-closed check: in L1-proof mode, relayer must be able to run with --watch-l1.
     # Use a dry-run one-shot so it does not modify state.
@@ -120,7 +120,7 @@ def check_live_bridge_cutover(base_url: str) -> Tuple[List[str], List[str]]:
             detail = (proc.stdout or proc.stderr or "").strip()
             errors.append(f"bridge_relayer watch-l1 dry-run failed: {detail or proc.returncode}")
     except Exception as exc:
-        warnings.append(f"bridge_relayer watch-l1 dry-run skipped: {exc}")
+        errors.append(f"bridge_relayer watch-l1 dry-run failed: {exc}")
 
     return errors, warnings
 
@@ -168,7 +168,7 @@ def run_cutover_gate(
             os.environ["BRIDGE_PROBE_L1_RPC"] = "true"
             meta["l1_rpc"] = check_l1_rpc_health(probe_cfg, timeout=5.0)
         except Exception as exc:
-            warnings.append(f"l1_rpc_summary:{exc}")
+            errors.append(f"l1_rpc_summary:{exc}")
 
     if live:
         live_base = resolve_live_base_url(base_url)

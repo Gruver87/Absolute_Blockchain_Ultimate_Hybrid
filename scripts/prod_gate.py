@@ -128,15 +128,18 @@ def check_file(path: str) -> list[str]:
     if int(cfg.get("rate_limit_rpm", 120) or 0) <= 0:
         errors.append(f"{path}: rate_limit_rpm must be > 0 in prod")
 
-    # Prod mesh profiles require P2P TLS(+mTLS) for mainnet-prep wire.
-    if "mesh" in path.replace("\\", "/"):
-        if cfg.get("p2p_tls_enabled") is not True:
-            errors.append(f"{path}: p2p_tls_enabled must be true for prod mesh")
-        if cfg.get("p2p_tls_require_client_cert") is not True:
-            errors.append(f"{path}: p2p_tls_require_client_cert must be true for prod mesh mTLS")
-        for key in ("p2p_tls_cert_path", "p2p_tls_key_path", "p2p_tls_ca_path"):
-            if not str(cfg.get(key) or "").strip():
-                errors.append(f"{path}: {key} required when P2P TLS is enabled")
+    # Prod profiles require P2P TLS(+mTLS) for mainnet-prep wire.
+    if cfg.get("p2p_tls_enabled") is not True:
+        errors.append(f"{path}: p2p_tls_enabled must be true for prod profiles")
+    if cfg.get("p2p_tls_require_client_cert") is not True:
+        errors.append(f"{path}: p2p_tls_require_client_cert must be true for prod mTLS")
+    for key in ("p2p_tls_cert_path", "p2p_tls_key_path", "p2p_tls_ca_path"):
+        if not str(cfg.get(key) or "").strip():
+            errors.append(f"{path}: {key} required when P2P TLS is enabled")
+    if cfg.get("p2p_tls_fail_closed") is False:
+        errors.append(f"{path}: p2p_tls_fail_closed must not be false in prod")
+    if cfg.get("p2p_tls_bind_identity") is False:
+        errors.append(f"{path}: p2p_tls_bind_identity must not be false in prod")
 
     if "mesh1" in path.replace("\\", "/"):
         if int(cfg.get("mesh_min_peers_before_mine", 0) or 0) < 1:

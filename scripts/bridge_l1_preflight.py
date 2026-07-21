@@ -177,8 +177,12 @@ def run_preflight(
         if not rpc:
             errors.append("BRIDGE_L1_CHAIN RPC not configured (set ETH_RPC_URL/BSC_RPC_URL/POLYGON_RPC_URL)")
         else:
-            lock_code = get_contract_code(rpc, lock_addr, timeout=10.0)
-            mint_code = get_contract_code(rpc, mint_addr, timeout=10.0)
+            try:
+                lock_code = get_contract_code(rpc, lock_addr, timeout=10.0)
+                mint_code = get_contract_code(rpc, mint_addr, timeout=10.0)
+            except Exception as exc:
+                errors.append(f"L1 eth_getCode probe failed: {exc}")
+                return errors, warnings
             if lock_code in ("0x", "0x0", ""):
                 errors.append("L1 lock contract has empty bytecode (eth_getCode=0x)")
             if mint_code in ("0x", "0x0", ""):

@@ -66,7 +66,7 @@ def _start_prod_server(tmp_path, monkeypatch):
     cfg.bridge_mode = "rust"
     cfg.rust_bridge_path = __file__
     cfg.bridge_oracle_secret = "oracle-secret-wave28"
-    cfg.rate_limit_rpm = 0
+    cfg.rate_limit_rpm = 100_000
     db = Database(path)
     db.initialize()
     bc = Blockchain(cfg, db)
@@ -100,7 +100,7 @@ def _start_dev_admin_server(tmp_path, monkeypatch):
     cfg.deployment_mode = "dev"
     cfg.jwt_enforce_admin = True
     cfg.bridge_enabled = False
-    cfg.rate_limit_rpm = 0
+    cfg.rate_limit_rpm = 100_000
     db = Database(path)
     db.initialize()
     bc = Blockchain(cfg, db)
@@ -140,7 +140,7 @@ def test_dev_admin_sync_reconcile_requires_jwt(tmp_path, monkeypatch):
         assert st == 401
         assert "JWT" in body.get("error", "")
 
-        st, token_body = _get(f"{base}/auth/token?address=verifier-admin")
+        st, token_body = _get(f"{base}/auth/token?address=verifier-admin&role=admin")
         assert st == 200
         token = token_body["token"]
         st, _body = _post(
@@ -149,6 +149,16 @@ def test_dev_admin_sync_reconcile_requires_jwt(tmp_path, monkeypatch):
             headers={"Authorization": f"Bearer {token}"},
         )
         assert st != 401
+
+        st, user_body = _get(f"{base}/auth/token?address=verifier-user&role=user")
+        assert st == 200
+        st, body = _post(
+            f"{base}/sync/reconcile",
+            {"timeout": 30},
+            headers={"Authorization": f"Bearer {user_body['token']}"},
+        )
+        assert st == 403
+        assert "insufficient" in body.get("error", "")
     finally:
         server.shutdown()
         db.close()
@@ -301,7 +311,7 @@ def test_prod_bridge_does_not_fallback_to_simulator(tmp_path, monkeypatch):
     cfg.bridge_enabled = True
     cfg.bridge_mode = "rust"
     cfg.bridge_oracle_secret = "oracle-secret-wave28"
-    cfg.rate_limit_rpm = 0
+    cfg.rate_limit_rpm = 100_000
     db = Database(path)
     db.initialize()
     bc = Blockchain(cfg, db)

@@ -81,11 +81,15 @@ class ConsensusAdapter:
             epoch_size = getattr(config, "epoch_size", 32)
             self.slashing_engine = ConsensusEngineSlashing(epoch_size=epoch_size)
             self.validator_registry = ValidatorRegistry()
-            self.pbs_market = PBSMarket()
-            # Default builder/proposer
-            self.pbs_market.add_builder(Builder("default-builder"))
-            self.pbs_market.add_proposer(Proposer("default-proposer"))
-            print("[Consensus] LMD-GHOST + Slashing + ValidatorRegistry + PBS: enabled")
+            # PBS is MEV surface — only when feature_mev is explicitly enabled (prod blocks it).
+            if bool(getattr(config, "feature_mev", False)):
+                self.pbs_market = PBSMarket()
+                self.pbs_market.add_builder(Builder("default-builder"))
+                self.pbs_market.add_proposer(Proposer("default-proposer"))
+                print("[Consensus] LMD-GHOST + Slashing + ValidatorRegistry + PBS: enabled")
+            else:
+                self.pbs_market = None
+                print("[Consensus] LMD-GHOST + Slashing + ValidatorRegistry: enabled (PBS off)")
         else:
             self.slashing_engine = None
             self.validator_registry = None
@@ -425,6 +429,12 @@ class ConsensusAdapter:
             "casper_ffg_enabled": self.casper_engine is not None,
             "finality_engine_enabled": self.finality is not None,
             "slashing_enabled": slashing_on,
+            "slashing_persistence": "local_bookkeeping",
+            "slashing_economic_burn": False,
+            "slashing_note": (
+                "Double-vote detection is local; stake burn / cross-peer evidence "
+                "gossip is not production-complete"
+            ),
             "pbs_enabled": pbs_on,
             "validator_registry": registry_on,
             "beacon_enabled": self.beacon_engine is not None,

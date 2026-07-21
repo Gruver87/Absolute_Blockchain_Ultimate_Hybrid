@@ -16,6 +16,8 @@
   "p2p_tls_key_path": "/app/p2p_tls/node.key",
   "p2p_tls_ca_path": "/app/p2p_tls/ca.pem",
   "p2p_tls_require_client_cert": true,
+  "p2p_tls_fail_closed": true,
+  "p2p_tls_bind_identity": true,
   "bootstrap_peers": [],
   "mining_enabled": true,
   "mesh_min_peers_before_mine": 2,

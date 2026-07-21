@@ -146,14 +146,26 @@ def get_block_number(rpc_url: str) -> int:
     result = _rpc_call(rpc_url, "eth_blockNumber", [])
     return _parse_hex_int(result)
 
-def get_contract_code(rpc_url: str, address: str, *, timeout: float = 10.0) -> str:
-    """Return EVM bytecode at address (eth_getCode)."""
+def get_contract_code(
+    rpc_url: str,
+    address: str,
+    *,
+    timeout: float = 10.0,
+    fail_closed: bool = True,
+) -> str:
+    """Return EVM bytecode at address (eth_getCode).
+
+    On RPC failure: raise RuntimeError when fail_closed (default), else return \"0x\".
+    Missing url/address returns \"0x\" (not deployed / not configured).
+    """
     if not rpc_url or not address:
         return "0x"
     try:
         result = _rpc_call(rpc_url, "eth_getCode", [address, "latest"], timeout=timeout)
         return str(result or "0x")
-    except Exception:
+    except Exception as exc:
+        if fail_closed:
+            raise RuntimeError(f"eth_getCode failed for {address}: {exc}") from exc
         return "0x"
 
 
@@ -194,6 +206,27 @@ def load_l1_queue(path: str) -> Dict[str, list]:
 
 
 def save_l1_queue(path: str, queue: Dict[str, list]) -> None:
-    os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(queue, f, indent=2)
+    """Atomically persist L1 queue JSON (temp file + replace)."""
+    import tempfile
+
+    abs_path = os.path.abspath(path)
+    os.makedirs(os.path.dirname(abs_path) or ".", exist_ok=True)
+    payload = json.dumps(queue, indent=2)
+    fd, tmp = tempfile.mkstemp(
+        prefix=".l1_queue_",
+        suffix=".tmp",
+        dir=os.path.dirname(abs_path) or ".",
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(payload)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, abs_path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+

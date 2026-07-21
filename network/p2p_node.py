@@ -22,6 +22,9 @@ from typing import Dict, List, Optional, Callable, Any, Tuple
 from network.p2p_tls import (
     build_p2p_client_ssl_context,
     build_p2p_server_ssl_context,
+    extract_peer_tls_meta,
+    fingerprint_allowlist,
+    handshake_node_id_matches_cert,
     p2p_tls_enabled,
     p2p_tls_status,
     validate_p2p_tls_config,
@@ -159,6 +162,8 @@ class PeerConnection:
         self.connected_at = time.time()
         self.last_seen = time.time()
         self.is_synced = False
+        self.tls_fingerprint = ""
+        self.tls_identities: list = []
 
     def touch(self):
         self.last_seen = time.time()
@@ -531,7 +536,39 @@ class P2PNode:
             )
             return False
 
-        peer.peer_id = ack.get("node_id", f"{peer.host}:{peer.port}")
+        claimed_id = str(ack.get("node_id") or "").strip() or f"{peer.host}:{peer.port}"
+        if p2p_tls_enabled(self.config):
+            tls_meta = extract_peer_tls_meta(peer.writer)
+            identities = set(tls_meta.get("identities") or [])
+            fp = str(tls_meta.get("fingerprint_sha256") or "")
+            peer.tls_fingerprint = fp
+            peer.tls_identities = sorted(identities)
+            bind_id = bool(getattr(self.config, "p2p_tls_bind_identity", True))
+            if not tls_meta.get("ssl"):
+                self._handshake_rejects += 1
+                self._strike_peer_sync(peer, "tls_missing")
+                print(f"[P2P] Rejected {peer.host}:{peer.port}: TLS required but no ssl_object")
+                return False
+            if bind_id:
+                if not identities or not handshake_node_id_matches_cert(claimed_id, identities):
+                    self._handshake_rejects += 1
+                    self._strike_peer_sync(peer, "tls_identity_mismatch")
+                    print(
+                        f"[P2P] Rejected {peer.host}:{peer.port}: handshake node_id "
+                        f"{claimed_id!r} not in peer cert CN/SAN {sorted(identities)}"
+                    )
+                    return False
+            allow = fingerprint_allowlist(self.config)
+            if allow and fp.lower() not in allow:
+                self._handshake_rejects += 1
+                self._strike_peer_sync(peer, "tls_fingerprint_denied")
+                print(
+                    f"[P2P] Rejected {peer.host}:{peer.port}: cert fingerprint "
+                    f"not in P2P_TLS_PEER_FINGERPRINTS allowlist"
+                )
+                return False
+
+        peer.peer_id = claimed_id
         peer.chain_id = ack.get("chain_id", 0)
         peer.height = ack.get("height", 0)
         peer.head = ack.get("head_hash") or peer.head

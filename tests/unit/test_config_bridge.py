@@ -18,6 +18,7 @@ def test_config_default_bridge_manual_confirm():
     cfg = Config()
     assert cfg.bridge_mode == "rust"
     assert cfg.bridge_auto_confirm_sec == 0
+    assert cfg.bridge_enabled is False
 
 
 def test_config_loads_bridge_auto_confirm_from_json():

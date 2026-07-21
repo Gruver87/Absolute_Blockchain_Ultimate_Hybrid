@@ -41,8 +41,8 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.2.86` — pre-audit fail-closed gates + default P2P TLS |
-| **Notes** | [RELEASE_NOTES_v1.2.86.md](../RELEASE_NOTES_v1.2.86.md) |
+| **Tag** | `v1.2.87` — pre-audit fail-closed gates + default P2P TLS |
+| **Notes** | [RELEASE_NOTES_v1.2.87.md](../RELEASE_NOTES_v1.2.87.md) |
 | **Prior** | [v1.2.85](../RELEASE_NOTES_v1.2.85.md) 48h soak PASS |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

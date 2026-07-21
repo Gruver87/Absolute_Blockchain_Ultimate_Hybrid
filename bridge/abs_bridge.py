@@ -578,9 +578,13 @@ class RustBridge:
             )
             if result.returncode == 0:
                 return json.loads(result.stdout.decode())
+            err = (result.stderr or b"").decode(errors="replace").strip()
+            out = (result.stdout or b"").decode(errors="replace").strip()
+            print(
+                f"[Bridge] Rust call rc={result.returncode}"
+                f"{(': ' + err) if err else ''}"
+                f"{(' stdout=' + out[:200]) if out else ''}"
+            )
         except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError) as e:
-            if self._is_prod:
-                print(f"[Bridge] Rust call failed: {e}.")
-            else:
-                print(f"[Bridge] Rust call failed: {e}.")
+            print(f"[Bridge] Rust call failed: {e}.")
         return None
