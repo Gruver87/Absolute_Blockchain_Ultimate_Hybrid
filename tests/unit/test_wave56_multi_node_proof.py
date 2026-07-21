@@ -78,7 +78,9 @@ class _FakeBC:
         return {"hash": "0x" + "aa" * 32, "state_root": "0x" + "cc" * 32}
 
     def get_state_root_policy(self):
-        return {"strict": True}
+        from runtime.state_root_encoding import state_root_encoding_status
+
+        return {"strict": True, "encoding": state_root_encoding_status()}
 
 
 class _FakeCfg3:

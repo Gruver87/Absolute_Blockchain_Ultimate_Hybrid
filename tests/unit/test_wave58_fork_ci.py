@@ -37,7 +37,9 @@ class _FakeBC:
         return True
 
     def get_state_root_policy(self):
-        return {}
+        from runtime.state_root_encoding import state_root_encoding_status
+
+        return {"encoding": state_root_encoding_status()}
 
 
 class _FakeCfg:

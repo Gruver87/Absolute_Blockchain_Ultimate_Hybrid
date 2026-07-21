@@ -33,7 +33,13 @@ class _FakeBC:
         return {"height": self._height, "state_root": self._tip, "hash": "0xabc"}
 
     def get_state_root_policy(self):
-        return {"baseline_height": self._height, "verify_peer_state_root": True}
+        from runtime.state_root_encoding import state_root_encoding_status
+
+        return {
+            "baseline_height": self._height,
+            "verify_peer_state_root": True,
+            "encoding": state_root_encoding_status(),
+        }
 
 
 class _FakeDB:

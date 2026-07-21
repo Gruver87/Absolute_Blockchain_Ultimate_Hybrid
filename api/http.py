@@ -364,6 +364,8 @@ _RATE_LIMIT_EXEMPT_PATHS = frozenset({
     "/testnet/fork-status",
     "/slashing/events",
     "/chain/consistency/harness",
+    "/chain/state-root/status",
+    "/chain/state-root/encoding",
     "/testnet/state-consistency",
     "/testnet/validators",
     "/testnet/multi-node-proof",
@@ -1899,6 +1901,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                     **policy,
                 })
 
+            elif path == "/chain/state-root/encoding":
+                from runtime.state_root_encoding import state_root_encoding_status
+
+                self._json(state_root_encoding_status(cfg))
+
             elif path in ("/chain/consistency/harness", "/testnet/state-consistency"):
                 db = self.__class__.db
                 quick = qs.get("quick", ["0"])[0].lower() in ("1", "true", "yes")
@@ -2169,8 +2176,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                         self._json(blk)
                     else:
                         self._error(404, "Block not found")
-                except Exception:
-                    self._error(400, "Invalid block number")
+                except (TypeError, ValueError) as exc:
+                    self._error(400, f"Invalid block number: {exc}")
 
             elif path.startswith("/tx/"):
                 tx_hash = path.split("/tx/")[1]
@@ -2258,8 +2265,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                         self._json(blk)
                     else:
                         self._error(404, "Block not found")
-                except Exception:
-                    self._error(400, "Invalid block number")
+                except (TypeError, ValueError) as exc:
+                    self._error(400, f"Invalid block number: {exc}")
 
             # ── AI Validator ──────────────────────────────────────────────────
             elif path == "/ai/validators":
@@ -6488,8 +6495,20 @@ def _build_state_consistency_harness(
             "detail": f"total_supply {total_supply:,.0f} <= max {max_supply:,.0f}",
         },
     ]
-    harness_healthy = all(c["ok"] for c in checks)
     policy = bc.get_state_root_policy() if bc and hasattr(bc, "get_state_root_policy") else {}
+    encoding = (policy or {}).get("encoding") or {}
+    active_enc = encoding.get("active") or {}
+    encoding_honest = (
+        active_enc.get("version") == 1
+        and active_enc.get("active") is True
+        and active_enc.get("satoshi_tip_ready") is False
+    )
+    checks.append({
+        "id": "state_root_encoding_honest",
+        "ok": encoding_honest,
+        "detail": "consensus tip uses v1 float_b_round12 (satoshi tip not claimed)",
+    })
+    harness_healthy = all(c["ok"] for c in checks)
 
     return {
         "node_id": getattr(cfg, "node_id", ""),
@@ -6872,6 +6891,7 @@ def _build_l2_status(handler_cls) -> Dict:
                 "proposer_history": "GET /chain/proposers/history?limit=&offset=&proposer=",
                 "proposer_detail": "GET /chain/proposer/{addr}",
                 "state_root_status": "GET /chain/state-root/status",
+                "state_root_encoding": "GET /chain/state-root/encoding",
                 "tx_trace": "GET /tx/trace/{hash}",
                 "tx_propagation": "GET /tx/propagation/recent",
             },

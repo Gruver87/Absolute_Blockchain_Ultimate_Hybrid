@@ -50,3 +50,50 @@ def test_blockchain_policy_includes_encoding(tmp_path):
     assert policy["encoding"]["active"]["version"] == 1
     db.close()
     os.remove(path)
+
+
+def test_state_root_encoding_endpoint(tmp_path):
+    import json
+    import os
+    import tempfile
+    import threading
+    import time
+    import urllib.request
+
+    from api.http import RESTHandler, ThreadedHTTPServer, configure_rate_limiter
+    from core.blockchain import Blockchain
+    from runtime.config import Config
+    from storage.database import Database
+
+    fd, path = tempfile.mkstemp(suffix=".db", dir=tmp_path)
+    os.close(fd)
+    cfg = Config()
+    cfg.db_path = path
+    cfg.http_port = 15420
+    cfg.deployment_mode = "dev"
+    cfg.rate_limit_rpm = 120
+    db = Database(path)
+    db.initialize()
+    bc = Blockchain(cfg, db)
+    RESTHandler.config = cfg
+    RESTHandler.blockchain = bc
+    RESTHandler.db = db
+    RESTHandler.mempool = None
+    RESTHandler.p2p = None
+    configure_rate_limiter(cfg)
+    server = ThreadedHTTPServer(("127.0.0.1", cfg.http_port), RESTHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    time.sleep(0.2)
+    try:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{cfg.http_port}/chain/state-root/encoding", timeout=5
+        ) as resp:
+            body = json.loads(resp.read().decode())
+        assert body["active"]["version"] == 1
+        assert body["active"]["active"] is True
+        assert body["planned"]["version"] == 2
+    finally:
+        server.shutdown()
+        db.close()
+        os.remove(path)

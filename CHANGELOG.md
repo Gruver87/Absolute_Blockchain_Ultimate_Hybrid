@@ -6,6 +6,15 @@
 
 ---
 
+## [1.2.99] — 2026-07-21
+
+### Hardened — State-root encoding honesty API, harness check, evidence stamp
+
+- GET /chain/state-root/encoding; harness state_root_encoding_honest check
+- stamp_release_evidence records state_root_encoding_v1; block URL fail-loud errors
+
+---
+
 ## [1.2.98] — 2026-07-21
 
 ### Hardened — AI/MEV/PQ probes, security-audit bridge gate, main fail-loud

@@ -158,6 +158,12 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("POST /chain/consistency/repair must expose repair_error")
         if "peer_probe_ok" not in http_py:
             errors.append("state consistency harness must include peer_probe_ok check")
+        if "state_root_encoding_honest" not in http_py:
+            errors.append("state consistency harness must include state_root_encoding_honest check")
+        if "/chain/state-root/encoding" not in http_py:
+            errors.append("GET /chain/state-root/encoding missing")
+        if "Invalid block number:" not in http_py:
+            errors.append("block URL handlers must fail-loud on invalid block number")
         if "module_probes" not in http_py:
             errors.append("GET /features must expose module_probes for wasm/plasma")
         feat_init = (ROOT / "features" / "__init__.py").read_text(encoding="utf-8")

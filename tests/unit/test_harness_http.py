@@ -62,6 +62,7 @@ def test_harness_http_peer_probe_ok_and_encoding(tmp_path, monkeypatch):
         check_ids = {c["id"]: c["ok"] for c in body.get("checks") or []}
         assert "peer_probe_ok" in check_ids
         assert check_ids["peer_probe_ok"] is True
+        assert check_ids.get("state_root_encoding_honest") is True
         enc = (body.get("policy") or {}).get("encoding") or {}
         assert enc.get("active", {}).get("version") == 1
     finally:

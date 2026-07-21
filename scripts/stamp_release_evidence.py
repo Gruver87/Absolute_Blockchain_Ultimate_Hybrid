@@ -66,6 +66,11 @@ def main() -> int:
     )
     parser.add_argument("--skip-soak", action="store_true", help="Do not record soak stamp")
     parser.add_argument(
+        "--skip-encoding",
+        action="store_true",
+        help="Do not record state_root_encoding_v1 stamp",
+    )
+    parser.add_argument(
         "--out",
         default=os.environ.get("EVIDENCE_RUN_PATH", str(ROOT / "data" / "evidence_run.json")),
         help="Evidence JSON path",
@@ -96,6 +101,31 @@ def main() -> int:
         tag=tag,
     )
     print("recorded bridge_decision_off=PASS")
+
+    if not args.skip_encoding:
+        from runtime.state_root_encoding import state_root_encoding_status
+
+        enc = state_root_encoding_status()
+        active = enc.get("active") or {}
+        if active.get("version") != 1 or active.get("active") is not True:
+            print(
+                f"FAIL: expected v1 active encoding, got version={active.get('version')} "
+                f"active={active.get('active')}",
+                file=sys.stderr,
+            )
+            return 1
+        _append_step(
+            out,
+            "state_root_encoding_v1",
+            "PASS",
+            notes=(
+                f"float_b_round12 active; satoshi_tip_ready={active.get('satoshi_tip_ready')} "
+                f"at {tag or 'local'}"
+            ),
+            artifact="runtime/state_root_encoding.py",
+            tag=tag,
+        )
+        print("recorded state_root_encoding_v1=PASS")
 
     if not args.skip_soak:
         soak_path = ROOT / args.soak_report

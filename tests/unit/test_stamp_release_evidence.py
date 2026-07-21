@@ -28,3 +28,4 @@ def test_stamp_release_evidence_writes_bridge_decision_off(tmp_path, monkeypatch
     doc = json.loads(out.read_text(encoding="utf-8"))
     names = [s.get("name") for s in doc.get("steps", [])]
     assert "bridge_decision_off" in names
+    assert "state_root_encoding_v1" in names

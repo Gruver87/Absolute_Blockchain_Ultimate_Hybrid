@@ -8,7 +8,7 @@
 - Enforced by `industrial_gate` (soak contract).
 - Reads prefer `balance_satoshi` dual-write where available (`runtime/state_truth.py`).
 
-Runtime snapshot: `GET /status` → `state_root_policy.encoding`.
+Runtime snapshot: `GET /status` → `state_root_policy.encoding`, or `GET /chain/state-root/encoding`.
 
 ## Planned (v2) — `satoshi_b`
 
