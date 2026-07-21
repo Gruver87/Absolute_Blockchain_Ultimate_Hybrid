@@ -108,6 +108,9 @@ def native_crypto_status(required: bool = False) -> dict:
             "encode_p2p_wire_message",
             "hash_sorted_json",
             "verify_attestation_secp256k1",
+            "amount_to_satoshi",
+            "amount_apply_delta_satoshi",
+            "state_engine_apply_transactions",
             "merkle",
             "state_root",
             "secp256k1_verify",
@@ -1449,6 +1452,33 @@ def state_engine_root_from_accounts_json(accounts_json: str) -> str:
     if _native is not None and hasattr(_native, "state_engine_root_from_accounts_json"):
         return str(_native.state_engine_root_from_accounts_json(accounts_json))
     return sha256_hex(accounts_json.encode())[:32]
+
+
+def amount_to_satoshi(amount_abs: str) -> int:
+    if _native is not None and hasattr(_native, "amount_to_satoshi"):
+        return int(_native.amount_to_satoshi(str(amount_abs)))
+    from decimal import Decimal, ROUND_DOWN
+
+    d = Decimal(str(amount_abs))
+    return int((d * Decimal(1_000_000)).quantize(Decimal("1"), rounding=ROUND_DOWN))
+
+
+def amount_apply_delta_satoshi(current_sat: int, delta_abs: str) -> int:
+    if _native is not None and hasattr(_native, "amount_apply_delta_satoshi"):
+        return int(_native.amount_apply_delta_satoshi(int(current_sat), str(delta_abs)))
+    return max(0, int(current_sat) + amount_to_satoshi(delta_abs))
+
+
+def amount_from_satoshi_float(satoshi: int) -> float:
+    if _native is not None and hasattr(_native, "amount_from_satoshi_float"):
+        return float(_native.amount_from_satoshi_float(int(satoshi)))
+    return float(int(satoshi)) / 1_000_000.0
+
+
+def state_engine_apply_transactions(accounts_json: str, txs_json: str) -> str:
+    if _native is not None and hasattr(_native, "state_engine_apply_transactions"):
+        return str(_native.state_engine_apply_transactions(accounts_json, txs_json))
+    raise RuntimeError("state_engine_apply_transactions requires abs_native")
 
 
 def parse_p2p_wire_line(

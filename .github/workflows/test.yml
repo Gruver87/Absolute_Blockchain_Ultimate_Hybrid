@@ -156,6 +156,7 @@ jobs:
           tests/unit/test_native_consensus_hash.py \
           tests/unit/test_native_consensus_select.py \
           tests/unit/test_native_p2p_wire.py \
+          tests/unit/test_native_amount_state.py \
           tests/unit/test_native_peer_validation.py \
           tests/unit/test_native_deploy_address.py \
           tests/unit/test_rlp_native.py \

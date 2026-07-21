@@ -9,7 +9,6 @@ EVM Adapter — подключает evm_interpreter.py к живому сост
   - Оценка газа
 """
 
-import hashlib
 import json
 import sys
 import os

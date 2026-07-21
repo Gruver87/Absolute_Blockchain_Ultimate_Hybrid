@@ -22,6 +22,17 @@ def to_satoshi(amount_abs: NumberLike) -> int:
     if isinstance(amount_abs, bool):
         raise TypeError("bool is not a valid amount")
     try:
+        from crypto import native
+
+        if native.native_available() and hasattr(native, "amount_to_satoshi"):
+            if isinstance(amount_abs, int):
+                return int(native.amount_to_satoshi(str(amount_abs)))
+            if isinstance(amount_abs, Decimal):
+                return int(native.amount_to_satoshi(format(amount_abs, "f")))
+            return int(native.amount_to_satoshi(str(amount_abs)))
+    except Exception:
+        pass
+    try:
         d = Decimal(str(amount_abs))
     except (InvalidOperation, ValueError, TypeError) as exc:
         raise ValueError(f"invalid amount: {amount_abs!r}") from exc
@@ -38,6 +49,13 @@ def from_satoshi(satoshi: int) -> Decimal:
 
 def from_satoshi_float(satoshi: int) -> float:
     """Display / legacy float ABS — prefer from_satoshi for money math."""
+    try:
+        from crypto import native
+
+        if native.native_available() and hasattr(native, "amount_from_satoshi_float"):
+            return float(native.amount_from_satoshi_float(int(satoshi)))
+    except Exception:
+        pass
     return float(from_satoshi(satoshi))
 
 
@@ -68,4 +86,19 @@ def dual_write_balance(row: MutableMapping[str, Any], balance_abs: NumberLike) -
 
 def apply_delta_satoshi(current_sat: int, delta_abs: NumberLike) -> int:
     """Apply ABS delta to satoshi balance (never negative)."""
+    try:
+        from crypto import native
+
+        if native.native_available() and hasattr(native, "amount_apply_delta_satoshi"):
+            if isinstance(delta_abs, bool):
+                raise TypeError("bool is not a valid amount")
+            if isinstance(delta_abs, Decimal):
+                delta_s = format(delta_abs, "f")
+            else:
+                delta_s = str(delta_abs)
+            return int(native.amount_apply_delta_satoshi(int(current_sat), delta_s))
+    except TypeError:
+        raise
+    except Exception:
+        pass
     return max(0, int(current_sat) + to_satoshi(delta_abs))

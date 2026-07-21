@@ -215,7 +215,10 @@ def _check_audit_pack_export() -> tuple[list[str], list[str]]:
         p2p_wire_src = (
             ROOT / "native" / "abs_native" / "src" / "p2p_wire.rs"
         ).read_text(encoding="utf-8")
-        native_surface = native_lib + "\n" + consensus_src + "\n" + p2p_wire_src
+        amount_src = (
+            ROOT / "native" / "abs_native" / "src" / "amount.rs"
+        ).read_text(encoding="utf-8")
+        native_surface = native_lib + "\n" + consensus_src + "\n" + p2p_wire_src + "\n" + amount_src
         for needle in (
             "MAX_IMPORTED_BLOCKS",
             "MAX_PEER_HEADERS",
@@ -238,6 +241,10 @@ def _check_audit_pack_export() -> tuple[list[str], list[str]]:
             "p2p_line_too_large",
             "verify_attestation_secp256k1",
             "hash_sorted_json",
+            "amount_to_satoshi",
+            "amount_apply_delta_satoshi",
+            "state_engine_apply_transactions",
+            "too_many_txs",
         ):
             if needle not in native_surface:
                 errors.append(f"abs_native lib missing fail-closed bound: {needle}")
@@ -350,6 +357,8 @@ def _check_native_wheel() -> tuple[list[str], list[str]]:
             "state_engine_root_from_accounts_json",
             "parse_p2p_wire_line",
             "verify_attestation_secp256k1",
+            "amount_to_satoshi",
+            "state_engine_apply_transactions",
             "pubkey_to_eth_address",
             "rlp_encode",
             "rlp_decode_single",

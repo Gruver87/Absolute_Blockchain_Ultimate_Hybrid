@@ -101,9 +101,32 @@ class StateEngine:
         if not self.state:
             raise Exception("No state initialized")
 
-        new_accounts = copy.deepcopy(self.state.accounts)
-        for tx in block.get("transactions", []):
-            self._apply_transaction(new_accounts, tx)
+        txs = list(block.get("transactions", []) or [])
+        if native.native_available() and hasattr(native, "state_engine_apply_transactions"):
+            import json as _json
+
+            accounts_payload = {
+                addr: {"balance": int(acc.balance), "nonce": int(acc.nonce)}
+                for addr, acc in self.state.accounts.items()
+            }
+            applied_json = native.state_engine_apply_transactions(
+                _json.dumps(accounts_payload, separators=(",", ":")),
+                _json.dumps(txs, separators=(",", ":")),
+            )
+            applied = _json.loads(applied_json)
+            new_accounts: Dict[str, AccountState] = {}
+            for addr, row in applied.items():
+                prev = self.state.accounts.get(addr)
+                new_accounts[addr] = AccountState(
+                    balance=int(row.get("balance", 0)),
+                    nonce=int(row.get("nonce", 0)),
+                    code_hash=prev.code_hash if prev else "",
+                    storage_root=prev.storage_root if prev else "",
+                )
+        else:
+            new_accounts = copy.deepcopy(self.state.accounts)
+            for tx in txs:
+                self._apply_transaction(new_accounts, tx)
 
         new_state = BlockState(
             accounts=new_accounts,

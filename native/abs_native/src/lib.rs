@@ -1,3 +1,4 @@
+mod amount;
 mod consensus_select;
 mod evm_pure_runner;
 mod p2p_wire;
@@ -1700,5 +1701,6 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     state_trie::register(m)?;
     consensus_select::register(m)?;
     p2p_wire::register(m)?;
+    amount::register(m)?;
     Ok(())
 }

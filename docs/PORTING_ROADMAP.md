@@ -65,6 +65,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `validator_selection_*` (proposer, weighted, committee, shuffle)
 - [x] `state_engine_root_from_accounts_json`
 
+### Priority 4c — Amount + StateEngine apply ✅
+
+- [x] `amount_to_satoshi` / `amount_apply_delta_satoshi` / `amount_from_satoshi_float`
+- [x] `state_engine_apply_transactions` — in-memory batch apply (fee burned)
+- [x] `runtime/amount.py` + `execution/state_engine.py` wired to native kernels
+
 ### Priority 5 — Bridge (no simulators in prod)
 
 - [x] `BRIDGE_MODE=rust` enforced by `prod_gate.py`
