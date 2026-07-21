@@ -310,7 +310,17 @@ class RocksChainStore:
         rows = self._scan_prefix(kc.prefix_block_heights())
         blocks: List[Dict] = []
         for _key, value in sorted(rows, key=lambda kv: kc.unpack_u64(kv[0][1:9]), reverse=True)[:limit]:
-            blocks.append(json.loads(value.decode("utf-8")))
+            try:
+                blocks.append(json.loads(value.decode("utf-8")))
+            except Exception as exc:
+                self._json_decode_failures += 1
+                logger.warning(
+                    "[RocksStore] corrupt latest_block row skipped "
+                    "(decode_failures=%s): %s",
+                    self._json_decode_failures,
+                    exc,
+                )
+                continue
         return blocks
 
     def get_chain_tip(self) -> int:
@@ -455,7 +465,17 @@ class RocksChainStore:
         rows = self._scan_prefix(kc.prefix_accounts())
         out: List[Dict] = []
         for _key, value in rows:
-            out.append(json.loads(value.decode("utf-8")))
+            try:
+                out.append(json.loads(value.decode("utf-8")))
+            except Exception as exc:
+                self._json_decode_failures += 1
+                logger.warning(
+                    "[RocksStore] corrupt account row skipped "
+                    "(decode_failures=%s): %s",
+                    self._json_decode_failures,
+                    exc,
+                )
+                continue
         return sorted(out, key=lambda r: str(r.get("address", "")))
 
     def get_live_state_root_meta(self) -> tuple[str, int]:
@@ -541,7 +561,17 @@ class RocksChainStore:
         rows = self._scan_prefix(kc.prefix_validators())
         out: List[Dict] = []
         for _key, value in rows:
-            row = json.loads(value.decode("utf-8"))
+            try:
+                row = json.loads(value.decode("utf-8"))
+            except Exception as exc:
+                self._json_decode_failures += 1
+                logger.warning(
+                    "[RocksStore] corrupt validator row skipped "
+                    "(decode_failures=%s): %s",
+                    self._json_decode_failures,
+                    exc,
+                )
+                continue
             if active_only and not int(row.get("active", 1)):
                 continue
             out.append(row)
@@ -1054,9 +1084,12 @@ class RocksChainStore:
                 if block_hash:
                     self._raw_delete(kc.key_block_hash_to_height(block_hash))
             except Exception as exc:
+                self._json_decode_failures += 1
                 logger.warning(
-                    "reorg_truncate_above: corrupt block JSON at height>%s: %s",
+                    "reorg_truncate_above: corrupt block JSON at height>%s "
+                    "(decode_failures=%s): %s",
                     cut,
+                    self._json_decode_failures,
                     exc,
                 )
             self._raw_delete(key)
@@ -1067,9 +1100,12 @@ class RocksChainStore:
             try:
                 row = json.loads(value.decode("utf-8"))
             except Exception as exc:
+                self._json_decode_failures += 1
                 logger.warning(
-                    "reorg_truncate_above: corrupt tx JSON above height>%s: %s",
+                    "reorg_truncate_above: corrupt tx JSON above height>%s "
+                    "(decode_failures=%s): %s",
                     cut,
+                    self._json_decode_failures,
                     exc,
                 )
                 self._raw_delete(key)
@@ -1081,9 +1117,12 @@ class RocksChainStore:
             try:
                 row = json.loads(value.decode("utf-8"))
             except Exception as exc:
+                self._json_decode_failures += 1
                 logger.warning(
-                    "reorg_truncate_above: corrupt receipt JSON above height>%s: %s",
+                    "reorg_truncate_above: corrupt receipt JSON above height>%s "
+                    "(decode_failures=%s): %s",
                     cut,
+                    self._json_decode_failures,
                     exc,
                 )
                 self._raw_delete(key)

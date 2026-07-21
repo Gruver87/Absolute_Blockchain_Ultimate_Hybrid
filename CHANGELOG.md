@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.23] — 2026-07-21
+
+### Hardened — P2P bind / ready wire / status degraded / peers mining
+
+- Bind failure clears `_running`; ready requires wire probe + bound server with peers
+- `/status` degraded when inconsistent; mining/eth_mining gate peers even if mesh_min=0
+- Rocks latest/accounts/validators/reorg bump json_decode_failures
+
+---
+
 ## [1.3.22] — 2026-07-21
 
 ### Hardened — Rocks decode / topology / SyncEngine prod / eth_mining mesh

@@ -1571,10 +1571,13 @@ class NodeOrchestrator:
                 continue
 
             _min_mesh_peers = int(getattr(self.config, "mesh_min_peers_before_mine", 0) or 0)
-            if _min_mesh_peers > 0 and self.p2p:
-                peers = getattr(self.p2p, "peers", {}) or {}
-                connected = len(peers)
-                if connected < _min_mesh_peers:
+            peers = getattr(self.p2p, "peers", {}) or {} if self.p2p else {}
+            connected = len(peers)
+            # Peers present require consistency even when mesh_min_peers_before_mine=0.
+            if self.p2p and (connected > 0 or _min_mesh_peers > 0):
+                if _min_mesh_peers > 0 and connected < _min_mesh_peers:
+                    continue
+                if connected == 0:
                     continue
                 local_h = self.blockchain.get_height()
                 local_root = str(self.blockchain.get_state_root() or "")
@@ -1586,44 +1589,47 @@ class NodeOrchestrator:
                     except Exception as _sync_probe_err:
                         print(f"[Mining] sync_state probe failed: {_sync_probe_err}")
                         self.p2p._state_consistent = False
-                peer_heights = [
-                    int(getattr(p, "height", 0) or 0) for p in peers.values()
-                ]
-                from runtime.mesh_mining import mesh_ready_for_mining
-
-                wire_roots = []
-                try:
-                    wire_roots = await self.p2p.request_peer_state_roots()
-                except Exception as exc:
-                    print(f"[Mining] request_peer_state_roots failed: {exc}")
-                    wire_roots = []
-                    if bool(getattr(self.config, "is_production", False)):
-                        self.p2p._state_consistent = False
-
-                hold_h = int(getattr(self, "_mesh_forge_hold_height", 0) or 0)
-                if hold_h and local_h >= hold_h:
-                    local_root_hold = local_root
-                    matching_hold = sum(
-                        1
-                        for entry in wire_roots
-                        if int(entry.get("height", 0) or 0) == local_h
-                        and str(entry.get("state_root") or "").strip().lower()
-                        == local_root_hold.strip().lower()
-                    )
-                    if matching_hold < _min_mesh_peers:
-                        continue
-                    self._mesh_forge_hold_height = 0
-
-                if not mesh_ready_for_mining(
-                    min_mesh_peers=_min_mesh_peers,
-                    connected_peers=connected,
-                    wire_roots=wire_roots,
-                    local_height=local_h,
-                    local_root=local_root,
-                    state_consistent=bool(getattr(self.p2p, "_state_consistent", False)),
-                    peer_heights=peer_heights,
-                ):
+                if connected > 0 and not getattr(self.p2p, "_state_consistent", False):
                     continue
+                if _min_mesh_peers > 0:
+                    peer_heights = [
+                        int(getattr(p, "height", 0) or 0) for p in peers.values()
+                    ]
+                    from runtime.mesh_mining import mesh_ready_for_mining
+
+                    wire_roots = []
+                    try:
+                        wire_roots = await self.p2p.request_peer_state_roots()
+                    except Exception as exc:
+                        print(f"[Mining] request_peer_state_roots failed: {exc}")
+                        wire_roots = []
+                        if bool(getattr(self.config, "is_production", False)):
+                            self.p2p._state_consistent = False
+
+                    hold_h = int(getattr(self, "_mesh_forge_hold_height", 0) or 0)
+                    if hold_h and local_h >= hold_h:
+                        local_root_hold = local_root
+                        matching_hold = sum(
+                            1
+                            for entry in wire_roots
+                            if int(entry.get("height", 0) or 0) == local_h
+                            and str(entry.get("state_root") or "").strip().lower()
+                            == local_root_hold.strip().lower()
+                        )
+                        if matching_hold < _min_mesh_peers:
+                            continue
+                        self._mesh_forge_hold_height = 0
+
+                    if not mesh_ready_for_mining(
+                        min_mesh_peers=_min_mesh_peers,
+                        connected_peers=connected,
+                        wire_roots=wire_roots,
+                        local_height=local_h,
+                        local_root=local_root,
+                        state_consistent=bool(getattr(self.p2p, "_state_consistent", False)),
+                        peer_heights=peer_heights,
+                    ):
+                        continue
 
             if self.sharding and hasattr(self.sharding, "process_cross_shard_transactions"):
                 try:

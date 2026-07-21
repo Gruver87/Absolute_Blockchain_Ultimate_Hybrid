@@ -460,6 +460,9 @@ class P2PNode:
         except OSError as e:
             print(f"[P2P] Could not bind port {self.config.p2p_port}: {e}")
             print("[P2P] Hint: stop other node — .\\scripts\\stop_node.ps1 — or use --port 5001")
+            # Bind failure must not leave the node advertised as running.
+            self._running = False
+            return
 
         # Подключаемся к bootstrap пирам
         for peer_addr in self.config.bootstrap_peers:

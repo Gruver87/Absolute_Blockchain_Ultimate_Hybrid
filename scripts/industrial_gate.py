@@ -458,12 +458,26 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("rocks_store must expose json_decode_failures for /metrics")
         if "Config-on ≠ actively forging under mesh gate" not in http_py:
             errors.append("eth_mining must gate on mesh_min_peers / state_consistent")
+        if 'checks["wire_probe_probed"]' not in http_py or 'checks["wire_probe_ok"]' not in http_py:
+            errors.append("/health/ready with peers must require wire_probe_probed/ok")
+        if '"degraded"' not in http_py or "peer_count > 0 and not state_consistent" not in http_py:
+            errors.append("/status must report degraded when peers + inconsistent")
+        if "Peers present with mesh_min=0" not in http_py:
+            errors.append("eth_mining must refuse when peers present and inconsistent (mesh_min=0)")
+        if 'getattr(p2p, "_server", None) is not None' not in http_py:
+            errors.append("/health/ready p2p_running must require bound _server")
     except Exception as exc:
         errors.append(f"fail-loud http inspect failed: {exc}")
     try:
         rocks_py = (ROOT / "storage" / "rocks_store.py").read_text(encoding="utf-8")
-        if rocks_py.count("self._json_decode_failures += 1") < 6:
-            errors.append("rocks_store list paths must bump json_decode_failures on corrupt rows")
+        if rocks_py.count("self._json_decode_failures += 1") < 10:
+            errors.append("rocks_store scan/reorg/list paths must bump json_decode_failures")
+        if "corrupt latest_block row skipped" not in rocks_py:
+            errors.append("rocks_store get_latest_blocks must warn on corrupt decode")
+        if "corrupt account row skipped" not in rocks_py:
+            errors.append("rocks_store get_all_accounts must warn on corrupt decode")
+        if "corrupt validator row skipped" not in rocks_py:
+            errors.append("rocks_store get_validators must warn on corrupt decode")
         if "corrupt proposer_audit row skipped" not in rocks_py:
             errors.append("rocks_store proposer_audit must warn on corrupt decode")
         if "corrupt bridge_lock row skipped" not in rocks_py:
@@ -509,6 +523,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("RPC CORS proxy must never echo first allowlist entry on miss")
         if "Production mode requires SyncEngine" not in main_py:
             errors.append("main.py must hard-fail SyncEngine init in production")
+        if "Peers present require consistency even when mesh_min_peers_before_mine=0" not in main_py:
+            errors.append("mining loop must gate consistency when peers present (mesh_min=0)")
     except Exception as exc:
         errors.append(f"fail-loud main CORS inspect failed: {exc}")
     try:
@@ -527,6 +543,13 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("topology_healthy must require state_consistent when peers present")
         if "Reconcile \"ok\" without a SyncEngine must not leave stale mesh-green" not in p2p_py:
             errors.append("reconcile_peers without SyncEngine must clear _state_consistent")
+        bind_idx = p2p_py.find("Could not bind port")
+        if bind_idx < 0:
+            errors.append("P2P start must log Could not bind port")
+        else:
+            bind_snip = p2p_py[bind_idx : bind_idx + 320]
+            if "self._running = False" not in bind_snip or "return" not in bind_snip:
+                errors.append("P2P bind failure must set _running=False and return")
     except Exception as exc:
         errors.append(f"fail-loud p2p inspect failed: {exc}")
     try:

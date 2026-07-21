@@ -633,16 +633,21 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             # Config-on ≠ actively forging under mesh gate.
             if not bool(getattr(cfg, "mining_enabled", False)):
                 return False
-            min_mesh = int(getattr(cfg, "mesh_min_peers_before_mine", 0) or 0)
-            if min_mesh > 0 and p2p is not None:
+            if p2p is not None:
                 peers = getattr(p2p, "peers", None) or {}
                 try:
                     connected = len(peers)
                 except Exception:
                     connected = 0
-                if connected < min_mesh:
-                    return False
-                if not bool(getattr(p2p, "_state_consistent", False)):
+                min_mesh = int(getattr(cfg, "mesh_min_peers_before_mine", 0) or 0)
+                consistent = bool(getattr(p2p, "_state_consistent", False))
+                if min_mesh > 0:
+                    if connected < min_mesh:
+                        return False
+                    if not consistent:
+                        return False
+                elif connected > 0 and not consistent:
+                    # Peers present with mesh_min=0: still refuse to claim mining while inconsistent.
                     return False
             return True
 
@@ -1096,7 +1101,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                     ),
                 }
                 if is_prod and p2p is not None:
-                    checks["p2p_running"] = bool(getattr(p2p, "_running", False))
+                    # Listener must exist — bind failure clears _running (fail-closed).
+                    checks["p2p_running"] = bool(getattr(p2p, "_running", False)) and (
+                        getattr(p2p, "_server", None) is not None
+                    )
                     # With peers, ready requires state consistency (solo may stay ready).
                     # peer_count() probe failure must not skip the consistency gate.
                     peer_count = 0
@@ -1119,6 +1127,25 @@ class RESTHandler(BaseHTTPRequestHandler):
                         checks["state_consistent"] = bool(
                             getattr(p2p, "_state_consistent", False)
                         )
+                        # Match eth_syncing: peers without a completed wire probe → not ready.
+                        se = getattr(self.__class__, "sync_engine", None) or getattr(
+                            p2p, "sync_engine", None
+                        )
+                        if se is not None and hasattr(se, "get_status"):
+                            try:
+                                st = se.get_status() or {}
+                            except Exception as exc:
+                                logger.warning(
+                                    "/health/ready sync_engine status failed: %s", exc
+                                )
+                                st = {}
+                            checks["wire_probe_probed"] = bool(
+                                st.get("wire_probe_probed")
+                            )
+                            checks["wire_probe_ok"] = bool(st.get("wire_probe_ok"))
+                        else:
+                            checks["wire_probe_probed"] = False
+                            checks["wire_probe_ok"] = False
                 ready = all(checks.values())
                 payload = {
                     "status": "ready" if ready else "not_ready",
@@ -1466,7 +1493,18 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "state_root_strict_p2p": bool(getattr(cfg, "state_root_strict_p2p", True)),
                 }
                 self._json({
-                    "status": "running",
+                    # Do not hard-code "running" while mesh is inconsistent or P2P is down.
+                    "status": (
+                        "degraded"
+                        if (
+                            (peer_count > 0 and not state_consistent)
+                            or (
+                                p2p is not None
+                                and not bool(getattr(p2p, "_running", False))
+                            )
+                        )
+                        else "running"
+                    ),
                     "node_version": cfg.node_version,
                     "network_name": cfg.network_name,
                     "chain_name": cfg.network_name,
