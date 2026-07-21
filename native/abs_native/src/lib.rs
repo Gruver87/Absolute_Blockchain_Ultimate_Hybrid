@@ -1,3 +1,8 @@
+// PyO3 false positives / intentional host-kernel surface under clippy -D warnings.
+#![allow(clippy::useless_conversion)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::type_complexity)]
+
 mod amount;
 mod consensus_select;
 mod evm_pure_runner;
@@ -105,7 +110,11 @@ fn merkle_proof_strings(items: &[String], target_index: usize) -> Vec<String> {
             layer.push(last);
         }
 
-        let sibling_index = if index % 2 == 0 { index + 1 } else { index - 1 };
+        let sibling_index = if index.is_multiple_of(2) {
+            index + 1
+        } else {
+            index - 1
+        };
         if sibling_index < layer.len() {
             proof.push(layer[sibling_index].clone());
         }
@@ -130,7 +139,7 @@ fn merkle_root_from_proof_string(item: &str, proof: &[String], target_index: usi
     let mut index = target_index;
 
     for sibling_hash in proof {
-        let combined = if index % 2 == 0 {
+        let combined = if index.is_multiple_of(2) {
             format!("{current_hash}{sibling_hash}")
         } else {
             format!("{sibling_hash}{current_hash}")
@@ -1089,10 +1098,10 @@ fn evm_memory_write_word(
     value: [u8; 32],
 ) -> PyResult<()> {
     let memory = unsafe { py_memory.as_bytes_mut() };
-    for i in 0..32 {
+    for (i, byte) in value.iter().enumerate() {
         let idx = offset + i;
         if idx < memory.len() {
-            memory[idx] = value[i];
+            memory[idx] = *byte;
         }
     }
     Ok(())
@@ -1132,7 +1141,7 @@ fn evm_read_push(bytecode: &[u8], pc: usize, n: usize) -> PyResult<[u8; 32]> {
 }
 
 fn evm_build_jumpdest_table_inner(bytecode: &[u8]) -> Vec<u8> {
-    let mut table = vec![0u8; (bytecode.len() + 7) / 8];
+    let mut table = vec![0u8; bytecode.len().div_ceil(8)];
     let mut pc = 0usize;
     while pc < bytecode.len() {
         let op = bytecode[pc];

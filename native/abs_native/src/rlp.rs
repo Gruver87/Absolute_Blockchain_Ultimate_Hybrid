@@ -15,7 +15,7 @@ fn int_to_bytes(value: u64) -> Vec<u8> {
         return Vec::new();
     }
     let bits = 64 - value.leading_zeros() as usize;
-    let len = (bits + 7) / 8;
+    let len = bits.div_ceil(8);
     value.to_be_bytes()[8 - len..].to_vec()
 }
 
@@ -33,7 +33,7 @@ fn py_integer_to_bytes(value: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
         return Ok(Vec::new());
     }
     let bit_length: usize = value.call_method0("bit_length")?.extract()?;
-    let length = (bit_length + 7) / 8;
+    let length = bit_length.div_ceil(8);
     let bytes: Vec<u8> = value.call_method1("to_bytes", (length, "big"))?.extract()?;
     Ok(bytes)
 }

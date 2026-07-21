@@ -14,20 +14,21 @@ pub(crate) const MAX_STATE_ENGINE_TXS: usize = 100_000;
 fn decimal_from_amount(amount: &str) -> PyResult<Decimal> {
     let trimmed = amount.trim();
     if trimmed.is_empty() {
-        return Err(pyo3::exceptions::PyValueError::new_err("invalid amount: empty"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "invalid amount: empty",
+        ));
     }
-    Decimal::from_str(trimmed).map_err(|e| {
-        pyo3::exceptions::PyValueError::new_err(format!("invalid amount: {e}"))
-    })
+    Decimal::from_str(trimmed)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("invalid amount: {e}")))
 }
 
 pub(crate) fn to_satoshi_inner(amount: &str) -> PyResult<i64> {
     let d = decimal_from_amount(amount)?;
     let scaled = d * Decimal::from(SATOSHI_MULTIPLIER);
     let truncated = scaled.round_dp_with_strategy(0, RoundingStrategy::ToZero);
-    truncated.to_i64().ok_or_else(|| {
-        pyo3::exceptions::PyValueError::new_err("amount out of i64 satoshi range")
-    })
+    truncated
+        .to_i64()
+        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("amount out of i64 satoshi range"))
 }
 
 pub(crate) fn apply_delta_satoshi_inner(current_sat: i64, delta_abs: &str) -> PyResult<i64> {
@@ -55,11 +56,7 @@ fn account_balance(acc: &Value) -> i64 {
 fn account_nonce(acc: &Value) -> i64 {
     acc.get("nonce")
         .and_then(|v| v.as_i64())
-        .or_else(|| {
-            acc.get("nonce")
-                .and_then(|v| v.as_u64())
-                .map(|u| u as i64)
-        })
+        .or_else(|| acc.get("nonce").and_then(|v| v.as_u64()).map(|u| u as i64))
         .unwrap_or(0)
 }
 
@@ -334,7 +331,10 @@ mod tests {
 
     #[test]
     fn apply_delta_never_negative() {
-        assert_eq!(apply_delta_satoshi_inner(1_000_000, "-0.25").unwrap(), 750_000);
+        assert_eq!(
+            apply_delta_satoshi_inner(1_000_000, "-0.25").unwrap(),
+            750_000
+        );
         assert_eq!(apply_delta_satoshi_inner(100, "-1").unwrap(), 0);
     }
 

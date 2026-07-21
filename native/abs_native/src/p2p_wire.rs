@@ -34,8 +34,7 @@ fn parse_p2p_wire_line_inner(
     if text.is_empty() {
         return Err("p2p_line_empty".to_string());
     }
-    let value: Value =
-        serde_json::from_str(text).map_err(|e| format!("p2p_json_invalid: {e}"))?;
+    let value: Value = serde_json::from_str(text).map_err(|e| format!("p2p_json_invalid: {e}"))?;
     let obj = value
         .as_object()
         .ok_or_else(|| "p2p_envelope_not_object".to_string())?;
@@ -193,16 +192,13 @@ fn json_i64(value: &Value) -> Option<i64> {
 }
 
 fn is_hex(s: &str) -> bool {
-    !s.is_empty() && s.len() % 2 == 0 && s.bytes().all(|b| b.is_ascii_hexdigit())
+    !s.is_empty() && s.len().is_multiple_of(2) && s.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 fn validate_status_inner(data: &Value) -> Option<(i64, String)> {
     let obj = data.as_object()?;
-    let height = obj
-        .get("height")
-        .and_then(json_i64)
-        .unwrap_or(0);
-    if height < 0 || height > MAX_P2P_HEIGHT {
+    let height = obj.get("height").and_then(json_i64).unwrap_or(0);
+    if !(0..=MAX_P2P_HEIGHT).contains(&height) {
         return None;
     }
     let head_hash = obj
@@ -235,7 +231,7 @@ fn validate_attestation_shape_inner(data: &Value) -> bool {
         let Some(height) = json_i64(h) else {
             return false;
         };
-        if height < 0 || height > MAX_P2P_HEIGHT {
+        if !(0..=MAX_P2P_HEIGHT).contains(&height) {
             return false;
         }
     }
@@ -243,7 +239,7 @@ fn validate_attestation_shape_inner(data: &Value) -> bool {
         let Some(slot) = json_i64(s) else {
             return false;
         };
-        if slot < 0 || slot > MAX_P2P_HEIGHT {
+        if !(0..=MAX_P2P_HEIGHT).contains(&slot) {
             return false;
         }
     }
@@ -261,10 +257,7 @@ fn validate_attestation_shape_inner(data: &Value) -> bool {
 }
 
 #[pyfunction]
-fn validate_p2p_status_payload(
-    py: Python<'_>,
-    data_json: String,
-) -> PyResult<Option<PyObject>> {
+fn validate_p2p_status_payload(py: Python<'_>, data_json: String) -> PyResult<Option<PyObject>> {
     let value: Value = match serde_json::from_str(&data_json) {
         Ok(v) => v,
         Err(_) => return Ok(None),
@@ -296,7 +289,7 @@ fn validate_block_announce_inner(data: &Value) -> Option<(i64, String)> {
         .or_else(|| obj.get("number"))
         .and_then(json_i64)
         .unwrap_or(0);
-    if height < 0 || height > MAX_P2P_HEIGHT {
+    if !(0..=MAX_P2P_HEIGHT).contains(&height) {
         return None;
     }
     let block_hash = obj
@@ -338,7 +331,7 @@ fn validate_block_announce_inner(data: &Value) -> Option<(i64, String)> {
 fn validate_state_root_request_inner(data: &Value) -> Option<i64> {
     let obj = data.as_object()?;
     let height = obj.get("height").and_then(json_i64).unwrap_or(0);
-    if height < 0 || height > MAX_P2P_HEIGHT {
+    if !(0..=MAX_P2P_HEIGHT).contains(&height) {
         return None;
     }
     Some(height)
@@ -347,7 +340,7 @@ fn validate_state_root_request_inner(data: &Value) -> Option<i64> {
 fn validate_state_root_response_inner(data: &Value) -> Option<(i64, String, String)> {
     let obj = data.as_object()?;
     let height = obj.get("height").and_then(json_i64).unwrap_or(0);
-    if height < 0 || height > MAX_P2P_HEIGHT {
+    if !(0..=MAX_P2P_HEIGHT).contains(&height) {
         return None;
     }
     let state_root = obj
@@ -372,10 +365,7 @@ fn validate_state_root_response_inner(data: &Value) -> Option<(i64, String, Stri
 }
 
 #[pyfunction]
-fn validate_p2p_block_announce(
-    py: Python<'_>,
-    data_json: String,
-) -> PyResult<Option<PyObject>> {
+fn validate_p2p_block_announce(py: Python<'_>, data_json: String) -> PyResult<Option<PyObject>> {
     let value: Value = match serde_json::from_str(&data_json) {
         Ok(v) => v,
         Err(_) => return Ok(None),
@@ -434,7 +424,7 @@ fn validate_handshake_inner(data: &Value) -> Option<(i64, i64, String, String, i
         return None;
     }
     let height = obj.get("height").and_then(json_i64).unwrap_or(0);
-    if height < 0 || height > MAX_P2P_HEIGHT {
+    if !(0..=MAX_P2P_HEIGHT).contains(&height) {
         return None;
     }
     let head_hash = obj
@@ -465,7 +455,7 @@ fn validate_handshake_inner(data: &Value) -> Option<(i64, i64, String, String, i
         }
     }
     let p2p_port = obj.get("p2p_port").and_then(json_i64).unwrap_or(0);
-    if p2p_port < 0 || p2p_port > MAX_P2P_PORT {
+    if !(0..=MAX_P2P_PORT).contains(&p2p_port) {
         return None;
     }
     Some((chain_id, height, head_hash, node_id, p2p_port, true))
@@ -478,7 +468,10 @@ fn validate_get_blocks_inner(data: &Value) -> Option<(i64, i64)> {
         .get("to_height")
         .and_then(json_i64)
         .unwrap_or(from_height);
-    if from_height < 0 || to_height < 0 || from_height > MAX_P2P_HEIGHT || to_height > MAX_P2P_HEIGHT
+    if from_height < 0
+        || to_height < 0
+        || from_height > MAX_P2P_HEIGHT
+        || to_height > MAX_P2P_HEIGHT
     {
         return None;
     }
@@ -524,7 +517,7 @@ fn validate_wire_tx_inner(data: &Value) -> bool {
         let Some(g) = json_i64(gas) else {
             return false;
         };
-        if g < 0 || g > 50_000_000 {
+        if !(0..=50_000_000).contains(&g) {
             return false;
         }
     }
@@ -578,10 +571,7 @@ fn validate_mempool_batch_inner(data: &Value) -> Option<usize> {
 }
 
 #[pyfunction]
-fn validate_p2p_handshake_payload(
-    py: Python<'_>,
-    data_json: String,
-) -> PyResult<Option<PyObject>> {
+fn validate_p2p_handshake_payload(py: Python<'_>, data_json: String) -> PyResult<Option<PyObject>> {
     let value: Value = match serde_json::from_str(&data_json) {
         Ok(v) => v,
         Err(_) => return Ok(None),
@@ -659,7 +649,7 @@ fn validate_validator_register_inner(data: &Value) -> Option<(String, f64, Strin
         None => 0.0,
         _ => return None,
     };
-    if !stake.is_finite() || stake < 0.0 || stake > MAX_STAKE {
+    if !stake.is_finite() || !(0.0..=MAX_STAKE).contains(&stake) {
         return None;
     }
     let node_id = obj
@@ -685,16 +675,12 @@ fn validate_peers_list_inner(data: &Value) -> Option<Vec<String>> {
         if s.is_empty() || s.len() > MAX_P2P_PEER_ADDR_LEN {
             return None;
         }
-        let Some((host, port_s)) = s.rsplit_once(':') else {
-            return None;
-        };
+        let (host, port_s) = s.rsplit_once(':')?;
         if host.is_empty() {
             return None;
         }
-        let Ok(port) = port_s.parse::<i64>() else {
-            return None;
-        };
-        if port <= 0 || port > MAX_P2P_PORT {
+        let port = port_s.parse::<i64>().ok()?;
+        if !(1..=MAX_P2P_PORT).contains(&port) {
             return None;
         }
         out.push(s.to_string());
@@ -706,7 +692,7 @@ fn validate_get_block_inner(data: &Value) -> Option<i64> {
     match data {
         Value::Number(_) | Value::String(_) => {
             let h = json_i64(data)?;
-            if h < 0 || h > MAX_P2P_HEIGHT {
+            if !(0..=MAX_P2P_HEIGHT).contains(&h) {
                 return None;
             }
             Some(h)
@@ -716,7 +702,7 @@ fn validate_get_block_inner(data: &Value) -> Option<i64> {
                 .get("height")
                 .or_else(|| obj.get("number"))
                 .and_then(json_i64)?;
-            if h < 0 || h > MAX_P2P_HEIGHT {
+            if !(0..=MAX_P2P_HEIGHT).contains(&h) {
                 return None;
             }
             Some(h)
@@ -748,9 +734,7 @@ fn validate_blocks_batch_inner(data: &Value) -> Option<usize> {
         return None;
     }
     for block in arr {
-        if validate_block_announce_inner(block).is_none() {
-            return None;
-        }
+        validate_block_announce_inner(block)?;
     }
     Some(arr.len())
 }
@@ -825,7 +809,7 @@ fn json_f64_amount(value: &Value) -> Option<f64> {
 
 fn json_shard_id(value: &Value) -> Option<i64> {
     let id = json_i64(value)?;
-    if id < 0 || id > MAX_SHARD_ID {
+    if !(0..=MAX_SHARD_ID).contains(&id) {
         return None;
     }
     Some(id)

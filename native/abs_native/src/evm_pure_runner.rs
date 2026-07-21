@@ -592,7 +592,7 @@ fn evm_memory_active_bytes(len: usize) -> usize {
     if len == 0 {
         0
     } else {
-        ((len + 31) / 32) * 32
+        len.div_ceil(32) * 32
     }
 }
 
@@ -601,7 +601,7 @@ fn gas_cost(op: u8) -> u64 {
         0x00 => 0,
         0x01 | 0x03 => 3,
         0x02 => 5,
-        0x04 | 0x05 | 0x06 | 0x07 => 5,
+        0x04..=0x07 => 5,
         0x08 => 8,
         0x09 => 8,
         0x0A => 10,
@@ -613,7 +613,7 @@ fn gas_cost(op: u8) -> u64 {
         0x36 | 0x3D => 2,
         0x38 => 2,
         0x50 => 2,
-        0x51 | 0x52 | 0x53 => 3,
+        0x51..=0x53 => 3,
         0x56 => 8,
         0x57 => 10,
         0x5A | 0x5F | 0x58 | 0x59 => 2,
@@ -677,7 +677,7 @@ fn stack_dup(stack: &mut Vec<U256>, depth: usize) -> PyResult<()> {
     Ok(())
 }
 
-fn stack_swap(stack: &mut Vec<U256>, depth: usize) -> PyResult<()> {
+fn stack_swap(stack: &mut [U256], depth: usize) -> PyResult<()> {
     if depth == 0 || depth >= stack.len() {
         return Err(pyo3::exceptions::PyRuntimeError::new_err("stack_underflow"));
     }
@@ -1247,7 +1247,7 @@ fn run_pure_segment_inner(
                     let length = stack_pop(&mut stack)?.as_usize();
                     let src = stack_pop(&mut stack)?.as_usize();
                     let dest = stack_pop(&mut stack)?.as_usize();
-                    let words = ((length + 31) / 32) as u64;
+                    let words = length.div_ceil(32) as u64;
                     if consume_gas(&mut gas_used, gas_limit, 3 * words).is_err() {
                         running = false;
                     } else {
@@ -1396,9 +1396,7 @@ fn run_pure_segment_inner(
         pc += 1;
     }
 
-    let stop_reason = if handoff {
-        "handoff"
-    } else if steps >= max_steps && running {
+    let stop_reason = if handoff || (steps >= max_steps && running) {
         "handoff"
     } else if pc < bytecode.len() && opcode_stops_segment(bytecode[pc], host_context, host_bridge) {
         "host"

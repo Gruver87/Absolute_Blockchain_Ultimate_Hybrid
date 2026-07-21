@@ -126,8 +126,10 @@ fn validator_selection_proposer(
     }
     let mut ranked = rows;
     ranked.sort_by(|left, right| {
-        let left_key = validator_hash_rank_key(&seed, epoch, &["proposer", &slot.to_string(), &left.0]);
-        let right_key = validator_hash_rank_key(&seed, epoch, &["proposer", &slot.to_string(), &right.0]);
+        let left_key =
+            validator_hash_rank_key(&seed, epoch, &["proposer", &slot.to_string(), &left.0]);
+        let right_key =
+            validator_hash_rank_key(&seed, epoch, &["proposer", &slot.to_string(), &right.0]);
         left_key.cmp(&right_key)
     });
     Ok(Some(ranked[0].0.clone()))

@@ -64,6 +64,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `validate_p2p_validator_register` / `peers_list` / `get_block` / `get_block_by_hash` / `blocks_batch` — peer discovery & sync fetch gates
 - [x] `validate_p2p_cross_shard_tx` / `cross_shard_ack` / `shard_migration` — distributed sharding gossip gates
 
+### Priority 4d — Rust CI hygiene ✅
+
+- [x] `abs_native` clippy `-D warnings` clean (crate allows for PyO3 false positives; mechanical lint fixes)
+- [x] `rust_bridge` clippy `-D warnings` clean
+- [x] `cargo fmt --check` clean for both crates (CI `test.yml`)
+
 ### Priority 4b — Consensus selection kernels ✅
 
 - [x] `consensus_stake_weighted_proposer` / `consensus_fisher_yates_committee`
