@@ -99,6 +99,9 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
     ):
         if needle not in metrics_src:
             errors.append(f"metrics.py missing Prometheus series: {needle}")
+    for needle in ("maintenance_loop_fail", "catch_up_loop_fail", "strike %s/%s"):
+        if needle not in p2p_mod:
+            errors.append(f"p2p_node.py missing industrial surface: {needle}")
     alerts_src = (ROOT / "deploy" / "prometheus" / "alerts.yml").read_text(encoding="utf-8")
     for needle in (
         "abs_p2p_shape_rejects_total",
@@ -106,6 +109,7 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "abs_p2p_peer_send_fail_total",
         "abs_p2p_handshake_rejects_total",
         "abs_p2p_ops_errors",
+        "abs_p2p_attestation_local_fail_total",
         "abs_rocksdb_block_cache_mb",
     ):
         if needle not in alerts_src:
@@ -115,6 +119,7 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "abs_p2p_peer_send_fail_total",
         "abs_p2p_ops_errors",
         "mid_session_handshake",
+        "abs_p2p_attestation_local_fail_total",
     ):
         if needle not in dash_src:
             errors.append(f"grafana dashboard.json missing panel surface: {needle}")
@@ -145,6 +150,9 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "rocksdb_column_families",
         "bridge_enabled",
         "require_native_crypto",
+        "state_root_legacy_cutoff_height",
+        "rust_bridge_path",
+        "bridge_auto_confirm_sec",
     )
     for rel in prod_json_files:
         path = ROOT / rel
@@ -533,15 +541,40 @@ def _check_native_wheel() -> tuple[list[str], list[str]]:
 
 
 def _check_rust_bridge_binary() -> tuple[list[str], list[str]]:
-    """Smoke-test abs_bridge_bin when present (optional warning if missing)."""
+    """Smoke-test abs_bridge_bin when present; require if any live prod JSON enables bridge."""
     errors: list[str] = []
     warnings: list[str] = []
     from runtime.config import Config
 
+    bridge_required = False
+    for rel in (
+        "docker/node.prod.mesh1.json",
+        "docker/node.prod.mesh2.json",
+        "docker/node.prod.mesh3.json",
+        "docker/node.prod.json",
+        "deploy/k8s/node.prod.k8s.json",
+        "node.prod.example.json",
+        "node.prod.mainnet-v1.example.json",
+    ):
+        path = ROOT / rel
+        if not path.is_file():
+            continue
+        try:
+            cfg_json = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if cfg_json.get("bridge_enabled") is True:
+            bridge_required = True
+            break
+
     cfg = Config()
     path = cfg.resolve_rust_bridge_path()
     if not path or not __import__("os").path.isfile(path):
-        warnings.append(f"abs_bridge_bin missing: {path or '(unset)'}")
+        msg = f"abs_bridge_bin missing: {path or '(unset)'}"
+        if bridge_required:
+            errors.append(msg + " (required while prod JSON has bridge_enabled=true)")
+        else:
+            warnings.append(msg + " (OK while bridge OFF)")
         return errors, warnings
     from bridge.health import check_rust_bridge_binary
 

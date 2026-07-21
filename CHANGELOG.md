@@ -6,6 +6,18 @@
 
 ---
 
+## [1.3.09] — 2026-07-21
+
+### Hardened — Pre-ban strike logs, loop honesty, k8s embed freeze
+
+- `_strike_peer_sync` warns on every pre-ban strike (`strike N/M`)
+- `_catch_up_loop` STATUS send return → `peer_status_send_fail`; maintenance/catch_up fails → warning + ops counters
+- `k8s_prod_gate`: embedded ConfigMap JSON ≡ `node.prod.k8s.json`
+- industrial_gate shared_keys + `state_root_legacy` / `rust_bridge_path`; bridge bin required only if bridge ON
+- Alert/panel: `abs_p2p_attestation_local_fail_total`
+
+---
+
 ## [1.3.08] — 2026-07-21
 
 ### Hardened — Swiss-watch ops honesty, JSON parity, EVM native fail-closed

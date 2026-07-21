@@ -300,6 +300,8 @@ class P2PNode:
         self._peer_connect_task_fail: int = 0
         self._peer_status_send_fail: int = 0
         self._peer_send_fail: int = 0
+        self._maintenance_loop_fail: int = 0
+        self._catch_up_loop_fail: int = 0
         self._shape_reject_counts: Dict[str, int] = {}
         self._consensus = None
         self.validator_keys = None
@@ -729,6 +731,13 @@ class P2PNode:
         self._peer_strikes[key] = strikes
         max_strikes = int(getattr(self.config, "p2p_rate_limit_strikes", 5) or 5)
         if strikes < max_strikes:
+            logger.warning(
+                "[P2P] strike %s/%s for %s (%s)",
+                strikes,
+                max_strikes,
+                key,
+                reason_key,
+            )
             return False
         ban_sec = int(getattr(self.config, "p2p_ban_seconds", 300) or 300)
         self._peer_bans[key] = time.time() + max(30, ban_sec)
@@ -2049,7 +2058,8 @@ class P2PNode:
                     if key not in active_keys:
                         self._peer_strikes.pop(key, None)
             except Exception as exc:
-                logger.debug("[P2P] maintenance_loop: %s", exc)
+                self._maintenance_loop_fail = int(self._maintenance_loop_fail or 0) + 1
+                logger.warning("[P2P] maintenance_loop: %s", exc)
 
     async def _catch_up_loop(self):
         """Периодически догоняем пиров с большей высотой."""
@@ -2062,9 +2072,11 @@ class P2PNode:
                     "head_hash": self.head() or "",
                 }
                 for peer in list(self.peers.values()):
-                    try:
-                        await peer.send(MSG_STATUS, our_status)
-                    except Exception:
+                    ok_send = await peer.send(MSG_STATUS, our_status)
+                    if not ok_send:
+                        self._peer_status_send_fail = int(
+                            self._peer_status_send_fail or 0
+                        ) + 1
                         continue
                     if peer.height > our_height:
                         asyncio.create_task(self._sync_with_peer_safe(peer))
@@ -2083,7 +2095,8 @@ class P2PNode:
                                     exc,
                                 )
             except Exception as exc:
-                logger.debug(f"[P2P] catch_up_loop: {exc}")
+                self._catch_up_loop_fail = int(self._catch_up_loop_fail or 0) + 1
+                logger.warning("[P2P] catch_up_loop: %s", exc)
 
     async def _solo_node_hint(self):
         """One-time hint when running without peers (normal for solo dev)."""
@@ -2231,6 +2244,8 @@ class P2PNode:
                 "peer_connect_task_fail": int(self._peer_connect_task_fail),
                 "peer_status_send_fail": int(self._peer_status_send_fail),
                 "peer_send_fail": int(self._peer_send_fail),
+                "maintenance_loop_fail": int(self._maintenance_loop_fail),
+                "catch_up_loop_fail": int(self._catch_up_loop_fail),
             },
             "rate_limit_exempt_types": len(RATE_LIMIT_EXEMPT_TYPES),
             "tls": p2p_tls_status(self.config),

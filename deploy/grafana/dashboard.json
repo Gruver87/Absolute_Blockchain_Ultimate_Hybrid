@@ -162,6 +162,13 @@
           "legendFormat": "{{node_id}}"
         }
       ]
+    },
+    {
+      "id": 21,
+      "title": "Attestation Local Sign Failures",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 52},
+      "targets": [{"expr": "abs_p2p_attestation_local_fail_total"}]
     }
   ]
 }

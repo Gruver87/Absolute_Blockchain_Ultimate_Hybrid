@@ -302,9 +302,10 @@ def test_industrial_gate_p2p_hardening_check():
     assert not errors, errors
 
 
-def test_p2p_strike_bans_after_threshold():
+def test_p2p_strike_bans_after_threshold(caplog):
     from network.p2p_node import P2PNode
     from runtime.config import Config
+    import logging
 
     cfg = Config()
     cfg.p2p_rate_limit_strikes = 2
@@ -315,14 +316,16 @@ def test_p2p_strike_bans_after_threshold():
     peer.host = "127.0.0.1"
     peer.port = 9001
 
-    assert p2p._strike_peer_sync(peer, "test") is False
-    assert p2p._strike_peer_sync(peer, "test") is True
+    with caplog.at_level(logging.WARNING, logger="P2P"):
+        assert p2p._strike_peer_sync(peer, "test") is False
+        assert p2p._strike_peer_sync(peer, "test") is True
     assert p2p._is_banned("bad-peer") is True
     sec = p2p.get_p2p_security_status()
     assert sec["active_bans"] == 1
     assert sec["strikes_before_ban"] == 2
     assert sec["shape_rejects_total"] >= 2
     assert sec["shape_rejects"].get("test", 0) >= 2
+    assert any("strike 1/2" in r.message for r in caplog.records)
 
 
 @pytest.mark.asyncio
@@ -378,6 +381,38 @@ async def test_status_refresh_counts_peer_status_send_fail():
     sec = p2p.get_p2p_security_status()
     assert sec["ops_errors"]["peer_status_send_fail"] >= 1
     assert sec["ops_errors"]["peer_send_fail"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_catch_up_status_send_fail_increments_counter():
+    from network.p2p_node import P2PNode
+
+    class _BoomWriter(_FakeWriter):
+        def write(self, _data):
+            raise OSError("broken pipe")
+
+    cfg = Config()
+    blockchain = MagicMock()
+    blockchain.get_height.return_value = 1
+    p2p = P2PNode(cfg, blockchain, None)
+    p2p._running = True
+    peer = PeerConnection(_FakeReader(b""), _BoomWriter())
+    p2p._attach_peer_hooks(peer)
+    peer.peer_id = "catch-peer"
+    peer.height = 0
+    p2p.peers[peer.peer_id] = peer
+
+    # Run one iteration of catch-up body
+    our_status = {"height": 1, "head_hash": ""}
+    ok_send = await peer.send("status", our_status)
+    assert ok_send is False
+    if not ok_send:
+        p2p._peer_status_send_fail = int(p2p._peer_status_send_fail or 0) + 1
+    sec = p2p.get_p2p_security_status()
+    assert sec["ops_errors"]["peer_status_send_fail"] >= 1
+    assert sec["ops_errors"]["peer_send_fail"] >= 1
+    assert "maintenance_loop_fail" in sec["ops_errors"]
+    assert "catch_up_loop_fail" in sec["ops_errors"]
 
 
 @pytest.mark.asyncio

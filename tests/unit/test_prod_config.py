@@ -398,6 +398,8 @@ def test_prometheus_alerts_include_rust_bridge_readiness():
     assert "abs_p2p_peer_send_fail_total" in alerts
     assert "AbsoluteP2POpsErrorsBurst" in alerts
     assert "abs_p2p_ops_errors" in alerts
+    assert "AbsoluteP2PAttestationLocalFailBurst" in alerts
+    assert "abs_p2p_attestation_local_fail_total" in alerts
     assert "AbsoluteRocksBlockCacheUnset" in alerts
     assert "abs_rocksdb_block_cache_mb" in alerts
     dash = (root / "deploy" / "grafana" / "dashboard.json").read_text(encoding="utf-8")
@@ -407,6 +409,7 @@ def test_prometheus_alerts_include_rust_bridge_readiness():
     assert "abs_p2p_peer_send_fail_total" in dash
     assert "abs_p2p_ops_errors" in dash
     assert "mid_session_handshake" in dash
+    assert "abs_p2p_attestation_local_fail_total" in dash
     assert "abs_rocksdb_column_families" in dash
     env_ex = (root / ".env.example").read_text(encoding="utf-8")
     assert "P2P_MAX_MESSAGES_PER_SEC" in env_ex

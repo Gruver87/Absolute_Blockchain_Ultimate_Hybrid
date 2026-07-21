@@ -110,9 +110,47 @@ def main() -> int:
             "redis_rate_limit_enabled",
             "redis_url",
             "p2p_tls_cert_path",
+            "rust_bridge_path",
+            "state_root_legacy_cutoff_height",
         ):
             if key not in cm_json_blob:
                 errors.append(f"configmap.yaml: embedded node JSON missing {key}")
+        # Freeze embedded JSON == deploy/k8s/node.prod.k8s.json (key/value).
+        brace = cm.find("{", cm_json_start)
+        if brace < 0:
+            errors.append("configmap.yaml: embedded JSON object missing")
+        else:
+            depth = 0
+            end = None
+            for idx, ch in enumerate(cm[brace:]):
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end = brace + idx + 1
+                        break
+            if end is None:
+                errors.append("configmap.yaml: embedded JSON not closed")
+            else:
+                try:
+                    embedded = json.loads(cm[brace:end])
+                    file_cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+                    if embedded != file_cfg:
+                        only_file = sorted(set(file_cfg) - set(embedded))
+                        only_emb = sorted(set(embedded) - set(file_cfg))
+                        diffs = sorted(
+                            k
+                            for k in set(file_cfg) & set(embedded)
+                            if file_cfg[k] != embedded[k]
+                        )
+                        errors.append(
+                            "configmap.yaml embedded JSON != node.prod.k8s.json "
+                            f"(only_file={only_file[:8]} only_emb={only_emb[:8]} "
+                            f"diffs={diffs[:8]})"
+                        )
+                except (OSError, json.JSONDecodeError, TypeError) as exc:
+                    errors.append(f"configmap.yaml embedded JSON parse failed: {exc}")
 
     entry = (K8S / "entrypoint.sh").read_text(encoding="utf-8")
     if "p2p_tls_secrets" not in entry:

@@ -8,9 +8,9 @@
 This document is the honest engineering checklist after a full repository scan.  
 Automated gates (`mainnet_readiness`, `prod_gate`, `industrial_gate`, `post_soak_verify`) enforce code-level fail-closed rules; **they do not replace** external audit, validator operations, or legal review.
 
-**Recent code hardening (v1.3.03–v1.3.08, not organizational proof):** P2P shape/rate-limit/ops_errors Prometheus metrics + alerts; ceremony dir auto-detect; RocksDB tuning env/JSON parity (CF remains **operator opt-in**, default false); wire-parse/rate-limit/housekeeping/mid-session-handshake rejects strike with warning logs; CI `final_audit` blocking; honest `peer_status_send_fail`; EVM CREATE native fail-closed; `.env.example` bridge default OFF.
+**Recent code hardening (v1.3.03–v1.3.09, not organizational proof):** P2P shape/rate-limit/ops_errors Prometheus metrics + alerts; ceremony dir auto-detect; RocksDB tuning env/JSON parity (CF remains **operator opt-in**, default false); wire-parse/rate-limit/housekeeping/mid-session-handshake rejects strike with pre-ban warning logs; CI `final_audit` blocking; honest send/status fail counters; k8s ConfigMap embed freeze; EVM CREATE native fail-closed; `.env.example` bridge default OFF.
 
-**Gate honesty:** `industrial_gate` exit 0 with warnings is normal for ceremony placeholders + external audit pending. Use `--fail-on-warnings` only for release cutovers that already completed those org steps. Prod JSON with `p2p_max_messages_per_sec <= 0` or `bridge_enabled: true` is a **hard error**.
+**Gate honesty:** `industrial_gate` exit 0 with warnings is normal for ceremony placeholders + external audit pending + missing `abs_bridge_bin` while bridge OFF. Use `--fail-on-warnings` only for release cutovers that already completed those org steps.
 
 ---
 
