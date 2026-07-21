@@ -286,11 +286,15 @@ def _rust_bridge_health(cfg) -> Dict:
         "enabled": enabled,
         "mode": mode,
         "required": required,
-        "ok": True,
+        "ok": False,
         "path": "",
         "error": "",
     }
-    if not enabled or mode != "rust":
+    if not enabled:
+        out["error"] = "bridge_disabled"
+        return out
+    if mode != "rust":
+        out["error"] = f"mode={mode}"
         return out
 
     try:
@@ -1080,13 +1084,24 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if is_prod and p2p is not None:
                     checks["p2p_running"] = bool(getattr(p2p, "_running", False))
                     # With peers, ready requires state consistency (solo may stay ready).
+                    # peer_count() probe failure must not skip the consistency gate.
                     peer_count = 0
+                    peer_count_probe_ok = True
                     if hasattr(p2p, "peer_count"):
                         try:
                             peer_count = int(p2p.peer_count() or 0)
-                        except Exception:
+                        except Exception as exc:
+                            peer_count_probe_ok = False
                             peer_count = 0
-                    if peer_count > 0:
+                            logger.warning(
+                                "/health/ready peer_count probe failed: %s", exc
+                            )
+                    if not peer_count_probe_ok:
+                        checks["peer_count_probe"] = False
+                        checks["state_consistent"] = bool(
+                            getattr(p2p, "_state_consistent", False)
+                        )
+                    elif peer_count > 0:
                         checks["state_consistent"] = bool(
                             getattr(p2p, "_state_consistent", False)
                         )
@@ -1507,7 +1522,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                         ),
                         "bridge_l1_queue": bool(getattr(cfg, "bridge_l1_queue_path", "")),
                         "bridge2_rust_path": bool(getattr(self.__class__, "bridge", None)),
-                        "bridge_relayer_live": bool(cfg.bridge_enabled),
+                        # Config-on ≠ live: require rust bridge smoke (and L1 when required).
+                        "bridge_relayer_live": bool(
+                            cfg.bridge_enabled
+                            and getattr(cfg, "bridge_mode", "") == "rust"
+                            and bool(bridge_health.get("ok"))
+                        ),
                         "bridge_ci_l1_rpc": bool(
                             os.environ.get("ETH_RPC_URL", "")
                             or os.environ.get("ETHEREUM_RPC_URL", "")

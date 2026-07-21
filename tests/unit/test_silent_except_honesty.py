@@ -32,7 +32,7 @@ def test_sync_state_logs_wire_probe_failure(capsys):
 
 
 def test_sync_state_solo_keeps_never_probed():
-    """Solo / no peers must leave wire_probe as never-probed (None), not probed-ok."""
+    """Solo / no peers must leave wire_probe as never-probed and clear consistency."""
     node = SimpleNamespace(
         blockchain=SimpleNamespace(
             get_state_root=lambda: "abc",
@@ -44,11 +44,35 @@ def test_sync_state_solo_keeps_never_probed():
     eng = SyncEngine(node)
     eng._collect_p2p_peers = lambda: []  # type: ignore
     ok = eng.sync_state()
-    assert ok is True
+    assert ok is False
     assert eng._last_wire_probe_ok is None
+    assert node.p2p._state_consistent is False
     st = eng.get_status()
     assert st.get("wire_probe_probed") is False
     assert st.get("wire_probe_ok") is False
+
+
+def test_sync_state_peers_behind_no_same_height_match_fail_closed(capsys):
+    """Peers all behind (or empty same-height roots) must not paint green."""
+    peer = SimpleNamespace(peer_id="peer1", height=0)
+    node = SimpleNamespace(
+        blockchain=SimpleNamespace(
+            get_state_root=lambda: "abc",
+            get_height=lambda: 5,
+            get_block=lambda _h: None,
+        ),
+        request_peer_state_roots_sync=MagicMock(
+            return_value=[{"peer_id": "peer1", "height": 3, "state_root": "abc"}]
+        ),
+        p2p=SimpleNamespace(_state_consistent=True),
+    )
+    eng = SyncEngine(node)
+    eng._collect_p2p_peers = lambda: [peer]  # type: ignore
+    ok = eng.sync_state()
+    captured = capsys.readouterr()
+    assert ok is False
+    assert "same-height" in captured.out.lower()
+    assert node.p2p._state_consistent is False
 
 
 def test_sync_state_empty_probe_with_peers_fail_closed(capsys):

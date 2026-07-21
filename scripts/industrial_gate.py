@@ -440,16 +440,46 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             )
         if 'if peer_count > 0:' not in http_py or 'checks["state_consistent"]' not in http_py:
             errors.append("/health/ready with peers must require state_consistent")
+        if 'checks["peer_count_probe"] = False' not in http_py:
+            errors.append("/health/ready peer_count probe failure must fail-closed")
         if 'p2p_fallback' not in http_py or "SyncEngine missing" not in http_py:
             errors.append("p2p_fallback sync status must fail-closed when SyncEngine missing")
         if "Database._normalize_tx_status(tx.get(\"status\"))" not in http_py:
             errors.append("receipt format must normalize omitted status fail-closed to 0")
+        if '"bridge_relayer_live": bool(cfg.bridge_enabled)' in http_py:
+            errors.append("bridge_relayer_live must not equal bridge_enabled alone")
+        if 'and bool(bridge_health.get("ok"))' not in http_py:
+            errors.append("bridge_relayer_live must require rust bridge health ok")
+        if 'out["error"] = "bridge_disabled"' not in http_py:
+            errors.append("_rust_bridge_health must fail-closed when bridge disabled")
         if "json_decode_failures" not in (
             ROOT / "storage" / "rocks_store.py"
         ).read_text(encoding="utf-8"):
             errors.append("rocks_store must expose json_decode_failures for /metrics")
     except Exception as exc:
         errors.append(f"fail-loud http inspect failed: {exc}")
+    try:
+        sync_py = (ROOT / "sync" / "sync_engine.py").read_text(encoding="utf-8")
+        if "Solo / no peers — wire probe deferred (never-probed), fail-closed" not in sync_py:
+            errors.append("sync_state solo must fail-closed and clear consistency")
+        if "No same-height peer root match — fail-closed" not in sync_py:
+            errors.append("sync_state must require same-height peer root match before True")
+    except Exception as exc:
+        errors.append(f"fail-loud sync_engine inspect failed: {exc}")
+    try:
+        mesh_py = (ROOT / "runtime" / "mesh_mining.py").read_text(encoding="utf-8")
+        if "return bool(state_consistent)" not in mesh_py:
+            errors.append("mesh_ready_for_mining peer_heights path must gate on state_consistent")
+        if "state_consistent: bool = False" not in mesh_py:
+            errors.append("mesh_ready_for_mining state_consistent default must be False")
+    except Exception as exc:
+        errors.append(f"fail-loud mesh_mining inspect failed: {exc}")
+    try:
+        bridge_health_py = (ROOT / "bridge" / "health.py").read_text(encoding="utf-8")
+        if '"ok": False' not in bridge_health_py or "no L1 RPC URLs configured" not in bridge_health_py:
+            errors.append("L1 health must default ok=False when unconfigured")
+    except Exception as exc:
+        errors.append(f"fail-loud bridge health inspect failed: {exc}")
     try:
         main_py = (ROOT / "main.py").read_text(encoding="utf-8")
         if "never echo first allowlist entry" not in main_py:

@@ -308,14 +308,13 @@ class SyncEngine:
         peers = self._collect_p2p_peers()
 
         # Solo / no peers: never claim a wire probe completed, and do not use an
-        # empty peer set as evidence that tip roots match the mesh.
+        # empty peer set as evidence that tip roots match the mesh. Clear any
+        # prior mesh-green flag so readiness/mining cannot keep a stale True.
         if not peers:
-            print("   Solo / no peers — wire probe deferred (never-probed)")
-            # Prior successful mesh probe is no longer valid without peers.
-            if self._last_wire_probe_ok is True:
-                self._last_wire_probe_ok = None
-            # Leave _last_wire_probe_ok as None (never / no longer probed).
-            return True
+            print("   Solo / no peers — wire probe deferred (never-probed), fail-closed")
+            self._last_wire_probe_ok = None
+            self._set_state_consistent(False)
+            return False
 
         if not hasattr(self.node, "request_peer_state_roots_sync"):
             print(
@@ -349,15 +348,19 @@ class SyncEngine:
             self._set_state_consistent(False)
             return False
 
+        same_height_match = False
         for entry in wire_roots:
             peer_root = entry.get("state_root", "")
             peer_h = int(entry.get("height", 0) or 0)
             if peer_h < local_height:
                 continue
-            if peer_h == local_height and peer_root and peer_root != local_root:
-                mismatches.append(entry.get("peer_id", "peer")[:8])
+            if peer_h == local_height and peer_root:
+                if peer_root != local_root:
+                    mismatches.append(entry.get("peer_id", "peer")[:8])
+                else:
+                    same_height_match = True
 
-        # Peer still catching up — not a root mismatch.
+        # Peer still catching up — not a root mismatch; only same-height tips count.
         for peer in peers:
             peer_height = int(getattr(peer, "height", 0) or 0)
             if peer_height != local_height:
@@ -366,13 +369,26 @@ class SyncEngine:
             if not blk:
                 continue
             tip_root = blk.get("state_root", "")
-            if tip_root and tip_root != local_root:
-                pid = getattr(peer, "peer_id", "peer")[:8]
+            if not tip_root:
+                continue
+            pid = getattr(peer, "peer_id", "peer")[:8]
+            if tip_root != local_root:
                 if pid not in mismatches:
                     mismatches.append(pid)
+            else:
+                same_height_match = True
 
         if mismatches:
             print(f"   State root mismatch vs peers: {', '.join(mismatches)}")
+            self._set_state_consistent(False)
+            return False
+
+        # Peers all behind (or empty roots) must not paint green without proof.
+        if not same_height_match:
+            print(
+                "   No same-height peer root match — fail-closed "
+                f"(local height={local_height})"
+            )
             self._set_state_consistent(False)
             return False
 

@@ -45,7 +45,8 @@ def test_l1_rpc_health_without_urls(monkeypatch):
         monkeypatch.delenv(key, raising=False)
     out = health.check_l1_rpc_health()
     assert out["configured"] is False
-    assert out["ok"] is True
+    assert out["ok"] is False
+    assert out["error"] == "no L1 RPC URLs configured"
 
 
 def test_l1_rpc_health_probes_when_enabled(monkeypatch):

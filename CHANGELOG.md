@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.21] — 2026-07-21
+
+### Hardened — sync_state / mesh / bridge-L1 / ready peer_count honesty
+
+- Solo sync_state clears consistency and returns False; same-height peer root required before True
+- Mesh mining STATUS path gates on state_consistent; bridge_relayer_live needs rust smoke
+- L1 unconfigured / bridge disabled → ok=False; ready peer_count probe failure fail-closed
+
+---
+
 ## [1.3.20] — 2026-07-21
 
 ### Hardened — Proxy CORS, receipt omit→0, ready/sync honesty

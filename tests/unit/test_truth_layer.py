@@ -25,6 +25,11 @@ class _FakeBC:
     def get_state_root(self):
         return "abc123" * 8
 
+    def get_block(self, height):
+        if int(height) == 10:
+            return {"state_root": "abc123" * 8}
+        return None
+
 
 class _FakeP2P:
     _state_consistent = True
@@ -211,13 +216,17 @@ def test_attestations_by_block_aggregate():
 
 
 def test_sync_state_wire_protocol():
+    from types import SimpleNamespace
     from sync.sync_engine import SyncEngine
 
     class Node:
         def __init__(self):
             self.blockchain = _FakeBC()
             self._state_consistent = True
-            self.peers = []
+            self.p2p = SimpleNamespace(
+                _state_consistent=True,
+                peers={"p1": SimpleNamespace(peer_id="peer-1", height=10)},
+            )
 
         def request_peer_state_roots_sync(self, timeout=15):
             return [{"peer_id": "peer-1", "height": 10, "state_root": "abc123" * 8}]

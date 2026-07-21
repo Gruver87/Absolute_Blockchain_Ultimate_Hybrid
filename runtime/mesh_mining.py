@@ -13,15 +13,16 @@ def mesh_ready_for_mining(
     wire_roots: List[Dict],
     local_height: int,
     local_root: str,
-    state_consistent: bool = True,
+    state_consistent: bool = False,
     peer_heights: List[int] | None = None,
 ) -> bool:
     """
     Return True when hub may forge the next block.
 
     Requires `min_mesh_peers` TCP links. Peer state_root RPC may return fewer
-    responses than links (slow peer); in that case trust sync consistency when
-    all returned roots match local height.
+    responses than links (slow peer); STATUS height alignment is allowed only
+    when `state_consistent` is already True (fail-closed). Wire tip matches
+    alone may prove alignment without relying on the cached flag.
     """
     if min_mesh_peers <= 0:
         return True
@@ -46,11 +47,12 @@ def mesh_ready_for_mining(
         if matching >= min_mesh_peers:
             return True
 
-    # Live STATUS heights — do not forge while followers are behind.
+    # Live STATUS heights — do not forge while followers are behind, and do not
+    # forge on height alignment alone while state is known-inconsistent.
     if peer_heights and len(peer_heights) >= min_mesh_peers:
         if any(h < local_height for h in peer_heights):
             return False
         if all(h == local_height for h in peer_heights):
-            return True
+            return bool(state_consistent)
 
     return False

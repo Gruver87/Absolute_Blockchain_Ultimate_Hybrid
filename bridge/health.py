@@ -37,19 +37,15 @@ def check_l1_rpc_health(cfg=None, timeout: float = 3.0) -> Dict[str, Any]:
     out: Dict[str, Any] = {
         "required": required,
         "configured": bool(urls),
-        "ok": True,
+        "ok": False,
         "error": "",
         "probes": {},
         "endpoints": list(urls.keys()),
         "probed": False,
     }
 
-    if required and not urls:
-        out["ok"] = False
-        out["error"] = "no L1 RPC URLs configured"
-        return out
-
     if not urls:
+        out["error"] = "no L1 RPC URLs configured"
         return out
 
     if not should_probe_l1_rpc(cfg):
