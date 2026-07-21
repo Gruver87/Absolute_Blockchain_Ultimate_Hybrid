@@ -637,6 +637,179 @@ fn validate_p2p_mempool_batch(data_json: String) -> PyResult<Option<usize>> {
     Ok(validate_mempool_batch_inner(&value))
 }
 
+const MAX_P2P_PEERS_LIST: usize = 50;
+const MAX_P2P_PEER_ADDR_LEN: usize = 253;
+const MAX_P2P_BLOCKS_BATCH: usize = 500;
+const MAX_STAKE: f64 = 1e18;
+
+fn validate_validator_register_inner(data: &Value) -> Option<(String, f64, String)> {
+    let obj = data.as_object()?;
+    let address = obj
+        .get("address")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if address.is_empty() || address.len() > MAX_P2P_ADDR_LEN {
+        return None;
+    }
+    let stake = match obj.get("stake") {
+        Some(Value::Number(n)) => n.as_f64().unwrap_or(-1.0),
+        Some(Value::String(s)) => s.parse::<f64>().unwrap_or(-1.0),
+        None => 0.0,
+        _ => return None,
+    };
+    if !stake.is_finite() || stake < 0.0 || stake > MAX_STAKE {
+        return None;
+    }
+    let node_id = obj
+        .get("node_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if node_id.len() > MAX_P2P_NODE_ID_LEN {
+        return None;
+    }
+    Some((address, stake, node_id))
+}
+
+fn validate_peers_list_inner(data: &Value) -> Option<Vec<String>> {
+    let arr = data.as_array()?;
+    if arr.len() > MAX_P2P_PEERS_LIST {
+        return None;
+    }
+    let mut out = Vec::with_capacity(arr.len());
+    for item in arr {
+        let s = item.as_str()?.trim();
+        if s.is_empty() || s.len() > MAX_P2P_PEER_ADDR_LEN {
+            return None;
+        }
+        let Some((host, port_s)) = s.rsplit_once(':') else {
+            return None;
+        };
+        if host.is_empty() {
+            return None;
+        }
+        let Ok(port) = port_s.parse::<i64>() else {
+            return None;
+        };
+        if port <= 0 || port > MAX_P2P_PORT {
+            return None;
+        }
+        out.push(s.to_string());
+    }
+    Some(out)
+}
+
+fn validate_get_block_inner(data: &Value) -> Option<i64> {
+    match data {
+        Value::Number(_) | Value::String(_) => {
+            let h = json_i64(data)?;
+            if h < 0 || h > MAX_P2P_HEIGHT {
+                return None;
+            }
+            Some(h)
+        }
+        Value::Object(obj) => {
+            let h = obj
+                .get("height")
+                .or_else(|| obj.get("number"))
+                .and_then(json_i64)?;
+            if h < 0 || h > MAX_P2P_HEIGHT {
+                return None;
+            }
+            Some(h)
+        }
+        _ => None,
+    }
+}
+
+fn validate_get_block_by_hash_inner(data: &Value) -> Option<String> {
+    let hash = match data {
+        Value::String(s) => s.trim().to_string(),
+        Value::Object(obj) => obj
+            .get("hash")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string(),
+        _ => return None,
+    };
+    if hash.is_empty() || hash.len() > MAX_P2P_HASH_LEN {
+        return None;
+    }
+    Some(hash)
+}
+
+fn validate_blocks_batch_inner(data: &Value) -> Option<usize> {
+    let arr = data.as_array()?;
+    if arr.len() > MAX_P2P_BLOCKS_BATCH {
+        return None;
+    }
+    for block in arr {
+        if validate_block_announce_inner(block).is_none() {
+            return None;
+        }
+    }
+    Some(arr.len())
+}
+
+#[pyfunction]
+fn validate_p2p_validator_register(
+    py: Python<'_>,
+    data_json: String,
+) -> PyResult<Option<PyObject>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+    let Some((address, stake, node_id)) = validate_validator_register_inner(&value) else {
+        return Ok(None);
+    };
+    let dict = PyDict::new_bound(py);
+    dict.set_item("address", address)?;
+    dict.set_item("stake", stake)?;
+    dict.set_item("node_id", node_id)?;
+    Ok(Some(dict.into_any().unbind()))
+}
+
+#[pyfunction]
+fn validate_p2p_peers_list(data_json: String) -> PyResult<Option<Vec<String>>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+    Ok(validate_peers_list_inner(&value))
+}
+
+#[pyfunction]
+fn validate_p2p_get_block(data_json: String) -> PyResult<Option<i64>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+    Ok(validate_get_block_inner(&value))
+}
+
+#[pyfunction]
+fn validate_p2p_get_block_by_hash(data_json: String) -> PyResult<Option<String>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+    Ok(validate_get_block_by_hash_inner(&value))
+}
+
+#[pyfunction]
+fn validate_p2p_blocks_batch(data_json: String) -> PyResult<Option<usize>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+    Ok(validate_blocks_batch_inner(&value))
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_p2p_wire_line, m)?)?;
     m.add_function(wrap_pyfunction!(encode_p2p_wire_message, m)?)?;
@@ -651,6 +824,11 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_p2p_get_blocks_payload, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_wire_tx, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_mempool_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_p2p_validator_register, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_p2p_peers_list, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_p2p_get_block, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_p2p_get_block_by_hash, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_p2p_blocks_batch, m)?)?;
     Ok(())
 }
 

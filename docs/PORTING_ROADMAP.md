@@ -61,6 +61,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `validate_p2p_status_payload` / `validate_p2p_attestation_payload` — gossip payload shape gates
 - [x] `validate_p2p_block_announce` / `validate_p2p_state_root_request|response` — block & root gossip gates
 - [x] `validate_p2p_handshake_payload` / `get_blocks` / `wire_tx` / `mempool_batch` — sync & tx gossip gates
+- [x] `validate_p2p_validator_register` / `peers_list` / `get_block` / `get_block_by_hash` / `blocks_batch` — peer discovery & sync fetch gates
 
 ### Priority 4b — Consensus selection kernels ✅
 

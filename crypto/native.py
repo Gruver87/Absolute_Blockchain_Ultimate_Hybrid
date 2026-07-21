@@ -117,6 +117,11 @@ def native_crypto_status(required: bool = False) -> dict:
             "validate_p2p_get_blocks_payload",
             "validate_p2p_wire_tx",
             "validate_p2p_mempool_batch",
+            "validate_p2p_validator_register",
+            "validate_p2p_peers_list",
+            "validate_p2p_get_block",
+            "validate_p2p_get_block_by_hash",
+            "validate_p2p_blocks_batch",
             "amount_to_satoshi",
             "amount_apply_delta_satoshi",
             "state_engine_apply_transactions",
@@ -1732,6 +1737,109 @@ def validate_p2p_mempool_batch(data: Any) -> Optional[int]:
         if not validate_p2p_wire_tx(tx):
             return None
     return len(txs)
+
+
+def validate_p2p_validator_register(data: Any) -> Optional[dict]:
+    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
+    if _native is not None and hasattr(_native, "validate_p2p_validator_register"):
+        result = _native.validate_p2p_validator_register(payload)
+        return dict(result) if result is not None else None
+    if not isinstance(data, dict):
+        return None
+    address = str(data.get("address") or "").strip()
+    if not address or len(address) > 128:
+        return None
+    try:
+        stake = float(data.get("stake", 0) or 0)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(stake) or stake < 0.0 or stake > 1e18:
+        return None
+    node_id = str(data.get("node_id") or "").strip()
+    if len(node_id) > 128:
+        return None
+    return {"address": address, "stake": stake, "node_id": node_id}
+
+
+def validate_p2p_peers_list(data: Any) -> Optional[List[str]]:
+    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
+    if _native is not None and hasattr(_native, "validate_p2p_peers_list"):
+        result = _native.validate_p2p_peers_list(payload)
+        return [str(x) for x in result] if result is not None else None
+    if not isinstance(data, list) or len(data) > 50:
+        return None
+    out: List[str] = []
+    for item in data:
+        if not isinstance(item, str):
+            return None
+        s = item.strip()
+        if not s or len(s) > 253 or ":" not in s:
+            return None
+        host, port_s = s.rsplit(":", 1)
+        if not host:
+            return None
+        try:
+            port = int(port_s)
+        except (TypeError, ValueError):
+            return None
+        if port <= 0 or port > 65_535:
+            return None
+        out.append(s)
+    return out
+
+
+def validate_p2p_get_block(data: Any) -> Optional[int]:
+    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
+    if _native is not None and hasattr(_native, "validate_p2p_get_block"):
+        result = _native.validate_p2p_get_block(payload)
+        return int(result) if result is not None else None
+    if isinstance(data, (int, float)):
+        height = int(data)
+    elif isinstance(data, str):
+        try:
+            height = int(data)
+        except ValueError:
+            return None
+    elif isinstance(data, dict):
+        raw = data.get("height", data.get("number"))
+        try:
+            height = int(raw)
+        except (TypeError, ValueError):
+            return None
+    else:
+        return None
+    if height < 0 or height > 1_000_000_000_000:
+        return None
+    return height
+
+
+def validate_p2p_get_block_by_hash(data: Any) -> Optional[str]:
+    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
+    if _native is not None and hasattr(_native, "validate_p2p_get_block_by_hash"):
+        result = _native.validate_p2p_get_block_by_hash(payload)
+        return str(result) if result is not None else None
+    if isinstance(data, str):
+        block_hash = data.strip()
+    elif isinstance(data, dict):
+        block_hash = str(data.get("hash") or "").strip()
+    else:
+        return None
+    if not block_hash or len(block_hash) > 128:
+        return None
+    return block_hash
+
+
+def validate_p2p_blocks_batch(data: Any) -> Optional[int]:
+    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
+    if _native is not None and hasattr(_native, "validate_p2p_blocks_batch"):
+        result = _native.validate_p2p_blocks_batch(payload)
+        return int(result) if result is not None else None
+    if not isinstance(data, list) or len(data) > 500:
+        return None
+    for block in data:
+        if validate_p2p_block_announce(block) is None:
+            return None
+    return len(data)
 
 
 def parse_p2p_wire_line(

@@ -722,6 +722,26 @@ class P2PNode:
             if native.validate_p2p_get_blocks_payload(data) is None:
                 self._strike_peer_sync(peer, "bad_get_blocks")
                 return
+        elif msg_type == MSG_GET_BLOCK:
+            if native.validate_p2p_get_block(data) is None:
+                self._strike_peer_sync(peer, "bad_get_block")
+                return
+        elif msg_type == MSG_GET_BLOCK_BY_HASH:
+            if native.validate_p2p_get_block_by_hash(data) is None:
+                self._strike_peer_sync(peer, "bad_get_block_by_hash")
+                return
+        elif msg_type == MSG_BLOCKS:
+            if native.validate_p2p_blocks_batch(data) is None:
+                self._strike_peer_sync(peer, "bad_blocks_batch")
+                return
+        elif msg_type == MSG_PEERS:
+            if native.validate_p2p_peers_list(data) is None:
+                self._strike_peer_sync(peer, "bad_peers_list")
+                return
+        elif msg_type == MSG_VALIDATOR_REGISTER:
+            if native.validate_p2p_validator_register(data) is None:
+                self._strike_peer_sync(peer, "bad_validator_register")
+                return
 
         waiter = self._sync_waiters.get(peer.peer_id)
         if waiter:
@@ -740,18 +760,20 @@ class P2PNode:
             await self._handle_new_block(peer, data)
 
         elif msg_type == MSG_GET_BLOCK:
-            height = data.get("height") if isinstance(data, dict) else data
+            height = native.validate_p2p_get_block(data)
+            if height is None:
+                self._strike_peer_sync(peer, "bad_get_block")
+                return
             block = self.blockchain.get_block(int(height))
             await peer.send(MSG_BLOCK, block)
 
         elif msg_type == MSG_GET_BLOCK_BY_HASH:
-            block_hash = ""
-            if isinstance(data, dict):
-                block_hash = data.get("hash", "")
-            elif isinstance(data, str):
-                block_hash = data
+            block_hash = native.validate_p2p_get_block_by_hash(data)
+            if block_hash is None:
+                self._strike_peer_sync(peer, "bad_get_block_by_hash")
+                return
             block = None
-            if block_hash and hasattr(self.blockchain, "get_block_by_hash"):
+            if hasattr(self.blockchain, "get_block_by_hash"):
                 block = self.blockchain.get_block_by_hash(block_hash)
             await peer.send(MSG_BLOCK, block)
 
@@ -775,18 +797,21 @@ class P2PNode:
             await peer.send(MSG_PEERS, peer_list)
 
         elif msg_type == MSG_PEERS:
-            if isinstance(data, list):
-                for addr in data[:10]:  # не больше 10 за раз
-                    self._remember_addr(str(addr))
-                    parts = str(addr).rsplit(":", 1)
-                    if len(parts) == 2:
-                        try:
-                            asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
-                        except Exception as exc:
-                            self._peer_connect_task_fail += 1
-                            logger.warning(
-                                "[P2P] connect_peer task failed for %s: %s", addr, exc
-                            )
+            peers = native.validate_p2p_peers_list(data)
+            if peers is None:
+                self._strike_peer_sync(peer, "bad_peers_list")
+                return
+            for addr in peers[:10]:  # не больше 10 за раз
+                self._remember_addr(addr)
+                parts = addr.rsplit(":", 1)
+                if len(parts) == 2:
+                    try:
+                        asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
+                    except Exception as exc:
+                        self._peer_connect_task_fail += 1
+                        logger.warning(
+                            "[P2P] connect_peer task failed for %s: %s", addr, exc
+                        )
 
         elif msg_type == MSG_STATUS:
             status = native.validate_p2p_status_payload(data)
@@ -855,10 +880,12 @@ class P2PNode:
 
     async def _handle_validator_register(self, peer: PeerConnection, data: Dict):
         """Register peer validator in local consensus when announced."""
-        if not isinstance(data, dict):
+        parsed = native.validate_p2p_validator_register(data)
+        if not parsed:
+            self._strike_peer_sync(peer, "bad_validator_register")
             return
-        address = data.get("address", "")
-        stake = float(data.get("stake", getattr(self.config, "min_stake", 1000)))
+        address = str(parsed.get("address") or "")
+        stake = float(parsed.get("stake", 0) or 0)
         if not address or not self._consensus:
             return
         vals = self.blockchain.db.get_validators(active_only=False) or []
@@ -868,7 +895,14 @@ class P2PNode:
         if hasattr(self._consensus, "add_validator"):
             if self._consensus.add_validator(address, stake):
                 print(f"[P2P] Registered peer validator {address[:12]}… from {peer.peer_id[:8]}")
-                await self._relay_validator_register(data, exclude_peer=peer.peer_id)
+                await self._relay_validator_register(
+                    {
+                        "address": address,
+                        "stake": stake,
+                        "node_id": str(parsed.get("node_id") or ""),
+                    },
+                    exclude_peer=peer.peer_id,
+                )
 
     async def _relay_validator_register(self, payload: Dict, exclude_peer: str = ""):
         tasks = []

@@ -141,3 +141,37 @@ def test_validate_handshake_get_blocks_wire_tx_mempool():
     assert native.validate_p2p_wire_tx({"from": "", "to": "x"}) is False
     assert native.validate_p2p_mempool_batch({"transactions": [tx]}) == 1
     assert native.validate_p2p_mempool_batch({"transactions": [tx] * 501}) is None
+
+
+def test_validate_validator_register_peers_get_block_blocks():
+    reg = native.validate_p2p_validator_register(
+        {"address": "0x" + "a" * 40, "stake": 1000.0, "node_id": "abs-1"}
+    )
+    assert reg["address"].startswith("0x")
+    assert reg["stake"] == 1000.0
+    assert native.validate_p2p_validator_register({"address": "", "stake": 1}) is None
+    assert native.validate_p2p_validator_register(
+        {"address": "0xabc", "stake": -1}
+    ) is None
+    assert native.validate_p2p_validator_register(
+        {"address": "0xabc", "stake": 1e19}
+    ) is None
+
+    peers = native.validate_p2p_peers_list(["127.0.0.1:18080", "10.0.0.2:19000"])
+    assert peers == ["127.0.0.1:18080", "10.0.0.2:19000"]
+    assert native.validate_p2p_peers_list(["no-port"]) is None
+    assert native.validate_p2p_peers_list(["host:99999"]) is None
+    assert native.validate_p2p_peers_list(["x:1"] * 51) is None
+
+    assert native.validate_p2p_get_block(7) == 7
+    assert native.validate_p2p_get_block({"height": 3}) == 3
+    assert native.validate_p2p_get_block({"height": -1}) is None
+    assert native.validate_p2p_get_block_by_hash({"hash": "ab" * 32}) == "ab" * 32
+    assert native.validate_p2p_get_block_by_hash("") is None
+    assert native.validate_p2p_get_block_by_hash({"hash": "x" * 200}) is None
+
+    block = {"height": 1, "hash": "cd" * 32, "transactions": []}
+    assert native.validate_p2p_blocks_batch([block, block]) == 2
+    assert native.validate_p2p_blocks_batch([]) == 0
+    assert native.validate_p2p_blocks_batch([{"height": 1}]) is None
+    assert native.validate_p2p_blocks_batch([block] * 501) is None
