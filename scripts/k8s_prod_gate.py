@@ -27,6 +27,16 @@ def main() -> int:
             errors.append(f"node.prod.k8s.json: chain_id must be {MAINNET_V1_CHAIN_ID}")
         if cfg.get("db_engine") != "rocksdb":
             errors.append("node.prod.k8s.json: db_engine must be rocksdb")
+        if str(cfg.get("rocksdb_sync") or "").upper() != "FULL":
+            errors.append("node.prod.k8s.json: rocksdb_sync must be FULL")
+        if int(cfg.get("rocksdb_block_cache_mb", 0) or 0) <= 0:
+            errors.append("node.prod.k8s.json: rocksdb_block_cache_mb required")
+        if int(cfg.get("rocksdb_write_buffer_mb", 0) or 0) <= 0:
+            errors.append("node.prod.k8s.json: rocksdb_write_buffer_mb required")
+        if "rocksdb_column_families" not in cfg:
+            errors.append(
+                "node.prod.k8s.json: rocksdb_column_families required (default false)"
+            )
         if not cfg.get("follower_genesis_sync"):
             errors.append("node.prod.k8s.json: follower_genesis_sync required for k8s scale-out")
         if cfg.get("p2p_tls_enabled") is not True:
@@ -44,6 +54,13 @@ def main() -> int:
         errors.append(f"configmap.yaml: CHAIN_ID must be {MAINNET_V1_CHAIN_ID}")
     if "ABS_REQUIRE_NATIVE_CRYPTO" not in cm:
         errors.append("configmap.yaml: ABS_REQUIRE_NATIVE_CRYPTO required")
+    for key in (
+        "ROCKSDB_BLOCK_CACHE_MB",
+        "ROCKSDB_WRITE_BUFFER_MB",
+        "ROCKSDB_COLUMN_FAMILIES",
+    ):
+        if key not in cm:
+            errors.append(f"configmap.yaml: {key} required")
     if "REDIS_RATE_LIMIT" not in cm:
         errors.append("configmap.yaml: REDIS_RATE_LIMIT required")
     if "REDIS_URL" not in cm:

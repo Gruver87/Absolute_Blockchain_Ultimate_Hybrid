@@ -388,6 +388,14 @@ def test_prometheus_alerts_include_rust_bridge_readiness():
     assert "abs_rust_bridge_required == 1 and abs_rust_bridge_ok == 0" in alerts
     assert "AbsoluteL1RpcDown" in alerts
     assert "abs_l1_rpc_required == 1 and abs_l1_rpc_ok == 0" in alerts
+    assert "AbsoluteP2PShapeRejectBurst" in alerts
+    assert "rate(abs_p2p_shape_rejects_total[5m])" in alerts
+    assert "AbsoluteP2PHandshakeRejectBurst" in alerts
+    assert "AbsoluteP2PActiveBansHigh" in alerts
+    dash = (root / "deploy" / "grafana" / "dashboard.json").read_text(encoding="utf-8")
+    assert "abs_p2p_shape_rejects_total" in dash
+    assert "abs_p2p_active_bans" in dash
+    assert "abs_rocksdb_column_families" in dash
 
 
 def test_apply_env_secrets_restores_bridge_enabled_after_json_merge(monkeypatch):

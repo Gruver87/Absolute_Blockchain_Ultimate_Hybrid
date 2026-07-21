@@ -1059,6 +1059,25 @@ class RESTHandler(BaseHTTPRequestHandler):
                         p2p_security = dict(p2p.get_p2p_security_status() or {})
                     except Exception as exc:
                         logger.warning("/metrics p2p security snapshot failed: %s", exc)
+                rocksdb_tuning = {}
+                if db is not None:
+                    try:
+                        stats = db.get_stats() if hasattr(db, "get_stats") else {}
+                        rocksdb_tuning = dict((stats or {}).get("rocksdb_tuning") or {})
+                    except Exception as exc:
+                        logger.debug("/metrics rocksdb tuning snapshot failed: %s", exc)
+                    if not rocksdb_tuning and cfg is not None:
+                        rocksdb_tuning = {
+                            "column_families": bool(
+                                getattr(cfg, "rocksdb_column_families", False)
+                            ),
+                            "block_cache_mb": int(
+                                getattr(cfg, "rocksdb_block_cache_mb", 0) or 0
+                            ),
+                            "write_buffer_mb": int(
+                                getattr(cfg, "rocksdb_write_buffer_mb", 0) or 0
+                            ),
+                        }
                 text = mc.render_prometheus(
                     height=bc.get_height() if bc else 0,
                     peers=p2p.peer_count() if p2p else 0,
@@ -1069,6 +1088,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     native_crypto=native_crypto,
                     bridge_health=bridge_health,
                     p2p_security=p2p_security,
+                    rocksdb_tuning=rocksdb_tuning,
                 )
                 body = text.encode()
                 self.send_response(200)

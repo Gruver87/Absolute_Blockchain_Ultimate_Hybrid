@@ -14,16 +14,35 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, ROOT)
 
-from network.p2p_node import DEFAULT_MAX_P2P_LINE_BYTES, PeerConnection, _max_p2p_line_bytes
+from network.p2p_node import (
+    DEFAULT_MAX_P2P_LINE_BYTES,
+    PeerConnection,
+    WireReject,
+    _max_p2p_line_bytes,
+)
 from runtime.config import Config
 
 
 class _FakeReader:
     def __init__(self, payload: bytes):
         self._payload = payload
+        self._sent = False
 
     async def readline(self):
+        if self._sent:
+            return b""
+        self._sent = True
         return self._payload
+
+
+class _SeqReader:
+    def __init__(self, lines):
+        self._lines = list(lines)
+
+    async def readline(self):
+        if not self._lines:
+            return b""
+        return self._lines.pop(0)
 
 
 class _FakeWriter:
@@ -48,7 +67,36 @@ async def test_recv_rejects_oversized_line():
     cfg = Config()
     cfg.p2p_max_message_bytes = 1024
     msg = await peer.recv(cfg)
-    assert msg is None
+    assert isinstance(msg, WireReject)
+    assert msg.reason == "p2p_line_too_large"
+
+
+@pytest.mark.asyncio
+async def test_recv_rejects_bad_json_line():
+    peer = PeerConnection(_FakeReader(b"not-json{{{{\n"), _FakeWriter())
+    msg = await peer.recv(Config())
+    assert isinstance(msg, WireReject)
+    assert msg.reason == "bad_wire_line"
+
+
+@pytest.mark.asyncio
+async def test_message_loop_strikes_on_bad_wire_line():
+    from network.p2p_node import P2PNode
+
+    cfg = Config()
+    cfg.p2p_rate_limit_strikes = 1
+    cfg.p2p_ban_seconds = 60
+    p2p = P2PNode(cfg, None, None)
+    p2p._running = True
+    peer = PeerConnection(_SeqReader([b"garbage\n", b""]), _FakeWriter())
+    peer.peer_id = "wire-bad"
+    peer.host = "127.0.0.1"
+    peer.port = 9100
+    p2p.peers[peer.peer_id] = peer
+    await p2p._message_loop(peer)
+    sec = p2p.get_p2p_security_status()
+    assert sec["shape_rejects"].get("bad_wire_line", 0) >= 1
+    assert p2p._is_banned("wire-bad") is True
 
 
 @pytest.mark.asyncio
@@ -57,6 +105,7 @@ async def test_recv_accepts_valid_json_line():
     peer = PeerConnection(_FakeReader(payload), _FakeWriter())
     msg = await peer.recv(Config())
     assert msg is not None
+    assert not isinstance(msg, WireReject)
     assert msg["type"] == "ping"
 
 

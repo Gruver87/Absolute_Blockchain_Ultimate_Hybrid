@@ -39,10 +39,12 @@ class MetricsCollector:
         native_crypto: Optional[dict[str, Any]] = None,
         bridge_health: Optional[dict[str, Any]] = None,
         p2p_security: Optional[dict[str, Any]] = None,
+        rocksdb_tuning: Optional[dict[str, Any]] = None,
     ) -> str:
         native_crypto = native_crypto or {}
         bridge_health = bridge_health or {}
         p2p_security = p2p_security or {}
+        rocksdb_tuning = rocksdb_tuning or {}
         lines = [
             "# HELP abs_uptime_seconds Node uptime",
             "# TYPE abs_uptime_seconds gauge",
@@ -152,6 +154,28 @@ class MetricsCollector:
                 f"abs_p2p_shape_rejects{{node_id=\"{node_id}\",reason=\"{safe_reason}\"}} "
                 f"{int(count or 0)}"
             )
+        lines.extend(
+            [
+                "# HELP abs_rocksdb_column_families Whether RocksDB column families are enabled",
+                "# TYPE abs_rocksdb_column_families gauge",
+                (
+                    f"abs_rocksdb_column_families{{node_id=\"{node_id}\"}} "
+                    f"{1 if rocksdb_tuning.get('column_families') else 0}"
+                ),
+                "# HELP abs_rocksdb_block_cache_mb RocksDB block cache size (MB)",
+                "# TYPE abs_rocksdb_block_cache_mb gauge",
+                (
+                    f"abs_rocksdb_block_cache_mb{{node_id=\"{node_id}\"}} "
+                    f"{int(rocksdb_tuning.get('block_cache_mb', 0) or 0)}"
+                ),
+                "# HELP abs_rocksdb_write_buffer_mb RocksDB write buffer size (MB)",
+                "# TYPE abs_rocksdb_write_buffer_mb gauge",
+                (
+                    f"abs_rocksdb_write_buffer_mb{{node_id=\"{node_id}\"}} "
+                    f"{int(rocksdb_tuning.get('write_buffer_mb', 0) or 0)}"
+                ),
+            ]
+        )
         for kernel in native_crypto.get("kernels", []):
             safe_kernel = str(kernel).replace("\\", "\\\\").replace('"', '\\"')
             lines.append(

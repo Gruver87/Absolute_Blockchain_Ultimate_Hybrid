@@ -6,6 +6,17 @@
 
 ---
 
+## [1.3.04] — 2026-07-21
+
+### Hardened — Wire-reject strikes, P2P alerts, Rocks deploy parity
+
+- P2P: malformed/oversized lines → `WireReject` + strike/`shape_rejects` (no silent disconnect)
+- Prometheus alerts + Grafana panels for shape/handshake rejects and active bans
+- Rocks tuning metrics (`abs_rocksdb_*`); k8s/mesh JSON + gate freeze for ROCKSDB_*
+- industrial_gate freezes `/metrics` series + alerts surface
+
+---
+
 ## [1.3.03] — 2026-07-21
 
 ### Hardened — Observability + ceremony UX + Rocks env in deploy

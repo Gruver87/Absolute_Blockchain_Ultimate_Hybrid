@@ -38,6 +38,8 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | External audit | **Not completed** — tracker rejects template notes; requires real evidence URL |
 | Public VPS / DNS | Not claimed |
 | Bridge L1 | **OFF by recorded decision** — see [Bridge OFF audit checklist](#bridge-off--pre-enable-audit-checklist) |
+| RocksDB column families | **Opt-in** (`ROCKSDB_COLUMN_FAMILIES`, default false) — not required for soak contract |
+| Ceremony pin | Automation exists; production hash/manifest still operator-owned |
 | P2P TLS | Default ON for prod mesh (+mTLS); handshake `node_id` bound to cert CN/SAN (v1.2.87) |
 | JWT admin | `role=admin` enforced on protected POSTs; mint via `scripts/mint_admin_jwt.py` |
 

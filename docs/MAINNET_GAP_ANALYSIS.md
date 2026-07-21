@@ -1,12 +1,14 @@
 # Mainnet Gap Analysis — Industrial Blockchain Readiness
 
 **Project:** Absolute Blockchain Ultimate Hybrid  
-**Updated:** 2026-07-14  
+**Updated:** 2026-07-21  
 **Positioning:** Production-hardened R&D stack → path to public mainnet  
 **Evidence ledger:** [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md) — separates CI/automation from live ops proof
 
 This document is the honest engineering checklist after a full repository scan.  
-Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-closed rules; **they do not replace** external audit, validator operations, or legal review.
+Automated gates (`mainnet_readiness`, `prod_gate`, `industrial_gate`, `post_soak_verify`) enforce code-level fail-closed rules; **they do not replace** external audit, validator operations, or legal review.
+
+**Recent code hardening (v1.3.03–v1.3.04, not organizational proof):** P2P shape-reject Prometheus metrics + alerts; ceremony dir auto-detect; RocksDB tuning env/JSON parity (CF remains **operator opt-in**, default false); wire-parse rejects now strike instead of silent disconnect.
 
 ---
 

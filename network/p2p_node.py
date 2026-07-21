@@ -37,6 +37,15 @@ logger = logging.getLogger("P2P")
 DEFAULT_MAX_P2P_LINE_BYTES = 2 * 1024 * 1024
 
 
+class WireReject:
+    """Sentinel from Peer.recv: parse/shape reject (not EOF)."""
+
+    __slots__ = ("reason",)
+
+    def __init__(self, reason: str):
+        self.reason = str(reason or "bad_wire_line")
+
+
 def _max_p2p_line_bytes(config) -> int:
     raw = getattr(config, "p2p_max_message_bytes", None)
     if raw is None:
@@ -178,27 +187,44 @@ class PeerConnection:
         except Exception as e:
             logger.debug(f"[P2P] send error to {self.peer_id}: {e}")
 
-    async def recv(self, config=None) -> Optional[Dict]:
-        """Читает одно JSON-сообщение от пира."""
+    async def recv(self, config=None):
+        """Читает одно JSON-сообщение от пира.
+
+        Returns:
+            dict — valid envelope; WireReject — parse/size fail; None — EOF;
+            MSG_IDLE dict — read timeout (keep-alive).
+        """
         limit = _max_p2p_line_bytes(config)
         try:
             line = await asyncio.wait_for(self.reader.readline(), timeout=30)
             if not line:
                 return None
             try:
-                return native.parse_p2p_wire_line(
+                parsed = native.parse_p2p_wire_line(
                     line,
                     max_bytes=limit,
                     allowed_types=list(ALLOWED_WIRE_TYPES),
                 )
-            except ValueError:
+            except ValueError as exc:
+                reason = str(exc) or "p2p_line_too_large"
+                if "p2p_line_too_large" in reason:
+                    reason = "p2p_line_too_large"
                 logger.warning(
-                    "[P2P] dropped oversized message from %s (%s bytes > %s)",
+                    "[P2P] wire reject from %s (%s, %s bytes, limit=%s)",
                     self.peer_id or self.host,
+                    reason,
                     len(line),
                     limit,
                 )
-                return None
+                return WireReject(reason)
+            if parsed is None:
+                logger.warning(
+                    "[P2P] bad wire line from %s (%s bytes)",
+                    self.peer_id or self.host,
+                    len(line),
+                )
+                return WireReject("bad_wire_line")
+            return parsed
         except asyncio.TimeoutError:
             return {"type": MSG_IDLE, "data": None}
         except Exception:
@@ -610,6 +636,10 @@ class P2PNode:
                 msg = await peer.recv(self.config)
                 if msg is None:
                     break
+                if isinstance(msg, WireReject):
+                    if self._strike_peer_sync(peer, msg.reason):
+                        break
+                    continue
                 if msg.get("type") == MSG_IDLE:
                     continue
                 peer.touch()

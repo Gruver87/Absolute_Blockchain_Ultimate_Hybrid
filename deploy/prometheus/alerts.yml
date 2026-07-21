@@ -55,3 +55,30 @@ groups:
         annotations:
           summary: "L1 RPC unreachable on {{ $labels.node_id }}"
           description: "Production bridge requires live L1 JSON-RPC but eth_blockNumber probe failed."
+
+      - alert: AbsoluteP2PShapeRejectBurst
+        expr: rate(abs_p2p_shape_rejects_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated P2P shape rejects on {{ $labels.node_id }}"
+          description: "Fail-closed wire/shape rejects are above 0.5/sec for 5 minutes."
+
+      - alert: AbsoluteP2PHandshakeRejectBurst
+        expr: rate(abs_p2p_handshake_rejects_total[5m]) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated P2P handshake rejects on {{ $labels.node_id }}"
+          description: "Handshake rejects are above 0.2/sec for 5 minutes."
+
+      - alert: AbsoluteP2PActiveBansHigh
+        expr: abs_p2p_active_bans > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High active P2P ban count on {{ $labels.node_id }}"
+          description: "More than 10 peer keys currently banned for 10 minutes."

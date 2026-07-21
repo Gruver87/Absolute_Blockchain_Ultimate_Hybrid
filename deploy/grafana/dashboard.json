@@ -86,6 +86,43 @@
         {"expr": "abs_rust_bridge_required", "legendFormat": "bridge_required"},
         {"expr": "abs_l1_rpc_required", "legendFormat": "l1_required"}
       ]
+    },
+    {
+      "id": 12,
+      "title": "P2P Shape Rejects (total)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "targets": [
+        {"expr": "abs_p2p_shape_rejects_total", "legendFormat": "{{node_id}}"}
+      ]
+    },
+    {
+      "id": 13,
+      "title": "P2P Active Bans",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 32},
+      "targets": [{"expr": "abs_p2p_active_bans"}]
+    },
+    {
+      "id": 14,
+      "title": "P2P Handshake Rejects",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 32},
+      "targets": [{"expr": "abs_p2p_handshake_rejects_total"}]
+    },
+    {
+      "id": 15,
+      "title": "RocksDB Column Families",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 32},
+      "targets": [{"expr": "abs_rocksdb_column_families"}]
+    },
+    {
+      "id": 16,
+      "title": "RocksDB Block Cache (MB)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 32},
+      "targets": [{"expr": "abs_rocksdb_block_cache_mb"}]
     }
   ]
 }

@@ -18,6 +18,9 @@ def test_prod_compose_includes_relayer_sidecar():
     assert "condition: service_healthy" in text
     assert "bridge_relayer.py" in text
     assert "ABS_REQUIRE_NATIVE_CRYPTO" in text
+    assert "ROCKSDB_BLOCK_CACHE_MB" in text
+    assert "ROCKSDB_WRITE_BUFFER_MB" in text
+    assert "ROCKSDB_COLUMN_FAMILIES" in text
 
 
 def test_docker_prod_node_bridge_disabled_by_default():
