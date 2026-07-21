@@ -56,3 +56,29 @@ def test_native_parse_p2p_wire_rejects_non_object():
     if not native.native_available():
         return
     assert native.parse_p2p_wire_line(b"[1,2,3]\n", 65536, None) is None
+
+
+def test_validate_p2p_status_payload_ok_and_reject():
+    ok = native.validate_p2p_status_payload({"height": 12, "head_hash": "ab" * 32})
+    assert ok == {"height": 12, "head_hash": "ab" * 32}
+    assert native.validate_p2p_status_payload({"height": -1}) is None
+    assert native.validate_p2p_status_payload({"height": 1, "head_hash": "x" * 200}) is None
+    assert native.validate_p2p_status_payload([1, 2, 3]) is None
+
+
+def test_validate_p2p_attestation_payload_shape():
+    good = {
+        "validator": "0x" + "a" * 40,
+        "target_hash": "ab" * 32,
+        "target_height": 7,
+        "slot": 3,
+        "signature": "ab" * 32,
+        "public_key": "cd" * 64,
+    }
+    assert native.validate_p2p_attestation_payload(good) is True
+    bad = dict(good)
+    bad["signature"] = "zz"
+    assert native.validate_p2p_attestation_payload(bad) is False
+    missing = dict(good)
+    missing.pop("public_key")
+    assert native.validate_p2p_attestation_payload(missing) is False

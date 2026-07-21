@@ -913,7 +913,6 @@ class Blockchain:
             self.config.burn_rate,
             tx.value,
         )
-        fee = fee_plan["fee"]
         balance_sat = self.db.get_balance_satoshi(tx.from_addr)
         total_cost = fee_plan["total_cost"]
         if not can_afford_transfer(balance_sat, total_cost):

@@ -743,11 +743,12 @@ class P2PNode:
                             )
 
         elif msg_type == MSG_STATUS:
-            if isinstance(data, dict):
-                incoming_h = int(data.get("height", 0) or 0)
+            status = native.validate_p2p_status_payload(data)
+            if status:
+                incoming_h = int(status.get("height", 0) or 0)
                 if incoming_h:
                     peer.height = max(int(peer.height or 0), incoming_h)
-                incoming_head = data.get("head_hash")
+                incoming_head = status.get("head_hash") or ""
                 if incoming_head:
                     peer.head = str(incoming_head)
                 our_h = int(self.blockchain.get_height() or 0)
@@ -836,12 +837,14 @@ class P2PNode:
 
     async def _handle_attestation(self, peer: PeerConnection, data: Dict):
         """Accept signed attestation from peer and apply to local consensus."""
-        if not isinstance(data, dict):
+        if not native.validate_p2p_attestation_payload(data):
+            self._strike_peer_sync(peer, "bad_attestation_shape")
             return
         vkeys = self.validator_keys
         if vkeys and hasattr(vkeys, "verify_attestation"):
             if not vkeys.verify_attestation(data):
                 logger.debug(f"[P2P] Invalid attestation sig from {peer.peer_id[:8]}")
+                self._strike_peer_sync(peer, "bad_attestation_sig")
                 return
         validator = data.get("validator", "")
         block_hash = data.get("target_hash", "")

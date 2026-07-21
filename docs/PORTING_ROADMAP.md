@@ -58,6 +58,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `parse_p2p_wire_line` / `encode_p2p_wire_message` — fail-closed wire envelope (size/UTF-8/JSON/allowlist)
 - [x] `verify_attestation_secp256k1` + `hash_sorted_json` — attestation/tx hash+verify on gossip path
 - [x] `network/p2p_node.py` PeerConnection send/recv wired to native wire kernels
+- [x] `validate_p2p_status_payload` / `validate_p2p_attestation_payload` — gossip payload shape gates
 
 ### Priority 4b — Consensus selection kernels ✅
 

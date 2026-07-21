@@ -247,6 +247,8 @@ def _check_audit_pack_export() -> tuple[list[str], list[str]]:
             "too_many_txs",
             "plan_transfer_fees",
             "can_afford_transfer",
+            "validate_p2p_status_payload",
+            "validate_p2p_attestation_payload",
         ):
             if needle not in native_surface:
                 errors.append(f"abs_native lib missing fail-closed bound: {needle}")
@@ -363,6 +365,8 @@ def _check_native_wheel() -> tuple[list[str], list[str]]:
             "state_engine_apply_transactions",
             "plan_transfer_fees",
             "can_afford_transfer",
+            "validate_p2p_status_payload",
+            "validate_p2p_attestation_payload",
             "pubkey_to_eth_address",
             "rlp_encode",
             "rlp_decode_single",

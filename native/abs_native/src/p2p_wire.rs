@@ -175,11 +175,125 @@ fn verify_attestation_secp256k1(
     ))
 }
 
+const MAX_P2P_HASH_LEN: usize = 128;
+const MAX_P2P_ADDR_LEN: usize = 128;
+const MAX_P2P_HEX_SIG_LEN: usize = 512;
+const MAX_P2P_HEX_PUBKEY_LEN: usize = 130;
+const MAX_P2P_HEIGHT: i64 = 1_000_000_000_000;
+
+fn json_i64(value: &Value) -> Option<i64> {
+    match value {
+        Value::Number(n) => n
+            .as_i64()
+            .or_else(|| n.as_u64().map(|u| u as i64))
+            .or_else(|| n.as_f64().map(|f| f as i64)),
+        Value::String(s) => s.parse::<i64>().ok(),
+        _ => None,
+    }
+}
+
+fn is_hex(s: &str) -> bool {
+    !s.is_empty() && s.len() % 2 == 0 && s.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+fn validate_status_inner(data: &Value) -> Option<(i64, String)> {
+    let obj = data.as_object()?;
+    let height = obj
+        .get("height")
+        .and_then(json_i64)
+        .unwrap_or(0);
+    if height < 0 || height > MAX_P2P_HEIGHT {
+        return None;
+    }
+    let head_hash = obj
+        .get("head_hash")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if head_hash.len() > MAX_P2P_HASH_LEN {
+        return None;
+    }
+    Some((height, head_hash))
+}
+
+fn validate_attestation_shape_inner(data: &Value) -> bool {
+    let Some(obj) = data.as_object() else {
+        return false;
+    };
+    let validator = match obj.get("validator").and_then(|v| v.as_str()) {
+        Some(s) if !s.is_empty() && s.len() <= MAX_P2P_ADDR_LEN => s,
+        _ => return false,
+    };
+    let _ = validator;
+    let target_hash = match obj.get("target_hash").and_then(|v| v.as_str()) {
+        Some(s) if !s.is_empty() && s.len() <= MAX_P2P_HASH_LEN => s,
+        _ => return false,
+    };
+    let _ = target_hash;
+    if let Some(h) = obj.get("target_height") {
+        let Some(height) = json_i64(h) else {
+            return false;
+        };
+        if height < 0 || height > MAX_P2P_HEIGHT {
+            return false;
+        }
+    }
+    if let Some(s) = obj.get("slot") {
+        let Some(slot) = json_i64(s) else {
+            return false;
+        };
+        if slot < 0 || slot > MAX_P2P_HEIGHT {
+            return false;
+        }
+    }
+    let signature = match obj.get("signature").and_then(|v| v.as_str()) {
+        Some(s) if is_hex(s) && s.len() <= MAX_P2P_HEX_SIG_LEN => s,
+        _ => return false,
+    };
+    let _ = signature;
+    let public_key = match obj.get("public_key").and_then(|v| v.as_str()) {
+        Some(s) if is_hex(s) && s.len() <= MAX_P2P_HEX_PUBKEY_LEN => s,
+        _ => return false,
+    };
+    let _ = public_key;
+    true
+}
+
+#[pyfunction]
+fn validate_p2p_status_payload(
+    py: Python<'_>,
+    data_json: String,
+) -> PyResult<Option<PyObject>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+    let Some((height, head_hash)) = validate_status_inner(&value) else {
+        return Ok(None);
+    };
+    let dict = PyDict::new_bound(py);
+    dict.set_item("height", height)?;
+    dict.set_item("head_hash", head_hash)?;
+    Ok(Some(dict.into_any().unbind()))
+}
+
+#[pyfunction]
+fn validate_p2p_attestation_payload(data_json: String) -> PyResult<bool> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(false),
+    };
+    Ok(validate_attestation_shape_inner(&value))
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_p2p_wire_line, m)?)?;
     m.add_function(wrap_pyfunction!(encode_p2p_wire_message, m)?)?;
     m.add_function(wrap_pyfunction!(hash_sorted_json, m)?)?;
     m.add_function(wrap_pyfunction!(verify_attestation_secp256k1, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_p2p_status_payload, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_p2p_attestation_payload, m)?)?;
     Ok(())
 }
 
