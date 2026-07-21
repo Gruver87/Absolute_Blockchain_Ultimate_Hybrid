@@ -15,7 +15,7 @@ class RedisRateLimiter:
         requests_per_minute: int = 120,
         window_seconds: int = 60,
         key_prefix: str = "abs:rl",
-        fail_closed: bool = False,
+        fail_closed: bool = True,
     ):
         import redis
 
@@ -48,15 +48,16 @@ class RedisRateLimiter:
             pattern = f"{self.key_prefix}:{client_id}:*"
             for key in self.client.scan_iter(match=pattern, count=50):
                 self.client.delete(key)
-        except Exception:
-            pass
+        except Exception as exc:
+            # Never silent: ops need to see denylist/reset failures.
+            print(f"[RedisRateLimiter] reset failed for {client_id}: {exc}")
 
 
 def try_create_redis_limiter(
     redis_url: str,
     requests_per_minute: int = 120,
     window_seconds: int = 60,
-    fail_closed: bool = False,
+    fail_closed: bool = True,
 ) -> Optional[RedisRateLimiter]:
     if not redis_url:
         return None

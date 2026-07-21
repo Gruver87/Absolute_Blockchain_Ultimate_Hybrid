@@ -34,6 +34,10 @@ def test_prod_mesh_compose_has_three_nodes():
     assert "BRIDGE_ENABLED" in text
     assert "ABS_PROD_IMAGE" in text
     assert "Dockerfile.prod" in text
+    assert "\n  redis:" in text
+    assert "REDIS_RATE_LIMIT" in text
+    assert "REDIS_URL" in text
+    assert "abs-prod-mesh-redis" in text
 
 
 def test_k8s_includes_relayer_deployment():

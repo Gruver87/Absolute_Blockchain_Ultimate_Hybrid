@@ -58,8 +58,8 @@ class ChainStorage:
                         max_num = num
                         with open(os.path.join(self.blocks_dir, filename), "r") as f:
                             latest = json.load(f)
-                except:
-                    pass
+                except (ValueError, OSError, json.JSONDecodeError):
+                    continue
         return latest
     
     def get_block_count(self) -> int:
@@ -71,7 +71,8 @@ class ChainStorage:
             with open(path, "w") as f:
                 json.dump(state, f, indent=2)
             return True
-        except:
+        except Exception as e:
+            print(f"Error saving state {block_hash}: {e}")
             return False
     
     def get_state(self, block_hash: str) -> Optional[dict]:
@@ -87,7 +88,8 @@ class ChainStorage:
             with open(path, "w") as f:
                 json.dump(checkpoint, f, indent=2)
             return True
-        except:
+        except Exception as e:
+            print(f"Error saving checkpoint {block_hash}: {e}")
             return False
     
     def get_checkpoint(self, block_hash: str) -> Optional[dict]:

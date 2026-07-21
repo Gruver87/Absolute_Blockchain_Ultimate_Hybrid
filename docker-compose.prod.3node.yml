@@ -31,6 +31,8 @@ x-abs-prod-env: &abs-prod-env
   REQUIRE_WALLET_FILE: "true"
   CORS_ORIGINS: ${CORS_ORIGINS:?set CORS_ORIGINS before starting prod}
   RATE_LIMIT_RPM: "120"
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+  REDIS_RATE_LIMIT: ${REDIS_RATE_LIMIT:-true}
   GENESIS_CEREMONY_HASH: ${GENESIS_CEREMONY_HASH:-}
   GENESIS_STRICT_MAINNET: ${GENESIS_STRICT_MAINNET:-false}
   VALIDATORS_MANIFEST_PATH: data/validators.manifest.json
@@ -50,6 +52,32 @@ x-abs-logging: &abs-logging
     max-file: "3"
 
 services:
+  redis:
+    image: redis:7-alpine
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--maxmemory",
+        "128mb",
+        "--maxmemory-policy",
+        "allkeys-lru",
+      ]
+    volumes:
+      - abs-prod-mesh-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    logging: *abs-logging
+    mem_limit: 256m
+    networks:
+      - abs-prod-mesh
+    restart: unless-stopped
+
   node1:
     <<: *prod-node-build
     hostname: abs-prod-mesh-1
@@ -70,6 +98,9 @@ services:
     logging: *abs-logging
     mem_limit: 1536m
     cpus: "1.5"
+    depends_on:
+      redis:
+        condition: service_healthy
     healthcheck:
       test:
         [
@@ -173,6 +204,8 @@ services:
     mem_limit: 1536m
     cpus: "1.5"
     depends_on:
+      redis:
+        condition: service_healthy
       node1:
         condition: service_healthy
     healthcheck:
@@ -212,6 +245,8 @@ services:
     mem_limit: 1536m
     cpus: "1.5"
     depends_on:
+      redis:
+        condition: service_healthy
       node1:
         condition: service_healthy
     healthcheck:
@@ -234,6 +269,7 @@ volumes:
   abs-prod-mesh1-data:
   abs-prod-mesh2-data:
   abs-prod-mesh3-data:
+  abs-prod-mesh-redis:
 
 networks:
   abs-prod-mesh:

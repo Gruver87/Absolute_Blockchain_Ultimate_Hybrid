@@ -2224,10 +2224,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json(cons.get_casper_status())
                 else:
                     try:
-                        from consensus.finality_casper import CasperFinality
-                        self._json({"enabled": True, "note": "CasperFinality available"})
+                        from consensus.finality_casper import CasperFinality  # noqa: F401
+                        self._json({
+                            "enabled": False,
+                            "module_importable": True,
+                            "note": "CasperFinality module present but not live on this node",
+                        })
                     except Exception:
-                        self._json({"enabled": False})
+                        self._json({"enabled": False, "module_importable": False})
 
             elif path == "/consensus/beacon":
                 bc_obj = self.__class__.blockchain
@@ -2236,10 +2240,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._json(cons.get_beacon_status())
                 else:
                     try:
-                        from consensus.engine_beacon import ConsensusEngineBeacon
-                        self._json({"enabled": True, "note": "BeaconEngine available"})
+                        from consensus.engine_beacon import ConsensusEngineBeacon  # noqa: F401
+                        self._json({
+                            "enabled": False,
+                            "module_importable": True,
+                            "note": "BeaconEngine module present but not live on this node",
+                        })
                     except Exception:
-                        self._json({"enabled": False})
+                        self._json({"enabled": False, "module_importable": False})
 
             # ── Immutable State (satoshi balances) ────────────────────────────
             elif path == "/state/stats":
@@ -5310,6 +5318,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 harness = _build_state_consistency_harness(
                     self.__class__.p2p, bc, cfg, self.__class__.db
                 )
+                sync_error = None
                 p2p = self.__class__.p2p
                 if p2p and hasattr(p2p, "_state_consistent") and harness.get("harness_healthy"):
                     p2p._state_consistent = True
@@ -5318,14 +5327,21 @@ class RESTHandler(BaseHTTPRequestHandler):
                     if se and hasattr(se, "sync_state"):
                         try:
                             p2p._state_consistent = bool(se.sync_state())
-                        except Exception:
-                            pass
-                self._json({
+                        except Exception as exc:
+                            p2p._state_consistent = False
+                            sync_error = str(exc)
+                payload = {
                     "success": bool(repaired),
                     "repaired": bool(repaired),
                     "height": bc.get_height() if hasattr(bc, "get_height") else 0,
                     "harness": harness,
-                })
+                    "state_consistent": bool(
+                        getattr(self.__class__.p2p, "_state_consistent", False)
+                    ) if self.__class__.p2p else None,
+                }
+                if sync_error:
+                    payload["sync_error"] = sync_error
+                self._json(payload)
 
             elif path == "/testnet/reorg-exercise":
                 if getattr(cfg, "deployment_mode", "dev") == "prod":
@@ -6822,9 +6838,9 @@ def _build_bridge_overview(rb, cb, cfg, db) -> Dict:
         "unsupported_production": ["solana"],
         "chain_notes": {
             "solana": "dev/simulator only — not production L1 RPC in rust bridge",
-            "ethereum": "production path when bridge_enabled + audited contracts",
-            "bsc": "production path when bridge_enabled + audited contracts",
-            "polygon": "production path when bridge_enabled + audited contracts",
+            "ethereum": "opt-in when bridge_enabled + deployed L1 lock/mint contracts (external audit not claimed)",
+            "bsc": "opt-in when bridge_enabled + deployed L1 lock/mint contracts (external audit not claimed)",
+            "polygon": "opt-in when bridge_enabled + deployed L1 lock/mint contracts (external audit not claimed)",
         },
         "endpoints": {
             "locks": "GET /bridge/locks",

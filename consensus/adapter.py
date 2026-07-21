@@ -338,14 +338,14 @@ class ConsensusAdapter:
             try:
                 if self.casper_engine.is_finalized(block_hash):
                     return True
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f"[Consensus] casper is_finalized error: {exc}")
         if block_hash and self.beacon_engine:
             try:
                 if self.beacon_engine.is_finalized(block_hash):
                     return True
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f"[Consensus] beacon is_finalized error: {exc}")
         return False
 
     def get_finality_status(self, block_number: int) -> Dict:

@@ -234,6 +234,7 @@ class P2PNode:
         self._peer_strikes: Dict[str, int] = {}
         self._peer_bans: Dict[str, float] = {}
         self._handshake_rejects: int = 0
+        self._attestation_local_fail: int = 0
         self._consensus = None
         self.validator_keys = None
         self._state_consistent = True
@@ -907,8 +908,13 @@ class P2PNode:
                         block.hash,
                         slot=attest_slot,
                     )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    self._attestation_local_fail += 1
+                    logger.warning(
+                        "[P2P] local attest failed after accept #%s: %s",
+                        getattr(block, "height", "?"),
+                        exc,
+                    )
             await self._broadcast_block(data, exclude_peer=peer.peer_id)
 
     async def _handle_get_blocks(self, peer: PeerConnection, data: Dict):
@@ -1963,6 +1969,7 @@ class P2PNode:
             "banned": active_bans[:20],
             "tracked_strikes": len(self._peer_strikes),
             "handshake_rejects": int(self._handshake_rejects),
+            "attestation_local_fail": int(self._attestation_local_fail),
             "rate_limit_exempt_types": len(RATE_LIMIT_EXEMPT_TYPES),
             "tls": p2p_tls_status(self.config),
         }

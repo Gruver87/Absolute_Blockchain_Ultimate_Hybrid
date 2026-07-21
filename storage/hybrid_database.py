@@ -56,8 +56,8 @@ class HybridDatabase:
             return
         try:
             rows = self._aux.conn.execute("SELECT * FROM evm_logs ORDER BY id ASC").fetchall()
-        except Exception:
-            self._core.set_meta("aux_evm_logs_migrated_v1", True)
+        except Exception as exc:
+            print(f"[HybridDatabase] aux_evm_logs migrate deferred (will retry): {exc}")
             return
         if not rows:
             self._core.set_meta("aux_evm_logs_migrated_v1", True)
@@ -103,8 +103,8 @@ class HybridDatabase:
             return
         try:
             rows = self._aux.conn.execute("SELECT * FROM nft_tokens ORDER BY created_at").fetchall()
-        except Exception:
-            self._core.set_meta("aux_nft_tokens_migrated_v1", True)
+        except Exception as exc:
+            print(f"[HybridDatabase] aux_nft_tokens migrate deferred (will retry): {exc}")
             return
         migrated = 0
         with self._core.atomic():
@@ -128,8 +128,8 @@ class HybridDatabase:
             return
         try:
             rows = self._aux.conn.execute("SELECT * FROM nft_offers ORDER BY created_at").fetchall()
-        except Exception:
-            self._core.set_meta("aux_nft_offers_migrated_v1", True)
+        except Exception as exc:
+            print(f"[HybridDatabase] aux_nft_offers migrate deferred (will retry): {exc}")
             return
         migrated = 0
         with self._core.atomic():
@@ -163,8 +163,8 @@ class HybridDatabase:
             return
         try:
             rows = self._aux.conn.execute("SELECT * FROM nft_auctions ORDER BY created_at").fetchall()
-        except Exception:
-            self._core.set_meta("aux_nft_auctions_migrated_v1", True)
+        except Exception as exc:
+            print(f"[HybridDatabase] aux_nft_auctions migrate deferred (will retry): {exc}")
             return
         migrated = 0
         with self._core.atomic():
@@ -197,8 +197,8 @@ class HybridDatabase:
             return
         try:
             rows = self._aux.conn.execute("SELECT * FROM nft_sales ORDER BY id").fetchall()
-        except Exception:
-            self._core.set_meta("aux_nft_sales_migrated_v1", True)
+        except Exception as exc:
+            print(f"[HybridDatabase] aux_nft_sales migrate deferred (will retry): {exc}")
             return
         migrated = 0
         max_id = 0

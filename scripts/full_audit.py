@@ -381,12 +381,21 @@ def section_p2p_verify(live: bool, base_url: str, wait_sec: int = 300) -> AuditR
 
     if live and up1 and not up2 and not up3:
         _banner(name)
-        res = AuditResult(name=name, ok=True, skipped=True)
-        print("  [SKIP] Single live node on :8080 — mesh P2P needs :8080 + :8081")
+        allow_skip = bool(
+            os.environ.get("FULL_AUDIT_ALLOW_SOLO_P2P_SKIP", "").strip().lower()
+            in ("1", "true", "yes")
+        )
+        if allow_skip:
+            res = AuditResult(name=name, ok=True, skipped=True)
+            print("  [SKIP] Single live node on :8080 — FULL_AUDIT_ALLOW_SOLO_P2P_SKIP=1")
+            res.details = ["skipped: only :8080 up with --live (explicit allow)"]
+            return res
+        res = AuditResult(name=name, ok=False, skipped=False)
+        print("  [FAIL] Single live node on :8080 — mesh P2P needs :8080 + :8081")
+        print("         Set FULL_AUDIT_ALLOW_SOLO_P2P_SKIP=1 to soft-skip (not recommended)")
         print("         2-node mesh: .\\scripts\\start_two_nodes.ps1  then -Live -P2P")
-        print("         Isolated CI P2P: .\\scripts\\test_blockchain_full.ps1 -P2P  (no -Live)")
         res.details = [
-            "skipped: only :8080 up with --live",
+            "fail: only :8080 up with --live (solo P2P skip forbidden)",
             "run start_two_nodes.ps1 for mesh P2P",
         ]
         return res

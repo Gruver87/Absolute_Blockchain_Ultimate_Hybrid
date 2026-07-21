@@ -6,6 +6,21 @@
 
 ---
 
+## [1.2.89] — 2026-07-21
+
+### Hardened — mesh Redis + auth + honesty
+
+- Prod 3-node compose: Redis service + REDIS_RATE_LIMIT/URL on all nodes; prod_gate enforces
+- JWT secret lazy from env; Redis RL fail-closed by default + mid-flight deny
+- Bridge/Casper/Beacon API honesty; repair sync_error; mining/P2P/hybrid silent-fail purge
+- full_audit solo P2P fail-closed; handshake identity reject test
+
+### Docs
+
+- [RELEASE_NOTES_v1.2.89.md](RELEASE_NOTES_v1.2.89.md)
+
+---
+
 ## [1.2.88] — 2026-07-21
 
 ### Hardened — soak / rate limit / TLS

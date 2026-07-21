@@ -1638,8 +1638,12 @@ class NodeOrchestrator:
                         proposer = self.validator_selection.select_proposer_weighted(
                             validators_dict, slot_n
                         )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    print(f"[Mining] select_proposer_weighted failed: {exc}")
+                    if bool(getattr(self.config, "is_production", False)):
+                        # Fail closed: skip this tick rather than forging with a weak fallback.
+                        await asyncio.sleep(0.5)
+                        continue
 
             # 2) Consensus adapter fallback (deterministic stake-weighted)
             if not proposer:

@@ -153,10 +153,29 @@ def check_file(path: str) -> list[str]:
     return errors
 
 
+def check_mesh_compose_redis() -> list[str]:
+    """Prod 3-node mesh must wire Redis for distributed rate limiting."""
+    errors: list[str] = []
+    path = ROOT / "docker-compose.prod.3node.yml"
+    if not path.is_file():
+        return [f"missing {path.name}"]
+    text = path.read_text(encoding="utf-8")
+    if "\n  redis:" not in text:
+        errors.append("docker-compose.prod.3node.yml missing redis service")
+    if "REDIS_RATE_LIMIT" not in text:
+        errors.append("docker-compose.prod.3node.yml missing REDIS_RATE_LIMIT")
+    if "REDIS_URL" not in text:
+        errors.append("docker-compose.prod.3node.yml missing REDIS_URL")
+    if "abs-prod-mesh-redis" not in text:
+        errors.append("docker-compose.prod.3node.yml missing abs-prod-mesh-redis volume")
+    return errors
+
+
 def main() -> int:
     errors: list[str] = []
     for path in PROD_FILES:
         errors.extend(check_file(path))
+    errors.extend(check_mesh_compose_redis())
 
     if errors:
         print("FAIL: production gate")
