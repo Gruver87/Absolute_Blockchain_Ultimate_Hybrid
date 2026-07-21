@@ -41,8 +41,8 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.29` — topology/prod / filters / migrate / SQLite features / metrics-WS / tip |
-| **Notes** | [RELEASE_NOTES_v1.3.29.md](../RELEASE_NOTES_v1.3.29.md) |
+| **Tag** | `v1.3.30` — ready/WS / feature init / bridge proof / L2 missing / storage / consensus |
+| **Notes** | [RELEASE_NOTES_v1.3.30.md](../RELEASE_NOTES_v1.3.30.md) |
 | **Prior** | [v1.3.19](../RELEASE_NOTES_v1.3.19.md) sync incomplete/CORS/repair; [v1.3.08](../RELEASE_NOTES_v1.3.08.md) Swiss-watch |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

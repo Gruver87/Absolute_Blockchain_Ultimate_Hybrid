@@ -715,8 +715,31 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("alerts.yml missing AbsoluteSqliteJsonDecodeFailures")
         if "AbsoluteWSSendFailBurst" not in alerts:
             errors.append("alerts.yml missing AbsoluteWSSendFailBurst")
+        if 'checks["websocket_running"]' not in (
+            (ROOT / "api" / "http.py").read_text(encoding="utf-8")
+        ):
+            errors.append("/health/ready prod must check websocket_running")
+        http_py2 = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
+        if "lightning_missing" not in http_py2 or "plasma_missing" not in http_py2:
+            errors.append("L2 unbound endpoints must surface lightning_missing/plasma_missing")
+        if "wasm_missing" not in http_py2:
+            errors.append("WASM unbound endpoints must surface wasm_missing")
+        if "p2p_missing" not in http_py2:
+            errors.append("/network/stats must surface p2p_missing")
+        if "proof_ok = bridge_on and oracle_on and rust_path and rpc_on" not in http_py2:
+            errors.append("bridge relayer proof_ok must require eth RPC configured")
+        if 'raise ValueError("corrupt account storage")' not in http_py2:
+            errors.append("eth_getStorageAt must fail on corrupt account storage")
+        if "feature_degraded" not in http_py2:
+            errors.append("/status must degrade when feature_init_errors present")
+        main_py2 = (ROOT / "main.py").read_text(encoding="utf-8")
+        if "feature_init_errors" not in main_py2:
+            errors.append("main.py must track feature_init_errors on optional module init fail")
+        adapter_py = (ROOT / "consensus" / "adapter.py").read_text(encoding="utf-8")
+        if "_casper_ingest_fail" not in adapter_py or "casper_ingest_fail" not in adapter_py:
+            errors.append("consensus adapter must count casper/beacon ingest failures")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28/29 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28/29/30 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

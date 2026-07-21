@@ -304,6 +304,7 @@ class NodeOrchestrator:
     def __init__(self, config: Config):
         global _ACTIVE_NODE
         self.config = config
+        self.feature_init_errors: dict = {}
         self._running = False
         self._mesh_forge_hold_height = 0
         self._tasks = []
@@ -674,6 +675,7 @@ class NodeOrchestrator:
                 print("[Node] Oracle registry: SQLite feeds enabled")
             except Exception as e:
                 self.oracle_registry = None
+                self.feature_init_errors["oracles"] = str(e)
                 print(f"[Node] Oracle registry: unavailable ({e})")
         if _ORACLE_MANAGER_AVAILABLE and getattr(config, "feature_oracles", True):
             try:
@@ -681,6 +683,7 @@ class NodeOrchestrator:
                 print("[Node] Oracles: price feeds active (BTC/ETH/ABS)")
             except Exception as e:
                 self.oracles = None
+                self.feature_init_errors["oracles"] = str(e)
                 print(f"[Node] Oracles: live feeds unavailable ({e})")
 
         # 13. Multisig support
@@ -876,6 +879,7 @@ class NodeOrchestrator:
                 print("[Node] Lightning Network: payment channels ready")
             except Exception as e:
                 self.lightning = None
+                self.feature_init_errors["lightning"] = str(e)
                 print(f"[Node] Lightning: unavailable ({e})")
         else:
             self.lightning = None
@@ -902,6 +906,7 @@ class NodeOrchestrator:
                 print("[Node] Plasma Chain: L2 sidechain ready")
             except Exception as e:
                 self.plasma = None
+                self.feature_init_errors["plasma"] = str(e)
                 print(f"[Node] Plasma: unavailable ({e})")
         else:
             self.plasma = None
@@ -913,6 +918,7 @@ class NodeOrchestrator:
                 print("[Node] WASM VM: WebAssembly-style VM ready")
             except Exception as e:
                 self.wasm_vm = None
+                self.feature_init_errors["wasm"] = str(e)
                 print(f"[Node] WASM VM: unavailable ({e})")
         else:
             self.wasm_vm = None
@@ -1258,6 +1264,7 @@ class NodeOrchestrator:
         )
         from api.http import RESTHandler
         RESTHandler.ws_server = self.ws_server
+        RESTHandler.feature_init_errors = dict(self.feature_init_errors)
 
         self._print_banner()
 

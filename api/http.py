@@ -806,10 +806,25 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             account = bc.db.get_account(address) if bc else None
             storage = {}
             if account and account.get("storage"):
-                try:
-                    storage = json.loads(account["storage"])
-                except (TypeError, ValueError, json.JSONDecodeError):
-                    storage = {}
+                raw = account["storage"]
+                if isinstance(raw, dict):
+                    storage = raw
+                else:
+                    text = raw if isinstance(raw, str) else str(raw)
+                    if text.strip():
+                        db = getattr(bc, "db", None)
+                        if db is not None and hasattr(db, "_loads_json_or_none"):
+                            parsed = db._loads_json_or_none(text, context="account_storage")
+                            if parsed is None:
+                                raise ValueError("corrupt account storage")
+                            if not isinstance(parsed, dict):
+                                raise ValueError("corrupt account storage")
+                            storage = parsed
+                        else:
+                            try:
+                                storage = json.loads(text)
+                            except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                                raise ValueError("corrupt account storage") from exc
             val = storage.get(str(slot), storage.get(slot, 0))
             return hex(int(val or 0))
 
@@ -955,6 +970,7 @@ class RESTHandler(BaseHTTPRequestHandler):
     finality_engine = None           # FinalityEngine
     sync_engine = None               # SyncEngine
     ws_server = None                 # network.websocket.WebSocketServer
+    feature_init_errors = None       # dict name -> error when feature flag on but init failed
     state_engine = None              # StateEngine
     slashing_engine = None           # SlashingEngine
     validator_registry = None        # ValidatorRegistry
@@ -1114,6 +1130,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                     checks["state_engine"] = self.__class__.state_engine is not None
                     checks["finality_engine"] = self.__class__.finality_engine is not None
                     checks["immutable_state"] = self.__class__.immutable_state is not None
+                    # WebSocket is always started with the node — bind failure must fail ready.
+                    ws = self.__class__.ws_server
+                    if ws is not None:
+                        checks["websocket_running"] = bool(getattr(ws, "_running", False))
+                    feat_errs = getattr(self.__class__, "feature_init_errors", None) or {}
+                    for name in ("lightning", "plasma", "wasm", "oracles"):
+                        if name in feat_errs:
+                            checks[f"{name}_init"] = False
                 if is_prod and p2p is not None:
                     # Listener must exist — bind failure clears _running (fail-closed).
                     checks["p2p_running"] = bool(getattr(p2p, "_running", False)) and (
@@ -1544,6 +1568,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "state_root_strict_p2p": bool(getattr(cfg, "state_root_strict_p2p", True)),
                 }
                 sync_engine_bound = se_status is not None
+                feat_errs = dict(getattr(self.__class__, "feature_init_errors", None) or {})
+                feature_degraded = bool(feat_errs)
                 self._json({
                     # Do not hard-code "running" while mesh is inconsistent, unprobed, or P2P is down.
                     "status": (
@@ -1558,6 +1584,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                             )
                             # Peers without SyncEngine: cannot honestly claim healthy mesh sync.
                             or (peer_count > 0 and not sync_engine_bound)
+                            or feature_degraded
                         )
                         else "running"
                     ),
@@ -1580,6 +1607,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                         )
                         if self.__class__.ws_server is not None
                         else 0,
+                        "lightning": self.__class__.lightning is not None,
+                        "plasma": self.__class__.plasma is not None,
+                        "wasm": self.__class__.wasm_vm is not None,
+                        "oracles": self.__class__.oracles is not None
+                        or self.__class__.oracle_registry is not None,
+                        "feature_init_errors": feat_errs,
                     },
                     "node_version": cfg.node_version,
                     "network_name": cfg.network_name,
@@ -1977,7 +2010,15 @@ class RESTHandler(BaseHTTPRequestHandler):
                     })
 
             elif path == "/network/stats":
-                self._json(p2p.get_stats() if p2p else {})
+                if p2p and hasattr(p2p, "get_stats"):
+                    self._json(p2p.get_stats())
+                else:
+                    self._json({
+                        "enabled": False,
+                        "running": False,
+                        "peer_count": 0,
+                        "error": "p2p_missing",
+                    })
 
             elif path == "/consensus/stats":
                 ca = self.__class__.consensus_adapter
@@ -1987,6 +2028,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     except Exception as e:
                         stats = {
                             "enabled": True,
+                            "healthy": False,
                             "error": str(e),
                             "lmd_ghost_enabled": getattr(ca, "slashing_engine", None) is not None,
                             "casper_ffg": (
@@ -2009,7 +2051,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "validators": len(validators),
                         "checkpoints": len(checkpoints) if isinstance(checkpoints, list) else 0,
                         "enabled": False,
-                        "error": "consensus adapter not loaded",
+                        "healthy": False,
+                        "error": "consensus_adapter_missing",
                     })
 
             elif path == "/features":
@@ -3123,12 +3166,26 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             elif path == "/lightning/channels":
                 ln = self.__class__.lightning
-                self._json({"channels": ln.get_all_channels() if ln else []})
+                if ln:
+                    self._json({"channels": ln.get_all_channels()})
+                else:
+                    self._json({
+                        "channels": [],
+                        "enabled": False,
+                        "error": "lightning_missing",
+                    })
 
             elif path == "/lightning/payments":
                 ln = self.__class__.lightning
                 limit = int(qs.get("limit", ["50"])[0])
-                self._json({"payments": ln.get_payment_history(limit) if ln else []})
+                if ln:
+                    self._json({"payments": ln.get_payment_history(limit)})
+                else:
+                    self._json({
+                        "payments": [],
+                        "enabled": False,
+                        "error": "lightning_missing",
+                    })
 
             elif path == "/lightning/htlcs":
                 ln = self.__class__.lightning
@@ -3136,7 +3193,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if ln and hasattr(ln, "get_htlcs"):
                     self._json({"htlcs": ln.get_htlcs(channel_id)})
                 else:
-                    self._json({"htlcs": [], "enabled": False})
+                    self._json({
+                        "htlcs": [],
+                        "enabled": False,
+                        "error": "lightning_missing",
+                    })
 
             elif path.startswith("/plasma/proof"):
                 pl = self.__class__.plasma
@@ -3187,15 +3248,27 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/plasma/blocks":
                 pl = self.__class__.plasma
                 limit = int(qs.get("limit", ["20"])[0])
-                self._json({"blocks": pl.get_blocks(limit) if pl else []})
+                if pl:
+                    self._json({"blocks": pl.get_blocks(limit)})
+                else:
+                    self._json({
+                        "blocks": [],
+                        "enabled": False,
+                        "error": "plasma_missing",
+                    })
 
             elif path == "/plasma/deposits":
                 pl = self.__class__.plasma
                 limit = int(qs.get("limit", ["50"])[0])
                 if pl and hasattr(pl, "get_deposits"):
-                    self._json({"count": len(pl.get_deposits(limit)), "deposits": pl.get_deposits(limit)})
+                    deposits = pl.get_deposits(limit)
+                    self._json({"count": len(deposits), "deposits": deposits})
                 else:
-                    self._json({"deposits": [], "enabled": False})
+                    self._json({
+                        "deposits": [],
+                        "enabled": False,
+                        "error": "plasma_missing",
+                    })
 
             # ── WASM VM ───────────────────────────────────────────────────────
             elif path == "/wasm/stats":
@@ -3210,23 +3283,43 @@ class RESTHandler(BaseHTTPRequestHandler):
 
             elif path == "/wasm/contracts":
                 vm = self.__class__.wasm_vm
-                self._json({"contracts": vm.get_all_contracts() if vm else []})
+                if vm:
+                    self._json({"contracts": vm.get_all_contracts()})
+                else:
+                    self._json({
+                        "contracts": [],
+                        "enabled": False,
+                        "error": "wasm_missing",
+                    })
 
             elif path.startswith("/wasm/contract/"):
                 addr = path[len("/wasm/contract/"):]
                 vm = self.__class__.wasm_vm
-                c = vm.get_contract(addr) if vm else None
-                self._json(c or {"error": "not found"})
+                if not vm:
+                    self._json({"error": "wasm_missing", "enabled": False})
+                else:
+                    c = vm.get_contract(addr)
+                    self._json(c or {"error": "not found"})
 
             elif path.startswith("/wasm/storage/"):
                 addr = path[len("/wasm/storage/"):]
                 vm = self.__class__.wasm_vm
-                self._json(vm.get_storage(addr) if vm else {})
+                if not vm:
+                    self._json({"error": "wasm_missing", "enabled": False})
+                else:
+                    self._json(vm.get_storage(addr))
 
             elif path == "/wasm/events":
                 vm = self.__class__.wasm_vm
                 limit = int(qs.get("limit", ["50"])[0])
-                self._json({"events": vm.get_events(limit) if vm else []})
+                if vm:
+                    self._json({"events": vm.get_events(limit)})
+                else:
+                    self._json({
+                        "events": [],
+                        "enabled": False,
+                        "error": "wasm_missing",
+                    })
 
             # ── AI Agent Manager ──────────────────────────────────────────────
             elif path == "/ai-agent/stats":
@@ -7441,21 +7534,37 @@ def _build_testnet_bridge_relayer_proof(cfg, db, bridge) -> Dict:
     queue_in = int(relayer.get("l1_incoming", 0) or 0)
     queue_out = int(relayer.get("l1_outbound", 0) or 0)
     rust_path = bridge is not None and hasattr(bridge, "lock_and_bridge")
-    proof_ok = bridge_on and oracle_on and rust_path
+    mode = str(getattr(cfg, "bridge_mode", "unknown") or "unknown")
+    readiness = relayer.get("readiness") if isinstance(relayer.get("readiness"), dict) else {}
+    # Config alone is not proof — require ETH RPC configured; rust mode needs smoke health.
+    proof_ok = bridge_on and oracle_on and rust_path and rpc_on
+    rust_health = None
+    if mode.lower() == "rust":
+        rust_health = _rust_bridge_health(cfg)
+        proof_ok = proof_ok and bool(rust_health.get("ok"))
 
     return {
         "api_wave": 61,
         "bridge_enabled": bridge_on,
-        "bridge_mode": getattr(cfg, "bridge_mode", "unknown"),
+        "bridge_mode": mode,
         "oracle_hmac_configured": oracle_on,
         "eth_rpc_configured": rpc_on,
         "l1_incoming": queue_in,
         "l1_outbound": queue_out,
         "pending_locks": int(relayer.get("pending_locks", 0) or 0),
         "relayer": relayer,
+        "relayer_readiness_ok": bool(readiness.get("ok")),
+        "rust_bridge_health": rust_health,
         "ci_l1_rpc_hint": "bridge.mock_l1_rpc.start_mock_l1_rpc + ETH_RPC_URL for CI",
         "ci_mode": "python scripts/verify_p2p_ci.py --mode ci-bridge-relayer",
         "proof_ok": proof_ok,
+        "proof_components": {
+            "bridge_enabled": bridge_on,
+            "oracle_hmac": oracle_on,
+            "bridge_object": rust_path,
+            "eth_rpc": rpc_on,
+            "rust_smoke": bool(rust_health.get("ok")) if rust_health else None,
+        },
     }
 
 

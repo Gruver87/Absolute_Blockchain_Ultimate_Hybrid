@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.30] — 2026-07-21
+
+### Hardened — ready/WS / feature init / bridge proof / L2 missing / storage / consensus
+
+- Prod ready checks WS + feature init errors; status degrades on feature_init_errors
+- Bridge proof_ok needs ETH RPC; L2/network unbound error keys; corrupt storage RPC fail
+- Consensus ingest fail counters and healthy flag
+
+---
+
 ## [1.3.29] — 2026-07-21
 
 ### Hardened — topology/prod / filters / migrate / SQLite features / metrics-WS / tip

@@ -120,6 +120,8 @@ class ConsensusAdapter:
             print("[Consensus] Unified path: LMD-GHOST + FinalityEngine")
 
         self._last_block_time: float = 0.0
+        self._casper_ingest_fail = 0
+        self._beacon_ingest_fail = 0
         self._load_validators_from_db()
         self._sync_finality_validator_count()
 
@@ -375,12 +377,14 @@ class ConsensusAdapter:
             try:
                 self.casper_engine.add_block(blk_for_fork)
             except Exception as exc:
+                self._casper_ingest_fail += 1
                 print(f"[Consensus] casper add_block error: {exc}")
 
         if not self._unified_consensus and self.beacon_engine:
             try:
                 self.beacon_engine.add_block(blk_for_fork)
             except Exception as exc:
+                self._beacon_ingest_fail += 1
                 print(f"[Consensus] beacon add_block error: {exc}")
 
         # Record block production in validator registry
@@ -392,20 +396,40 @@ class ConsensusAdapter:
     def get_casper_status(self) -> Dict:
         """Returns Casper FFG two-step finality status."""
         if not self.casper_engine:
-            return {"enabled": False}
+            return {"enabled": False, "healthy": False}
         try:
-            return {"enabled": True, "finality": self.casper_engine.get_finality_status()}
+            return {
+                "enabled": True,
+                "healthy": True,
+                "finality": self.casper_engine.get_finality_status(),
+                "ingest_fail": int(self._casper_ingest_fail),
+            }
         except Exception as e:
-            return {"enabled": True, "error": str(e)}
+            return {
+                "enabled": True,
+                "healthy": False,
+                "error": str(e),
+                "ingest_fail": int(self._casper_ingest_fail),
+            }
 
     def get_beacon_status(self) -> Dict:
         """Returns Beacon Chain engine status (head, finality)."""
         if not self.beacon_engine:
-            return {"enabled": False}
+            return {"enabled": False, "healthy": False}
         try:
-            return {"enabled": True, "stats": self.beacon_engine.get_stats()}
+            return {
+                "enabled": True,
+                "healthy": True,
+                "stats": self.beacon_engine.get_stats(),
+                "ingest_fail": int(self._beacon_ingest_fail),
+            }
         except Exception as e:
-            return {"enabled": True, "error": str(e)}
+            return {
+                "enabled": True,
+                "healthy": False,
+                "error": str(e),
+                "ingest_fail": int(self._beacon_ingest_fail),
+            }
 
     def get_stats(self) -> Dict:
         engine_stats = self.engine.get_stats()
@@ -437,6 +461,12 @@ class ConsensusAdapter:
             "pbs_enabled": pbs_on,
             "validator_registry": registry_on,
             "beacon_enabled": self.beacon_engine is not None,
+            "casper_ingest_fail": int(self._casper_ingest_fail),
+            "beacon_ingest_fail": int(self._beacon_ingest_fail),
+            "healthy": (
+                int(self._casper_ingest_fail) == 0
+                and int(self._beacon_ingest_fail) == 0
+            ),
             "systems": {
                 "lmd_ghost": lmd_on,
                 "casper_ffg": casper_on,
