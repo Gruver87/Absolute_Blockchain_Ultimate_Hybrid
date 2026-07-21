@@ -742,6 +742,18 @@ class P2PNode:
             if native.validate_p2p_validator_register(data) is None:
                 self._strike_peer_sync(peer, "bad_validator_register")
                 return
+        elif msg_type == MSG_CROSS_SHARD_TX:
+            if native.validate_p2p_cross_shard_tx(data) is None:
+                self._strike_peer_sync(peer, "bad_cross_shard_tx")
+                return
+        elif msg_type == MSG_CROSS_SHARD_ACK:
+            if native.validate_p2p_cross_shard_ack(data) is None:
+                self._strike_peer_sync(peer, "bad_cross_shard_ack")
+                return
+        elif msg_type == MSG_SHARD_MIGRATION:
+            if native.validate_p2p_shard_migration(data) is None:
+                self._strike_peer_sync(peer, "bad_shard_migration")
+                return
 
         waiter = self._sync_waiters.get(peer.peer_id)
         if waiter:
@@ -1741,16 +1753,20 @@ class P2PNode:
             await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _handle_cross_shard_tx(self, peer: PeerConnection, data: Dict):
-        if not self._sharding or not isinstance(data, dict):
+        parsed = native.validate_p2p_cross_shard_tx(data)
+        if not parsed:
+            self._strike_peer_sync(peer, "bad_cross_shard_tx")
+            return
+        if not self._sharding:
             return
         credited = False
         if hasattr(self._sharding, "receive_cross_shard_credit"):
-            credited = bool(self._sharding.receive_cross_shard_credit(data))
+            credited = bool(self._sharding.receive_cross_shard_credit(parsed))
         if credited:
             ack = {
-                "tx_id": data.get("tx_id", ""),
-                "shard_id": data.get("to_shard"),
-                "to_shard": data.get("to_shard"),
+                "tx_id": parsed.get("tx_id", ""),
+                "shard_id": parsed.get("to_shard"),
+                "to_shard": parsed.get("to_shard"),
                 "status": "confirmed",
             }
             if self._sharding and hasattr(self._sharding, "validator_id"):
@@ -1762,10 +1778,14 @@ class P2PNode:
             await peer.send(MSG_CROSS_SHARD_ACK, ack)
 
     async def _handle_cross_shard_ack(self, peer: PeerConnection, data: Dict):
-        if not self._sharding or not isinstance(data, dict):
+        parsed = native.validate_p2p_cross_shard_ack(data)
+        if not parsed:
+            self._strike_peer_sync(peer, "bad_cross_shard_ack")
+            return
+        if not self._sharding:
             return
         if hasattr(self._sharding, "receive_cross_shard_ack"):
-            self._sharding.receive_cross_shard_ack(data)
+            self._sharding.receive_cross_shard_ack(parsed)
 
     async def broadcast_cross_shard_ack(self, payload: Dict):
         if not isinstance(payload, dict):
@@ -1782,10 +1802,14 @@ class P2PNode:
             await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _handle_shard_migration(self, peer: PeerConnection, data: Dict):
-        if not self._sharding or not isinstance(data, dict):
+        parsed = native.validate_p2p_shard_migration(data)
+        if not parsed:
+            self._strike_peer_sync(peer, "bad_shard_migration")
+            return
+        if not self._sharding:
             return
         if hasattr(self._sharding, "receive_shard_migration"):
-            self._sharding.receive_shard_migration(data)
+            self._sharding.receive_shard_migration(parsed)
 
     async def broadcast_shard_migration(self, payload: Dict):
         if not isinstance(payload, dict):

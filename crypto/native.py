@@ -122,6 +122,9 @@ def native_crypto_status(required: bool = False) -> dict:
             "validate_p2p_get_block",
             "validate_p2p_get_block_by_hash",
             "validate_p2p_blocks_batch",
+            "validate_p2p_cross_shard_tx",
+            "validate_p2p_cross_shard_ack",
+            "validate_p2p_shard_migration",
             "amount_to_satoshi",
             "amount_apply_delta_satoshi",
             "state_engine_apply_transactions",
@@ -1840,6 +1843,127 @@ def validate_p2p_blocks_batch(data: Any) -> Optional[int]:
         if validate_p2p_block_announce(block) is None:
             return None
     return len(data)
+
+
+def validate_p2p_cross_shard_tx(data: Any) -> Optional[dict]:
+    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
+    if _native is not None and hasattr(_native, "validate_p2p_cross_shard_tx"):
+        result = _native.validate_p2p_cross_shard_tx(payload)
+        return dict(result) if result is not None else None
+    if not isinstance(data, dict):
+        return None
+    tx_id = str(data.get("tx_id") or "").strip()
+    if not tx_id or len(tx_id) > 128:
+        return None
+    try:
+        from_shard = int(data.get("from_shard"))
+        to_shard = int(data.get("to_shard"))
+    except (TypeError, ValueError):
+        return None
+    if from_shard < 0 or to_shard < 0 or from_shard > 1_000_000 or to_shard > 1_000_000:
+        return None
+    if from_shard == to_shard:
+        return None
+    from_addr = str(data.get("from_addr") or "").strip()
+    to_addr = str(data.get("to_addr") or "").strip()
+    if not from_addr or not to_addr or len(from_addr) > 128 or len(to_addr) > 128:
+        return None
+    try:
+        amount = float(data.get("amount"))
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(amount) or amount <= 0.0 or amount > 1e18:
+        return None
+    status = str(data.get("status") or "").strip()
+    if len(status) > 64:
+        return None
+    source_node = str(data.get("source_node") or "").strip()
+    if len(source_node) > 128:
+        return None
+    return {
+        "tx_id": tx_id,
+        "from_shard": from_shard,
+        "to_shard": to_shard,
+        "from_addr": from_addr,
+        "to_addr": to_addr,
+        "amount": amount,
+        "status": status,
+        "source_node": source_node,
+    }
+
+
+def validate_p2p_cross_shard_ack(data: Any) -> Optional[dict]:
+    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
+    if _native is not None and hasattr(_native, "validate_p2p_cross_shard_ack"):
+        result = _native.validate_p2p_cross_shard_ack(payload)
+        return dict(result) if result is not None else None
+    if not isinstance(data, dict):
+        return None
+    tx_id = str(data.get("tx_id") or "").strip()
+    if not tx_id or len(tx_id) > 128:
+        return None
+    out: dict = {"tx_id": tx_id, "status": "", "validator_id": ""}
+    if "shard_id" in data and data.get("shard_id") is not None:
+        try:
+            shard_id = int(data.get("shard_id"))
+        except (TypeError, ValueError):
+            return None
+        if shard_id < 0 or shard_id > 1_000_000:
+            return None
+        out["shard_id"] = shard_id
+    if "to_shard" in data and data.get("to_shard") is not None:
+        try:
+            to_shard = int(data.get("to_shard"))
+        except (TypeError, ValueError):
+            return None
+        if to_shard < 0 or to_shard > 1_000_000:
+            return None
+        out["to_shard"] = to_shard
+    status = str(data.get("status") or "").strip()
+    if len(status) > 64:
+        return None
+    validator_id = str(data.get("validator_id") or "").strip()
+    if len(validator_id) > 128:
+        return None
+    out["status"] = status
+    out["validator_id"] = validator_id
+    return out
+
+
+def validate_p2p_shard_migration(data: Any) -> Optional[dict]:
+    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
+    if _native is not None and hasattr(_native, "validate_p2p_shard_migration"):
+        result = _native.validate_p2p_shard_migration(payload)
+        return dict(result) if result is not None else None
+    if not isinstance(data, dict):
+        return None
+    if str(data.get("type") or "").strip() != "shard_migration":
+        return None
+    address = str(data.get("address") or "").strip()
+    if not address or len(address) > 128:
+        return None
+    try:
+        from_shard = int(data.get("from_shard"))
+        to_shard = int(data.get("to_shard"))
+    except (TypeError, ValueError):
+        return None
+    if from_shard < 0 or to_shard < 0 or from_shard > 1_000_000 or to_shard > 1_000_000:
+        return None
+    if from_shard == to_shard:
+        return None
+    try:
+        balance = float(data.get("balance"))
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(balance) or balance <= 0.0 or balance > 1e18:
+        return None
+    return {
+        "type": "shard_migration",
+        "address": address,
+        "from_shard": from_shard,
+        "to_shard": to_shard,
+        "balance": balance,
+    }
 
 
 def parse_p2p_wire_line(

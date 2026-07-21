@@ -810,6 +810,237 @@ fn validate_p2p_blocks_batch(data_json: String) -> PyResult<Option<usize>> {
     Ok(validate_blocks_batch_inner(&value))
 }
 
+const MAX_SHARD_ID: i64 = 1_000_000;
+const MAX_CROSS_SHARD_TX_ID_LEN: usize = 128;
+const MAX_CROSS_SHARD_STATUS_LEN: usize = 64;
+const MAX_CROSS_SHARD_AMOUNT: f64 = 1e18;
+
+fn json_f64_amount(value: &Value) -> Option<f64> {
+    match value {
+        Value::Number(n) => n.as_f64(),
+        Value::String(s) => s.parse::<f64>().ok(),
+        _ => None,
+    }
+}
+
+fn json_shard_id(value: &Value) -> Option<i64> {
+    let id = json_i64(value)?;
+    if id < 0 || id > MAX_SHARD_ID {
+        return None;
+    }
+    Some(id)
+}
+
+fn validate_cross_shard_tx_inner(
+    data: &Value,
+) -> Option<(String, i64, i64, String, String, f64, String, String)> {
+    let obj = data.as_object()?;
+    let tx_id = obj
+        .get("tx_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if tx_id.is_empty() || tx_id.len() > MAX_CROSS_SHARD_TX_ID_LEN {
+        return None;
+    }
+    let from_shard = obj.get("from_shard").and_then(json_shard_id)?;
+    let to_shard = obj.get("to_shard").and_then(json_shard_id)?;
+    if from_shard == to_shard {
+        return None;
+    }
+    let from_addr = obj
+        .get("from_addr")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let to_addr = obj
+        .get("to_addr")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if from_addr.is_empty()
+        || to_addr.is_empty()
+        || from_addr.len() > MAX_P2P_ADDR_LEN
+        || to_addr.len() > MAX_P2P_ADDR_LEN
+    {
+        return None;
+    }
+    let amount = obj.get("amount").and_then(json_f64_amount)?;
+    if !amount.is_finite() || amount <= 0.0 || amount > MAX_CROSS_SHARD_AMOUNT {
+        return None;
+    }
+    let status = obj
+        .get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if status.len() > MAX_CROSS_SHARD_STATUS_LEN {
+        return None;
+    }
+    let source_node = obj
+        .get("source_node")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if source_node.len() > MAX_P2P_NODE_ID_LEN {
+        return None;
+    }
+    Some((
+        tx_id,
+        from_shard,
+        to_shard,
+        from_addr,
+        to_addr,
+        amount,
+        status,
+        source_node,
+    ))
+}
+
+fn validate_cross_shard_ack_inner(
+    data: &Value,
+) -> Option<(String, Option<i64>, Option<i64>, String, String)> {
+    let obj = data.as_object()?;
+    let tx_id = obj
+        .get("tx_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if tx_id.is_empty() || tx_id.len() > MAX_CROSS_SHARD_TX_ID_LEN {
+        return None;
+    }
+    let shard_id = match obj.get("shard_id") {
+        None | Some(Value::Null) => None,
+        Some(v) => Some(json_shard_id(v)?),
+    };
+    let to_shard = match obj.get("to_shard") {
+        None | Some(Value::Null) => None,
+        Some(v) => Some(json_shard_id(v)?),
+    };
+    let status = obj
+        .get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if status.len() > MAX_CROSS_SHARD_STATUS_LEN {
+        return None;
+    }
+    let validator_id = obj
+        .get("validator_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if validator_id.len() > MAX_P2P_NODE_ID_LEN {
+        return None;
+    }
+    Some((tx_id, shard_id, to_shard, status, validator_id))
+}
+
+fn validate_shard_migration_inner(data: &Value) -> Option<(String, i64, i64, f64)> {
+    let obj = data.as_object()?;
+    let msg_type = obj
+        .get("type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim();
+    if msg_type != "shard_migration" {
+        return None;
+    }
+    let address = obj
+        .get("address")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if address.is_empty() || address.len() > MAX_P2P_ADDR_LEN {
+        return None;
+    }
+    let from_shard = obj.get("from_shard").and_then(json_shard_id)?;
+    let to_shard = obj.get("to_shard").and_then(json_shard_id)?;
+    if from_shard == to_shard {
+        return None;
+    }
+    let balance = obj.get("balance").and_then(json_f64_amount)?;
+    if !balance.is_finite() || balance <= 0.0 || balance > MAX_CROSS_SHARD_AMOUNT {
+        return None;
+    }
+    Some((address, from_shard, to_shard, balance))
+}
+
+#[pyfunction]
+fn validate_p2p_cross_shard_tx(py: Python<'_>, data_json: String) -> PyResult<Option<PyObject>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+    let Some((tx_id, from_shard, to_shard, from_addr, to_addr, amount, status, source_node)) =
+        validate_cross_shard_tx_inner(&value)
+    else {
+        return Ok(None);
+    };
+    let dict = PyDict::new_bound(py);
+    dict.set_item("tx_id", tx_id)?;
+    dict.set_item("from_shard", from_shard)?;
+    dict.set_item("to_shard", to_shard)?;
+    dict.set_item("from_addr", from_addr)?;
+    dict.set_item("to_addr", to_addr)?;
+    dict.set_item("amount", amount)?;
+    dict.set_item("status", status)?;
+    dict.set_item("source_node", source_node)?;
+    Ok(Some(dict.into_any().unbind()))
+}
+
+#[pyfunction]
+fn validate_p2p_cross_shard_ack(py: Python<'_>, data_json: String) -> PyResult<Option<PyObject>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+    let Some((tx_id, shard_id, to_shard, status, validator_id)) =
+        validate_cross_shard_ack_inner(&value)
+    else {
+        return Ok(None);
+    };
+    let dict = PyDict::new_bound(py);
+    dict.set_item("tx_id", tx_id)?;
+    if let Some(sid) = shard_id {
+        dict.set_item("shard_id", sid)?;
+    }
+    if let Some(ts) = to_shard {
+        dict.set_item("to_shard", ts)?;
+    }
+    dict.set_item("status", status)?;
+    dict.set_item("validator_id", validator_id)?;
+    Ok(Some(dict.into_any().unbind()))
+}
+
+#[pyfunction]
+fn validate_p2p_shard_migration(py: Python<'_>, data_json: String) -> PyResult<Option<PyObject>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+    let Some((address, from_shard, to_shard, balance)) = validate_shard_migration_inner(&value)
+    else {
+        return Ok(None);
+    };
+    let dict = PyDict::new_bound(py);
+    dict.set_item("type", "shard_migration")?;
+    dict.set_item("address", address)?;
+    dict.set_item("from_shard", from_shard)?;
+    dict.set_item("to_shard", to_shard)?;
+    dict.set_item("balance", balance)?;
+    Ok(Some(dict.into_any().unbind()))
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_p2p_wire_line, m)?)?;
     m.add_function(wrap_pyfunction!(encode_p2p_wire_message, m)?)?;
@@ -829,6 +1060,9 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_p2p_get_block, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_get_block_by_hash, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_blocks_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_p2p_cross_shard_tx, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_p2p_cross_shard_ack, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_p2p_shard_migration, m)?)?;
     Ok(())
 }
 

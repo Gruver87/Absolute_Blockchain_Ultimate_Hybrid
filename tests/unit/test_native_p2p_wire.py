@@ -175,3 +175,51 @@ def test_validate_validator_register_peers_get_block_blocks():
     assert native.validate_p2p_blocks_batch([]) == 0
     assert native.validate_p2p_blocks_batch([{"height": 1}]) is None
     assert native.validate_p2p_blocks_batch([block] * 501) is None
+
+
+def test_validate_cross_shard_and_migration():
+    tx = {
+        "tx_id": "abcd1234efgh5678",
+        "from_shard": 0,
+        "to_shard": 1,
+        "from_addr": "0x" + "a" * 40,
+        "to_addr": "0x" + "b" * 40,
+        "amount": 25.5,
+        "status": "debited",
+        "source_node": "shard-src",
+    }
+    ok = native.validate_p2p_cross_shard_tx(tx)
+    assert ok["tx_id"] == tx["tx_id"]
+    assert ok["to_shard"] == 1
+    assert ok["amount"] == 25.5
+    assert native.validate_p2p_cross_shard_tx({**tx, "from_shard": 1}) is None
+    assert native.validate_p2p_cross_shard_tx({**tx, "amount": 0}) is None
+    assert native.validate_p2p_cross_shard_tx({**tx, "tx_id": ""}) is None
+
+    ack = native.validate_p2p_cross_shard_ack(
+        {"tx_id": "abcd1234efgh5678", "shard_id": 1, "status": "confirmed", "validator_id": "v1"}
+    )
+    assert ack["tx_id"] == "abcd1234efgh5678"
+    assert ack["shard_id"] == 1
+    assert ack["validator_id"] == "v1"
+    assert native.validate_p2p_cross_shard_ack({"tx_id": ""}) is None
+    assert native.validate_p2p_cross_shard_ack({"tx_id": "x", "shard_id": -1}) is None
+
+    mig = native.validate_p2p_shard_migration(
+        {
+            "type": "shard_migration",
+            "address": "0x" + "c" * 40,
+            "from_shard": 0,
+            "to_shard": 2,
+            "balance": 10.0,
+        }
+    )
+    assert mig["address"].startswith("0x")
+    assert mig["to_shard"] == 2
+    assert native.validate_p2p_shard_migration({"type": "other", "address": "0x1", "from_shard": 0, "to_shard": 1, "balance": 1}) is None
+    assert native.validate_p2p_shard_migration(
+        {"type": "shard_migration", "address": "0x1", "from_shard": 1, "to_shard": 1, "balance": 1}
+    ) is None
+    assert native.validate_p2p_shard_migration(
+        {"type": "shard_migration", "address": "0x1", "from_shard": 0, "to_shard": 1, "balance": 0}
+    ) is None
