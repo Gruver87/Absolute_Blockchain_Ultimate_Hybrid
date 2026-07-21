@@ -126,8 +126,9 @@ class ReorgPredictor:
         return result
 
     def _confidence_label(self, risk: float) -> str:
+        # Never emit reserved consensus word "finalized" from a heuristic.
         if risk < 0.05:
-            return "finalized"
+            return "heuristic_low_risk"
         if risk < 0.2:
             return "high"
         if risk < 0.5:
@@ -138,7 +139,7 @@ class ReorgPredictor:
         risk = self.calculate_risk(confirmations)
         label = self._confidence_label(risk)
         labels = {
-            "finalized": "Finalized",
+            "heuristic_low_risk": "Heuristic low risk (not consensus finality)",
             "high": "High confidence",
             "medium": "Medium confidence",
             "low": "Low confidence - possible reorg",
@@ -152,6 +153,8 @@ class ReorgPredictor:
         return {
             "assessments": len(self.history),
             "persisted": bool(self.db),
+            "model_only": True,
+            "not_consensus_finality": True,
             "kinds": {
                 k: sum(1 for h in self.history if h.get("kind") == k)
                 for k in ("risk", "depth", "fork", "live_peers")

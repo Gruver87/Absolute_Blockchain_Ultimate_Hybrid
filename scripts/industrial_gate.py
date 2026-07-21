@@ -837,8 +837,36 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("Lightning stats must not claim multi-hop routing_enabled")
         if "FEATURE_MINIVM" not in (ROOT / "runtime" / "config.py").read_text(encoding="utf-8"):
             errors.append("config must include FEATURE_MINIVM prod block")
+        if "heuristic_low_risk" not in (
+            ROOT / "features" / "reorg_predictor.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("reorg predictor must not emit reserved finalized heuristic label")
+        if 'return "finalized"' in (
+            ROOT / "features" / "reorg_predictor.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("reorg predictor still returns finalized confidence label")
+        if "standalone_observer" not in http_py2:
+            errors.append("/finality/stats must label standalone_observer")
+        if "finality_engine_standalone_observer" not in http_py2:
+            errors.append("/status must expose finality_engine_standalone_observer")
+        if "wasm_operational" not in http_py2:
+            errors.append("/status must expose wasm_operational separately from wasm registry")
+        wasm_py = (ROOT / "features" / "wasm_vm.py").read_text(encoding="utf-8")
+        if "wasmtime_available" not in wasm_py or "pseudo_token_host" not in wasm_py:
+            errors.append("WASM get_stats must expose wasmtime_available / pseudo_token_host")
+        if "Binary WASM requires wasmtime" not in wasm_py:
+            errors.append("WASM deploy must reject binary modules without wasmtime")
+        if "deterministic_hash_selection" not in main_py2:
+            errors.append("main.py must not greenwash ValidatorSelection as RANDAO")
+        if "FEATURE_VALIDATOR_SELECTION" not in (
+            ROOT / "runtime" / "config.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("config must include FEATURE_VALIDATOR_SELECTION")
+        chain_st = (ROOT / "storage" / "chain_storage.py").read_text(encoding="utf-8")
+        if "abs_chain_replace_" not in chain_st or "os.rename(tmp_blocks" not in chain_st:
+            errors.append("ChainStorage.replace_chain must atomically swap temp blocks dir")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..35 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..36 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

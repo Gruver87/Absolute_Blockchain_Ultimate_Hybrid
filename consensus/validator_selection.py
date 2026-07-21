@@ -1,6 +1,9 @@
 ﻿# consensus/validator_selection.py
 """
-Validator Selection — deterministic RANDAO-style proposer and committee selection.
+Validator Selection — deterministic hash-ranked proposer and committee selection.
+
+Not Ethereum-style commit/reveal RANDAO. Entropy is mixed from observed block
+hashes (proposer-influenced). Treat as deterministic_hash_selection only.
 """
 
 from typing import Dict, List, Optional
@@ -10,8 +13,8 @@ from crypto import native
 
 class ValidatorSelection:
     """
-    Deterministic RANDAO-style validator selection.
-    - Seed is mixed with every finalized/local block hash.
+    Deterministic hash-ranked validator selection (educational / mesh helper).
+    - Seed is mixed with every local block hash (not a RANDAO commit/reveal).
     - Proposer and committee selection are hash-ranked, not Python RNG based.
     - Validator ordering is canonical, so all nodes agree independent of dict order.
     """
@@ -21,13 +24,19 @@ class ValidatorSelection:
             initial_seed = native.sha256_hex(b"genesis")
         self.entropy_seed = initial_seed
         self.epoch = 0
+        self.randao_commit_reveal = False
+        self.selection_mode = "deterministic_hash_selection"
 
     def update_seed(self, block_hash: str):
-        """
-        RANDAO-style mixing of entropy from block hashes
-        Each block contributes deterministic entropy to the seed.
-        """
+        """Mix entropy from a block hash into the selection seed."""
         self.entropy_seed = native.hash_text(self.entropy_seed + block_hash)
+
+    def get_honesty(self) -> Dict:
+        return {
+            "selection_mode": self.selection_mode,
+            "randao_commit_reveal": False,
+            "proposer_unbiasable": False,
+        }
 
     def set_epoch(self, epoch: int):
         self.epoch = epoch
@@ -96,5 +105,8 @@ class ValidatorSelection:
         return {
             "epoch": self.epoch,
             "seed": self.entropy_seed[:16] + "...",
-            "seed_length": len(self.entropy_seed)
+            "seed_length": len(self.entropy_seed),
+            "selection_mode": self.selection_mode,
+            "randao_commit_reveal": False,
+            "proposer_unbiasable": False,
         }

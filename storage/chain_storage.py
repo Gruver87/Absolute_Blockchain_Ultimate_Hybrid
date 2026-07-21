@@ -108,19 +108,48 @@ class ChainStorage:
         }
     
     def replace_chain(self, new_blocks: List[dict]) -> bool:
-        """Replace entire chain (for reorg)"""
+        """Replace entire chain backup atomically (temp dir → swap)."""
+        import shutil
+        import tempfile
+
+        if not isinstance(new_blocks, list):
+            return False
+        tmp_root = tempfile.mkdtemp(prefix="abs_chain_replace_", dir=self.data_dir)
+        tmp_blocks = os.path.join(tmp_root, "blocks")
+        os.makedirs(tmp_blocks, exist_ok=True)
         try:
-            # Clear existing blocks
-            for filename in os.listdir(self.blocks_dir):
-                if filename.endswith(".json"):
-                    os.remove(os.path.join(self.blocks_dir, filename))
-            
-            # Save new blocks
             for block in new_blocks:
-                self.save_block(block.get("number", 0), block)
-            
+                number = int(block.get("number", block.get("height", -1)))
+                if number < 0:
+                    raise ValueError("block missing number/height")
+                path = os.path.join(tmp_blocks, f"{number}.json")
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(block, f, indent=2)
+                # Validate round-trip
+                with open(path, "r", encoding="utf-8") as f:
+                    loaded = json.load(f)
+                if not isinstance(loaded, dict):
+                    raise ValueError(f"invalid block payload at {number}")
+            # Swap: move current aside, then install new
+            backup = self.blocks_dir + ".prev"
+            if os.path.isdir(backup):
+                shutil.rmtree(backup)
+            had_blocks = os.path.isdir(self.blocks_dir)
+            if had_blocks:
+                os.rename(self.blocks_dir, backup)
+            try:
+                os.rename(tmp_blocks, self.blocks_dir)
+            except Exception:
+                if had_blocks and os.path.isdir(backup) and not os.path.isdir(self.blocks_dir):
+                    os.rename(backup, self.blocks_dir)
+                raise
+            if os.path.isdir(backup):
+                shutil.rmtree(backup)
             print(f"[CHAIN] Chain replaced with {len(new_blocks)} blocks")
             return True
         except Exception as e:
             print(f"Error replacing chain: {e}")
             return False
+        finally:
+            if os.path.isdir(tmp_root):
+                shutil.rmtree(tmp_root, ignore_errors=True)

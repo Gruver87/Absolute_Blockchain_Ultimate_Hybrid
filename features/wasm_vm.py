@@ -129,6 +129,17 @@ class WASMVirtualMachine:
                init_params: Dict = None) -> Optional[str]:
         if not code or not owner:
             return None
+        # Binary WASM requires wasmtime; reject before charging fee.
+        try:
+            data = base64.b64decode((code or "").strip(), validate=True)
+            is_bin = len(data) >= 4 and data[:4] == b"\x00asm"
+        except Exception:
+            is_bin = False
+        if is_bin:
+            from features.wasm_engine import WASMEngine
+
+            if not WASMEngine.available():
+                return None
         if not self._charge_deploy_fee(owner):
             return None
         contract_addr = "wasm_" + native.sha256_hex(
@@ -192,6 +203,9 @@ class WASMVirtualMachine:
         return list(reversed(self.events[-limit:]))
 
     def get_stats(self) -> Dict:
+        from features.wasm_engine import WASMEngine
+
+        wt = bool(WASMEngine.available())
         return {
             "contracts_count": len(self.contracts),
             "total_calls": sum(c.call_count for c in self.contracts.values()),
@@ -200,9 +214,12 @@ class WASMVirtualMachine:
             "gas_limit": self.GAS_LIMIT,
             "deploy_fee": self.DEPLOY_FEE,
             "persisted": bool(self.db),
-            "wasm_engine": __import__(
-                "features.wasm_engine", fromlist=["WASMEngine"]
-            ).WASMEngine.available(),
+            "wasm_engine": wt,
+            "wasmtime_available": wt,
+            "execution_bound": wt,
+            "pseudo_token_host": True,
+            "operational": wt,
+            "enabled": True,
         }
 
     def _run_constructor(self, addr: str, params: Dict, owner: str):

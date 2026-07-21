@@ -1601,6 +1601,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "consensus_adapter": self.__class__.consensus_adapter is not None,
                         "state_engine": self.__class__.state_engine is not None,
                         "finality_engine": self.__class__.finality_engine is not None,
+                        "finality_engine_standalone_observer": True,
+                        "finality_consensus_bound": bool(
+                            self.__class__.consensus_adapter is not None
+                            and getattr(self.__class__.consensus_adapter, "finality", None)
+                            is not None
+                        ),
                         "immutable_state": self.__class__.immutable_state is not None,
                         "websocket": self.__class__.ws_server is not None,
                         "websocket_running": bool(
@@ -1616,6 +1622,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "lightning": self.__class__.lightning is not None,
                         "plasma": self.__class__.plasma is not None,
                         "wasm": self.__class__.wasm_vm is not None,
+                        "wasm_operational": bool(
+                            self.__class__.wasm_vm is not None
+                            and (
+                                self.__class__.wasm_vm.get_stats() or {}
+                            ).get("wasmtime_available")
+                        )
+                        if self.__class__.wasm_vm is not None
+                        else False,
                         "oracles": self.__class__.oracles is not None
                         or self.__class__.oracle_registry is not None,
                         "feature_init_errors": feat_errs,
@@ -1691,6 +1705,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "mev_mempool_analysis": self.__class__.mev_simulator is not None,
                         "state_engine": self.__class__.state_engine is not None,
                         "finality_engine": self.__class__.finality_engine is not None,
+                        "finality_engine_standalone_observer": True,
+                        "finality_consensus_bound": bool(
+                            self.__class__.consensus_adapter is not None
+                            and getattr(self.__class__.consensus_adapter, "finality", None)
+                            is not None
+                        ),
                         "immutable_state": self.__class__.immutable_state is not None,
                         "bridge_production_path": bool(
                             cfg.bridge_enabled and getattr(cfg, "bridge_mode", "") == "rust"
@@ -1716,6 +1736,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "plasma_enabled": self.__class__.plasma is not None,
                     "crypto_will_enabled": self.__class__.crypto_will is not None,
                     "wasm_enabled": self.__class__.wasm_vm is not None,
+                    "wasm_operational": bool(
+                        self.__class__.wasm_vm is not None
+                        and (self.__class__.wasm_vm.get_stats() or {}).get("wasmtime_available")
+                    )
+                    if self.__class__.wasm_vm is not None
+                    else False,
                     "ai_agents_enabled": self.__class__.ai_manager is not None,
                     "mev_enabled": self.__class__.mev_simulator is not None,
                     "reorg_predictor_enabled": self.__class__.reorg_predictor is not None,
@@ -3351,12 +3377,19 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/wasm/stats":
                 vm = self.__class__.wasm_vm
                 if vm:
-                    self._json(vm.get_stats())
+                    stats = vm.get_stats() if hasattr(vm, "get_stats") else {}
+                    self._json(stats)
                 else:
                     from features import probe_optional_module
 
                     probe = probe_optional_module("features.wasm_vm", "WASMVirtualMachine")
-                    self._json({"enabled": False, **probe})
+                    self._json({
+                        "enabled": False,
+                        "operational": False,
+                        "wasmtime_available": False,
+                        "execution_bound": False,
+                        **probe,
+                    })
 
             elif path == "/wasm/contracts":
                 vm = self.__class__.wasm_vm
@@ -3506,11 +3539,22 @@ class RESTHandler(BaseHTTPRequestHandler):
             # ── Finality Engine ───────────────────────────────────────────────
             elif path == "/finality/stats":
                 fe = self.__class__.finality_engine
-                self._json(
-                    fe.get_stats()
-                    if fe
-                    else {"enabled": False, "error": "finality_engine_missing"}
-                )
+                ca = self.__class__.consensus_adapter
+                if not fe:
+                    self._json({"enabled": False, "error": "finality_engine_missing"})
+                    return
+                stats = fe.get_stats() if hasattr(fe, "get_stats") else {}
+                if not isinstance(stats, dict):
+                    stats = {"raw": str(stats)}
+                self._json({
+                    **stats,
+                    "enabled": True,
+                    "standalone_observer": True,
+                    "consensus_bound": bool(
+                        ca is not None and getattr(ca, "finality", None) is not None
+                    ),
+                    "finality_quorum_live": False,
+                })
 
             elif path.startswith("/finality/block/"):
                 blk_num = int(path[len("/finality/block/"):])
@@ -4171,9 +4215,16 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "network_hashrate": network_hr,
                         "attacker_hashrate": attacker_hr,
                         "enabled": True,
+                        "model_only": True,
+                        "not_consensus_finality": True,
                     })
                 else:
-                    self._json({"predicted_depth": 0, "enabled": bool(rp)})
+                    self._json({
+                        "predicted_depth": 0,
+                        "enabled": bool(rp),
+                        "model_only": True,
+                        "not_consensus_finality": True,
+                    })
 
             elif path == "/reorg/fork":
                 rp = self.__class__.reorg_predictor
@@ -5384,8 +5435,21 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(400, "code and owner required"); return
                 addr = vm.deploy(code, owner, name, init_params)
                 if not addr:
-                    self._error(400, "Deploy failed (insufficient balance for deploy fee?)"); return
-                self._json({"success": True, "contract_address": addr, "name": name or f"Contract_{addr[:8]}"})
+                    self._error(
+                        400,
+                        "Deploy failed (insufficient balance, or binary WASM "
+                        "requires wasmtime)",
+                    )
+                    return
+                stats = vm.get_stats() if hasattr(vm, "get_stats") else {}
+                self._json({
+                    "success": True,
+                    "contract_address": addr,
+                    "name": name or f"Contract_{addr[:8]}",
+                    "execution_bound": bool(stats.get("execution_bound")),
+                    "wasmtime_available": bool(stats.get("wasmtime_available")),
+                    "pseudo_token_host": True,
+                })
 
             elif path == "/wasm/call":
                 vm = self.__class__.wasm_vm

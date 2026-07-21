@@ -748,15 +748,22 @@ class NodeOrchestrator:
             if not getattr(config, "feature_minivm", True):
                 print("[Node] MiniVM: disabled")
 
-        # 18. RANDAO Validator Selection
-        if _VALIDATOR_SELECTION_AVAILABLE:
+        # 18. Deterministic hash-ranked proposer selection (not commit/reveal RANDAO)
+        if _VALIDATOR_SELECTION_AVAILABLE and getattr(
+            config, "feature_validator_selection", True
+        ):
             self.validator_selection = ValidatorSelection()
             last_blk = self.blockchain.get_last_block()
             if last_blk and last_blk.get("hash"):
                 self.validator_selection.update_seed(last_blk["hash"])
-            print("[Node] RANDAO ValidatorSelection: enabled")
+            print(
+                "[Node] ValidatorSelection: deterministic_hash_selection "
+                "(randao_commit_reveal=false)"
+            )
         else:
             self.validator_selection = None
+            if not getattr(config, "feature_validator_selection", True):
+                print("[Node] ValidatorSelection: disabled")
 
         # 19. Chain Storage (JSON file backup layer)
         if _CHAIN_STORAGE_AVAILABLE:
@@ -940,7 +947,14 @@ class NodeOrchestrator:
         if _WASM_VM_AVAILABLE and getattr(config, "feature_wasm", True):
             try:
                 self.wasm_vm = WASMVirtualMachine(db=self.db)
-                print("[Node] WASM VM: WebAssembly-style VM ready")
+                from features.wasm_engine import WASMEngine
+
+                wt = WASMEngine.available()
+                print(
+                    f"[Node] WASM VM: registry ready "
+                    f"(wasmtime={'on' if wt else 'off'}, "
+                    f"execution_bound={wt}, pseudo_token_host=true)"
+                )
             except Exception as e:
                 self.wasm_vm = None
                 self.feature_init_errors["wasm"] = str(e)
@@ -1165,11 +1179,14 @@ class NodeOrchestrator:
             self.tx_signer = None
             print(f"[Node] TransactionSigner: unavailable ({_e})")
 
-        # 35. Finality Engine (Casper FFG)
+        # 35. Finality Engine (standalone observer — consensus uses ConsensusAdapter.finality)
         if _FINALITY_ENGINE_AVAILABLE:
             try:
                 self.finality_engine = FinalityEngine()
-                print("[Node] FinalityEngine: Casper FFG ready")
+                print(
+                    "[Node] FinalityEngine: standalone observer ready "
+                    "(consensus_bound=false — block path uses ConsensusAdapter)"
+                )
             except Exception as e:
                 self.finality_engine = None
                 print(f"[Node] FinalityEngine: unavailable ({e})")
@@ -1932,7 +1949,7 @@ class NodeOrchestrator:
                         if bool(getattr(self.config, "is_production", False)):
                             self.p2p._state_consistent = False
 
-                # RANDAO: обновляем seed случайности после каждого блока
+                # Deterministic proposer entropy mix (not commit/reveal RANDAO)
                 if self.validator_selection:
                     self.validator_selection.update_seed(block.hash)
 

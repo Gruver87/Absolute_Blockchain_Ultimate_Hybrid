@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.36] — 2026-07-21
+
+### Hardened — WASM/finality/reorg/RANDAO honesty + atomic chain backup replace
+
+- WASM operational vs registry; finality standalone observer; reorg heuristic_low_risk
+- ValidatorSelection not RANDAO; ChainStorage.replace_chain atomic temp swap
+
+---
+
 ## [1.3.35] — 2026-07-21
 
 ### Hardened — MiniVM/ZK/Lightning/DAO honesty + relayer status
