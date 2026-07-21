@@ -734,6 +734,11 @@ class P2PNode:
             if native.validate_p2p_blocks_batch(data) is None:
                 self._strike_peer_sync(peer, "bad_blocks_batch")
                 return
+        elif msg_type == MSG_BLOCK:
+            # null/None = not found; non-null must match block announce shape
+            if data is not None and native.validate_p2p_block_announce(data) is None:
+                self._strike_peer_sync(peer, "bad_block_payload")
+                return
         elif msg_type == MSG_PEERS:
             if native.validate_p2p_peers_list(data) is None:
                 self._strike_peer_sync(peer, "bad_peers_list")

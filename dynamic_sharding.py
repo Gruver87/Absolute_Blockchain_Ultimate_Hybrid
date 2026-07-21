@@ -1,10 +1,11 @@
 # dynamic_sharding.py - COMPLETE SHARDING IMPLEMENTATION
-import hashlib
 import threading
 import time
 import json
 from typing import Callable, Dict, List, Optional, Any
 from dataclasses import dataclass, field
+
+from crypto import native
 
 
 @dataclass
@@ -175,7 +176,7 @@ class ShardingManager:
 
     def get_shard_for_address(self, address: str) -> int:
         """Determine which shard an address belongs to"""
-        hash_val = int(hashlib.sha256(address.encode()).hexdigest(), 16)
+        hash_val = int(native.sha256_hex(address.encode()), 16)
         shard = hash_val % self.num_shards
         if self.coordinator:
             return self.coordinator.resolve_shard(address, shard)
@@ -212,7 +213,7 @@ class ShardingManager:
             return from_shard, None
 
         amount = self._tx_amount(tx)
-        tx_id = hashlib.sha256(
+        tx_id = native.sha256_hex(
             json.dumps(
                 {
                     "from": from_addr,
@@ -222,7 +223,7 @@ class ShardingManager:
                 },
                 sort_keys=True,
             ).encode()
-        ).hexdigest()[:16]
+        )[:16]
         cross_tx = CrossShardTransaction(
             tx_id=tx_id,
             from_shard=from_shard,
@@ -473,14 +474,14 @@ class ShardingManager:
             "transactions": transactions,
             "prev_hash": shard.last_hash,
             "timestamp": time.time(),
-            "state_root": hashlib.sha256(json.dumps(transactions).encode()).hexdigest()[:16],
+            "state_root": native.sha256_hex(json.dumps(transactions).encode())[:16],
         }
 
         block_string = (
             f"{block['height']}{block['shard_id']}{block['transactions']}"
             f"{block['prev_hash']}{block['timestamp']}"
         )
-        block["hash"] = hashlib.sha256(block_string.encode()).hexdigest()[:16]
+        block["hash"] = native.sha256_hex(block_string.encode())[:16]
 
         shard.block_height += 1
         shard.last_hash = block["hash"]

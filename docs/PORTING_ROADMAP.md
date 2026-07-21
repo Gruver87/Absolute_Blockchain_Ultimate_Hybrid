@@ -69,6 +69,8 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `abs_native` clippy `-D warnings` clean (crate allows for PyO3 false positives; mechanical lint fixes)
 - [x] `rust_bridge` clippy `-D warnings` clean
 - [x] `cargo fmt --check` clean for both crates (CI `test.yml`)
+- [x] `MSG_BLOCK` fail-closed shape gate (null = not-found allowed; dict via `validate_p2p_block_announce`)
+- [x] `dynamic_sharding.py` cross-shard tx_id via `native.sha256_hex`
 
 ### Priority 4b — Consensus selection kernels ✅
 
