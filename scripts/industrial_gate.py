@@ -976,8 +976,20 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         kc_rs = ROOT / "native" / "abs_native" / "src" / "rocks_keycodec.rs"
         if not kc_rs.is_file():
             errors.append("native rocks_keycodec.rs missing")
+        # v1.3.43 — P2P rate-limit / strike table
+        if "P2PRateLimitTable" not in native_py:
+            errors.append("crypto/native.py must export P2PRateLimitTable (v1.3.43)")
+        for sym in ("p2p_rate_limit_is_exempt", "p2p_rate_limit_tick", "p2p_strike_should_ban"):
+            if f"def {sym}" not in native_py:
+                errors.append(f"crypto/native.py must export {sym} (v1.3.43)")
+        p2p_py = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+        if "P2PRateLimitTable" not in p2p_py or "_rl_table" not in p2p_py:
+            errors.append("p2p_node.py must wire native P2PRateLimitTable")
+        rl_rs = ROOT / "native" / "abs_native" / "src" / "p2p_rate_limit.rs"
+        if not rl_rs.is_file():
+            errors.append("native p2p_rate_limit.rs missing")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..42 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..43 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

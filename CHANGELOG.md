@@ -6,6 +6,12 @@
 
 ---
 
+## [1.3.43] — 2026-07-21
+
+### Added — native P2P rate-limit / strike table
+
+- Rust `P2PRateLimitTable` + tick/exempt/ban helpers; `p2p_node` prefers abs_native
+
 ## [1.3.42] — 2026-07-21
 
 ### Added — native RocksDB typed key codecs

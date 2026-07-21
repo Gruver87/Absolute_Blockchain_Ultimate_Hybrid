@@ -212,7 +212,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `blockchain_apply_simple_block` — fee/burn/proposer + reward (no EVM calldata)
 - [x] `blockchain_replay_simple_blocks` — reorg/tip-repair assist for simple chains
 - [x] `core/blockchain.py` prefers native apply/replay; falls back to Python per-tx on EVM/error
-- Remaining (next waves): P2P rate-limit, full EVM host-in-apply
+- Remaining (next waves): full EVM host-in-apply
 
 ### Priority 12 — Finality FFG + slashing conflict kernels ✅ (v1.3.39)
 
@@ -240,6 +240,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `rocks_keycodec.rs` — pack/unpack + all Rocks key/prefix builders
 - [x] `storage/keycodec.py` prefers abs_native; Python fallback retained
 - Remaining: P2P rate-limit · full EVM host-in-apply
+
+### Priority 16 — P2P rate-limit / strike table ✅ (v1.3.43)
+
+- [x] `P2PRateLimitTable` — per-peer window + strikes + bans
+- [x] `p2p_rate_limit_tick` / `p2p_rate_limit_is_exempt` / `p2p_strike_should_ban`
+- [x] `network/p2p_node.py` prefers native table; Python fallback retained
+- Remaining: full EVM host-in-apply
 
 ## Process per module
 

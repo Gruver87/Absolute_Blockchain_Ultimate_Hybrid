@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.42` — native RocksDB typed key codecs |
-| **Notes** | [RELEASE_NOTES_v1.3.42.md](../RELEASE_NOTES_v1.3.42.md) |
-| **Prior** | [v1.3.41](../RELEASE_NOTES_v1.3.41.md) EVM snap; [v1.3.40](../RELEASE_NOTES_v1.3.40.md) eth_tx |
+| **Tag** | `v1.3.43` — native P2P rate-limit / strike table |
+| **Notes** | [RELEASE_NOTES_v1.3.43.md](../RELEASE_NOTES_v1.3.43.md) |
+| **Prior** | [v1.3.42](../RELEASE_NOTES_v1.3.42.md) Rocks codecs; [v1.3.41](../RELEASE_NOTES_v1.3.41.md) EVM snap |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

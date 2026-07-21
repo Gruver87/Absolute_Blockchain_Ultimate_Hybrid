@@ -9,6 +9,7 @@ mod consensus_ghost;
 mod consensus_select;
 mod eth_tx;
 mod evm_pure_runner;
+mod p2p_rate_limit;
 mod p2p_wire;
 mod rlp;
 mod rocks_keycodec;
@@ -1725,6 +1726,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     consensus_ffg::register(m)?;
     eth_tx::register(m)?;
     rocks_keycodec::register(m)?;
+    p2p_rate_limit::register(m)?;
     p2p_wire::register(m)?;
     amount::register(m)?;
     Ok(())

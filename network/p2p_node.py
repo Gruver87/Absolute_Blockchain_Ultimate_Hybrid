@@ -294,6 +294,18 @@ class P2PNode:
         self._peer_msg_windows: Dict[str, tuple[int, float]] = {}
         self._peer_strikes: Dict[str, int] = {}
         self._peer_bans: Dict[str, float] = {}
+        self._rl_table = None
+        if native.native_available() and hasattr(native, "P2PRateLimitTable"):
+            try:
+                self._rl_table = native.P2PRateLimitTable(
+                    int(getattr(config, "p2p_max_messages_per_sec", 0) or 0),
+                    int(getattr(config, "p2p_rate_limit_strikes", 5) or 5),
+                    int(getattr(config, "p2p_ban_seconds", 300) or 300),
+                    sorted(RATE_LIMIT_EXEMPT_TYPES),
+                )
+            except Exception as exc:
+                logger.warning("[P2P] native P2PRateLimitTable unavailable: %s", exc)
+                self._rl_table = None
         self._handshake_rejects: int = 0
         self._attestation_local_fail: int = 0
         self._propagation_log_fail: int = 0
@@ -736,15 +748,25 @@ class P2PNode:
     def _is_banned(self, key: str) -> bool:
         if not key:
             return False
+        now = time.time()
+        if self._rl_table is not None:
+            banned = bool(self._rl_table.is_banned(str(key), float(now)))
+            if not banned:
+                self._peer_bans.pop(key, None)
+            return banned
         until = self._peer_bans.get(key)
         if until is None:
             return False
-        if time.time() >= until:
+        if now >= until:
             self._peer_bans.pop(key, None)
             return False
         return True
 
     def _is_addr_banned(self, host: str, port: int) -> bool:
+        if self._rl_table is not None:
+            return bool(
+                self._rl_table.is_addr_banned(str(host), int(port), float(time.time()))
+            )
         if self._is_banned(f"{host}:{port}"):
             return True
         return any(
@@ -762,9 +784,32 @@ class P2PNode:
         self._shape_reject_counts[reason_key] = int(
             self._shape_reject_counts.get(reason_key, 0) or 0
         ) + 1
+        max_strikes = int(getattr(self.config, "p2p_rate_limit_strikes", 5) or 5)
+        ban_sec = int(getattr(self.config, "p2p_ban_seconds", 300) or 300)
+        now = time.time()
+        if self._rl_table is not None:
+            banned = bool(self._rl_table.strike(str(key), float(now)))
+            if not banned:
+                strikes = int(self._rl_table.strike_count(str(key)))
+                self._peer_strikes[key] = strikes
+                logger.warning(
+                    "[P2P] strike %s/%s for %s (%s)",
+                    strikes,
+                    max_strikes,
+                    key,
+                    reason_key,
+                )
+                return False
+            until = self._rl_table.ban_until(str(key))
+            if until is not None:
+                self._peer_bans[key] = float(until)
+            else:
+                self._peer_bans[key] = now + max(30, ban_sec)
+            self._peer_strikes.pop(key, None)
+            logger.warning("[P2P] banned %s for %ss (%s)", key, ban_sec, reason)
+            return True
         strikes = int(self._peer_strikes.get(key, 0) or 0) + 1
         self._peer_strikes[key] = strikes
-        max_strikes = int(getattr(self.config, "p2p_rate_limit_strikes", 5) or 5)
         if strikes < max_strikes:
             logger.warning(
                 "[P2P] strike %s/%s for %s (%s)",
@@ -774,14 +819,28 @@ class P2PNode:
                 reason_key,
             )
             return False
-        ban_sec = int(getattr(self.config, "p2p_ban_seconds", 300) or 300)
-        self._peer_bans[key] = time.time() + max(30, ban_sec)
+        self._peer_bans[key] = now + max(30, ban_sec)
         self._peer_strikes.pop(key, None)
         logger.warning("[P2P] banned %s for %ss (%s)", key, ban_sec, reason)
         return True
 
     def _rate_limit_ok(self, peer_id: str, msg_type: Optional[str] = None) -> bool:
         """Per-peer message rate limit (0 = disabled). Sync/housekeeping types exempt."""
+        if self._rl_table is not None:
+            ok = bool(
+                self._rl_table.rate_ok(
+                    str(peer_id or ""),
+                    str(msg_type or ""),
+                    float(time.time()),
+                )
+            )
+            if not ok:
+                logger.warning(
+                    "[P2P] rate limit exceeded for %s (%s/s)",
+                    peer_id,
+                    int(getattr(self.config, "p2p_max_messages_per_sec", 0) or 0),
+                )
+            return ok
         if msg_type in RATE_LIMIT_EXEMPT_TYPES:
             return True
         limit = int(getattr(self.config, "p2p_max_messages_per_sec", 0) or 0)
@@ -2203,6 +2262,8 @@ class P2PNode:
                 if removed:
                     logger.info("[P2P] maintenance pruned %s peer(s)", removed)
                 active_keys = {self._peer_key(p) for p in self.peers.values()}
+                if self._rl_table is not None:
+                    self._rl_table.retain_strike_keys(list(active_keys))
                 for key in list(self._peer_strikes):
                     if key not in active_keys:
                         self._peer_strikes.pop(key, None)
@@ -2321,6 +2382,8 @@ class P2PNode:
                 health_timeout=health_timeout,
             )
             strikes = int(self._peer_strikes.get(self._peer_key(p), 0) or 0)
+            if self._rl_table is not None:
+                strikes = int(self._rl_table.strike_count(self._peer_key(p)))
             peer_head = str(p.head or "")
             transport_healthy = gap <= 2 and last_seen_age < health_timeout
             # Same-height divergent head is not chain-compatible.
@@ -2376,14 +2439,31 @@ class P2PNode:
 
     def get_p2p_security_status(self) -> Dict:
         now = time.time()
-        active_bans = [
-            {
-                "key": key,
-                "seconds_remaining": max(0, int(until - now)),
-            }
-            for key, until in self._peer_bans.items()
-            if until > now
-        ]
+        if self._rl_table is not None:
+            active_bans = []
+            for key in self._rl_table.ban_keys():
+                until = self._rl_table.ban_until(key)
+                if until is None or until <= now:
+                    continue
+                if not self._rl_table.is_banned(key, float(now)):
+                    continue
+                active_bans.append(
+                    {
+                        "key": key,
+                        "seconds_remaining": max(0, int(until - now)),
+                    }
+                )
+            tracked = int(self._rl_table.tracked_strikes())
+        else:
+            active_bans = [
+                {
+                    "key": key,
+                    "seconds_remaining": max(0, int(until - now)),
+                }
+                for key, until in self._peer_bans.items()
+                if until > now
+            ]
+            tracked = len(self._peer_strikes)
         return {
             "rate_limit_per_sec": int(getattr(self.config, "p2p_max_messages_per_sec", 0) or 0),
             "max_message_bytes": _max_p2p_line_bytes(self.config),
@@ -2392,7 +2472,8 @@ class P2PNode:
             "evict_min_score": int(getattr(self.config, "p2p_evict_min_score", 0) or 0),
             "active_bans": len(active_bans),
             "banned": active_bans[:20],
-            "tracked_strikes": len(self._peer_strikes),
+            "tracked_strikes": tracked,
+            "native_rate_limit_table": self._rl_table is not None,
             "handshake_rejects": int(self._handshake_rejects),
             "attestation_local_fail": int(self._attestation_local_fail),
             "shape_rejects_total": int(sum(self._shape_reject_counts.values())),

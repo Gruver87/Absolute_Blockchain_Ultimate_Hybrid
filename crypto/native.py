@@ -121,6 +121,10 @@ def native_crypto_status(required: bool = False) -> dict:
             "rocks_key_account",
             "rocks_pack_u64",
             "rocks_key_block_height",
+            "P2PRateLimitTable",
+            "p2p_rate_limit_is_exempt",
+            "p2p_rate_limit_tick",
+            "p2p_strike_should_ban",
             "validator_selection_proposer",
             "validator_selection_proposer_weighted",
             "validator_selection_committee",
@@ -1747,6 +1751,34 @@ def rocks_unpack_u64(data: bytes) -> int:
     if _native is not None and hasattr(_native, "rocks_unpack_u64"):
         return int(_native.rocks_unpack_u64(bytes(data)))
     raise RuntimeError("rocks_unpack_u64 requires abs_native")
+
+
+def P2PRateLimitTable(*args, **kwargs):
+    _require_native_kernel("P2PRateLimitTable")
+    if _native is not None and hasattr(_native, "P2PRateLimitTable"):
+        return _native.P2PRateLimitTable(*args, **kwargs)
+    raise RuntimeError("P2PRateLimitTable requires abs_native")
+
+
+def p2p_rate_limit_is_exempt(msg_type: str) -> bool:
+    _require_native_kernel("p2p_rate_limit_is_exempt")
+    if _native is not None and hasattr(_native, "p2p_rate_limit_is_exempt"):
+        return bool(_native.p2p_rate_limit_is_exempt(str(msg_type)))
+    raise RuntimeError("p2p_rate_limit_is_exempt requires abs_native")
+
+
+def p2p_rate_limit_tick(count: int, start: float, now: float, limit: int):
+    _require_native_kernel("p2p_rate_limit_tick")
+    if _native is not None and hasattr(_native, "p2p_rate_limit_tick"):
+        return _native.p2p_rate_limit_tick(int(count), float(start), float(now), int(limit))
+    raise RuntimeError("p2p_rate_limit_tick requires abs_native")
+
+
+def p2p_strike_should_ban(strikes: int, max_strikes: int) -> bool:
+    _require_native_kernel("p2p_strike_should_ban")
+    if _native is not None and hasattr(_native, "p2p_strike_should_ban"):
+        return bool(_native.p2p_strike_should_ban(int(strikes), int(max_strikes)))
+    raise RuntimeError("p2p_strike_should_ban requires abs_native")
 
 
 def plan_transfer_fees(
