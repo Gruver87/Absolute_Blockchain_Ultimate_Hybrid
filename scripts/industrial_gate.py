@@ -998,8 +998,17 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "native" / "abs_native" / "src" / "amount.rs"
         ).read_text(encoding="utf-8"):
             errors.append("amount.rs must define blockchain_apply_host_effects")
+        # v1.3.45 — native apply writeback / receipt honesty
+        if "never wipe EVM code/storage" not in bc_py:
+            errors.append("blockchain writeback must preserve EVM code/storage (v1.3.45)")
+        if "tx.status = 1" not in bc_py:
+            errors.append("blockchain must set tx.status=1 on successful apply (v1.3.45)")
+        if "0x0000000000000000000000000000000000000001" in (
+            ROOT / "validators.manifest.example.json"
+        ).read_text(encoding="utf-8"):
+            errors.append("validators.manifest.example.json must not use 0x…0001 placeholders")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..44 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..45 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

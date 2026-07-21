@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.45] — 2026-07-21
+
+### Fixed — native apply honesty + prod example ceremony addresses
+
+- Writeback: skip empty new accounts; preserve EVM code/storage; receipt `status=1` on success
+- Example validator manifest uses ceremony addresses (no `0x…0001` placeholders)
+- Audit proposer check, prod-smoke FEATURE clear, sync incomplete-vs-ahead, oracle secret=`""`
+
 ## [1.3.44] — 2026-07-21
 
 ### Added — EVM host-in-apply fee effects

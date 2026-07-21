@@ -33,7 +33,7 @@ def test_l1_queue_payload_shape():
     db.close()
 
 
-def test_bridge_lock_queues_outbound():
+def test_bridge_lock_queues_outbound(monkeypatch):
     from bridge.abs_bridge import RustBridge
     from bridge.l1_rpc import load_l1_queue
     from runtime.config import Config
@@ -49,6 +49,8 @@ def test_bridge_lock_queues_outbound():
     sender = "0x" + "aa" * 20
     db.set_balance(sender, 50.0)
     br = RustBridge(cfg, db, None)
+    # Unit scope: L1 lock verify is covered elsewhere; here we assert queue write.
+    monkeypatch.setattr(br, "_call_rust_ok", lambda *_a, **_k: True)
     res = br.lock_and_bridge(
         sender, "ethereum", "0x" + "bb" * 20, 10.0, l1_tx_hash="0x" + "cc" * 32
     )

@@ -95,12 +95,23 @@ def test_oracle_quorum_median():
     db.initialize()
     reg = OracleFeedRegistry(db, secret="")
 
-    reg.submit_report("btc", 100.0, "rep1")
-    reg.submit_report("btc", 102.0, "rep2")
-    reg.submit_report("btc", 101.0, "rep3")
+    now = int(__import__("time").time())
+    for reporter, value in (("rep1", 100.0), ("rep2", 102.0), ("rep3", 101.0)):
+        out = reg.submit_report(
+            "btc",
+            value,
+            reporter,
+            payload={
+                "symbol": "btc",
+                "value": float(value),
+                "reporter": reporter,
+                "ts": now,
+            },
+        )
+        assert out.get("ok") is True, out
 
     agg = reg.aggregate_symbol("btc", quorum=2, max_age_sec=3600)
-    assert agg
+    assert agg is not None
     assert agg["value"] == 101.0
     assert agg["quorum"] == 3
 

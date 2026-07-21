@@ -413,6 +413,18 @@ class SyncEngine:
 
         # Peers all behind (or empty roots) must not paint green without proof.
         if not same_height_match:
+            peers_ahead = any(
+                int(getattr(peer, "height", 0) or 0) > local_height for peer in peers
+            )
+            if peers_ahead:
+                # Partial / target-capped sync: still behind tip — incomplete, not a
+                # root conflict. Keep state_consistent=False for readiness honesty.
+                print(
+                    "   Sync incomplete vs ahead peers — not tip-consistent yet "
+                    f"(local height={local_height})"
+                )
+                self._set_state_consistent(False)
+                return True
             print(
                 "   No same-height peer root match — fail-closed "
                 f"(local height={local_height})"

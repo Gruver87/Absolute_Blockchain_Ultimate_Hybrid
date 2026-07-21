@@ -50,6 +50,17 @@ def test_manifest_without_addresses_fails():
 
 
 def test_strict_mainnet_rejects_placeholder_addresses():
-    manifest = load_manifest("validators.manifest.example.json")
+    manifest = {
+        "version": 1,
+        "validators": [
+            {
+                "index": 1,
+                "node_id": "placeholder-v1",
+                "address": "0x0000000000000000000000000000000000000001",
+                "mines": True,
+                "stake": 1000,
+            }
+        ],
+    }
     errors = validate_manifest_for_mainnet(manifest, strict_addresses=True)
     assert any(e.startswith("placeholder_validator_address:") for e in errors)

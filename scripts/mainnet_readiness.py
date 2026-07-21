@@ -180,7 +180,7 @@ def run_gate(
                 "run: python scripts/industrial_gate.py --ceremony-dir <path> "
                 "or .\\scripts\\pin_ceremony_hash.ps1)"
             )
-        legacy, legacy_errors = build_from_paths(
+        legacy, _legacy_errors = build_from_paths(
             str(ROOT / "node.prod.example.json"),
             str(ROOT / "validators.manifest.example.json"),
         )

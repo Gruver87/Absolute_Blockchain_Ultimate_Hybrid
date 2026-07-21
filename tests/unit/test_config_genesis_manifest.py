@@ -76,10 +76,28 @@ def test_strict_rejects_repetitive_template_manifest(tmp_path):
     assert any("placeholder_validator_address" in e for e in errors)
 
 
-def test_verify_live_manifest_rejects_placeholder_when_strict():
+def test_verify_live_manifest_rejects_placeholder_when_strict(tmp_path):
+    manifest_path = tmp_path / "placeholder.manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "validators": [
+                    {
+                        "index": 1,
+                        "node_id": "placeholder-v1",
+                        "address": "0x0000000000000000000000000000000000000001",
+                        "mines": True,
+                        "stake": 1000,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     cfg = Config()
     cfg.deployment_mode = "prod"
-    cfg.validators_manifest_path = "validators.manifest.example.json"
+    cfg.validators_manifest_path = str(manifest_path)
     errors, artifact = verify_live_manifest(cfg, strict_addresses=True)
     assert any("placeholder_validator_address" in e for e in errors)
     assert artifact.get("mainnet_addresses_ready") is False

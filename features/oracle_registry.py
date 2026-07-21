@@ -13,9 +13,13 @@ from bridge.oracle_auth import sign_payload, verify_signature
 class OracleFeedRegistry:
     """Stores price/weather feeds with optional HMAC attestation."""
 
-    def __init__(self, db, secret: str = ""):
+    def __init__(self, db, secret: Optional[str] = None):
         self.db = db
-        self.secret = (secret or os.environ.get("BRIDGE_ORACLE_SECRET", "")).strip()
+        # None → inherit BRIDGE_ORACLE_SECRET; explicit "" disables HMAC (unit/dev).
+        if secret is None:
+            self.secret = str(os.environ.get("BRIDGE_ORACLE_SECRET", "") or "").strip()
+        else:
+            self.secret = str(secret).strip()
 
     def _feed_id(self, symbol: str, source: str, submitted_at: int) -> str:
         raw = f"{symbol}:{source}:{submitted_at}"

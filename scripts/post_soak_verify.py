@@ -74,6 +74,7 @@ POST_SOAK_TESTS = [
     "tests/unit/test_v1342_rocks_keycodec.py",
     "tests/unit/test_v1343_p2p_rate_limit.py",
     "tests/unit/test_v1344_evm_host_apply.py",
+    "tests/unit/test_v1345_native_apply_honesty.py",
     "tests/unit/test_sqlite_reorg_parity.py",
     "tests/unit/test_bridge_health.py",
     "tests/unit/test_rpc_methods.py",

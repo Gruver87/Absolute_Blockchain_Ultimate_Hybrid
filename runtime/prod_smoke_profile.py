@@ -89,6 +89,25 @@ def apply_prod_smoke_env(base: Dict[str, str] | None = None) -> Dict[str, str]:
         "GENESIS_STRICT_MAINNET",
     ):
         env.pop(key, None)
+    # Parent shells often enable experimental FEATURE_* for local work; prod
+    # smoke must force them off or Config.validate() rejects the boot.
+    for key in (
+        "FEATURE_ZK",
+        "FEATURE_MINIVM",
+        "FEATURE_SHARDING",
+        "FEATURE_ORACLES",
+        "FEATURE_WASM",
+        "FEATURE_PLASMA",
+        "FEATURE_LIGHTNING",
+        "FEATURE_PQ",
+        "FEATURE_NFT",
+        "FEATURE_MEV",
+        "FEATURE_AI_AGENTS",
+        "FEATURE_AI_VALIDATOR",
+        "FEATURE_SMART_ACCOUNTS",
+        "FEATURE_VALIDATOR_SELECTION",
+    ):
+        env[key] = "false"
     return env
 
 
@@ -250,6 +269,10 @@ def prod_node_config(
         "feature_mev": False,
         "feature_ai_agents": False,
         "feature_ai_validator": False,
+        "feature_minivm": False,
+        "feature_nft": False,
+        "feature_smart_accounts": False,
+        "feature_validator_selection": False,
         "allow_state_root_rewrite": False,
         "rate_limit_rpm": 120,
         "log_json": False,

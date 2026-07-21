@@ -152,7 +152,7 @@ def _automated_validator_manifest(root: Path) -> tuple[bool, str]:
         cfg = _load_json(path)
         if not str(cfg.get("validators_manifest_path", "")).strip():
             return False, f"{path.name} missing validators_manifest_path"
-    return True, "public manifest template + prod configs require manifest path (replace placeholder addresses at ceremony)"
+    return True, "public manifest template + prod configs require manifest path (ceremony addresses, no private keys)"
 
 
 def evaluate_automated(root: Path | None = None) -> dict[str, tuple[bool, str]]:

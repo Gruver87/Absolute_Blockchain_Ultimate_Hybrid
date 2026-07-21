@@ -243,7 +243,14 @@ def section_waves_52_56() -> AuditResult:
         ("unit test wave55", os.path.isfile(os.path.join(ROOT, "tests/unit/test_wave55_5validator.py"))),
         ("unit test wave56", os.path.isfile(os.path.join(ROOT, "tests/unit/test_wave56_multi_node_proof.py"))),
         ("unit test wave58", os.path.isfile(os.path.join(ROOT, "tests/unit/test_wave58_fork_ci.py"))),
-        ("deterministic proposer", "abs-proposer:" in _read("consensus_engine.py")),
+        (
+            "deterministic proposer",
+            "consensus_stake_weighted_proposer" in _read("consensus_engine.py")
+            and (
+                "abs-proposer:" in _read("crypto/native.py")
+                or "abs-proposer:" in _read("native/abs_native/src/consensus_select.rs")
+            ),
+        ),
         ("finality live quorum", "set_active_validator_count" in _read("finality_engine.py")),
         ("reorg finality guard", "finalized floor" in _read("core/blockchain.py")),
     ]

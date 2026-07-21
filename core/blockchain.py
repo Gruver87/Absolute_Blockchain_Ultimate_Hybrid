@@ -86,6 +86,8 @@ class Transaction:
         self.gas_used: int = gas
         self.fee: float = 0.0
         self.burned: float = 0.0
+        # Receipt status: set to 1 only after successful apply (omit → fail-closed 0).
+        self.status: Optional[int] = None
 
     def _compute_hash(self) -> str:
         raw = f"{self.from_addr}{self.to_addr}{self.value}{self.nonce}{self.gas}{self.data}{self.timestamp}"
@@ -100,7 +102,7 @@ class Transaction:
         )
 
     def to_dict(self) -> Dict:
-        return {
+        out = {
             "hash": self.hash,
             "from_addr": self.from_addr,
             "to_addr": self.to_addr,
@@ -116,6 +118,9 @@ class Transaction:
             "timestamp": self.timestamp,
             "block_height": self.block_height,
         }
+        if self.status is not None:
+            out["status"] = int(self.status)
+        return out
 
     @classmethod
     def from_dict(cls, d: Dict) -> "Transaction":
@@ -134,6 +139,8 @@ class Transaction:
         tx.fee = float(d.get("fee", 0.0))
         tx.burned = float(d.get("burned", 0.0))
         tx.block_height = int(d.get("block_height", 0))
+        if "status" in d and d.get("status") is not None:
+            tx.status = int(d.get("status"))
         return tx
 
     def __repr__(self) -> str:
@@ -787,8 +794,19 @@ class Blockchain:
             sat = int(row.get("balance", 0) or 0)
             nonce = int(row.get("nonce", 0) or 0)
             bal_abs = from_satoshi_float(sat)
+            existing = None
+            if hasattr(self.db, "get_account"):
+                existing = self.db.get_account(addr)
+            # Match Python apply: do not materialize empty burn/dust accounts,
+            # and never wipe EVM code/storage when rewriting balances.
+            if existing is None and sat == 0 and nonce == 0:
+                continue
+            code = existing.get("code") if existing else None
+            storage = existing.get("storage") if existing else None
             if hasattr(self.db, "save_account"):
-                self.db.save_account(addr, balance=bal_abs, nonce=nonce)
+                self.db.save_account(
+                    addr, balance=bal_abs, nonce=nonce, code=code, storage=storage
+                )
             else:
                 self.db.set_balance(addr, bal_abs)
                 while self.db.get_nonce(addr) < nonce:
@@ -851,6 +869,7 @@ class Blockchain:
             tx.burned = plan["burned"]
             tx.gas_used = tx.gas
             tx.block_height = block.height
+            tx.status = 1
         return burned_abs
 
     def _run_evm_host_only(self, tx: "Transaction", block_height: int) -> Dict:
@@ -929,6 +948,7 @@ class Blockchain:
             tx.burned = plan["burned"]
             tx.gas_used = gas_used
             tx.block_height = block.height
+            tx.status = 1
 
         snap = self._accounts_sat_snapshot(addrs)
         supply_sat = 0
@@ -1086,6 +1106,7 @@ class Blockchain:
                 tx.burned = burn_amount
                 tx.gas_used = evm_res.gas_used or tx.gas
                 tx.block_height = block_height
+                tx.status = 1
                 if self.bus:
                     self.bus.emit("tx.applied", tx.to_dict())
                 return {
@@ -1141,6 +1162,7 @@ class Blockchain:
                 tx.burned = burn_amount
                 tx.gas_used = evm_res.gas_used or tx.gas
                 tx.block_height = block_height
+                tx.status = 1
                 if self.bus:
                     self.bus.emit("tx.applied", tx.to_dict())
                 return {
@@ -1174,6 +1196,7 @@ class Blockchain:
         tx.burned = burn_amount
         tx.gas_used = tx.gas
         tx.block_height = block_height
+        tx.status = 1
 
         if self.bus:
             self.bus.emit("tx.applied", tx.to_dict())
