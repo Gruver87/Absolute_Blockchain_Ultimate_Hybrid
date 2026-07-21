@@ -42,6 +42,7 @@ class MetricsCollector:
         rocksdb_tuning: Optional[dict[str, Any]] = None,
         sync_status: Optional[dict[str, Any]] = None,
         core_engines: Optional[dict[str, Any]] = None,
+        ws_stats: Optional[dict[str, Any]] = None,
     ) -> str:
         native_crypto = native_crypto or {}
         bridge_health = bridge_health or {}
@@ -49,6 +50,7 @@ class MetricsCollector:
         rocksdb_tuning = rocksdb_tuning or {}
         sync_status = sync_status or {}
         core_engines = core_engines or {}
+        ws_stats = ws_stats or {}
         lines = [
             "# HELP abs_uptime_seconds Node uptime",
             "# TYPE abs_uptime_seconds gauge",
@@ -248,6 +250,34 @@ class MetricsCollector:
                     ),
                 ]
             )
+        lines.extend(
+            [
+                "# HELP abs_sqlite_json_decode_failures Corrupt SQLite/aux JSON rows skipped",
+                "# TYPE abs_sqlite_json_decode_failures counter",
+                (
+                    f"abs_sqlite_json_decode_failures{{node_id=\"{node_id}\"}} "
+                    f"{int(rocksdb_tuning.get('sqlite_json_decode_failures', 0) or 0)}"
+                ),
+                "# HELP abs_aux_json_decode_failures Corrupt hybrid aux.db JSON rows skipped",
+                "# TYPE abs_aux_json_decode_failures counter",
+                (
+                    f"abs_aux_json_decode_failures{{node_id=\"{node_id}\"}} "
+                    f"{int(rocksdb_tuning.get('aux_json_decode_failures', 0) or 0)}"
+                ),
+                "# HELP abs_ws_send_failures_total WebSocket outbound send failures",
+                "# TYPE abs_ws_send_failures_total counter",
+                (
+                    f"abs_ws_send_failures_total{{node_id=\"{node_id}\"}} "
+                    f"{int(ws_stats.get('send_failures', 0) or 0)}"
+                ),
+                "# HELP abs_ws_running Whether WebSocket server reports running",
+                "# TYPE abs_ws_running gauge",
+                (
+                    f"abs_ws_running{{node_id=\"{node_id}\"}} "
+                    f"{1 if ws_stats.get('running') else 0}"
+                ),
+            ]
+        )
         lines.extend(
             [
                 "# HELP abs_state_consistent Whether tip state root matches peers",

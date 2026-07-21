@@ -2337,6 +2337,11 @@ class P2PNode:
                 "banned": self._is_banned(self._peer_key(p)),
             })
         expected = int(getattr(self.config, "testnet_expected_peers", 0) or 0)
+        mode = str(getattr(self.config, "deployment_mode", "dev") or "dev").lower()
+        mesh_min = int(getattr(self.config, "mesh_min_peers_before_mine", 0) or 0)
+        # Prod/staging: zero peers must not report topology_healthy when mesh is expected.
+        if expected <= 0 and mode in ("prod", "production", "staging"):
+            expected = max(1, mesh_min)
         scores = [p["score"] for p in peers]
         peer_links_ok = (len(peers) >= expected) if expected else True
         peers_healthy = all(p["healthy"] for p in peers) if peers else True

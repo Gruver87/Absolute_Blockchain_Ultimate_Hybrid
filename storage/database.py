@@ -53,6 +53,11 @@ class Database:
             )
             return None
 
+    def _loads_json(self, raw: Any, *, context: str, default: Any) -> Any:
+        """Decode JSON; on failure bump counter and return default."""
+        parsed = self._loads_json_or_none(raw, context=context)
+        return default if parsed is None else parsed
+
     # ── Инициализация ────────────────────────────────────────────────────────
 
     def _configure(self):
@@ -802,7 +807,9 @@ class Database:
             row = self.conn.execute(
                 "SELECT data FROM blocks ORDER BY height DESC LIMIT 1"
             ).fetchone()
-            return json.loads(row["data"]) if row else None
+            if not row:
+                return None
+            return self._loads_json_or_none(row["data"], context="last_block")
 
     def reorg_truncate_above(self, height: int) -> None:
         """Remove chain rows above height. Caller must hold atomic()."""
@@ -2140,10 +2147,7 @@ class Database:
             ).fetchall()
             out = []
             for r in rows:
-                try:
-                    txs = json.loads(r["transactions"] or "[]")
-                except Exception:
-                    txs = []
+                txs = self._loads_json(r["transactions"] or "[]", context="plasma_txs", default=[])
                 out.append({
                     "block_id": r["block_id"],
                     "block_hash": r["block_hash"],
@@ -2228,14 +2232,8 @@ class Database:
             rows = self.conn.execute(q, params).fetchall()
             out = []
             for r in rows:
-                try:
-                    assets = json.loads(r["assets"] or "{}")
-                except Exception:
-                    assets = {}
-                try:
-                    witnesses = json.loads(r["witnesses"] or "[]")
-                except Exception:
-                    witnesses = []
+                assets = self._loads_json(r["assets"] or "{}", context="will_assets", default={})
+                witnesses = self._loads_json(r["witnesses"] or "[]", context="will_witnesses", default=[])
                 out.append({
                     "will_id": r["will_id"],
                     "owner": r["owner"],
@@ -2282,10 +2280,7 @@ class Database:
             ).fetchall()
             out = []
             for r in rows:
-                try:
-                    storage = json.loads(r["storage_json"] or "{}")
-                except Exception:
-                    storage = {}
+                storage = self._loads_json(r["storage_json"] or "{}", context="wasm_storage", default={})
                 out.append({
                     "address": r["address"],
                     "code": r["code"],
@@ -2304,10 +2299,7 @@ class Database:
             ).fetchone()
             if not row:
                 return None
-            try:
-                storage = json.loads(row["storage_json"] or "{}")
-            except Exception:
-                storage = {}
+            storage = self._loads_json(row["storage_json"] or "{}", context="wasm_storage", default={})
             return {
                 "address": row["address"],
                 "code": row["code"],
@@ -2342,10 +2334,7 @@ class Database:
             ).fetchall()
             out = []
             for r in rows:
-                try:
-                    payload = json.loads(r["payload"] or "{}")
-                except Exception:
-                    payload = {}
+                payload = self._loads_json(r["payload"] or "{}", context="wasm_event", default={})
                 out.append({
                     "event_id": r["event_id"],
                     "contract_addr": r["contract_addr"],
@@ -2396,14 +2385,8 @@ class Database:
                 ).fetchall()
             out = []
             for r in rows:
-                try:
-                    strategy = json.loads(r["strategy_json"] or "{}")
-                except Exception:
-                    strategy = {}
-                try:
-                    memory = json.loads(r["memory_json"] or "[]")
-                except Exception:
-                    memory = []
+                strategy = self._loads_json(r["strategy_json"] or "{}", context="ai_strategy", default={})
+                memory = self._loads_json(r["memory_json"] or "[]", context="ai_memory", default=[])
                 out.append({
                     "agent_id": r["agent_id"],
                     "name": r["name"],
@@ -2453,10 +2436,7 @@ class Database:
             ).fetchall()
             out = []
             for r in rows:
-                try:
-                    payload = json.loads(r["payload"] or "{}")
-                except Exception:
-                    payload = {}
+                payload = self._loads_json(r["payload"] or "{}", context="mev_sim", default={})
                 out.append({
                     "sim_id": r["sim_id"],
                     "sim_type": r["sim_type"],
@@ -2491,15 +2471,12 @@ class Database:
             ).fetchall()
             out = []
             for r in rows:
-                try:
-                    payload = json.loads(r["payload"] or "{}")
-                except Exception:
-                    payload = {}
+                payload = self._loads_json(r["payload"] or "{}", context="reorg_assess", default={})
                 out.append({
                     "assess_id": r["assess_id"],
                     "kind": r["kind"],
                     "timestamp": r["created_at"],
-                    **payload,
+                    **(payload if isinstance(payload, dict) else {}),
                 })
             return out
 
@@ -2532,10 +2509,7 @@ class Database:
             rows = self.conn.execute("SELECT * FROM nft_tokens ORDER BY created_at").fetchall()
             out = []
             for r in rows:
-                try:
-                    meta = json.loads(r["metadata"] or "{}")
-                except Exception:
-                    meta = {}
+                meta = self._loads_json(r["metadata"] or "{}", context="nft_token_meta", default={})
                 out.append({
                     "token_id": r["token_id"],
                     "name": r["name"],
@@ -2575,11 +2549,8 @@ class Database:
             rows = self.conn.execute("SELECT * FROM nft_offers ORDER BY created_at DESC").fetchall()
             out = []
             for r in rows:
-                try:
-                    payload = json.loads(r["payload"] or "{}")
-                except Exception:
-                    payload = {}
-                out.append({"offer_id": r["offer_id"], **payload})
+                payload = self._loads_json(r["payload"] or "{}", context="nft_offer", default={})
+                out.append({"offer_id": r["offer_id"], **(payload if isinstance(payload, dict) else {})})
             return out
 
     def save_nft_auction(self, auction: Dict) -> None:
@@ -2607,11 +2578,8 @@ class Database:
             rows = self.conn.execute("SELECT * FROM nft_auctions ORDER BY created_at DESC").fetchall()
             out = []
             for r in rows:
-                try:
-                    payload = json.loads(r["payload"] or "{}")
-                except Exception:
-                    payload = {}
-                out.append({"auction_id": r["auction_id"], **payload})
+                payload = self._loads_json(r["payload"] or "{}", context="nft_auction", default={})
+                out.append({"auction_id": r["auction_id"], **(payload if isinstance(payload, dict) else {})})
             return out
 
     def save_nft_sale(self, sale: Dict) -> None:
@@ -2666,10 +2634,24 @@ class Database:
             ).fetchone()
             if not row:
                 return default
+            raw = row["value"]
             try:
-                return json.loads(row["value"])
-            except Exception:
-                return row["value"]
+                return json.loads(raw)
+            except Exception as exc:
+                text = raw if isinstance(raw, str) else str(raw or "")
+                stripped = text.strip()
+                # Corrupt JSON object/array/string → fail-closed default.
+                # Legacy plain-string meta is not JSON.
+                if stripped[:1] in "{\"[":
+                    self._json_decode_failures += 1
+                    logger.warning(
+                        "[DB] corrupt meta %s (decode_failures=%s): %s",
+                        key,
+                        self._json_decode_failures,
+                        exc,
+                    )
+                    return default
+                return text if text else default
 
     def get_total_supply(self) -> float:
         """Sum of account balances (prefer satoshi column when present)."""

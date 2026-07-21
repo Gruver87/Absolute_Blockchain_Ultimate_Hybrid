@@ -64,16 +64,18 @@ class HybridDatabase:
             self._core.set_meta("aux_evm_logs_migrated_v1", True)
             return
         migrated = 0
+        skipped_corrupt = 0
         with self._core.atomic():
             for row in rows:
                 item = dict(row)
                 topics_raw = item.get("topics") or "[]"
-                try:
-                    topics = json.loads(topics_raw) if isinstance(topics_raw, str) else topics_raw
-                except Exception:
-                    topics = []
-                if not isinstance(topics, list):
-                    topics = []
+                if isinstance(topics_raw, str):
+                    topics = self._aux._loads_json_or_none(topics_raw, context="migrate_evm_topics")
+                else:
+                    topics = topics_raw
+                if topics is None or not isinstance(topics, list):
+                    skipped_corrupt += 1
+                    continue
                 block_height = int(item.get("block_height", 0) or 0)
                 tx_hash = str(item.get("tx_hash") or "")
                 log_index = int(item.get("log_index", 0) or 0)
@@ -95,8 +97,15 @@ class HybridDatabase:
                 self._core._raw_put(key, payload)
                 self._core._raw_put(kc.key_evm_log_tx(tx_hash, log_index), payload)
                 migrated += 1
-            self._core.set_meta("aux_evm_logs_migrated_v1", True)
-        if migrated:
+            # Fail-closed: do not permanently mark migrated while corrupt rows remain.
+            if skipped_corrupt == 0:
+                self._core.set_meta("aux_evm_logs_migrated_v1", True)
+        if skipped_corrupt:
+            print(
+                f"[HybridDatabase] aux_evm_logs migrate deferred: "
+                f"{skipped_corrupt} corrupt JSON row(s) (migrated={migrated})"
+            )
+        elif migrated:
             print(f"[HybridDatabase] migrated {migrated} evm_logs from aux.db to Rocks")
 
     def _migrate_aux_nft_tokens_once(self) -> None:
@@ -108,20 +117,29 @@ class HybridDatabase:
             print(f"[HybridDatabase] aux_nft_tokens migrate deferred (will retry): {exc}")
             return
         migrated = 0
+        skipped_corrupt = 0
         with self._core.atomic():
             for row in rows:
                 item = dict(row)
                 tid = str(item.get("token_id", "") or "")
                 if not tid or self._core._raw_get(kc.key_nft_token(tid)):
                     continue
-                try:
-                    meta = json.loads(item.get("metadata") or "{}")
-                except Exception:
-                    meta = {}
+                meta = self._aux._loads_json_or_none(
+                    item.get("metadata") or "{}", context="migrate_nft_token_meta"
+                )
+                if meta is None or not isinstance(meta, dict):
+                    skipped_corrupt += 1
+                    continue
                 self._core.save_nft_token({**item, "metadata": meta})
                 migrated += 1
-            self._core.set_meta("aux_nft_tokens_migrated_v1", True)
-        if migrated:
+            if skipped_corrupt == 0:
+                self._core.set_meta("aux_nft_tokens_migrated_v1", True)
+        if skipped_corrupt:
+            print(
+                f"[HybridDatabase] aux_nft_tokens migrate deferred: "
+                f"{skipped_corrupt} corrupt JSON row(s) (migrated={migrated})"
+            )
+        elif migrated:
             print(f"[HybridDatabase] migrated {migrated} nft_tokens from aux.db to Rocks")
 
     def _migrate_aux_nft_offers_once(self) -> None:
@@ -133,16 +151,19 @@ class HybridDatabase:
             print(f"[HybridDatabase] aux_nft_offers migrate deferred (will retry): {exc}")
             return
         migrated = 0
+        skipped_corrupt = 0
         with self._core.atomic():
             for row in rows:
                 item = dict(row)
                 oid = str(item.get("offer_id", "") or "")
                 if not oid or self._core._raw_get(kc.key_nft_offer(oid)):
                     continue
-                try:
-                    payload = json.loads(item.get("payload") or "{}")
-                except Exception:
-                    payload = {}
+                payload = self._aux._loads_json_or_none(
+                    item.get("payload") or "{}", context="migrate_nft_offer"
+                )
+                if payload is None or not isinstance(payload, dict):
+                    skipped_corrupt += 1
+                    continue
                 offer = {
                     "offer_id": oid,
                     "token_id": item.get("token_id", ""),
@@ -155,8 +176,14 @@ class HybridDatabase:
                 }
                 self._core.save_nft_offer(offer)
                 migrated += 1
-            self._core.set_meta("aux_nft_offers_migrated_v1", True)
-        if migrated:
+            if skipped_corrupt == 0:
+                self._core.set_meta("aux_nft_offers_migrated_v1", True)
+        if skipped_corrupt:
+            print(
+                f"[HybridDatabase] aux_nft_offers migrate deferred: "
+                f"{skipped_corrupt} corrupt JSON row(s) (migrated={migrated})"
+            )
+        elif migrated:
             print(f"[HybridDatabase] migrated {migrated} nft_offers from aux.db to Rocks")
 
     def _migrate_aux_nft_auctions_once(self) -> None:
@@ -168,16 +195,19 @@ class HybridDatabase:
             print(f"[HybridDatabase] aux_nft_auctions migrate deferred (will retry): {exc}")
             return
         migrated = 0
+        skipped_corrupt = 0
         with self._core.atomic():
             for row in rows:
                 item = dict(row)
                 aid = str(item.get("auction_id", "") or "")
                 if not aid or self._core._raw_get(kc.key_nft_auction(aid)):
                     continue
-                try:
-                    payload = json.loads(item.get("payload") or "{}")
-                except Exception:
-                    payload = {}
+                payload = self._aux._loads_json_or_none(
+                    item.get("payload") or "{}", context="migrate_nft_auction"
+                )
+                if payload is None or not isinstance(payload, dict):
+                    skipped_corrupt += 1
+                    continue
                 auction = {
                     "auction_id": aid,
                     "token_id": item.get("token_id", ""),
@@ -189,8 +219,14 @@ class HybridDatabase:
                 }
                 self._core.save_nft_auction(auction)
                 migrated += 1
-            self._core.set_meta("aux_nft_auctions_migrated_v1", True)
-        if migrated:
+            if skipped_corrupt == 0:
+                self._core.set_meta("aux_nft_auctions_migrated_v1", True)
+        if skipped_corrupt:
+            print(
+                f"[HybridDatabase] aux_nft_auctions migrate deferred: "
+                f"{skipped_corrupt} corrupt JSON row(s) (migrated={migrated})"
+            )
+        elif migrated:
             print(f"[HybridDatabase] migrated {migrated} nft_auctions from aux.db to Rocks")
 
     def _migrate_aux_nft_sales_once(self) -> None:
@@ -446,6 +482,13 @@ class HybridDatabase:
     def get_stats(self) -> Dict:
         stats = self._core.get_stats()
         stats["aux_path"] = os.path.join(self.db_path, "aux.db")
+        aux_fails = int(getattr(self._aux, "_json_decode_failures", 0) or 0)
+        stats["aux_json_decode_failures"] = aux_fails
+        tuning = dict(stats.get("rocksdb_tuning") or {})
+        tuning["aux_json_decode_failures"] = aux_fails
+        # Surface aux decode failures next to rocks counter for /metrics.
+        tuning["sqlite_json_decode_failures"] = aux_fails
+        stats["rocksdb_tuning"] = tuning
         return stats
 
     def record_state_root_mismatch(self, *args: Any, **kwargs: Any) -> None:

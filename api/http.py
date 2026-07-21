@@ -866,7 +866,7 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
 
         if method == "eth_getFilterChanges":
             if not filters:
-                return []
+                raise ValueError("eth filters unavailable")
             filter_id = params[0] if params else ""
             return filters.get_filter_changes(
                 filter_id, bc, mp, _handle_eth_get_logs
@@ -874,13 +874,13 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
 
         if method == "eth_getFilterLogs":
             if not filters:
-                return []
+                raise ValueError("eth filters unavailable")
             filter_id = params[0] if params else ""
             return filters.get_filter_logs(filter_id, bc, _handle_eth_get_logs)
 
         if method == "eth_uninstallFilter":
             if not filters:
-                return False
+                raise ValueError("eth filters unavailable")
             filter_id = params[0] if params else ""
             return filters.uninstall(filter_id)
 
@@ -954,6 +954,7 @@ class RESTHandler(BaseHTTPRequestHandler):
     consensus_adapter = None           # consensus.adapter.ConsensusAdapter
     finality_engine = None           # FinalityEngine
     sync_engine = None               # SyncEngine
+    ws_server = None                 # network.websocket.WebSocketServer
     state_engine = None              # StateEngine
     slashing_engine = None           # SlashingEngine
     validator_registry = None        # ValidatorRegistry
@@ -1206,15 +1207,16 @@ class RESTHandler(BaseHTTPRequestHandler):
                 rocksdb_tuning = {}
                 rocks_source = "none"
                 db_engine = "unknown"
+                db_stats: dict = {}
                 if db is not None:
                     try:
-                        stats = db.get_stats() if hasattr(db, "get_stats") else {}
+                        db_stats = dict(db.get_stats() if hasattr(db, "get_stats") else {})
                         db_engine = str(
-                            (stats or {}).get("engine")
+                            db_stats.get("engine")
                             or getattr(db, "engine", "")
                             or "unknown"
                         )
-                        rocksdb_tuning = dict((stats or {}).get("rocksdb_tuning") or {})
+                        rocksdb_tuning = dict(db_stats.get("rocksdb_tuning") or {})
                         if rocksdb_tuning:
                             rocks_source = "live"
                     except Exception as exc:
@@ -1241,6 +1243,24 @@ class RESTHandler(BaseHTTPRequestHandler):
                     rocksdb_tuning = dict(rocksdb_tuning)
                     rocksdb_tuning["source"] = rocks_source
                     rocksdb_tuning["engine"] = db_engine
+                    rocksdb_tuning["sqlite_json_decode_failures"] = int(
+                        db_stats.get("json_decode_failures", 0)
+                        or db_stats.get("sqlite_json_decode_failures", 0)
+                        or rocksdb_tuning.get("sqlite_json_decode_failures", 0)
+                        or 0
+                    )
+                    rocksdb_tuning["aux_json_decode_failures"] = int(
+                        db_stats.get("aux_json_decode_failures", 0)
+                        or rocksdb_tuning.get("aux_json_decode_failures", 0)
+                        or 0
+                    )
+                ws_stats = {}
+                ws = self.__class__.ws_server
+                if ws is not None and hasattr(ws, "get_stats"):
+                    try:
+                        ws_stats = dict(ws.get_stats() or {})
+                    except Exception as exc:
+                        logger.warning("/metrics ws stats snapshot failed: %s", exc)
                 sync_status = {
                     "state_consistent": False,
                     "wire_probe_ok": False,
@@ -1283,6 +1303,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "finality_engine": self.__class__.finality_engine is not None,
                         "immutable_state": self.__class__.immutable_state is not None,
                     },
+                    ws_stats=ws_stats,
                 )
                 body = text.encode()
                 self.send_response(200)
@@ -1548,6 +1569,17 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "state_engine": self.__class__.state_engine is not None,
                         "finality_engine": self.__class__.finality_engine is not None,
                         "immutable_state": self.__class__.immutable_state is not None,
+                        "websocket": self.__class__.ws_server is not None,
+                        "websocket_running": bool(
+                            getattr(self.__class__.ws_server, "_running", False)
+                        )
+                        if self.__class__.ws_server is not None
+                        else False,
+                        "websocket_send_failures": int(
+                            getattr(self.__class__.ws_server, "_send_failures", 0) or 0
+                        )
+                        if self.__class__.ws_server is not None
+                        else 0,
                     },
                     "node_version": cfg.node_version,
                     "network_name": cfg.network_name,

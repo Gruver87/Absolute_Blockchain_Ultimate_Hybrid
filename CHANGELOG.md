@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.29] — 2026-07-21
+
+### Hardened — topology/prod / filters / migrate / SQLite features / metrics-WS / tip
+
+- Prod topology needs peers; eth filters unbound raise; aux migrate skip corrupt
+- SQLite feature JSON counted; metrics/alerts for sqlite+WS; backup tip fail-closed
+
+---
+
 ## [1.3.28] — 2026-07-21
 
 ### Hardened — mining/status / WS-P2P send / API missing / clone / SQLite / amount

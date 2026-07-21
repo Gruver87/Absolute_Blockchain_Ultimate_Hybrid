@@ -1256,6 +1256,8 @@ class NodeOrchestrator:
             wallet=self.wallet,
             bus=self.bus,
         )
+        from api.http import RESTHandler
+        RESTHandler.ws_server = self.ws_server
 
         self._print_banner()
 

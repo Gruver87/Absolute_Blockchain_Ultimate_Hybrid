@@ -668,12 +668,18 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("/status must degrade when peers present without SyncEngine")
         if 'mode in ("prod", "production", "staging")' not in http_py:
             errors.append("eth_mining must refuse prod claim without P2P")
+        if 'raise ValueError("eth filters unavailable")' not in http_py:
+            errors.append("eth_getFilterChanges/Logs must raise when filters unbound")
+        if '"websocket_send_failures"' not in http_py:
+            errors.append("/status subsystems must expose websocket_send_failures")
     except Exception as exc:
         errors.append(f"fail-loud api missing-error inspect failed: {exc}")
     try:
         ws_py = (ROOT / "network" / "websocket.py").read_text(encoding="utf-8")
         if "broadcast send failed" not in ws_py:
             errors.append("WebSocket _broadcast must count/log send failures")
+        if "Fail-closed: bind/runtime failure must not leave a live flag" not in ws_py:
+            errors.append("WebSocket start must clear _running on bind/runtime failure")
         mh_py = (ROOT / "network" / "p2p" / "message_handler.py").read_text(encoding="utf-8")
         if "_send_failures" not in mh_py or "_send_unbound" not in mh_py:
             errors.append("legacy MessageHandler._send must count unbound/send failures")
@@ -683,11 +689,34 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         db_py = (ROOT / "storage" / "database.py").read_text(encoding="utf-8")
         if "_loads_json_or_none" not in db_py or "json_decode_failures" not in db_py:
             errors.append("SQLite Database must fail-closed JSON decode with counter")
+        if 'context="plasma_txs"' not in db_py or 'context="nft_token_meta"' not in db_py:
+            errors.append("SQLite feature tables must use counted JSON decode")
         amount_py = (ROOT / "runtime" / "amount.py").read_text(encoding="utf-8")
         if "_native_fallback" not in amount_py or "REQUIRE_NATIVE_CRYPTO" not in amount_py:
             errors.append("amount.py must fail-closed when REQUIRE_NATIVE_CRYPTO is set")
+        p2p_py = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+        if "expected = max(1, mesh_min)" not in p2p_py:
+            errors.append("topology_healthy must require peers in prod/staging")
+        hyb_py = (ROOT / "storage" / "hybrid_database.py").read_text(encoding="utf-8")
+        if "skipped_corrupt" not in hyb_py:
+            errors.append("hybrid aux migrate must skip corrupt JSON without inventing empties")
+        if "aux_json_decode_failures" not in hyb_py:
+            errors.append("hybrid get_stats must expose aux_json_decode_failures")
+        backup_py = (ROOT / "storage" / "chain_backup.py").read_text(encoding="utf-8")
+        if "never invent tip 0 as success" not in backup_py:
+            errors.append("read_chain_tip must fail-closed on corrupt/missing storage")
+        metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
+        if "abs_sqlite_json_decode_failures" not in metrics_py:
+            errors.append("metrics must export abs_sqlite_json_decode_failures")
+        if "abs_ws_send_failures_total" not in metrics_py:
+            errors.append("metrics must export abs_ws_send_failures_total")
+        alerts = (ROOT / "deploy" / "prometheus" / "alerts.yml").read_text(encoding="utf-8")
+        if "AbsoluteSqliteJsonDecodeFailures" not in alerts:
+            errors.append("alerts.yml missing AbsoluteSqliteJsonDecodeFailures")
+        if "AbsoluteWSSendFailBurst" not in alerts:
+            errors.append("alerts.yml missing AbsoluteWSSendFailBurst")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28/29 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

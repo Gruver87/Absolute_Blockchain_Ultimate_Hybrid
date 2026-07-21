@@ -283,6 +283,9 @@ class WebSocketServer:
                 logger.error(f"[WebSocket] error: {e}")
         except Exception as e:
             logger.error(f"[WebSocket] error: {e}")
+        finally:
+            # Fail-closed: bind/runtime failure must not leave a live flag.
+            self._running = False
 
     def stop(self):
         self._running = False

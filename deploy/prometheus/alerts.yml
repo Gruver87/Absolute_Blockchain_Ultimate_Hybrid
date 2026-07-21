@@ -209,6 +209,24 @@ groups:
           summary: "RocksDB JSON decode failures on {{ $labels.node_id }}"
           description: "Corrupt RocksDB rows were skipped; investigate storage integrity."
 
+      - alert: AbsoluteSqliteJsonDecodeFailures
+        expr: increase(abs_sqlite_json_decode_failures[1h]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SQLite/aux JSON decode failures on {{ $labels.node_id }}"
+          description: "Corrupt SQLite or aux.db JSON rows were skipped; investigate storage integrity."
+
+      - alert: AbsoluteWSSendFailBurst
+        expr: rate(abs_ws_send_failures_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated WebSocket send failures on {{ $labels.node_id }}"
+          description: "WS outbound send failures are above 0.5/sec for 5 minutes."
+
       - alert: AbsoluteRocksBlockCacheUnset
         expr: abs_native_crypto_required == 1 and abs_rocksdb_block_cache_mb == 0
         for: 15m

@@ -206,27 +206,24 @@ def restore_chainstore(backup_dir: str, data_dir: str, *, force: bool = False) -
 
 
 def read_chain_tip(chainstore_or_data_dir: str) -> int:
-    """Read chain tip from a Rocks chainstore path or nested data directory."""
-    try:
-        engine, chainstore, storage_root = resolve_storage(chainstore_or_data_dir)
-    except FileNotFoundError:
-        return 0
+    """Read chain tip from a Rocks chainstore path or nested data directory.
+
+    Fail-closed: missing/corrupt storage raises — never invent tip 0 as success.
+    """
+    engine, chainstore, storage_root = resolve_storage(chainstore_or_data_dir)
 
     if engine == "rocksdb":
         path = chainstore
-        try:
-            from storage.rocks_store import RocksChainStore
+        from storage.rocks_store import RocksChainStore
 
-            store = RocksChainStore(
-                path, synchronous="FULL", block_cache_mb=0, write_buffer_mb=0
-            )
-            store.initialize()
-            try:
-                return int(store.get_chain_tip() or 0)
-            finally:
-                store.close()
-        except Exception:
-            return 0
+        store = RocksChainStore(
+            path, synchronous="FULL", block_cache_mb=0, write_buffer_mb=0
+        )
+        store.initialize()
+        try:
+            return int(store.get_chain_tip() or 0)
+        finally:
+            store.close()
 
     db_name = (
         "blockchain.db"
@@ -236,15 +233,12 @@ def read_chain_tip(chainstore_or_data_dir: str) -> int:
     from storage.database import Database
 
     db_path = os.path.join(storage_root, db_name)
+    db = Database(db_path)
+    db.initialize()
     try:
-        db = Database(db_path)
-        db.initialize()
-        try:
-            return int(db.get_chain_tip() or 0)
-        finally:
-            db.close()
-    except Exception:
-        return 0
+        return int(db.get_chain_tip() or 0)
+    finally:
+        db.close()
 
 
 def verify_chain_tip(data_dir: str, expected_tip: int | None = None) -> int:
