@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """EVM interpreter — bytecode execution with real execution context."""
 
-import hashlib
 import os
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Any
@@ -50,7 +49,7 @@ class EVMContext:
         try:
             return int(raw[:40], 16)
         except ValueError:
-            return int(hashlib.sha256(who.encode()).hexdigest()[:16], 16)
+            return int(native.sha256_hex(who.encode())[:16], 16)
 
 
 class EVM:
