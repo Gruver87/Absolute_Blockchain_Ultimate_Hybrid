@@ -97,6 +97,9 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "abs_p2p_attestation_local_fail_total",
         "abs_p2p_peer_tx_reject_total",
         "abs_rocksdb_column_families",
+        "abs_state_consistent",
+        "abs_sync_wire_probe_ok",
+        "abs_sync_wire_probe_probed",
     ):
         if needle not in metrics_src:
             errors.append(f"metrics.py missing Prometheus series: {needle}")
@@ -106,6 +109,9 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "strike %s/%s",
         "peer_tx_reject",
         "bad_peer_tx",
+        "import_block_fail",
+        "sync_fail",
+        "discovery_loop_fail",
     ):
         if needle not in p2p_mod:
             errors.append(f"p2p_node.py missing industrial surface: {needle}")
@@ -119,6 +125,8 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "abs_p2p_attestation_local_fail_total",
         "abs_p2p_peer_tx_reject_total",
         "abs_rocksdb_block_cache_mb",
+        "abs_state_consistent",
+        "abs_sync_wire_probe_ok",
     ):
         if needle not in alerts_src:
             errors.append(f"prometheus alerts.yml missing rule surface: {needle}")
@@ -129,6 +137,8 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "mid_session_handshake",
         "abs_p2p_attestation_local_fail_total",
         "abs_p2p_peer_tx_reject_total",
+        "abs_state_consistent",
+        "abs_sync_wire_probe_ok",
     ):
         if needle not in dash_src:
             errors.append(f"grafana dashboard.json missing panel surface: {needle}")
@@ -223,17 +233,33 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
             "P2P_BAN_SECONDS": "p2p_ban_seconds",
             "P2P_RATE_LIMIT_STRIKES": "p2p_rate_limit_strikes",
             "P2P_EVICT_MIN_SCORE": "p2p_evict_min_score",
+            "BRIDGE_ENABLED": "bridge_enabled",
+            "REDIS_RATE_LIMIT": "redis_rate_limit_enabled",
+            "REDIS_URL": "redis_url",
         }
-        for env_key, json_key in env_map.items():
+
+        def _compose_default(env_key: str) -> str | None:
             m = re.search(
-                rf"(?m)^\s*{re.escape(env_key)}:\s*\"?([^\"\n#]+?)\"?\s*$",
+                rf"(?m)^\s*{re.escape(env_key)}:\s*(.+?)\s*$",
                 compose_text,
             )
             if not m:
+                return None
+            raw = m.group(1).strip().strip('"').strip("'")
+            dm = re.match(r"^\$\{[^:]+:-([^}]+)\}$", raw)
+            if dm:
+                return dm.group(1).strip().strip('"').strip("'")
+            return raw
+
+        for env_key, json_key in env_map.items():
+            compose_val = _compose_default(env_key)
+            if compose_val is None:
                 errors.append(f"docker-compose.prod.3node.yml missing {env_key}")
                 continue
-            compose_val = m.group(1).strip()
             for rel, prod_cfg in mesh_json_cfgs:
+                if json_key not in prod_cfg:
+                    # redis/bridge already enforced for mesh above
+                    continue
                 raw = prod_cfg.get(json_key)
                 if isinstance(raw, bool):
                     json_val = "true" if raw else "false"
@@ -267,6 +293,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         status_src = inspect.getsource(SyncEngine.get_status)
         if "wire_probe_ok" not in status_src:
             errors.append("SyncEngine.get_status missing wire_probe_ok")
+        if "wire_probe_probed" not in status_src:
+            errors.append("SyncEngine.get_status missing wire_probe_probed")
     except Exception as exc:
         errors.append(f"fail-loud sync inspect failed: {exc}")
     try:

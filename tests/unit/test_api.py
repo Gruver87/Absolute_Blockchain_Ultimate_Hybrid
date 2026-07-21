@@ -125,6 +125,12 @@ def test_metrics_prometheus_format():
             "column_families": False,
             "block_cache_mb": 256,
             "write_buffer_mb": 64,
+            "source": "live",
+        },
+        sync_status={
+            "state_consistent": False,
+            "wire_probe_ok": False,
+            "wire_probe_probed": True,
         },
     )
     assert "abs_chain_height" in text
@@ -148,6 +154,10 @@ def test_metrics_prometheus_format():
     assert 'abs_rocksdb_column_families{node_id="n1"} 0' in text
     assert 'abs_rocksdb_block_cache_mb{node_id="n1"} 256' in text
     assert 'abs_rocksdb_write_buffer_mb{node_id="n1"} 64' in text
+    assert 'abs_state_consistent{node_id="n1"} 0' in text
+    assert 'abs_sync_wire_probe_ok{node_id="n1"} 0' in text
+    assert 'abs_sync_wire_probe_probed{node_id="n1"} 1' in text
+    assert 'source="live"' in text
 
 
 def test_health_live(api_server):

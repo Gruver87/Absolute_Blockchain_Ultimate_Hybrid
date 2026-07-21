@@ -51,6 +51,8 @@ def main() -> int:
             errors.append("node.prod.k8s.json: follower_genesis_sync required for k8s scale-out")
         if cfg.get("p2p_tls_enabled") is not True:
             errors.append("node.prod.k8s.json: p2p_tls_enabled must be true")
+        if cfg.get("bridge_enabled") is not False:
+            errors.append("node.prod.k8s.json: bridge_enabled must be false until L1 audit")
         for key in ("p2p_tls_cert_path", "p2p_tls_key_path", "p2p_tls_ca_path"):
             if not str(cfg.get(key) or "").strip():
                 errors.append(f"node.prod.k8s.json: {key} required when P2P TLS enabled")
@@ -64,6 +66,8 @@ def main() -> int:
         errors.append(f"configmap.yaml: CHAIN_ID must be {MAINNET_V1_CHAIN_ID}")
     if "ABS_REQUIRE_NATIVE_CRYPTO" not in cm:
         errors.append("configmap.yaml: ABS_REQUIRE_NATIVE_CRYPTO required")
+    if 'BRIDGE_ENABLED: "false"' not in cm:
+        errors.append('configmap.yaml: BRIDGE_ENABLED must be "false"')
     for key in (
         "ROCKSDB_BLOCK_CACHE_MB",
         "ROCKSDB_WRITE_BUFFER_MB",

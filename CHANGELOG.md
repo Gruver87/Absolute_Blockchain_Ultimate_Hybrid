@@ -6,6 +6,17 @@
 
 ---
 
+## [1.3.11] — 2026-07-21
+
+### Hardened — Sync consistency metrics, loop/import honesty, deploy freezes
+
+- `abs_state_consistent` / wire-probe gauges + alerts/panels
+- import/sync/discovery/bootstrap ops counters; fail-closed unknown wire probe
+- `/status` security includes ops_errors + attestation_local_fail
+- Compose bridge/redis freeze; k8s bridge-OFF gate; rocks tuning source label
+
+---
+
 ## [1.3.10] — 2026-07-21
 
 ### Hardened — Semantic peer-tx honesty, mesh Redis JSON, compose freeze

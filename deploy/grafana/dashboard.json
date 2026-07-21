@@ -178,6 +178,20 @@
       "targets": [
         {"expr": "abs_p2p_peer_tx_reject_total", "legendFormat": "{{node_id}}"}
       ]
+    },
+    {
+      "id": 23,
+      "title": "State Consistent",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 60},
+      "targets": [{"expr": "abs_state_consistent"}]
+    },
+    {
+      "id": 24,
+      "title": "Sync Wire Probe OK",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 60},
+      "targets": [{"expr": "abs_sync_wire_probe_ok"}]
     }
   ]
 }

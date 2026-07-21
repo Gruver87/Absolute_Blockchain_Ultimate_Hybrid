@@ -303,6 +303,10 @@ class P2PNode:
         self._maintenance_loop_fail: int = 0
         self._catch_up_loop_fail: int = 0
         self._peer_tx_reject: int = 0
+        self._import_block_fail: int = 0
+        self._sync_fail: int = 0
+        self._discovery_loop_fail: int = 0
+        self._bootstrap_loop_fail: int = 0
         self._last_tx_wire_reject: str = ""
         self._shape_reject_counts: Dict[str, int] = {}
         self._consensus = None
@@ -407,12 +411,19 @@ class P2PNode:
     def import_block(self, block_data: Dict) -> bool:
         """For SyncEngine.fast_sync()."""
         if hasattr(self.blockchain, "import_block"):
-            return self.blockchain.import_block(block_data)
+            try:
+                return bool(self.blockchain.import_block(block_data))
+            except Exception as exc:
+                self._import_block_fail = int(self._import_block_fail or 0) + 1
+                logger.warning("[P2P] import_block failed: %s", exc)
+                return False
         from core.blockchain import Block
         try:
             blk = Block.from_dict(block_data)
             return self.blockchain.add_block(blk)
-        except Exception:
+        except Exception as exc:
+            self._import_block_fail = int(self._import_block_fail or 0) + 1
+            logger.warning("[P2P] import_block parse/add failed: %s", exc)
             return False
 
     # ── Запуск / остановка ───────────────────────────────────────────────────
@@ -1372,6 +1383,7 @@ class P2PNode:
             try:
                 await self._sync_with_peer(peer)
             except Exception as e:
+                self._sync_fail = int(self._sync_fail or 0) + 1
                 print(f"[P2P] Sync error via {peer.peer_id[:8]}: {e}")
                 logger.exception("[P2P] sync failed")
 
@@ -2062,26 +2074,56 @@ class P2PNode:
         """Периодически запрашиваем список пиров у уже подключённых."""
         while self._running:
             await asyncio.sleep(60)
-            for peer in list(self.peers.values()):
-                await peer.send(MSG_GET_PEERS)
-            # Переподключаемся к известным адресам если пиров мало
-            target_peers = max(1, int(getattr(self.config, "testnet_expected_peers", 1) or 1))
-            if len(self.peers) < target_peers:
-                for addr in self._known_addrs:
-                    parts = addr.split(":")
-                    if len(parts) == 2:
-                        asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
+            try:
+                for peer in list(self.peers.values()):
+                    await peer.send(MSG_GET_PEERS)
+                # Переподключаемся к известным адресам если пиров мало
+                target_peers = max(
+                    1, int(getattr(self.config, "testnet_expected_peers", 1) or 1)
+                )
+                if len(self.peers) < target_peers:
+                    for addr in self._known_addrs:
+                        parts = addr.rsplit(":", 1)
+                        if len(parts) == 2:
+                            try:
+                                asyncio.create_task(
+                                    self.connect_peer(parts[0], int(parts[1]))
+                                )
+                            except Exception as exc:
+                                self._peer_connect_task_fail += 1
+                                logger.warning(
+                                    "[P2P] discovery reconnect failed for %s: %s",
+                                    addr,
+                                    exc,
+                                )
+            except Exception as exc:
+                self._discovery_loop_fail = int(self._discovery_loop_fail or 0) + 1
+                logger.warning("[P2P] discovery_loop: %s", exc)
 
     async def _bootstrap_retry_loop(self):
         """Переподключение к bootstrap-пирам, пока нет соединений."""
         while self._running:
             await asyncio.sleep(20)
-            if self.peers or not self.config.bootstrap_peers:
-                continue
-            for peer_addr in self.config.bootstrap_peers:
-                parts = peer_addr.split(":")
-                if len(parts) == 2:
-                    asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
+            try:
+                if self.peers or not self.config.bootstrap_peers:
+                    continue
+                for peer_addr in self.config.bootstrap_peers:
+                    parts = str(peer_addr).rsplit(":", 1)
+                    if len(parts) == 2:
+                        try:
+                            asyncio.create_task(
+                                self.connect_peer(parts[0], int(parts[1]))
+                            )
+                        except Exception as exc:
+                            self._peer_connect_task_fail += 1
+                            logger.warning(
+                                "[P2P] bootstrap connect failed for %s: %s",
+                                peer_addr,
+                                exc,
+                            )
+            except Exception as exc:
+                self._bootstrap_loop_fail = int(self._bootstrap_loop_fail or 0) + 1
+                logger.warning("[P2P] bootstrap_retry_loop: %s", exc)
 
     async def _maintenance_loop(self):
         """Periodic peer hygiene: stale eviction, ban expiry, low-score drops."""
@@ -2289,6 +2331,10 @@ class P2PNode:
                 "maintenance_loop_fail": int(self._maintenance_loop_fail),
                 "catch_up_loop_fail": int(self._catch_up_loop_fail),
                 "peer_tx_reject": int(self._peer_tx_reject),
+                "import_block_fail": int(self._import_block_fail),
+                "sync_fail": int(self._sync_fail),
+                "discovery_loop_fail": int(self._discovery_loop_fail),
+                "bootstrap_loop_fail": int(self._bootstrap_loop_fail),
             },
             "rate_limit_exempt_types": len(RATE_LIMIT_EXEMPT_TYPES),
             "tls": p2p_tls_status(self.config),

@@ -21,6 +21,7 @@ class SyncEngine:
         self.peers = []
         self.is_syncing = False
         self.sync_progress = 0
+        self._last_wire_probe_ok = None
 
     def add_peer(self, peer):
         """Добавляет пира для синхронизации"""
@@ -339,6 +340,7 @@ class SyncEngine:
 
         p2p = getattr(self.node, "p2p", None)
         state_consistent = getattr(p2p, "_state_consistent", True) if p2p else True
+        probe = getattr(self, "_last_wire_probe_ok", None)
 
         return {
             "syncing": self.is_syncing,
@@ -348,7 +350,9 @@ class SyncEngine:
             "best_peer_height": best_peer_height,
             "behind": max(0, best_peer_height - local_height),
             "state_consistent": state_consistent,
-            "wire_probe_ok": bool(getattr(self, "_last_wire_probe_ok", True)),
+            # Unknown (never probed) is fail-closed False for status honesty.
+            "wire_probe_ok": True if probe is True else False,
+            "wire_probe_probed": probe is not None,
         }
 
     def reset(self):

@@ -128,6 +128,24 @@ groups:
           summary: "Elevated P2P outbound send failures on {{ $labels.node_id }}"
           description: "Peer.send failures are above 0.5/sec for 5 minutes."
 
+      - alert: AbsoluteStateInconsistent
+        expr: abs_peers_connected > 0 and abs_state_consistent == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "State root inconsistent with peers on {{ $labels.node_id }}"
+          description: "Node has peers but reports abs_state_consistent=0 for 2 minutes."
+
+      - alert: AbsoluteSyncWireProbeFail
+        expr: abs_peers_connected > 0 and abs_sync_wire_probe_probed == 1 and abs_sync_wire_probe_ok == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Peer state_root wire probe failing on {{ $labels.node_id }}"
+          description: "Wire probe completed and failed while peers are connected."
+
       - alert: AbsoluteRocksBlockCacheUnset
         expr: abs_native_crypto_required == 1 and abs_rocksdb_block_cache_mb == 0
         for: 15m

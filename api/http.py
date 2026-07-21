@@ -131,6 +131,7 @@ def _status_p2p_hardening_snapshot(cfg, p2p) -> Dict[str, Any]:
         "shape_rejects": dict(sec.get("shape_rejects") or {}),
         "rate_limit_drops": int(sec.get("rate_limit_drops", 0) or 0),
         "active_bans": int(sec.get("active_bans", 0) or 0),
+        "attestation_local_fail": int(sec.get("attestation_local_fail", 0) or 0),
         "ops_errors": dict(sec.get("ops_errors") or {}),
     }
     if status_error:
@@ -1067,13 +1068,18 @@ class RESTHandler(BaseHTTPRequestHandler):
                     except Exception as exc:
                         logger.warning("/metrics p2p security snapshot failed: %s", exc)
                 rocksdb_tuning = {}
+                rocks_source = "none"
                 if db is not None:
                     try:
                         stats = db.get_stats() if hasattr(db, "get_stats") else {}
                         rocksdb_tuning = dict((stats or {}).get("rocksdb_tuning") or {})
+                        if rocksdb_tuning:
+                            rocks_source = "live"
                     except Exception as exc:
-                        logger.debug("/metrics rocksdb tuning snapshot failed: %s", exc)
+                        logger.warning("/metrics rocksdb tuning snapshot failed: %s", exc)
+                        rocks_source = "snapshot_fail"
                     if not rocksdb_tuning and cfg is not None:
+                        rocks_source = "config_fallback"
                         rocksdb_tuning = {
                             "column_families": bool(
                                 getattr(cfg, "rocksdb_column_families", False)
@@ -1085,6 +1091,31 @@ class RESTHandler(BaseHTTPRequestHandler):
                                 getattr(cfg, "rocksdb_write_buffer_mb", 0) or 0
                             ),
                         }
+                if rocksdb_tuning is not None:
+                    rocksdb_tuning = dict(rocksdb_tuning)
+                    rocksdb_tuning["source"] = rocks_source
+                sync_status = {
+                    "state_consistent": True,
+                    "wire_probe_ok": True,
+                    "wire_probe_probed": False,
+                }
+                if p2p is not None:
+                    sync_status["state_consistent"] = bool(
+                        getattr(p2p, "_state_consistent", True)
+                    )
+                    se = getattr(p2p, "sync_engine", None)
+                    if se is not None and hasattr(se, "get_status"):
+                        try:
+                            se_st = dict(se.get_status() or {})
+                            sync_status["state_consistent"] = bool(
+                                se_st.get("state_consistent", sync_status["state_consistent"])
+                            )
+                            sync_status["wire_probe_ok"] = bool(se_st.get("wire_probe_ok"))
+                            sync_status["wire_probe_probed"] = bool(
+                                se_st.get("wire_probe_probed")
+                            )
+                        except Exception as exc:
+                            logger.warning("/metrics sync status snapshot failed: %s", exc)
                 text = mc.render_prometheus(
                     height=bc.get_height() if bc else 0,
                     peers=p2p.peer_count() if p2p else 0,
@@ -1096,6 +1127,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     bridge_health=bridge_health,
                     p2p_security=p2p_security,
                     rocksdb_tuning=rocksdb_tuning,
+                    sync_status=sync_status,
                 )
                 body = text.encode()
                 self.send_response(200)
@@ -1272,6 +1304,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                                 "shape_rejects_total": sec.get("shape_rejects_total", 0),
                                 "shape_rejects": sec.get("shape_rejects") or {},
                                 "rate_limit_drops": sec.get("rate_limit_drops", 0),
+                                "attestation_local_fail": sec.get(
+                                    "attestation_local_fail", 0
+                                ),
+                                "ops_errors": sec.get("ops_errors") or {},
                             },
                         }
                     except Exception as exc:
@@ -1286,6 +1322,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                                     "shape_rejects_total": raw.get("shape_rejects_total", 0),
                                     "shape_rejects": raw.get("shape_rejects") or {},
                                     "rate_limit_drops": raw.get("rate_limit_drops", 0),
+                                    "attestation_local_fail": raw.get(
+                                        "attestation_local_fail", 0
+                                    ),
+                                    "ops_errors": raw.get("ops_errors") or {},
                                 }
                             except Exception:
                                 security = {}

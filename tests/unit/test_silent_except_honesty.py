@@ -25,7 +25,16 @@ def test_sync_state_logs_wire_probe_failure(capsys):
     captured = capsys.readouterr()
     assert "wire probe failed" in captured.out
     assert eng.get_status().get("wire_probe_ok") is False
+    assert eng.get_status().get("wire_probe_probed") is True
     assert ok is True  # no peers/mismatches — consistent but probe failed
+
+
+def test_sync_status_unknown_probe_is_fail_closed():
+    eng = SyncEngine(SimpleNamespace(p2p=SimpleNamespace(_state_consistent=True)))
+    eng._collect_p2p_peers = lambda: []  # type: ignore
+    st = eng.get_status()
+    assert st.get("wire_probe_ok") is False
+    assert st.get("wire_probe_probed") is False
 
 
 def test_ims_reconcile_fail_loud_nonce():

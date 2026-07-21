@@ -91,6 +91,27 @@ def test_peer_tx_reject_increments_ops_counter_and_strikes():
     assert node._strike_peer_sync.call_args[0][1] == "bad_peer_tx"
 
 
+def test_import_block_fail_increments_ops_counter():
+    from network.p2p_node import P2PNode
+
+    cfg = MagicMock()
+    cfg.node_id = "test-node"
+    cfg.bootstrap_peers = []
+    cfg.testnet_expected_peers = 0
+    cfg.p2p_max_messages_per_sec = 0
+    cfg.p2p_ban_seconds = 300
+    cfg.p2p_rate_limit_strikes = 5
+    cfg.p2p_evict_min_score = 0
+    cfg.chain_id = 1
+    cfg.p2p_tls_enabled = False
+
+    blockchain = MagicMock()
+    blockchain.import_block.side_effect = RuntimeError("bad block")
+    node = P2PNode(cfg, blockchain, MagicMock())
+    assert node.import_block({"hash": "x"}) is False
+    assert node.get_p2p_security_status()["ops_errors"]["import_block_fail"] == 1
+
+
 def test_status_p2p_hardening_includes_ops_errors():
     from api.http import _status_p2p_hardening_snapshot
 
@@ -105,3 +126,5 @@ def test_status_p2p_hardening_includes_ops_errors():
     snap = _status_p2p_hardening_snapshot(cfg, p2p)
     assert snap["ops_errors"]["propagation_log_fail"] == 2
     assert snap["ops_errors"]["peer_status_send_fail"] == 1
+    assert snap["attestation_local_fail"] == 0
+

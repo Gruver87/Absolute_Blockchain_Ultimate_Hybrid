@@ -47,6 +47,7 @@ POST_SOAK_TESTS = [
     "tests/unit/test_p2p_industrial.py",
     "tests/unit/test_p2p_ops_errors.py",
     "tests/unit/test_status_honesty.py",
+    "tests/unit/test_silent_except_honesty.py",
 ]
 
 REQUIRED_NATIVE_SYMBOLS = [

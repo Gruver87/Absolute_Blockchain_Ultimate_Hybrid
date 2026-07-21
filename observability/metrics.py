@@ -40,11 +40,13 @@ class MetricsCollector:
         bridge_health: Optional[dict[str, Any]] = None,
         p2p_security: Optional[dict[str, Any]] = None,
         rocksdb_tuning: Optional[dict[str, Any]] = None,
+        sync_status: Optional[dict[str, Any]] = None,
     ) -> str:
         native_crypto = native_crypto or {}
         bridge_health = bridge_health or {}
         p2p_security = p2p_security or {}
         rocksdb_tuning = rocksdb_tuning or {}
+        sync_status = sync_status or {}
         lines = [
             "# HELP abs_uptime_seconds Node uptime",
             "# TYPE abs_uptime_seconds gauge",
@@ -215,6 +217,30 @@ class MetricsCollector:
                 (
                     f"abs_rocksdb_write_buffer_mb{{node_id=\"{node_id}\"}} "
                     f"{int(rocksdb_tuning.get('write_buffer_mb', 0) or 0)}"
+                ),
+                "# HELP abs_state_consistent Whether tip state root matches peers",
+                "# TYPE abs_state_consistent gauge",
+                (
+                    f"abs_state_consistent{{node_id=\"{node_id}\"}} "
+                    f"{1 if sync_status.get('state_consistent', True) else 0}"
+                ),
+                "# HELP abs_sync_wire_probe_ok Last peer state_root wire probe result",
+                "# TYPE abs_sync_wire_probe_ok gauge",
+                (
+                    f"abs_sync_wire_probe_ok{{node_id=\"{node_id}\"}} "
+                    f"{1 if sync_status.get('wire_probe_ok') else 0}"
+                ),
+                "# HELP abs_sync_wire_probe_probed Whether a wire probe has completed",
+                "# TYPE abs_sync_wire_probe_probed gauge",
+                (
+                    f"abs_sync_wire_probe_probed{{node_id=\"{node_id}\"}} "
+                    f"{1 if sync_status.get('wire_probe_probed') else 0}"
+                ),
+                "# HELP abs_rocksdb_tuning_source Whether live DB stats or config fallback",
+                "# TYPE abs_rocksdb_tuning_source gauge",
+                (
+                    f"abs_rocksdb_tuning_source{{node_id=\"{node_id}\","
+                    f"source=\"{str(rocksdb_tuning.get('source') or 'unknown')}\"}} 1"
                 ),
             ]
         )

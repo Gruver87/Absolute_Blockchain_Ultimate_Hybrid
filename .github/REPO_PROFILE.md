@@ -41,8 +41,8 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.10` — peer-tx honesty + mesh Redis + compose freeze |
-| **Notes** | [RELEASE_NOTES_v1.3.10.md](../RELEASE_NOTES_v1.3.10.md) |
+| **Tag** | `v1.3.11` — sync consistency metrics + loop/import honesty |
+| **Notes** | [RELEASE_NOTES_v1.3.11.md](../RELEASE_NOTES_v1.3.11.md) |
 | **Prior** | [v1.3.08](../RELEASE_NOTES_v1.3.08.md) Swiss-watch; [v1.3.07](../RELEASE_NOTES_v1.3.07.md) ops_errors |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
