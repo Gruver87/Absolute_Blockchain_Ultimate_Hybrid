@@ -29,6 +29,11 @@ def main() -> int:
             errors.append("node.prod.k8s.json: db_engine must be rocksdb")
         if not cfg.get("follower_genesis_sync"):
             errors.append("node.prod.k8s.json: follower_genesis_sync required for k8s scale-out")
+        if cfg.get("p2p_tls_enabled") is not True:
+            errors.append("node.prod.k8s.json: p2p_tls_enabled must be true")
+        for key in ("p2p_tls_cert_path", "p2p_tls_key_path", "p2p_tls_ca_path"):
+            if not str(cfg.get(key) or "").strip():
+                errors.append(f"node.prod.k8s.json: {key} required when P2P TLS enabled")
 
     cm = (K8S / "configmap.yaml").read_text(encoding="utf-8")
     if 'DEPLOYMENT_MODE: "prod"' not in cm:
@@ -39,6 +44,16 @@ def main() -> int:
         errors.append(f"configmap.yaml: CHAIN_ID must be {MAINNET_V1_CHAIN_ID}")
     if "ABS_REQUIRE_NATIVE_CRYPTO" not in cm:
         errors.append("configmap.yaml: ABS_REQUIRE_NATIVE_CRYPTO required")
+    if "REDIS_RATE_LIMIT" not in cm:
+        errors.append("configmap.yaml: REDIS_RATE_LIMIT required")
+    if "REDIS_URL" not in cm:
+        errors.append("configmap.yaml: REDIS_URL required")
+
+    redis_yaml = (K8S / "redis.yaml").read_text(encoding="utf-8")
+    if "readinessProbe" not in redis_yaml or "redis-cli" not in redis_yaml:
+        errors.append("redis.yaml: readinessProbe with redis-cli ping required")
+    if "livenessProbe" not in redis_yaml:
+        errors.append("redis.yaml: livenessProbe required")
 
     sts = (K8S / "statefulset.yaml").read_text(encoding="utf-8")
     if "readinessProbe" not in sts or "/health/ready" not in sts:

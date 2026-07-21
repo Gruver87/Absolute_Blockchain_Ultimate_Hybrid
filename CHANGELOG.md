@@ -6,6 +6,24 @@
 
 ---
 
+## [1.2.90] — 2026-07-21
+
+### Hardened — status honesty + mesh Redis validate
+
+- GET /status: honest core_real, rate_limit_backend, p2p_hardening
+- Prod mesh Config.validate requires Redis RL + URL
+- K8s Redis probes + TLS/Redis on node.prod.k8s.json; k8s_prod_gate extended
+
+### Fail-loud
+
+- ChainStorage backup, WebSocket send, consensus parallel add_block, bridge oracle
+
+### Docs / tests
+
+- [RELEASE_NOTES_v1.2.90.md](RELEASE_NOTES_v1.2.90.md)
+
+---
+
 ## [1.2.89] — 2026-07-21
 
 ### Hardened — mesh Redis + auth + honesty

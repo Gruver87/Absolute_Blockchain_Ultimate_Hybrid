@@ -687,6 +687,12 @@ class Config:
                 errors.append("prod requires p2p_tls_fail_closed=true")
             if not self.p2p_tls_bind_identity:
                 errors.append("prod requires p2p_tls_bind_identity=true")
+            mesh_min = int(getattr(self, "mesh_min_peers_before_mine", 0) or 0)
+            if mesh_min >= 1:
+                if not self.redis_rate_limit_enabled:
+                    errors.append("prod mesh requires redis_rate_limit_enabled=true (REDIS_RATE_LIMIT)")
+                if not str(self.redis_url or "").strip():
+                    errors.append("prod mesh requires REDIS_URL")
         if self.p2p_tls_enabled:
             for attr, label in (
                 ("p2p_tls_cert_path", "P2P_TLS_CERT_PATH"),

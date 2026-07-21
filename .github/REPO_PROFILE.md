@@ -41,8 +41,8 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.2.89` — mesh Redis RL, JWT lazy secret, honesty and silent-fail purge |
-| **Notes** | [RELEASE_NOTES_v1.2.89.md](../RELEASE_NOTES_v1.2.89.md) |
+| **Tag** | `v1.2.90` — mesh Redis RL, JWT lazy secret, honesty and silent-fail purge |
+| **Notes** | [RELEASE_NOTES_v1.2.90.md](../RELEASE_NOTES_v1.2.90.md) |
 | **Prior** | [v1.2.87](../RELEASE_NOTES_v1.2.87.md) pre-audit fail-closed + P2P TLS |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

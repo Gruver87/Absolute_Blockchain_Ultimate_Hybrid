@@ -45,6 +45,8 @@ class WebSocketServer:
         self._conn_ids: dict = {}
         self._next_conn_id = 1
         self._running = False
+        self._send_failures = 0
+        self._handler_errors = 0
         self._loop = None
         self.blockchain = blockchain
         self.config = config
@@ -158,8 +160,9 @@ class WebSocketServer:
     async def _send_json(self, websocket, payload: dict):
         try:
             await websocket.send(json.dumps(payload, default=str))
-        except Exception:
-            pass
+        except Exception as exc:
+            self._send_failures += 1
+            logger.warning("[WS] send failed: %s", exc)
 
     async def _handle_json_rpc(self, websocket, conn_id: int, data: dict):
         method = data.get("method", "")
@@ -231,10 +234,14 @@ class WebSocketServer:
                         continue
                     if await self._handle_json_rpc(websocket, conn_id, data):
                         continue
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except json.JSONDecodeError as exc:
+                    self._handler_errors += 1
+                    logger.debug("[WS] invalid JSON frame: %s", exc)
+                except Exception as exc:
+                    self._handler_errors += 1
+                    logger.warning("[WS] handler error: %s", exc)
+        except Exception as exc:
+            logger.debug("[WS] connection closed: %s", exc)
         finally:
             self._clients.discard(websocket)
             self._conn_ids.pop(websocket, None)

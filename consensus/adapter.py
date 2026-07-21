@@ -375,14 +375,14 @@ class ConsensusAdapter:
         if not self._unified_consensus and self.casper_engine:
             try:
                 self.casper_engine.add_block(blk_for_fork)
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f"[Consensus] casper add_block error: {exc}")
 
         if not self._unified_consensus and self.beacon_engine:
             try:
                 self.beacon_engine.add_block(blk_for_fork)
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f"[Consensus] beacon add_block error: {exc}")
 
         # Record block production in validator registry
         if proposer and self.validator_registry:

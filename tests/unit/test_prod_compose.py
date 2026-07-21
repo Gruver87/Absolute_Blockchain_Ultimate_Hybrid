@@ -93,3 +93,14 @@ def test_k8s_prod_gate_passes():
         text=True,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_prod_mesh_requires_redis_rl():
+    cfg = __import__("runtime.config", fromlist=["Config"]).Config()
+    cfg.deployment_mode = "prod"
+    cfg.mesh_min_peers_before_mine = 2
+    cfg.require_wallet_file = False
+    cfg.rpc_api_key_required = False
+    cfg.redis_rate_limit_enabled = False
+    errs = cfg.validate()
+    assert any("redis_rate_limit_enabled" in e for e in errs)

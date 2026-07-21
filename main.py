@@ -1878,7 +1878,7 @@ class NodeOrchestrator:
                     except Exception:
                         pass
 
-                # ChainStorage: сохраняем блок в JSON backup
+                # ChainStorage: JSON backup (non-authoritative; failures must be visible)
                 if self.chain_storage:
                     try:
                         block_dict = {
@@ -1889,9 +1889,13 @@ class NodeOrchestrator:
                             "proposer": proposer,
                             "tx_count": len(block.transactions),
                         }
-                        self.chain_storage.save_block(block.height, block_dict)
-                    except Exception:
-                        pass
+                        ok_backup = self.chain_storage.save_block(block.height, block_dict)
+                        if not ok_backup:
+                            print(
+                                f"[ChainStorage] WARN: backup save failed for height={block.height}"
+                            )
+                    except Exception as exc:
+                        print(f"[ChainStorage] backup save error height={block.height}: {exc}")
 
     async def _mempool_monitor(self):
         """Периодически логирует статус мемпула."""

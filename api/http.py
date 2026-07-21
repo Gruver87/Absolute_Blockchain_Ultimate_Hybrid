@@ -84,6 +84,45 @@ def configure_rate_limiter(config) -> None:
             raise RuntimeError("prod requires rate limiter module") from e
 
 
+def _status_rate_limit_snapshot(cfg) -> Dict[str, Any]:
+    """Honest rate-limit fields for GET /status."""
+    from middleware.rate_limit import rate_limiter_backend_name
+
+    want_redis = bool(getattr(cfg, "redis_rate_limit_enabled", False)) if cfg else False
+    backend = rate_limiter_backend_name(_rate_limiter) if _rate_limiter else "none"
+    return {
+        "enabled": bool(_RATE_LIMIT_AVAILABLE),
+        "backend": backend,
+        "redis_requested": want_redis,
+        "redis_active": backend == "redis",
+        "rpm": int(getattr(cfg, "rate_limit_rpm", 0) or 0) if cfg else 0,
+    }
+
+
+def _status_p2p_hardening_snapshot(cfg, p2p) -> Dict[str, Any]:
+    """P2P wire hardening truth for GET /status (not heuristic)."""
+    tls = {}
+    if p2p and hasattr(p2p, "get_p2p_security_status"):
+        try:
+            tls = dict((p2p.get_p2p_security_status() or {}).get("tls") or {})
+        except Exception:
+            tls = {}
+    elif cfg:
+        try:
+            from network.p2p_tls import p2p_tls_status
+
+            tls = p2p_tls_status(cfg)
+        except Exception:
+            tls = {}
+    return {
+        "rate_limit_per_sec": int(getattr(cfg, "p2p_max_messages_per_sec", 0) or 0) if cfg else 0,
+        "tls_enabled": bool(tls.get("enabled")),
+        "tls_ready": bool(tls.get("ready")),
+        "identity_binding": tls.get("identity_binding", "none"),
+        "fail_closed": bool(tls.get("fail_closed")),
+    }
+
+
 def _check_rate_limit(handler, path: Optional[str] = None) -> bool:
     """Return True if request may proceed; sends 429 and returns False when limited."""
     cfg = getattr(handler.__class__, "config", None)
@@ -902,8 +941,8 @@ class RESTHandler(BaseHTTPRequestHandler):
             from bridge.oracle_auth import verify_signature
             if verify_signature(secret, raw_body, sig):
                 return True
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("bridge oracle verify error: %s", exc)
         self._error(401, "Invalid bridge oracle signature")
         return False
 
@@ -1154,8 +1193,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                             "canonical_head": cstats.get("canonical_head"),
                             "attestation_count": int(cstats.get("attestation_count", 0) or 0),
                         })
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        consensus_info["stats_error"] = str(exc)
                 peer_count = p2p.peer_count() if p2p else 0
                 mesh_min_peers = int(getattr(cfg, "mesh_min_peers_before_mine", 0) or 0)
                 state_consistent = getattr(p2p, "_state_consistent", True) if p2p else True
@@ -1190,16 +1229,21 @@ class RESTHandler(BaseHTTPRequestHandler):
                         }
                     except Exception:
                         p2p_summary = {"enabled": True, "running": bool(getattr(p2p, "_running", False))}
+                rl_snap = _status_rate_limit_snapshot(cfg)
+                p2p_hard = _status_p2p_hardening_snapshot(cfg, p2p)
                 monolith_summary = {
                     "deployment_mode": getattr(cfg, "deployment_mode", "dev"),
                     "chain_id": cfg.chain_id,
                     "p2p": {
-                        "hardened": int(getattr(cfg, "p2p_max_messages_per_sec", 0) or 0) > 0,
+                        "hardened": bool(p2p_hard.get("rate_limit_per_sec", 0) > 0),
+                        "tls_enabled": p2p_hard.get("tls_enabled"),
+                        "tls_ready": p2p_hard.get("tls_ready"),
                         "sync_status": p2p_sync_status,
                         "peer_count": peer_count,
                         "topology_healthy": p2p_summary.get("topology_healthy"),
                         "active_bans": (p2p_summary.get("security") or {}).get("active_bans", 0),
                     },
+                    "rate_limit": rl_snap,
                     "consensus_unified": bool(consensus_info.get("unified_path")),
                     "native_crypto_ready": bool((native_crypto or {}).get("available")),
                     "bridge_enabled": bool(cfg.bridge_enabled),
@@ -1262,16 +1306,22 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "oracle_registry_enabled": self.__class__.oracle_registry is not None,
                     "api_wave": 61,
                     "core_real": {
-                        "deterministic_proposer": True,
-                        "finality_quorum_live": True,
-                        "reorg_finality_guard": True,
-                        "mev_mempool_analysis": True,
-                        "bridge_production_path": getattr(cfg, "bridge_mode", "unknown") == "rust",
-                        "bridge_l1_queue": True,
+                        "deterministic_proposer": bool(getattr(cfg, "enforce_proposer", False)),
+                        "finality_quorum_live": int(consensus_info.get("attestation_count", 0) or 0) > 0,
+                        "reorg_finality_guard": bool(consensus_info.get("lmd_ghost_enabled")),
+                        "mev_mempool_analysis": self.__class__.mev_simulator is not None,
+                        "bridge_production_path": bool(
+                            cfg.bridge_enabled and getattr(cfg, "bridge_mode", "") == "rust"
+                        ),
+                        "bridge_l1_queue": bool(getattr(cfg, "bridge_l1_queue_path", "")),
                         "bridge2_rust_path": bool(getattr(self.__class__, "bridge", None)),
-                        "bridge_relayer_live": True,
-                        "bridge_ci_l1_rpc": True,
+                        "bridge_relayer_live": bool(cfg.bridge_enabled),
+                        "bridge_ci_l1_rpc": bool(
+                            os.environ.get("ETH_RPC_URL", "")
+                            or os.environ.get("ETHEREUM_RPC_URL", "")
+                        ),
                         "native_crypto": native_crypto,
+                        "note": "runtime capability flags — not external audit certification",
                     },
                     "lightning_enabled": self.__class__.lightning is not None,
                     "plasma_enabled": self.__class__.plasma is not None,
@@ -1304,9 +1354,12 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "openapi": "/openapi.json",
                     "middleware": {
                         "rate_limit": _RATE_LIMIT_AVAILABLE,
+                        "rate_limit_backend": rl_snap.get("backend"),
+                        "rate_limit_redis_active": rl_snap.get("redis_active"),
                         "input_validation": _INPUT_VALIDATORS_AVAILABLE,
                         "jwt_auth": _JWT_AVAILABLE,
                     },
+                    "p2p_hardening": p2p_hard,
                 })
 
             elif path == "/tokenomics":
