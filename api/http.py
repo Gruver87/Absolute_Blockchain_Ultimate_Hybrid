@@ -1031,9 +1031,23 @@ class RESTHandler(BaseHTTPRequestHandler):
                 )
                 bridge_health = _rust_bridge_health(cfg)
                 is_prod = str(getattr(cfg, "deployment_mode", "") or "").lower() == "prod"
+                db_ok = db is not None
+                db_probe_error = None
+                if db is not None:
+                    try:
+                        if hasattr(db, "get_stats"):
+                            db.get_stats()
+                        elif hasattr(db, "get_height"):
+                            db.get_height()
+                        elif bc is not None and hasattr(bc, "get_height"):
+                            bc.get_height()
+                    except Exception as exc:
+                        db_ok = False
+                        db_probe_error = str(exc)
+                        logger.warning("/health/ready database probe failed: %s", exc)
                 checks = {
                     "blockchain": bc is not None,
-                    "database": db is not None,
+                    "database": db_ok,
                     "mempool": mp is not None,
                     "native_crypto": (
                         native_crypto["available"] and native_crypto["self_test"]
@@ -1062,6 +1076,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "l1_rpc": bridge_health.get("l1_rpc"),
                     "height": bc.get_height() if bc else 0,
                 }
+                if db_probe_error:
+                    payload["db_probe_error"] = db_probe_error
                 if ready:
                     self._json(payload)
                 else:

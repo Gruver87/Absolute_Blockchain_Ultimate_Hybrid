@@ -365,6 +365,7 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
 
     errors: list[str] = []
     warnings: list[str] = []
+    http_py = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
     try:
         from sync.sync_engine import SyncEngine
 
@@ -396,6 +397,14 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         main_py = (ROOT / "main.py").read_text(encoding="utf-8")
         if "sync_state probe failed" not in main_py:
             errors.append("main.py mining loop must log sync_state probe failures")
+        try:
+            src = inspect.getsource(SyncEngine.fast_sync)
+            if "return bool(self.sync_state())" not in src and "self.sync_state()" not in src:
+                errors.append("SyncEngine.fast_sync must re-check consistency via sync_state()")
+        except Exception as exc:
+            errors.append(f"SyncEngine.fast_sync inspect failed: {exc}")
+        if "db_probe_error" not in http_py or "/health/ready" not in http_py:
+            errors.append("/health/ready must probe database and surface db_probe_error")
         if "self.p2p._state_consistent = False" not in main_py:
             errors.append("main.py must clear _state_consistent on sync probe failure")
         for needle in (

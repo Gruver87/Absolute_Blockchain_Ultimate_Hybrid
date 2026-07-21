@@ -88,6 +88,7 @@ class RocksChainStore:
         )
         self._root_acc: Any | None = None
         self._batch_acc_dirty: dict[str, bytes | None] = {}
+        self._json_decode_failures: int = 0
         self._ensure_schema()
 
     def _ensure_schema(self) -> None:
@@ -783,7 +784,13 @@ class RocksChainStore:
         for _key, value in self._scan_prefix(kc.P_TX):
             try:
                 rows.append(json.loads(value.decode("utf-8")))
-            except Exception:
+            except Exception as exc:
+                self._json_decode_failures += 1
+                logger.warning(
+                    "[RocksStore] corrupt TX row skipped (decode_failures=%s): %s",
+                    self._json_decode_failures,
+                    exc,
+                )
                 continue
         return rows
 
@@ -1242,7 +1249,9 @@ class RocksChainStore:
         for _key, value in self._scan_prefix(kc.prefix_tx_prop_all(), limit=50_000):
             try:
                 row = json.loads(value.decode("utf-8"))
-            except Exception:
+            except Exception as exc:
+                self._json_decode_failures += 1
+                logger.warning("rocks tx-prop JSON decode failed: %s", exc)
                 continue
             th = str(row.get("tx_hash") or "")
             if not th:
@@ -1260,6 +1269,7 @@ class RocksChainStore:
             "total_burned": self.get_total_burned(),
             "total_supply": self.get_total_supply(),
             "engine": self.engine,
+            "json_decode_failures": int(self._json_decode_failures),
             "rocksdb_tuning": {
                 "block_cache_mb": self.block_cache_mb,
                 "write_buffer_mb": self.write_buffer_mb,

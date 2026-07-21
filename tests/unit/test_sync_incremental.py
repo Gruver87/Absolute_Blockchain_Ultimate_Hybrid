@@ -12,6 +12,9 @@ class _BlockChain:
     def get_height(self):
         return self._height
 
+    def get_state_root(self):
+        return "s" * 64
+
     def get_block_by_hash(self, h):
         return self._blocks.get(h)
 
@@ -29,9 +32,26 @@ class _Peer:
         self.peer_id = peer_id
 
 
+class _P2P:
+    def __init__(self, peers):
+        self.peers = {p.peer_id: p for p in peers}
+        self._state_consistent = False
+        self._running = True
+
+    def request_peer_state_roots_sync(self):
+        return [
+            {
+                "peer_id": peer_id,
+                "height": int(getattr(peer, "height", 0) or 0),
+                "state_root": "s" * 64,
+            }
+            for peer_id, peer in self.peers.items()
+        ]
+
+
 class _Node:
     def __init__(self, peers, blockchain, imported=None, fail_height=None):
-        self.p2p = type("P2P", (), {"peers": {p.peer_id: p for p in peers}})()
+        self.p2p = _P2P(peers)
         self.blockchain = blockchain
         self.consensus = None
         self._imported = imported if imported is not None else []
@@ -41,7 +61,14 @@ class _Node:
         if int(block.get("height", 0)) == self._fail_height:
             return False
         self._imported.append(block)
+        # Keep tip height aligned after successful import (fast_sync → sync_state).
+        h = int(block.get("height", 0) or 0)
+        if h > int(self.blockchain.get_height()):
+            self.blockchain._height = h
         return True
+
+    def request_peer_state_roots_sync(self):
+        return self.p2p.request_peer_state_roots_sync()
 
     def get_height(self):
         return self.blockchain.get_height()

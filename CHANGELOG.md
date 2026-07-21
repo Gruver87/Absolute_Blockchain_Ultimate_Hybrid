@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.18] — 2026-07-21
+
+### Hardened — fast_sync honesty, ready DB probe, Rocks TX iter
+
+- fast_sync: tip-match / no-new / after-import → sync_state(); peer-loss clears stale probed-ok
+- Rocks _iter_transaction_rows: warn + json_decode_failures; /health/ready db_probe + db_probe_error
+
+---
+
 ## [1.3.17] — 2026-07-21
 
 ### Hardened — Never-probed wire honesty

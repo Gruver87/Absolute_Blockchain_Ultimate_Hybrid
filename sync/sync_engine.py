@@ -212,9 +212,9 @@ class SyncEngine:
 
         if best_peer_h <= local_h:
             print(f"[Sync] Already at head (local={local_h}, peer={best_peer_h})")
-            self.sync_state()
+            ok = bool(self.sync_state())
             self.is_syncing = False
-            return True
+            return ok
 
         print(f"[Sync] Selected head: {best_head[:8]}... (peer height {best_peer_h})")
 
@@ -243,9 +243,9 @@ class SyncEngine:
 
         if not to_import:
             print(f"[Sync] No new blocks (local={local_h}, chain_len={len(chain)})")
-            self.sync_state()
+            ok = bool(self.sync_state())
             self.is_syncing = False
-            return True
+            return ok
 
         if not self._validate_downloaded_chain(to_import, local_h):
             print("[Sync] Downloaded chain is not contiguous")
@@ -272,10 +272,10 @@ class SyncEngine:
         elif hasattr(self.node, "chain") and hasattr(self.node.chain, "set_head"):
             self.node.chain.set_head(best_head)
 
-        self.sync_state()
+        ok = bool(self.sync_state())
         self.is_syncing = False
         print(f"[Sync] Done: imported {imported}/{len(to_import)} blocks (local now {self._local_height()})")
-        return imported > 0 or best_peer_h <= local_h
+        return ok
 
     def _set_state_consistent(self, ok: bool) -> None:
         """Mirror consistency on AbsoluteNode and/or nested P2PNode."""
@@ -311,7 +311,10 @@ class SyncEngine:
         # empty peer set as evidence that tip roots match the mesh.
         if not peers:
             print("   Solo / no peers — wire probe deferred (never-probed)")
-            # Leave _last_wire_probe_ok as None (never probed).
+            # Prior successful mesh probe is no longer valid without peers.
+            if self._last_wire_probe_ok is True:
+                self._last_wire_probe_ok = None
+            # Leave _last_wire_probe_ok as None (never / no longer probed).
             return True
 
         if not hasattr(self.node, "request_peer_state_roots_sync"):

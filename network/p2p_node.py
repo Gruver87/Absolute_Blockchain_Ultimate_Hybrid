@@ -1796,7 +1796,15 @@ class P2PNode:
             return resp
 
         raw = await asyncio.gather(*(_one(p) for p in peers), return_exceptions=True)
-        return [r for r in raw if isinstance(r, dict)]
+        out: List[Dict] = []
+        for r in raw:
+            if isinstance(r, Exception):
+                self._peer_sync_fail += 1
+                logger.warning("[P2P] state_root peer gather failed: %s", r)
+                continue
+            if isinstance(r, dict):
+                out.append(r)
+        return out
 
     def request_peer_state_roots_sync(self, timeout: float = 15) -> Optional[List[Dict]]:
         if not self._loop or not self._running:
