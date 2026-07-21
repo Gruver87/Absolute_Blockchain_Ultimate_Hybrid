@@ -227,16 +227,36 @@ def _decode_eip4844(raw: bytes) -> Dict[str, Any]:
 
 def decode_raw_transaction(raw: bytes | str) -> Dict[str, Any]:
     if isinstance(raw, str):
-        raw = bytes.fromhex(raw.replace("0x", ""))
-    if not raw:
+        raw_bytes = bytes.fromhex(raw.replace("0x", "").replace("0X", ""))
+    else:
+        raw_bytes = raw
+    if not raw_bytes:
         raise ValueError("empty_raw_transaction")
-    if raw[0] == 0x02:
-        return _decode_eip1559(raw)
-    if raw[0] == 0x03:
-        return _decode_eip4844(raw)
-    if raw[0] in (0x01, 0x04):
-        raise ValueError(f"unsupported_typed_tx:{raw[0]:#x}")
-    item = decode_single(raw)
+
+    if native.native_available() and hasattr(native, "decode_eth_raw_tx"):
+        try:
+            import json as _json
+
+            payload = native.decode_eth_raw_tx(raw_bytes)
+            decoded = _json.loads(payload)
+            # blob_hashes may be decimal strings from Rust JSON for 256-bit ints
+            if isinstance(decoded.get("blob_hashes"), list):
+                decoded["blob_hashes"] = [
+                    int(x) if not isinstance(x, int) else x for x in decoded["blob_hashes"]
+                ]
+            return decoded
+        except Exception:
+            status = native.native_crypto_status(required=False)
+            if status.get("required"):
+                raise
+
+    if raw_bytes[0] == 0x02:
+        return _decode_eip1559(raw_bytes)
+    if raw_bytes[0] == 0x03:
+        return _decode_eip4844(raw_bytes)
+    if raw_bytes[0] in (0x01, 0x04):
+        raise ValueError(f"unsupported_typed_tx:{raw_bytes[0]:#x}")
+    item = decode_single(raw_bytes)
     if not isinstance(item, list):
         raise ValueError("raw_tx_not_list")
     return _decode_legacy(item)

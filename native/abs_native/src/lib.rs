@@ -7,6 +7,7 @@ mod amount;
 mod consensus_ffg;
 mod consensus_ghost;
 mod consensus_select;
+mod eth_tx;
 mod evm_pure_runner;
 mod p2p_wire;
 mod rlp;
@@ -351,7 +352,7 @@ pub(crate) fn keccak256_digest_bytes(data: &[u8]) -> [u8; 32] {
     out
 }
 
-fn recover_eth_address_keccak_inner(
+pub(crate) fn recover_eth_address_keccak_inner(
     prehash: &[u8; 32],
     r: &[u8],
     s: &[u8],
@@ -1713,6 +1714,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     consensus_select::register(m)?;
     consensus_ghost::register(m)?;
     consensus_ffg::register(m)?;
+    eth_tx::register(m)?;
     p2p_wire::register(m)?;
     amount::register(m)?;
     Ok(())

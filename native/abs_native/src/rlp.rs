@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList};
 
 #[derive(Debug, Clone)]
-enum RlpItem {
+pub(crate) enum RlpItem {
     Bytes(Vec<u8>),
     List(Vec<RlpItem>),
 }
@@ -84,7 +84,7 @@ fn normalize_scalar(data: &[u8]) -> Vec<u8> {
     out
 }
 
-fn encode_item(item: &RlpItem) -> Vec<u8> {
+pub(crate) fn encode_item(item: &RlpItem) -> Vec<u8> {
     match item {
         RlpItem::Bytes(data) => normalize_scalar(data),
         RlpItem::List(children) => {
@@ -123,7 +123,7 @@ fn decode_length(data: &[u8], pos: usize, offset: u8) -> Result<(usize, usize), 
     Ok((length, end))
 }
 
-fn decode_at(data: &[u8], pos: usize) -> Result<(RlpItem, usize), String> {
+pub(crate) fn decode_at(data: &[u8], pos: usize) -> Result<(RlpItem, usize), String> {
     if pos >= data.len() {
         return Err("rlp_truncated".into());
     }
@@ -223,4 +223,46 @@ pub fn rlp_decode_single(py: Python<'_>, data: &[u8]) -> PyResult<PyObject> {
         return Err(PyValueError::new_err("rlp_trailing_bytes"));
     }
     Ok(rlp_item_to_py(py, &item))
+}
+
+pub(crate) fn decode_single_item(data: &[u8]) -> Result<RlpItem, String> {
+    let (item, end) = decode_at(data, 0)?;
+    if end != data.len() {
+        return Err("rlp_trailing_bytes".into());
+    }
+    Ok(item)
+}
+
+pub(crate) fn item_to_u128(item: &RlpItem) -> Result<u128, String> {
+    match item {
+        RlpItem::Bytes(buf) => {
+            if buf.len() > 16 {
+                return Err("rlp_int_too_large".into());
+            }
+            let mut out = 0u128;
+            for b in buf {
+                out = (out << 8) | u128::from(*b);
+            }
+            Ok(out)
+        }
+        RlpItem::List(_) => Err("expected_scalar".into()),
+    }
+}
+
+pub(crate) fn item_to_bytes(item: &RlpItem) -> Result<Vec<u8>, String> {
+    match item {
+        RlpItem::Bytes(buf) => Ok(buf.clone()),
+        RlpItem::List(_) => Err("expected_scalar".into()),
+    }
+}
+
+pub(crate) fn int_to_rlp_bytes(value: u128) -> Vec<u8> {
+    if value == 0 {
+        return Vec::new();
+    }
+    let mut bytes = value.to_be_bytes().to_vec();
+    while bytes.first() == Some(&0) {
+        bytes.remove(0);
+    }
+    bytes
 }

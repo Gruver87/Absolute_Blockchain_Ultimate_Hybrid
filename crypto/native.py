@@ -114,6 +114,8 @@ def native_crypto_status(required: bool = False) -> dict:
             "fe_can_finalize",
             "slash_check_double_vote",
             "slash_check_double_proposal",
+            "decode_eth_raw_tx",
+            "decode_eth_raw_tx_hex",
             "validator_selection_proposer",
             "validator_selection_proposer_weighted",
             "validator_selection_committee",
@@ -1682,6 +1684,20 @@ def slash_check_double_proposal(already_proposed: bool) -> str:
     if _native is not None and hasattr(_native, "slash_check_double_proposal"):
         return str(_native.slash_check_double_proposal(bool(already_proposed)))
     raise RuntimeError("slash_check_double_proposal requires abs_native")
+
+
+def decode_eth_raw_tx(raw: bytes) -> str:
+    _require_native_kernel("decode_eth_raw_tx")
+    if _native is not None and hasattr(_native, "decode_eth_raw_tx"):
+        return str(_native.decode_eth_raw_tx(bytes(raw)))
+    raise RuntimeError("decode_eth_raw_tx requires abs_native")
+
+
+def decode_eth_raw_tx_hex(raw_hex: str) -> str:
+    _require_native_kernel("decode_eth_raw_tx_hex")
+    if _native is not None and hasattr(_native, "decode_eth_raw_tx_hex"):
+        return str(_native.decode_eth_raw_tx_hex(str(raw_hex)))
+    raise RuntimeError("decode_eth_raw_tx_hex requires abs_native")
 
 
 def plan_transfer_fees(

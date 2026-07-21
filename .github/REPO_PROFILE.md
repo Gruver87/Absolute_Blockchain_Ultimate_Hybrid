@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.39` — native FFG finality + slashing conflict kernels |
-| **Notes** | [RELEASE_NOTES_v1.3.39.md](../RELEASE_NOTES_v1.3.39.md) |
-| **Prior** | [v1.3.38](../RELEASE_NOTES_v1.3.38.md) GHOST/apply; [v1.3.37](../RELEASE_NOTES_v1.3.37.md) bridge/light/PBS/AI |
+| **Tag** | `v1.3.40` — native eth raw tx decode kernel |
+| **Notes** | [RELEASE_NOTES_v1.3.40.md](../RELEASE_NOTES_v1.3.40.md) |
+| **Prior** | [v1.3.39](../RELEASE_NOTES_v1.3.39.md) FFG/slash; [v1.3.38](../RELEASE_NOTES_v1.3.38.md) GHOST/apply |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

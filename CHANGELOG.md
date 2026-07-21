@@ -6,6 +6,13 @@
 
 ---
 
+## [1.3.40] — 2026-07-21
+
+### Added — native eth raw tx decode kernel
+
+- Rust `decode_eth_raw_tx` / `decode_eth_raw_tx_hex` for legacy / EIP-1559 / EIP-4844 + recover
+- `crypto/eth_tx.py` prefers abs_native JSON with Python RLP fallback
+
 ## [1.3.39] — 2026-07-21
 
 ### Added — native FFG finality + slashing conflict kernels

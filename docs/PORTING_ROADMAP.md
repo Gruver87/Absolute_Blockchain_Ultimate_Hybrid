@@ -212,7 +212,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `blockchain_apply_simple_block` — fee/burn/proposer + reward (no EVM calldata)
 - [x] `blockchain_replay_simple_blocks` — reorg/tip-repair assist for simple chains
 - [x] `core/blockchain.py` prefers native apply/replay; falls back to Python per-tx on EVM/error
-- Remaining (next waves): eth_tx decode, full EVM host-in-apply, Rocks codecs, P2P rate-limit
+- Remaining (next waves): EVM host-in-apply, Rocks codecs, P2P rate-limit
 
 ### Priority 12 — Finality FFG + slashing conflict kernels ✅ (v1.3.39)
 
@@ -221,6 +221,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `slash_check_double_vote` / `slash_check_double_proposal`
 - [x] Wired in `finality_casper.py`, `finality_beacon.py`, `finality_engine.py`, `slashing.py`
 - Remaining: eth_tx decode · EVM host snapshot · Rocks codecs · P2P rate-limit
+
+### Priority 13 — Eth raw tx decode kernel ✅ (v1.3.40)
+
+- [x] `decode_eth_raw_tx` / `decode_eth_raw_tx_hex` — legacy / EIP-1559 / EIP-4844 + recover
+- [x] `crypto/eth_tx.py` prefers native JSON; blob_hashes coerced to int
+- Remaining: EVM host snapshot · Rocks codecs · P2P rate-limit
 
 ## Process per module
 

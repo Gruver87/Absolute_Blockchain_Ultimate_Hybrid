@@ -946,8 +946,18 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         ffg_rs = ROOT / "native" / "abs_native" / "src" / "consensus_ffg.rs"
         if not ffg_rs.is_file():
             errors.append("native consensus_ffg.rs missing")
+        # v1.3.40 — eth raw tx decode kernel
+        for sym in ("decode_eth_raw_tx", "decode_eth_raw_tx_hex"):
+            if f"def {sym}" not in native_py:
+                errors.append(f"crypto/native.py must export {sym} (v1.3.40)")
+        eth_tx_py = (ROOT / "crypto" / "eth_tx.py").read_text(encoding="utf-8")
+        if "decode_eth_raw_tx" not in eth_tx_py:
+            errors.append("eth_tx.py must prefer decode_eth_raw_tx native path")
+        eth_tx_rs = ROOT / "native" / "abs_native" / "src" / "eth_tx.rs"
+        if not eth_tx_rs.is_file():
+            errors.append("native eth_tx.rs missing")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..39 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..40 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:
