@@ -33,6 +33,10 @@ def test_export_audit_pack_manifest_shape(tmp_path):
     assert (out / "docs" / "EVIDENCE_MATRIX.md").is_file() or True  # may copy if present
     assert "bridge_off_audit_gate" in manifest["gates"]
     assert (out / "gates" / "bridge_off_audit_gate.txt").is_file()
+    assert (out / "gates" / "state_root_encoding.json").is_file()
+    enc = json.loads((out / "gates" / "state_root_encoding.json").read_text(encoding="utf-8"))
+    assert enc["active"]["version"] == 1
+    assert manifest["state_root_encoding"]["active"]["version"] == 1
 
 
 def test_set_item_done_evidence_fields(tmp_path):

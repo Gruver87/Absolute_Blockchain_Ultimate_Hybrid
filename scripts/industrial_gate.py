@@ -175,6 +175,23 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
     return errors, warnings
 
 
+def _check_audit_pack_export() -> tuple[list[str], list[str]]:
+    """Audit pack must snapshot encoding contract for third-party review."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    try:
+        ap = (ROOT / "scripts" / "export_audit_pack.py").read_text(encoding="utf-8")
+        for needle in ("state_root_encoding.json", "state_root_encoding_status"):
+            if needle not in ap:
+                errors.append(f"export_audit_pack must include {needle}")
+        main_py = (ROOT / "main.py").read_text(encoding="utf-8")
+        if "genesis_founder meta read failed" not in main_py:
+            errors.append("main.py must fail-loud on genesis_founder meta read")
+    except Exception as exc:
+        errors.append(f"audit pack export inspect failed: {exc}")
+    return errors, warnings
+
+
 def _check_balance_precision() -> tuple[list[str], list[str]]:
     """Satoshi dual-write surface for industrial money path."""
     errors: list[str] = []
@@ -325,6 +342,7 @@ def run_industrial_gate(
     p2p_errors, p2p_warnings = _check_p2p_hardening()
     balance_errors, balance_warnings = _check_balance_precision()
     fail_loud_errors, fail_loud_warnings = _check_fail_loud_surfaces()
+    audit_pack_errors, audit_pack_warnings = _check_audit_pack_export()
     soak_errors: list[str] = []
     ceremony_errors: list[str] = []
     ceremony_warnings: list[str] = []
@@ -404,12 +422,14 @@ def run_industrial_gate(
     errors.extend(p2p_errors)
     errors.extend(balance_errors)
     errors.extend(fail_loud_errors)
+    errors.extend(audit_pack_errors)
     errors.extend(ceremony_errors)
     warnings.extend(native_warnings)
     warnings.extend(bridge_warnings)
     warnings.extend(p2p_warnings)
     warnings.extend(balance_warnings)
     warnings.extend(fail_loud_warnings)
+    warnings.extend(audit_pack_warnings)
     warnings.extend(ceremony_warnings)
     report = {
         "ok": not errors,

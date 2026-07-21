@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.00] — 2026-07-21
+
+### Hardened — Audit pack encoding snapshot, founder pin fail-loud
+
+- export_audit_pack includes state_root_encoding.json + manifest field
+- main.py founder pin and .env load fail-loud; industrial_gate audit pack checks
+
+---
+
 ## [1.2.99] — 2026-07-21
 
 ### Hardened — State-root encoding honesty API, harness check, evidence stamp

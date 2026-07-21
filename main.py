@@ -1410,14 +1410,16 @@ class NodeOrchestrator:
         pinned = ""
         try:
             pinned = str(self.db.get_meta("genesis_founder") or "").strip()
-        except Exception:
+        except Exception as exc:
+            _node_log.warning("genesis_founder meta read failed: %s", exc)
             pinned = ""
         if not pinned:
             try:
                 tok = self.db.get_meta("tokenomics")
                 if isinstance(tok, dict):
                     pinned = str((tok.get("founder") or {}).get("address", "") or "").strip()
-            except Exception:
+            except Exception as exc:
+                _node_log.warning("tokenomics founder meta read failed: %s", exc)
                 pinned = ""
         manifest = getattr(self.config, "validators_manifest_path", "") or ""
         if not pinned and manifest and os.path.isfile(manifest):
@@ -1425,7 +1427,8 @@ class NodeOrchestrator:
                 from runtime.validator_loader import manifest_founder_address
 
                 pinned = manifest_founder_address(manifest)
-            except Exception:
+            except Exception as exc:
+                _node_log.warning("manifest founder resolve failed (%s): %s", manifest, exc)
                 pinned = ""
         if pinned:
             if (
@@ -2052,8 +2055,8 @@ def build_config(args: argparse.Namespace) -> Config:
     try:
         from runtime.env_loader import load_dotenv_file
         load_dotenv_file(os.path.join(BASE_DIR, ".env"))
-    except Exception:
-        pass
+    except Exception as exc:
+        _node_log.debug(".env load skipped: %s", exc)
     config.apply_env()
 
     # 2) JSON-файл узла (перекрывает .env — важно для node2 на других портах)

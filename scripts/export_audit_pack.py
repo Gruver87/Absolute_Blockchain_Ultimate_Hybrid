@@ -57,6 +57,12 @@ def _copy_if_exists(src: Path, dest: Path) -> bool:
     return True
 
 
+def _state_root_encoding_snapshot() -> dict:
+    from runtime.state_root_encoding import state_root_encoding_status
+
+    return state_root_encoding_status()
+
+
 def export_audit_pack(
     out_dir: Path | None = None,
     zip_pack: bool = True,
@@ -111,6 +117,12 @@ def export_audit_pack(
         gates_dir / "bridge_off_audit_gate.json",
     )
 
+    encoding = _state_root_encoding_snapshot()
+    (gates_dir / "state_root_encoding.json").write_text(
+        json.dumps(encoding, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
     # Docs
     for name in (
         "EVIDENCE_MATRIX.md",
@@ -133,7 +145,7 @@ def export_audit_pack(
         _copy_if_exists(ROOT / "logs" / name, soak_dir / name)
 
     # Release notes + changelog head
-    notes = sorted(ROOT.glob("RELEASE_NOTES_v1.2.*.md"), reverse=True)
+    notes = sorted(ROOT.glob("RELEASE_NOTES_v*.md"), reverse=True)
     if notes:
         _copy_if_exists(notes[0], pack_dir / notes[0].name)
     changelog = ROOT / "CHANGELOG.md"
@@ -159,6 +171,7 @@ def export_audit_pack(
         },
         "constraint": "soak-safe: no docker mesh restart; static gates only",
         "gates": gate_results,
+        "state_root_encoding": encoding,
         "honest_gaps": [
             "48h soak not claimed PASS until soak_report_48h.json passed=true",
             "External pen-test and third-party L1 audit remain human organizational items",
