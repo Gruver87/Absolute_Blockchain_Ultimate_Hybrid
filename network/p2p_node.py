@@ -227,8 +227,13 @@ class PeerConnection:
             return parsed
         except asyncio.TimeoutError:
             return {"type": MSG_IDLE, "data": None}
-        except Exception:
-            return None
+        except Exception as exc:
+            logger.warning(
+                "[P2P] recv error from %s: %s",
+                self.peer_id or self.host,
+                exc,
+            )
+            return WireReject("recv_error")
 
     def close(self):
         try:
@@ -644,6 +649,8 @@ class P2PNode:
                     continue
                 peer.touch()
                 if not self._rate_limit_ok(peer.peer_id, msg.get("type")):
+                    if self._strike_peer_sync(peer, "rate_limit_exceeded"):
+                        break
                     continue
                 await self._handle_message(peer, msg)
         finally:
@@ -2165,6 +2172,9 @@ class P2PNode:
                     self._shape_reject_counts.items(),
                     key=lambda kv: (-int(kv[1]), str(kv[0])),
                 )[:32]
+            ),
+            "rate_limit_drops": int(
+                self._shape_reject_counts.get("rate_limit_exceeded", 0) or 0
             ),
             "ops_errors": {
                 "propagation_log_fail": int(self._propagation_log_fail),

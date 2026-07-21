@@ -392,10 +392,19 @@ def test_prometheus_alerts_include_rust_bridge_readiness():
     assert "rate(abs_p2p_shape_rejects_total[5m])" in alerts
     assert "AbsoluteP2PHandshakeRejectBurst" in alerts
     assert "AbsoluteP2PActiveBansHigh" in alerts
+    assert "AbsoluteP2PRateLimitBurst" in alerts
+    assert "abs_p2p_rate_limit_drops_total" in alerts
+    assert "AbsoluteRocksBlockCacheUnset" in alerts
+    assert "abs_rocksdb_block_cache_mb" in alerts
     dash = (root / "deploy" / "grafana" / "dashboard.json").read_text(encoding="utf-8")
     assert "abs_p2p_shape_rejects_total" in dash
     assert "abs_p2p_active_bans" in dash
+    assert "abs_p2p_rate_limit_drops_total" in dash
     assert "abs_rocksdb_column_families" in dash
+    env_ex = (root / ".env.example").read_text(encoding="utf-8")
+    assert "P2P_MAX_MESSAGES_PER_SEC" in env_ex
+    assert "P2P_BAN_SECONDS" in env_ex
+    assert "BRIDGE_ENABLED=false" in env_ex
 
 
 def test_apply_env_secrets_restores_bridge_enabled_after_json_merge(monkeypatch):

@@ -65,7 +65,13 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         if needle not in p2p_src:
             errors.append(f"P2PNode missing industrial observability: {needle}")
     p2p_mod = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
-    for needle in ("class WireReject", "bad_wire_line", "p2p_line_too_large"):
+    for needle in (
+        "class WireReject",
+        "bad_wire_line",
+        "p2p_line_too_large",
+        "rate_limit_exceeded",
+        "recv_error",
+    ):
         if needle not in p2p_mod:
             errors.append(f"p2p_node.py missing wire-reject surface: {needle}")
     metrics_src = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
@@ -74,13 +80,19 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "abs_p2p_shape_rejects",
         "abs_p2p_handshake_rejects_total",
         "abs_p2p_active_bans",
+        "abs_p2p_rate_limit_drops_total",
         "abs_rocksdb_column_families",
     ):
         if needle not in metrics_src:
             errors.append(f"metrics.py missing Prometheus series: {needle}")
     alerts_src = (ROOT / "deploy" / "prometheus" / "alerts.yml").read_text(encoding="utf-8")
-    if "abs_p2p_shape_rejects_total" not in alerts_src:
-        errors.append("prometheus alerts.yml missing abs_p2p_shape_rejects_total rule")
+    for needle in (
+        "abs_p2p_shape_rejects_total",
+        "abs_p2p_rate_limit_drops_total",
+        "abs_rocksdb_block_cache_mb",
+    ):
+        if needle not in alerts_src:
+            errors.append(f"prometheus alerts.yml missing rule surface: {needle}")
     try:
         from network import p2p_tls  # noqa: F401
     except ImportError as exc:

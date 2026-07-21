@@ -43,6 +43,7 @@ POST_SOAK_TESTS = [
     "tests/unit/test_smart_accounts_auth.py",
     "tests/unit/test_postquantum_fail_closed.py",
     "tests/unit/test_rocks_store.py",
+    "tests/unit/test_p2p_industrial.py",
 ]
 
 REQUIRED_NATIVE_SYMBOLS = [

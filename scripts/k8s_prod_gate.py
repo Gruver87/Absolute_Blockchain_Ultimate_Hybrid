@@ -37,6 +37,16 @@ def main() -> int:
             errors.append(
                 "node.prod.k8s.json: rocksdb_column_families required (default false)"
             )
+        for key in (
+            "p2p_max_message_bytes",
+            "p2p_max_messages_per_sec",
+            "p2p_ban_seconds",
+            "p2p_rate_limit_strikes",
+        ):
+            if key not in cfg:
+                errors.append(f"node.prod.k8s.json: {key} required")
+            elif int(cfg.get(key) or 0) <= 0:
+                errors.append(f"node.prod.k8s.json: {key} must be > 0")
         if not cfg.get("follower_genesis_sync"):
             errors.append("node.prod.k8s.json: follower_genesis_sync required for k8s scale-out")
         if cfg.get("p2p_tls_enabled") is not True:
@@ -58,6 +68,9 @@ def main() -> int:
         "ROCKSDB_BLOCK_CACHE_MB",
         "ROCKSDB_WRITE_BUFFER_MB",
         "ROCKSDB_COLUMN_FAMILIES",
+        "P2P_MAX_MESSAGES_PER_SEC",
+        "P2P_BAN_SECONDS",
+        "P2P_RATE_LIMIT_STRIKES",
     ):
         if key not in cm:
             errors.append(f"configmap.yaml: {key} required")

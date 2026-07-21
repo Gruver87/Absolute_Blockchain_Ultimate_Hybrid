@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.04` — wire-reject + P2P alerts + Rocks parity |
-| **Notes** | [RELEASE_NOTES_v1.3.04.md](../RELEASE_NOTES_v1.3.04.md) |
-| **Prior** | [v1.3.03](../RELEASE_NOTES_v1.3.03.md) observability; [v1.3.02](../RELEASE_NOTES_v1.3.02.md) polish |
+| **Tag** | `v1.3.05` — rate-limit strikes + P2P knob parity |
+| **Notes** | [RELEASE_NOTES_v1.3.05.md](../RELEASE_NOTES_v1.3.05.md) |
+| **Prior** | [v1.3.04](../RELEASE_NOTES_v1.3.04.md) wire-reject; [v1.3.03](../RELEASE_NOTES_v1.3.03.md) observability |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

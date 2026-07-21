@@ -113,6 +113,7 @@ def test_metrics_prometheus_format():
             "handshake_rejects": 2,
             "shape_rejects_total": 5,
             "active_bans": 1,
+            "rate_limit_drops": 7,
             "shape_rejects": {"bad_wire_tx": 3, "bad_block_announce": 2},
         },
         rocksdb_tuning={
@@ -135,6 +136,7 @@ def test_metrics_prometheus_format():
     assert 'abs_p2p_shape_rejects_total{node_id="n1"} 5' in text
     assert 'abs_p2p_shape_rejects{node_id="n1",reason="bad_wire_tx"} 3' in text
     assert 'abs_p2p_handshake_rejects_total{node_id="n1"} 2' in text
+    assert 'abs_p2p_rate_limit_drops_total{node_id="n1"} 7' in text
     assert 'abs_rocksdb_column_families{node_id="n1"} 0' in text
     assert 'abs_rocksdb_block_cache_mb{node_id="n1"} 256' in text
     assert 'abs_rocksdb_write_buffer_mb{node_id="n1"} 64' in text

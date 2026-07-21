@@ -69,15 +69,21 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 
 ---
 
+## Proven (local / CI evidence)
+
+| Item | Evidence |
+|------|----------|
+| **48h soak** | **PASS** 2026-07-19→21 — `logs/soak_48h_v1.2.84_rerun3.log`, `soak_report_48h.json` |
+| **Public testnet seed (local Docker)** | **PASS** Jul 12 — chain 77777 on :19080, `public_testnet_gate --live` |
+| Failover / signed tx / EVM mempool | Jul 12 evidence logs (see table above) |
+
 ## Not yet proven (automation may exist)
 
 | Gap | Why it is **not** proven yet | What would prove it |
 |-----|------------------------------|---------------------|
-| **24–48h soak** | **PASS** — 48h completed 2026-07-21 (`logs/soak_48h_v1.2.84_rerun3.log`, `soak_report_48h.json` passed) | Keep report; re-run only after major consensus/storage changes |
 | **External audit** | README and `external_audit_tracker.py` checklist incomplete | Third-party audit report + tracker items closed |
 | **Bridge mainnet cutover** | Prod mesh runs with `bridge_enabled: false` by design | Audited L1 contracts + relayer SLOs per `docs/BRIDGE_L1_MAINNET.md`; decision recorded via `bridge_decision_off` step |
-| **Ceremony + secret rotation automation** | **Scripts proven** (v1.2.32): `ceremony_preflight`, `rotate_prod_secrets.ps1` | Operator runs pin + `-Force` rotation before cutover — see `docs/MAINNET_CUTOVER.md` |
-| **Public testnet seed (local Docker)** | **PASS** Jul 12 — chain 77777 on :19080, `public_testnet_gate --live` | `.\scripts\testnet_evidence_suite.ps1` |
+| **Ceremony + secret rotation (operator cutover)** | Scripts proven; production hash/manifest pin is operator-owned | Operator runs pin + `-Force` rotation before cutover — see `docs/MAINNET_CUTOVER.md` |
 | **Public testnet / VPS + DNS** | Local seed proven; no public URL/TLS yet | VPS + `vps_testnet_bootstrap.sh` + nginx TLS |
 
 ---

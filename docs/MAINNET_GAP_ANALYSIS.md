@@ -8,7 +8,7 @@
 This document is the honest engineering checklist after a full repository scan.  
 Automated gates (`mainnet_readiness`, `prod_gate`, `industrial_gate`, `post_soak_verify`) enforce code-level fail-closed rules; **they do not replace** external audit, validator operations, or legal review.
 
-**Recent code hardening (v1.3.03–v1.3.04, not organizational proof):** P2P shape-reject Prometheus metrics + alerts; ceremony dir auto-detect; RocksDB tuning env/JSON parity (CF remains **operator opt-in**, default false); wire-parse rejects now strike instead of silent disconnect.
+**Recent code hardening (v1.3.03–v1.3.05, not organizational proof):** P2P shape/rate-limit Prometheus metrics + alerts; ceremony dir auto-detect; RocksDB tuning env/JSON parity (CF remains **operator opt-in**, default false); wire-parse and rate-limit rejects strike instead of silent drop; `.env.example` bridge default OFF.
 
 ---
 

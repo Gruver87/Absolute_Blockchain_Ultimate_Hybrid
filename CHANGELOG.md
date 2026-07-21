@@ -6,6 +6,17 @@
 
 ---
 
+## [1.3.05] — 2026-07-21
+
+### Hardened — Rate-limit strikes, P2P knob parity, Rocks alerts
+
+- P2P: rate-limit excess → strike/`rate_limit_exceeded`; unexpected recv I/O → `WireReject(recv_error)`
+- Metrics/alerts: `abs_p2p_rate_limit_drops_total`; Rocks cache/buffer unset alerts
+- Deploy: pin P2P abuse knobs in prod JSON/compose/k8s; `.env.example` P2P block; bridge default OFF
+- post_soak_verify includes `test_p2p_industrial.py`; EVIDENCE_MATRIX labels honesty fix
+
+---
+
 ## [1.3.04] — 2026-07-21
 
 ### Hardened — Wire-reject strikes, P2P alerts, Rocks deploy parity

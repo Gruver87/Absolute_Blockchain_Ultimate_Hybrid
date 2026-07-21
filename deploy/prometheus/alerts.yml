@@ -82,3 +82,30 @@ groups:
         annotations:
           summary: "High active P2P ban count on {{ $labels.node_id }}"
           description: "More than 10 peer keys currently banned for 10 minutes."
+
+      - alert: AbsoluteP2PRateLimitBurst
+        expr: rate(abs_p2p_rate_limit_drops_total[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated P2P rate-limit drops on {{ $labels.node_id }}"
+          description: "Per-peer rate-limit strikes are above 1/sec for 5 minutes."
+
+      - alert: AbsoluteRocksBlockCacheUnset
+        expr: abs_native_crypto_required == 1 and abs_rocksdb_block_cache_mb == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RocksDB block cache unset on {{ $labels.node_id }}"
+          description: "Prod-like node (native crypto required) reports rocksdb block_cache_mb=0."
+
+      - alert: AbsoluteRocksWriteBufferUnset
+        expr: abs_native_crypto_required == 1 and abs_rocksdb_write_buffer_mb == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RocksDB write buffer unset on {{ $labels.node_id }}"
+          description: "Prod-like node (native crypto required) reports rocksdb write_buffer_mb=0."

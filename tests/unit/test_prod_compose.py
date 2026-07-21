@@ -21,6 +21,9 @@ def test_prod_compose_includes_relayer_sidecar():
     assert "ROCKSDB_BLOCK_CACHE_MB" in text
     assert "ROCKSDB_WRITE_BUFFER_MB" in text
     assert "ROCKSDB_COLUMN_FAMILIES" in text
+    assert "P2P_MAX_MESSAGES_PER_SEC" in text
+    assert "P2P_BAN_SECONDS" in text
+    assert "P2P_RATE_LIMIT_STRIKES" in text
 
 
 def test_docker_prod_node_bridge_disabled_by_default():

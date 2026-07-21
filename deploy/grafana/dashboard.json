@@ -123,6 +123,15 @@
       "type": "stat",
       "gridPos": {"h": 4, "w": 6, "x": 18, "y": 32},
       "targets": [{"expr": "abs_rocksdb_block_cache_mb"}]
+    },
+    {
+      "id": 17,
+      "title": "P2P Rate-Limit Drops",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 36},
+      "targets": [
+        {"expr": "abs_p2p_rate_limit_drops_total", "legendFormat": "{{node_id}}"}
+      ]
     }
   ]
 }

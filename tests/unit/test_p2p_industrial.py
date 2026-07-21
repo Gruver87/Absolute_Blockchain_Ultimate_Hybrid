@@ -182,6 +182,46 @@ def test_consistency_harness_uses_long_timeout_on_prod_ports(monkeypatch):
     assert "quick=1" in calls[0][0]
 
 
+@pytest.mark.asyncio
+async def test_recv_rejects_on_unexpected_io_error():
+    class _BoomReader:
+        async def readline(self):
+            raise RuntimeError("boom")
+
+    peer = PeerConnection(_BoomReader(), _FakeWriter())
+    msg = await peer.recv(Config())
+    assert isinstance(msg, WireReject)
+    assert msg.reason == "recv_error"
+
+
+@pytest.mark.asyncio
+async def test_message_loop_strikes_on_rate_limit():
+    from network.p2p_node import MSG_ATTESTATION, P2PNode
+
+    cfg = Config()
+    cfg.p2p_max_messages_per_sec = 1
+    cfg.p2p_rate_limit_strikes = 1
+    cfg.p2p_ban_seconds = 60
+    p2p = P2PNode(cfg, None, None)
+    p2p._running = True
+    peer_id = "rl-peer"
+    assert p2p._rate_limit_ok(peer_id, MSG_ATTESTATION) is True
+    line = (
+        json.dumps({"type": MSG_ATTESTATION, "data": {"validator": "x"}}).encode()
+        + b"\n"
+    )
+    peer = PeerConnection(_SeqReader([line, b""]), _FakeWriter())
+    peer.peer_id = peer_id
+    peer.host = "127.0.0.1"
+    peer.port = 9200
+    p2p.peers[peer.peer_id] = peer
+    await p2p._message_loop(peer)
+    sec = p2p.get_p2p_security_status()
+    assert sec["rate_limit_drops"] >= 1
+    assert sec["shape_rejects"].get("rate_limit_exceeded", 0) >= 1
+    assert p2p._is_banned(peer_id) is True
+
+
 def test_p2p_rate_limit_drops_excess_messages():
     from network.p2p_node import P2PNode, MSG_PING
     from runtime.config import Config
