@@ -50,6 +50,7 @@ POST_SOAK_TESTS = [
     "tests/unit/test_silent_except_honesty.py",
     "tests/unit/test_sqlite_reorg_parity.py",
     "tests/unit/test_bridge_health.py",
+    "tests/unit/test_rpc_methods.py",
 ]
 
 REQUIRED_NATIVE_SYMBOLS = [

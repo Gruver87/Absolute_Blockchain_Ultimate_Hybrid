@@ -146,6 +146,24 @@ groups:
           summary: "Peer state_root wire probe failing on {{ $labels.node_id }}"
           description: "Wire probe completed and failed while peers are connected."
 
+      - alert: AbsoluteSyncWireProbeNeverProbed
+        expr: abs_peers_connected > 0 and (abs_sync_wire_probe_ok == -1 or abs_sync_wire_probe_probed == 0)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Peer state_root wire probe never completed on {{ $labels.node_id }}"
+          description: "Peers connected for 15m but wire probe still unknown/unprobed (fail-closed)."
+
+      - alert: AbsoluteProdSqliteEngine
+        expr: abs_db_engine{engine="sqlite"} == 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prod node using SQLite engine on {{ $labels.node_id }}"
+          description: "abs_db_engine reports sqlite; industrial prod mesh expects RocksDB."
+
       - alert: AbsoluteRocksBlockCacheUnset
         expr: abs_native_crypto_required == 1 and abs_rocksdb_block_cache_mb == 0
         for: 15m

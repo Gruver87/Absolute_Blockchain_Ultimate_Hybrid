@@ -36,10 +36,15 @@ class SyncEngine:
         return self.peers
 
     def _collect_p2p_peers(self) -> List:
-        """Peers from live P2P connections or explicit sync peer list."""
+        """Peers from AbsoluteNode.p2p, P2PNode itself, or explicit sync peer list."""
         p2p = getattr(self.node, "p2p", None)
-        if p2p and getattr(p2p, "peers", None):
+        if p2p is not None and getattr(p2p, "peers", None):
             live = list(p2p.peers.values())
+            if live:
+                return live
+        # SyncEngine(node=P2PNode) boot path before AbsoluteNode replaces the engine.
+        if getattr(self.node, "peers", None) and not hasattr(self.node, "p2p"):
+            live = list(self.node.peers.values())
             if live:
                 return live
         return list(self.peers)

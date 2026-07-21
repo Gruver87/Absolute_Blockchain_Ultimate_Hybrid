@@ -1134,11 +1134,14 @@ class NodeOrchestrator:
         else:
             self.finality_engine = None
 
-        # 36. Sync Engine (fast-sync for P2P)
+        # 36. Sync Engine (fast-sync for P2P) — single shared instance for node + P2P
         if _SYNC_ENGINE_AVAILABLE:
             try:
                 self.sync_engine = SyncEngine(node=self)
-                print("[Node] SyncEngine: fast-sync ready")
+                # Replace any boot-time SyncEngine created inside P2PNode.__init__
+                if self.p2p is not None:
+                    self.p2p.sync_engine = self.sync_engine
+                print("[Node] SyncEngine: fast-sync ready (shared with P2P)")
             except Exception as e:
                 self.sync_engine = None
                 print(f"[Node] SyncEngine: unavailable ({e})")

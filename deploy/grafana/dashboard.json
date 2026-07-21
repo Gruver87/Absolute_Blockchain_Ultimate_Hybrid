@@ -192,6 +192,20 @@
       "type": "stat",
       "gridPos": {"h": 4, "w": 6, "x": 6, "y": 60},
       "targets": [{"expr": "abs_sync_wire_probe_ok"}]
+    },
+    {
+      "id": 25,
+      "title": "Wire Probe Probed",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 60},
+      "targets": [{"expr": "abs_sync_wire_probe_probed"}]
+    },
+    {
+      "id": 26,
+      "title": "DB Engine (sqlite=1 alert)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 60},
+      "targets": [{"expr": "abs_db_engine"}]
     }
   ]
 }

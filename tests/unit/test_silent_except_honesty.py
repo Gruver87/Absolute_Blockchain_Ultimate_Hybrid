@@ -129,3 +129,20 @@ def test_state_root_status_peer_probe_error_surface():
     )
     assert "genesis meta write failed" in Path("core/blockchain.py").read_text(encoding="utf-8")
     assert "sync_state probe failed" in Path("main.py").read_text(encoding="utf-8")
+
+
+def test_shared_sync_engine_and_unsolicited_state_root_honesty():
+    from pathlib import Path
+
+    main_py = Path("main.py").read_text(encoding="utf-8")
+    assert "p2p.sync_engine = self.sync_engine" in main_py
+    assert "shared with P2P" in main_py
+    p2p_py = Path("network/p2p_node.py").read_text(encoding="utf-8")
+    assert "Unsolicited state_root match" in p2p_py
+    assert "not flipping consistent=True" in p2p_py
+    assert "State root mismatch vs" in p2p_py
+    http_py = Path("api/http.py").read_text(encoding="utf-8")
+    assert 'after.get("state_consistent", False)' in http_py
+    alerts = Path("deploy/prometheus/alerts.yml").read_text(encoding="utf-8")
+    assert "AbsoluteSyncWireProbeNeverProbed" in alerts
+    assert "AbsoluteProdSqliteEngine" in alerts

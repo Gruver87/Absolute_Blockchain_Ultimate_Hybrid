@@ -405,14 +405,41 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         ):
             if needle not in main_py:
                 errors.append(f"main.py mining loop must log: {needle}")
+        if "p2p.sync_engine = self.sync_engine" not in main_py:
+            errors.append("main.py must share AbsoluteNode SyncEngine with P2P")
+        if "shared with P2P" not in main_py:
+            errors.append("main.py must log SyncEngine shared with P2P")
     except Exception as exc:
         errors.append(f"fail-loud main.py inspect failed: {exc}")
     try:
         http_py = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
         if 'checks["p2p_running"]' not in http_py and "p2p_running" not in http_py:
             errors.append("/health/ready must check p2p_running in prod")
+        if 'after.get("state_consistent", False)' not in http_py:
+            errors.append("fork recovery must default state_consistent=False (fail-closed)")
     except Exception as exc:
         errors.append(f"fail-loud http inspect failed: {exc}")
+    try:
+        p2p_py = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+        if "self._state_consistent = False" not in p2p_py:
+            errors.append("P2PNode must boot with _state_consistent=False")
+        if "Unsolicited state_root match" not in p2p_py:
+            errors.append("P2P unsolicited state_root match must not flip consistent=True")
+        if "State root mismatch vs" not in p2p_py:
+            errors.append("P2P unsolicited state_root mismatch must clear consistent")
+    except Exception as exc:
+        errors.append(f"fail-loud p2p inspect failed: {exc}")
+    try:
+        metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
+        if "abs_sync_wire_probe_probed" not in metrics_py:
+            errors.append("metrics.py must export abs_sync_wire_probe_probed")
+        alerts = (ROOT / "deploy" / "prometheus" / "alerts.yml").read_text(encoding="utf-8")
+        if "AbsoluteSyncWireProbeNeverProbed" not in alerts:
+            errors.append("alerts.yml missing AbsoluteSyncWireProbeNeverProbed")
+        if "AbsoluteProdSqliteEngine" not in alerts:
+            errors.append("alerts.yml missing AbsoluteProdSqliteEngine")
+    except Exception as exc:
+        errors.append(f"fail-loud metrics/alerts inspect failed: {exc}")
     try:
         from core.blockchain import Blockchain
 

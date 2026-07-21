@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.16] — 2026-07-21
+
+### Hardened — Shared SyncEngine, unsolicited state_root honesty, probe/sqlite alerts
+
+- One SyncEngine shared with P2P; unsolicited root match never sets consistent=True
+- Fork-recovery default state_consistent=False; AbsoluteSyncWireProbeNeverProbed + AbsoluteProdSqliteEngine
+
+---
+
 ## [1.3.15] — 2026-07-21
 
 ### Hardened — Sync/RPC honesty, SQLite metrics engine, compose freeze

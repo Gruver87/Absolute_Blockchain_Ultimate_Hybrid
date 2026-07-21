@@ -41,8 +41,8 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.15` — Sync/RPC honesty + SQLite metrics engine |
-| **Notes** | [RELEASE_NOTES_v1.3.15.md](../RELEASE_NOTES_v1.3.15.md) |
+| **Tag** | `v1.3.16` — Shared SyncEngine + unsolicited state_root honesty |
+| **Notes** | [RELEASE_NOTES_v1.3.16.md](../RELEASE_NOTES_v1.3.16.md) |
 | **Prior** | [v1.3.08](../RELEASE_NOTES_v1.3.08.md) Swiss-watch; [v1.3.07](../RELEASE_NOTES_v1.3.07.md) ops_errors |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

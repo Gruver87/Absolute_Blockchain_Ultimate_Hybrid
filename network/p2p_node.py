@@ -311,7 +311,8 @@ class P2PNode:
         self._shape_reject_counts: Dict[str, int] = {}
         self._consensus = None
         self.validator_keys = None
-        self._state_consistent = True
+        # Fail-closed until SyncEngine.sync_state proves peer roots match.
+        self._state_consistent = False
         self._sharding = None
 
         # Подписка на события шины — транслируем в сеть
@@ -991,13 +992,17 @@ class P2PNode:
                 peer_root = resp.get("state_root", "")
                 local_root = self.blockchain.get_state_root()
                 if peer_h == self.blockchain.get_height() and peer_root and peer_root != local_root:
+                    # Mismatch may clear consistency; only SyncEngine.sync_state may set True.
                     self._state_consistent = False
                     logger.warning(
                         f"[P2P] State root mismatch vs {peer.peer_id[:8]}: "
                         f"local={local_root[:12]} peer={peer_root[:12]}"
                     )
                 elif peer_h == self.blockchain.get_height() and peer_root and peer_root == local_root:
-                    self._state_consistent = True
+                    logger.debug(
+                        "[P2P] Unsolicited state_root match vs %s (not flipping consistent=True)",
+                        (peer.peer_id or "")[:8],
+                    )
         elif msg_type == MSG_CROSS_SHARD_TX:
             await self._handle_cross_shard_tx(peer, data)
 
@@ -1899,7 +1904,13 @@ class P2PNode:
         )
         try:
             return future.result(timeout=timeout)
-        except Exception:
+        except Exception as exc:
+            self._peer_sync_fail += 1
+            logger.warning(
+                "[P2P] fetch_block_from_peers_sync failed hash=%s: %s",
+                (block_hash or "")[:16],
+                exc,
+            )
             return None
 
     # ── Broadcast ────────────────────────────────────────────────────────────

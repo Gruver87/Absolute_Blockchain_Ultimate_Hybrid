@@ -6491,7 +6491,7 @@ def _build_testnet_fork_exercise(p2p, bc, cfg, db=None, run_reconcile: bool = Fa
     after = _build_testnet_fork_status(p2p, bc, cfg, db)
     harness = _build_state_consistency_harness(p2p, bc, cfg, db)
     state_consistent = bool(
-        reconcile_detail.get("state_consistent", after.get("state_consistent", True))
+        reconcile_detail.get("state_consistent", after.get("state_consistent", False))
     )
     fork_recovered = bool(
         after.get("consensus_healthy")
