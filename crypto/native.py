@@ -113,6 +113,10 @@ def native_crypto_status(required: bool = False) -> dict:
             "validate_p2p_block_announce",
             "validate_p2p_state_root_request",
             "validate_p2p_state_root_response",
+            "validate_p2p_handshake_payload",
+            "validate_p2p_get_blocks_payload",
+            "validate_p2p_wire_tx",
+            "validate_p2p_mempool_batch",
             "amount_to_satoshi",
             "amount_apply_delta_satoshi",
             "state_engine_apply_transactions",
@@ -1646,6 +1650,88 @@ def validate_p2p_state_root_response(data: Any) -> Optional[dict]:
     if len(state_root) > 128 or len(head_hash) > 128:
         return None
     return {"height": height, "state_root": state_root, "head_hash": head_hash}
+
+
+def validate_p2p_handshake_payload(data: Any) -> Optional[dict]:
+    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
+    if _native is not None and hasattr(_native, "validate_p2p_handshake_payload"):
+        result = _native.validate_p2p_handshake_payload(payload)
+        return dict(result) if result is not None else None
+    if not isinstance(data, dict):
+        return None
+    if data.get("accepted") is False:
+        return {
+            "chain_id": -1,
+            "height": 0,
+            "head_hash": "",
+            "node_id": "",
+            "p2p_port": 0,
+            "accepted": False,
+        }
+    try:
+        chain_id = int(data.get("chain_id"))
+        height = int(data.get("height", 0) or 0)
+        p2p_port = int(data.get("p2p_port", 0) or 0)
+    except (TypeError, ValueError):
+        return None
+    if chain_id < 0 or height < 0 or p2p_port < 0 or p2p_port > 65535:
+        return None
+    head_hash = str(data.get("head_hash") or "").strip()
+    node_id = str(data.get("node_id") or "").strip()
+    if len(head_hash) > 128 or len(node_id) > 128:
+        return None
+    return {
+        "chain_id": chain_id,
+        "height": height,
+        "head_hash": head_hash,
+        "node_id": node_id,
+        "p2p_port": p2p_port,
+        "accepted": True,
+    }
+
+
+def validate_p2p_get_blocks_payload(data: Any) -> Optional[dict]:
+    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
+    if _native is not None and hasattr(_native, "validate_p2p_get_blocks_payload"):
+        result = _native.validate_p2p_get_blocks_payload(payload)
+        return dict(result) if result is not None else None
+    if not isinstance(data, dict):
+        return None
+    try:
+        from_height = int(data.get("from_height", 0) or 0)
+        to_height = int(data.get("to_height", from_height) or from_height)
+    except (TypeError, ValueError):
+        return None
+    if from_height < 0 or to_height < from_height or (to_height - from_height) > 10_000:
+        return None
+    return {"from_height": from_height, "to_height": to_height}
+
+
+def validate_p2p_wire_tx(data: Any) -> bool:
+    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
+    if _native is not None and hasattr(_native, "validate_p2p_wire_tx"):
+        return bool(_native.validate_p2p_wire_tx(payload))
+    if not isinstance(data, dict):
+        return False
+    from_addr = data.get("from_addr", data.get("from", ""))
+    to_addr = data.get("to_addr", data.get("to", ""))
+    return bool(isinstance(from_addr, str) and isinstance(to_addr, str) and from_addr and to_addr)
+
+
+def validate_p2p_mempool_batch(data: Any) -> Optional[int]:
+    payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False) if not isinstance(data, str) else data
+    if _native is not None and hasattr(_native, "validate_p2p_mempool_batch"):
+        result = _native.validate_p2p_mempool_batch(payload)
+        return int(result) if result is not None else None
+    if not isinstance(data, dict):
+        return None
+    txs = data.get("transactions")
+    if not isinstance(txs, list) or len(txs) > 500:
+        return None
+    for tx in txs:
+        if not validate_p2p_wire_tx(tx):
+            return None
+    return len(txs)
 
 
 def parse_p2p_wire_line(

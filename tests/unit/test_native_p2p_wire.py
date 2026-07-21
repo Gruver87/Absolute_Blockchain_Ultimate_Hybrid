@@ -103,3 +103,41 @@ def test_validate_p2p_block_announce_and_state_root():
     assert resp["height"] == 5
     assert resp["state_root"] == "cd" * 32
     assert native.validate_p2p_state_root_response({"height": 1, "state_root": "x" * 200}) is None
+
+
+def test_validate_handshake_get_blocks_wire_tx_mempool():
+    hs = native.validate_p2p_handshake_payload(
+        {
+            "chain_id": 1,
+            "height": 10,
+            "head_hash": "ab" * 32,
+            "node_id": "abs-18080",
+            "p2p_port": 18080,
+            "version": "1.0",
+        }
+    )
+    assert hs["accepted"] is True
+    assert hs["chain_id"] == 1
+    assert native.validate_p2p_handshake_payload({"accepted": False, "reason": "max_peers"})[
+        "accepted"
+    ] is False
+    assert native.validate_p2p_handshake_payload({"height": 1}) is None
+
+    rng = native.validate_p2p_get_blocks_payload({"from_height": 1, "to_height": 5})
+    assert rng == {"from_height": 1, "to_height": 5}
+    assert native.validate_p2p_get_blocks_payload({"from_height": 5, "to_height": 1}) is None
+    assert native.validate_p2p_get_blocks_payload(
+        {"from_height": 0, "to_height": 20_000}
+    ) is None
+
+    tx = {
+        "from": "0x" + "a" * 40,
+        "to": "0x" + "b" * 40,
+        "value": 1.0,
+        "nonce": 0,
+        "gas": 21000,
+    }
+    assert native.validate_p2p_wire_tx(tx) is True
+    assert native.validate_p2p_wire_tx({"from": "", "to": "x"}) is False
+    assert native.validate_p2p_mempool_batch({"transactions": [tx]}) == 1
+    assert native.validate_p2p_mempool_batch({"transactions": [tx] * 501}) is None

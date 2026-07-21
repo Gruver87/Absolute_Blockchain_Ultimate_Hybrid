@@ -535,18 +535,27 @@ class P2PNode:
             ack = msg.get("data", {})
             await peer.send(MSG_HANDSHAKE_ACK, our_info)
 
+        hs = native.validate_p2p_handshake_payload(ack)
+        if not hs:
+            self._handshake_rejects += 1
+            self._strike_peer_sync(peer, "bad_handshake_payload")
+            return False
+        if hs.get("accepted") is False:
+            self._handshake_rejects += 1
+            return False
+
         # Проверяем совместимость
-        if ack.get("chain_id") != self.config.chain_id:
+        if hs.get("chain_id") != self.config.chain_id:
             self._handshake_rejects += 1
             self._strike_peer_sync(peer, "chain_id_mismatch")
             print(
                 f"[P2P] Rejected {peer.host}:{peer.port}: chain_id mismatch "
-                f"(remote={ack.get('chain_id')} local={self.config.chain_id}). "
+                f"(remote={hs.get('chain_id')} local={self.config.chain_id}). "
                 f"Use the same node.json on both nodes."
             )
             return False
 
-        claimed_id = str(ack.get("node_id") or "").strip() or f"{peer.host}:{peer.port}"
+        claimed_id = str(hs.get("node_id") or "").strip() or f"{peer.host}:{peer.port}"
         if p2p_tls_enabled(self.config):
             tls_meta = extract_peer_tls_meta(peer.writer)
             identities = set(tls_meta.get("identities") or [])
@@ -579,10 +588,10 @@ class P2PNode:
                 return False
 
         peer.peer_id = claimed_id
-        peer.chain_id = ack.get("chain_id", 0)
-        peer.height = ack.get("height", 0)
-        peer.head = ack.get("head_hash") or peer.head
-        peer.listen_port = int(ack.get("p2p_port", 0) or peer.port or 0)
+        peer.chain_id = hs.get("chain_id", 0)
+        peer.height = hs.get("height", 0)
+        peer.head = hs.get("head_hash") or peer.head
+        peer.listen_port = int(hs.get("p2p_port", 0) or peer.port or 0)
         if peer.host and peer.listen_port:
             self._remember_addr(f"{peer.host}:{peer.listen_port}")
         await peer.send(MSG_STATUS, {
@@ -700,6 +709,19 @@ class P2PNode:
                 if isinstance(data, dict):
                     self._strike_peer_sync(peer, "bad_status_payload")
                     return
+
+        elif msg_type == MSG_NEW_TX:
+            if not native.validate_p2p_wire_tx(data):
+                self._strike_peer_sync(peer, "bad_wire_tx")
+                return
+        elif msg_type == MSG_MEMPOOL:
+            if native.validate_p2p_mempool_batch(data) is None:
+                self._strike_peer_sync(peer, "bad_mempool_batch")
+                return
+        elif msg_type == MSG_GET_BLOCKS:
+            if native.validate_p2p_get_blocks_payload(data) is None:
+                self._strike_peer_sync(peer, "bad_get_blocks")
+                return
 
         waiter = self._sync_waiters.get(peer.peer_id)
         if waiter:
@@ -965,10 +987,12 @@ class P2PNode:
 
     async def _handle_get_blocks(self, peer: PeerConnection, data: Dict):
         """Отправляем диапазон блоков пиру."""
-        if not isinstance(data, dict):
+        rng = native.validate_p2p_get_blocks_payload(data)
+        if not rng:
+            self._strike_peer_sync(peer, "bad_get_blocks")
             return
-        start = int(data.get("from_height", 0))
-        end = int(data.get("to_height", start + self.config.sync_batch_size))
+        start = int(rng.get("from_height", 0))
+        end = int(rng.get("to_height", start + self.config.sync_batch_size))
         blocks = []
         for h in range(start, min(end + 1, start + self.config.sync_batch_size)):
             blk = self.blockchain.get_block(h)
@@ -1007,7 +1031,7 @@ class P2PNode:
 
     def _build_mempool_tx_from_wire(self, data: Dict):
         """Build a mempool entry from wire-format tx; None if invalid."""
-        if not isinstance(data, dict):
+        if not native.validate_p2p_wire_tx(data):
             return None
         from core.blockchain import Transaction
         from blockchain.mempool import MempoolTransaction
@@ -1095,11 +1119,10 @@ class P2PNode:
         await peer.send(MSG_MEMPOOL, {"transactions": wire, "count": len(wire)})
 
     async def _handle_mempool_batch(self, peer: PeerConnection, data: Dict):
-        if not isinstance(data, dict):
+        if native.validate_p2p_mempool_batch(data) is None:
+            self._strike_peer_sync(peer, "bad_mempool_batch")
             return
         txs = data.get("transactions", [])
-        if not isinstance(txs, list):
-            return
         peer_id = getattr(peer, "peer_id", "") if peer else ""
         mp_txs = []
         for tx_data in txs:

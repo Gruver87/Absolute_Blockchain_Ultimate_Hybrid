@@ -417,6 +417,226 @@ fn validate_p2p_state_root_response(
     Ok(Some(dict.into_any().unbind()))
 }
 
+const MAX_P2P_MEMPOOL_TXS: usize = 500;
+const MAX_P2P_NODE_ID_LEN: usize = 128;
+const MAX_P2P_VERSION_LEN: usize = 64;
+const MAX_P2P_SYNC_SPAN: i64 = 10_000;
+const MAX_P2P_PORT: i64 = 65_535;
+
+fn validate_handshake_inner(data: &Value) -> Option<(i64, i64, String, String, i64, bool)> {
+    let obj = data.as_object()?;
+    // Explicit rejection ack (e.g. max_peers) — shape-ok but not a peer identity.
+    if matches!(obj.get("accepted"), Some(Value::Bool(false))) {
+        return Some((-1, 0, String::new(), String::new(), 0, false));
+    }
+    let chain_id = obj.get("chain_id").and_then(json_i64)?;
+    if chain_id < 0 {
+        return None;
+    }
+    let height = obj.get("height").and_then(json_i64).unwrap_or(0);
+    if height < 0 || height > MAX_P2P_HEIGHT {
+        return None;
+    }
+    let head_hash = obj
+        .get("head_hash")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if head_hash.len() > MAX_P2P_HASH_LEN {
+        return None;
+    }
+    let node_id = obj
+        .get("node_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if node_id.len() > MAX_P2P_NODE_ID_LEN {
+        return None;
+    }
+    if let Some(version) = obj.get("version") {
+        if let Some(s) = version.as_str() {
+            if s.len() > MAX_P2P_VERSION_LEN {
+                return None;
+            }
+        } else if !version.is_null() {
+            return None;
+        }
+    }
+    let p2p_port = obj.get("p2p_port").and_then(json_i64).unwrap_or(0);
+    if p2p_port < 0 || p2p_port > MAX_P2P_PORT {
+        return None;
+    }
+    Some((chain_id, height, head_hash, node_id, p2p_port, true))
+}
+
+fn validate_get_blocks_inner(data: &Value) -> Option<(i64, i64)> {
+    let obj = data.as_object()?;
+    let from_height = obj.get("from_height").and_then(json_i64).unwrap_or(0);
+    let to_height = obj
+        .get("to_height")
+        .and_then(json_i64)
+        .unwrap_or(from_height);
+    if from_height < 0 || to_height < 0 || from_height > MAX_P2P_HEIGHT || to_height > MAX_P2P_HEIGHT
+    {
+        return None;
+    }
+    if to_height < from_height {
+        return None;
+    }
+    if to_height - from_height > MAX_P2P_SYNC_SPAN {
+        return None;
+    }
+    Some((from_height, to_height))
+}
+
+fn validate_wire_tx_inner(data: &Value) -> bool {
+    let Some(obj) = data.as_object() else {
+        return false;
+    };
+    let from_addr = obj
+        .get("from_addr")
+        .or_else(|| obj.get("from"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let to_addr = obj
+        .get("to_addr")
+        .or_else(|| obj.get("to"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if from_addr.is_empty()
+        || to_addr.is_empty()
+        || from_addr.len() > MAX_P2P_ADDR_LEN
+        || to_addr.len() > MAX_P2P_ADDR_LEN
+    {
+        return false;
+    }
+    if let Some(nonce) = obj.get("nonce") {
+        let Some(n) = json_i64(nonce) else {
+            return false;
+        };
+        if n < 0 {
+            return false;
+        }
+    }
+    if let Some(gas) = obj.get("gas") {
+        let Some(g) = json_i64(gas) else {
+            return false;
+        };
+        if g < 0 || g > 50_000_000 {
+            return false;
+        }
+    }
+    for key in ["signature", "public_key"] {
+        if let Some(v) = obj.get(key) {
+            if let Some(s) = v.as_str() {
+                if s.is_empty() {
+                    continue;
+                }
+                if !is_hex(s) || s.len() > MAX_P2P_HEX_SIG_LEN {
+                    return false;
+                }
+            } else if !v.is_null() {
+                return false;
+            }
+        }
+    }
+    if let Some(h) = obj.get("hash").or_else(|| obj.get("tx_hash")) {
+        if let Some(s) = h.as_str() {
+            if !s.is_empty() && s.len() > MAX_P2P_HASH_LEN {
+                return false;
+            }
+        } else if !h.is_null() {
+            return false;
+        }
+    }
+    if let Some(d) = obj.get("data").or_else(|| obj.get("input")) {
+        if let Some(s) = d.as_str() {
+            if s.len() > 2 * 1024 * 1024 {
+                return false;
+            }
+        } else if !d.is_null() {
+            return false;
+        }
+    }
+    true
+}
+
+fn validate_mempool_batch_inner(data: &Value) -> Option<usize> {
+    let obj = data.as_object()?;
+    let txs = obj.get("transactions")?.as_array()?;
+    if txs.len() > MAX_P2P_MEMPOOL_TXS {
+        return None;
+    }
+    for tx in txs {
+        if !validate_wire_tx_inner(tx) {
+            return None;
+        }
+    }
+    Some(txs.len())
+}
+
+#[pyfunction]
+fn validate_p2p_handshake_payload(
+    py: Python<'_>,
+    data_json: String,
+) -> PyResult<Option<PyObject>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+    let Some((chain_id, height, head_hash, node_id, p2p_port, accepted)) =
+        validate_handshake_inner(&value)
+    else {
+        return Ok(None);
+    };
+    let dict = PyDict::new_bound(py);
+    dict.set_item("chain_id", chain_id)?;
+    dict.set_item("height", height)?;
+    dict.set_item("head_hash", head_hash)?;
+    dict.set_item("node_id", node_id)?;
+    dict.set_item("p2p_port", p2p_port)?;
+    dict.set_item("accepted", accepted)?;
+    Ok(Some(dict.into_any().unbind()))
+}
+
+#[pyfunction]
+fn validate_p2p_get_blocks_payload(
+    py: Python<'_>,
+    data_json: String,
+) -> PyResult<Option<PyObject>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+    let Some((from_height, to_height)) = validate_get_blocks_inner(&value) else {
+        return Ok(None);
+    };
+    let dict = PyDict::new_bound(py);
+    dict.set_item("from_height", from_height)?;
+    dict.set_item("to_height", to_height)?;
+    Ok(Some(dict.into_any().unbind()))
+}
+
+#[pyfunction]
+fn validate_p2p_wire_tx(data_json: String) -> PyResult<bool> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(false),
+    };
+    Ok(validate_wire_tx_inner(&value))
+}
+
+#[pyfunction]
+fn validate_p2p_mempool_batch(data_json: String) -> PyResult<Option<usize>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+    Ok(validate_mempool_batch_inner(&value))
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_p2p_wire_line, m)?)?;
     m.add_function(wrap_pyfunction!(encode_p2p_wire_message, m)?)?;
@@ -427,6 +647,10 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_p2p_block_announce, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_state_root_request, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_state_root_response, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_p2p_handshake_payload, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_p2p_get_blocks_payload, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_p2p_wire_tx, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_p2p_mempool_batch, m)?)?;
     Ok(())
 }
 

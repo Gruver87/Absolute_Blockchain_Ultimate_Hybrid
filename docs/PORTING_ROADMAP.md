@@ -60,6 +60,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `network/p2p_node.py` PeerConnection send/recv wired to native wire kernels
 - [x] `validate_p2p_status_payload` / `validate_p2p_attestation_payload` — gossip payload shape gates
 - [x] `validate_p2p_block_announce` / `validate_p2p_state_root_request|response` — block & root gossip gates
+- [x] `validate_p2p_handshake_payload` / `get_blocks` / `wire_tx` / `mempool_batch` — sync & tx gossip gates
 
 ### Priority 4b — Consensus selection kernels ✅
 
