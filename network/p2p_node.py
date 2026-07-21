@@ -139,6 +139,23 @@ RATE_LIMIT_EXEMPT_TYPES = frozenset({
 })
 
 
+def _housekeeping_payload_ok(msg_type: str, data: Any) -> bool:
+    """Fail-closed payload rules for rate-exempt housekeeping messages."""
+    if data is None:
+        return True
+    if msg_type in (MSG_PING, MSG_PONG):
+        if not isinstance(data, dict):
+            return False
+        if not data:
+            return True
+        if set(data.keys()) <= {"ts"} and isinstance(data.get("ts"), (int, float)):
+            return True
+        return False
+    if msg_type in (MSG_GET_MEMPOOL, MSG_GET_PEERS):
+        return isinstance(data, dict) and len(data) == 0
+    return False
+
+
 def _peer_health_score(
     *,
     height_gap: int,
@@ -174,18 +191,27 @@ class PeerConnection:
         self.is_synced = False
         self.tls_fingerprint = ""
         self.tls_identities: list = []
+        self._on_send_fail: Optional[Callable[[], None]] = None
 
     def touch(self):
         self.last_seen = time.time()
 
-    async def send(self, msg_type: str, data: Any = None):
-        """Отправляет JSON-сообщение пиру."""
+    async def send(self, msg_type: str, data: Any = None) -> bool:
+        """Отправляет JSON-сообщение пиру. Returns False on write failure."""
         try:
             payload = native.encode_p2p_wire_message(msg_type, data)
             self.writer.write(payload)
             await self.writer.drain()
+            return True
         except Exception as e:
-            logger.debug(f"[P2P] send error to {self.peer_id}: {e}")
+            logger.warning("[P2P] send error to %s: %s", self.peer_id or self.host, e)
+            cb = self._on_send_fail
+            if cb is not None:
+                try:
+                    cb()
+                except Exception:
+                    pass
+            return False
 
     async def recv(self, config=None):
         """Читает одно JSON-сообщение от пира.
@@ -275,6 +301,7 @@ class P2PNode:
         self._propagation_log_fail: int = 0
         self._peer_connect_task_fail: int = 0
         self._peer_status_send_fail: int = 0
+        self._peer_send_fail: int = 0
         self._shape_reject_counts: Dict[str, int] = {}
         self._consensus = None
         self.validator_keys = None
@@ -445,11 +472,19 @@ class P2PNode:
         self.peers.clear()
         print("[P2P] Stopped")
 
+    def _attach_peer_hooks(self, peer: PeerConnection) -> None:
+        """Wire peer callbacks into node counters."""
+        peer._on_send_fail = self._bump_peer_send_fail
+
+    def _bump_peer_send_fail(self) -> None:
+        self._peer_send_fail = int(self._peer_send_fail or 0) + 1
+
     # ── Входящие соединения ──────────────────────────────────────────────────
 
     async def _handle_incoming(self, reader: asyncio.StreamReader,
                                 writer: asyncio.StreamWriter):
         peer = PeerConnection(reader, writer)
+        self._attach_peer_hooks(peer)
         peer_addr = writer.get_extra_info("peername")
         if peer_addr and len(peer_addr) >= 2:
             peer.host = peer_addr[0]
@@ -511,6 +546,7 @@ class P2PNode:
                 timeout=10,
             )
             peer = PeerConnection(reader, writer)
+            self._attach_peer_hooks(peer)
             peer.host = host
             peer.port = port
 
@@ -802,9 +838,9 @@ class P2PNode:
                 self._strike_peer_sync(peer, "bad_shard_migration")
                 return
         elif msg_type in (MSG_GET_MEMPOOL, MSG_GET_PEERS, MSG_PING, MSG_PONG):
-            # Housekeeping: payload optional; reject non-null non-object/list noise.
-            if data is not None and not isinstance(data, (dict, list, int, float, str, bool)):
-                self._strike_peer_sync(peer, f"bad_{msg_type}_payload")
+            if not _housekeeping_payload_ok(msg_type, data):
+                if self._strike_peer_sync(peer, f"bad_{msg_type}_payload"):
+                    self._remove_peer(peer.peer_id, peer)
                 return
 
         waiter = self._sync_waiters.get(peer.peer_id)
@@ -2180,6 +2216,7 @@ class P2PNode:
                 "propagation_log_fail": int(self._propagation_log_fail),
                 "peer_connect_task_fail": int(self._peer_connect_task_fail),
                 "peer_status_send_fail": int(self._peer_status_send_fail),
+                "peer_send_fail": int(self._peer_send_fail),
             },
             "rate_limit_exempt_types": len(RATE_LIMIT_EXEMPT_TYPES),
             "tls": p2p_tls_status(self.config),

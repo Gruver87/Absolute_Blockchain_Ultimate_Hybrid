@@ -6,6 +6,17 @@
 
 ---
 
+## [1.3.06] — 2026-07-21
+
+### Hardened — CI final_audit blocking, housekeeping gates, status honesty
+
+- CI: `final_audit` is blocking (removed soft-fail)
+- P2P housekeeping payloads fail-closed (ping/pong/get_*); `peer_send_fail` ops counter
+- `/status` `p2p_hardening` mirrors shape/rate-limit counters; topology errors keep security fields
+- Deploy: `P2P_EVICT_MIN_SCORE` env parity; industrial_gate prints warnings + `--fail-on-warnings`
+
+---
+
 ## [1.3.05] — 2026-07-21
 
 ### Hardened — Rate-limit strikes, P2P knob parity, Rocks alerts

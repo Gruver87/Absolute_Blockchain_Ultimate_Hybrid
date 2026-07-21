@@ -102,33 +102,40 @@ def _status_rate_limit_snapshot(cfg) -> Dict[str, Any]:
 
 def _status_p2p_hardening_snapshot(cfg, p2p) -> Dict[str, Any]:
     """P2P wire hardening truth for GET /status (not heuristic)."""
-    tls = {}
+    sec: Dict[str, Any] = {}
+    status_error = ""
     if p2p and hasattr(p2p, "get_p2p_security_status"):
         try:
-            tls = dict((p2p.get_p2p_security_status() or {}).get("tls") or {})
+            sec = dict(p2p.get_p2p_security_status() or {})
         except Exception as exc:
-            logger.warning("p2p TLS status snapshot failed: %s", exc)
-            tls = {"status_error": str(exc)}
-    elif cfg:
+            logger.warning("p2p security status snapshot failed: %s", exc)
+            status_error = str(exc)
+    tls = dict(sec.get("tls") or {})
+    if not tls and cfg and not status_error:
         try:
             from network.p2p_tls import p2p_tls_status
 
             tls = p2p_tls_status(cfg)
         except Exception as exc:
             logger.warning("config TLS status snapshot failed: %s", exc)
+            status_error = str(exc)
             tls = {"status_error": str(exc)}
-    return {
+    out = {
         "rate_limit_per_sec": int(getattr(cfg, "p2p_max_messages_per_sec", 0) or 0) if cfg else 0,
         "tls_enabled": bool(tls.get("enabled")),
         "tls_ready": bool(tls.get("ready")),
         "identity_binding": tls.get("identity_binding", "none"),
         "fail_closed": bool(tls.get("fail_closed")),
-        "ops_errors": (
-            dict((p2p.get_p2p_security_status() or {}).get("ops_errors") or {})
-            if p2p and hasattr(p2p, "get_p2p_security_status")
-            else {}
-        ),
+        "handshake_rejects": int(sec.get("handshake_rejects", 0) or 0),
+        "shape_rejects_total": int(sec.get("shape_rejects_total", 0) or 0),
+        "shape_rejects": dict(sec.get("shape_rejects") or {}),
+        "rate_limit_drops": int(sec.get("rate_limit_drops", 0) or 0),
+        "active_bans": int(sec.get("active_bans", 0) or 0),
+        "ops_errors": dict(sec.get("ops_errors") or {}),
     }
+    if status_error:
+        out["status_error"] = status_error
+    return out
 
 
 def _check_rate_limit(handler, path: Optional[str] = None) -> bool:
@@ -1264,11 +1271,30 @@ class RESTHandler(BaseHTTPRequestHandler):
                                 "handshake_rejects": sec.get("handshake_rejects", 0),
                                 "shape_rejects_total": sec.get("shape_rejects_total", 0),
                                 "shape_rejects": sec.get("shape_rejects") or {},
+                                "rate_limit_drops": sec.get("rate_limit_drops", 0),
                             },
                         }
                     except Exception as exc:
                         logger.warning("/status p2p summary failed: %s", exc)
-                        p2p_summary = {"enabled": True, "running": bool(getattr(p2p, "_running", False))}
+                        security = {}
+                        if p2p and hasattr(p2p, "get_p2p_security_status"):
+                            try:
+                                raw = dict(p2p.get_p2p_security_status() or {})
+                                security = {
+                                    "active_bans": raw.get("active_bans", 0),
+                                    "handshake_rejects": raw.get("handshake_rejects", 0),
+                                    "shape_rejects_total": raw.get("shape_rejects_total", 0),
+                                    "shape_rejects": raw.get("shape_rejects") or {},
+                                    "rate_limit_drops": raw.get("rate_limit_drops", 0),
+                                }
+                            except Exception:
+                                security = {}
+                        p2p_summary = {
+                            "enabled": True,
+                            "running": bool(getattr(p2p, "_running", False)),
+                            "security": security,
+                            "status_error": str(exc),
+                        }
                 rl_snap = _status_rate_limit_snapshot(cfg)
                 p2p_hard = _status_p2p_hardening_snapshot(cfg, p2p)
                 monolith_summary = {

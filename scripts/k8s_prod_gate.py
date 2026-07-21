@@ -71,6 +71,7 @@ def main() -> int:
         "P2P_MAX_MESSAGES_PER_SEC",
         "P2P_BAN_SECONDS",
         "P2P_RATE_LIMIT_STRIKES",
+        "P2P_EVICT_MIN_SCORE",
     ):
         if key not in cm:
             errors.append(f"configmap.yaml: {key} required")

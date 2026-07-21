@@ -21,6 +21,7 @@ x-abs-prod-env: &abs-prod-env
   P2P_MAX_MESSAGES_PER_SEC: "500"
   P2P_BAN_SECONDS: "300"
   P2P_RATE_LIMIT_STRIKES: "5"
+  P2P_EVICT_MIN_SCORE: "0"
   ABS_REQUIRE_NATIVE_CRYPTO: "true"
   BRIDGE_MODE: rust
   RUST_BRIDGE_PATH: bridge/abs_bridge_bin

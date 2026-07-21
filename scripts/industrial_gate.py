@@ -71,9 +71,19 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "p2p_line_too_large",
         "rate_limit_exceeded",
         "recv_error",
+        "_housekeeping_payload_ok",
+        "peer_send_fail",
     ):
         if needle not in p2p_mod:
             errors.append(f"p2p_node.py missing wire-reject surface: {needle}")
+    http_src = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
+    for needle in (
+        "shape_rejects_total",
+        "rate_limit_drops",
+        "_status_p2p_hardening_snapshot",
+    ):
+        if needle not in http_src:
+            errors.append(f"api/http.py missing status honesty surface: {needle}")
     metrics_src = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     for needle in (
         "abs_p2p_shape_rejects_total",
@@ -502,6 +512,7 @@ def run_industrial_gate(
     probe_l1: bool = False,
     probe_l1_rpc_only: bool = False,
     bridge_live: bool = False,
+    fail_on_warnings: bool = False,
 ) -> int:
     import importlib.util
 
@@ -658,6 +669,13 @@ def run_industrial_gate(
     print("OK: industrial gate")
     if warnings:
         print(f"  ({len(warnings)} warning(s) — see {out})")
+        for w in warnings[:12]:
+            print(f"  warn: {w}")
+        if len(warnings) > 12:
+            print(f"  warn: ... +{len(warnings) - 12} more")
+        if fail_on_warnings:
+            print("FAIL: industrial gate (--fail-on-warnings)")
+            return 1
     return 0
 
 
@@ -685,6 +703,11 @@ def main() -> int:
         help="With --ceremony-dir, require GENESIS_CEREMONY_HASH to match",
     )
     parser.add_argument("--json", action="store_true", help="Print report path only")
+    parser.add_argument(
+        "--fail-on-warnings",
+        action="store_true",
+        help="Exit non-zero when warnings are present (release strict mode)",
+    )
     parser.add_argument(
         "--bridge-cutover",
         action="store_true",
@@ -715,6 +738,7 @@ def main() -> int:
         probe_l1=args.probe_l1,
         probe_l1_rpc_only=args.probe_l1_rpc_only,
         bridge_live=args.bridge_live,
+        fail_on_warnings=args.fail_on_warnings,
     )
     if args.json:
         print(str(ROOT / "data" / "industrial_gate.json"))

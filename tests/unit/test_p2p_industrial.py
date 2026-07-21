@@ -325,6 +325,60 @@ def test_p2p_strike_bans_after_threshold():
 
 
 @pytest.mark.asyncio
+async def test_handle_message_rejects_noisy_ping_payload():
+    from network.p2p_node import MSG_PING, P2PNode
+
+    cfg = Config()
+    cfg.p2p_rate_limit_strikes = 1
+    p2p = P2PNode(cfg, None, None)
+    peer = PeerConnection(_FakeReader(b""), _FakeWriter())
+    peer.peer_id = "hk-peer"
+    p2p.peers[peer.peer_id] = peer
+    removed = []
+    p2p._remove_peer = lambda pid, p: removed.append(pid)
+
+    await p2p._handle_message(peer, {"type": MSG_PING, "data": {"noise": [1, 2, 3]}})
+    assert removed == ["hk-peer"]
+    assert p2p.get_p2p_security_status()["shape_rejects"].get("bad_ping_payload", 0) >= 1
+
+
+@pytest.mark.asyncio
+async def test_handle_message_rejects_noisy_get_peers_payload():
+    from network.p2p_node import MSG_GET_PEERS, P2PNode
+
+    cfg = Config()
+    cfg.p2p_rate_limit_strikes = 1
+    p2p = P2PNode(cfg, None, None)
+    peer = PeerConnection(_FakeReader(b""), _FakeWriter())
+    peer.peer_id = "hk-peers"
+    p2p.peers[peer.peer_id] = peer
+    removed = []
+    p2p._remove_peer = lambda pid, p: removed.append(pid)
+
+    await p2p._handle_message(peer, {"type": MSG_GET_PEERS, "data": {"x": 1}})
+    assert removed == ["hk-peers"]
+    assert p2p.get_p2p_security_status()["shape_rejects"].get("bad_get_peers_payload", 0) >= 1
+
+
+@pytest.mark.asyncio
+async def test_peer_send_fail_increments_ops_counter():
+    from network.p2p_node import P2PNode
+
+    class _BoomWriter(_FakeWriter):
+        def write(self, _data):
+            raise OSError("broken pipe")
+
+    cfg = Config()
+    p2p = P2PNode(cfg, None, None)
+    peer = PeerConnection(_FakeReader(b""), _BoomWriter())
+    p2p._attach_peer_hooks(peer)
+    peer.peer_id = "send-fail"
+    ok = await peer.send("ping", {"ts": 1.0})
+    assert ok is False
+    assert p2p.get_p2p_security_status()["ops_errors"]["peer_send_fail"] >= 1
+
+
+@pytest.mark.asyncio
 async def test_handle_message_rejects_unknown_wire_type():
     from network.p2p_node import P2PNode
     from runtime.config import Config

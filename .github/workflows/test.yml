@@ -285,6 +285,5 @@ jobs:
     - name: Import main module
       run: python -c "import main; print('main.py OK')"
 
-    - name: Final audit (non-blocking)
-      run: python scripts/final_audit.py || true
-      continue-on-error: true
+    - name: Final audit
+      run: python scripts/final_audit.py

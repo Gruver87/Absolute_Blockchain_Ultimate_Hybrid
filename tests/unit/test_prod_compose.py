@@ -24,6 +24,7 @@ def test_prod_compose_includes_relayer_sidecar():
     assert "P2P_MAX_MESSAGES_PER_SEC" in text
     assert "P2P_BAN_SECONDS" in text
     assert "P2P_RATE_LIMIT_STRIKES" in text
+    assert "P2P_EVICT_MIN_SCORE" in text
 
 
 def test_docker_prod_node_bridge_disabled_by_default():

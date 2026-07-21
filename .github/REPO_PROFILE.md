@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.05` — rate-limit strikes + P2P knob parity |
-| **Notes** | [RELEASE_NOTES_v1.3.05.md](../RELEASE_NOTES_v1.3.05.md) |
-| **Prior** | [v1.3.04](../RELEASE_NOTES_v1.3.04.md) wire-reject; [v1.3.03](../RELEASE_NOTES_v1.3.03.md) observability |
+| **Tag** | `v1.3.06` — CI final_audit + housekeeping gates |
+| **Notes** | [RELEASE_NOTES_v1.3.06.md](../RELEASE_NOTES_v1.3.06.md) |
+| **Prior** | [v1.3.05](../RELEASE_NOTES_v1.3.05.md) rate-limit; [v1.3.04](../RELEASE_NOTES_v1.3.04.md) wire-reject |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |
