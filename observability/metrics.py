@@ -124,6 +124,12 @@ class MetricsCollector:
                 f"abs_l1_rpc_ok{{node_id=\"{node_id}\"}} "
                 f"{1 if (bridge_health.get('l1_rpc') or {}).get('ok') else 0}"
             ),
+            "# HELP abs_l1_rpc_probed Whether a live L1 eth_blockNumber probe ran",
+            "# TYPE abs_l1_rpc_probed gauge",
+            (
+                f"abs_l1_rpc_probed{{node_id=\"{node_id}\"}} "
+                f"{1 if (bridge_health.get('l1_rpc') or {}).get('probed') else 0}"
+            ),
             "# HELP abs_p2p_handshake_rejects_total Handshake rejects (payload + mid-session)",
             "# TYPE abs_p2p_handshake_rejects_total counter",
             (

@@ -295,6 +295,18 @@ def _rust_bridge_health(cfg) -> Dict:
 
     try:
         from bridge.health import check_l1_rpc_health, check_rust_bridge_binary
+    except Exception as exc:
+        out.update({"ok": False, "error": str(exc)})
+        out["l1_rpc"] = {
+            "ok": False,
+            "configured": False,
+            "required": False,
+            "probed": False,
+            "error": str(exc),
+        }
+        return out
+
+    try:
         resolve = getattr(cfg, "resolve_rust_bridge_path", None)
         path = resolve() if callable(resolve) else getattr(cfg, "rust_bridge_path", "")
         status = check_rust_bridge_binary(path, timeout=1.5)
@@ -921,7 +933,7 @@ class RESTHandler(BaseHTTPRequestHandler):
             return "*"
         if request_origin and request_origin in origins:
             return request_origin
-        return origins[0] if origins else "*"
+        return origins[0] if origins else ""
 
     def _track_request(self) -> None:
         mc = self.__class__.metrics_collector

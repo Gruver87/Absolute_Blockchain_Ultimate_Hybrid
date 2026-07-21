@@ -59,6 +59,7 @@ def test_l1_rpc_health_probes_when_enabled(monkeypatch):
     assert out["configured"] is True
     assert out["ok"] is True
     assert "ETH_RPC_URL" in out["endpoints"]
+    assert out["probed"] is True
 
 
 def test_l1_rpc_health_skips_probe_when_disabled_in_prod(monkeypatch):
@@ -70,7 +71,9 @@ def test_l1_rpc_health_skips_probe_when_disabled_in_prod(monkeypatch):
     monkeypatch.setenv("BRIDGE_PROBE_L1_RPC", "false")
     out = health.check_l1_rpc_health(cfg)
     assert out["required"] is True
-    assert out["ok"] is True
+    assert out["ok"] is False
+    assert out["probed"] is False
+    assert out["error"] == "probe_skipped"
     assert out["probes"] == {}
 
 

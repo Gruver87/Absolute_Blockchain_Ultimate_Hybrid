@@ -41,6 +41,7 @@ def check_l1_rpc_health(cfg=None, timeout: float = 3.0) -> Dict[str, Any]:
         "error": "",
         "probes": {},
         "endpoints": list(urls.keys()),
+        "probed": False,
     }
 
     if required and not urls:
@@ -52,9 +53,13 @@ def check_l1_rpc_health(cfg=None, timeout: float = 3.0) -> Dict[str, Any]:
         return out
 
     if not should_probe_l1_rpc(cfg):
+        # Configured but not probed — do not claim abs_l1_rpc_ok=1.
+        out["ok"] = False
+        out["error"] = "probe_skipped"
         return out
 
     probe = probe_configured_l1_rpcs(timeout=timeout)
+    out["probed"] = True
     out["ok"] = bool(probe.get("ok"))
     out["error"] = str(probe.get("error") or "")
     out["probes"] = probe.get("probes") or {}

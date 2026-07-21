@@ -41,8 +41,8 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.13` — Rocks/CORS/TLS overlay honesty |
-| **Notes** | [RELEASE_NOTES_v1.3.13.md](../RELEASE_NOTES_v1.3.13.md) |
+| **Tag** | `v1.3.14` — SQLite↔Rocks reorg parity + L1 probe honesty |
+| **Notes** | [RELEASE_NOTES_v1.3.14.md](../RELEASE_NOTES_v1.3.14.md) |
 | **Prior** | [v1.3.08](../RELEASE_NOTES_v1.3.08.md) Swiss-watch; [v1.3.07](../RELEASE_NOTES_v1.3.07.md) ops_errors |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

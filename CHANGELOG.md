@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.14] — 2026-07-21
+
+### Hardened — SQLite↔Rocks reorg parity, L1 probe honesty, slash/CORS
+
+- SQLite reorg purges evm_logs/tx_prop; truncate_blocks_above = full chain truncate
+- Rocks corrupt TX/prop keys deleted on reorg; L1 unprobed ≠ ok
+- slash_validator → DB fail-loud; REST CORS empty ≠ *
+
+---
+
 ## [1.3.13] — 2026-07-21
 
 ### Hardened — Rocks/CORS/TLS overlay honesty, fail-closed state defaults

@@ -201,10 +201,9 @@ class ConsensusAdapter:
         return ok
 
     def slash_validator(self, address: str):
-        """Слэшит валидатора (нарушение консенсуса)."""
-        if self.validator_registry:
-            self.validator_registry.slash_validator(address)
-            print(f"[Consensus] Validator slashed: {address[:12]}...")
+        """Slash validator via fail-loud DB + registry path."""
+        self._on_validator_slashed(address, reason="manual", slot=0, penalty=0)
+        print(f"[Consensus] Validator slashed: {address[:12]}...")
 
     def get_validators(self) -> List[Dict]:
         if self.validator_registry:

@@ -789,6 +789,12 @@ class Database:
         self.conn.execute(
             "DELETE FROM burn_stats WHERE block_height > ?", (cut,)
         )
+        self.conn.execute(
+            "DELETE FROM evm_logs WHERE block_height > ?", (cut,)
+        )
+        self.conn.execute(
+            "DELETE FROM tx_propagation_events WHERE block_height > ?", (cut,)
+        )
         self.conn.execute("DELETE FROM blocks WHERE height > ?", (cut,))
 
     def truncate_chain_state(self, height: int) -> int:
@@ -821,13 +827,8 @@ class Database:
             )
 
     def truncate_blocks_above(self, height: int) -> int:
-        """Remove blocks with height > given tip (for P2P fork resync). Returns deleted count."""
-        with self.atomic():
-            cur = self.conn.execute(
-                "DELETE FROM blocks WHERE height > ?", (int(height),)
-            )
-            return cur.rowcount
-
+        """Full chain truncate above tip (parity with Rocks / P2P fork resync)."""
+        return self.truncate_chain_state(height)
     def truncate_all_blocks(self) -> int:
         """Remove entire chain (used when joining peer with different genesis)."""
         with self.atomic():

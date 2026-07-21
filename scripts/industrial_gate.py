@@ -326,8 +326,28 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
     rocks_py = (ROOT / "storage" / "rocks_store.py").read_text(encoding="utf-8")
     if "reorg_truncate_above: corrupt block JSON" not in rocks_py:
         errors.append("rocks_store.reorg_truncate_above must log corrupt block JSON")
+    if "corrupt tx JSON" not in rocks_py:
+        errors.append("rocks_store.reorg must log corrupt tx JSON")
+    if "corrupt tx_propagation JSON" not in rocks_py:
+        errors.append("rocks_store.reorg purge must log corrupt tx_propagation JSON")
     if "rocksdb_properties_error" not in rocks_py:
         errors.append("rocks_store.get_stats must surface rocksdb_properties_error")
+    db_py = (ROOT / "storage" / "database.py").read_text(encoding="utf-8")
+    if "DELETE FROM evm_logs WHERE block_height" not in db_py:
+        errors.append("SQLite reorg_truncate_above must delete evm_logs")
+    if "DELETE FROM tx_propagation_events WHERE block_height" not in db_py:
+        errors.append("SQLite reorg_truncate_above must delete tx_propagation_events")
+    if "def truncate_blocks_above" in db_py and "truncate_chain_state(height)" not in db_py:
+        errors.append("SQLite truncate_blocks_above must call truncate_chain_state")
+    http_py = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
+    if 'origins else "*"' in http_py:
+        errors.append("api/http.py REST CORS must not fall back to *")
+    health_py = (ROOT / "bridge" / "health.py").read_text(encoding="utf-8")
+    if "probe_skipped" not in health_py:
+        errors.append("bridge.health must mark unprobed L1 as probe_skipped")
+    metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
+    if "abs_l1_rpc_probed" not in metrics_py:
+        errors.append("metrics.py missing abs_l1_rpc_probed")
     if not prod_tls_enabled:
         warnings.append(
             "prod mesh JSON: p2p_tls_enabled is not true "

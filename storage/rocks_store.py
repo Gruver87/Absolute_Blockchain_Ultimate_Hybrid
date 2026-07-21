@@ -1036,7 +1036,13 @@ class RocksChainStore:
         for key, value in list(self._scan_prefix(kc.P_TX)):
             try:
                 row = json.loads(value.decode("utf-8"))
-            except Exception:
+            except Exception as exc:
+                logger.warning(
+                    "reorg_truncate_above: corrupt tx JSON above height>%s: %s",
+                    cut,
+                    exc,
+                )
+                self._raw_delete(key)
                 continue
             if int(row.get("block_height", 0) or 0) > cut:
                 self._delete_tx_indexes(row)
@@ -1044,7 +1050,13 @@ class RocksChainStore:
         for key, value in list(self._scan_prefix(kc.P_TX_RECEIPT)):
             try:
                 row = json.loads(value.decode("utf-8"))
-            except Exception:
+            except Exception as exc:
+                logger.warning(
+                    "reorg_truncate_above: corrupt receipt JSON above height>%s: %s",
+                    cut,
+                    exc,
+                )
+                self._raw_delete(key)
                 continue
             if int(row.get("block_height", 0) or 0) > cut:
                 self._raw_delete(key)
@@ -1075,16 +1087,26 @@ class RocksChainStore:
             try:
                 row = json.loads(value.decode("utf-8"))
                 bh = int(row.get("block_height", 0) or 0)
-            except Exception:
-                bh = 0
+            except Exception as exc:
+                logger.warning(
+                    "reorg purge: corrupt evm_log_tx JSON: %s",
+                    exc,
+                )
+                self._raw_delete(key)
+                continue
             if bh > cut:
                 self._raw_delete(key)
         for key, value in list(self._scan_prefix(kc.prefix_tx_prop_all())):
             try:
                 row = json.loads(value.decode("utf-8"))
                 bh = int(row.get("block_height", 0) or 0)
-            except Exception:
-                bh = 0
+            except Exception as exc:
+                logger.warning(
+                    "reorg purge: corrupt tx_propagation JSON: %s",
+                    exc,
+                )
+                self._raw_delete(key)
+                continue
             if bh > cut:
                 self._raw_delete(key)
 
