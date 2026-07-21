@@ -1137,6 +1137,51 @@ class RocksChainStore:
                         )
         return {"credited": True, "duplicate": False, "credit_key": key}
 
+    def debit_and_create_bridge_lock(
+        self,
+        from_addr: str,
+        amount: float,
+        burn_address: str,
+        burn_amount: float,
+        to_chain: str,
+        to_addr: str,
+        net_amount: float,
+        tx_hash: str,
+    ) -> None:
+        """Debit sender, burn fee share, and persist pending lock in one Rocks batch."""
+        with self.atomic():
+            self.balance_delta(from_addr, -float(amount))
+            if burn_amount and burn_address:
+                self.balance_delta(burn_address, float(burn_amount))
+            row = {
+                "tx_hash": tx_hash,
+                "from_addr": from_addr,
+                "to_chain": to_chain,
+                "to_addr": to_addr,
+                "amount": float(net_amount),
+                "status": "pending",
+                "created_at": int(time.time()),
+            }
+            self._raw_put(kc.key_bridge_lock(tx_hash), json.dumps(row).encode("utf-8"))
+
+    def refund_pending_bridge_lock(self, tx_hash: str) -> Dict:
+        """Credit back pending lock amount and mark refunded atomically."""
+        with self.atomic():
+            raw = self._raw_get(kc.key_bridge_lock(tx_hash))
+            if not raw:
+                return {"refunded": False, "error": "Lock not found or already processed"}
+            lock = self._loads_json_or_none(raw, context=f"bridge_lock {tx_hash[:16]}")
+            if lock is None or lock.get("status") != "pending":
+                return {"refunded": False, "error": "Lock not found or already processed"}
+            self.balance_delta(lock["from_addr"], float(lock["amount"]))
+            lock["status"] = "refunded"
+            self._raw_put(kc.key_bridge_lock(tx_hash), json.dumps(lock).encode("utf-8"))
+        return {
+            "refunded": True,
+            "tx_hash": tx_hash,
+            "amount": float(lock["amount"]),
+        }
+
     # ── burn ──────────────────────────────────────────────────────────────
 
     def _insert_burn_record(self, block_height: int, burned_amount: float) -> None:

@@ -7581,7 +7581,17 @@ def _build_bridge_relayer_status(cfg, db) -> Dict:
             "blind_pending_confirm_allowed": not relayer_require_l1_proof(),
             "readiness": readiness,
             "min_confirmations": min_confirmations(),
-            "l1_event_bound": False,
+            "l1_event_bound": bool(
+                getattr(cfg, "bridge_require_l1_event", False)
+                and str(getattr(cfg, "bridge_l1_lock_contract", "") or "").strip()
+            ),
+            "l1_event_abi_decoded": False,
+            "event_binding_mode": (
+                "contract_log_address"
+                if getattr(cfg, "bridge_require_l1_event", False)
+                and str(getattr(cfg, "bridge_l1_lock_contract", "") or "").strip()
+                else "confirmations_only"
+            ),
             "queue_path": qpath,
             "l1_outbound": len(queue.get("outbound", [])),
             "l1_incoming": len(queue.get("incoming", [])),

@@ -23,6 +23,8 @@ struct Response {
     #[serde(skip_serializing_if = "Option::is_none")]
     rpc_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    l1_event_bound: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
 }
 
@@ -53,6 +55,19 @@ fn require_l1_proof() -> bool {
     env::var("BRIDGE_REQUIRE_L1_PROOF")
         .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes" | "on"))
         .unwrap_or(false)
+}
+
+fn require_l1_event() -> bool {
+    env::var("BRIDGE_REQUIRE_L1_EVENT")
+        .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+        .unwrap_or(false)
+}
+
+fn expected_lock_contract() -> Option<String> {
+    env::var("BRIDGE_L1_LOCK_CONTRACT")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| s.starts_with("0x") && s.len() >= 42)
 }
 
 fn allow_synthetic_hash() -> bool {
@@ -86,6 +101,40 @@ fn parse_hex_u64(v: &serde_json::Value) -> Option<u64> {
     }
 }
 
+fn receipt_status_ok(receipt: &serde_json::Value) -> bool {
+    match receipt.get("status") {
+        Some(serde_json::Value::String(s)) => {
+            let t = s.trim();
+            let value = if let Some(h) = t.strip_prefix("0x").or_else(|| t.strip_prefix("0X")) {
+                u64::from_str_radix(h, 16).ok()
+            } else {
+                t.parse::<u64>().ok()
+            };
+            value == Some(1)
+        }
+        Some(serde_json::Value::Number(n)) => n.as_u64() == Some(1),
+        // Fail-closed: status-less receipts are not successful.
+        _ => false,
+    }
+}
+
+fn receipt_has_contract_log(receipt: &serde_json::Value, expected: &str) -> bool {
+    let logs = match receipt.get("logs") {
+        Some(serde_json::Value::Array(arr)) => arr,
+        _ => return false,
+    };
+    if logs.is_empty() {
+        return false;
+    }
+    let want = expected.to_lowercase();
+    logs.iter().any(|log| {
+        log.get("address")
+            .and_then(|a| a.as_str())
+            .map(|a| a.to_lowercase() == want)
+            .unwrap_or(false)
+    })
+}
+
 fn rpc_call(rpc_url: &str, method: &str, params: serde_json::Value) -> Option<serde_json::Value> {
     let body = serde_json::json!({
         "jsonrpc": "2.0",
@@ -104,20 +153,47 @@ fn rpc_call(rpc_url: &str, method: &str, params: serde_json::Value) -> Option<se
     data.get("result").cloned()
 }
 
-fn get_tx_confirmations(rpc_url: &str, tx_hash: &str) -> Option<u32> {
+/// Returns (confirmations, l1_event_bound).
+fn verify_l1_tx(rpc_url: &str, tx_hash: &str) -> Result<(u32, bool), String> {
     let receipt = rpc_call(
         rpc_url,
         "eth_getTransactionReceipt",
         serde_json::json!([tx_hash]),
-    )?;
-    let block_num = parse_hex_u64(receipt.get("blockNumber")?)?;
-    let head_hex = rpc_call(rpc_url, "eth_blockNumber", serde_json::json!([]))?;
-    let head = parse_hex_u64(&head_hex)?;
-    if head >= block_num {
-        Some((head - block_num + 1) as u32)
-    } else {
-        Some(0)
+    )
+    .ok_or_else(|| "L1 RPC check failed".to_string())?;
+    if receipt.is_null() {
+        return Err("L1 receipt not found".into());
     }
+    if !receipt_status_ok(&receipt) {
+        return Err("L1 receipt status not successful".into());
+    }
+    let block_num = parse_hex_u64(
+        receipt
+            .get("blockNumber")
+            .ok_or_else(|| "L1 receipt missing blockNumber".to_string())?,
+    )
+    .ok_or_else(|| "L1 receipt blockNumber invalid".to_string())?;
+    let head_hex = rpc_call(rpc_url, "eth_blockNumber", serde_json::json!([]))
+        .ok_or_else(|| "L1 eth_blockNumber failed".to_string())?;
+    let head = parse_hex_u64(&head_hex).ok_or_else(|| "L1 head block invalid".to_string())?;
+    let conf = if head >= block_num {
+        (head - block_num + 1) as u32
+    } else {
+        0
+    };
+
+    let mut event_bound = false;
+    if require_l1_event() {
+        let contract = expected_lock_contract().ok_or_else(|| {
+            "BRIDGE_L1_LOCK_CONTRACT required when BRIDGE_REQUIRE_L1_EVENT=1".to_string()
+        })?;
+        if !receipt_has_contract_log(&receipt, &contract) {
+            return Err("L1 receipt has no log from expected lock contract".into());
+        }
+        // Address-level binding only — not ABI amount/recipient decode.
+        event_bound = true;
+    }
+    Ok((conf, event_bound))
 }
 
 fn l1_tx_from_args(args: &serde_json::Value) -> Option<String> {
@@ -146,7 +222,7 @@ fn verify_l1_if_present(
     _command: &str,
     chain: &Option<String>,
     args: &serde_json::Value,
-) -> Result<u32, String> {
+) -> Result<(u32, bool), String> {
     let need = min_confirmations();
     let chain_name = chain.clone().unwrap_or_else(|| "ethereum".into());
     let rpc = resolve_rpc(&chain_name);
@@ -161,15 +237,14 @@ fn verify_l1_if_present(
     }
     let l1_tx = match l1_tx {
         Some(t) => t,
-        None => return Ok(need),
+        None => return Ok((need, false)),
     };
     let rpc = rpc.ok_or_else(|| format!("no RPC for chain {chain_name}"))?;
-    let conf =
-        get_tx_confirmations(&rpc, &l1_tx).ok_or_else(|| "L1 RPC check failed".to_string())?;
+    let (conf, event_bound) = verify_l1_tx(&rpc, &l1_tx)?;
     if conf < need {
         return Err(format!("L1 confirmations {conf} < required {need}"));
     }
-    Ok(conf)
+    Ok((conf, event_bound))
 }
 
 fn handle(req: Request) -> Response {
@@ -185,11 +260,12 @@ fn handle(req: Request) -> Response {
             return Response {
                 tx_hash: String::new(),
                 status: "error".into(),
-                source: "abs_bridge_bin_v4".into(),
+                source: "abs_bridge_bin_v5".into(),
                 chain,
                 proof_id: None,
                 confirmations: None,
                 rpc_url: None,
+                l1_event_bound: Some(false),
                 error: Some(
                     "solana L1 RPC not implemented; use ethereum/bsc/polygon in production".into(),
                 ),
@@ -198,43 +274,50 @@ fn handle(req: Request) -> Response {
     }
     let rpc = chain.as_deref().and_then(resolve_rpc);
 
-    let l1_result = if matches!(req.command.as_str(), "confirm" | "incoming") {
+    // lock/bridge must verify L1 when an escrow hash is supplied (Python debits on lock).
+    let l1_result = if matches!(
+        req.command.as_str(),
+        "confirm" | "incoming" | "lock" | "bridge"
+    ) {
         verify_l1_if_present(&req.command, &chain, &req.args)
     } else {
-        Ok(min_confirmations())
+        Ok((min_confirmations(), false))
     };
 
     match (req.command.as_str(), l1_result) {
         (_, Err(e)) => Response {
             tx_hash: String::new(),
             status: "error".into(),
-            source: "abs_bridge_bin_v4".into(),
+            source: "abs_bridge_bin_v5".into(),
             chain,
             proof_id: None,
             confirmations: Some(min_confirmations()),
             rpc_url: rpc,
+            l1_event_bound: Some(false),
             error: Some(e),
         },
-        ("bridge" | "lock" | "confirm" | "incoming", Ok(conf)) => {
+        ("bridge" | "lock" | "confirm" | "incoming", Ok((conf, event_bound))) => {
             match resolve_tx_hash(&req.command, &req.args) {
                 Ok(tx_hash) => Response {
                     tx_hash,
                     status: "ok".into(),
-                    source: "abs_bridge_bin_v4".into(),
+                    source: "abs_bridge_bin_v5".into(),
                     chain: chain.clone(),
                     proof_id: Some(make_proof_id(&req.command, &req.args)),
                     confirmations: Some(conf),
                     rpc_url: rpc,
+                    l1_event_bound: Some(event_bound),
                     error: None,
                 },
                 Err(e) => Response {
                     tx_hash: String::new(),
                     status: "error".into(),
-                    source: "abs_bridge_bin_v4".into(),
+                    source: "abs_bridge_bin_v5".into(),
                     chain,
                     proof_id: None,
                     confirmations: Some(conf),
                     rpc_url: rpc,
+                    l1_event_bound: Some(event_bound),
                     error: Some(e),
                 },
             }
@@ -242,21 +325,23 @@ fn handle(req: Request) -> Response {
         ("status", _) => Response {
             tx_hash: String::new(),
             status: "ready".into(),
-            source: "abs_bridge_bin_v4".into(),
+            source: "abs_bridge_bin_v5".into(),
             chain,
             proof_id: None,
             confirmations: Some(min_confirmations()),
             rpc_url: rpc,
+            l1_event_bound: Some(require_l1_event() && expected_lock_contract().is_some()),
             error: None,
         },
         (other, _) => Response {
             tx_hash: String::new(),
             status: "error".into(),
-            source: "abs_bridge_bin_v4".into(),
+            source: "abs_bridge_bin_v5".into(),
             chain: None,
             proof_id: None,
             confirmations: None,
             rpc_url: None,
+            l1_event_bound: Some(false),
             error: Some(format!("unknown command: {other}")),
         },
     }

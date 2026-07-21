@@ -572,6 +572,31 @@ class HybridDatabase:
             abs_tx_hash=abs_tx_hash,
         )
 
+    def debit_and_create_bridge_lock(
+        self,
+        from_addr: str,
+        amount: float,
+        burn_address: str,
+        burn_amount: float,
+        to_chain: str,
+        to_addr: str,
+        net_amount: float,
+        tx_hash: str,
+    ) -> None:
+        return self._core.debit_and_create_bridge_lock(
+            from_addr,
+            amount,
+            burn_address,
+            burn_amount,
+            to_chain,
+            to_addr,
+            net_amount,
+            tx_hash,
+        )
+
+    def refund_pending_bridge_lock(self, tx_hash: str) -> Dict:
+        return self._core.refund_pending_bridge_lock(tx_hash)
+
     def save_evm_logs(
         self,
         contract_address: str,

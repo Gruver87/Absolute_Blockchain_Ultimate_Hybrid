@@ -1746,6 +1746,58 @@ class Database:
                 )
         return {"credited": True, "duplicate": False, "credit_key": key}
 
+    def debit_and_create_bridge_lock(
+        self,
+        from_addr: str,
+        amount: float,
+        burn_address: str,
+        burn_amount: float,
+        to_chain: str,
+        to_addr: str,
+        net_amount: float,
+        tx_hash: str,
+    ) -> None:
+        """Debit sender, burn fee share, and persist pending lock in one transaction."""
+        with self.atomic():
+            self.balance_delta(from_addr, -float(amount))
+            if burn_amount and burn_address:
+                self.balance_delta(burn_address, float(burn_amount))
+            self.conn.execute(
+                """INSERT OR REPLACE INTO bridge_locks
+                   (tx_hash, from_addr, to_chain, to_addr, amount, status, created_at)
+                   VALUES (?,?,?,?,?,'pending',?)""",
+                (
+                    tx_hash,
+                    from_addr,
+                    to_chain,
+                    to_addr,
+                    float(net_amount),
+                    int(time.time()),
+                ),
+            )
+
+    def refund_pending_bridge_lock(self, tx_hash: str) -> Dict:
+        """Credit back pending lock amount and mark refunded atomically."""
+        with self.atomic():
+            row = self.conn.execute(
+                "SELECT * FROM bridge_locks WHERE tx_hash=?", (tx_hash,)
+            ).fetchone()
+            if not row:
+                return {"refunded": False, "error": "Lock not found or already processed"}
+            lock = dict(row)
+            if lock.get("status") != "pending":
+                return {"refunded": False, "error": "Lock not found or already processed"}
+            self.balance_delta(lock["from_addr"], float(lock["amount"]))
+            self.conn.execute(
+                "UPDATE bridge_locks SET status='refunded' WHERE tx_hash=?",
+                (tx_hash,),
+            )
+        return {
+            "refunded": True,
+            "tx_hash": tx_hash,
+            "amount": float(lock["amount"]),
+        }
+
     def save_minivm_contract(self, address: str, bytecode: list, storage: dict, calls: int = 0) -> None:
         with self.lock:
             self.conn.execute(

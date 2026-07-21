@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.34] — 2026-07-21
+
+### Hardened — Rust L1 lock verify / receipt status / event-log address / atomic debit
+
+- Rust verifies L1 on lock; requires receipt status; optional contract-log binding
+- confirm_lock passes to_chain; atomic debit/refund APIs
+
+---
+
 ## [1.3.33] — 2026-07-21
 
 ### Hardened — bridge event replay / atomic credit / plasma force / smart-accounts

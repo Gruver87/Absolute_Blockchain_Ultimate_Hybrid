@@ -40,12 +40,17 @@ class _MockL1Handler(BaseHTTPRequestHandler):
 
         if method == "eth_getTransactionReceipt":
             tx = str(params[0] if params else "").lower()
-            block = self.registry.get(tx)
-            result = (
-                {"blockNumber": hex(block), "status": "0x1"}
-                if block is not None
-                else None
-            )
+            entry = self.registry.get(tx)
+            if entry is None:
+                result = None
+            elif isinstance(entry, dict):
+                result = {
+                    "blockNumber": hex(int(entry["block"])),
+                    "status": entry.get("status", "0x1"),
+                    "logs": entry.get("logs") or [],
+                }
+            else:
+                result = {"blockNumber": hex(int(entry)), "status": "0x1", "logs": []}
         elif method == "eth_blockNumber":
             result = hex(self.head_block)
         elif method == "net_version":
@@ -64,12 +69,25 @@ class _MockL1Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
 
-def register_confirmed_tx(tx_hash: str, block_number: int = 900, head_block: Optional[int] = None) -> None:
+def register_confirmed_tx(
+    tx_hash: str,
+    block_number: int = 900,
+    head_block: Optional[int] = None,
+    status: str = "0x1",
+    contract_address: Optional[str] = None,
+) -> None:
     """Mark tx as mined with enough depth for default min_confirmations."""
     key = (tx_hash or "").strip().lower()
     if not key:
         return
-    _MockL1Handler.registry[key] = int(block_number)
+    logs = []
+    if contract_address:
+        logs = [{"address": contract_address, "topics": [], "data": "0x"}]
+    _MockL1Handler.registry[key] = {
+        "block": int(block_number),
+        "status": status,
+        "logs": logs,
+    }
     if head_block is not None:
         _MockL1Handler.head_block = int(head_block)
     else:

@@ -798,13 +798,26 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("RustBridge stats must expose l1_event_bound / replay_key honesty")
         if "from_chain:event_tx_hash:log_index" not in bridge_py2:
             errors.append("bridge confirm_incoming must use event-derived replay key")
+        if "debit_and_create_bridge_lock" not in bridge_py2:
+            errors.append("lock_and_bridge must use debit_and_create_bridge_lock")
+        if '"to_chain": self._normalize_chain(lock.get("to_chain", ""))' not in bridge_py2:
+            errors.append("confirm_lock must pass lock to_chain to Rust L1 verify")
+        if "BRIDGE_REQUIRE_L1_EVENT" not in bridge_py2 or "BRIDGE_L1_LOCK_CONTRACT" not in bridge_py2:
+            errors.append("Rust subprocess env must forward L1 event binding settings")
+        rust_main = (ROOT / "bridge" / "rust_bridge" / "src" / "main.rs").read_text(encoding="utf-8")
+        if "receipt_status_ok" not in rust_main:
+            errors.append("Rust bridge must require successful receipt status")
+        if '"lock" | "bridge"' not in rust_main:
+            errors.append("Rust bridge must verify L1 for lock/bridge commands")
+        if "BRIDGE_REQUIRE_L1_EVENT" not in rust_main or "receipt_has_contract_log" not in rust_main:
+            errors.append("Rust bridge must support BRIDGE_REQUIRE_L1_EVENT contract log binding")
         if "feature_smart_accounts" not in main_py2:
             errors.append("main.py must gate Smart Accounts on feature_smart_accounts")
         sa_py = (ROOT / "features" / "smart_accounts.py").read_text(encoding="utf-8")
         if "execution_bound" not in sa_py or "in_memory_registry" not in sa_py:
             errors.append("SmartAccountManager stats must expose execution_bound honesty")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28/29/30/31/32/33 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28/29/30/31/32/33/34 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

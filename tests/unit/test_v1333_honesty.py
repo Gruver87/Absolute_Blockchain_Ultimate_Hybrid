@@ -42,4 +42,5 @@ def test_smart_accounts_feature_gate():
 
 def test_relayer_status_event_bound_honesty():
     text = Path("api/http.py").read_text(encoding="utf-8")
-    assert '"l1_event_bound": False' in text
+    assert "event_binding_mode" in text
+    assert "l1_event_abi_decoded" in text

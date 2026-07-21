@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.33-industrial"
+    node_version: str = "1.3.34-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -129,6 +129,7 @@ class Config:
     bridge_mode: str = "rust"           # "rust" | explicit dev/test-only "simulator"
     bridge_auto_confirm_sec: int = 0    # 0 = manual POST /bridge/confirm-lock only
     bridge_require_l1_proof: bool = False
+    bridge_require_l1_event: bool = False  # require receipt log from lock contract (address-level)
     bridge_dev_adapter_enabled: bool = False  # explicit dev/test CrossChainBridge adapter
     rust_bridge_path: str = "bridge/abs_bridge_bin"
     bridge_oracle_secret: str = ""      # HMAC secret for /bridge/oracle/* relayer
@@ -379,6 +380,9 @@ class Config:
         )
         self.bridge_require_l1_proof = env_bool(
             "BRIDGE_REQUIRE_L1_PROOF", self.bridge_require_l1_proof
+        )
+        self.bridge_require_l1_event = env_bool(
+            "BRIDGE_REQUIRE_L1_EVENT", self.bridge_require_l1_event
         )
         self.bridge_dev_adapter_enabled = env_bool(
             "BRIDGE_DEV_ADAPTER_ENABLED", self.bridge_dev_adapter_enabled
@@ -650,6 +654,12 @@ class Config:
                 errors.append("prod bridge requires at least one L1 RPC URL (ETH_RPC_URL/BSC_RPC_URL/POLYGON_RPC_URL)")
             if not self.bridge_require_l1_proof:
                 errors.append("prod bridge requires BRIDGE_REQUIRE_L1_PROOF=true")
+            if self.bridge_require_l1_event:
+                lock = str(getattr(self, "bridge_l1_lock_contract", "") or "").strip().lower()
+                if not lock.startswith("0x") or len(lock) < 42 or "placeholder" in lock:
+                    errors.append(
+                        "BRIDGE_REQUIRE_L1_EVENT=true requires a real BRIDGE_L1_LOCK_CONTRACT"
+                    )
             if not str(getattr(self, "bridge_l1_queue_path", "") or "").strip():
                 errors.append("prod bridge requires BRIDGE_L1_QUEUE_PATH (L1 proof queue)")
             from bridge.health import should_probe_l1_rpc

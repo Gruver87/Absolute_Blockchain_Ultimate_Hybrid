@@ -215,14 +215,22 @@ class RustBridge:
         else:
             return {"error": "bridge unavailable: rust binary missing or bridge mode invalid"}
 
-        # Списываем с отправителя
-        self.db.update_balance(from_addr, -amount)
-        # Сжигаем комиссию (2% от fee — bridge burn)
         bridge_burn = fee * self.config.burn_rate
-        self.db.update_balance(self.config.burn_address, bridge_burn)
-
-        # Сохраняем lock в БД
-        self.db.save_bridge_lock(from_addr, to_chain, to_addr, net_amount, tx_hash)
+        if hasattr(self.db, "debit_and_create_bridge_lock"):
+            self.db.debit_and_create_bridge_lock(
+                from_addr=from_addr,
+                amount=amount,
+                burn_address=self.config.burn_address,
+                burn_amount=bridge_burn,
+                to_chain=to_chain,
+                to_addr=to_addr,
+                net_amount=net_amount,
+                tx_hash=tx_hash,
+            )
+        else:
+            self.db.update_balance(from_addr, -amount)
+            self.db.update_balance(self.config.burn_address, bridge_burn)
+            self.db.save_bridge_lock(from_addr, to_chain, to_addr, net_amount, tx_hash)
 
         if l1_tx_hash:
             self._enqueue_l1_outbound(tx_hash, l1_tx_hash, to_chain)
@@ -407,24 +415,19 @@ class RustBridge:
             "recipient": recipient,
             "amount": amount,
             "mode": self._mode,
-            "l1_event_bound": False,
+            "l1_event_bound": bool(
+                getattr(self.config, "bridge_require_l1_event", False)
+                and str(getattr(self.config, "bridge_l1_lock_contract", "") or "").strip()
+            ),
+            "l1_event_abi_decoded": False,
             "credit_key": credit_key,
         }
 
     def refund(self, tx_hash: str) -> Dict:
         """Возвращает заблокированные средства при ошибке."""
-        locks = self.db.get_bridge_locks()
-        for lock in locks:
-            if lock["tx_hash"] == tx_hash and lock["status"] == "pending":
-                self.db.update_balance(lock["from_addr"], lock["amount"])
-                self.db.conn.execute(
-                    "UPDATE bridge_locks SET status='refunded' WHERE tx_hash=?",
-                    (tx_hash,)
-                )
-                self.db.conn.commit()
-                return {"refunded": True, "tx_hash": tx_hash,
-                        "amount": lock["amount"]}
-        return {"refunded": False, "error": "Lock not found or already processed"}
+        if hasattr(self.db, "refund_pending_bridge_lock"):
+            return self.db.refund_pending_bridge_lock(tx_hash)
+        return {"refunded": False, "error": "refund_pending_bridge_lock unavailable"}
 
     # ── Информация ───────────────────────────────────────────────────────────
 
@@ -435,6 +438,11 @@ class RustBridge:
             else {"enabled": False, "reason": "simulator disabled"}
         )
         locks = self.db.get_bridge_locks(limit=1000)
+        require_event = bool(getattr(self.config, "bridge_require_l1_event", False))
+        lock_contract = str(getattr(self.config, "bridge_l1_lock_contract", "") or "").strip()
+        event_mode = (
+            "contract_log_address" if require_event and lock_contract else "confirmations_only"
+        )
         return {
             "mode": self._mode,
             "supported_chains": self.SUPPORTED_CHAINS,
@@ -443,8 +451,10 @@ class RustBridge:
             "pending_locks": sum(1 for l in locks if l["status"] == "pending"),
             "confirmed_locks": sum(1 for l in locks if l["status"] == "confirmed"),
             "dev_simulator_stats": sim_stats,
-            # Honesty: L1 path checks confirmation depth (+ status), not escrow event logs.
-            "l1_event_bound": False,
+            # Address-level log binding when BRIDGE_REQUIRE_L1_EVENT — not ABI decode.
+            "l1_event_bound": bool(require_event and lock_contract),
+            "l1_event_abi_decoded": False,
+            "event_binding_mode": event_mode,
             "replay_key": "from_chain:event_tx_hash:log_index",
         }
 
@@ -478,7 +488,10 @@ class RustBridge:
             if lock["tx_hash"] == tx_hash and lock["status"] == "pending":
                 if self._mode == "rust":
                     proof_tx = l1_tx_hash or self._lookup_outbound_l1_hash(tx_hash)
-                    rust_args = {"tx_hash": tx_hash}
+                    rust_args = {
+                        "tx_hash": tx_hash,
+                        "to_chain": self._normalize_chain(lock.get("to_chain", "")),
+                    }
                     if proof_tx:
                         rust_args["l1_tx_hash"] = proof_tx
                     elif self._is_prod and getattr(self.config, "bridge_require_l1_proof", False):
@@ -590,8 +603,21 @@ class RustBridge:
         if self._is_prod:
             env.pop("BRIDGE_ALLOW_SYNTHETIC", None)
         elif str(env.get("BRIDGE_ALLOW_SYNTHETIC", "")).lower() in ("1", "true", "yes", "on"):
-            for key in ("ETH_RPC_URL", "BSC_RPC_URL", "POLYGON_RPC_URL", "BRIDGE_REQUIRE_L1_PROOF"):
+            for key in (
+                "ETH_RPC_URL",
+                "BSC_RPC_URL",
+                "POLYGON_RPC_URL",
+                "BRIDGE_REQUIRE_L1_PROOF",
+                "BRIDGE_REQUIRE_L1_EVENT",
+            ):
                 env.pop(key, None)
+        lock = str(getattr(self.config, "bridge_l1_lock_contract", "") or "").strip()
+        if lock:
+            env["BRIDGE_L1_LOCK_CONTRACT"] = lock
+        if getattr(self.config, "bridge_require_l1_event", False):
+            env["BRIDGE_REQUIRE_L1_EVENT"] = "1"
+        elif "BRIDGE_REQUIRE_L1_EVENT" not in env:
+            env["BRIDGE_REQUIRE_L1_EVENT"] = "0"
         return env
 
     def _call_rust(self, command: str, args: Dict) -> Optional[str]:
@@ -605,7 +631,7 @@ class RustBridge:
             return False
         if out.get("status") != "ok":
             return False
-        if command in ("confirm", "incoming", "status"):
+        if command in ("confirm", "incoming", "status", "lock"):
             return True
         return bool(out.get("tx_hash"))
 
