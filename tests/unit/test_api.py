@@ -162,6 +162,20 @@ def test_metrics_prometheus_format():
     assert 'source="live"' in text
 
 
+def test_metrics_prometheus_never_probed_gauge():
+    mc = MetricsCollector()
+    text = mc.render_prometheus(
+        node_id="n1",
+        sync_status={
+            "state_consistent": True,
+            "wire_probe_ok": False,
+            "wire_probe_probed": False,
+        },
+    )
+    assert 'abs_sync_wire_probe_ok{node_id="n1"} -1' in text
+    assert 'abs_sync_wire_probe_probed{node_id="n1"} 0' in text
+
+
 def test_metrics_sqlite_skips_rocksdb_gauges():
     mc = MetricsCollector()
     text = mc.render_prometheus(

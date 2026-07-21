@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.17] — 2026-07-21
+
+### Hardened — Never-probed wire honesty
+
+- Solo/deferred sync_state leaves wire_probe_ok=None (never probed ≠ probed-ok)
+- Prometheus abs_sync_wire_probe_ok=-1 when never probed; eth_syncing stays syncing with peers until probe runs
+- peer_sync_fail in ops_errors; AbsoluteSyncWireProbeNeverProbed alert (from 1.3.16) matches gauge
+
+---
+
 ## [1.3.16] — 2026-07-21
 
 ### Hardened — Shared SyncEngine, unsolicited state_root honesty, probe/sqlite alerts

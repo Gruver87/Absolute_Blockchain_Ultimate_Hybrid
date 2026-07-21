@@ -248,11 +248,12 @@ class MetricsCollector:
                     f"abs_state_consistent{{node_id=\"{node_id}\"}} "
                     f"{1 if sync_status.get('state_consistent') else 0}"
                 ),
-                "# HELP abs_sync_wire_probe_ok Last peer state_root wire probe result",
+                "# HELP abs_sync_wire_probe_ok Last peer state_root wire probe "
+                "# (-1=never probed, 0=failed, 1=ok)",
                 "# TYPE abs_sync_wire_probe_ok gauge",
                 (
                     f"abs_sync_wire_probe_ok{{node_id=\"{node_id}\"}} "
-                    f"{1 if sync_status.get('wire_probe_ok') else 0}"
+                    f"{self._wire_probe_ok_gauge(sync_status)}"
                 ),
                 "# HELP abs_sync_wire_probe_probed Whether a wire probe has completed",
                 "# TYPE abs_sync_wire_probe_probed gauge",
@@ -274,3 +275,11 @@ class MetricsCollector:
                 f"abs_native_crypto_kernel_enabled{{node_id=\"{node_id}\",kernel=\"{safe_kernel}\"}} 1"
             )
         return "\n".join(lines) + "\n"
+
+    @staticmethod
+    def _wire_probe_ok_gauge(sync_status: Optional[dict[str, Any]]) -> int:
+        """Prometheus value: -1 never probed, 0 failed, 1 ok."""
+        status = sync_status or {}
+        if not bool(status.get("wire_probe_probed")):
+            return -1
+        return 1 if bool(status.get("wire_probe_ok")) else 0

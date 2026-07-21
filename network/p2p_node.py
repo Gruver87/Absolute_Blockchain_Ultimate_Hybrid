@@ -305,6 +305,7 @@ class P2PNode:
         self._peer_tx_reject: int = 0
         self._import_block_fail: int = 0
         self._sync_fail: int = 0
+        self._peer_sync_fail: int = 0
         self._discovery_loop_fail: int = 0
         self._bootstrap_loop_fail: int = 0
         self._last_tx_wire_reject: str = ""
@@ -2348,6 +2349,7 @@ class P2PNode:
                 "peer_tx_reject": int(self._peer_tx_reject),
                 "import_block_fail": int(self._import_block_fail),
                 "sync_fail": int(self._sync_fail),
+                "peer_sync_fail": int(self._peer_sync_fail),
                 "discovery_loop_fail": int(self._discovery_loop_fail),
                 "bootstrap_loop_fail": int(self._bootstrap_loop_fail),
             },

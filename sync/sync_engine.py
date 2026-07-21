@@ -305,25 +305,41 @@ class SyncEngine:
         mismatches = []
 
         wire_roots = []
-        wire_probe_ok = True
         peers = self._collect_p2p_peers()
-        if hasattr(self.node, "request_peer_state_roots_sync"):
-            try:
-                wire_roots = self.node.request_peer_state_roots_sync()
-                if wire_roots is None:
-                    wire_probe_ok = False
-                    print("   [Sync] peer state_root wire probe failed: timeout/empty")
-                    wire_roots = []
-                elif peers and len(wire_roots) == 0:
-                    wire_probe_ok = False
-                    print(
-                        "   [Sync] peer state_root wire probe empty "
-                        f"with {len(peers)} peer(s)"
-                    )
-            except Exception as exc:
+
+        # Solo / no peers: never claim a wire probe completed, and do not use an
+        # empty peer set as evidence that tip roots match the mesh.
+        if not peers:
+            print("   Solo / no peers — wire probe deferred (never-probed)")
+            # Leave _last_wire_probe_ok as None (never probed).
+            return True
+
+        if not hasattr(self.node, "request_peer_state_roots_sync"):
+            print(
+                "   [Sync] request_peer_state_roots_sync missing with peers "
+                "— fail-closed (never paint green without a real probe)"
+            )
+            self._last_wire_probe_ok = False
+            self._set_state_consistent(False)
+            return False
+
+        wire_probe_ok = True
+        try:
+            wire_roots = self.node.request_peer_state_roots_sync()
+            if wire_roots is None:
                 wire_probe_ok = False
-                print(f"   [Sync] peer state_root wire probe failed: {exc}")
+                print("   [Sync] peer state_root wire probe failed: timeout/empty")
                 wire_roots = []
+            elif len(wire_roots) == 0:
+                wire_probe_ok = False
+                print(
+                    "   [Sync] peer state_root wire probe empty "
+                    f"with {len(peers)} peer(s)"
+                )
+        except Exception as exc:
+            wire_probe_ok = False
+            print(f"   [Sync] peer state_root wire probe failed: {exc}")
+            wire_roots = []
         self._last_wire_probe_ok = wire_probe_ok
 
         if not wire_probe_ok:
@@ -339,7 +355,7 @@ class SyncEngine:
                 mismatches.append(entry.get("peer_id", "peer")[:8])
 
         # Peer still catching up — not a root mismatch.
-        for peer in self._collect_p2p_peers():
+        for peer in peers:
             peer_height = int(getattr(peer, "height", 0) or 0)
             if peer_height != local_height:
                 continue

@@ -620,6 +620,9 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             # Do not claim fully synced while tip state is inconsistent with peers.
             if peer_n > 0 and not bool(status.get("state_consistent", False)):
                 syncing = True
+            # Peers present but never wire-probed: do not claim fully synced.
+            if peer_n > 0 and not bool(status.get("wire_probe_probed", False)):
+                syncing = True
             if peer_n > 0 and status.get("wire_probe_probed") and not bool(
                 status.get("wire_probe_ok", False)
             ):
@@ -6859,6 +6862,9 @@ def _build_testnet_multi_node_proof(p2p, bc, cfg, db, consensus_adapter) -> Dict
 
 def _build_sync_status(se, p2p, bc, cfg) -> Dict:
     """Real sync view: SyncEngine when present, merged with live P2P peer heights."""
+    # Prefer explicit SyncEngine; fall back to the shared engine on P2PNode.
+    if se is None and p2p is not None:
+        se = getattr(p2p, "sync_engine", None)
     local_h = bc.get_height() if bc and hasattr(bc, "get_height") else 0
     state_root = bc.get_state_root() if bc and hasattr(bc, "get_state_root") else ""
     peer_count = p2p.peer_count() if p2p else 0
@@ -6879,6 +6885,7 @@ def _build_sync_status(se, p2p, bc, cfg) -> Dict:
         status["source"] = "sync_engine"
         status["local_height"] = local_h
         status["p2p_peers"] = peer_count
+        status["peers"] = peer_count
         status["best_peer_height"] = best_peer_height
         status["behind"] = max(0, best_peer_height - local_h)
         status["solo_mode"] = peer_count == 0
@@ -6889,32 +6896,27 @@ def _build_sync_status(se, p2p, bc, cfg) -> Dict:
                 "python main.py --peers 127.0.0.1:5000 or .\\scripts\\start_two_nodes.ps1"
             )
         return status
-    p2p_sync = {}
-    p2p_sync_error = None
-    if p2p and getattr(p2p, "sync_engine", None):
-        try:
-            p2p_sync = p2p.sync_engine.get_status()
-        except Exception as exc:
-            logger.warning("sync_engine.get_status failed: %s", exc)
-            p2p_sync = {"status_error": str(exc)}
-            p2p_sync_error = str(exc)
 
+    # No SyncEngine: fail-closed wire-probe fields (never claim a completed probe).
     return {
         "enabled": True,
-        "source": "p2p",
-        "syncing": bool(p2p_sync.get("syncing", False)),
+        "source": "p2p_fallback",
+        "syncing": False,
         "local_height": local_h,
         "best_peer_height": best_peer_height,
         "behind": max(0, best_peer_height - local_h),
         "peers": peer_count,
+        "p2p_peers": peer_count,
         "solo_mode": peer_count == 0,
         "bootstrap_peers": getattr(cfg, "bootstrap_peers", []) if cfg else [],
+        "wire_probe_ok": False,
+        "wire_probe_probed": False,
         **root_fields,
-        **({"p2p_sync_error": p2p_sync_error} if p2p_sync_error else {}),
         "hint": (
             "Solo node is normal locally. Connect peers: "
             "python main.py --peers 127.0.0.1:5000 or bootstrap_peers in config"
-            if peer_count == 0 else None
+            if peer_count == 0 else
+            "SyncEngine missing — wire probe not available (fail-closed)"
         ),
     }
 

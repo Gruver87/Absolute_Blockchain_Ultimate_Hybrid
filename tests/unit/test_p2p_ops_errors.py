@@ -36,6 +36,7 @@ def test_propagation_log_failure_increments_ops_counter():
 
     sec = node.get_p2p_security_status()
     assert sec["ops_errors"]["propagation_log_fail"] == 1
+    assert "peer_sync_fail" in sec["ops_errors"]
 
 
 def test_peer_tx_reject_increments_ops_counter_and_strikes():

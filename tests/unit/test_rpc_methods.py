@@ -119,6 +119,52 @@ def test_rpc_eth_syncing_honest_when_peers_inconsistent(tmp_path):
         server.shutdown()
 
 
+def test_rpc_eth_syncing_honest_when_peers_never_probed(tmp_path):
+    """Peers present but wire probe never ran — eth_syncing must not return False."""
+    from types import SimpleNamespace
+
+    cfg = Config()
+    cfg.db_path = str(tmp_path / "rpc_sync_never.db")
+    cfg.rpc_port = _free_port()
+    cfg.http_port = _free_port()
+    cfg.mining_enabled = False
+    cfg.chain_id = 77777
+    db = Database(cfg.db_path, synchronous="NORMAL")
+    db.initialize()
+    bus = EventBus()
+    bc = Blockchain(cfg, db, bus)
+    mp = Mempool(max_size=100, min_fee=0.001)
+    p2p = SimpleNamespace(
+        _state_consistent=True,
+        peer_count=lambda: 2,
+        get_peers_info=lambda: [{"height": 1}, {"height": 1}],
+    )
+    sync_engine = SimpleNamespace(
+        get_status=lambda: {
+            "syncing": False,
+            "behind": 0,
+            "local_height": bc.get_height(),
+            "best_peer_height": bc.get_height(),
+            "peers": 2,
+            "state_consistent": True,
+            "wire_probe_ok": False,
+            "wire_probe_probed": False,
+        }
+    )
+    server = create_rpc_server(bc, mp, cfg, p2p=p2p, wallet=None, sync_engine=sync_engine)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    time.sleep(0.25)
+    try:
+        url = f"http://127.0.0.1:{cfg.rpc_port}"
+        result = _rpc(url, "eth_syncing")
+        assert result is not False
+        assert isinstance(result, dict)
+        assert "currentBlock" in result
+    finally:
+        server.shutdown()
+
+
 def test_rpc_block_tx_count(rpc_env):
     url, bc, mp, cfg = rpc_env
     height = bc.get_height()

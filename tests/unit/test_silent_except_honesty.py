@@ -9,6 +9,7 @@ from sync.sync_engine import SyncEngine
 
 
 def test_sync_state_logs_wire_probe_failure(capsys):
+    peer = SimpleNamespace(peer_id="peer1", height=1)
     node = SimpleNamespace(
         blockchain=SimpleNamespace(
             get_state_root=lambda: "abc",
@@ -20,7 +21,7 @@ def test_sync_state_logs_wire_probe_failure(capsys):
     )
     # SyncEngine expects node with peers collector
     eng = SyncEngine(node)
-    eng._collect_p2p_peers = lambda: []  # type: ignore
+    eng._collect_p2p_peers = lambda: [peer]  # type: ignore
     ok = eng.sync_state()
     captured = capsys.readouterr()
     assert "wire probe failed" in captured.out
@@ -28,6 +29,26 @@ def test_sync_state_logs_wire_probe_failure(capsys):
     assert eng.get_status().get("wire_probe_probed") is True
     assert ok is False
     assert node.p2p._state_consistent is False
+
+
+def test_sync_state_solo_keeps_never_probed():
+    """Solo / no peers must leave wire_probe as never-probed (None), not probed-ok."""
+    node = SimpleNamespace(
+        blockchain=SimpleNamespace(
+            get_state_root=lambda: "abc",
+            get_height=lambda: 1,
+            get_block=lambda _h: None,
+        ),
+        p2p=SimpleNamespace(_state_consistent=True),
+    )
+    eng = SyncEngine(node)
+    eng._collect_p2p_peers = lambda: []  # type: ignore
+    ok = eng.sync_state()
+    assert ok is True
+    assert eng._last_wire_probe_ok is None
+    st = eng.get_status()
+    assert st.get("wire_probe_probed") is False
+    assert st.get("wire_probe_ok") is False
 
 
 def test_sync_state_empty_probe_with_peers_fail_closed(capsys):

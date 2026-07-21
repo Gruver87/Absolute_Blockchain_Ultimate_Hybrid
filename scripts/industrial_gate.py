@@ -433,6 +433,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:
             errors.append("metrics.py must export abs_sync_wire_probe_probed")
+        if "-1=never probed" not in metrics_py and "never probed" not in metrics_py.lower():
+            errors.append("metrics.py must document abs_sync_wire_probe_ok=-1 as never-probed")
+        if "return -1" not in metrics_py:
+            errors.append("metrics.py must emit abs_sync_wire_probe_ok=-1 when never probed")
         alerts = (ROOT / "deploy" / "prometheus" / "alerts.yml").read_text(encoding="utf-8")
         if "AbsoluteSyncWireProbeNeverProbed" not in alerts:
             errors.append("alerts.yml missing AbsoluteSyncWireProbeNeverProbed")
@@ -469,6 +473,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("POST /chain/consistency/repair must require sync_state (not harness alone)")
         if "Do not claim fully synced while tip state is inconsistent" not in http_py:
             errors.append("eth_syncing must stay syncing when peers + inconsistent state")
+        if "never wire-probed" not in http_py:
+            errors.append(
+                "eth_syncing must stay syncing when peers + wire probe never ran"
+            )
         if 'db_engine == "rocksdb"' not in http_py:
             errors.append("/metrics must not apply Rocks config_fallback on non-rocks engines")
         if "peer_probe_ok" not in http_py:
