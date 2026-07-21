@@ -5,10 +5,10 @@ use std::collections::HashMap;
 
 use crate::{
     evm_calldataload_inner, evm_is_jumpdest_inner, evm_keccak256_memory_inner,
-    evm_memory_read_word_inner, evm_memory_slice_inner, evm_read_push_inner,
-    evm_u256_addmod_inner, evm_u256_exp_inner, evm_u256_mulmod_inner, evm_u256_sdiv_inner,
-    evm_u256_sar_inner, evm_u256_signextend_inner, evm_u256_slt_inner, evm_u256_smod_inner,
-    keccak256_digest_bytes, u256_from_be32, u256_to_be32,
+    evm_memory_read_word_inner, evm_memory_slice_inner, evm_read_push_inner, evm_u256_addmod_inner,
+    evm_u256_exp_inner, evm_u256_mulmod_inner, evm_u256_sar_inner, evm_u256_sdiv_inner,
+    evm_u256_signextend_inner, evm_u256_slt_inner, evm_u256_smod_inner, keccak256_digest_bytes,
+    u256_from_be32, u256_to_be32,
 };
 
 const U256_MASK: U256 = U256::MAX;
@@ -20,8 +20,7 @@ pub fn evm_opcode_is_bridge(op: u8) -> bool {
 }
 
 pub fn evm_opcode_is_host(op: u8) -> bool {
-    matches!(op, 0xF0 | 0xF1 | 0xF2 | 0xF4 | 0xF5 | 0xFA | 0xFF)
-        || (0xA0..=0xA4).contains(&op)
+    matches!(op, 0xF0 | 0xF1 | 0xF2 | 0xF4 | 0xF5 | 0xFA | 0xFF) || (0xA0..=0xA4).contains(&op)
 }
 
 fn opcode_stops_segment(
@@ -104,10 +103,7 @@ fn apply_runtime_host_op(
     )?;
     let out_dict = out.downcast::<PyDict>()?;
     *gas_used = out_dict.get_item("gas_used")?.unwrap().extract()?;
-    *memory = out_dict
-        .get_item("memory")?
-        .unwrap()
-        .extract::<Vec<u8>>()?;
+    *memory = out_dict.get_item("memory")?.unwrap().extract::<Vec<u8>>()?;
     let stack_any = out_dict.get_item("stack")?.unwrap();
     let stack_list = stack_any.downcast::<PyList>()?;
     *stack = stack_from_py(stack_list)?;
@@ -208,7 +204,9 @@ fn u256_to_py_int(py: Python<'_>, value: U256) -> PyResult<PyObject> {
 
 fn storage_load(storage: Option<&Bound<'_, PyDict>>, key: U256) -> PyResult<U256> {
     let Some(dict) = storage else {
-        return Err(pyo3::exceptions::PyRuntimeError::new_err("storage_unavailable"));
+        return Err(pyo3::exceptions::PyRuntimeError::new_err(
+            "storage_unavailable",
+        ));
     };
     let py = dict.py();
     let key_obj = u256_to_py_int(py, key)?;
@@ -220,7 +218,9 @@ fn storage_load(storage: Option<&Bound<'_, PyDict>>, key: U256) -> PyResult<U256
 
 fn storage_store(storage: Option<&Bound<'_, PyDict>>, key: U256, value: U256) -> PyResult<()> {
     let Some(dict) = storage else {
-        return Err(pyo3::exceptions::PyRuntimeError::new_err("storage_unavailable"));
+        return Err(pyo3::exceptions::PyRuntimeError::new_err(
+            "storage_unavailable",
+        ));
     };
     let py = dict.py();
     let key_obj = u256_to_py_int(py, key)?;
@@ -272,26 +272,19 @@ fn bridge_block_hash(bridge: &Bound<'_, PyAny>, block_num: U256) -> PyResult<U25
     py_to_u256_or_int(result)
 }
 
-fn bridge_state_dict<'py>(
-    host_context: Option<&Bound<'py, PyDict>>,
-) -> Option<Bound<'py, PyDict>> {
+fn bridge_state_dict<'py>(host_context: Option<&Bound<'py, PyDict>>) -> Option<Bound<'py, PyDict>> {
     let ctx = host_context?;
     let state = ctx.get_item("bridge_state").ok()??;
     state.downcast::<PyDict>().ok().cloned()
 }
 
-fn bridge_hooks_dict<'py>(
-    host_context: Option<&Bound<'py, PyDict>>,
-) -> Option<Bound<'py, PyDict>> {
+fn bridge_hooks_dict<'py>(host_context: Option<&Bound<'py, PyDict>>) -> Option<Bound<'py, PyDict>> {
     let ctx = host_context?;
     let hooks = ctx.get_item("bridge_hooks").ok()??;
     hooks.downcast::<PyDict>().ok().cloned()
 }
 
-fn inline_balance(
-    host_context: Option<&Bound<'_, PyDict>>,
-    who: U256,
-) -> Option<PyResult<U256>> {
+fn inline_balance(host_context: Option<&Bound<'_, PyDict>>, who: U256) -> Option<PyResult<U256>> {
     let state = bridge_state_dict(host_context)?;
     let balances = state.get_item("balances").ok()??;
     let dict = balances.downcast::<PyDict>().ok()?;
@@ -328,24 +321,24 @@ fn inline_block_hash(
     Some(py_to_u256_or_int(value))
 }
 
-fn hook_balance(
-    host_context: Option<&Bound<'_, PyDict>>,
-    who: U256,
-) -> Option<PyResult<U256>> {
+fn hook_balance(host_context: Option<&Bound<'_, PyDict>>, who: U256) -> Option<PyResult<U256>> {
     let hooks = bridge_hooks_dict(host_context)?;
     let func = hooks.get_item("balance").ok()??;
     let addr = word_to_address(who);
-    Some(func.call1((addr,)).and_then(|value| py_to_u256_or_int(value)))
+    Some(
+        func.call1((addr,))
+            .and_then(|value| py_to_u256_or_int(value)),
+    )
 }
 
-fn hook_code_size(
-    host_context: Option<&Bound<'_, PyDict>>,
-    who: U256,
-) -> Option<PyResult<U256>> {
+fn hook_code_size(host_context: Option<&Bound<'_, PyDict>>, who: U256) -> Option<PyResult<U256>> {
     let hooks = bridge_hooks_dict(host_context)?;
     let func = hooks.get_item("code_size").ok()??;
     let addr = word_to_address(who);
-    Some(func.call1((addr,)).and_then(|value| py_to_u256_or_int(value)))
+    Some(
+        func.call1((addr,))
+            .and_then(|value| py_to_u256_or_int(value)),
+    )
 }
 
 fn hook_code_copy(
@@ -375,9 +368,7 @@ fn hook_block_hash(
     )
 }
 
-fn hook_emit_log<'py>(
-    host_context: Option<&Bound<'py, PyDict>>,
-) -> Option<Bound<'py, PyAny>> {
+fn hook_emit_log<'py>(host_context: Option<&Bound<'py, PyDict>>) -> Option<Bound<'py, PyAny>> {
     let hooks = bridge_hooks_dict(host_context)?;
     match hooks.get_item("emit_log") {
         Ok(Some(value)) => Some(value),
@@ -445,7 +436,9 @@ fn resolve_balance(
     if let Some(bridge) = host_bridge {
         return bridge_balance(bridge, who);
     }
-    Err(pyo3::exceptions::PyRuntimeError::new_err("bridge_unavailable"))
+    Err(pyo3::exceptions::PyRuntimeError::new_err(
+        "bridge_unavailable",
+    ))
 }
 
 fn resolve_code_size(
@@ -462,7 +455,9 @@ fn resolve_code_size(
     if let Some(bridge) = host_bridge {
         return bridge_code_size(bridge, who);
     }
-    Err(pyo3::exceptions::PyRuntimeError::new_err("bridge_unavailable"))
+    Err(pyo3::exceptions::PyRuntimeError::new_err(
+        "bridge_unavailable",
+    ))
 }
 
 fn resolve_code_copy(
@@ -489,7 +484,9 @@ fn resolve_code_copy(
     if let Some(bridge) = host_bridge {
         return bridge_code_copy(bridge, who, code_offset, size);
     }
-    Err(pyo3::exceptions::PyRuntimeError::new_err("bridge_unavailable"))
+    Err(pyo3::exceptions::PyRuntimeError::new_err(
+        "bridge_unavailable",
+    ))
 }
 
 fn resolve_block_hash(
@@ -506,7 +503,9 @@ fn resolve_block_hash(
     if let Some(bridge) = host_bridge {
         return bridge_block_hash(bridge, block_num);
     }
-    Err(pyo3::exceptions::PyRuntimeError::new_err("bridge_unavailable"))
+    Err(pyo3::exceptions::PyRuntimeError::new_err(
+        "bridge_unavailable",
+    ))
 }
 
 fn resolve_full_code(
@@ -607,7 +606,8 @@ fn gas_cost(op: u8) -> u64 {
         0x09 => 8,
         0x0A => 10,
         0x0B => 5,
-        0x10 | 0x11 | 0x12 | 0x14 | 0x15 | 0x16 | 0x17 | 0x18 | 0x19 | 0x1A | 0x1B | 0x1C | 0x1D => 3,
+        0x10 | 0x11 | 0x12 | 0x14 | 0x15 | 0x16 | 0x17 | 0x18 | 0x19 | 0x1A | 0x1B | 0x1C
+        | 0x1D => 3,
         0x20 => 30,
         0x35 | 0x37 | 0x39 | 0x3E => 3,
         0x36 | 0x3D => 2,
@@ -1127,10 +1127,7 @@ fn run_pure_segment_inner(
                 }
                 0x31 => {
                     let who = stack_pop(&mut stack)?;
-                    stack_push(
-                        &mut stack,
-                        resolve_balance(host_context, host_bridge, who)?,
-                    );
+                    stack_push(&mut stack, resolve_balance(host_context, host_bridge, who)?);
                     Ok(Some(false))
                 }
                 0x3B => {
@@ -1154,13 +1151,8 @@ fn run_pure_segment_inner(
                     let mem_offset = stack_pop(&mut stack)?.as_usize();
                     let size = stack_pop(&mut stack)?.as_usize();
                     let who = stack_pop(&mut stack)?;
-                    let chunk = resolve_code_copy(
-                        host_context,
-                        host_bridge,
-                        who,
-                        code_offset,
-                        size,
-                    )?;
+                    let chunk =
+                        resolve_code_copy(host_context, host_bridge, who, code_offset, size)?;
                     memory_copy(&mut memory, mem_offset, &chunk, 0, size);
                     Ok(Some(false))
                 }
@@ -1231,10 +1223,7 @@ fn run_pure_segment_inner(
                     }
                 }
                 0x5A => {
-                    stack_push(
-                        &mut stack,
-                        U256::from(gas_limit.saturating_sub(gas_used)),
-                    );
+                    stack_push(&mut stack, U256::from(gas_limit.saturating_sub(gas_used)));
                     Ok(Some(false))
                 }
                 0x5B => Ok(Some(false)),

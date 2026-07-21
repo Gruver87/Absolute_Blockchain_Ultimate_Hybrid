@@ -1615,9 +1615,10 @@ class Database:
             return [dict(r) for r in rows]
 
     def bridge_credit_key(self, l1_tx_hash: str, recipient: str, amount: float, from_chain: str) -> str:
-        import hashlib
+        from crypto import native
+
         raw = f"{l1_tx_hash}:{recipient}:{amount}:{from_chain}".lower()
-        return hashlib.sha256(raw.encode()).hexdigest()
+        return native.sha256_hex(raw.encode())
 
     def has_bridge_credit(self, credit_key: str) -> bool:
         with self.lock:

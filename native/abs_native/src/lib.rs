@@ -1,7 +1,9 @@
+mod consensus_select;
 mod evm_pure_runner;
+mod p2p_wire;
 mod rlp;
-mod storage;
 mod state_trie;
+mod storage;
 
 use k256::ecdsa::signature::hazmat::PrehashVerifier;
 use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
@@ -11,6 +13,15 @@ use pyo3::types::{PyByteArray, PyList};
 use serde_json::{Map, Number, Value};
 use sha2::{Digest, Sha256};
 use tiny_keccak::{Hasher, Keccak};
+
+pub(crate) const MAX_IMPORTED_BLOCKS: usize = 20_000;
+pub(crate) const MAX_PEER_HEADERS: usize = 20_000;
+pub(crate) const MAX_BLOCK_JSON_BYTES: usize = 2 * 1024 * 1024;
+pub(crate) const MAX_ACCOUNTS_JSON_BYTES: usize = 64 * 1024 * 1024;
+pub(crate) const MAX_STATE_ROOT_ACCOUNTS: usize = 1_000_000;
+pub(crate) const MAX_STATE_ROOT_BLOBS: usize = 1_000_000;
+pub(crate) const MAX_ACCOUNT_BLOB_BYTES: usize = 2 * 1024 * 1024;
+pub(crate) const MAX_CONSENSUS_VALIDATORS: usize = 10_000;
 
 fn sha256_hex_bytes(data: &[u8]) -> String {
     hex::encode(Sha256::digest(data))
@@ -29,9 +40,7 @@ fn block_header_hash_payload(
     timestamp: i64,
     extra_data: &str,
 ) -> String {
-    format!(
-        "{number}{parent_hash}{proposer}{state_root}{tx_root}{timestamp}{extra_data}"
-    )
+    format!("{number}{parent_hash}{proposer}{state_root}{tx_root}{timestamp}{extra_data}")
 }
 
 fn block_header_hash_inner(
@@ -44,7 +53,13 @@ fn block_header_hash_inner(
     extra_data: &str,
 ) -> String {
     hash_string(&block_header_hash_payload(
-        number, parent_hash, proposer, state_root, tx_root, timestamp, extra_data,
+        number,
+        parent_hash,
+        proposer,
+        state_root,
+        tx_root,
+        timestamp,
+        extra_data,
     ))
 }
 
@@ -339,8 +354,8 @@ fn recover_eth_address_keccak_inner(
     let mut signature = Signature::from_slice(&sig_bytes).map_err(|e| e.to_string())?;
     signature = signature.normalize_s().unwrap_or(signature);
     let rid = RecoveryId::from_byte(rec_id).ok_or_else(|| "bad_recovery_id".to_string())?;
-    let vk = VerifyingKey::recover_from_prehash(prehash, &signature, rid)
-        .map_err(|e| e.to_string())?;
+    let vk =
+        VerifyingKey::recover_from_prehash(prehash, &signature, rid).map_err(|e| e.to_string())?;
     let point = vk.to_encoded_point(false);
     let pub_bytes = &point.as_bytes()[1..];
     let hash = keccak256_digest_bytes(pub_bytes);
@@ -355,7 +370,9 @@ fn recover_eth_address_keccak(
     rec_id: u8,
 ) -> PyResult<String> {
     if prehash.len() != 32 {
-        return Err(pyo3::exceptions::PyValueError::new_err("prehash_must_be_32_bytes"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "prehash_must_be_32_bytes",
+        ));
     }
     let mut hash = [0u8; 32];
     hash.copy_from_slice(prehash);
@@ -414,20 +431,29 @@ fn extract_canonical_transaction(tx: &Value) -> PyResult<Value> {
     let timestamp = value_to_i64(obj.get("timestamp"));
 
     let mut row = Map::new();
-    row.insert("amount".to_string(), Value::Number(Number::from_f64(amount).unwrap_or(Number::from(0))));
-    row.insert("fee".to_string(), Value::Number(Number::from_f64(fee).unwrap_or(Number::from(0))));
+    row.insert(
+        "amount".to_string(),
+        Value::Number(Number::from_f64(amount).unwrap_or(Number::from(0))),
+    );
+    row.insert(
+        "fee".to_string(),
+        Value::Number(Number::from_f64(fee).unwrap_or(Number::from(0))),
+    );
     row.insert("from".to_string(), Value::String(from_addr));
     row.insert("hash".to_string(), Value::String(hash));
     row.insert("nonce".to_string(), Value::Number(Number::from(nonce)));
-    row.insert("timestamp".to_string(), Value::Number(Number::from(timestamp)));
+    row.insert(
+        "timestamp".to_string(),
+        Value::Number(Number::from(timestamp)),
+    );
     row.insert("to".to_string(), Value::String(to_addr));
     Ok(Value::Object(row))
 }
 
 fn extract_canonical_block(block: &Value) -> PyResult<Value> {
-    let obj = block.as_object().ok_or_else(|| {
-        pyo3::exceptions::PyValueError::new_err("block must be a JSON object")
-    })?;
+    let obj = block
+        .as_object()
+        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("block must be a JSON object"))?;
 
     let height = value_to_i64(obj.get("height").or(obj.get("number")));
     let parent_hash = value_to_string(obj.get("parent_hash").or(obj.get("parent")), "");
@@ -462,7 +488,10 @@ fn extract_canonical_block(block: &Value) -> PyResult<Value> {
     canonical.insert("miner".to_string(), Value::String(miner));
     canonical.insert("parent_hash".to_string(), Value::String(parent_hash));
     canonical.insert("state_root".to_string(), Value::String(state_root));
-    canonical.insert("timestamp".to_string(), Value::Number(Number::from(timestamp)));
+    canonical.insert(
+        "timestamp".to_string(),
+        Value::Number(Number::from(timestamp)),
+    );
     canonical.insert("transactions".to_string(), Value::Array(tx_rows));
     Ok(Value::Object(canonical))
 }
@@ -472,10 +501,24 @@ fn validate_imported_block_chain_inner(
     expected_parent_hash: &str,
     start_height: i64,
 ) -> PyResult<bool> {
+    if blocks_json.len() > MAX_IMPORTED_BLOCKS {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "too_many_blocks: {} > {}",
+            blocks_json.len(),
+            MAX_IMPORTED_BLOCKS
+        )));
+    }
     let mut previous_hash = expected_parent_hash.to_string();
     let mut previous_height = start_height;
 
     for block_json in blocks_json {
+        if block_json.len() > MAX_BLOCK_JSON_BYTES {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "block_json_too_large: {} > {} bytes",
+                block_json.len(),
+                MAX_BLOCK_JSON_BYTES
+            )));
+        }
         let block: Value = serde_json::from_str(block_json)
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
         let obj = block.as_object().ok_or_else(|| {
@@ -514,7 +557,8 @@ fn validate_peer_header_chain_inner(
     let mut previous_hash = expected_parent_hash.to_string();
     let mut previous_height = start_height;
 
-    for (number, hash, parent_hash, proposer, state_root, tx_root, timestamp, extra_data) in headers {
+    for (number, hash, parent_hash, proposer, state_root, tx_root, timestamp, extra_data) in headers
+    {
         if hash.is_empty() || *number != previous_height + 1 {
             return false;
         }
@@ -540,7 +584,7 @@ fn validate_peer_header_chain_inner(
     true
 }
 
-fn verify_secp256k1_sha256_inner(
+pub(crate) fn verify_secp256k1_sha256_inner(
     message: &[u8],
     signature_der: &[u8],
     public_key_xy: &[u8],
@@ -568,16 +612,16 @@ fn verify_secp256k1_sha256_inner(
     verifying_key.verify_prehash(&digest, &signature).is_ok()
 }
 
-fn evm_deploy_address_create_inner(deployer: &str, block_number: u64, init_code_len: usize) -> String {
+fn evm_deploy_address_create_inner(
+    deployer: &str,
+    block_number: u64,
+    init_code_len: usize,
+) -> String {
     let seed = format!("{deployer}{block_number}{init_code_len}");
     format!("0x{}", &hash_string(&seed)[..40])
 }
 
-fn evm_deploy_address_create2_legacy_inner(
-    deployer: &str,
-    salt: &str,
-    init_code: &[u8],
-) -> String {
+fn evm_deploy_address_create2_legacy_inner(deployer: &str, salt: &str, init_code: &[u8]) -> String {
     let seed = format!("create2:{deployer}:{salt}:{}", hex::encode(init_code));
     format!("0x{}", &hash_string(&seed)[..40])
 }
@@ -592,8 +636,8 @@ fn parse_address_20(deployer: &str) -> PyResult<[u8; 20]> {
             "deployer must be a 20-byte hex address",
         ));
     }
-    let bytes = hex::decode(raw)
-        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let bytes =
+        hex::decode(raw).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
     let mut out = [0u8; 20];
     out.copy_from_slice(&bytes);
     Ok(out)
@@ -632,7 +676,11 @@ fn evm_deploy_address_create(
     block_number: u64,
     init_code_len: usize,
 ) -> PyResult<String> {
-    Ok(evm_deploy_address_create_inner(&deployer, block_number, init_code_len))
+    Ok(evm_deploy_address_create_inner(
+        &deployer,
+        block_number,
+        init_code_len,
+    ))
 }
 
 #[pyfunction]
@@ -641,7 +689,9 @@ fn evm_deploy_address_create2_legacy(
     salt: String,
     init_code: Vec<u8>,
 ) -> PyResult<String> {
-    Ok(evm_deploy_address_create2_legacy_inner(&deployer, &salt, &init_code))
+    Ok(evm_deploy_address_create2_legacy_inner(
+        &deployer, &salt, &init_code,
+    ))
 }
 
 #[pyfunction]
@@ -663,7 +713,10 @@ fn keccak256_digest(data: &[u8]) -> PyResult<[u8; 32]> {
 
 #[pyfunction]
 fn keccak256_digest_batch(items: Vec<Vec<u8>>) -> PyResult<Vec<[u8; 32]>> {
-    Ok(items.iter().map(|item| keccak256_digest_bytes(item)).collect())
+    Ok(items
+        .iter()
+        .map(|item| keccak256_digest_bytes(item))
+        .collect())
 }
 
 #[pyfunction]
@@ -674,27 +727,21 @@ fn evm_keccak256_memory(memory: &[u8], offset: usize, size: usize) -> PyResult<[
 #[pyfunction]
 fn evm_u256_add(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
     Ok(u256_to_be32(
-        u256_from_be32(a)
-            .overflowing_add(u256_from_be32(b))
-            .0,
+        u256_from_be32(a).overflowing_add(u256_from_be32(b)).0,
     ))
 }
 
 #[pyfunction]
 fn evm_u256_mul(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
     Ok(u256_to_be32(
-        u256_from_be32(a)
-            .overflowing_mul(u256_from_be32(b))
-            .0,
+        u256_from_be32(a).overflowing_mul(u256_from_be32(b)).0,
     ))
 }
 
 #[pyfunction]
 fn evm_u256_sub(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
     Ok(u256_to_be32(
-        u256_from_be32(a)
-            .overflowing_sub(u256_from_be32(b))
-            .0,
+        u256_from_be32(a).overflowing_sub(u256_from_be32(b)).0,
     ))
 }
 
@@ -749,11 +796,7 @@ fn evm_u256_shr(a: [u8; 32], shift: u32) -> PyResult<[u8; 32]> {
 pub(crate) fn evm_u256_slt_inner(a: U256, b: U256) -> U256 {
     let a_neg = u256_is_negative(a);
     let b_neg = u256_is_negative(b);
-    let truthy = if a_neg == b_neg {
-        a < b
-    } else {
-        a_neg
-    };
+    let truthy = if a_neg == b_neg { a < b } else { a_neg };
     if truthy {
         U256::one()
     } else {
@@ -898,12 +941,18 @@ pub(crate) fn evm_u256_signextend_inner(k: u32, x: U256) -> U256 {
 
 #[pyfunction]
 fn evm_u256_sdiv(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
-    Ok(u256_to_be32(evm_u256_sdiv_inner(u256_from_be32(a), u256_from_be32(b))))
+    Ok(u256_to_be32(evm_u256_sdiv_inner(
+        u256_from_be32(a),
+        u256_from_be32(b),
+    )))
 }
 
 #[pyfunction]
 fn evm_u256_smod(a: [u8; 32], b: [u8; 32]) -> PyResult<[u8; 32]> {
-    Ok(u256_to_be32(evm_u256_smod_inner(u256_from_be32(a), u256_from_be32(b))))
+    Ok(u256_to_be32(evm_u256_smod_inner(
+        u256_from_be32(a),
+        u256_from_be32(b),
+    )))
 }
 
 #[pyfunction]
@@ -926,12 +975,18 @@ fn evm_u256_mulmod(a: [u8; 32], b: [u8; 32], modulo: [u8; 32]) -> PyResult<[u8; 
 
 #[pyfunction]
 fn evm_u256_exp(base: [u8; 32], exp: [u8; 32]) -> PyResult<[u8; 32]> {
-    Ok(u256_to_be32(evm_u256_exp_inner(u256_from_be32(base), u256_from_be32(exp))))
+    Ok(u256_to_be32(evm_u256_exp_inner(
+        u256_from_be32(base),
+        u256_from_be32(exp),
+    )))
 }
 
 #[pyfunction]
 fn evm_u256_signextend(k: u32, x: [u8; 32]) -> PyResult<[u8; 32]> {
-    Ok(u256_to_be32(evm_u256_signextend_inner(k, u256_from_be32(x))))
+    Ok(u256_to_be32(evm_u256_signextend_inner(
+        k,
+        u256_from_be32(x),
+    )))
 }
 
 fn evm_u256_bool_word(truthy: bool) -> [u8; 32] {
@@ -1295,6 +1350,13 @@ fn validate_peer_header_chain(
     expected_parent_hash: String,
     start_height: i64,
 ) -> PyResult<bool> {
+    if headers.len() > MAX_PEER_HEADERS {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "too_many_headers: {} > {}",
+            headers.len(),
+            MAX_PEER_HEADERS
+        )));
+    }
     Ok(validate_peer_header_chain_inner(
         &headers,
         &expected_parent_hash,
@@ -1313,13 +1375,7 @@ fn transaction_hash(
     timestamp: i64,
 ) -> PyResult<String> {
     Ok(transaction_hash_inner(
-        &from_addr,
-        &to_addr,
-        value,
-        nonce,
-        gas,
-        &data,
-        timestamp,
+        &from_addr, &to_addr, value, nonce, gas, &data, timestamp,
     ))
 }
 
@@ -1456,11 +1512,25 @@ fn merkle_root_from_proof(
 
 #[pyfunction]
 fn state_root_from_accounts_json(accounts_json: String) -> PyResult<String> {
+    if accounts_json.len() > MAX_ACCOUNTS_JSON_BYTES {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "accounts_json_too_large: {} > {} bytes",
+            accounts_json.len(),
+            MAX_ACCOUNTS_JSON_BYTES
+        )));
+    }
     let accounts: Value = serde_json::from_str(&accounts_json)
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
     let accounts = accounts
         .as_array()
         .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("accounts_json must be an array"))?;
+    if accounts.len() > MAX_STATE_ROOT_ACCOUNTS {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "too_many_accounts: {} > {}",
+            accounts.len(),
+            MAX_STATE_ROOT_ACCOUNTS
+        )));
+    }
 
     let mut payload = Vec::with_capacity(accounts.len());
     for account in accounts {
@@ -1474,6 +1544,22 @@ fn state_root_from_accounts_json(accounts_json: String) -> PyResult<String> {
 
 #[pyfunction]
 fn state_root_from_account_blobs(blobs: Vec<Vec<u8>>) -> PyResult<String> {
+    if blobs.len() > MAX_STATE_ROOT_BLOBS {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "too_many_account_blobs: {} > {}",
+            blobs.len(),
+            MAX_STATE_ROOT_BLOBS
+        )));
+    }
+    for blob in &blobs {
+        if blob.len() > MAX_ACCOUNT_BLOB_BYTES {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "account_blob_too_large: {} > {} bytes",
+                blob.len(),
+                MAX_ACCOUNT_BLOB_BYTES
+            )));
+        }
+    }
     state_trie::compute_state_root_from_account_blobs(blobs)
 }
 
@@ -1571,10 +1657,16 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_stack_swap, m)?)?;
     m.add_function(wrap_pyfunction!(evm_scan_bytecode, m)?)?;
     m.add_function(wrap_pyfunction!(evm_gas_remaining, m)?)?;
-    m.add_function(wrap_pyfunction!(evm_pure_runner::evm_opcode_is_bridge_py, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        evm_pure_runner::evm_opcode_is_bridge_py,
+        m
+    )?)?;
     m.add_function(wrap_pyfunction!(evm_pure_runner::evm_opcode_is_host_py, m)?)?;
     m.add_function(wrap_pyfunction!(evm_pure_runner::evm_run_until_halt_py, m)?)?;
-    m.add_function(wrap_pyfunction!(evm_pure_runner::evm_run_pure_until_host_py, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        evm_pure_runner::evm_run_pure_until_host_py,
+        m
+    )?)?;
     m.add_function(wrap_pyfunction!(keccak256_hex, m)?)?;
     m.add_function(wrap_pyfunction!(recover_eth_address_keccak, m)?)?;
     m.add_function(wrap_pyfunction!(pubkey_to_eth_address, m)?)?;
@@ -1606,5 +1698,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_hash_chain, m)?)?;
     storage::register(m)?;
     state_trie::register(m)?;
+    consensus_select::register(m)?;
+    p2p_wire::register(m)?;
     Ok(())
 }

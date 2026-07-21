@@ -68,9 +68,7 @@ fn resolve_tx_hash(command: &str, args: &serde_json::Value) -> Result<String, St
     if allow_synthetic_hash() {
         return Ok(make_tx_hash(command, args));
     }
-    Err(
-        "l1_tx_hash required (set BRIDGE_ALLOW_SYNTHETIC=1 only for local dev)".into(),
-    )
+    Err("l1_tx_hash required (set BRIDGE_ALLOW_SYNTHETIC=1 only for local dev)".into())
 }
 
 fn parse_hex_u64(v: &serde_json::Value) -> Option<u64> {
@@ -193,8 +191,7 @@ fn handle(req: Request) -> Response {
                 confirmations: None,
                 rpc_url: None,
                 error: Some(
-                    "solana L1 RPC not implemented; use ethereum/bsc/polygon in production"
-                        .into(),
+                    "solana L1 RPC not implemented; use ethereum/bsc/polygon in production".into(),
                 ),
             };
         }

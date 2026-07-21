@@ -29,6 +29,7 @@ from network.p2p_tls import (
     p2p_tls_status,
     validate_p2p_tls_config,
 )
+from crypto import native
 
 logger = logging.getLogger("P2P")
 
@@ -170,9 +171,9 @@ class PeerConnection:
 
     async def send(self, msg_type: str, data: Any = None):
         """Отправляет JSON-сообщение пиру."""
-        payload = json.dumps({"type": msg_type, "data": data}) + "\n"
         try:
-            self.writer.write(payload.encode())
+            payload = native.encode_p2p_wire_message(msg_type, data)
+            self.writer.write(payload)
             await self.writer.drain()
         except Exception as e:
             logger.debug(f"[P2P] send error to {self.peer_id}: {e}")
@@ -184,7 +185,13 @@ class PeerConnection:
             line = await asyncio.wait_for(self.reader.readline(), timeout=30)
             if not line:
                 return None
-            if len(line) > limit:
+            try:
+                return native.parse_p2p_wire_line(
+                    line,
+                    max_bytes=limit,
+                    allowed_types=list(ALLOWED_WIRE_TYPES),
+                )
+            except ValueError:
                 logger.warning(
                     "[P2P] dropped oversized message from %s (%s bytes > %s)",
                     self.peer_id or self.host,
@@ -192,10 +199,9 @@ class PeerConnection:
                     limit,
                 )
                 return None
-            return json.loads(line.decode().strip())
         except asyncio.TimeoutError:
             return {"type": MSG_IDLE, "data": None}
-        except (json.JSONDecodeError, Exception):
+        except Exception:
             return None
 
     def close(self):

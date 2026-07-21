@@ -13,11 +13,11 @@ this engine is an auxiliary deterministic sandbox, not the P2P tip root.
 from __future__ import annotations
 
 import copy
-import hashlib
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
+from crypto import native
 from execution.state_root import compute_state_engine_root
 from runtime.amount import from_satoshi, from_satoshi_float, to_satoshi
 
@@ -95,7 +95,7 @@ class StateEngine:
         return compute_state_engine_root(accounts)
 
     def _compute_genesis_hash(self) -> str:
-        return hashlib.sha256(b"genesis_absolute_chain").hexdigest()[:32]
+        return native.sha256_hex(b"genesis_absolute_chain")[:32]
 
     def transition(self, block: dict) -> BlockState:
         if not self.state:

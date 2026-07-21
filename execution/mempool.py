@@ -1,11 +1,12 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """Execution mempool compatibility layer for legacy tests."""
-import hashlib
 import time
 from dataclasses import dataclass
 from typing import Dict, List, Union
 
 from blockchain.mempool import Mempool as _BaseMempool, MempoolTransaction
+MempoolTransaction = MempoolTransaction  # re-export for secure_mempool / legacy imports
+from crypto import native
 
 
 @dataclass
@@ -20,7 +21,7 @@ class Transaction:
     def __post_init__(self):
         if not self.hash:
             raw = f"{self.sender}{self.recipient}{self.amount}{self.nonce}{self.gas_price}"
-            self.hash = "0x" + hashlib.sha256(raw.encode()).hexdigest()[:40]
+            self.hash = "0x" + native.sha256_hex(raw.encode())[:40]
 
 
 def create_transaction(
@@ -42,7 +43,7 @@ class Mempool(_BaseMempool):
             nonce = int(tx.get("nonce", 0))
             fee = float(tx.get("gas_price", tx.get("gasPrice", tx.get("fee", 1))))
             tx_hash = tx.get("hash") or (
-                "0x" + hashlib.sha256(f"{sender}{recipient}{amount}{nonce}".encode()).hexdigest()
+                "0x" + native.sha256_hex(f"{sender}{recipient}{amount}{nonce}".encode())
             )
             mempool_tx = MempoolTransaction(
                 tx_hash=tx_hash,
@@ -73,3 +74,4 @@ class Mempool(_BaseMempool):
 
     def get_transactions_for_block(self, limit: int = 100) -> List[Dict]:
         return self.get_sorted_transactions()[:limit]
+

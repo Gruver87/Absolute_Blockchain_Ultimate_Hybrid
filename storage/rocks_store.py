@@ -8,7 +8,6 @@ Reads are lock-free (RocksDB MVCC). Writes are serialized through WriteBatch com
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import shutil
@@ -861,8 +860,10 @@ class RocksChainStore:
 
     @staticmethod
     def bridge_credit_key(l1_tx_hash: str, recipient: str, amount: float, from_chain: str) -> str:
+        from crypto import native
+
         raw = f"{l1_tx_hash}:{recipient}:{amount}:{from_chain}".lower()
-        return hashlib.sha256(raw.encode()).hexdigest()
+        return native.sha256_hex(raw.encode())
 
     def save_bridge_lock(
         self,

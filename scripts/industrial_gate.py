@@ -176,7 +176,7 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
 
 
 def _check_audit_pack_export() -> tuple[list[str], list[str]]:
-    """Audit pack must snapshot encoding contract for third-party review."""
+    """Audit/CI pack must snapshot encoding contract and Rust hardening checks."""
     errors: list[str] = []
     warnings: list[str] = []
     try:
@@ -192,6 +192,55 @@ def _check_audit_pack_export() -> tuple[list[str], list[str]]:
         stamp = (ROOT / "scripts" / "stamp_release_evidence.py").read_text(encoding="utf-8")
         if "require-soak-hours" not in stamp:
             errors.append("stamp_release_evidence must support --require-soak-hours")
+        test_ci = (ROOT / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
+        for needle in (
+            "Rust format check (abs_native + rust_bridge)",
+            "cargo clippy --manifest-path native/abs_native/Cargo.toml",
+            "cargo clippy --manifest-path bridge/rust_bridge/Cargo.toml",
+        ):
+            if needle not in test_ci:
+                errors.append(f"test.yml missing Rust hardening step: {needle}")
+        sec_ci = (ROOT / ".github" / "workflows" / "security-audit.yml").read_text(encoding="utf-8")
+        for needle in (
+            "Dependency audit (cargo-audit)",
+            "cargo audit --file native/abs_native/Cargo.lock",
+            "cargo audit --file bridge/rust_bridge/Cargo.lock",
+        ):
+            if needle not in sec_ci:
+                errors.append(f"security-audit.yml missing Rust audit step: {needle}")
+        native_lib = (ROOT / "native" / "abs_native" / "src" / "lib.rs").read_text(encoding="utf-8")
+        consensus_src = (
+            ROOT / "native" / "abs_native" / "src" / "consensus_select.rs"
+        ).read_text(encoding="utf-8")
+        p2p_wire_src = (
+            ROOT / "native" / "abs_native" / "src" / "p2p_wire.rs"
+        ).read_text(encoding="utf-8")
+        native_surface = native_lib + "\n" + consensus_src + "\n" + p2p_wire_src
+        for needle in (
+            "MAX_IMPORTED_BLOCKS",
+            "MAX_PEER_HEADERS",
+            "MAX_BLOCK_JSON_BYTES",
+            "MAX_ACCOUNTS_JSON_BYTES",
+            "MAX_STATE_ROOT_ACCOUNTS",
+            "MAX_STATE_ROOT_BLOBS",
+            "MAX_ACCOUNT_BLOB_BYTES",
+            "too_many_blocks",
+            "too_many_headers",
+            "block_json_too_large",
+            "too_many_account_blobs",
+            "account_blob_too_large",
+            "MAX_CONSENSUS_VALIDATORS",
+            "too_many_validators",
+            "consensus_stake_weighted_proposer",
+            "state_engine_root_from_accounts_json",
+            "parse_p2p_wire_line",
+            "encode_p2p_wire_message",
+            "p2p_line_too_large",
+            "verify_attestation_secp256k1",
+            "hash_sorted_json",
+        ):
+            if needle not in native_surface:
+                errors.append(f"abs_native lib missing fail-closed bound: {needle}")
     except Exception as exc:
         errors.append(f"audit pack export inspect failed: {exc}")
     return errors, warnings
@@ -297,6 +346,10 @@ def _check_native_wheel() -> tuple[list[str], list[str]]:
             "RocksEngine",
             "evm_run_until_halt",
             "validate_imported_block_chain",
+            "consensus_stake_weighted_proposer",
+            "state_engine_root_from_accounts_json",
+            "parse_p2p_wire_line",
+            "verify_attestation_secp256k1",
             "pubkey_to_eth_address",
             "rlp_encode",
             "rlp_decode_single",

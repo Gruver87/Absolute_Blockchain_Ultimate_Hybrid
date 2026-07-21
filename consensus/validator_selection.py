@@ -50,66 +50,47 @@ class ValidatorSelection:
         Deterministic hash-ranked proposer selection.
         Equal validator sets produce the same proposer on every node.
         """
-        if not validators:
-            return None
-
-        ranked = sorted(
-            self._canonical_validators(validators),
-            key=lambda item: self._hash_int("proposer", slot, item[0]),
+        return native.validator_selection_proposer(
+            self.entropy_seed,
+            self.epoch,
+            slot,
+            [(str(addr), int(stake)) for addr, stake in validators.items()],
         )
-        return ranked[0][0]
 
     def select_proposer_weighted(self, validators: Dict[str, int], slot: int) -> Optional[str]:
         """
         Deterministic stake-weighted proposer selection.
         Higher stake expands the validator's interval in the canonical stake range.
         """
-        if not validators:
-            return None
-
-        canonical = self._canonical_validators(validators)
-        total_stake = sum(stake for _, stake in canonical)
-
-        if total_stake == 0:
-            return self.select_proposer(validators, slot)
-
-        target = self._hash_int("weighted-proposer", slot) % total_stake
-        cumulative = 0
-
-        for validator, stake in canonical:
-            cumulative += stake
-            if cumulative > target:
-                return validator
-
-        return canonical[0][0]
+        return native.validator_selection_proposer_weighted(
+            self.entropy_seed,
+            self.epoch,
+            slot,
+            [(str(addr), int(stake)) for addr, stake in validators.items()],
+        )
 
     def shuffle_validators(self, validators: Dict[str, int]) -> Dict[str, int]:
         """
         Epoch-based deterministic validator shuffling.
         Uses hash ranking instead of Python's process-local RNG implementation.
         """
-        items = sorted(
-            self._canonical_validators(validators),
-            key=lambda item: self._hash_int("shuffle", item[0]),
+        shuffled = native.validator_selection_shuffle(
+            self.entropy_seed,
+            self.epoch,
+            [(str(addr), int(stake)) for addr, stake in validators.items()],
         )
-
-        return dict(items)
+        return dict(shuffled)
 
     def get_committee(self, validators: Dict[str, int], committee_size: int) -> List[str]:
         """
         Select deterministic hash-ranked committee for attestation aggregation.
         """
-        if not validators:
-            return []
-
-        validator_list = [
-            addr for addr, _ in sorted(
-                self._canonical_validators(validators),
-                key=lambda item: self._hash_int("committee", item[0]),
-            )
-        ]
-
-        return validator_list[:min(committee_size, len(validator_list))]
+        return native.validator_selection_committee(
+            self.entropy_seed,
+            self.epoch,
+            [(str(addr), int(stake)) for addr, stake in validators.items()],
+            committee_size,
+        )
 
     def get_stats(self) -> dict:
         return {

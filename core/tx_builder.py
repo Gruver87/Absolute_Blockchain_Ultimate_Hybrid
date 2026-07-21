@@ -1,8 +1,9 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """Legacy transaction builder for integration scripts."""
-import hashlib
 import time
 from typing import Dict
+
+from crypto import native
 
 
 class TransactionBuilder:
@@ -27,11 +28,11 @@ class TransactionBuilder:
             "timestamp": int(time.time()),
         }
         raw = f"{from_addr}{to_addr}{value}{nonce}{gas_price}"
-        tx["hash"] = "0x" + hashlib.sha256(raw.encode()).hexdigest()
+        tx["hash"] = "0x" + native.sha256_hex(raw.encode())
         return tx
 
     @staticmethod
     def sign_transaction(tx: Dict, private_key: str) -> Dict:
         signed = dict(tx)
-        signed["signature"] = hashlib.sha256((tx.get("hash", "") + private_key).encode()).hexdigest()
+        signed["signature"] = native.sha256_hex((tx.get("hash", "") + private_key).encode())
         return signed

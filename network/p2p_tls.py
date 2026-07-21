@@ -4,10 +4,11 @@
 
 from __future__ import annotations
 
-import hashlib
 import os
 import ssl
 from typing import Any, Optional, Set, Tuple
+
+from crypto import native
 
 
 def p2p_tls_enabled(config) -> bool:
@@ -125,7 +126,7 @@ def peer_cert_fingerprint_sha256(ssl_obj: Optional[ssl.SSLObject]) -> str:
         return ""
     if not der:
         return ""
-    return hashlib.sha256(der).hexdigest()
+    return native.sha256_hex(der)
 
 
 def handshake_node_id_matches_cert(node_id: str, identities: Set[str]) -> bool:

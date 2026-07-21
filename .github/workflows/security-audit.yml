@@ -28,6 +28,26 @@ jobs:
       - name: Audit requirements.txt
         run: pip-audit -r requirements.txt --desc on
 
+  cargo-audit:
+    name: Dependency audit (cargo-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Audit native/abs_native
+        run: cargo audit --file native/abs_native/Cargo.lock
+
+      - name: Audit bridge/rust_bridge
+        run: cargo audit --file bridge/rust_bridge/Cargo.lock
+
   bridge-off-gate:
     name: Bridge OFF audit gate
     runs-on: ubuntu-latest

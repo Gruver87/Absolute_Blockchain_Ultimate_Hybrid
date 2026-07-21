@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 """Rust-backed peer chain validation and Keccak-256 parity."""
 
+import pytest
+
 from core.block_header import BlockHeader
 from core.blockchain import Block, Transaction
 from crypto import native
@@ -104,3 +106,33 @@ def test_light_client_rejects_broken_peer_header_chain():
     lc = LightClient()
     assert lc.add_headers([good]) == 1
     assert lc.add_headers([bad]) == 0
+
+
+def test_native_validate_imported_block_chain_rejects_too_many_blocks():
+    if not native.native_available():
+        return
+    import abs_native
+
+    payload = ['{"height":1}'] * 20_001
+    with pytest.raises(ValueError, match="too_many_blocks"):
+        abs_native.validate_imported_block_chain(payload, "", 0)
+
+
+def test_native_validate_imported_block_chain_rejects_huge_block_json():
+    if not native.native_available():
+        return
+    import abs_native
+
+    huge = "{" + ('"x":' + '"' + ("a" * (2 * 1024 * 1024)) + '"') + "}"
+    with pytest.raises(ValueError, match="block_json_too_large"):
+        abs_native.validate_imported_block_chain([huge], "", 0)
+
+
+def test_native_validate_peer_header_chain_rejects_too_many_headers():
+    if not native.native_available():
+        return
+    import abs_native
+
+    headers = [(1, "h" * 64, "p" * 64, "0x" + "a" * 40, "s" * 64, "t" * 64, 1, "")] * 20_001
+    with pytest.raises(ValueError, match="too_many_headers"):
+        abs_native.validate_peer_header_chain(headers, "", 0)

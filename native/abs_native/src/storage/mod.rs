@@ -2,7 +2,9 @@
 
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
-use rocksdb::{BlockBasedOptions, Cache, Direction, IteratorMode, Options, WriteBatch, WriteOptions, DB};
+use rocksdb::{
+    BlockBasedOptions, Cache, Direction, IteratorMode, Options, WriteBatch, WriteOptions, DB,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -114,17 +116,13 @@ impl RocksEngine {
     fn put(&self, key: &[u8], value: &[u8]) -> PyResult<()> {
         let mut write_opts = WriteOptions::default();
         write_opts.set_sync(self.sync_writes);
-        self.db
-            .put_opt(key, value, &write_opts)
-            .map_err(map_db_err)
+        self.db.put_opt(key, value, &write_opts).map_err(map_db_err)
     }
 
     fn delete(&self, key: &[u8]) -> PyResult<()> {
         let mut write_opts = WriteOptions::default();
         write_opts.set_sync(self.sync_writes);
-        self.db
-            .delete_opt(key, &write_opts)
-            .map_err(map_db_err)
+        self.db.delete_opt(key, &write_opts).map_err(map_db_err)
     }
 
     fn write_batch(&self, batch: &mut RocksWriteBatch) -> PyResult<()> {
@@ -141,7 +139,9 @@ impl RocksEngine {
         prefix: &[u8],
         limit: usize,
     ) -> PyResult<Vec<(Py<PyBytes>, Py<PyBytes>)>> {
-        let iter = self.db.iterator(IteratorMode::From(prefix, Direction::Forward));
+        let iter = self
+            .db
+            .iterator(IteratorMode::From(prefix, Direction::Forward));
         let mut out = Vec::new();
         for item in iter.take(limit) {
             let (key, value) = item.map_err(map_db_err)?;
@@ -157,26 +157,23 @@ impl RocksEngine {
     }
 
     fn checkpoint(&self, dest: &str) -> PyResult<()> {
-        let checkpoint = rocksdb::checkpoint::Checkpoint::new(self.db.as_ref()).map_err(map_db_err)?;
-        checkpoint
-            .create_checkpoint(dest)
-            .map_err(map_db_err)
+        let checkpoint =
+            rocksdb::checkpoint::Checkpoint::new(self.db.as_ref()).map_err(map_db_err)?;
+        checkpoint.create_checkpoint(dest).map_err(map_db_err)
     }
 
     fn path(&self) -> PyResult<String> {
-        Ok(self
-            .db
-            .path()
-            .to_str()
-            .unwrap_or("")
-            .to_string())
+        Ok(self.db.path().to_str().unwrap_or("").to_string())
     }
 
     fn tuning_config(&self) -> PyResult<HashMap<String, u32>> {
         let mut out = HashMap::new();
         out.insert("block_cache_mb".to_string(), self.block_cache_mb);
         out.insert("write_buffer_mb".to_string(), self.write_buffer_mb);
-        out.insert("sync_writes".to_string(), if self.sync_writes { 1 } else { 0 });
+        out.insert(
+            "sync_writes".to_string(),
+            if self.sync_writes { 1 } else { 0 },
+        );
         Ok(out)
     }
 
@@ -192,12 +189,28 @@ impl RocksEngine {
 
     #[pyo3(signature = (prefix, limit=100_000))]
     fn state_root_from_account_prefix(&self, prefix: &[u8], limit: usize) -> PyResult<String> {
-        let iter = self.db.iterator(IteratorMode::From(prefix, Direction::Forward));
+        if limit > crate::MAX_STATE_ROOT_BLOBS {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "prefix_scan_limit_too_large: {} > {}",
+                limit,
+                crate::MAX_STATE_ROOT_BLOBS
+            )));
+        }
+        let iter = self
+            .db
+            .iterator(IteratorMode::From(prefix, Direction::Forward));
         let mut values = Vec::new();
         for item in iter.take(limit) {
             let (key, value) = item.map_err(map_db_err)?;
             if !key.starts_with(prefix) {
                 break;
+            }
+            if value.len() > crate::MAX_ACCOUNT_BLOB_BYTES {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "account_blob_too_large: {} > {} bytes",
+                    value.len(),
+                    crate::MAX_ACCOUNT_BLOB_BYTES
+                )));
             }
             values.push(value);
         }

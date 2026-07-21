@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """Secure mempool with nonce replay protection for legacy v49 tests."""
-import hashlib
 import time
 from typing import Dict, Tuple, Union
 
+from crypto import native
 from execution.mempool import Mempool, MempoolTransaction, Transaction
 
 
@@ -23,7 +23,7 @@ class SecureMempool(Mempool):
             nonce = int(tx.get("nonce", 0))
             fee = float(tx.get("gas_price", tx.get("fee", 1)))
             tx_hash = tx.get("hash") or (
-                "0x" + hashlib.sha256(f"{sender}{recipient}{amount}{nonce}".encode()).hexdigest()
+                "0x" + native.sha256_hex(f"{sender}{recipient}{amount}{nonce}".encode())
             )
             seen = self._seen_nonces.setdefault(sender, set())
             if nonce in seen:

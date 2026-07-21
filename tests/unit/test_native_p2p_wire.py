@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Rust-backed P2P wire envelope + attestation verify parity."""
+
+import json
+
+import pytest
+
+from crypto import native
+from crypto.validator_keys import ValidatorKeys
+from crypto.wallet import Wallet
+from network.p2p_node import ALLOWED_WIRE_TYPES, DEFAULT_MAX_P2P_LINE_BYTES
+
+
+def test_parse_p2p_wire_line_accepts_valid_envelope():
+    line = b'{"type":"ping","data":null}\n'
+    msg = native.parse_p2p_wire_line(line, DEFAULT_MAX_P2P_LINE_BYTES, list(ALLOWED_WIRE_TYPES))
+    assert msg == {"type": "ping", "data": None}
+
+
+def test_parse_p2p_wire_line_rejects_unknown_type():
+    line = b'{"type":"evil","data":{}}\n'
+    assert native.parse_p2p_wire_line(line, DEFAULT_MAX_P2P_LINE_BYTES, list(ALLOWED_WIRE_TYPES)) is None
+
+
+def test_parse_p2p_wire_line_rejects_oversized():
+    huge = b'{"type":"ping","data":"' + (b"a" * (DEFAULT_MAX_P2P_LINE_BYTES + 10)) + b'"}'
+    with pytest.raises(ValueError, match="p2p_line_too_large"):
+        native.parse_p2p_wire_line(huge, DEFAULT_MAX_P2P_LINE_BYTES, list(ALLOWED_WIRE_TYPES))
+
+
+def test_encode_p2p_wire_message_roundtrip():
+    raw = native.encode_p2p_wire_message("status", {"height": 42, "peers": 2})
+    assert raw.endswith(b"\n")
+    msg = native.parse_p2p_wire_line(raw, DEFAULT_MAX_P2P_LINE_BYTES, list(ALLOWED_WIRE_TYPES))
+    assert msg["type"] == "status"
+    assert msg["data"]["height"] == 42
+
+
+def test_hash_sorted_json_matches_python_compact():
+    payload = {"b": 2, "a": [1, {"z": 9, "y": 8}]}
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    assert native.hash_sorted_json(encoded) == native.sha256_hex(encoded.encode())
+
+
+def test_verify_attestation_secp256k1_roundtrip():
+    wallet = Wallet.create_new()
+    keys = ValidatorKeys().initialize(wallet)
+    att = keys.sign_attestation({"hash": "ab" * 32, "number": 7}, slot=3)
+    assert keys.verify_attestation(att) is True
+    att["signature"] = "00" * 64
+    assert keys.verify_attestation(att) is False
+
+
+def test_native_parse_p2p_wire_rejects_non_object():
+    if not native.native_available():
+        return
+    assert native.parse_p2p_wire_line(b"[1,2,3]\n", 65536, None) is None

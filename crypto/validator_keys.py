@@ -3,9 +3,7 @@
 Validator key management for staking
 """
 
-from typing import Dict, Optional
-from crypto.keys import KeyGenerator, KeyPair
-from crypto.signing import Signer
+from typing import Optional
 from crypto.wallet import Wallet
 
 
@@ -54,21 +52,16 @@ class ValidatorKeys:
         """Verify attestation signature"""
         if "signature" not in attestation or "public_key" not in attestation:
             return False
-        
-        # Create copy without signature for verification
-        verify_att = {
-            "validator": attestation["validator"],
-            "target_hash": attestation["target_hash"],
-            "target_height": attestation["target_height"],
-            "slot": attestation["slot"]
-        }
-        
-        from crypto.hashing import Hasher
-        att_hash = Hasher.hash_object(verify_att)
-        signature = bytes.fromhex(attestation["signature"])
-        public_key = bytes.fromhex(attestation["public_key"])
-        
-        return Signer._verify_hash(att_hash, signature, public_key)
+
+        try:
+            signature = bytes.fromhex(attestation["signature"])
+            public_key = bytes.fromhex(attestation["public_key"])
+        except (TypeError, ValueError):
+            return False
+
+        from crypto import native
+
+        return native.verify_attestation_secp256k1(attestation, signature, public_key)
     
     def get_public_key(self) -> str:
         return self.wallet.public_key if self.wallet else ""

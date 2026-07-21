@@ -97,6 +97,17 @@ def native_crypto_status(required: bool = False) -> dict:
             "evm_create2_eip1014",
             "validate_imported_block_chain",
             "validate_peer_header_chain",
+            "consensus_stake_weighted_proposer",
+            "consensus_fisher_yates_committee",
+            "validator_selection_proposer",
+            "validator_selection_proposer_weighted",
+            "validator_selection_committee",
+            "validator_selection_shuffle",
+            "state_engine_root_from_accounts_json",
+            "parse_p2p_wire_line",
+            "encode_p2p_wire_message",
+            "hash_sorted_json",
+            "verify_attestation_secp256k1",
             "merkle",
             "state_root",
             "secp256k1_verify",
@@ -1271,6 +1282,253 @@ def verify_secp256k1_sha256_batch(
         ]
     except Exception:
         return [False for _ in items]
+
+
+def consensus_stake_weighted_proposer(
+    validators: List[tuple[str, float, bool]],
+    epoch: int,
+    slot: int,
+) -> Optional[str]:
+    """Deterministic stake-weighted proposer (consensus_engine contract)."""
+    payload = [
+        (str(addr), float(stake), bool(active))
+        for addr, stake, active in validators
+    ]
+    if _native is not None and hasattr(_native, "consensus_stake_weighted_proposer"):
+        result = _native.consensus_stake_weighted_proposer(payload, int(epoch), int(slot))
+        return str(result) if result else None
+    total_stake = sum(stake for _, stake, active in payload if active and stake > 0)
+    if total_stake <= 0:
+        return None
+    digest = sha256_hex(f"abs-proposer:{int(epoch)}:{int(slot)}".encode())
+    ratio = int(digest[:16], 16) / float(16 ** 16)
+    pick = ratio * total_stake
+    current = 0.0
+    for addr, stake, _active in sorted(
+        ((a, s, act) for a, s, act in payload if _active and s > 0),
+        key=lambda row: row[0],
+    ):
+        current += stake
+        if current >= pick:
+            return addr
+    return None
+
+
+def consensus_fisher_yates_committee(
+    validators: List[tuple[str, float, bool]],
+    slot: int,
+    committee_size: int,
+) -> List[str]:
+    """Deterministic Fisher-Yates committee shuffle (consensus_engine contract)."""
+    payload = [
+        (str(addr), float(stake), bool(active))
+        for addr, stake, active in validators
+    ]
+    if _native is not None and hasattr(_native, "consensus_fisher_yates_committee"):
+        return [
+            str(addr)
+            for addr in _native.consensus_fisher_yates_committee(
+                payload, int(slot), int(committee_size)
+            )
+        ]
+    active_rows = sorted(
+        [(addr, stake) for addr, stake, active in payload if active and stake > 0],
+        key=lambda row: row[0],
+    )
+    if not active_rows:
+        return []
+    size = max(1, min(int(committee_size), len(active_rows)))
+    order = [addr for addr, _ in active_rows]
+    digest = sha256_hex(f"abs-committee:{int(slot)}".encode())
+    for i in range(len(order) - 1, 0, -1):
+        mix = int(sha256_hex(f"{digest}:{i}".encode())[:8], 16)
+        j = mix % (i + 1)
+        order[i], order[j] = order[j], order[i]
+    return order[:size]
+
+
+def validator_selection_proposer(
+    seed: str,
+    epoch: int,
+    slot: int,
+    validators: List[tuple[str, int]],
+) -> Optional[str]:
+    payload = [(str(addr), int(stake)) for addr, stake in validators]
+    if _native is not None and hasattr(_native, "validator_selection_proposer"):
+        result = _native.validator_selection_proposer(
+            str(seed), int(epoch), int(slot), payload
+        )
+        return str(result) if result else None
+    ranked = sorted(
+        payload,
+        key=lambda item: int(
+            hash_text("|".join((str(seed), str(epoch), "proposer", str(slot), item[0]))),
+            16,
+        ),
+    )
+    return ranked[0][0] if ranked else None
+
+
+def validator_selection_proposer_weighted(
+    seed: str,
+    epoch: int,
+    slot: int,
+    validators: List[tuple[str, int]],
+) -> Optional[str]:
+    payload = [(str(addr), int(stake)) for addr, stake in validators]
+    if _native is not None and hasattr(_native, "validator_selection_proposer_weighted"):
+        result = _native.validator_selection_proposer_weighted(
+            str(seed), int(epoch), int(slot), payload
+        )
+        return str(result) if result else None
+    canonical = sorted(payload, key=lambda item: item[0])
+    total_stake = sum(stake for _, stake in canonical)
+    if total_stake <= 0:
+        return validator_selection_proposer(seed, epoch, slot, validators)
+    target = int(
+        hash_text("|".join((str(seed), str(epoch), "weighted-proposer", str(slot)))),
+        16,
+    ) % total_stake
+    cumulative = 0
+    for address, stake in canonical:
+        cumulative += stake
+        if cumulative > target:
+            return address
+    return canonical[0][0] if canonical else None
+
+
+def validator_selection_committee(
+    seed: str,
+    epoch: int,
+    validators: List[tuple[str, int]],
+    committee_size: int,
+) -> List[str]:
+    payload = [(str(addr), int(stake)) for addr, stake in validators]
+    if _native is not None and hasattr(_native, "validator_selection_committee"):
+        return [
+            str(addr)
+            for addr in _native.validator_selection_committee(
+                str(seed), int(epoch), payload, int(committee_size)
+            )
+        ]
+    ranked = sorted(
+        payload,
+        key=lambda item: int(
+            hash_text("|".join((str(seed), str(epoch), "committee", item[0]))),
+            16,
+        ),
+    )
+    take = min(int(committee_size), len(ranked))
+    return [addr for addr, _ in ranked[:take]]
+
+
+def validator_selection_shuffle(
+    seed: str,
+    epoch: int,
+    validators: List[tuple[str, int]],
+) -> List[tuple[str, int]]:
+    payload = [(str(addr), int(stake)) for addr, stake in validators]
+    if _native is not None and hasattr(_native, "validator_selection_shuffle"):
+        return [
+            (str(addr), int(stake))
+            for addr, stake in _native.validator_selection_shuffle(
+                str(seed), int(epoch), payload
+            )
+        ]
+    ranked = sorted(
+        payload,
+        key=lambda item: int(
+            hash_text("|".join((str(seed), str(epoch), "shuffle", item[0]))),
+            16,
+        ),
+    )
+    return ranked
+
+
+def state_engine_root_from_accounts_json(accounts_json: str) -> str:
+    if _native is not None and hasattr(_native, "state_engine_root_from_accounts_json"):
+        return str(_native.state_engine_root_from_accounts_json(accounts_json))
+    return sha256_hex(accounts_json.encode())[:32]
+
+
+def parse_p2p_wire_line(
+    line: bytes,
+    max_bytes: int = 2 * 1024 * 1024,
+    allowed_types: Optional[List[str]] = None,
+) -> Optional[dict]:
+    """Fail-closed P2P envelope parse: size + UTF-8 + JSON object with type."""
+    if _native is not None and hasattr(_native, "parse_p2p_wire_line"):
+        try:
+            result = _native.parse_p2p_wire_line(
+                bytes(line),
+                int(max_bytes),
+                list(allowed_types) if allowed_types is not None else None,
+            )
+        except ValueError:
+            raise
+        except Exception:
+            return None
+        return dict(result) if result is not None else None
+    text = bytes(line).decode("utf-8", errors="strict").strip()
+    if not text:
+        return None
+    if len(line) > max(4096, min(int(max_bytes), 16 * 1024 * 1024)):
+        raise ValueError(f"p2p_line_too_large: {len(line)} > {max_bytes} bytes")
+    try:
+        payload = json.loads(text)
+    except (json.JSONDecodeError, UnicodeError, TypeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    msg_type = payload.get("type")
+    if not isinstance(msg_type, str) or not msg_type or len(msg_type) > 64:
+        return None
+    if allowed_types is not None and allowed_types and msg_type not in allowed_types:
+        return None
+    return {"type": msg_type, "data": payload.get("data")}
+
+
+def encode_p2p_wire_message(msg_type: str, data: Any = None) -> bytes:
+    """Encode a newline-terminated P2P envelope."""
+    data_json = "null" if data is None else json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+    if _native is not None and hasattr(_native, "encode_p2p_wire_message"):
+        return bytes(_native.encode_p2p_wire_message(str(msg_type), data_json))
+    return (json.dumps({"type": str(msg_type), "data": data}, separators=(",", ":"), ensure_ascii=False) + "\n").encode()
+
+
+def hash_sorted_json(obj_json: str) -> str:
+    """SHA-256 of compact sorted-key JSON (Hasher.hash_object contract)."""
+    if _native is not None and hasattr(_native, "hash_sorted_json"):
+        return str(_native.hash_sorted_json(obj_json))
+    value = json.loads(obj_json)
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return sha256_hex(encoded.encode())
+
+
+def verify_attestation_secp256k1(
+    attestation: dict,
+    signature_der: bytes,
+    public_key_xy: bytes,
+) -> bool:
+    """Verify attestation signature over canonical {validator,target_hash,target_height,slot}."""
+    payload = {
+        "validator": attestation.get("validator"),
+        "target_hash": attestation.get("target_hash"),
+        "target_height": attestation.get("target_height"),
+        "slot": attestation.get("slot"),
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    if _native is not None and hasattr(_native, "verify_attestation_secp256k1"):
+        return bool(
+            _native.verify_attestation_secp256k1(
+                encoded,
+                bytes(signature_der),
+                bytes(public_key_xy),
+            )
+        )
+    digest = sha256_hex(encoded.encode())
+    result = verify_secp256k1_sha256(digest.encode(), signature_der, public_key_xy)
+    return bool(result)
 
 
 def validate_hash_chain(

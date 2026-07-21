@@ -27,15 +27,13 @@ class Hasher:
     def hash_object(obj: Any) -> str:
         """Hash any JSON-serializable object"""
         if isinstance(obj, (dict, list)):
-            encoded = json.dumps(obj, sort_keys=True, separators=(',', ':')).encode()
-        elif isinstance(obj, str):
-            encoded = obj.encode()
-        elif isinstance(obj, bytes):
-            encoded = obj
-        else:
-            encoded = str(obj).encode()
-        
-        return native.sha256_hex(encoded)
+            encoded = json.dumps(obj, sort_keys=True, separators=(',', ':'))
+            return native.hash_sorted_json(encoded)
+        if isinstance(obj, str):
+            return native.sha256_hex(obj.encode())
+        if isinstance(obj, bytes):
+            return native.sha256_hex(obj)
+        return native.sha256_hex(str(obj).encode())
     
     @staticmethod
     def hash_transaction(tx: Dict) -> str:

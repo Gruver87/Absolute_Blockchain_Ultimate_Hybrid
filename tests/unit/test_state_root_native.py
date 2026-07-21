@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from crypto import native
 from execution.state_root import compute_db_state_root, compute_state_engine_root
 from execution.state_engine import AccountState
@@ -104,3 +106,23 @@ def test_legacy_state_engine_root_keeps_32_char_contract():
     root = compute_state_engine_root(accounts)
     assert len(root) == 32
     assert root == compute_state_engine_root(accounts)
+
+
+def test_native_state_root_from_account_blobs_rejects_too_many_blobs():
+    if not native.native_available():
+        return
+    import abs_native
+
+    payload = [b"{}"] * 1_000_001
+    with pytest.raises(ValueError, match="too_many_account_blobs"):
+        abs_native.state_root_from_account_blobs(payload)
+
+
+def test_native_state_root_from_account_blobs_rejects_huge_blob():
+    if not native.native_available():
+        return
+    import abs_native
+
+    huge_blob = b'{"address":"' + (b"a" * (2 * 1024 * 1024)) + b'"}'
+    with pytest.raises(ValueError, match="account_blob_too_large"):
+        abs_native.state_root_from_account_blobs([huge_blob])

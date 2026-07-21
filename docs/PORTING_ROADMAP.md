@@ -55,6 +55,15 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `keccak256_hex` — real Ethereum Keccak-256 in Rust (not NIST SHA3-256)
 - [x] `sync/sync_engine.py` wired to native imported-block validator
 - [x] `light/light_client.py` rejects broken peer header chains
+- [x] `parse_p2p_wire_line` / `encode_p2p_wire_message` — fail-closed wire envelope (size/UTF-8/JSON/allowlist)
+- [x] `verify_attestation_secp256k1` + `hash_sorted_json` — attestation/tx hash+verify on gossip path
+- [x] `network/p2p_node.py` PeerConnection send/recv wired to native wire kernels
+
+### Priority 4b — Consensus selection kernels ✅
+
+- [x] `consensus_stake_weighted_proposer` / `consensus_fisher_yates_committee`
+- [x] `validator_selection_*` (proposer, weighted, committee, shuffle)
+- [x] `state_engine_root_from_accounts_json`
 
 ### Priority 5 — Bridge (no simulators in prod)
 

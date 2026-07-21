@@ -49,4 +49,4 @@ def compute_state_engine_root(accounts: Dict[str, Any]) -> str:
         for addr, acc in accounts.items()
     }
     encoded = json.dumps(payload, sort_keys=True)
-    return native.sha256_hex(encoded.encode())[:32]
+    return native.state_engine_root_from_accounts_json(encoded)

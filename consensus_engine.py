@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 """CONSENSUS ENGINE - PoS валидаторы и аттестации"""
 
-import hashlib
 import time
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from collections import defaultdict
+
+from crypto import native
 
 @dataclass
 class Validator:
@@ -37,48 +38,31 @@ class ConsensusEngine:
     
     def get_total_stake(self) -> float:
         return sum(v.stake for v in self.validators.values() if v.is_active)
-    
-    def _deterministic_pick(self, slot: int, total_stake: float) -> float:
-        """Stake-weighted pick in [0, total_stake) — same on every node for same slot."""
-        digest = hashlib.sha256(
-            f"abs-proposer:{self.current_epoch}:{slot}".encode()
-        ).hexdigest()
-        ratio = int(digest[:16], 16) / float(16 ** 16)
-        return ratio * total_stake
 
     def select_proposer(self) -> Optional[Validator]:
         """Deterministic stake-weighted proposer for current slot (network-safe)."""
-        total_stake = self.get_total_stake()
-        if total_stake == 0:
+        payload = [
+            (val.address, val.stake, val.is_active)
+            for val in self.validators.values()
+        ]
+        address = native.consensus_stake_weighted_proposer(
+            payload, self.current_epoch, self.current_slot
+        )
+        if not address:
             return None
-
-        pick = self._deterministic_pick(self.current_slot, total_stake)
-        current = 0.0
-        for val in sorted(self.validators.values(), key=lambda v: v.address):
-            if not val.is_active:
-                continue
-            current += val.stake
-            if current >= pick:
-                return val
-        return None
+        return self.validators.get(address)
 
     def get_committee(self, slot: int) -> List[Validator]:
         """Deterministic attestation committee for slot."""
         committee_size = max(1, len(self.validators) // 32)
-        validators_list = sorted(
-            [v for v in self.validators.values() if v.is_active],
-            key=lambda v: v.address,
+        payload = [
+            (val.address, val.stake, val.is_active)
+            for val in self.validators.values()
+        ]
+        addresses = native.consensus_fisher_yates_committee(
+            payload, slot, committee_size
         )
-        if not validators_list:
-            return []
-
-        digest = hashlib.sha256(f"abs-committee:{slot}".encode()).hexdigest()
-        order = list(validators_list)
-        for i in range(len(order) - 1, 0, -1):
-            mix = int(hashlib.sha256(f"{digest}:{i}".encode()).hexdigest()[:8], 16)
-            j = mix % (i + 1)
-            order[i], order[j] = order[j], order[i]
-        return order[:min(committee_size, len(order))]
+        return [self.validators[addr] for addr in addresses if addr in self.validators]
     
     def attest(self, validator_addr: str, slot: int, block_hash: str) -> bool:
         """Аттестация блока валидатором"""

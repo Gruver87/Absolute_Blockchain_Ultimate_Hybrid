@@ -17,6 +17,7 @@ from crypto.secp256k1_backend import (
     verify_batch_sha256,
 )
 from crypto.keys import KeyGenerator
+from crypto import native
 
 
 @dataclass
@@ -118,8 +119,8 @@ class Wallet:
             sort_keys=True,
             separators=(",", ":"),
         )
-        return hashlib.sha256(encoded.encode()).hexdigest()
-    
+        return native.hash_sorted_json(encoded)
+
     def _sign_hash(self, data_hash: str) -> str:
         """Sign a hash with private key"""
         if not ECDSA_AVAILABLE:
@@ -140,8 +141,9 @@ class Wallet:
             "timestamp": block.get("timestamp"),
             "proposer": block.get("proposer")
         }
+        # Legacy contract: default json.dumps separators (spaces), sort_keys=True.
         encoded = json.dumps(block_for_hash, sort_keys=True)
-        return hashlib.sha256(encoded.encode()).hexdigest()
+        return native.sha256_hex(encoded.encode())
     
     def sign_attestation(self, attestation: dict) -> str:
         """Sign an attestation as validator"""
@@ -157,7 +159,7 @@ class Wallet:
             "slot": attestation.get("slot")
         }
         encoded = json.dumps(att_for_hash, sort_keys=True, separators=(',', ':'))
-        return hashlib.sha256(encoded.encode()).hexdigest()
+        return native.hash_sorted_json(encoded)
     
     def export(self, filepath: str, password: str = None):
         """Export wallet to file"""
@@ -202,9 +204,7 @@ class Wallet:
     
     @classmethod
     def _derive_address(cls, public_key: bytes) -> str:
-        sha = hashlib.sha256(public_key).digest()
-        address_bytes = sha[-20:]
-        return "0x" + address_bytes.hex()
+        return "0x" + native.sha256_hex(public_key)[-40:]
 
 
 # ========== SIGNATURE VERIFICATION ==========
@@ -260,9 +260,9 @@ def _transaction_signature_material(tx: dict) -> Optional[Tuple[bytes, bytes, by
         "gas_limit": tx.get("gas_limit") or tx.get("gas"),
     })
 
-    tx_hash_hashed = hashlib.sha256(
-        json.dumps(tx_to_verify, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
+    tx_hash_hashed = native.hash_sorted_json(
+        json.dumps(tx_to_verify, sort_keys=True, separators=(",", ":"))
+    )
 
     try:
         signature = bytes.fromhex(tx["signature"])
