@@ -3,7 +3,8 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 from datetime import datetime
 import json
-import hashlib
+
+from crypto import native
 
 @dataclass
 class NFT:
@@ -30,7 +31,7 @@ class NFTMarketplace:
     def mint(self, name: str, description: str, image_url: str, 
              owner: str, creator: str, attributes: Dict = None) -> str:
         """Mint new NFT"""
-        token_id = hashlib.sha256(f"{name}{owner}{datetime.now()}".encode()).hexdigest()[:16]
+        token_id = native.sha256_hex(f"{name}{owner}{datetime.now()}".encode())[:16]
         
         nft = NFT(
             token_id=token_id,

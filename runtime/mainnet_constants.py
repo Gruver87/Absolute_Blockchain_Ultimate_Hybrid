@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-import hashlib
+from crypto import native
 
 DEVNET_CHAIN_ID = 77777
 MAINNET_V1_CHAIN_ID = 778888
@@ -12,7 +12,7 @@ MAINNET_V1_CHAIN_ID = 778888
 def ceremony_validator_address(chain_id: int, index: int, node_id: str) -> str:
     """Deterministic validator address for genesis ceremony templates."""
     seed = f"absolute-mainnet-v1|{int(chain_id)}|{int(index)}|{node_id}".encode("utf-8")
-    digest = hashlib.sha256(seed).hexdigest()
+    digest = native.sha256_hex(seed)
     return "0x" + digest[:40]
 
 

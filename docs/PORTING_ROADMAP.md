@@ -72,6 +72,8 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `MSG_BLOCK` fail-closed shape gate (null = not-found allowed; dict via `validate_p2p_block_announce`)
 - [x] `dynamic_sharding.py` cross-shard tx_id via `native.sha256_hex`
 - [x] `evm_interpreter.py` addr_int fallback hash via `native.sha256_hex`
+- [x] `runtime/mainnet_constants.py` ceremony address seed via `native.sha256_hex`
+- [x] `nft_core.py` mint token_id via `native.sha256_hex`
 
 ### Priority 4b — Consensus selection kernels ✅
 
