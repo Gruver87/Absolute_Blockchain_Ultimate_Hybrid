@@ -1198,12 +1198,14 @@ def sha256_hex(data: bytes) -> str:
 def sha256_hex_batch(items: List[bytes]) -> List[str]:
     if _native is not None and hasattr(_native, "sha256_hex_batch"):
         return [str(value) for value in _native.sha256_hex_batch(items)]
+    _require_native_kernel("sha256_hex_batch")
     return [hashlib.sha256(item).hexdigest() for item in items]
 
 
 def double_sha256_hex(data: bytes) -> str:
     if _native is not None:
         return _native.double_sha256_hex(data)
+    _require_native_kernel("double_sha256_hex")
     return hashlib.sha256(hashlib.sha256(data).digest()).hexdigest()
 
 

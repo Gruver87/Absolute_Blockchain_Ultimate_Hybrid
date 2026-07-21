@@ -476,6 +476,7 @@ def test_rocksdb_column_families_roundtrip_and_legacy_dual_read(tmp_path):
     # New writes land in CFs and remain readable.
     store_cf.set_balance("0x" + "b" * 40, 7.5)
     assert store_cf.get_balance("0x" + "b" * 40) == 7.5
+    assert store_cf.get_meta("schema_version") == "rocksdb-chain-v2-cf"
     stats = store_cf.get_stats()
     assert stats["rocksdb_tuning"].get("column_families") in (True, 1, "1")
     store_cf.close()

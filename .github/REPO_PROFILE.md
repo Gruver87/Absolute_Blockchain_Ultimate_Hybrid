@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.01` — soak evidence strict mode, CI audit pack |
-| **Notes** | [RELEASE_NOTES_v1.3.01.md](../RELEASE_NOTES_v1.3.01.md) |
-| **Prior** | [v1.2.87](../RELEASE_NOTES_v1.2.87.md) pre-audit fail-closed + P2P TLS |
+| **Tag** | `v1.3.02` — post-soak industrial polish |
+| **Notes** | [RELEASE_NOTES_v1.3.02.md](../RELEASE_NOTES_v1.3.02.md) |
+| **Prior** | [v1.3.01](../RELEASE_NOTES_v1.3.01.md) soak evidence; [v1.2.87](../RELEASE_NOTES_v1.2.87.md) P2P TLS |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

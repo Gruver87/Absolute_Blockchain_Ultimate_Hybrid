@@ -89,8 +89,13 @@ class RocksChainStore:
 
     def _ensure_schema(self) -> None:
         existing = self._raw_get(kc.key_meta("schema_version"))
+        target = self._schema_version.encode("utf-8")
         if existing is None:
-            self._raw_put(kc.key_meta("schema_version"), self._schema_version.encode("utf-8"))
+            self._raw_put(kc.key_meta("schema_version"), target)
+            return
+        # One-way honesty: bump meta when CF mode is enabled on a legacy DB.
+        if self.column_families and existing != target:
+            self._raw_put(kc.key_meta("schema_version"), target)
 
     def initialize(self) -> None:
         self._ensure_schema()

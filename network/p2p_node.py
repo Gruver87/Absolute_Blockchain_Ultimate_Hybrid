@@ -244,6 +244,7 @@ class P2PNode:
         self._propagation_log_fail: int = 0
         self._peer_connect_task_fail: int = 0
         self._peer_status_send_fail: int = 0
+        self._shape_reject_counts: Dict[str, int] = {}
         self._consensus = None
         self.validator_keys = None
         self._state_consistent = True
@@ -649,6 +650,10 @@ class P2PNode:
         key = self._peer_key(peer)
         if not key:
             return False
+        reason_key = str(reason or "unknown")
+        self._shape_reject_counts[reason_key] = int(
+            self._shape_reject_counts.get(reason_key, 0) or 0
+        ) + 1
         strikes = int(self._peer_strikes.get(key, 0) or 0) + 1
         self._peer_strikes[key] = strikes
         max_strikes = int(getattr(self.config, "p2p_rate_limit_strikes", 5) or 5)
@@ -758,6 +763,11 @@ class P2PNode:
         elif msg_type == MSG_SHARD_MIGRATION:
             if native.validate_p2p_shard_migration(data) is None:
                 self._strike_peer_sync(peer, "bad_shard_migration")
+                return
+        elif msg_type in (MSG_GET_MEMPOOL, MSG_GET_PEERS, MSG_PING, MSG_PONG):
+            # Housekeeping: payload optional; reject non-null non-object/list noise.
+            if data is not None and not isinstance(data, (dict, list, int, float, str, bool)):
+                self._strike_peer_sync(peer, f"bad_{msg_type}_payload")
                 return
 
         waiter = self._sync_waiters.get(peer.peer_id)
@@ -2119,6 +2129,13 @@ class P2PNode:
             "tracked_strikes": len(self._peer_strikes),
             "handshake_rejects": int(self._handshake_rejects),
             "attestation_local_fail": int(self._attestation_local_fail),
+            "shape_rejects_total": int(sum(self._shape_reject_counts.values())),
+            "shape_rejects": dict(
+                sorted(
+                    self._shape_reject_counts.items(),
+                    key=lambda kv: (-int(kv[1]), str(kv[0])),
+                )[:32]
+            ),
             "ops_errors": {
                 "propagation_log_fail": int(self._propagation_log_fail),
                 "peer_connect_task_fail": int(self._peer_connect_task_fail),

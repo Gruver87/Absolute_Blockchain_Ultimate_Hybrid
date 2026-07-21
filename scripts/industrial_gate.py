@@ -316,12 +316,25 @@ def _check_balance_precision() -> tuple[list[str], list[str]]:
     if not hasattr(Database, "get_balance_satoshi"):
         errors.append("Database missing get_balance_satoshi")
     try:
-        from storage.rocks_store import RocksStore
+        from storage.rocks_store import RocksChainStore
 
-        if not hasattr(RocksStore, "get_balance_satoshi"):
-            errors.append("RocksStore missing get_balance_satoshi")
-    except ImportError:
-        warnings.append("RocksStore unavailable (optional for this host)")
+        if not hasattr(RocksChainStore, "get_balance_satoshi"):
+            errors.append("RocksChainStore missing get_balance_satoshi")
+        else:
+            import inspect
+
+            # Fail-closed: industrial wheel must expose CF opt-in surface.
+            try:
+                import abs_native as _abs
+
+                if hasattr(_abs, "RocksEngine"):
+                    sig = inspect.signature(_abs.RocksEngine)
+                    if "column_families" not in sig.parameters:
+                        errors.append("RocksEngine missing column_families kwarg")
+            except ImportError:
+                pass
+    except ImportError as exc:
+        warnings.append(f"RocksChainStore unavailable (optional for this host): {exc}")
     try:
         from runtime.state_truth import canonical_balance_satoshi
         from execution.state_engine import StateEngine
@@ -398,12 +411,16 @@ def _check_native_wheel() -> tuple[list[str], list[str]]:
             "validate_p2p_status_payload",
             "validate_p2p_attestation_payload",
             "validate_p2p_block_announce",
+            "validate_p2p_state_root_request",
             "validate_p2p_state_root_response",
             "validate_p2p_handshake_payload",
+            "validate_p2p_get_blocks_payload",
             "validate_p2p_wire_tx",
+            "validate_p2p_mempool_batch",
             "validate_p2p_validator_register",
             "validate_p2p_peers_list",
             "validate_p2p_get_block",
+            "validate_p2p_get_block_by_hash",
             "validate_p2p_blocks_batch",
             "validate_p2p_cross_shard_tx",
             "validate_p2p_cross_shard_ack",

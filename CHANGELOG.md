@@ -6,6 +6,18 @@
 
 ---
 
+## [1.3.02] — 2026-07-21
+
+### Hardened — Post-soak industrial polish (Swiss-watch pass)
+
+- industrial_gate: fix RocksChainStore check + RocksEngine `column_families` surface
+- P2P: shape-reject counters in `get_p2p_security_status`; housekeeping payload gate
+- Rocks: schema_version bump honesty on CF enable; `.env.example` / prod CF docs
+- native: fail-closed `sha256_hex_batch` / `double_sha256_hex` under ABS_REQUIRE_NATIVE_CRYPTO
+- node_version default → `1.3.02-industrial`; `scripts/post_soak_verify.py` entry
+
+---
+
 ## [1.3.01] — 2026-07-21
 
 ### Hardened — Soak evidence strict mode, CI audit pack, devnet manifest fail-loud
