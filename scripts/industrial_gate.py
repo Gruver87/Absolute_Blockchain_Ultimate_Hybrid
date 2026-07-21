@@ -97,6 +97,7 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "abs_p2p_attestation_local_fail_total",
         "abs_p2p_peer_tx_reject_total",
         "abs_rocksdb_column_families",
+        "abs_db_engine",
         "abs_state_consistent",
         "abs_sync_wire_probe_ok",
         "abs_sync_wire_probe_probed",
@@ -272,6 +273,8 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "P2P_RATE_LIMIT_STRIKES": "p2p_rate_limit_strikes",
         "P2P_EVICT_MIN_SCORE": "p2p_evict_min_score",
         "BRIDGE_ENABLED": "bridge_enabled",
+        "DB_ENGINE": "db_engine",
+        "JWT_ENFORCE_ADMIN": "jwt_enforce_admin",
     }
     mesh_env = dict(shared_compose_env)
     mesh_env["REDIS_RATE_LIMIT"] = "redis_rate_limit_enabled"
@@ -370,6 +373,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("SyncEngine.sync_state must log wire probe failures")
         if "wire probe empty" not in src and "empty with" not in src:
             errors.append("SyncEngine.sync_state must fail-closed on empty probe with peers")
+        if "missing get_state_root" not in src:
+            errors.append("SyncEngine.sync_state must fail-closed when get_state_root missing")
         status_src = inspect.getsource(SyncEngine.get_status)
         if "wire_probe_ok" not in status_src:
             errors.append("SyncEngine.get_status missing wire_probe_ok")
@@ -433,6 +438,12 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("/oracles/all must expose prices_error on failure")
         if "repair_error" not in http_py:
             errors.append("POST /chain/consistency/repair must expose repair_error")
+        if "Never greenwash consistency from harness alone" not in http_py:
+            errors.append("POST /chain/consistency/repair must require sync_state (not harness alone)")
+        if "Do not claim fully synced while tip state is inconsistent" not in http_py:
+            errors.append("eth_syncing must stay syncing when peers + inconsistent state")
+        if 'db_engine == "rocksdb"' not in http_py:
+            errors.append("/metrics must not apply Rocks config_fallback on non-rocks engines")
         if "peer_probe_ok" not in http_py:
             errors.append("state consistency harness must include peer_probe_ok check")
         if "state_root_encoding_honest" not in http_py:

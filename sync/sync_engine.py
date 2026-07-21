@@ -290,7 +290,10 @@ class SyncEngine:
 
         bc = self.node.blockchain
         if not hasattr(bc, "get_state_root"):
-            return True
+            print("   [Sync] blockchain missing get_state_root — fail-closed")
+            self._set_state_consistent(False)
+            self._last_wire_probe_ok = False
+            return False
 
         local_root = bc.get_state_root()
         local_height = bc.get_height()

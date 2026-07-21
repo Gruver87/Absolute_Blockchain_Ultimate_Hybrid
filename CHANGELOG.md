@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.15] — 2026-07-21
+
+### Hardened — Sync/RPC honesty, SQLite metrics engine, compose freeze
+
+- Missing get_state_root + eth_syncing peer-inconsistency honesty; repair via sync_state only
+- SQLite engine label in stats/metrics; abs_db_engine; no Rocks gauges/config_fallback on SQLite
+- industrial_gate: DB_ENGINE + JWT_ENFORCE_ADMIN compose freeze
+
+---
+
 ## [1.3.14] — 2026-07-21
 
 ### Hardened — SQLite↔Rocks reorg parity, L1 probe honesty, slash/CORS

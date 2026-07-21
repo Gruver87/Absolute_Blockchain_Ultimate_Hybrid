@@ -20,6 +20,8 @@ class Database:
     Один экземпляр на весь процесс — используется через self.db во всех модулях.
     """
 
+    engine = "sqlite"
+
     def __init__(self, db_path: str = "data/blockchain.db", synchronous: str = "NORMAL"):
         self.db_path = db_path
         self.synchronous = (synchronous or "NORMAL").upper()
@@ -955,15 +957,22 @@ class Database:
             ).fetchone()["c"]
             receipt_count = 0
             proposer_audit_count = 0
+            receipts_enabled = False
+            proposer_audit_enabled = False
             try:
                 receipt_count = self.conn.execute(
                     "SELECT COUNT(*) as c FROM tx_receipts"
                 ).fetchone()["c"]
+                receipts_enabled = True
+            except Exception as exc:
+                print(f"[DB] get_chain_metrics receipts: {exc}")
+            try:
                 proposer_audit_count = self.conn.execute(
                     "SELECT COUNT(*) as c FROM block_proposer_audit"
                 ).fetchone()["c"]
-            except Exception:
-                pass
+                proposer_audit_enabled = True
+            except Exception as exc:
+                print(f"[DB] get_chain_metrics proposer_audit: {exc}")
             rows = self.conn.execute(
                 "SELECT height, timestamp, tx_count, total_burned FROM blocks "
                 "ORDER BY height DESC LIMIT ?",
@@ -985,8 +994,8 @@ class Database:
                 "tx_count": int(tx_count),
                 "receipt_count": int(receipt_count),
                 "proposer_audit_count": int(proposer_audit_count),
-                "receipts_enabled": True,
-                "proposer_audit_enabled": True,
+                "receipts_enabled": receipts_enabled,
+                "proposer_audit_enabled": proposer_audit_enabled,
                 "state_root_strict_p2p": True,
                 "avg_block_time_sec": round(avg_block_time, 2),
                 "target_block_time_sec": target,
@@ -994,6 +1003,7 @@ class Database:
                 "burn_last_window": round(
                     sum(float(r["total_burned"] or 0) for r in rows), 6
                 ),
+                "engine": self.engine,
             }
 
     def get_proposer_audit_log(
@@ -2662,6 +2672,7 @@ class Database:
                 "total_accounts": account_count,
                 "total_burned": self.get_total_burned(),
                 "total_supply": self.get_total_supply(),
+                "engine": self.engine,
             }
 
     # ── Утилиты ──────────────────────────────────────────────────────────────

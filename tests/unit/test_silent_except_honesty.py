@@ -77,6 +77,21 @@ def test_sync_status_unknown_probe_is_fail_closed():
     assert st.get("wire_probe_probed") is False
 
 
+def test_sync_state_missing_get_state_root_fail_closed(capsys):
+    node = SimpleNamespace(
+        blockchain=SimpleNamespace(get_height=lambda: 1),
+        p2p=SimpleNamespace(_state_consistent=True),
+    )
+    eng = SyncEngine(node)
+    eng._collect_p2p_peers = lambda: []  # type: ignore
+    ok = eng.sync_state()
+    captured = capsys.readouterr()
+    assert ok is False
+    assert "missing get_state_root" in captured.out
+    assert node.p2p._state_consistent is False
+    assert eng.get_status().get("wire_probe_ok") is False
+
+
 def test_ims_reconcile_fail_loud_nonce():
     store = SimpleNamespace(
         get_balance_satoshi=lambda _a: 1_000_000,

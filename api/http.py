@@ -614,6 +614,16 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             status = _build_sync_status(sync_engine, p2p, bc, cfg)
             behind = int(status.get("behind", 0) or 0)
             syncing = bool(status.get("syncing", False)) or behind > 0
+            peer_n = int(
+                status.get("peers", status.get("p2p_peers", 0)) or 0
+            )
+            # Do not claim fully synced while tip state is inconsistent with peers.
+            if peer_n > 0 and not bool(status.get("state_consistent", False)):
+                syncing = True
+            if peer_n > 0 and status.get("wire_probe_probed") and not bool(
+                status.get("wire_probe_ok", False)
+            ):
+                syncing = True
             if syncing:
                 return {
                     "startingBlock": hex(max(0, int(status.get("local_height", 0)) - behind)),
@@ -1084,16 +1094,26 @@ class RESTHandler(BaseHTTPRequestHandler):
                         logger.warning("/metrics p2p security snapshot failed: %s", exc)
                 rocksdb_tuning = {}
                 rocks_source = "none"
+                db_engine = "unknown"
                 if db is not None:
                     try:
                         stats = db.get_stats() if hasattr(db, "get_stats") else {}
+                        db_engine = str(
+                            (stats or {}).get("engine")
+                            or getattr(db, "engine", "")
+                            or "unknown"
+                        )
                         rocksdb_tuning = dict((stats or {}).get("rocksdb_tuning") or {})
                         if rocksdb_tuning:
                             rocks_source = "live"
                     except Exception as exc:
                         logger.warning("/metrics rocksdb tuning snapshot failed: %s", exc)
                         rocks_source = "snapshot_fail"
-                    if not rocksdb_tuning and cfg is not None:
+                    if (
+                        not rocksdb_tuning
+                        and cfg is not None
+                        and db_engine == "rocksdb"
+                    ):
                         rocks_source = "config_fallback"
                         rocksdb_tuning = {
                             "column_families": bool(
@@ -1109,6 +1129,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if rocksdb_tuning is not None:
                     rocksdb_tuning = dict(rocksdb_tuning)
                     rocksdb_tuning["source"] = rocks_source
+                    rocksdb_tuning["engine"] = db_engine
                 sync_status = {
                     "state_consistent": False,
                     "wire_probe_ok": False,
@@ -5589,16 +5610,19 @@ class RESTHandler(BaseHTTPRequestHandler):
                 )
                 sync_error = None
                 p2p = self.__class__.p2p
-                if p2p and hasattr(p2p, "_state_consistent") and harness.get("harness_healthy"):
-                    p2p._state_consistent = True
-                elif p2p and hasattr(p2p, "_state_consistent"):
-                    se = getattr(self.__class__, "sync_engine", None)
+                # Never greenwash consistency from harness alone — require sync_state.
+                if p2p and hasattr(p2p, "_state_consistent"):
+                    se = getattr(self.__class__, "sync_engine", None) or getattr(
+                        p2p, "sync_engine", None
+                    )
                     if se and hasattr(se, "sync_state"):
                         try:
                             p2p._state_consistent = bool(se.sync_state())
                         except Exception as exc:
                             p2p._state_consistent = False
                             sync_error = str(exc)
+                    elif not harness.get("harness_healthy"):
+                        p2p._state_consistent = False
                 payload = {
                     "success": bool(repaired),
                     "repaired": bool(repaired),

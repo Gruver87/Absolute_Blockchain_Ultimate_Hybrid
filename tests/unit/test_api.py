@@ -126,6 +126,7 @@ def test_metrics_prometheus_format():
             "block_cache_mb": 256,
             "write_buffer_mb": 64,
             "source": "live",
+            "engine": "rocksdb",
         },
         sync_status={
             "state_consistent": False,
@@ -151,6 +152,7 @@ def test_metrics_prometheus_format():
     assert 'abs_p2p_rate_limit_drops_total{node_id="n1"} 7' in text
     assert 'abs_p2p_peer_send_fail_total{node_id="n1"} 4' in text
     assert 'abs_p2p_ops_errors{node_id="n1",kind="peer_send_fail"} 4' in text
+    assert 'abs_db_engine{node_id="n1",engine="rocksdb"} 1' in text
     assert 'abs_rocksdb_column_families{node_id="n1"} 0' in text
     assert 'abs_rocksdb_block_cache_mb{node_id="n1"} 256' in text
     assert 'abs_rocksdb_write_buffer_mb{node_id="n1"} 64' in text
@@ -158,6 +160,18 @@ def test_metrics_prometheus_format():
     assert 'abs_sync_wire_probe_ok{node_id="n1"} 0' in text
     assert 'abs_sync_wire_probe_probed{node_id="n1"} 1' in text
     assert 'source="live"' in text
+
+
+def test_metrics_sqlite_skips_rocksdb_gauges():
+    mc = MetricsCollector()
+    text = mc.render_prometheus(
+        node_id="n1",
+        rocksdb_tuning={"engine": "sqlite", "source": "none"},
+    )
+    assert 'abs_db_engine{node_id="n1",engine="sqlite"} 1' in text
+    assert "abs_rocksdb_column_families" not in text
+    assert "abs_rocksdb_block_cache_mb" not in text
+    assert "abs_rocksdb_write_buffer_mb" not in text
 
 
 def test_health_live(api_server):

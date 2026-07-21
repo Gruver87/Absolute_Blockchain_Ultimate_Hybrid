@@ -206,24 +206,42 @@ class MetricsCollector:
             )
         lines.extend(
             [
-                "# HELP abs_rocksdb_column_families Whether RocksDB column families are enabled",
-                "# TYPE abs_rocksdb_column_families gauge",
+                "# HELP abs_db_engine Storage engine label (rocksdb|sqlite|unknown)",
+                "# TYPE abs_db_engine gauge",
                 (
-                    f"abs_rocksdb_column_families{{node_id=\"{node_id}\"}} "
-                    f"{1 if rocksdb_tuning.get('column_families') else 0}"
+                    f"abs_db_engine{{node_id=\"{node_id}\","
+                    f"engine=\"{str(rocksdb_tuning.get('engine') or 'unknown')}\"}} 1"
                 ),
-                "# HELP abs_rocksdb_block_cache_mb RocksDB block cache size (MB)",
-                "# TYPE abs_rocksdb_block_cache_mb gauge",
-                (
-                    f"abs_rocksdb_block_cache_mb{{node_id=\"{node_id}\"}} "
-                    f"{int(rocksdb_tuning.get('block_cache_mb', 0) or 0)}"
-                ),
-                "# HELP abs_rocksdb_write_buffer_mb RocksDB write buffer size (MB)",
-                "# TYPE abs_rocksdb_write_buffer_mb gauge",
-                (
-                    f"abs_rocksdb_write_buffer_mb{{node_id=\"{node_id}\"}} "
-                    f"{int(rocksdb_tuning.get('write_buffer_mb', 0) or 0)}"
-                ),
+            ]
+        )
+        emit_rocks = str(rocksdb_tuning.get("engine") or "") == "rocksdb" or str(
+            rocksdb_tuning.get("source") or ""
+        ) in ("live", "config_fallback")
+        if emit_rocks and str(rocksdb_tuning.get("engine") or "") != "sqlite":
+            lines.extend(
+                [
+                    "# HELP abs_rocksdb_column_families Whether RocksDB column families are enabled",
+                    "# TYPE abs_rocksdb_column_families gauge",
+                    (
+                        f"abs_rocksdb_column_families{{node_id=\"{node_id}\"}} "
+                        f"{1 if rocksdb_tuning.get('column_families') else 0}"
+                    ),
+                    "# HELP abs_rocksdb_block_cache_mb RocksDB block cache size (MB)",
+                    "# TYPE abs_rocksdb_block_cache_mb gauge",
+                    (
+                        f"abs_rocksdb_block_cache_mb{{node_id=\"{node_id}\"}} "
+                        f"{int(rocksdb_tuning.get('block_cache_mb', 0) or 0)}"
+                    ),
+                    "# HELP abs_rocksdb_write_buffer_mb RocksDB write buffer size (MB)",
+                    "# TYPE abs_rocksdb_write_buffer_mb gauge",
+                    (
+                        f"abs_rocksdb_write_buffer_mb{{node_id=\"{node_id}\"}} "
+                        f"{int(rocksdb_tuning.get('write_buffer_mb', 0) or 0)}"
+                    ),
+                ]
+            )
+        lines.extend(
+            [
                 "# HELP abs_state_consistent Whether tip state root matches peers",
                 "# TYPE abs_state_consistent gauge",
                 (
