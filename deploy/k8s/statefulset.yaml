@@ -15,6 +15,17 @@ spec:
       labels:
         app: abs-node
     spec:
+      initContainers:
+        - name: wait-redis
+          image: redis:7-alpine
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until redis-cli -h abs-redis -p 6379 ping | grep -q PONG; do
+                echo "waiting for abs-redis..."
+                sleep 2
+              done
       containers:
         - name: node
           image: absolute-blockchain-prod:latest
@@ -45,6 +56,9 @@ spec:
             - name: node-config
               mountPath: /app/config
               readOnly: true
+            - name: p2p-tls-secrets
+              mountPath: /app/p2p_tls_secrets
+              readOnly: true
           livenessProbe:
             httpGet:
               path: /health/live
@@ -74,6 +88,9 @@ spec:
             items:
               - key: node.prod.k8s.json
                 path: node.prod.k8s.json
+        - name: p2p-tls-secrets
+          secret:
+            secretName: abs-p2p-tls
   volumeClaimTemplates:
     - metadata:
         name: data

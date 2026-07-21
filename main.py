@@ -994,8 +994,8 @@ class NodeOrchestrator:
             RESTHandler.validators_manifest_path = (
                 getattr(self, "_public_validator_manifest", "") or ""
             )
-        except Exception:
-            pass
+        except Exception as _rh:
+            print(f"[Node] RESTHandler public validator manifest wiring failed: {_rh}")
 
         try:
             from consensus.epoch import EpochManager as _EpMgr

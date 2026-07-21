@@ -33,6 +33,22 @@ sys.path.insert(0, ROOT)
 
 from runtime.mainnet_constants import MAINNET_V1_CHAIN_ID
 
+
+def _verify_p2p_skip_or_fail(reason: str) -> int:
+    """Fail-closed skip unless VERIFY_P2P_ALLOW_SKIP=1 (mirrors full_audit solo P2P)."""
+    allow = os.environ.get("VERIFY_P2P_ALLOW_SKIP", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    if allow:
+        print(f"SKIP: {reason}")
+        return 0
+    print(f"FAIL: {reason}")
+    print("  Set VERIFY_P2P_ALLOW_SKIP=1 to soft-skip (not recommended for release gates)")
+    return 1
+
 DEVNET_URL1 = "http://127.0.0.1:8080"
 DEVNET_URL2 = "http://127.0.0.1:8081"
 DEVNET_URL3 = "http://127.0.0.1:8082"
@@ -2827,8 +2843,9 @@ def run_prod_smoke_spawn() -> int:
     )
 
     if not native_available():
-        print("SKIP: prod-smoke requires abs_native wheel (ABS_REQUIRE_NATIVE_CRYPTO)")
-        return 0
+        return _verify_p2p_skip_or_fail(
+            "prod-smoke requires abs_native wheel (ABS_REQUIRE_NATIVE_CRYPTO)"
+        )
 
     from runtime.prod_smoke_profile import ensure_smoke_ports_free
 
@@ -3021,8 +3038,9 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
     )
 
     if not native_available():
-        print("SKIP: prod-mesh3 requires abs_native wheel (ABS_REQUIRE_NATIVE_CRYPTO)")
-        return 0
+        return _verify_p2p_skip_or_fail(
+            "prod-mesh3 requires abs_native wheel (ABS_REQUIRE_NATIVE_CRYPTO)"
+        )
 
     from runtime.prod_smoke_profile import ensure_smoke_ports_free
 

@@ -201,8 +201,8 @@ class PeerConnection:
     def close(self):
         try:
             self.writer.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("[P2P] peer close failed %s:%s: %s", self.host, self.port, exc)
 
     def __repr__(self) -> str:
         return f"Peer({self.peer_id[:8]}… {self.host}:{self.port} h={self.height})"
@@ -235,6 +235,9 @@ class P2PNode:
         self._peer_bans: Dict[str, float] = {}
         self._handshake_rejects: int = 0
         self._attestation_local_fail: int = 0
+        self._propagation_log_fail: int = 0
+        self._peer_connect_task_fail: int = 0
+        self._peer_status_send_fail: int = 0
         self._consensus = None
         self.validator_keys = None
         self._state_consistent = True
@@ -727,8 +730,11 @@ class P2PNode:
                     if len(parts) == 2:
                         try:
                             asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            self._peer_connect_task_fail += 1
+                            logger.warning(
+                                "[P2P] connect_peer task failed for %s: %s", addr, exc
+                            )
 
         elif msg_type == MSG_STATUS:
             if isinstance(data, dict):
@@ -950,8 +956,14 @@ class P2PNode:
                 block_height=block_height,
                 detail=detail or {},
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            self._propagation_log_fail += 1
+            logger.warning(
+                "[P2P] record_tx_propagation_event failed stage=%s tx=%s: %s",
+                stage,
+                (tx_hash or "")[:16],
+                exc,
+            )
 
     def _build_mempool_tx_from_wire(self, data: Dict):
         """Build a mempool entry from wire-format tx; None if invalid."""
@@ -1443,8 +1455,11 @@ class P2PNode:
                         "height": self.blockchain.get_height(),
                         "head_hash": self.head() or "",
                     })
-                except Exception:
-                    pass
+                except Exception as exc:
+                    self._peer_status_send_fail += 1
+                    logger.debug(
+                        "[P2P] status refresh to %s failed: %s", addr, exc
+                    )
                 attempts.append({"address": addr, "ok": True, "action": "already_connected_status_refresh"})
                 continue
             ok = await self.connect_peer(host, port)
@@ -1763,8 +1778,11 @@ class P2PNode:
                     if len(parts) == 2:
                         try:
                             asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            self._peer_connect_task_fail += 1
+                            logger.warning(
+                                "[P2P] reconnect task failed for %s: %s", addr, exc
+                            )
 
     async def _discovery_loop(self):
         """Периодически запрашиваем список пиров у уже подключённых."""
@@ -1834,8 +1852,13 @@ class P2PNode:
                         if len(parts) == 2:
                             try:
                                 asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
-                            except Exception:
-                                pass
+                            except Exception as exc:
+                                self._peer_connect_task_fail += 1
+                                logger.warning(
+                                    "[P2P] catch-up connect task failed for %s: %s",
+                                    addr,
+                                    exc,
+                                )
             except Exception as exc:
                 logger.debug(f"[P2P] catch_up_loop: {exc}")
 
@@ -1970,6 +1993,11 @@ class P2PNode:
             "tracked_strikes": len(self._peer_strikes),
             "handshake_rejects": int(self._handshake_rejects),
             "attestation_local_fail": int(self._attestation_local_fail),
+            "ops_errors": {
+                "propagation_log_fail": int(self._propagation_log_fail),
+                "peer_connect_task_fail": int(self._peer_connect_task_fail),
+                "peer_status_send_fail": int(self._peer_status_send_fail),
+            },
             "rate_limit_exempt_types": len(RATE_LIMIT_EXEMPT_TYPES),
             "tls": p2p_tls_status(self.config),
         }

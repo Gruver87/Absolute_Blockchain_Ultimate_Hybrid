@@ -62,6 +62,28 @@ def main() -> int:
         errors.append("statefulset.yaml: livenessProbe /health/live required")
     if "entrypoint.sh" not in sts:
         errors.append("statefulset.yaml: must use deploy/k8s/entrypoint.sh")
+    if "wait-redis" not in sts:
+        errors.append("statefulset.yaml: initContainer wait-redis required")
+    if "abs-p2p-tls" not in sts or "p2p_tls_secrets" not in sts:
+        errors.append("statefulset.yaml: abs-p2p-tls secret mount required")
+
+    cm_json_start = cm.find("node.prod.k8s.json:")
+    if cm_json_start < 0:
+        errors.append("configmap.yaml: embedded node.prod.k8s.json missing")
+    else:
+        cm_json_blob = cm[cm_json_start:]
+        for key in (
+            "p2p_tls_enabled",
+            "redis_rate_limit_enabled",
+            "redis_url",
+            "p2p_tls_cert_path",
+        ):
+            if key not in cm_json_blob:
+                errors.append(f"configmap.yaml: embedded node JSON missing {key}")
+
+    entry = (K8S / "entrypoint.sh").read_text(encoding="utf-8")
+    if "p2p_tls_secrets" not in entry:
+        errors.append("entrypoint.sh: must wire P2P TLS secrets by pod ordinal")
 
     if errors:
         print("FAIL: k8s prod gate")

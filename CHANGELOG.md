@@ -6,6 +6,17 @@
 
 ---
 
+## [1.2.91] — 2026-07-21
+
+### Hardened — P2P ops fail-loud, K8s TLS mesh, CI skip policy
+
+- P2P: propagation/connect/status errors logged; `ops_errors` in `/status` `p2p_hardening`
+- K8s: Redis init wait, `abs-p2p-tls` mount, ordinal TLS in entrypoint; configmap JSON synced
+- `verify_p2p_ci`: prod-smoke/mesh3 native skip fail-closed unless `VERIFY_P2P_ALLOW_SKIP=1`
+- Tests: `test_p2p_ops_errors.py`, `test_verify_p2p_skip_policy.py`
+
+---
+
 ## [1.2.90] — 2026-07-21
 
 ### Hardened — status honesty + mesh Redis validate

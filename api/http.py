@@ -120,6 +120,11 @@ def _status_p2p_hardening_snapshot(cfg, p2p) -> Dict[str, Any]:
         "tls_ready": bool(tls.get("ready")),
         "identity_binding": tls.get("identity_binding", "none"),
         "fail_closed": bool(tls.get("fail_closed")),
+        "ops_errors": (
+            dict((p2p.get_p2p_security_status() or {}).get("ops_errors") or {})
+            if p2p and hasattr(p2p, "get_p2p_security_status")
+            else {}
+        ),
     }
 
 
