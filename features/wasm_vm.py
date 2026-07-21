@@ -1,7 +1,7 @@
 """WASM VM — WebAssembly-style contracts with SQLite persistence (Wave 42)."""
 
 import base64
-import hashlib
+from crypto import native
 import json
 import time
 from typing import Dict, List, Optional, Any
@@ -102,9 +102,9 @@ class WASMVirtualMachine:
     def _persist_event(self, event: Dict) -> None:
         if not self.db or not hasattr(self.db, "save_wasm_event"):
             return
-        eid = hashlib.sha256(
+        eid = native.sha256_hex(
             json.dumps(event, sort_keys=True, default=str).encode()
-        ).hexdigest()[:24]
+        )[:24]
         self.db.save_wasm_event({
             "event_id": eid,
             "contract_addr": event.get("address", event.get("contract", "")),
@@ -131,9 +131,9 @@ class WASMVirtualMachine:
             return None
         if not self._charge_deploy_fee(owner):
             return None
-        contract_addr = "wasm_" + hashlib.sha256(
+        contract_addr = "wasm_" + native.sha256_hex(
             f"{code}{owner}{time.time()}".encode()
-        ).hexdigest()[:40]
+        )[:40]
         name = name or f"Contract_{contract_addr[:8]}"
         contract = WASMContract(contract_addr, code, owner, name)
         self.contracts[contract_addr] = contract

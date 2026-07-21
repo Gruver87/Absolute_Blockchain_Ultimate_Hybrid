@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import hashlib
+from crypto import native
 import json
 from typing import Any, Dict, Optional
 
@@ -33,4 +33,4 @@ def verify_state(payload: Dict[str, Any], signature_hex: str, public_key: bytes)
 
 
 def payment_hash(preimage: str) -> str:
-    return hashlib.sha256(preimage.encode("utf-8")).hexdigest()
+    return native.sha256_hex(preimage.encode("utf-8"))

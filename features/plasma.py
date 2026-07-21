@@ -1,6 +1,5 @@
 """Plasma Chain — L2 sidechain with Merkle proofs and signed transactions."""
 
-import hashlib
 import json
 import threading
 import time
@@ -29,12 +28,12 @@ class PlasmaBlock:
         if tx_hashes:
             self.merkle_root = native.merkle_root(tx_hashes)
         else:
-            self.merkle_root = hashlib.sha256(b"").hexdigest()
+            self.merkle_root = native.sha256_hex(b"")
 
     def _calc_hash(self) -> str:
         tx_data = json.dumps(self.transactions, sort_keys=True)
         raw = f"{self.block_id}{self.parent_hash}{tx_data}{self.created_at}"
-        return hashlib.sha256(raw.encode()).hexdigest()
+        return native.sha256_hex(raw.encode())
 
     def to_dict(self) -> Dict:
         return {
@@ -194,9 +193,9 @@ class PlasmaChain:
             return None
         if not self._debit_l1(from_addr, amount):
             return None
-        deposit_id = hashlib.sha256(
+        deposit_id = native.sha256_hex(
             f"{from_addr}{amount}{main_tx_hash}{time.time()}".encode()
-        ).hexdigest()[:16]
+        )[:16]
         with self._lock:
             dep = {
                 "id": deposit_id,
@@ -328,9 +327,9 @@ class PlasmaChain:
                 return None
             if self._l2_balance(user) < float(dep.get("amount", 0) or 0):
                 return None
-            exit_id = hashlib.sha256(
+            exit_id = native.sha256_hex(
                 f"{deposit_id}{user}{time.time()}".encode()
-            ).hexdigest()[:16]
+            )[:16]
             ex = {
                 "id": exit_id,
                 "deposit_id": deposit_id,

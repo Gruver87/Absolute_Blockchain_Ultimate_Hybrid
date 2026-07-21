@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """MEV analysis engine: mempool fee-ordering and sandwich detection."""
 
-import hashlib
+from crypto import native
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List
@@ -42,9 +42,9 @@ class MEVAnalyzer:
             self.attack_history.append(entry)
 
     def _record(self, sim_type: str, profit: float, payload: Dict) -> str:
-        sim_id = hashlib.sha256(
+        sim_id = native.sha256_hex(
             f"{sim_type}{profit}{time.time()}".encode()
-        ).hexdigest()[:16]
+        )[:16]
         entry = {
             "sim_id": sim_id,
             "type": sim_type,

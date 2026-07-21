@@ -11,6 +11,8 @@ import threading
 from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 
+from crypto import native
+
 
 @dataclass
 class NFTToken:
@@ -317,7 +319,6 @@ class NFTMarketplace:
     def make_offer(self, token_id: str, bidder: str, price: float,
                    hours: int = 24) -> Optional[str]:
         """Create a purchase offer for any NFT (not just for-sale ones)."""
-        import hashlib
         with self.lock:
             if price <= 0:
                 return None
@@ -325,9 +326,9 @@ class NFTMarketplace:
                 return None
             if not self._has_balance_backend() or self._balance(bidder) < price:
                 return None
-            offer_id = hashlib.sha256(
+            offer_id = native.sha256_hex(
                 f"{token_id}{bidder}{price}{time.time()}".encode()
-            ).hexdigest()[:16]
+            )[:16]
             self.offers[offer_id] = {
                 "offer_id": offer_id,
                 "token_id": token_id,
@@ -383,16 +384,15 @@ class NFTMarketplace:
                        reserve_price: float = 0.0, hours: int = 24,
                        auction_type: str = "english") -> Optional[str]:
         """Create an English auction for an NFT."""
-        import hashlib
         with self.lock:
             if start_price <= 0 or reserve_price < 0 or hours <= 0:
                 return None
             t = self.tokens.get(token_id)
             if not t or t.owner != seller:
                 return None
-            auction_id = hashlib.sha256(
+            auction_id = native.sha256_hex(
                 f"{token_id}{seller}{time.time()}".encode()
-            ).hexdigest()[:16]
+            )[:16]
             self.auctions[auction_id] = {
                 "auction_id": auction_id,
                 "token_id": token_id,

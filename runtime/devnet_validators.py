@@ -4,10 +4,11 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 from typing import Any, Dict, List, Optional
+
+from crypto import native
 
 
 def derive_validator_wallet(index: int):
@@ -16,7 +17,7 @@ def derive_validator_wallet(index: int):
         return None
     from crypto.wallet import Wallet
 
-    pk = hashlib.sha256(f"absolute-devnet5-validator-{index}".encode()).hexdigest()
+    pk = native.sha256_hex(f"absolute-devnet5-validator-{index}".encode())
     return Wallet.from_private_key(pk)
 
 

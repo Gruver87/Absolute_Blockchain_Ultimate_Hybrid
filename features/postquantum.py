@@ -12,6 +12,7 @@ Do not use for production wallets or consensus; feature_pq is blocked in prod.
 """
 
 import hashlib
+from crypto import native
 import time
 import json
 import secrets
@@ -57,9 +58,9 @@ class PQKeyPair:
     
     def __post_init__(self):
         if not self.key_id:
-            self.key_id = hashlib.sha256(
+            self.key_id = native.sha256_hex(
                 f"{self.algorithm.value}{time.time()}{secrets.token_hex(8)}".encode()
-            ).hexdigest()[:16]
+            )[:16]
     
     def to_dict(self) -> Dict:
         return {
@@ -308,7 +309,7 @@ class Dilithium:
             id=core.hex()[:16],
             algorithm=PQAlgorithm.DILITHIUM,
             signature=signature,
-            public_key_hash=hashlib.sha256(keypair.public_key).hexdigest(),
+            public_key_hash=native.sha256_hex(keypair.public_key),
             message_hash=message_hash
         )
     
@@ -555,8 +556,8 @@ class PostQuantumManager:
             id=sig_id,
             algorithm=algo,
             signature=bytes.fromhex(sig_hex.replace("0x", "")),
-            public_key_hash=hashlib.sha256(pub_hex.encode()).hexdigest(),
-            message_hash=hashlib.sha256(msg_bytes).hexdigest(),
+            public_key_hash=native.sha256_hex(pub_hex.encode()),
+            message_hash=native.sha256_hex(msg_bytes),
         )
         pub_bytes = bytes.fromhex(pub_hex.replace("0x", ""))
         return self.verify(pq_sig, msg_bytes, pub_bytes)

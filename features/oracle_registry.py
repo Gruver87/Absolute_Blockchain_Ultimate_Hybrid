@@ -1,7 +1,7 @@
 """On-chain oracle feed registry — signed submissions persisted in SQLite."""
 from __future__ import annotations
 
-import hashlib
+from crypto import native
 import json
 import os
 import time
@@ -19,7 +19,7 @@ class OracleFeedRegistry:
 
     def _feed_id(self, symbol: str, source: str, submitted_at: int) -> str:
         raw = f"{symbol}:{source}:{submitted_at}"
-        return hashlib.sha256(raw.encode()).hexdigest()[:32]
+        return native.sha256_hex(raw.encode())[:32]
 
     def submit_feed(
         self,
@@ -138,7 +138,7 @@ class OracleFeedRegistry:
             if not verify_signature(self.secret, raw, signature):
                 return {"ok": False, "error": "invalid oracle signature"}
         ts = int(body.get("ts", time.time()))
-        report_id = hashlib.sha256(f"{symbol}:{reporter}:{ts}".encode()).hexdigest()[:32]
+        report_id = native.sha256_hex(f"{symbol}:{reporter}:{ts}".encode())[:32]
         if hasattr(self.db, "save_oracle_report"):
             self.db.save_oracle_report({
                 "report_id": report_id,

@@ -1,6 +1,6 @@
 """Crypto Will — blockchain inheritance with SQLite persistence (Wave 41)."""
 
-import hashlib
+from crypto import native
 import json
 import threading
 import time
@@ -127,9 +127,9 @@ class CryptoWillManager:
         execution_delay = max(self.MIN_DELAY, min(self.MAX_DELAY, execution_delay))
         if not self._debit(owner, amount):
             return None
-        will_id = hashlib.sha256(
+        will_id = native.sha256_hex(
             f"{owner}{heir}{amount}{time.time()}".encode()
-        ).hexdigest()[:16]
+        )[:16]
         execution_time = int(time.time()) + execution_delay
         will = CryptoWill(
             will_id, owner, heir, amount, assets or {},

@@ -1,6 +1,6 @@
 """AI Agent Manager — trading agents with SQLite persistence (Wave 43)."""
 
-import hashlib
+from crypto import native
 import json
 import time
 from typing import Any, Callable, Dict, List, Optional
@@ -81,9 +81,9 @@ class AIAgent:
         status = str(execution.get("status", "filled")).lower()
         if status not in ("filled", "executed", "settled"):
             return {"success": False, "error": f"Trade execution not final: {status}"}
-        trade_id = str(execution.get("trade_id") or hashlib.sha256(
+        trade_id = str(execution.get("trade_id") or native.sha256_hex(
             f"{self.agent_id}_{trade_type}_{time.time_ns()}".encode()
-        ).hexdigest()[:16])
+        )[:16])
         pnl = float(execution.get("pnl", 0.0))
         self.total_profit += pnl
         self.actions_count += 1
@@ -189,9 +189,9 @@ class AIAgentManager:
             return None
         if not self._charge_create_fee(owner):
             return None
-        agent_id = hashlib.sha256(
+        agent_id = native.sha256_hex(
             f"{name}{owner}{time.time()}".encode()
-        ).hexdigest()[:16]
+        )[:16]
         agent = AIAgent(agent_id, name, owner, agent_type)
         self.agents[agent_id] = agent
         self._persist(agent)

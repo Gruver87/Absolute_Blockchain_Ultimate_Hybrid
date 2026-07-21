@@ -11,7 +11,7 @@ ZK Proof System — Zero-Knowledge доказательства для Absolute 
   - ZK-транзакции (анонимные переводы с доказательством)
 """
 
-import hashlib
+from crypto import native
 import secrets
 from dataclasses import dataclass
 from typing import Dict, Tuple, Optional
@@ -64,9 +64,9 @@ class ZKProofSystem:
         return secrets.randbelow(modulus - 1) + 1
 
     def _challenge(self, proof_type: str, *parts: object, modulus: Optional[int] = None) -> int:
-        digest = hashlib.sha256(
+        digest = native.sha256_hex(
             "|".join(str(part) for part in (proof_type, *parts)).encode()
-        ).hexdigest()
+        )
         value = int(digest, 16)
         if modulus:
             return (value % (modulus - 1)) + 1
@@ -116,10 +116,10 @@ class ZKProofSystem:
         """Доказываем что value в [min_val, max_val] не раскрывая value."""
         if not (min_val <= value <= max_val):
             raise ValueError(f"Value {value} not in [{min_val}, {max_val}]")
-        commitment = hashlib.sha256(f"{value}:{min_val}:{max_val}".encode()).hexdigest()
+        commitment = native.sha256_hex(f"{value}:{min_val}:{max_val}".encode())
         challenge = self._challenge("range", commitment, min_val, max_val, modulus=1_000_000)
         proof_data = f"{commitment}:{challenge}:{min_val}:{max_val}"
-        response = int(hashlib.sha256(proof_data.encode()).hexdigest(), 16)
+        response = int(native.sha256_hex(proof_data.encode()), 16)
         return ZKProof(commitment=commitment, response=response,
                        challenge=challenge, proof_type="range")
 
@@ -130,9 +130,9 @@ class ZKProofSystem:
         if proof.challenge != expected_challenge:
             return False
         expected = int(
-            hashlib.sha256(
+            native.sha256_hex(
                 f"{proof.commitment}:{proof.challenge}:{min_val}:{max_val}".encode()
-            ).hexdigest(), 16
+            ), 16
         )
         return expected == proof.response
 
@@ -205,9 +205,9 @@ class ZKProofSystem:
 
         import time
         tx = {
-            "from_hash": hashlib.sha256(from_addr.encode()).hexdigest()[:16],
-            "to_hash": hashlib.sha256(to_addr.encode()).hexdigest()[:16],
-            "amount_hash": hashlib.sha256(str(amount).encode()).hexdigest()[:16],
+            "from_hash": native.sha256_hex(from_addr.encode())[:16],
+            "to_hash": native.sha256_hex(to_addr.encode())[:16],
+            "amount_hash": native.sha256_hex(str(amount).encode())[:16],
             "proof": proof.to_dict(),
             "timestamp": time.time(),
         }

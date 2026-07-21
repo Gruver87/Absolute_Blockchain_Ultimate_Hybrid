@@ -533,10 +533,10 @@ class NodeOrchestrator:
                 except Exception as _we:
                     print(f"[Node] Wallet unavailable ({_we})")
         if not config.miner_address:
-            import hashlib as _hl
-            config.miner_address = "0x" + _hl.sha256(
+            from crypto import native as _native
+            config.miner_address = "0x" + _native.sha256_hex(
                 f"miner-{config.p2p_port}".encode()
-            ).hexdigest()[:40]
+            )[:40]
 
         try:
             from runtime.validator_key_provider import build_validator_key_provider

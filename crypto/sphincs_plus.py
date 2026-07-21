@@ -1,6 +1,7 @@
 ﻿# crypto/sphincs_plus.py - SPHINCS+ interface
-import hashlib
 import base64
+
+from crypto import native
 
 class SPHINCSPLUS:
     """
@@ -16,8 +17,8 @@ class SPHINCSPLUS:
     def _hash(self, data: bytes, seed: bytes = None) -> bytes:
         """Hash function (SHA-256)"""
         if seed:
-            return hashlib.sha256(seed + data).digest()
-        return hashlib.sha256(data).digest()
+            return bytes.fromhex(native.sha256_hex(seed + data))
+        return bytes.fromhex(native.sha256_hex(data))
     
     def _prf(self, seed: bytes, length: int) -> bytes:
         """Pseudo-random function"""

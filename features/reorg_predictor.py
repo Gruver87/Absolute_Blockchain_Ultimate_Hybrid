@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """REORG PREDICTION ENGINE — risk scoring with SQLite history (Wave 45)."""
 
-import hashlib
+from crypto import native
 import math
 import time
 from typing import Dict, List, Any, Optional
@@ -24,9 +24,9 @@ class ReorgPredictor:
         self.history = self.db.get_reorg_assessments(limit=500)
 
     def _record(self, kind: str, payload: Dict) -> str:
-        assess_id = hashlib.sha256(
+        assess_id = native.sha256_hex(
             f"{kind}{time.time()}".encode()
-        ).hexdigest()[:16]
+        )[:16]
         entry = {
             "assess_id": assess_id,
             "kind": kind,

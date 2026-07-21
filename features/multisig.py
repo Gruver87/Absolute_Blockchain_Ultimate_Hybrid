@@ -1,5 +1,5 @@
 ﻿# multisig.py - Multi-signature wallet module
-import hashlib
+from crypto import native
 import time
 from typing import Callable, List, Dict, Any, Optional, Set
 
@@ -24,9 +24,9 @@ class MultiSigWallet:
         self.owners = unique_owners
         self.required = required
         self.transaction_executor = transaction_executor
-        self.wallet_id = hashlib.sha256(
+        self.wallet_id = native.sha256_hex(
             f"{'|'.join(self.owners)}:{self.required}:{time.time_ns()}".encode()
-        ).hexdigest()[:16]
+        )[:16]
         self.transactions: Dict[str, Dict[str, Any]] = {}
         self.confirmations: Dict[str, Set[str]] = {}
         self._registry[self.wallet_id] = self
@@ -37,9 +37,9 @@ class MultiSigWallet:
         if amount <= 0:
             return {"success": False, "error": "amount must be > 0"}
 
-        tx_id = "tx_" + hashlib.sha256(
+        tx_id = "tx_" + native.sha256_hex(
             f"{self.wallet_id}:{to}:{amount}:{len(self.transactions)}:{time.time_ns()}".encode()
-        ).hexdigest()[:24]
+        )[:24]
         tx = {
             "tx_id": tx_id,
             "to": to,

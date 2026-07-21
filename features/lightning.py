@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import hashlib
+from crypto import native
 import time
 from collections import deque
 from typing import Dict, List, Optional, Tuple
@@ -148,9 +148,9 @@ class LightningPayment:
         self.fee = fee
         self.timestamp = timestamp if timestamp is not None else int(time.time())
         self.status = status
-        self.payment_hash = payment_hash_value or hashlib.sha256(
+        self.payment_hash = payment_hash_value or native.sha256_hex(
             f"{payment_id}{amount}{self.timestamp}".encode()
-        ).hexdigest()
+        )
 
     def to_dict(self) -> Dict:
         return {
@@ -286,9 +286,9 @@ class LightningNetwork:
         if self.db.get_balance(self.node_address) < capacity:
             return None
         self.db.update_balance(self.node_address, -capacity)
-        channel_id = hashlib.sha256(
+        channel_id = native.sha256_hex(
             f"{self.node_address}{peer_address}{capacity}{time.time()}".encode()
-        ).hexdigest()[:16]
+        )[:16]
         ch = LightningChannel(channel_id, self.node_address, peer_address, capacity)
         self.channels[channel_id] = ch
         self._persist_channel(ch)
@@ -368,9 +368,9 @@ class LightningNetwork:
         else:
             return None
         ch.state_version += 1
-        pid = hashlib.sha256(
+        pid = native.sha256_hex(
             f"{channel_id}{self.node_address}{to_node}{amount}{time.time()}".encode()
-        ).hexdigest()[:16]
+        )[:16]
         payment = LightningPayment(pid, channel_id, self.node_address, to_node, amount, fee)
         self.payments[pid] = payment
         self._persist_channel(ch)
@@ -401,9 +401,9 @@ class LightningNetwork:
             ch.balance2 -= amount + fee
         else:
             return None
-        htlc_id = hashlib.sha256(
+        htlc_id = native.sha256_hex(
             f"{channel_id}{preimage_hash}{amount}{time.time()}".encode()
-        ).hexdigest()[:16]
+        )[:16]
         htlc = LightningHTLC(
             htlc_id, channel_id, preimage_hash, amount, expiry,
             self.node_address, receiver,

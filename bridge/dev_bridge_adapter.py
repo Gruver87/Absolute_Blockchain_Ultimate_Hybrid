@@ -5,7 +5,7 @@ Production transfers use ``RustBridge``. This adapter is intentionally local
 and in-memory for development scenarios that opt in through configuration.
 """
 
-import hashlib
+from crypto import native
 import time
 from dataclasses import dataclass
 from enum import Enum
@@ -52,9 +52,9 @@ class DevBridgeAdapter:
         amount: float,
     ) -> str:
         """Create a local dev/test transfer record."""
-        tx_hash = hashlib.sha256(
+        tx_hash = native.sha256_hex(
             f"{from_chain}{to_chain}{from_addr}{to_addr}{amount}{time.time()}".encode()
-        ).hexdigest()[:16]
+        )[:16]
 
         fee = self.fees.get(from_chain, 0.01)
         net_amount = amount - fee

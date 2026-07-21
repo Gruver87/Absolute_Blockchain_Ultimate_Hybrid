@@ -8,7 +8,7 @@
 Социальный вход, сессионные ключи, оплата комиссий любыми токенами
 """
 
-import hashlib
+from crypto import native
 import hmac
 import time
 import json
@@ -256,7 +256,7 @@ class SmartAccount:
         if not key.is_valid():
             return False
         expected = key.public_key.replace("sha256:", "", 1)
-        actual = hashlib.sha256(secret.encode()).hexdigest()
+        actual = native.sha256_hex(secret.encode())
         return hmac.compare_digest(actual, expected)
     
     def _verify_social(self, token: str) -> bool:
@@ -280,11 +280,11 @@ class SmartAccount:
     ) -> str:
         """Создание сессионного ключа"""
         
-        key_id = hashlib.sha256(
+        key_id = native.sha256_hex(
             f"{self.address}{time.time()}{secrets.token_hex(8)}".encode()
-        ).hexdigest()[:16]
+        )[:16]
         secret = secrets.token_urlsafe(32)
-        public_key = "sha256:" + hashlib.sha256(secret.encode()).hexdigest()
+        public_key = "sha256:" + native.sha256_hex(secret.encode())
         
         key = SessionKey(
             id=key_id,
@@ -397,9 +397,9 @@ class SmartAccount:
         if not guardian or not guardian.approved:
             return None
         
-        request_id = hashlib.sha256(
+        request_id = native.sha256_hex(
             f"{self.address}{requested_by}{time.time()}{secrets.token_hex(4)}".encode()
-        ).hexdigest()[:16]
+        )[:16]
         
         request = RecoveryRequest(
             id=request_id,
@@ -499,7 +499,7 @@ class SmartAccount:
             return None
 
         tx_request = {
-            'id': hashlib.sha256(f"{self.address}{to}{value}{time.time()}".encode()).hexdigest()[:16],
+            'id': native.sha256_hex(f"{self.address}{to}{value}{time.time()}".encode())[:16],
             'from': self.address,
             'to': to,
             'value': value,
@@ -660,9 +660,9 @@ class SmartAccountManager:
     def register_account(self, account: SmartAccount) -> str:
         """Регистрация аккаунта"""
         
-        account_id = hashlib.sha256(
+        account_id = native.sha256_hex(
             f"{account.address}{time.time()}{secrets.token_hex(4)}".encode()
-        ).hexdigest()[:16]
+        )[:16]
         
         self.accounts[account_id] = account
         self.address_index[account.address] = account_id
@@ -684,9 +684,9 @@ class SmartAccountManager:
         """Create and register a smart account for an owner."""
         if not owner:
             return {"success": False, "error": "owner required"}
-        address = "0x" + hashlib.sha256(
+        address = "0x" + native.sha256_hex(
             f"smart-account:{owner}:{time.time()}:{secrets.token_hex(4)}".encode()
-        ).hexdigest()[:40]
+        )[:40]
         account = SmartAccount(address, owner, transaction_executor=self.transaction_executor)
         try:
             method = AuthMethod(auth_method)

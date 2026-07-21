@@ -16,7 +16,7 @@ After start_two_nodes.ps1 use either:
 from __future__ import annotations
 
 import argparse
-import hashlib
+from crypto import native
 import json
 import os
 import shutil
@@ -1219,7 +1219,7 @@ def _peer_saw_tx(base_url: str, tx_hash: str, height_hint: int = 0) -> bool:
 def _unique_recipient(salt: str = "") -> str:
     """Unique to-address so repeated verify runs do not hit 'already in mempool'."""
     seed = f"abs-p2p-verify-{time.time_ns()}-{salt}-{os.getpid()}"
-    return "0x" + hashlib.sha256(seed.encode()).hexdigest()[:40]
+    return "0x" + native.sha256_hex(seed.encode())[:40]
 
 
 def _prod_smoke_wallet_path() -> str:
