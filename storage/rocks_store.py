@@ -9,6 +9,7 @@ Reads are lock-free (RocksDB MVCC). Writes are serialized through WriteBatch com
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 import threading
@@ -18,6 +19,8 @@ from typing import Any, Dict, List, Optional
 
 from storage import keycodec as kc
 from storage.database import Database as SqliteDatabase
+
+logger = logging.getLogger(__name__)
 
 
 def _rocks_available() -> bool:
@@ -1020,8 +1023,12 @@ class RocksChainStore:
                 block_hash = block.get("hash", block.get("block_hash", "")) or ""
                 if block_hash:
                     self._raw_delete(kc.key_block_hash_to_height(block_hash))
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "reorg_truncate_above: corrupt block JSON at height>%s: %s",
+                    cut,
+                    exc,
+                )
             self._raw_delete(key)
         for key, _value in list(self._scan_prefix(kc.P_BLOCK_TX)):
             if len(key) >= 9 and kc.unpack_u64(key[1:9]) > cut:
@@ -1241,13 +1248,15 @@ class RocksChainStore:
         if hasattr(self._engine, "storage_properties"):
             try:
                 stats["rocksdb_properties"] = dict(self._engine.storage_properties())
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("rocks get_stats storage_properties failed: %s", exc)
+                stats["rocksdb_properties_error"] = str(exc)
         if hasattr(self._engine, "tuning_config"):
             try:
                 stats["rocksdb_tuning"].update(dict(self._engine.tuning_config()))
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("rocks get_stats tuning_config failed: %s", exc)
+                stats["rocksdb_tuning_error"] = str(exc)
         return stats
 
     def save_slash_event(self, validator: str, reason: str, epoch: int, penalty: int) -> None:

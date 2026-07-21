@@ -102,6 +102,18 @@ def test_k8s_prod_gate_passes():
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
+def test_p2ptls_overlays_have_fail_closed_and_bind_identity():
+    for name in (
+        "docker-compose.prod.p2ptls.yml",
+        "docker-compose.prod.3node.p2ptls.yml",
+    ):
+        text = (ROOT / name).read_text(encoding="utf-8")
+        assert "P2P_TLS_FAIL_CLOSED" in text, name
+        assert "P2P_TLS_BIND_IDENTITY" in text, name
+        assert 'P2P_TLS_FAIL_CLOSED: "true"' in text, name
+        assert 'P2P_TLS_BIND_IDENTITY: "true"' in text, name
+
+
 def test_prod_single_compose_matches_node_json_knobs():
     import re
 

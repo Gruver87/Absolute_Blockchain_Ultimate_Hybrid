@@ -11,8 +11,11 @@ Mempool — пул неподтверждённых транзакций с пр
 
 import time
 import threading
+import logging
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 # --- Input validation (middleware/validators.py) ---
 try:
@@ -66,7 +69,8 @@ class MempoolTransaction:
                 "gas_limit": int(self.gas or 21_000),
             }
             return verify_transaction_signature(tx_dict)
-        except Exception:
+        except Exception as exc:
+            logger.warning("mempool signature verify error: %s", exc)
             return False
 
 

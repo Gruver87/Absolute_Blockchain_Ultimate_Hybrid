@@ -289,6 +289,24 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
             pass
     _freeze_compose_json("docker-compose.prod.yml", single_json, shared_compose_env)
 
+    for overlay in (
+        "docker-compose.prod.p2ptls.yml",
+        "docker-compose.prod.3node.p2ptls.yml",
+    ):
+        overlay_path = ROOT / overlay
+        if not overlay_path.is_file():
+            errors.append(f"missing {overlay}")
+            continue
+        overlay_txt = overlay_path.read_text(encoding="utf-8")
+        for needle in (
+            "P2P_TLS_ENABLED",
+            "P2P_TLS_FAIL_CLOSED",
+            "P2P_TLS_BIND_IDENTITY",
+            "P2P_TLS_REQUIRE_CLIENT_CERT",
+        ):
+            if needle not in overlay_txt:
+                errors.append(f"{overlay} missing {needle}")
+
     env_ex = ROOT / ".env.example"
     if env_ex.is_file():
         env_txt = env_ex.read_text(encoding="utf-8")
@@ -296,6 +314,20 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
             errors.append(".env.example must document mainnet CHAIN_ID 778888")
         if "CHAIN_ID=77777" not in env_txt and "CHAIN_ID=778888" not in env_txt:
             errors.append(".env.example missing CHAIN_ID example value")
+        if "ENABLE_CORS_RPC_PROXY=false" not in env_txt:
+            errors.append(".env.example must default ENABLE_CORS_RPC_PROXY=false")
+        if "CORS_ORIGINS=*" in env_txt:
+            errors.append(".env.example must not default CORS_ORIGINS=*")
+    main_py = (ROOT / "main.py").read_text(encoding="utf-8")
+    if 'Access-Control-Allow-Origin", "*"' in main_py or "Access-Control-Allow-Origin', '*'" in main_py:
+        errors.append("main.py CORS RPC proxy must not hardcode Allow-Origin *")
+    if "prod CORS RPC proxy requires explicit CORS_ORIGINS" not in main_py:
+        errors.append("main.py must refuse prod CORS proxy with wildcard origins")
+    rocks_py = (ROOT / "storage" / "rocks_store.py").read_text(encoding="utf-8")
+    if "reorg_truncate_above: corrupt block JSON" not in rocks_py:
+        errors.append("rocks_store.reorg_truncate_above must log corrupt block JSON")
+    if "rocksdb_properties_error" not in rocks_py:
+        errors.append("rocks_store.get_stats must surface rocksdb_properties_error")
     if not prod_tls_enabled:
         warnings.append(
             "prod mesh JSON: p2p_tls_enabled is not true "

@@ -1283,10 +1283,28 @@ class NodeOrchestrator:
                 import json as _json_mod
                 _rpc_port = self.config.rpc_port
                 _proxy_port = self.config.resolved_rpc_proxy_port()
+                _cors_origins = list(getattr(self.config, "cors_origins", []) or [])
+                if self.config.is_production and (
+                    not _cors_origins or "*" in _cors_origins
+                ):
+                    raise RuntimeError(
+                        "prod CORS RPC proxy requires explicit CORS_ORIGINS (no *)"
+                    )
+
+                def _proxy_cors_origin(request_origin: str) -> str:
+                    origin = (request_origin or "").strip()
+                    if "*" in _cors_origins:
+                        return "*"
+                    if origin and origin in _cors_origins:
+                        return origin
+                    return _cors_origins[0] if _cors_origins else ""
+
                 class _CORSProxy(_BH):
                     def do_OPTIONS(self):
+                        allow = _proxy_cors_origin(self.headers.get("Origin", ""))
                         self.send_response(200)
-                        self.send_header("Access-Control-Allow-Origin", "*")
+                        if allow:
+                            self.send_header("Access-Control-Allow-Origin", allow)
                         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
                         self.send_header("Access-Control-Allow-Headers", "Content-Type")
                         self.end_headers()
@@ -1294,17 +1312,22 @@ class NodeOrchestrator:
                         import requests as _req
                         cl = int(self.headers.get("Content-Length", 0))
                         body = self.rfile.read(cl)
+                        allow = _proxy_cors_origin(self.headers.get("Origin", ""))
+                        status = 200
                         try:
                             resp = _req.post(
                                 f"http://localhost:{_rpc_port}", data=body,
                                 headers={"Content-Type": "application/json"}, timeout=5,
                             )
                             data = resp.content
+                            status = int(resp.status_code or 200)
                         except Exception as e:
+                            status = 502
                             data = _json_mod.dumps({"error": str(e)}).encode()
-                        self.send_response(200)
+                        self.send_response(status)
                         self.send_header("Content-Type", "application/json")
-                        self.send_header("Access-Control-Allow-Origin", "*")
+                        if allow:
+                            self.send_header("Access-Control-Allow-Origin", allow)
                         self.send_header("Content-Length", len(data))
                         self.end_headers()
                         try:
@@ -1543,7 +1566,7 @@ class NodeOrchestrator:
                     continue
                 local_h = self.blockchain.get_height()
                 local_root = str(self.blockchain.get_state_root() or "")
-                if not getattr(self.p2p, "_state_consistent", True) and self.sync_engine:
+                if not getattr(self.p2p, "_state_consistent", False) and self.sync_engine:
                     try:
                         loop = asyncio.get_running_loop()
                         ok = await loop.run_in_executor(None, self.sync_engine.sync_state)
@@ -1585,7 +1608,7 @@ class NodeOrchestrator:
                     wire_roots=wire_roots,
                     local_height=local_h,
                     local_root=local_root,
-                    state_consistent=bool(getattr(self.p2p, "_state_consistent", True)),
+                    state_consistent=bool(getattr(self.p2p, "_state_consistent", False)),
                     peer_heights=peer_heights,
                 ):
                     continue

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import threading
 import time
@@ -10,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Set
 
 from crypto import native
 
+logger = logging.getLogger(__name__)
 
 class CrossShardCoordinator:
     """Track shard ACKs for cross-shard transfers and plan resharding epochs."""
@@ -299,10 +301,12 @@ class CrossShardCoordinator:
             to_shard = int(row.get("to_shard", -1))
             if owns_shard(from_shard) and owns_shard(to_shard):
                 addr = row.get("address", "")
-                if addr and db and hasattr(db, "get_balance"):
-                    balance = float(db.get_balance(addr))
-                    if balance > 0 and hasattr(db, "update_balance"):
-                        pass
+                logger.info(
+                    "cross-shard migration same-node noop address=%s from=%s to=%s",
+                    addr,
+                    from_shard,
+                    to_shard,
+                )
                 self.complete_migration(addr)
                 completed += 1
                 continue

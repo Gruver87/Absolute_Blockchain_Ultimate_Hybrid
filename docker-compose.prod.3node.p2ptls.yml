@@ -13,6 +13,8 @@ services:
       P2P_TLS_KEY_PATH: /app/p2p_tls/node.key
       P2P_TLS_CA_PATH: /app/p2p_tls/ca.pem
       P2P_TLS_REQUIRE_CLIENT_CERT: "true"
+      P2P_TLS_FAIL_CLOSED: "true"
+      P2P_TLS_BIND_IDENTITY: "true"
     volumes:
       - ./data/p2p_tls_prod_mesh/node1:/app/p2p_tls:ro
 
@@ -23,6 +25,8 @@ services:
       P2P_TLS_KEY_PATH: /app/p2p_tls/node.key
       P2P_TLS_CA_PATH: /app/p2p_tls/ca.pem
       P2P_TLS_REQUIRE_CLIENT_CERT: "true"
+      P2P_TLS_FAIL_CLOSED: "true"
+      P2P_TLS_BIND_IDENTITY: "true"
     volumes:
       - ./data/p2p_tls_prod_mesh/node2:/app/p2p_tls:ro
 
@@ -33,5 +37,7 @@ services:
       P2P_TLS_KEY_PATH: /app/p2p_tls/node.key
       P2P_TLS_CA_PATH: /app/p2p_tls/ca.pem
       P2P_TLS_REQUIRE_CLIENT_CERT: "true"
+      P2P_TLS_FAIL_CLOSED: "true"
+      P2P_TLS_BIND_IDENTITY: "true"
     volumes:
       - ./data/p2p_tls_prod_mesh/node3:/app/p2p_tls:ro

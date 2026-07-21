@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.13] — 2026-07-21
+
+### Hardened — Rocks/CORS/TLS overlay honesty, fail-closed state defaults
+
+- `_state_consistent` getattr defaults False across status/mining/sync
+- Rocks reorg/get_stats fail-loud; mempool sig-verify + cross-shard gossip warnings
+- 3node p2ptls FAIL_CLOSED/BIND_IDENTITY + gate freeze; CORS proxy no hardcoded *
+
+---
+
 ## [1.3.12] — 2026-07-21
 
 ### Hardened — Wire-probe fail-closed, import/sync honesty, ready/compose freeze

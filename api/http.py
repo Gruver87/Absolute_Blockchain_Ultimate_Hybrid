@@ -1279,7 +1279,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                         consensus_info["stats_error"] = str(exc)
                 peer_count = p2p.peer_count() if p2p else 0
                 mesh_min_peers = int(getattr(cfg, "mesh_min_peers_before_mine", 0) or 0)
-                state_consistent = getattr(p2p, "_state_consistent", True) if p2p else True
+                state_consistent = getattr(p2p, "_state_consistent", False) if p2p else False
                 p2p_sync_status = _derive_p2p_sync_status(
                     peer_count=peer_count,
                     peer_gap=peer_gap,
@@ -1999,7 +1999,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "height": height,
                     "state_root": local_root,
                     "state_consistent": (
-                        getattr(p2p, "_state_consistent", True) if p2p else True
+                        getattr(p2p, "_state_consistent", False) if p2p else False
                     ),
                     "peers": peers,
                     "peer_probe_error": peer_probe_error,
@@ -6344,7 +6344,7 @@ def _build_testnet_mesh(p2p, bc, cfg) -> Dict:
         })
     peer_count = len(peers)
     expected_peers = max(1, int(getattr(cfg, "testnet_expected_peers", 1) or 1))
-    state_consistent = getattr(p2p, "_state_consistent", True) if p2p else True
+    state_consistent = getattr(p2p, "_state_consistent", False) if p2p else False
     height_aligned = max_gap <= 2
     mesh_healthy = peer_count >= expected_peers and height_aligned and state_consistent
     return {
@@ -6395,7 +6395,7 @@ def _build_testnet_fork_status(p2p, bc, cfg, db=None) -> Dict:
     same_height_fork = any(len(heads) > 1 for heads in heads_by_height.values())
     peer_count = len(peers)
     expected_peers = max(1, int(getattr(cfg, "testnet_expected_peers", 1) or 1))
-    state_consistent = getattr(p2p, "_state_consistent", True) if p2p else True
+    state_consistent = getattr(p2p, "_state_consistent", False) if p2p else False
     slash_events = (
         db.get_slash_events(100) if db and hasattr(db, "get_slash_events") else []
     )
@@ -6568,7 +6568,7 @@ def _build_state_consistency_harness(
                 else 0.0
             )
     max_supply = float(getattr(cfg, "max_supply", 221_000_000) or 221_000_000)
-    state_consistent = getattr(p2p, "_state_consistent", True) if p2p else True
+    state_consistent = getattr(p2p, "_state_consistent", False) if p2p else False
 
     checks = [
         {
@@ -6828,7 +6828,7 @@ def _build_sync_status(se, p2p, bc, cfg) -> Dict:
     peer_count = p2p.peer_count() if p2p else 0
     peers_info = p2p.get_peers_info() if p2p else []
     best_peer_height = max((p.get("height", 0) for p in peers_info), default=local_h)
-    state_consistent = getattr(p2p, "_state_consistent", True) if p2p else True
+    state_consistent = getattr(p2p, "_state_consistent", False) if p2p else False
     root_fields = {
         "state_root": state_root,
         "state_consistent": state_consistent,

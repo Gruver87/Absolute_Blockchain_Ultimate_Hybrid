@@ -361,7 +361,7 @@ class SyncEngine:
             best_peer_height = max(best_peer_height, int(getattr(peer, "height", 0) or 0))
 
         p2p = getattr(self.node, "p2p", None)
-        state_consistent = getattr(p2p, "_state_consistent", True) if p2p else True
+        state_consistent = getattr(p2p, "_state_consistent", False) if p2p else False
         probe = getattr(self, "_last_wire_probe_ok", None)
 
         return {

@@ -1,4 +1,5 @@
 # dynamic_sharding.py - COMPLETE SHARDING IMPLEMENTATION
+import logging
 import threading
 import time
 import json
@@ -7,6 +8,7 @@ from dataclasses import dataclass, field
 
 from crypto import native
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class Shard:
@@ -121,8 +123,8 @@ class ShardingManager:
                 "status": "validator_ack",
                 "source_node": self.node_id,
             })
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("cross-shard validator_ack gossip failed: %s", exc)
 
     def submit_cross_shard_validator_ack(
         self, tx_id: str, shard_id: int, validator_id: str = ""
@@ -267,9 +269,8 @@ class ShardingManager:
         if payload:
             try:
                 self._gossip_fn(payload)
-            except Exception:
-                pass
-
+            except Exception as exc:
+                logger.warning("cross-shard tx gossip failed: %s", exc)
     def export_cross_shard_payload(self, tx_id: str) -> Optional[dict]:
         tx = self.cross_shard_txs.get(tx_id)
         if not tx:
@@ -566,8 +567,8 @@ class ShardingManager:
                     "address": payload.get("address", ""),
                     "to_shard": payload.get("to_shard", 0),
                 })
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("shard_migration_ack gossip failed: %s", exc)
         return credited
 
     def _gossip_migration(self, payload: dict) -> None:
@@ -575,9 +576,8 @@ class ShardingManager:
             return
         try:
             self._gossip_fn(payload)
-        except Exception:
-            pass
-
+        except Exception as exc:
+            logger.warning("shard_migration gossip failed: %s", exc)
 
 # Global instance for import
 sharding_manager = ShardingManager()
