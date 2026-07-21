@@ -74,6 +74,8 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `evm_interpreter.py` addr_int fallback hash via `native.sha256_hex`
 - [x] `runtime/mainnet_constants.py` ceremony address seed via `native.sha256_hex`
 - [x] `nft_core.py` mint token_id via `native.sha256_hex`
+- [x] `api/http.py` bridge/devnet/wallet fallback hashes via `native.sha256_hex`
+- [x] `crypto/tx_signer.py` transaction hash via `native.sha256_hex`
 
 ### Priority 4b — Consensus selection kernels ✅
 

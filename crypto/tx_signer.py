@@ -7,6 +7,7 @@ import json
 import time
 from typing import Dict, Any
 
+from crypto import native
 from crypto.keys import KeyGenerator
 from crypto.secp256k1_backend import CRYPTO_AVAILABLE, sign, verify
 
@@ -26,7 +27,7 @@ class TransactionSigner:
         }
         
         message = json.dumps(ordered, sort_keys=True)
-        return hashlib.sha256(message.encode()).hexdigest()
+        return native.sha256_hex(message.encode())
     
     @staticmethod
     def sign_transaction(tx_data: Dict[str, Any], private_key: str) -> str:

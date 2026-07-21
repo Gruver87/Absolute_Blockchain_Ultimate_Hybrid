@@ -14,13 +14,14 @@ import asyncio
 import json
 import os
 import time
-import hashlib
 import logging
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 from urllib.parse import urlparse, parse_qs
 from typing import Optional, Any, Dict, List
 import threading
+
+from crypto import native
 
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
@@ -3990,8 +3991,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "public_key": getattr(w, "public_key_hex", ""),
                     })
                 except Exception as e:
-                    import hashlib as _hl, time as _t
-                    addr = "0x" + _hl.sha256(str(_t.time()).encode()).hexdigest()[:40]
+                    import time as _t
+                    addr = "0x" + native.sha256_hex(str(_t.time()).encode())[:40]
                     self._json({"address": addr, "note": "ecdsa not available"})
 
             # ── Multisig create ───────────────────────────────────────────────
@@ -4843,9 +4844,9 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if rust_br and hasattr(rust_br, "lock_and_bridge"):
                     if to_chain.lower() in ("absolute", "abs"):
                         tx_id = body.get("tx_id") or l1_tx or (
-                            "0x" + hashlib.sha256(
+                            "0x" + native.sha256_hex(
                                 f"{from_chain}:{from_addr}:{to_addr}:{amount}".encode()
-                            ).hexdigest()
+                            )
                         )
                         result = rust_br.confirm_incoming(
                             tx_id, to_addr, amount, from_chain, l1_tx_hash=l1_tx
@@ -7209,7 +7210,6 @@ def _handle_call_tx(body: Dict, bc, mp, cfg, wallet=None) -> str:
 
 def _handle_devnet_pool_spend(body: Dict, bc, db, cfg, pool_locks) -> Dict:
     """Devnet-only transfer from unlocked ecosystem/treasury/staking pool."""
-    import hashlib
     import time as _time
 
     pool_id = (body.get("pool_id", body.get("pool", "ecosystem")) or "").strip().lower()
@@ -7242,9 +7242,9 @@ def _handle_devnet_pool_spend(body: Dict, bc, db, cfg, pool_locks) -> Dict:
     db.update_balance(to_addr, amount)
     pool_locks.record_outgoing(from_addr, amount)
 
-    tx_hash = hashlib.sha256(
+    tx_hash = native.sha256_hex(
         f"pool-spend|{from_addr}|{to_addr}|{amount}|{_time.time()}".encode()
-    ).hexdigest()[:16]
+    )[:16]
     height = bc.get_height() if bc and hasattr(bc, "get_height") else 0
     db.save_transaction({
         "hash": tx_hash,
