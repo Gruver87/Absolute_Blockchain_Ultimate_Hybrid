@@ -222,7 +222,7 @@ class MetricsCollector:
                 "# TYPE abs_state_consistent gauge",
                 (
                     f"abs_state_consistent{{node_id=\"{node_id}\"}} "
-                    f"{1 if sync_status.get('state_consistent', True) else 0}"
+                    f"{1 if sync_status.get('state_consistent') else 0}"
                 ),
                 "# HELP abs_sync_wire_probe_ok Last peer state_root wire probe result",
                 "# TYPE abs_sync_wire_probe_ok gauge",

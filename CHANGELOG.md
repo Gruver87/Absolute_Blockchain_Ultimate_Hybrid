@@ -6,6 +6,17 @@
 
 ---
 
+## [1.3.12] — 2026-07-21
+
+### Hardened — Wire-probe fail-closed, import/sync honesty, ready/compose freeze
+
+- Empty/timeout state_root wire probe with peers → inconsistent (not silent green)
+- Soft import rejects + sync stalls counted; batch sync via `import_block`
+- Prod `/health/ready` checks `p2p_running`; metrics sync defaults fail-closed
+- Single-node compose↔JSON freeze; `.env.example` documents chain_id 778888
+
+---
+
 ## [1.3.11] — 2026-07-21
 
 ### Hardened — Sync consistency metrics, loop/import honesty, deploy freezes

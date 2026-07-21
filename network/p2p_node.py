@@ -410,20 +410,21 @@ class P2PNode:
 
     def import_block(self, block_data: Dict) -> bool:
         """For SyncEngine.fast_sync()."""
-        if hasattr(self.blockchain, "import_block"):
-            try:
-                return bool(self.blockchain.import_block(block_data))
-            except Exception as exc:
-                self._import_block_fail = int(self._import_block_fail or 0) + 1
-                logger.warning("[P2P] import_block failed: %s", exc)
-                return False
-        from core.blockchain import Block
         try:
-            blk = Block.from_dict(block_data)
-            return self.blockchain.add_block(blk)
+            if hasattr(self.blockchain, "import_block"):
+                ok = bool(self.blockchain.import_block(block_data))
+            else:
+                from core.blockchain import Block
+
+                blk = Block.from_dict(block_data)
+                ok = bool(self.blockchain.add_block(blk))
+            if not ok:
+                self._import_block_fail = int(self._import_block_fail or 0) + 1
+                logger.warning("[P2P] import_block rejected")
+            return ok
         except Exception as exc:
             self._import_block_fail = int(self._import_block_fail or 0) + 1
-            logger.warning("[P2P] import_block parse/add failed: %s", exc)
+            logger.warning("[P2P] import_block failed: %s", exc)
             return False
 
     # ── Запуск / остановка ───────────────────────────────────────────────────
@@ -1451,7 +1452,7 @@ class P2PNode:
             imported_any = False
             for block_data in blocks_data:
                 try:
-                    if self.blockchain.import_block(block_data):
+                    if self.import_block(block_data):
                         h = block_data.get("height", block_data.get("number", current))
                         current = int(h) + 1
                         imported_any = True
@@ -1476,10 +1477,12 @@ class P2PNode:
                         print(f"[P2P] Import failed at #{fail_h}, aborting batch")
                         break
                 except Exception as e:
+                    self._sync_fail = int(self._sync_fail or 0) + 1
                     print(f"[P2P] Sync block error at #{current}: {e}")
                     return
 
             if not imported_any:
+                self._sync_fail = int(self._sync_fail or 0) + 1
                 break
 
             peer.height = max(peer.height, self.blockchain.get_height())
@@ -1789,7 +1792,7 @@ class P2PNode:
         raw = await asyncio.gather(*(_one(p) for p in peers), return_exceptions=True)
         return [r for r in raw if isinstance(r, dict)]
 
-    def request_peer_state_roots_sync(self, timeout: float = 15) -> List[Dict]:
+    def request_peer_state_roots_sync(self, timeout: float = 15) -> Optional[List[Dict]]:
         if not self._loop or not self._running:
             return []
         peer_n = max(1, len(self.peers))
@@ -1799,8 +1802,9 @@ class P2PNode:
         )
         try:
             return future.result(timeout=budget)
-        except Exception:
-            return []
+        except Exception as exc:
+            logger.warning("[P2P] state_root wire probe timeout/error: %s", exc)
+            return None
 
     async def _request_block_by_hash(self, peer: PeerConnection, block_hash: str) -> Optional[Dict]:
         """Запрашивает у пира полный блок по hash."""

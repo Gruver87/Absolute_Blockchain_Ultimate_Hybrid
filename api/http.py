@@ -1005,6 +1005,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     required=bool(getattr(cfg, "require_native_crypto", False))
                 )
                 bridge_health = _rust_bridge_health(cfg)
+                is_prod = str(getattr(cfg, "deployment_mode", "") or "").lower() == "prod"
                 checks = {
                     "blockchain": bc is not None,
                     "database": db is not None,
@@ -1025,6 +1026,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                         else True
                     ),
                 }
+                if is_prod and p2p is not None:
+                    checks["p2p_running"] = bool(getattr(p2p, "_running", False))
                 ready = all(checks.values())
                 payload = {
                     "status": "ready" if ready else "not_ready",
@@ -1095,20 +1098,23 @@ class RESTHandler(BaseHTTPRequestHandler):
                     rocksdb_tuning = dict(rocksdb_tuning)
                     rocksdb_tuning["source"] = rocks_source
                 sync_status = {
-                    "state_consistent": True,
-                    "wire_probe_ok": True,
+                    "state_consistent": False,
+                    "wire_probe_ok": False,
                     "wire_probe_probed": False,
                 }
                 if p2p is not None:
                     sync_status["state_consistent"] = bool(
-                        getattr(p2p, "_state_consistent", True)
+                        getattr(p2p, "_state_consistent", False)
                     )
                     se = getattr(p2p, "sync_engine", None)
                     if se is not None and hasattr(se, "get_status"):
                         try:
                             se_st = dict(se.get_status() or {})
                             sync_status["state_consistent"] = bool(
-                                se_st.get("state_consistent", sync_status["state_consistent"])
+                                se_st.get(
+                                    "state_consistent",
+                                    sync_status["state_consistent"],
+                                )
                             )
                             sync_status["wire_probe_ok"] = bool(se_st.get("wire_probe_ok"))
                             sync_status["wire_probe_probed"] = bool(
@@ -1972,7 +1978,11 @@ class RESTHandler(BaseHTTPRequestHandler):
                 peer_probe_error = None
                 if p2p and hasattr(p2p, "request_peer_state_roots_sync"):
                     try:
-                        for entry in p2p.request_peer_state_roots_sync(timeout=8):
+                        wire = p2p.request_peer_state_roots_sync(timeout=8)
+                        if wire is None:
+                            peer_probe_error = "timeout"
+                            wire = []
+                        for entry in wire:
                             pr = entry.get("state_root", "")
                             peers.append({
                                 "peer_id": entry.get("peer_id", ""),
@@ -6504,7 +6514,13 @@ def _build_state_consistency_harness(
     peer_probe_error: Optional[str] = None
     if p2p and hasattr(p2p, "request_peer_state_roots_sync"):
         try:
-            for entry in p2p.request_peer_state_roots_sync(timeout=peer_timeout):
+            wire = p2p.request_peer_state_roots_sync(timeout=peer_timeout)
+            if wire is None:
+                peer_probe_error = "timeout"
+                logger.warning("state consistency harness peer probe failed: timeout")
+                peer_roots_aligned = False
+                wire = []
+            for entry in wire:
                 pr = str(entry.get("state_root") or "")
                 pr_norm = pr.strip().lower()
                 match = (pr_norm == live_norm) if pr_norm and live_norm else None

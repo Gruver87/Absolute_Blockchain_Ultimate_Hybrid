@@ -272,6 +272,15 @@ class SyncEngine:
         print(f"[Sync] Done: imported {imported}/{len(to_import)} blocks (local now {self._local_height()})")
         return imported > 0 or best_peer_h <= local_h
 
+    def _set_state_consistent(self, ok: bool) -> None:
+        """Mirror consistency on AbsoluteNode and/or nested P2PNode."""
+        flag = bool(ok)
+        if hasattr(self.node, "_state_consistent"):
+            self.node._state_consistent = flag
+        p2p = getattr(self.node, "p2p", None)
+        if p2p is not None and hasattr(p2p, "_state_consistent"):
+            p2p._state_consistent = flag
+
     def sync_state(self) -> bool:
         """Compare local state_root with peer-reported roots when available."""
         print("[Sync] Checking state consistency...")
@@ -289,14 +298,29 @@ class SyncEngine:
 
         wire_roots = []
         wire_probe_ok = True
+        peers = self._collect_p2p_peers()
         if hasattr(self.node, "request_peer_state_roots_sync"):
             try:
                 wire_roots = self.node.request_peer_state_roots_sync()
+                if wire_roots is None:
+                    wire_probe_ok = False
+                    print("   [Sync] peer state_root wire probe failed: timeout/empty")
+                    wire_roots = []
+                elif peers and len(wire_roots) == 0:
+                    wire_probe_ok = False
+                    print(
+                        "   [Sync] peer state_root wire probe empty "
+                        f"with {len(peers)} peer(s)"
+                    )
             except Exception as exc:
                 wire_probe_ok = False
                 print(f"   [Sync] peer state_root wire probe failed: {exc}")
                 wire_roots = []
         self._last_wire_probe_ok = wire_probe_ok
+
+        if not wire_probe_ok:
+            self._set_state_consistent(False)
+            return False
 
         for entry in wire_roots:
             peer_root = entry.get("state_root", "")
@@ -322,13 +346,11 @@ class SyncEngine:
 
         if mismatches:
             print(f"   State root mismatch vs peers: {', '.join(mismatches)}")
-            if hasattr(self.node, "_state_consistent"):
-                self.node._state_consistent = False
+            self._set_state_consistent(False)
             return False
 
         print(f"   State consistent (root={local_root[:12]}... height={local_height})")
-        if hasattr(self.node, "_state_consistent"):
-            self.node._state_consistent = True
+        self._set_state_consistent(True)
         return True
 
     def get_status(self) -> dict:

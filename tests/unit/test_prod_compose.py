@@ -102,6 +102,25 @@ def test_k8s_prod_gate_passes():
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
+def test_prod_single_compose_matches_node_json_knobs():
+    import re
+
+    compose = (ROOT / "docker-compose.prod.yml").read_text(encoding="utf-8")
+    cfg = json.loads((ROOT / "docker" / "node.prod.json").read_text(encoding="utf-8"))
+
+    def compose_default(key: str) -> str:
+        m = re.search(rf"(?m)^\s*{re.escape(key)}:\s*(.+?)\s*$", compose)
+        assert m, key
+        raw = m.group(1).strip().strip('"').strip("'")
+        dm = re.match(r"^\$\{[^:]+:-([^}]+)\}$", raw)
+        return (dm.group(1) if dm else raw).strip().strip('"').strip("'")
+
+    assert compose_default("P2P_MAX_MESSAGES_PER_SEC") == str(cfg["p2p_max_messages_per_sec"])
+    assert compose_default("ROCKSDB_BLOCK_CACHE_MB") == str(cfg["rocksdb_block_cache_mb"])
+    bridge = compose_default("BRIDGE_ENABLED")
+    assert bridge.lower() == ("true" if cfg["bridge_enabled"] else "false")
+
+
 def test_prod_mesh_json_declares_redis():
     for name in (
         "docker/node.prod.mesh1.json",

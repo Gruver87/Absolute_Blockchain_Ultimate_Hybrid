@@ -217,48 +217,38 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
                 errors.append(f"{rel}: redis_url must be non-empty for mesh/k8s")
         if "mesh" in Path(rel).name.lower():
             mesh_json_cfgs.append((rel, prod_cfg))
-    # Compose env numeric freeze vs mesh JSON (3-node prod mesh).
-    compose_path = ROOT / "docker-compose.prod.3node.yml"
-    if compose_path.is_file() and mesh_json_cfgs:
-        import re
+    # Compose env freeze vs prod JSON (3-node mesh + single-node).
+    import re
 
+    def _compose_default(compose_text: str, env_key: str) -> str | None:
+        m = re.search(
+            rf"(?m)^\s*{re.escape(env_key)}:\s*(.+?)\s*$",
+            compose_text,
+        )
+        if not m:
+            return None
+        raw = m.group(1).strip().strip('"').strip("'")
+        dm = re.match(r"^\$\{[^:]+:-([^}]+)\}$", raw)
+        if dm:
+            return dm.group(1).strip().strip('"').strip("'")
+        return raw
+
+    def _freeze_compose_json(
+        compose_rel: str,
+        json_cfgs: list[tuple[str, dict]],
+        env_map: dict[str, str],
+    ) -> None:
+        compose_path = ROOT / compose_rel
+        if not compose_path.is_file() or not json_cfgs:
+            return
         compose_text = compose_path.read_text(encoding="utf-8")
-        env_map = {
-            "ROCKSDB_SYNC": "rocksdb_sync",
-            "ROCKSDB_BLOCK_CACHE_MB": "rocksdb_block_cache_mb",
-            "ROCKSDB_WRITE_BUFFER_MB": "rocksdb_write_buffer_mb",
-            "ROCKSDB_COLUMN_FAMILIES": "rocksdb_column_families",
-            "P2P_MAX_MESSAGE_BYTES": "p2p_max_message_bytes",
-            "P2P_MAX_MESSAGES_PER_SEC": "p2p_max_messages_per_sec",
-            "P2P_BAN_SECONDS": "p2p_ban_seconds",
-            "P2P_RATE_LIMIT_STRIKES": "p2p_rate_limit_strikes",
-            "P2P_EVICT_MIN_SCORE": "p2p_evict_min_score",
-            "BRIDGE_ENABLED": "bridge_enabled",
-            "REDIS_RATE_LIMIT": "redis_rate_limit_enabled",
-            "REDIS_URL": "redis_url",
-        }
-
-        def _compose_default(env_key: str) -> str | None:
-            m = re.search(
-                rf"(?m)^\s*{re.escape(env_key)}:\s*(.+?)\s*$",
-                compose_text,
-            )
-            if not m:
-                return None
-            raw = m.group(1).strip().strip('"').strip("'")
-            dm = re.match(r"^\$\{[^:]+:-([^}]+)\}$", raw)
-            if dm:
-                return dm.group(1).strip().strip('"').strip("'")
-            return raw
-
         for env_key, json_key in env_map.items():
-            compose_val = _compose_default(env_key)
+            compose_val = _compose_default(compose_text, env_key)
             if compose_val is None:
-                errors.append(f"docker-compose.prod.3node.yml missing {env_key}")
+                errors.append(f"{compose_rel} missing {env_key}")
                 continue
-            for rel, prod_cfg in mesh_json_cfgs:
+            for rel, prod_cfg in json_cfgs:
                 if json_key not in prod_cfg:
-                    # redis/bridge already enforced for mesh above
                     continue
                 raw = prod_cfg.get(json_key)
                 if isinstance(raw, bool):
@@ -267,9 +257,45 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
                     json_val = str(raw).strip()
                 if compose_val.lower() != json_val.lower():
                     errors.append(
-                        f"compose↔JSON mismatch {env_key}={compose_val} vs "
+                        f"compose↔JSON mismatch {compose_rel} {env_key}={compose_val} vs "
                         f"{rel}.{json_key}={json_val}"
                     )
+
+    shared_compose_env = {
+        "ROCKSDB_SYNC": "rocksdb_sync",
+        "ROCKSDB_BLOCK_CACHE_MB": "rocksdb_block_cache_mb",
+        "ROCKSDB_WRITE_BUFFER_MB": "rocksdb_write_buffer_mb",
+        "ROCKSDB_COLUMN_FAMILIES": "rocksdb_column_families",
+        "P2P_MAX_MESSAGE_BYTES": "p2p_max_message_bytes",
+        "P2P_MAX_MESSAGES_PER_SEC": "p2p_max_messages_per_sec",
+        "P2P_BAN_SECONDS": "p2p_ban_seconds",
+        "P2P_RATE_LIMIT_STRIKES": "p2p_rate_limit_strikes",
+        "P2P_EVICT_MIN_SCORE": "p2p_evict_min_score",
+        "BRIDGE_ENABLED": "bridge_enabled",
+    }
+    mesh_env = dict(shared_compose_env)
+    mesh_env["REDIS_RATE_LIMIT"] = "redis_rate_limit_enabled"
+    mesh_env["REDIS_URL"] = "redis_url"
+    _freeze_compose_json("docker-compose.prod.3node.yml", mesh_json_cfgs, mesh_env)
+
+    single_json: list[tuple[str, dict]] = []
+    single_path = ROOT / "docker" / "node.prod.json"
+    if single_path.is_file():
+        try:
+            single_cfg = json.loads(single_path.read_text(encoding="utf-8"))
+            if str(single_cfg.get("deployment_mode", "")).lower() == "prod":
+                single_json.append(("docker/node.prod.json", single_cfg))
+        except (OSError, json.JSONDecodeError):
+            pass
+    _freeze_compose_json("docker-compose.prod.yml", single_json, shared_compose_env)
+
+    env_ex = ROOT / ".env.example"
+    if env_ex.is_file():
+        env_txt = env_ex.read_text(encoding="utf-8")
+        if "778888" not in env_txt:
+            errors.append(".env.example must document mainnet CHAIN_ID 778888")
+        if "CHAIN_ID=77777" not in env_txt and "CHAIN_ID=778888" not in env_txt:
+            errors.append(".env.example missing CHAIN_ID example value")
     if not prod_tls_enabled:
         warnings.append(
             "prod mesh JSON: p2p_tls_enabled is not true "
@@ -290,6 +316,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         src = inspect.getsource(SyncEngine.sync_state)
         if "peer state_root wire probe failed" not in src:
             errors.append("SyncEngine.sync_state must log wire probe failures")
+        if "wire probe empty" not in src and "empty with" not in src:
+            errors.append("SyncEngine.sync_state must fail-closed on empty probe with peers")
         status_src = inspect.getsource(SyncEngine.get_status)
         if "wire_probe_ok" not in status_src:
             errors.append("SyncEngine.get_status missing wire_probe_ok")
@@ -322,6 +350,12 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
                 errors.append(f"main.py mining loop must log: {needle}")
     except Exception as exc:
         errors.append(f"fail-loud main.py inspect failed: {exc}")
+    try:
+        http_py = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
+        if 'checks["p2p_running"]' not in http_py and "p2p_running" not in http_py:
+            errors.append("/health/ready must check p2p_running in prod")
+    except Exception as exc:
+        errors.append(f"fail-loud http inspect failed: {exc}")
     try:
         from core.blockchain import Blockchain
 

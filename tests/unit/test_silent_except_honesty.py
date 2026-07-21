@@ -26,7 +26,47 @@ def test_sync_state_logs_wire_probe_failure(capsys):
     assert "wire probe failed" in captured.out
     assert eng.get_status().get("wire_probe_ok") is False
     assert eng.get_status().get("wire_probe_probed") is True
-    assert ok is True  # no peers/mismatches — consistent but probe failed
+    assert ok is False
+    assert node.p2p._state_consistent is False
+
+
+def test_sync_state_empty_probe_with_peers_fail_closed(capsys):
+    peer = SimpleNamespace(peer_id="peer1", height=1)
+    node = SimpleNamespace(
+        blockchain=SimpleNamespace(
+            get_state_root=lambda: "abc",
+            get_height=lambda: 1,
+            get_block=lambda _h: None,
+        ),
+        request_peer_state_roots_sync=MagicMock(return_value=[]),
+        p2p=SimpleNamespace(_state_consistent=True),
+    )
+    eng = SyncEngine(node)
+    eng._collect_p2p_peers = lambda: [peer]  # type: ignore
+    ok = eng.sync_state()
+    captured = capsys.readouterr()
+    assert "empty" in captured.out.lower()
+    assert ok is False
+    assert eng.get_status().get("wire_probe_ok") is False
+    assert node.p2p._state_consistent is False
+
+
+def test_sync_state_timeout_none_fail_closed(capsys):
+    peer = SimpleNamespace(peer_id="peer1", height=1)
+    node = SimpleNamespace(
+        blockchain=SimpleNamespace(
+            get_state_root=lambda: "abc",
+            get_height=lambda: 1,
+            get_block=lambda _h: None,
+        ),
+        request_peer_state_roots_sync=MagicMock(return_value=None),
+        p2p=SimpleNamespace(_state_consistent=True),
+    )
+    eng = SyncEngine(node)
+    eng._collect_p2p_peers = lambda: [peer]  # type: ignore
+    ok = eng.sync_state()
+    assert ok is False
+    assert eng.get_status().get("wire_probe_ok") is False
 
 
 def test_sync_status_unknown_probe_is_fail_closed():
