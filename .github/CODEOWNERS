@@ -1,0 +1,9 @@
+# CODEOWNERS — Absolute Blockchain Ultimate Hybrid
+# https://docs.github.com/en/repositories/managing-your-repository-settings-and-features/customizing-your-repository/about-code-owners
+
+*       @Gruver87
+/.github/ @Gruver87
+/docs/    @Gruver87
+/scripts/ @Gruver87
+/native/  @Gruver87
+/bridge/  @Gruver87

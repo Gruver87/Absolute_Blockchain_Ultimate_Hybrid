@@ -1,40 +1,38 @@
 ﻿---
-name: 🐛 Bug Report
-about: Сообщить об ошибке в блокчейне
+name: Bug report
+about: Report a reproducible defect in the hybrid node / mesh / gates
 title: "[BUG] "
 labels: bug
 assignees: Gruver87
-
 ---
 
-## 🐛 Описание ошибки
+## Summary
 
-Чёткое и краткое описание проблемы.
+Clear description of the failure.
 
-> Проект **учебный** — укажите, что воспроизводили на `python main.py`, не на старых скриптах из `_archive/`.
+## Environment
 
-## 🔄 Шаги для воспроизведения
+- OS:
+- Python:
+- Git tag / commit:
+- How you ran the node: `python main.py` / Docker prod mesh / other:
 
-1. `python main.py` (или команда '...')
-2. Отправить транзакцию '...'
-3. Смотреть лог '...'
-4. Увидеть ошибку
+## Steps to reproduce
 
-## ✅ Ожидаемое поведение
+1.
+2.
+3.
 
-Чёткое описание того, что должно было произойти.
+## Expected vs actual
 
-## 📷 Скриншоты / Логи
-Вставьте логи или скриншоты здесь
+**Expected:**
+**Actual:**
 
-text
+## Logs / artifacts
 
-## 🖥️ Окружение
+Paste relevant log lines (redact secrets). Link soak/probe artifacts if relevant.
 
-- ОС: [например Windows 11]
-- Python версия: [например 3.11]
-- Версия проекта: [например v1.2.0-industrial]
+## Checklist
 
-## 📝 Дополнительный контекст
-
-Любая другая информация.
+- [ ] Not a secrets leak (no `.env`, keys, or wallet JSON)
+- [ ] Checked [EVIDENCE_MATRIX](../../docs/EVIDENCE_MATRIX.md) — is this already a known gap?

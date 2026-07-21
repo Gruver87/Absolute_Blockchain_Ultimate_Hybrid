@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Evidence matrix (what is proven)
+    url: https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/EVIDENCE_MATRIX.md
+    about: Check live ops evidence before filing “mainnet ready” or feature claims.
+  - name: Security / secrets policy
+    url: https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/SECURITY.md
+    about: Never paste private keys, .env contents, or wallet files into issues.

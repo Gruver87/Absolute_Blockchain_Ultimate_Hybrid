@@ -1,6 +1,6 @@
 ﻿# Contributing — Absolute Blockchain Ultimate
 
-Спасибо за интерес! Это **production-hardened R&D/devnet** проект — любой вклад в код, тесты и документацию приветствуется.
+Спасибо за интерес! Это **production-hardened R&D / devnet** проект (локальный prod-mesh evidence, **не** launched public mainnet) — вклад в код, тесты и честную документацию приветствуется.
 
 ## Перед началом
 

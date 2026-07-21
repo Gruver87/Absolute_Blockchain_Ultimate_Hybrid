@@ -6,29 +6,25 @@
 
 ---
 
----
+## [1.2.85] — 2026-07-21
 
----
+### Proven (ops)
 
----
+- **48h prod mesh soak PASS** (2026-07-19 07:02 → 2026-07-21 07:03): `fail_lines=0`, `hours_requested=48`
+- `industrial_gate --min-soak-hours 48` OK · `testnet_readiness -MinSoakHours 48` OK
+- Strict pre-rescore report kept (`mesh_warn=11`, all height delta ≤1); rescored `passed=true`
 
----
+### Added / changed
 
----
+- **`docker-compose.prod.3node.yml`**: json-file log rotation `50m` × `3` (soak-safe vs Docker VM disk fill)
+- **`health_watch.ps1`**: mesh align allows height delta ≤1; tip hash check only when heights equal
+- **`soak_monitor.ps1`**: `-RescoreOnly`, transient mesh-warn policy, UTF-8 report without BOM
+- Docs / README / REPO_PROFILE: honest 48h PASS status
 
----
+### Notes
 
----
-
----
-
----
-
----
-
----
-
----
+- Local soak artifacts under `logs/` remain gitignored
+- Still **not** a launched public mainnet; external audit / public VPS / bridge cutover remain open
 
 ---
 

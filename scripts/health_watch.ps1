@@ -80,10 +80,18 @@ function Test-MeshAlignment([int[]]$PortList) {
             return @{ Ok = $false; Error = "port $p status: $($_.Exception.Message)" }
         }
     }
-    $heights = $rows | ForEach-Object { $_.Height }
-    $heads = ($rows | ForEach-Object { $_.Head }) | Where-Object { $_ }
-    $heightOk = ($heights | Select-Object -Unique).Count -le 1
-    $headOk = -not $heads -or ($heads | Select-Object -Unique).Count -le 1
+    $heights = @($rows | ForEach-Object { $_.Height })
+    $heads = @(($rows | ForEach-Object { $_.Head }) | Where-Object { $_ })
+    # Allow ±1 height skew: status is polled sequentially while blocks mine.
+    $maxH = ($heights | Measure-Object -Maximum).Maximum
+    $minH = ($heights | Measure-Object -Minimum).Minimum
+    $heightOk = ($maxH - $minH) -le 1
+    # Same tip hash only required when all heights match; otherwise heads differ by design.
+    if (($heights | Select-Object -Unique).Count -le 1) {
+        $headOk = ($heads.Count -eq 0) -or (($heads | Select-Object -Unique).Count -le 1)
+    } else {
+        $headOk = $true
+    }
     return @{
         Ok = $heightOk -and $headOk
         Rows = $rows

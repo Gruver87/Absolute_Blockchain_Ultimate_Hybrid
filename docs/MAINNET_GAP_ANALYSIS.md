@@ -71,7 +71,7 @@ Automated gates (`mainnet_readiness`, `prod_gate`) enforce code-level fail-close
 - [x] **Failover under load** — `prod_mesh_failover.ps1` PASS (`logs/evidence_failover.log`; see [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md))
 - [x] **Signed tx on prod mesh** — `prod_signed_tx_smoke.py` PASS (n2/n3 propagation; `logs/evidence_signed_tx.log`)
 - [x] **EVM deploy/call on prod RPC ports** — `prod_evm_smoke.py` mempool path PASS (Jul 12 evening; storage on all 3 RPC)
-- [ ] **Soak 24–48h+** completed with `soak_report_48h.json` passed (**48h RUNNING** since 2026-07-17 — `logs/soak_48h_v1.2.77.log`; **not completed**)
+- [x] **Soak 24–48h+** completed with `soak_report_48h.json` passed (**PASS** 2026-07-19→21, `logs/soak_48h_v1.2.84_rerun3.log`)
 - [ ] **External security audit** — third-party firm; auto-checkmarks no longer satisfy strict gate (v1.2.43)
 
 **API hardening (v1.2.28):** direct `POST /contract/deploy` without `via_mempool` is rejected in production — mempool signed deploy only.

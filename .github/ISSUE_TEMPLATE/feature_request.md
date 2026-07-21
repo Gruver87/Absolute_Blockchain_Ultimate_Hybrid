@@ -1,30 +1,27 @@
 ﻿---
-name: 💡 Feature Request
-about: Предложить новую функциональность
+name: Feature request
+about: Propose a concrete improvement with evidence impact
 title: "[FEATURE] "
 labels: enhancement
 assignees: Gruver87
-
 ---
 
-> Учебный проект — идеи для обучения, демо и open-source развития приветствуются.
+## Problem
 
-## 💡 Идея
+What is missing or painful today?
 
-Чёткое описание новой функциональности.
+## Proposal
 
-## 🎯 Зачем это нужно
+Concrete change (API, consensus, ops script, docs).
 
-Объясните, почему эта функция полезна для проекта.
+## Evidence impact
 
-## 🔧 Предлагаемая реализация
+Does this change any row in [EVIDENCE_MATRIX](../../docs/EVIDENCE_MATRIX.md)? If yes, how would we prove it?
 
-Как вы видите реализацию этой функции.
+## Alternatives considered
 
-## 📚 Альтернативы
+…
 
-Есть ли альтернативные решения?
+## Non-goals
 
-## 📝 Дополнительная информация
-
-Любой другой контекст или скриншоты.
+Explicitly list what this does **not** claim (e.g. not “mainnet launch”).

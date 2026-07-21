@@ -1,43 +1,48 @@
-# Security / Секреты
+# Security Policy
 
-## Что НЕ должно попадать в Git
+## Supported versions
 
-- `data/wallet.json` — локальный кошелёк (используйте `wallet.example.json`)
-- `.env` — API keys, JWT secret, bot tokens
-- `*.db`, `data/` — база блокчейна
-- Приватные ключи, seed-фразы, пароли
+| Version | Supported |
+|---------|-----------|
+| `v1.2.x` on `master` | Yes (best-effort R&D) |
+| Older tags | Limited — prefer latest release |
 
-## Что в репозитории (публично)
+This project is a **production-hardened R&D / devnet** stack. It is **not** a launched public mainnet and has **not** completed an independent external security audit.
 
-- `wallet.example.json` — шаблон без ключей
-- `.env.example` — плейсхолдеры
-- Адрес основателя в `runtime/tokenomics.py` — **публичный** учебный адрес (не приватный ключ)
+## Reporting a vulnerability
 
-## Криптография (SECP256K1)
+1. **Do not** open a public issue with exploit details that could harm operators.
+2. Prefer a private GitHub Security Advisory (if enabled) or contact the repository owner **Gruver87** via GitHub.
+3. Include: affected version/tag, reproduction steps, impact, and whether a fix is proposed.
 
-Подписи используют **`cryptography`** (OpenSSL), не `python-ecdsa`.  
-Причина: CVE-2024-23342 (Minerva timing attack) — в `ecdsa` нет исправления.
+## Secrets — what must never enter Git
 
-## Oracles
+- `data/wallet.json` — use `wallet.example.json`
+- `.env` — API keys, JWT, bot tokens, RPC secrets
+- `*.db`, `data/` — chain databases
+- Private keys, seed phrases, passwords, TLS key material
 
-Ключи OpenWeather / WeatherAPI берутся только из переменных окружения:
-`OPENWEATHER_API_KEY`, `WEATHERAPI_KEY` в `.env`.
+## What is public in-repo
 
-## Проверка перед push
+- `wallet.example.json`, `.env.example`
+- Founder **public** address in `runtime/tokenomics.py` (not a private key)
+
+## Cryptography
+
+Transaction ECDSA uses **`cryptography`** (OpenSSL), not `python-ecdsa` (CVE-2024-23342 / Minerva).
+
+Production profile requires Rust/PyO3 `abs_native` (`ABS_REQUIRE_NATIVE_CRYPTO=true`).
+
+## Pre-push check
 
 ```bash
 python scripts/check_secrets.py
 ```
 
-Скрипт запускается в CI — push с ключами в коде будет заблокирован.
+Runs in CI — commits with embedded secrets should fail.
 
-## Старый справочник v57 (Часть 23)
+## If a secret was committed
 
-Файлы с **API keys, Telegram token, SSH, private keys** — **только локально** на ПК.  
-Не добавляйте в git. Используйте актуальный: `docs/COMMANDS_REFERENCE.md` (без секретов).
-
-## Если ключ случайно попал в Git
-
-1. Немедленно **отзовите/ротируйте** ключ на стороне сервиса  
-2. Не храните приватные ключи в `data/wallet.json`  
-3. Старые коммиты на GitHub могут сохранять историю — при утечке рассмотрите `git filter-repo` или GitHub secret scanning
+1. Rotate the secret immediately.
+2. Purge from git history if it reached a remote.
+3. Open a private report with the owner.

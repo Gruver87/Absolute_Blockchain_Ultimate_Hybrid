@@ -41,6 +41,14 @@ x-prod-node-build: &prod-node-build
     context: .
     dockerfile: Dockerfile.prod
 
+# Prevent unbounded container json logs from filling Docker Desktop VM disk
+# (root cause of ~17-18h soak crashes / daemon.json corruption after OOM-like hangs).
+x-abs-logging: &abs-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "3"
+
 services:
   node1:
     <<: *prod-node-build
@@ -59,6 +67,7 @@ services:
       - abs-prod-mesh1-data:/app/data
       - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro
       - ./data/prod_mesh/wallets/validator-1.wallet.json:/app/data/wallet.json:ro
+    logging: *abs-logging
     healthcheck:
       test:
         [
@@ -158,6 +167,7 @@ services:
       - abs-prod-mesh2-data:/app/data
       - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro
       - ./data/prod_mesh/wallets/validator-2.wallet.json:/app/data/wallet.json:ro
+    logging: *abs-logging
     depends_on:
       node1:
         condition: service_healthy
@@ -194,6 +204,7 @@ services:
       - abs-prod-mesh3-data:/app/data
       - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro
       - ./data/prod_mesh/wallets/validator-3.wallet.json:/app/data/wallet.json:ro
+    logging: *abs-logging
     depends_on:
       node1:
         condition: service_healthy

@@ -1,37 +1,28 @@
-﻿> **Напоминание:** Absolute Blockchain Ultimate — **учебный** проект, не production.
+﻿## Summary
 
-## 🎯 Описание изменений
+Brief description of what changed and **why**.
 
-Чёткое описание того, что было изменено.
+> Absolute Blockchain Ultimate Hybrid is a **production-hardened R&D / devnet** stack — **not** a launched public mainnet. Do not claim mainnet readiness without updating [docs/EVIDENCE_MATRIX.md](../docs/EVIDENCE_MATRIX.md).
 
-## 🔗 Связанные Issue
+## Related issues
 
-Fixes #(номер issue)
+Fixes #
 
-## ✅ Тип изменений
+## Type of change
 
-- [ ] 🐛 Bug fix
-- [ ] ✨ New feature
-- [ ] 📚 Documentation update
-- [ ] 🎨 Code style update
-- [ ] ⚡ Performance improvement
-- [ ] 🔒 Security update
+- [ ] Bug fix
+- [ ] Feature / hardening
+- [ ] Documentation / evidence honesty
+- [ ] Tests / CI
+- [ ] Security-related
 
-## 📋 Проверка
+## Checklist
 
-- [ ] Мой код соответствует code style проекта
-- [ ] Я протестировал свои изменения
-- [ ] Я обновил документацию (если нужно)
-- [ ] Мои изменения не ломают существующую функциональность
+- [ ] `python scripts/check_secrets.py` clean (no secrets)
+- [ ] Local gate or targeted tests run (`check_hybrid_full` / pytest subset)
+- [ ] Docs updated if claims or operator commands changed
+- [ ] No false “mainnet / audit complete” claims
 
-## 🧪 Тесты
+## Test plan
 
-Опишите, как вы тестировали изменения.
-
-## 📷 Скриншоты (если применимо)
-
-Вставьте скриншоты изменений.
-
-## 📝 Дополнительная информация
-
-Любая другая информация.
+- [ ] …

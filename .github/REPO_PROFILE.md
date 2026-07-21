@@ -1,32 +1,33 @@
 # GitHub repository profile
 
-Use in **Settings → General → About** and release tags.
+Copy into **Settings → General → About** (or apply via `gh repo edit`).
 
 | Field | Value |
 |-------|-------|
-| **Description** | Hybrid Python/Rust L1 node: P2P mesh devnet, REST/JSON-RPC explorer, ABS tokenomics. Devnet-ready; mainnet-v1 prep (778888) — **not** a launched public mainnet. Evidence: `docs/EVIDENCE_MATRIX.md` |
+| **Description** | Hybrid Python/Rust L1: prod 3-node mesh, RocksDB, REST/JSON-RPC, EVM path. **48h soak PASS** (Jul 2026). Devnet-ready; mainnet-v1 prep (778888) — **not** a launched public mainnet. |
 | **Website** | https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid#readme |
-| **Topics** | `blockchain` `python` `rust` `p2p` `rest-api` `json-rpc` `evm` `docker` `kubernetes` `blockchain-node` `devnet` `tokenomics` `rocksdb` `pos` |
+| **Topics** | see list below |
 
-## Topics (one per line in GitHub UI)
+## Topics (paste in GitHub UI)
 
 ```
 blockchain
 python
 rust
+pyo3
 p2p
 rest-api
 json-rpc
 evm
-web-explorer
 docker
 kubernetes
-blockchain-node
+rocksdb
 devnet
 tokenomics
+blockchain-node
 pos
-sqlite
-rocksdb
+industrial
+soak-test
 ```
 
 ## Branches
@@ -34,50 +35,35 @@ rocksdb
 | Branch | Role |
 |--------|------|
 | **`master`** | **Default** — primary development |
-| **`main`** | Mirror of `master` (auto-sync via `.github/workflows/sync-main-from-master.yml`) |
-
-Local push: `.\scripts\push_origin.ps1` or `git push origin master`.
+| **`main`** | Mirror of `master` (CI sync) |
 
 ## Current release
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.2.84` — prod-critical fail-loud honesty (soak-safe) |
-| **Title** | `v1.2.84 — fail-loud honesty` |
-| **Notes file** | [RELEASE_NOTES_v1.2.84.md](../RELEASE_NOTES_v1.2.84.md) |
+| **Tag** | `v1.2.85` — 48h soak PASS + Docker log rotation |
+| **Notes** | [RELEASE_NOTES_v1.2.85.md](../RELEASE_NOTES_v1.2.85.md) |
+| **Prior** | [v1.2.84](../RELEASE_NOTES_v1.2.84.md) fail-loud honesty |
 | **Tests** | 824+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |
 
 ### Verified locally (Jul 2026)
 
-- `probe_prod_mesh.ps1` → OK (3/3 nodes aligned; Jul 13)
-- 48h soak **RUNNING** since 2026-07-17 (`logs/soak_48h_v1.2.77.log`) — **not PASS yet**
-- Audit pack: `.\scripts\export_audit_pack.ps1`
+- Prod mesh probe / failover / signed tx / EVM mempool smoke
+- **7h soak PASS** + **48h soak PASS** (2026-07-19→21)
+- `industrial_gate --min-soak-hours 48` OK
+- Audit pack exporter: `.\scripts\export_audit_pack.ps1`
 
-### Not yet proven
+### Not yet proven (do not claim in About)
 
-- 48h soak completion (`soak_report_48h.json` passed)
-- External security audit (2 human checklist items)
-- Public VPS testnet URL + DNS cutover
-- Bridge L1 mainnet cutover (prod mesh: `bridge_enabled=false` by design)
+- External security audit
+- Public VPS testnet URL + DNS/TLS
+- Bridge L1 mainnet cutover
+- Launched public mainnet / listed ABS token
 
-## Recent tags (Jul 2026)
+## Honest positioning (release / About)
 
-| Tag | Focus |
-|-----|-------|
-| `v1.2.78` | Industrial audit pack + tracker UX (soak-safe) |
-| `v1.2.77` | P2P sync exempt from rate limit |
-| `v1.2.76` | Windows P2P TLS generation fix |
-| `v1.2.75` | P2P TLS evidence suite |
-| `v1.2.74` | Prod mesh resilience + ceremony evidence |
-| `v1.2.73` | Bridge cutover evidence + testnet VPS ops |
-| `v1.2.72` | VPS mesh3 bootstrap + DNS cutover probe |
-| `v1.2.71` | Public testnet 3-node seed |
-
-## Honest positioning (for release body)
-
-- **Is:** working R&D L1 stack; 3-node prod-profile mesh evidence; RocksDB + CI gates; health watch / DR / resilience scripts; static audit pack exporter
-- **Is not:** live public mainnet; **external audit not completed**; audited DeFi; listed ABS token
-- **Ops gaps:** 48h soak completion, public testnet VPS, bridge L1 cutover — see `docs/EVIDENCE_MATRIX.md`
-- **Bridge on prod:** off by default until L1 cutover (`BRIDGE_ENABLED=false`, see `docs/BRIDGE_L1_MAINNET.md`)
+- **Is:** working hybrid L1 R&D stack; local prod-profile 3-node evidence; CI gates; soak-proven ops
+- **Is not:** live public mainnet; audited DeFi; investment product
+- **Evidence ledger:** `docs/EVIDENCE_MATRIX.md`

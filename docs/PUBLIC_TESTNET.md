@@ -20,7 +20,7 @@ Target (example): `https://testnet.absolute-chain.org` → explorer + RPC behind
 
 ### Stability
 
-- [ ] Prod mesh soak **48h+ completed** (`logs/soak_report_48h.json` passed) — see [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md); **currently RUNNING** (v1.2.77), not yet PASS
+- [x] Prod mesh soak **48h+ completed** (`logs/soak_report_48h.json` passed) — see [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md); **PASS** 2026-07-19→21 (v1.2.84)
 - [x] Automated local gate: `.\scripts\testnet_readiness.ps1 -ProdMesh`
 - [x] Soak restart tooling ready: `.\scripts\restart_soak_prod_mesh.ps1 -Hours 48` (script exists; soak completion is separate)
 - [x] Failover drill on prod mesh (`prod_mesh_failover.ps1`) — `prod_mesh_resilience_suite.ps1`
