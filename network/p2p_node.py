@@ -300,6 +300,7 @@ class P2PNode:
         self._peer_connect_task_fail: int = 0
         self._peer_status_send_fail: int = 0
         self._peer_send_fail: int = 0
+        self._broadcast_fail: int = 0
         self._maintenance_loop_fail: int = 0
         self._catch_up_loop_fail: int = 0
         self._peer_tx_reject: int = 0
@@ -497,6 +498,21 @@ class P2PNode:
 
     def _bump_peer_send_fail(self) -> None:
         self._peer_send_fail = int(self._peer_send_fail or 0) + 1
+
+    def _record_broadcast_results(self, results, *, kind: str = "broadcast") -> None:
+        """Count False/Exception outcomes from gather(return_exceptions=True)."""
+        fails = 0
+        for item in results or ():
+            if item is False or isinstance(item, BaseException):
+                fails += 1
+        if fails:
+            self._broadcast_fail = int(self._broadcast_fail or 0) + fails
+            logger.warning(
+                "[P2P] %s partial failure: %s/%s sends failed",
+                kind,
+                fails,
+                len(results),
+            )
 
     # ── Входящие соединения ──────────────────────────────────────────────────
 
@@ -1092,7 +1108,8 @@ class P2PNode:
             if pid != exclude_peer:
                 tasks.append(peer.send(MSG_ATTESTATION, attestation))
         if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            self._record_broadcast_results(results, kind="attestation_relay")
 
     async def _handle_new_block(self, peer: PeerConnection, data: Dict):
         """Принимаем анонс нового блока от пира."""
@@ -1955,7 +1972,8 @@ class P2PNode:
                 tasks.append(peer.send(MSG_NEW_BLOCK, block_data))
                 tasks.append(peer.send(MSG_STATUS, status))
         if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            self._record_broadcast_results(results, kind="block_broadcast")
 
     async def _handle_cross_shard_tx(self, peer: PeerConnection, data: Dict):
         parsed = native.validate_p2p_cross_shard_tx(data)
@@ -2040,7 +2058,8 @@ class P2PNode:
             )
         tasks = [peer.send(MSG_NEW_TX, tx_data) for peer in self.peers.values()]
         if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            self._record_broadcast_results(results, kind="tx_broadcast")
 
     # ── Колбэки EventBus ─────────────────────────────────────────────────────
 
@@ -2372,6 +2391,7 @@ class P2PNode:
                 "peer_connect_task_fail": int(self._peer_connect_task_fail),
                 "peer_status_send_fail": int(self._peer_status_send_fail),
                 "peer_send_fail": int(self._peer_send_fail),
+                "broadcast_fail": int(self._broadcast_fail),
                 "maintenance_loop_fail": int(self._maintenance_loop_fail),
                 "catch_up_loop_fail": int(self._catch_up_loop_fail),
                 "peer_tx_reject": int(self._peer_tx_reject),

@@ -91,6 +91,23 @@ class RocksChainStore:
         self._json_decode_failures: int = 0
         self._ensure_schema()
 
+    def _loads_json_or_none(self, raw: bytes | None, *, context: str) -> Optional[Dict]:
+        """Decode a Rocks JSON blob; corrupt rows bump the fail-closed counter."""
+        if raw is None:
+            return None
+        try:
+            data = json.loads(raw.decode("utf-8"))
+        except Exception as exc:
+            self._json_decode_failures += 1
+            logger.warning(
+                "[RocksStore] corrupt %s (decode_failures=%s): %s",
+                context,
+                self._json_decode_failures,
+                exc,
+            )
+            return None
+        return data if isinstance(data, dict) else None
+
     def _ensure_schema(self) -> None:
         existing = self._raw_get(kc.key_meta("schema_version"))
         target = self._schema_version.encode("utf-8")
@@ -305,7 +322,7 @@ class RocksChainStore:
 
     def get_block(self, height: int) -> Optional[Dict]:
         raw = self._raw_get(kc.key_block_height(int(height)))
-        return json.loads(raw.decode("utf-8")) if raw else None
+        return self._loads_json_or_none(raw, context=f"block height={height}")
 
     def get_block_by_hash(self, block_hash: str) -> Optional[Dict]:
         raw_h = self._raw_get(kc.key_block_hash_to_height(block_hash))
@@ -358,7 +375,16 @@ class RocksChainStore:
                 "code": None,
                 "storage": None,
             }
-        row = json.loads(raw.decode("utf-8"))
+        row = self._loads_json_or_none(raw, context=f"account {address}")
+        if row is None:
+            return {
+                "address": SqliteDatabase._normalize_address(address),
+                "balance": 0.0,
+                "balance_satoshi": 0,
+                "nonce": 0,
+                "code": None,
+                "storage": None,
+            }
         # Backfill satoshi for legacy float-only rows (in-memory; persisted on next write)
         if row.get("balance_satoshi") is None:
             dual_write_balance(row, row.get("balance", 0) or 0)
@@ -733,7 +759,7 @@ class RocksChainStore:
 
     def get_transaction(self, tx_hash: str) -> Optional[Dict]:
         raw = self._raw_get(kc.key_tx(tx_hash))
-        return json.loads(raw.decode("utf-8")) if raw else None
+        return self._loads_json_or_none(raw, context=f"tx {tx_hash[:16]}")
 
     def get_transactions_in_block(self, height: int) -> List[Dict]:
         prefix = kc.P_BLOCK_TX + kc.pack_u64(int(height))
@@ -783,7 +809,7 @@ class RocksChainStore:
 
     def get_tx_receipt(self, tx_hash: str) -> Optional[Dict]:
         raw = self._raw_get(kc.P_TX_RECEIPT + kc.key_tx(tx_hash)[1:])
-        return json.loads(raw.decode("utf-8")) if raw else None
+        return self._loads_json_or_none(raw, context=f"receipt {tx_hash[:16]}")
 
     def _format_receipt_row(self, row: Dict) -> Dict:
         return {

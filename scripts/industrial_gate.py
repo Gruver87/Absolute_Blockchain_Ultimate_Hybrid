@@ -470,6 +470,18 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("/health/ready prod must check immutable_state")
         if '"ims_available": False' not in http_py:
             errors.append("abs-balance/total-supply must not claim canonical without IMS")
+        if '"finality_quorum_live": False' not in http_py:
+            errors.append("core_real must not invent finality_quorum_live from local attest count")
+        if '"local_attestations_present"' not in http_py:
+            errors.append("core_real must expose local_attestations_present separately from quorum")
+        if '"state_engine": self.__class__.state_engine is not None' not in http_py:
+            errors.append("core_real must expose state_engine availability")
+        if "finality_engine_missing" not in http_py:
+            errors.append("/finality/stats must surface finality_engine_missing error")
+        if "state_engine_missing" not in http_py:
+            errors.append("/state/engine must surface state_engine_missing error")
+        if "DB-only is never IMS-canonical when shadow state is absent/unusable" not in http_py:
+            errors.append("/state/supply must not claim DB-only canonical")
         if "Peers present with mesh_min=0" not in http_py:
             errors.append("eth_mining must refuse when peers present and inconsistent (mesh_min=0)")
         if 'getattr(p2p, "_server", None) is not None' not in http_py:
@@ -551,6 +563,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("main.py must hard-fail FinalityEngine init in production")
         if "Production mode requires ImmutableStateManager" not in main_py:
             errors.append("main.py must hard-fail ImmutableStateManager missing in production")
+        if "Production mode requires block signature" not in main_py:
+            errors.append("main.py must hard-fail block signing failures in production")
         if "Peers present require consistency even when mesh_min_peers_before_mine=0" not in main_py:
             errors.append("mining loop must gate consistency when peers present (mesh_min=0)")
     except Exception as exc:
@@ -571,6 +585,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("topology_healthy must require state_consistent when peers present")
         if "Reconcile \"ok\" without a SyncEngine must not leave stale mesh-green" not in p2p_py:
             errors.append("reconcile_peers without SyncEngine must clear _state_consistent")
+        if "_record_broadcast_results" not in p2p_py or "broadcast_fail" not in p2p_py:
+            errors.append("P2P broadcast gather must record False/Exception as broadcast_fail")
         bind_idx = p2p_py.find("Could not bind port")
         if bind_idx < 0:
             errors.append("P2P start must log Could not bind port")
@@ -580,6 +596,18 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
                 errors.append("P2P bind failure must set _running=False and return")
     except Exception as exc:
         errors.append(f"fail-loud p2p inspect failed: {exc}")
+    try:
+        rocks_py = (ROOT / "storage" / "rocks_store.py").read_text(encoding="utf-8")
+        if "_loads_json_or_none" not in rocks_py:
+            errors.append("rocks_store must use _loads_json_or_none for point-get honesty")
+        if 'return self._loads_json_or_none(raw, context=f"tx' not in rocks_py:
+            errors.append("rocks_store get_transaction must use fail-closed JSON decode")
+        if 'return self._loads_json_or_none(raw, context=f"receipt' not in rocks_py:
+            errors.append("rocks_store get_tx_receipt must use fail-closed JSON decode")
+        if 'return self._loads_json_or_none(raw, context=f"block' not in rocks_py:
+            errors.append("rocks_store get_block must use fail-closed JSON decode")
+    except Exception as exc:
+        errors.append(f"fail-loud rocks point-get inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

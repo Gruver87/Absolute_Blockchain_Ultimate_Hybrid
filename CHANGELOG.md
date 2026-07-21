@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.25] — 2026-07-21
+
+### Hardened — supply canonical / Rocks point-gets / broadcast_fail / core_real
+
+- `/state/supply` DB-only not canonical; Rocks point-gets fail-closed decode; broadcast gather counts fails
+- core_real exposes engines; no fake quorum_live; finality/state missing errors; prod block sign hard-fail
+
+---
+
 ## [1.3.24] — 2026-07-21
 
 ### Hardened — Core engines prod / status wire / IMS canonical / Rocks meta-tx

@@ -1590,9 +1590,17 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "api_wave": 61,
                     "core_real": {
                         "deterministic_proposer": bool(getattr(cfg, "enforce_proposer", False)),
-                        "finality_quorum_live": int(consensus_info.get("attestation_count", 0) or 0) > 0,
+                        # Local attestations ≠ ⅔ peer quorum — do not invent quorum_live.
+                        "local_attestations_present": int(
+                            consensus_info.get("attestation_count", 0) or 0
+                        )
+                        > 0,
+                        "finality_quorum_live": False,
                         "reorg_finality_guard": bool(consensus_info.get("lmd_ghost_enabled")),
                         "mev_mempool_analysis": self.__class__.mev_simulator is not None,
+                        "state_engine": self.__class__.state_engine is not None,
+                        "finality_engine": self.__class__.finality_engine is not None,
+                        "immutable_state": self.__class__.immutable_state is not None,
                         "bridge_production_path": bool(
                             cfg.bridge_enabled and getattr(cfg, "bridge_mode", "") == "rust"
                         ),
@@ -3234,18 +3242,29 @@ class RESTHandler(BaseHTTPRequestHandler):
             # ── Standalone Consensus Engine ───────────────────────────────────
             elif path == "/consensus/engine":
                 ce = self.__class__.consensus_engine_standalone
-                self._json(ce.get_stats() if ce else {"enabled": False})
+                self._json(
+                    ce.get_stats()
+                    if ce
+                    else {"enabled": False, "error": "consensus_engine_missing"}
+                )
 
             # ── Finality Engine ───────────────────────────────────────────────
             elif path == "/finality/stats":
                 fe = self.__class__.finality_engine
-                self._json(fe.get_stats() if fe else {"enabled": False})
+                self._json(
+                    fe.get_stats()
+                    if fe
+                    else {"enabled": False, "error": "finality_engine_missing"}
+                )
 
             elif path.startswith("/finality/block/"):
                 blk_num = int(path[len("/finality/block/"):])
                 fe = self.__class__.finality_engine
-                self._json(fe.get_finality_status(blk_num) if fe else {"enabled": False})
-
+                self._json(
+                    fe.get_finality_status(blk_num)
+                    if fe
+                    else {"enabled": False, "error": "finality_engine_missing"}
+                )
             # ── Sync Engine ───────────────────────────────────────────────────
             elif path == "/testnet/mesh":
                 self._json(_build_testnet_mesh(p2p, bc, cfg))
@@ -3284,20 +3303,35 @@ class RESTHandler(BaseHTTPRequestHandler):
                 source = None
                 canonical = False
                 supply_error = None
-                if bc and hasattr(bc, "db") and hasattr(bc.db, "get_total_supply"):
+                ims_available = ims is not None and hasattr(ims, "get_total_supply_abs")
+                if ims_available:
+                    try:
+                        supply = ims.get_total_supply_abs()
+                        source = "immutable_state"
+                        # Canonical only when IMS present and matches DB (if DB readable).
+                        canonical = True
+                        if bc and hasattr(bc, "db") and hasattr(bc.db, "get_total_supply"):
+                            try:
+                                db_supply = float(bc.db.get_total_supply())
+                                canonical = abs(float(supply) - db_supply) < 1e-9
+                            except Exception as exc:
+                                logger.warning("/state/supply db cross-check failed: %s", exc)
+                    except Exception as exc:
+                        logger.warning("/state/supply IMS read failed: %s", exc)
+                        supply = None
+                        supply_error = str(exc)
+                        canonical = False
+                if supply is None and bc and hasattr(bc, "db") and hasattr(bc.db, "get_total_supply"):
                     try:
                         supply = float(bc.db.get_total_supply())
                         source = "db"
-                        canonical = True
+                        # DB-only is never IMS-canonical when shadow state is absent/unusable.
+                        canonical = False
                     except Exception as exc:
                         logger.warning("/state/supply db read failed: %s", exc)
                         supply = None
                         supply_error = str(exc)
-                if supply is None and ims and hasattr(ims, "get_total_supply_abs"):
-                    supply = ims.get_total_supply_abs()
-                    source = "immutable_state"
-                    canonical = False
-                elif supply is None and se and hasattr(se, "get_total_supply"):
+                if supply is None and se and hasattr(se, "get_total_supply"):
                     supply = se.get_total_supply()
                     source = "state_engine"
                     canonical = False
@@ -3306,13 +3340,15 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "symbol": "ABS",
                     "source": source,
                     "canonical": canonical,
+                    "ims_available": bool(ims_available),
                     **({"supply_error": supply_error} if supply_error else {}),
                 })
 
             elif path == "/state/engine":
                 se = self.__class__.state_engine
                 if not se:
-                    self._json({"enabled": False}); return
+                    self._json({"enabled": False, "error": "state_engine_missing"})
+                    return
                 info = {}
                 for attr in ("block_number","state_root","account_count","enabled"):
                     if hasattr(se, attr): info[attr] = getattr(se, attr)

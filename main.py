@@ -1819,6 +1819,10 @@ class NodeOrchestrator:
                         block.height,
                         exc,
                     )
+                    if bool(getattr(self.config, "is_production", False)):
+                        raise RuntimeError(
+                            f"Production mode requires block signature: {exc}"
+                        ) from exc
 
             success = await asyncio.to_thread(self.blockchain.add_block, block)
 
@@ -1844,6 +1848,10 @@ class NodeOrchestrator:
                             block.height,
                             exc,
                         )
+                        if bool(getattr(self.config, "is_production", False)):
+                            raise RuntimeError(
+                                f"Production mode requires block signature: {exc}"
+                            ) from exc
                 success = await asyncio.to_thread(self.blockchain.add_block, block)
 
             if success:
