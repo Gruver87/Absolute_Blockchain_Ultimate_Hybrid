@@ -236,6 +236,59 @@ class PeerConnection:
         self.writer.write(payload)
         await asyncio.wait_for(self.writer.drain(), timeout=self._drain_timeout_sec)
 
+    async def _write_message(self, msg_type: str, data: Any) -> bool:
+        """v1.3.93: native encode+write pump, or prepare+write when egress on."""
+        if (
+            self._native_conn is not None
+            and hasattr(self._native_conn, "write_message")
+        ):
+            # Egress prepare already encodes + admits on the main thread.
+            if self._use_egress_prepare and hasattr(native, "p2p_egress_prepare"):
+                payload = self._prepare_outbound(msg_type, data)
+                if payload is None:
+                    return False
+                await self._write_payload(payload)
+                return True
+            # Legacy egress gate needs payload size before write — keep prepare/encode path.
+            if self._rl_table is not None and hasattr(self._rl_table, "admit_egress"):
+                payload = self._prepare_outbound(msg_type, data)
+                if payload is None:
+                    return False
+                await self._write_payload(payload)
+                return True
+            import json
+
+            data_json = (
+                "null"
+                if data is None
+                else json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+            )
+            out = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self._native_conn.write_message,
+                    str(msg_type or ""),
+                    data_json,
+                    list(ALLOWED_WIRE_TYPES),
+                ),
+                timeout=self._drain_timeout_sec,
+            )
+            if not isinstance(out, dict) or not out.get("ok"):
+                reason = ""
+                if isinstance(out, dict):
+                    reason = str(out.get("reason") or "")
+                logger.warning(
+                    "[P2P] write_message reject to %s (%s)",
+                    self.peer_id or self.host,
+                    reason or "write_failed",
+                )
+                return False
+            return True
+        payload = self._prepare_outbound(msg_type, data)
+        if payload is None:
+            return False
+        await self._write_payload(payload)
+        return True
+
     def _egress_peer_key(self) -> str:
         if self.peer_id:
             return str(self.peer_id)
@@ -335,12 +388,7 @@ class PeerConnection:
             msg_type, data, fut = item
             ok = False
             try:
-                payload = self._prepare_outbound(msg_type, data)
-                if payload is None:
-                    ok = False
-                else:
-                    await self._write_payload(payload)
-                    ok = True
+                ok = await self._write_message(msg_type, data)
             except Exception as e:
                 logger.warning("[P2P] send error to %s: %s", self.peer_id or self.host, e)
                 cb = self._on_send_fail
@@ -367,12 +415,8 @@ class PeerConnection:
         try:
             if priority and self._send_q.empty():
                 # Fast path when idle
-                payload = self._prepare_outbound(msg_type, data)
-                if payload is None:
-                    return False
                 try:
-                    await self._write_payload(payload)
-                    return True
+                    return await self._write_message(msg_type, data)
                 except Exception as e:
                     logger.warning(
                         "[P2P] send error to %s: %s", self.peer_id or self.host, e
@@ -762,6 +806,7 @@ class P2PNode:
             self._use_native_transport and p2p_tls_enabled(config)
         )
         self._native_read_message = False
+        self._native_write_message = False
         if self._use_native_transport:
             try:
                 import abs_native as _abs_nat
@@ -769,8 +814,12 @@ class P2PNode:
                 self._native_read_message = hasattr(
                     getattr(_abs_nat, "P2PNativeConn", None), "read_message"
                 )
+                self._native_write_message = hasattr(
+                    getattr(_abs_nat, "P2PNativeConn", None), "write_message"
+                )
             except Exception:
                 self._native_read_message = False
+                self._native_write_message = False
         self._handshake_rejects: int = 0
         self._eclipse_at_risk: int = 0
         self._eclipse_ratio: float = 0.0
@@ -1007,7 +1056,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.92)"
+                    f"({label} v1.3.93)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -3409,6 +3458,7 @@ class P2PNode:
             "native_p2p_transport": bool(self._use_native_transport),
             "native_p2p_tls": bool(getattr(self, "_native_tls", False)),
             "native_read_message": bool(getattr(self, "_native_read_message", False)),
+            "native_write_message": bool(getattr(self, "_native_write_message", False)),
             "native_accept_total": int(self._native_accept_total or 0),
             "native_accept_errors": int(self._native_accept_errors or 0),
             "native_connect_total": int(self._native_connect_total or 0),

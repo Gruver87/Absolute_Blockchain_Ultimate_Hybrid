@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.93] — 2026-07-25
+
+### P2P — native write_message pump (encode + write)
+
+- `P2PNativeConn.write_message` fuses wire encode + write in one call
+- `PeerConnection._write_message` wired; egress prepare/admit remains Python when enabled
+- Honesty: still not full message-loop / libp2p; default still asyncio
+
 ## [1.3.92] — 2026-07-25
 
 ### P2P — native read_message pump (frame + wire parse)

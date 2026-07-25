@@ -1,12 +1,16 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90 / v1.3.91 / v1.3.92).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.93).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
-//! v1.3.92: `read_message` fuses framed read + wire parse (still not full message-loop).
+//! v1.3.92: `read_message` fuses framed read + wire parse.
+//! v1.3.93: `write_message` fuses wire encode + write.
 //! Python remains the control plane (handshake, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
 use crate::p2p_frame::P2PLineFramer;
-use crate::p2p_wire::{clamp_max_bytes, parse_p2p_wire_line_inner, DEFAULT_MAX_P2P_LINE_BYTES};
+use crate::p2p_wire::{
+    clamp_max_bytes, encode_p2p_wire_message_inner, parse_p2p_wire_line_inner,
+    DEFAULT_MAX_P2P_LINE_BYTES,
+};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
 use std::collections::HashSet;
@@ -630,6 +634,54 @@ impl P2PNativeConn {
         let data = data.to_vec();
         py.allow_threads(|| self.write_inner(&data))
             .map_err(pyo3::exceptions::PyOSError::new_err)
+    }
+
+    /// Wire encode + write in one native call (v1.3.93).
+    ///
+    /// `{ok:true, nbytes}` | `{ok:false, reason}`.
+    /// Egress rate-limit remains Python (`p2p_egress_prepare` / `admit_egress`).
+    #[pyo3(signature = (msg_type, data_json="null", allowed_types=None))]
+    fn write_message(
+        &mut self,
+        py: Python<'_>,
+        msg_type: &str,
+        data_json: &str,
+        allowed_types: Option<Vec<String>>,
+    ) -> PyResult<PyObject> {
+        if let Some(allowed) = allowed_types.as_ref() {
+            if !allowed.is_empty() && !allowed.iter().any(|t| t == msg_type) {
+                let dict = PyDict::new_bound(py);
+                dict.set_item("ok", false)?;
+                dict.set_item("reason", format!("p2p_type_not_allowed:{msg_type}"))?;
+                return Ok(dict.into_any().unbind());
+            }
+        }
+        let msg_type = msg_type.to_string();
+        let data_json = data_json.to_string();
+        let max_bytes = self.max_bytes;
+        let result = py.allow_threads(|| -> Result<usize, String> {
+            let payload = encode_p2p_wire_message_inner(&msg_type, &data_json)?;
+            if payload.len() > max_bytes {
+                return Err("p2p_line_too_large".to_string());
+            }
+            self.write_inner(&payload)?;
+            Ok(payload.len())
+        });
+        match result {
+            Ok(nbytes) => {
+                let dict = PyDict::new_bound(py);
+                dict.set_item("ok", true)?;
+                dict.set_item("nbytes", nbytes)?;
+                Ok(dict.into_any().unbind())
+            }
+            Err(reason) => {
+                let short = wire_fail_reason(&reason);
+                let dict = PyDict::new_bound(py);
+                dict.set_item("ok", false)?;
+                dict.set_item("reason", short)?;
+                Ok(dict.into_any().unbind())
+            }
+        }
     }
 
     fn set_timeout_ms(&mut self, timeout_ms: u64) -> PyResult<()> {
