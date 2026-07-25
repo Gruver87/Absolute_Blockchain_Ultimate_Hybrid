@@ -693,8 +693,8 @@ fn execute_call_native(
     };
     let call_gas = plan_nested_call_gas(remaining, requested, value_i64, frame.kind);
 
-    // v1.3.71: in-Rust leaf frame for eligible DELEGATECALL/CALLCODE (no Python
-    // contract_call re-entry). Falls through to hook when ineligible / code missing.
+    // v1.3.71/79: in-Rust leaf frame for eligible DELEGATECALL/CALLCODE
+    // (CALLCODE value via balances in v1.3.79). Falls through when ineligible.
     if try_inline_leaf_delegate_call(
         py,
         host_context,
@@ -800,6 +800,8 @@ fn execute_call_native(
 
 /// v1.3.71 Priority 37: push/pop eligible DELEGATECALL/CALLCODE leaf inside parent
 /// Rust frame (no Python `_contract_call_hook` re-entry).
+/// v1.3.79: CALLCODE with value>0 via fail-closed `bridge_state.balances`
+/// (value credited to current account — net no-op when balances present).
 /// Returns Ok(true) when handled; Ok(false) to fall through to Python hook.
 fn try_inline_leaf_delegate_call(
     py: Python<'_>,
@@ -816,11 +818,12 @@ fn try_inline_leaf_delegate_call(
     memory: &mut Vec<u8>,
     return_data: &mut Vec<u8>,
 ) -> PyResult<bool> {
-    // Only DELEGATECALL / value-0 CALLCODE share parent storage without value transfer.
+    // Only DELEGATECALL / CALLCODE share parent storage (DELEGATECALL never transfers).
     if !(frame.delegate || frame.callcode) {
         return Ok(false);
     }
-    if frame.callcode && !frame.value.is_zero() {
+    if frame.delegate && !frame.value.is_zero() {
+        // DELEGATECALL ignores value on the wire in practice; refuse unexpected value.
         return Ok(false);
     }
     let code = match resolve_full_code(host_context, host_bridge, frame.to_word) {
@@ -830,6 +833,30 @@ fn try_inline_leaf_delegate_call(
     if !bytecode_is_nested_native_eligible(&code) {
         return Ok(false);
     }
+
+    // v1.3.79: CALLCODE value → current account (fail-closed balance check).
+    let mut balance_snap: Option<HashMap<String, U256>> = None;
+    if frame.callcode && !frame.value.is_zero() {
+        let static_ctx = parse_static_context(host_context)?;
+        match try_inline_value_transfer(
+            host_context,
+            static_ctx.address,
+            static_ctx.address,
+            frame.value,
+        )? {
+            InlineValueTransfer::Unavailable => return Ok(false),
+            InlineValueTransfer::Insufficient => {
+                *return_data = Vec::new();
+                write_return_to_memory(memory, frame.ret_offset, frame.ret_size, &[]);
+                stack_push(stack, U256::zero());
+                return Ok(true);
+            }
+            InlineValueTransfer::Transferred { snap } => {
+                balance_snap = Some(snap);
+            }
+        }
+    }
+
     // Pre-leaf snap: if child stops host/handoff, restore and fall through.
     let pre_snap = snapshot_storage_dict(storage)?.unwrap_or_default();
     let jumpdest = crate::evm_build_jumpdest_table_inner(&code);
@@ -853,7 +880,16 @@ fn try_inline_leaf_delegate_call(
         None,
         MAX_FULL_STEPS,
         true,
-    )?;
+    );
+    let child = match child {
+        Ok(c) => c,
+        Err(e) => {
+            if let Some(ref snap) = balance_snap {
+                restore_inline_balances(host_context, snap)?;
+            }
+            return Err(e);
+        }
+    };
     let child_dict = child.downcast_bound::<PyDict>(py)?;
     let reason = child_dict
         .get_item("stop_reason")?
@@ -865,6 +901,9 @@ fn try_inline_leaf_delegate_call(
     ) {
         restore_storage_dict(storage, &pre_snap)?;
         *arena = pre_snap;
+        if let Some(ref snap) = balance_snap {
+            restore_inline_balances(host_context, snap)?;
+        }
         return Ok(false);
     }
     let sub_gas = child_dict
@@ -873,6 +912,9 @@ fn try_inline_leaf_delegate_call(
         .unwrap_or(0)
         .min(call_gas);
     if let Err(reason) = consume_gas(gas_used, gas_limit, sub_gas) {
+        if let Some(ref snap) = balance_snap {
+            restore_inline_balances(host_context, snap)?;
+        }
         return Err(pyo3::exceptions::PyRuntimeError::new_err(reason));
     }
     let rd = child_dict
@@ -889,6 +931,11 @@ fn try_inline_leaf_delegate_call(
         .unwrap_or(false)
         || reason == "out_of_gas";
     let success = !reverted && matches!(reason.as_str(), "halt" | "return");
+    if !success {
+        if let Some(ref snap) = balance_snap {
+            restore_inline_balances(host_context, snap)?;
+        }
+    }
     stack_push(
         stack,
         if success {
@@ -899,6 +946,9 @@ fn try_inline_leaf_delegate_call(
     );
     // Mark for observability (tests assert via storage side-effects / hook counter).
     let _ = child_dict.set_item("native_inline_leaf_frame", true);
+    if balance_snap.is_some() {
+        let _ = child_dict.set_item("native_inline_callcode_value", true);
+    }
     Ok(true)
 }
 
@@ -1014,6 +1064,7 @@ enum InlineValueTransfer {
 }
 
 /// Fail-closed wei transfer in `bridge_state.balances` (v1.3.76).
+/// Same-address transfer (CALLCODE) requires balance >= value but is a no-op net (v1.3.79).
 fn try_inline_value_transfer(
     host_context: Option<&Bound<'_, PyDict>>,
     from: U256,
@@ -1046,6 +1097,10 @@ fn try_inline_value_transfer(
     };
     if from_bal < value {
         return Ok(InlineValueTransfer::Insufficient);
+    }
+    // CALLCODE credits the current account: debit+credit cancel; still fail-closed.
+    if from_s == to_s {
+        return Ok(InlineValueTransfer::Transferred { snap });
     }
     let to_bal = match balances.get_item(to_s.as_str())? {
         Some(v) => py_to_u256_or_int(v)?,

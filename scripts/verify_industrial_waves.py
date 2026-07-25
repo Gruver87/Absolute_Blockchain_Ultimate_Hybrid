@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.78 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.79 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -39,6 +39,7 @@ WAVE_TESTS = [
     "tests/unit/test_v1376_value_call.py",
     "tests/unit/test_v1377_p2p_ingress.py",
     "tests/unit/test_v1378_p2p_bandwidth.py",
+    "tests/unit/test_v1379_callcode_value.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -218,8 +219,8 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
     ),
     (
         "1.3.78",
-        "runtime/config.py",
-        ["1.3.78-industrial", "p2p_max_bytes_per_sec"],
+        "RELEASE_NOTES_v1.3.78.md",
+        ["1.3.78-industrial", "bandwidth"],
     ),
     (
         "1.3.78",
@@ -230,6 +231,16 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "1.3.78",
         "observability/metrics.py",
         ["abs_p2p_bandwidth_rejects_total"],
+    ),
+    (
+        "1.3.79",
+        "runtime/config.py",
+        ["1.3.79-industrial"],
+    ),
+    (
+        "1.3.79",
+        "native/abs_native/src/evm_pure_runner.rs",
+        ["native_inline_callcode_value", "v1.3.79"],
     ),
 ]
 
@@ -258,8 +269,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.78"):
-            errors.append(f"node_version expected 1.3.78-*, got {ver}")
+        if not ver.startswith("1.3.79"):
+            errors.append(f"node_version expected 1.3.79-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

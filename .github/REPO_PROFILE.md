@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.78` — P2P per-peer bandwidth / cost-weighted ingress |
-| **Notes** | [RELEASE_NOTES_v1.3.78.md](../RELEASE_NOTES_v1.3.78.md) |
-| **Prior** | [v1.3.77](../RELEASE_NOTES_v1.3.77.md) ingress; [v1.3.76](../RELEASE_NOTES_v1.3.76.md) value CALL |
+| **Tag** | `v1.3.79` — CALLCODE value (fail-closed balances) |
+| **Notes** | [RELEASE_NOTES_v1.3.79.md](../RELEASE_NOTES_v1.3.79.md) |
+| **Prior** | [v1.3.78](../RELEASE_NOTES_v1.3.78.md) bandwidth; [v1.3.77](../RELEASE_NOTES_v1.3.77.md) ingress |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

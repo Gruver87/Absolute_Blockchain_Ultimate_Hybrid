@@ -29,8 +29,9 @@ def test_needles_v1378():
     assert "ingress_cost_units" in rl
     assert "p2p_ingress_cost_units" in rl
     cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "1.3.78-industrial" in cfg
     assert "p2p_max_bytes_per_sec" in cfg
+    notes = (ROOT / "RELEASE_NOTES_v1.3.78.md").read_text(encoding="utf-8")
+    assert "1.3.78-industrial" in notes
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_bandwidth_rejects_total" in metrics
     assert hasattr(abs_native, "p2p_ingress_cost_units")

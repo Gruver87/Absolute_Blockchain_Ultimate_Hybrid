@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.79] — 2026-07-25
+
+### EVM — CALLCODE value ownership (fail-closed balances)
+
+- Eligible CALLCODE with `value > 0` runs in-Rust when `bridge_state.balances` present
+- Value credited to current account (EVM CALLCODE semantics); same-addr = net no-op after fail-closed check
+- Insufficient balance → CALLCODE fails without child exec / without Python hook
+- Missing balances map → fall through to Python hook
+- Honesty: CREATE frames / DB satoshi journal ownership still not claimed
+
 ## [1.3.78] — 2026-07-25
 
 ### P2P — per-peer bandwidth / cost-weighted ingress budget
