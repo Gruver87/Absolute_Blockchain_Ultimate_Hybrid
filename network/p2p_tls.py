@@ -154,6 +154,79 @@ def fingerprint_allowlist(config) -> Set[str]:
     return set()
 
 
+def _normalize_bootstrap_addr(addr: str) -> str:
+    s = str(addr or "").strip()
+    if not s or ":" not in s:
+        return ""
+    host, port_s = s.rsplit(":", 1)
+    host = host.strip().strip("[]").lower()
+    try:
+        port = int(port_s)
+    except (TypeError, ValueError):
+        return ""
+    if not host or port <= 0:
+        return ""
+    return f"{host}:{port}"
+
+
+def bootstrap_pin_map(config) -> dict:
+    """Parse per-seed TLS pins: host:port=sha256hex[@node_id] (csv / ;).
+
+    v1.3.133: addr→identity binding for bootstrap seeds only.
+    Empty map ⇒ pins disabled (host/port coverage unchanged).
+    """
+    raw = getattr(config, "p2p_bootstrap_pins", None)
+    if raw is None or (isinstance(raw, str) and not str(raw).strip()):
+        env = os.environ.get("P2P_BOOTSTRAP_PINS", "").strip()
+        raw = env
+    out: dict = {}
+    if isinstance(raw, dict):
+        items = list(raw.items())
+        for k, v in items:
+            addr = _normalize_bootstrap_addr(str(k))
+            if not addr:
+                continue
+            if isinstance(v, dict):
+                fp = str(v.get("fingerprint") or v.get("fp") or "").strip().lower()
+                nid = str(v.get("node_id") or v.get("id") or "").strip()
+            else:
+                fp = str(v or "").strip().lower()
+                nid = ""
+            if fp:
+                entry = {"fingerprint": fp}
+                if nid:
+                    entry["node_id"] = nid
+                out[addr] = entry
+        return out
+    text = str(raw or "").strip()
+    if not text:
+        return out
+    for part in text.replace(";", ",").split(","):
+        item = part.strip()
+        if not item or "=" not in item:
+            continue
+        addr_s, rest = item.split("=", 1)
+        addr = _normalize_bootstrap_addr(addr_s)
+        if not addr:
+            continue
+        rest = rest.strip()
+        node_id = ""
+        if "@" in rest:
+            fp_s, node_id = rest.rsplit("@", 1)
+            fp_s = fp_s.strip()
+            node_id = node_id.strip()
+        else:
+            fp_s = rest
+        fp = fp_s.strip().lower().replace(":", "")
+        if not fp:
+            continue
+        entry = {"fingerprint": fp}
+        if node_id:
+            entry["node_id"] = node_id
+        out[addr] = entry
+    return out
+
+
 def p2p_tls_status(config) -> dict:
     enabled = p2p_tls_enabled(config)
     errors, warnings = validate_p2p_tls_config(config) if enabled else ([], [])

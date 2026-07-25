@@ -769,6 +769,24 @@ class MetricsCollector:
                     f"abs_p2p_bootstrap_missing_count{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('bootstrap_missing_count', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_bootstrap_pin_gate Whether per-seed TLS bootstrap pins are active (0/1)",
+                "# TYPE abs_p2p_native_bootstrap_pin_gate gauge",
+                (
+                    f"abs_p2p_native_bootstrap_pin_gate{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_bootstrap_pin_gate') else 0}"
+                ),
+                "# HELP abs_p2p_bootstrap_pin_rejects_total Bootstrap seed TLS pin mismatches",
+                "# TYPE abs_p2p_bootstrap_pin_rejects_total counter",
+                (
+                    f"abs_p2p_bootstrap_pin_rejects_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('bootstrap_pin_rejects_total', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_bootstrap_pins_configured Number of host:port bootstrap pins configured",
+                "# TYPE abs_p2p_bootstrap_pins_configured gauge",
+                (
+                    f"abs_p2p_bootstrap_pins_configured{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('bootstrap_pins_configured', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_discovery_dialability_gate Whether discovery dialability gate is active (0/1)",
                 "# TYPE abs_p2p_native_discovery_dialability_gate gauge",
                 (

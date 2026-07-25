@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.132-industrial"
+    node_version: str = "1.3.133-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -122,6 +122,7 @@ class Config:
     p2p_tls_fail_closed: bool = True              # TLS on ⇒ CERT_REQUIRED (never CERT_NONE)
     p2p_tls_bind_identity: bool = True            # bind handshake node_id to cert CN/SAN
     p2p_tls_peer_fingerprints: str = ""           # optional SHA-256 DER allowlist (csv)
+    p2p_bootstrap_pins: str = ""                  # v1.3.133: host:port=sha256[@node_id] csv
     sync_batch_size: int = 100          # блоков за один запрос синхронизации
 
     # ── EVM ─────────────────────────────────────────────────────────────────
@@ -381,6 +382,9 @@ class Config:
         )
         self.p2p_tls_peer_fingerprints = env_str(
             "P2P_TLS_PEER_FINGERPRINTS", self.p2p_tls_peer_fingerprints
+        )
+        self.p2p_bootstrap_pins = env_str(
+            "P2P_BOOTSTRAP_PINS", self.p2p_bootstrap_pins
         )
         self.log_level = env_str("LOG_LEVEL", self.log_level)
         self.log_json = env_bool("LOG_JSON", self.log_json)

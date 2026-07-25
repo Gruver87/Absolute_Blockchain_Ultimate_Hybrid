@@ -20,6 +20,7 @@ import logging
 from typing import Dict, List, Optional, Callable, Any, Tuple
 
 from network.p2p_tls import (
+    bootstrap_pin_map,
     build_p2p_client_ssl_context,
     build_p2p_server_ssl_context,
     extract_peer_tls_meta,
@@ -1209,6 +1210,7 @@ class P2PNode:
         self._unsolicited_mempool_rejects_total: int = 0
         self._status_height_cap_total: int = 0
         self._bootstrap_redial_total: int = 0
+        self._bootstrap_pin_rejects_total: int = 0
         self._handshake_rejects: int = 0
         self._eclipse_at_risk: int = 0
         self._eclipse_ratio: float = 0.0
@@ -1445,7 +1447,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.132)"
+                    f"({label} v1.3.133)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -1977,6 +1979,19 @@ class P2PNode:
                 print(
                     f"[P2P] Rejected {peer.host}:{peer.port}: cert fingerprint "
                     f"not in P2P_TLS_PEER_FINGERPRINTS allowlist"
+                )
+                return False
+            # v1.3.133: per-seed bootstrap pin (addr → fingerprint[/node_id])
+            pin_reason = self._bootstrap_pin_reject_reason(peer, claimed_id, fp)
+            if pin_reason:
+                self._handshake_rejects += 1
+                self._bootstrap_pin_rejects_total = int(
+                    self._bootstrap_pin_rejects_total or 0
+                ) + 1
+                self._strike_peer_sync(peer, pin_reason)
+                print(
+                    f"[P2P] Rejected {peer.host}:{peer.port}: bootstrap pin "
+                    f"{pin_reason} (P2P_BOOTSTRAP_PINS)"
                 )
                 return False
 
@@ -3958,22 +3973,81 @@ class P2PNode:
             return ""
         return f"{host}:{port}"
 
+    def _bootstrap_pin_for_addr(self, addr: str) -> Optional[dict]:
+        pins = bootstrap_pin_map(self.config)
+        if not pins:
+            return None
+        want = self._normalize_dial_addr(addr)
+        return pins.get(want) if want else None
+
+    def _bootstrap_pin_for_peer(self, peer: PeerConnection) -> Optional[dict]:
+        """Resolve pin for a peer via dial_target or host:listen_port."""
+        pins = bootstrap_pin_map(self.config)
+        if not pins:
+            return None
+        candidates = []
+        dial = self._normalize_dial_addr(str(getattr(peer, "dial_target", "") or ""))
+        if dial:
+            candidates.append(dial)
+        host = str(peer.host or "").strip().strip("[]")
+        port = int(peer.listen_port or peer.port or 0)
+        if host and port > 0:
+            candidates.append(self._normalize_dial_addr(f"{host}:{port}"))
+        for c in candidates:
+            if c and c in pins:
+                return pins[c]
+        return None
+
+    def _bootstrap_pin_reject_reason(
+        self, peer: PeerConnection, claimed_id: str, fingerprint: str
+    ) -> str:
+        """Empty if OK / no pin; else strike reason for pin mismatch."""
+        pin = self._bootstrap_pin_for_peer(peer)
+        if not pin:
+            return ""
+        want_fp = str(pin.get("fingerprint") or "").strip().lower()
+        got_fp = str(fingerprint or "").strip().lower().replace(":", "")
+        if want_fp and got_fp != want_fp:
+            return "bootstrap_pin_mismatch"
+        want_id = str(pin.get("node_id") or "").strip()
+        if want_id and str(claimed_id or "").strip() != want_id:
+            return "bootstrap_pin_node_id_mismatch"
+        if want_fp and not got_fp:
+            return "bootstrap_pin_missing_tls"
+        return ""
+
     def _peer_covers_bootstrap(self, peer: PeerConnection, boot_addr: str) -> bool:
         """True if this live peer satisfies a configured bootstrap target."""
         want = self._normalize_dial_addr(boot_addr)
         if not want:
             return False
         dial = self._normalize_dial_addr(str(getattr(peer, "dial_target", "") or ""))
-        if dial and dial == want:
-            return True
-        host, _, port_s = want.partition(":")
-        try:
-            port = int(port_s)
-        except (TypeError, ValueError):
+        addr_ok = bool(dial and dial == want)
+        if not addr_ok:
+            host, _, port_s = want.partition(":")
+            try:
+                port = int(port_s)
+            except (TypeError, ValueError):
+                return False
+            ph = str(peer.host or "").strip().strip("[]").lower()
+            pl = int(peer.listen_port or peer.port or 0)
+            addr_ok = bool(ph and ph == host and pl == port)
+        if not addr_ok:
             return False
-        ph = str(peer.host or "").strip().strip("[]").lower()
-        pl = int(peer.listen_port or peer.port or 0)
-        return bool(ph and ph == host and pl == port)
+        # v1.3.133: when a pin is configured, fingerprint[/node_id] must match.
+        pin = self._bootstrap_pin_for_addr(want)
+        if not pin:
+            return True
+        want_fp = str(pin.get("fingerprint") or "").strip().lower()
+        got_fp = str(getattr(peer, "tls_fingerprint", "") or "").strip().lower().replace(
+            ":", ""
+        )
+        if want_fp and got_fp != want_fp:
+            return False
+        want_id = str(pin.get("node_id") or "").strip()
+        if want_id and str(getattr(peer, "peer_id", "") or "").strip() != want_id:
+            return False
+        return True
 
     def _missing_bootstrap_addrs(self) -> list:
         """Bootstrap addresses not covered by any connected peer."""
@@ -4358,6 +4432,7 @@ class P2PNode:
             "native_state_root_response_head_gate": True,
             "native_mempool_solicit_only": True,
             "native_bootstrap_resilient": True,
+            "native_bootstrap_pin_gate": True,
             "native_discovery_dialability_gate": True,
             "native_handshake_head_semantic_gate": True,
             "native_status_height_head_gate": True,
@@ -4406,6 +4481,10 @@ class P2PNode:
             "bootstrap_redial_total": int(
                 getattr(self, "_bootstrap_redial_total", 0) or 0
             ),
+            "bootstrap_pin_rejects_total": int(
+                getattr(self, "_bootstrap_pin_rejects_total", 0) or 0
+            ),
+            "bootstrap_pins_configured": len(bootstrap_pin_map(self.config)),
             "bootstrap_missing_count": len(self._missing_bootstrap_addrs())
             if getattr(self.config, "bootstrap_peers", None)
             else 0,

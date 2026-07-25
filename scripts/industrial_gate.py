@@ -2024,8 +2024,25 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_bootstrap_resilient (v1.3.132)"
             )
+        # v1.3.133 — authenticated bootstrap seed pins
+        if "bootstrap_pin_map" not in (
+            ROOT / "network" / "p2p_tls.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("p2p_tls must expose bootstrap_pin_map (v1.3.133)")
+        if "native_bootstrap_pin_gate" not in p2p_py:
+            errors.append("p2p_node must advertise native_bootstrap_pin_gate (v1.3.133)")
+        if "p2p_bootstrap_pins" not in (
+            ROOT / "runtime" / "config.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("config must expose p2p_bootstrap_pins (v1.3.133)")
+        if "abs_p2p_native_bootstrap_pin_gate" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_bootstrap_pin_gate (v1.3.133)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..132 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..133 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

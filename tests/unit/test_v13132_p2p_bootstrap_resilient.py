@@ -62,7 +62,7 @@ def test_needles_v13132():
     assert "bootstrap_redial_total" in p2p
     notes = (ROOT / "RELEASE_NOTES_v1.3.132.md").read_text(encoding="utf-8")
     assert "1.3.132-industrial" in notes
-    assert Config().node_version == "1.3.132-industrial"
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_bootstrap_resilient" in metrics
     assert "abs_p2p_bootstrap_redial_total" in metrics

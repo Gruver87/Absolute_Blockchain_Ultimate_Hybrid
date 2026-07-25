@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.133] — 2026-07-26
+
+### P2P — authenticated bootstrap seed pins
+
+- `P2P_BOOTSTRAP_PINS` binds seed host:port to TLS fingerprint (+ optional node_id)
+- Impostor on seed address does not cover bootstrap; handshake rejects pin mismatch
+- Honesty: not DHT trust roots / tip proof / libp2p / mainnet
+
 ## [1.3.132] — 2026-07-25
 
 ### P2P — resilient bootstrap redial

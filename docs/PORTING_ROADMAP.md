@@ -757,7 +757,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] Redial missing bootstrap seeds even when non-bootstrap peers exist
 - [x] `dial_target` coverage for hostname→IP mismatch
-- Remaining: tip proof / authenticated seed identity / libp2p (not claimed)
+- Remaining: tip proof / libp2p (not claimed)
+
+### Priority 88 — Authenticated bootstrap seed pins ✅ (v1.3.133)
+
+- [x] `P2P_BOOTSTRAP_PINS` / `bootstrap_pin_map` — host:port → TLS SHA-256 (+ optional node_id)
+- [x] Handshake reject + coverage requires pin match when configured
+- Remaining: tip proof / DHT trust roots / libp2p / ceremony (not claimed)
 
 ## Process per module
 
