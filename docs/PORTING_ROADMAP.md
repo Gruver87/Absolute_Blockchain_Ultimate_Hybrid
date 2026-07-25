@@ -318,7 +318,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `evm_plan_create_writeback` — `save_account` + optional `transfer_value`
 - [x] Adapter CREATE path applies via shared writeback ops (no double-credit balance)
-- Remaining: native apply of ops; in-process Rocks in EVM runner
+- Remaining: see Priority 29
+
+### Priority 29 — Native writeback apply ✅ (v1.3.61)
+
+- [x] `evm_apply_writeback_ops` — in-memory accounts map transform
+- [x] Adapter loads accounts → native apply → `save_account` commit + log persist
+- Remaining: in-process Rocks handle inside EVM runner (store-lock aware)
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
 
@@ -332,6 +338,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.58: native account-blob decode for nested CALL preload
 - [x] v1.3.59: nested CALL writeback ops planned in Rust
 - [x] v1.3.60: CREATE writeback ops planned in Rust
+- [x] v1.3.61: native in-memory writeback apply
 
 ## Process per module
 

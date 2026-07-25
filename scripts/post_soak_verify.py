@@ -125,6 +125,7 @@ REQUIRED_NATIVE_SYMBOLS = [
     "evm_plan_nested_call_effects",
     "evm_plan_nested_call_writeback",
     "evm_plan_create_writeback",
+    "evm_apply_writeback_ops",
     "evm_plan_nested_call_gas",
     "evm_decode_nested_call_frame",
     "evm_run_nested_pure_frame",

@@ -1,6 +1,7 @@
-//! Nested CALL / CREATE writeback planners (v1.3.59–v1.3.60).
+//! Nested CALL / CREATE writeback planners + native apply (v1.3.59–v1.3.61).
 //!
-//! Builds concrete persist ops. Python DB still applies — not in-process Rocks.
+//! Plans concrete persist ops and applies them to an in-memory accounts map.
+//! Python DB still commits rows — not in-process Rocks in the EVM runner.
 
 use pyo3::prelude::*;
 use serde_json::{Map, Number, Value};
@@ -262,8 +263,257 @@ pub fn evm_plan_create_writeback_py(
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
 }
 
+fn ensure_account_obj<'a>(
+    accounts: &'a mut Map<String, Value>,
+    address: &str,
+) -> &'a mut Map<String, Value> {
+    if !accounts.contains_key(address) {
+        let mut row = Map::new();
+        row.insert("address".into(), Value::String(address.to_string()));
+        row.insert("balance_satoshi".into(), Value::Number(Number::from(0i64)));
+        row.insert("balance".into(), Value::Number(Number::from(0)));
+        row.insert("nonce".into(), Value::Number(Number::from(0u64)));
+        row.insert("code".into(), Value::String(String::new()));
+        row.insert("storage".into(), Value::String("{}".into()));
+        accounts.insert(address.to_string(), Value::Object(row));
+    }
+    accounts
+        .get_mut(address)
+        .and_then(|v| v.as_object_mut())
+        .expect("account object")
+}
+
+fn account_satoshi(row: &Map<String, Value>) -> i64 {
+    row.get("balance_satoshi")
+        .and_then(|v| v.as_i64())
+        .or_else(|| {
+            row.get("balance")
+                .and_then(|v| match v {
+                    Value::Number(n) => n.as_f64().map(|f| (f * 1_000_000.0) as i64),
+                    Value::String(s) => crate::amount::to_satoshi_inner(s).ok(),
+                    _ => None,
+                })
+        })
+        .unwrap_or(0)
+        .max(0)
+}
+
+fn wei_to_satoshi(value_wei: i64) -> i64 {
+    // 1 ABS = 1e18 wei = 1e6 satoshi ⇒ sat = wei / 1e12
+    (value_wei.max(0) as i128 / 1_000_000_000_000i128) as i64
+}
+
+fn set_balance_sat(row: &mut Map<String, Value>, sat: i64) {
+    let sat = sat.max(0);
+    row.insert(
+        "balance_satoshi".into(),
+        Value::Number(Number::from(sat)),
+    );
+    let bal = (sat as f64) / 1_000_000.0;
+    row.insert("balance".into(), serde_json::json!(bal));
+}
+
+/// Apply writeback ops to an in-memory accounts map (v1.3.61).
+/// Python DB still commits the returned account rows.
+#[pyfunction]
+#[pyo3(name = "evm_apply_writeback_ops")]
+pub fn evm_apply_writeback_ops_py(accounts_json: String, ops_json: String) -> PyResult<String> {
+    let mut accounts: Map<String, Value> = match serde_json::from_str(&accounts_json) {
+        Ok(Value::Object(map)) => map,
+        Ok(_) => {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "accounts_json must be an object",
+            ))
+        }
+        Err(e) => {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "accounts_json invalid: {e}"
+            )))
+        }
+    };
+    let ops: Vec<Value> = match serde_json::from_str(&ops_json) {
+        Ok(Value::Array(arr)) => arr,
+        Ok(_) => {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "ops_json must be an array",
+            ))
+        }
+        Err(e) => {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "ops_json invalid: {e}"
+            )))
+        }
+    };
+
+    let mut log_batches: Vec<Value> = Vec::new();
+    let mut applied = 0usize;
+    let mut touched: Vec<String> = Vec::new();
+
+    for op_val in ops {
+        let Some(op) = op_val.as_object() else {
+            continue;
+        };
+        let kind = op
+            .get("op")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        match kind.as_str() {
+            "set_storage" => {
+                let addr = op
+                    .get("address")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                if addr.is_empty() {
+                    continue;
+                }
+                let storage = op.get("storage").cloned().unwrap_or(Value::Object(Map::new()));
+                let storage_str = match &storage {
+                    Value::Object(_) => serde_json::to_string(&storage).unwrap_or_else(|_| "{}".into()),
+                    Value::String(s) => s.clone(),
+                    _ => "{}".into(),
+                };
+                let row = ensure_account_obj(&mut accounts, &addr);
+                row.insert("storage".into(), Value::String(storage_str));
+                if !touched.contains(&addr) {
+                    touched.push(addr);
+                }
+                applied += 1;
+            }
+            "save_account" => {
+                let addr = op
+                    .get("address")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                if addr.is_empty() {
+                    continue;
+                }
+                let code = op
+                    .get("code")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let nonce = op.get("nonce").and_then(|v| v.as_u64()).unwrap_or(0);
+                let storage = match op.get("storage") {
+                    Some(Value::String(s)) => s.clone(),
+                    Some(Value::Object(m)) => {
+                        serde_json::to_string(m).unwrap_or_else(|_| "{}".into())
+                    }
+                    _ => "{}".into(),
+                };
+                let bal_sat = op
+                    .get("balance_satoshi")
+                    .and_then(|v| v.as_i64())
+                    .or_else(|| {
+                        op.get("balance").and_then(|v| match v {
+                            Value::Number(n) => n.as_f64().map(|f| (f * 1_000_000.0) as i64),
+                            _ => None,
+                        })
+                    })
+                    .unwrap_or(0)
+                    .max(0);
+                let row = ensure_account_obj(&mut accounts, &addr);
+                row.insert("code".into(), Value::String(code));
+                row.insert("nonce".into(), Value::Number(Number::from(nonce)));
+                row.insert("storage".into(), Value::String(storage));
+                set_balance_sat(row, bal_sat);
+                if !touched.contains(&addr) {
+                    touched.push(addr);
+                }
+                applied += 1;
+            }
+            "transfer_value" => {
+                let from = op
+                    .get("from")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                let to = op
+                    .get("to")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                let value_wei = op
+                    .get("value_wei")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0)
+                    .max(0);
+                if from.is_empty() || to.is_empty() || value_wei == 0 {
+                    continue;
+                }
+                let sat = wei_to_satoshi(value_wei);
+                if sat == 0 {
+                    // Sub-satoshi wei dust: still count as applied no-op for honesty.
+                    applied += 1;
+                    continue;
+                }
+                {
+                    let row = ensure_account_obj(&mut accounts, &from);
+                    let cur = account_satoshi(row);
+                    set_balance_sat(row, cur.saturating_sub(sat));
+                }
+                {
+                    let row = ensure_account_obj(&mut accounts, &to);
+                    let cur = account_satoshi(row);
+                    set_balance_sat(row, cur.saturating_add(sat));
+                }
+                if !touched.contains(&from) {
+                    touched.push(from);
+                }
+                if !touched.contains(&to) {
+                    touched.push(to);
+                }
+                applied += 1;
+            }
+            "append_logs" => {
+                let addr = op
+                    .get("address")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let logs = op.get("logs").cloned().unwrap_or(Value::Array(vec![]));
+                if matches!(&logs, Value::Array(a) if !a.is_empty()) {
+                    let mut batch = Map::new();
+                    batch.insert("address".into(), Value::String(addr));
+                    batch.insert("logs".into(), logs);
+                    log_batches.push(Value::Object(batch));
+                    applied += 1;
+                }
+            }
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "unsupported_writeback_op:{kind}"
+                )));
+            }
+        }
+    }
+
+    let mut out_accounts = Map::new();
+    for addr in &touched {
+        if let Some(row) = accounts.get(addr) {
+            out_accounts.insert(addr.clone(), row.clone());
+        }
+    }
+
+    let mut out = Map::new();
+    out.insert("accounts".into(), Value::Object(out_accounts));
+    out.insert("log_batches".into(), Value::Array(log_batches));
+    out.insert("applied".into(), Value::Number(Number::from(applied as u64)));
+    out.insert("touched".into(), Value::Array(touched.into_iter().map(Value::String).collect()));
+    out.insert("native_apply".into(), Value::Bool(true));
+    serde_json::to_string(&Value::Object(out))
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_plan_nested_call_writeback_py, m)?)?;
     m.add_function(wrap_pyfunction!(evm_plan_create_writeback_py, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_apply_writeback_ops_py, m)?)?;
     Ok(())
 }

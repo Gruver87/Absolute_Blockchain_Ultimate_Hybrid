@@ -98,6 +98,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "evm_plan_nested_call_effects",
             "evm_plan_nested_call_writeback",
             "evm_plan_create_writeback",
+            "evm_apply_writeback_ops",
             "evm_plan_nested_call_gas",
             "evm_decode_nested_call_frame",
             "evm_run_nested_pure_frame",
@@ -1567,6 +1568,122 @@ def evm_plan_create_writeback(
     return _evm_plan_create_writeback_py(
         deployer, contract_address, value_wei, success, code_hex, storage
     )
+
+
+def _evm_apply_writeback_ops_py(accounts: dict, ops: list) -> dict:
+    """Python reference: apply writeback ops to an in-memory accounts map."""
+    accounts = {str(k): dict(v) for k, v in dict(accounts or {}).items()}
+    log_batches = []
+    touched = []
+    applied = 0
+
+    def _ensure(addr: str) -> dict:
+        if addr not in accounts:
+            accounts[addr] = {
+                "address": addr,
+                "balance_satoshi": 0,
+                "balance": 0.0,
+                "nonce": 0,
+                "code": "",
+                "storage": "{}",
+            }
+        return accounts[addr]
+
+    def _sat(row: dict) -> int:
+        if row.get("balance_satoshi") is not None:
+            return max(0, int(row["balance_satoshi"]))
+        return max(0, int(float(row.get("balance") or 0) * 1_000_000))
+
+    def _set_sat(row: dict, sat: int) -> None:
+        sat = max(0, int(sat))
+        row["balance_satoshi"] = sat
+        row["balance"] = sat / 1_000_000.0
+
+    for op in list(ops or []):
+        kind = str(op.get("op") or "")
+        if kind == "set_storage":
+            addr = str(op.get("address") or "")
+            if not addr:
+                continue
+            row = _ensure(addr)
+            storage = op.get("storage") or {}
+            if isinstance(storage, dict):
+                row["storage"] = json.dumps({str(k): int(v) for k, v in storage.items()})
+            else:
+                row["storage"] = str(storage or "{}")
+            if addr not in touched:
+                touched.append(addr)
+            applied += 1
+        elif kind == "save_account":
+            addr = str(op.get("address") or "")
+            if not addr:
+                continue
+            row = _ensure(addr)
+            row["code"] = str(op.get("code") or "")
+            row["nonce"] = int(op.get("nonce") or 0)
+            storage = op.get("storage")
+            if isinstance(storage, dict):
+                row["storage"] = json.dumps({str(k): int(v) for k, v in storage.items()})
+            else:
+                row["storage"] = str(storage or "{}")
+            if op.get("balance_satoshi") is not None:
+                _set_sat(row, int(op["balance_satoshi"]))
+            else:
+                _set_sat(row, int(float(op.get("balance") or 0) * 1_000_000))
+            if addr not in touched:
+                touched.append(addr)
+            applied += 1
+        elif kind == "transfer_value":
+            from_addr = str(op.get("from") or "")
+            to_addr = str(op.get("to") or "")
+            value_wei = max(0, int(op.get("value_wei") or 0))
+            if not from_addr or not to_addr or value_wei <= 0:
+                continue
+            sat = value_wei // 1_000_000_000_000
+            if sat == 0:
+                applied += 1
+                continue
+            fr = _ensure(from_addr)
+            to = _ensure(to_addr)
+            _set_sat(fr, _sat(fr) - sat)
+            _set_sat(to, _sat(to) + sat)
+            if from_addr not in touched:
+                touched.append(from_addr)
+            if to_addr not in touched:
+                touched.append(to_addr)
+            applied += 1
+        elif kind == "append_logs":
+            logs = list(op.get("logs") or [])
+            if logs:
+                log_batches.append({
+                    "address": str(op.get("address") or ""),
+                    "logs": logs,
+                })
+                applied += 1
+        else:
+            raise ValueError(f"unsupported_writeback_op:{kind}")
+    return {
+        "accounts": {a: accounts[a] for a in touched},
+        "log_batches": log_batches,
+        "applied": applied,
+        "touched": touched,
+        "native_apply": False,
+    }
+
+
+def evm_apply_writeback_ops(accounts: dict, ops: list) -> dict:
+    """Apply writeback ops to an in-memory accounts map (v1.3.61)."""
+    if _native is not None and hasattr(_native, "evm_apply_writeback_ops"):
+        raw = _native.evm_apply_writeback_ops(
+            json.dumps(accounts or {}),
+            json.dumps(list(ops or [])),
+        )
+        out = json.loads(raw) if isinstance(raw, str) else dict(raw)
+        out["native_apply"] = True
+        return out
+    if _REQUIRE_NATIVE:
+        _require_native_kernel("evm_apply_writeback_ops")
+    return _evm_apply_writeback_ops_py(accounts, ops)
 
 
 def _evm_plan_nested_call_gas_py(

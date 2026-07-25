@@ -6,6 +6,13 @@
 
 ---
 
+## [1.3.61] — 2026-07-25
+
+### Added — native writeback apply (in-memory)
+
+- `evm_apply_writeback_ops` — apply planned ops to accounts map in Rust
+- Adapter commits via Python DB after native apply
+
 ## [1.3.60] — 2026-07-25
 
 ### Added — CREATE writeback ops (Rust planner)

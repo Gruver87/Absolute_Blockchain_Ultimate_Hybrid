@@ -1193,8 +1193,19 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("evm_adapter must wire evm_plan_create_writeback")
         if "save_account" not in adapter_cr:
             errors.append("evm_adapter writeback must support save_account op")
+        # v1.3.61 — native writeback apply
+        if "def evm_apply_writeback_ops" not in native_py:
+            errors.append("crypto/native.py must export evm_apply_writeback_ops (v1.3.61)")
+        if "evm_apply_writeback_ops" not in (
+            ROOT / "native" / "abs_native" / "src" / "evm_writeback.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append("evm_writeback.rs must define evm_apply_writeback_ops")
+        if "evm_apply_writeback_ops" not in (
+            ROOT / "execution" / "evm_adapter.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("evm_adapter must wire evm_apply_writeback_ops")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..60 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..61 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

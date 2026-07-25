@@ -392,7 +392,60 @@ class EVMAdapter:
         }
 
     def _apply_nested_writeback_ops(self, ops: List[Dict[str, Any]]) -> None:
-        """Apply Rust-planned writeback ops via Python DB (v1.3.59/60)."""
+        """Apply writeback ops: native in-memory apply + Python DB commit (v1.3.61)."""
+        if not ops:
+            return
+        if hasattr(native, "evm_apply_writeback_ops"):
+            try:
+                accounts: Dict[str, Any] = {}
+                for op in ops:
+                    for key in ("address", "from", "to"):
+                        raw = op.get(key)
+                        if not raw:
+                            continue
+                        addr = self._normalize_addr(str(raw))
+                        if addr in accounts:
+                            continue
+                        row = self.db.get_account(addr) if hasattr(self.db, "get_account") else None
+                        accounts[addr] = dict(row) if row else {
+                            "address": addr,
+                            "balance_satoshi": 0,
+                            "balance": 0.0,
+                            "nonce": 0,
+                            "code": "",
+                            "storage": "{}",
+                        }
+                # Normalize op addresses for native apply.
+                norm_ops = []
+                for op in ops:
+                    item = dict(op)
+                    for key in ("address", "from", "to"):
+                        if key in item and item[key]:
+                            item[key] = self._normalize_addr(str(item[key]))
+                    norm_ops.append(item)
+                applied = native.evm_apply_writeback_ops(accounts, norm_ops)
+                for addr, row in dict(applied.get("accounts") or {}).items():
+                    storage = row.get("storage")
+                    if isinstance(storage, dict):
+                        storage_str = json.dumps({str(k): int(v) for k, v in storage.items()})
+                    else:
+                        storage_str = str(storage or "{}")
+                    self.db.save_account(
+                        address=self._normalize_addr(str(addr)),
+                        balance=float(row.get("balance") or 0.0),
+                        nonce=int(row.get("nonce") or 0),
+                        code=str(row.get("code") or "") if row.get("code") is not None else "",
+                        storage=storage_str,
+                    )
+                for batch in list(applied.get("log_batches") or []):
+                    addr = self._normalize_addr(str(batch.get("address") or ""))
+                    logs = list(batch.get("logs") or [])
+                    if logs:
+                        self._persist_logs(addr, logs)
+                return
+            except Exception:
+                pass
+        # Fallback: per-op Python DB apply.
         for op in ops:
             kind = str(op.get("op") or "")
             if kind == "set_storage":
