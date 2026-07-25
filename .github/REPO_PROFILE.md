@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.70` — recursive frame arena sync + live DELEGATECALL |
-| **Notes** | [RELEASE_NOTES_v1.3.70.md](../RELEASE_NOTES_v1.3.70.md) |
-| **Prior** | [v1.3.69](../RELEASE_NOTES_v1.3.69.md) sat session; [v1.3.68](../RELEASE_NOTES_v1.3.68.md) bridge |
+| **Tag** | `v1.3.71` — in-Rust inline leaf frame (eligible DELEGATECALL) |
+| **Notes** | [RELEASE_NOTES_v1.3.71.md](../RELEASE_NOTES_v1.3.71.md) |
+| **Prior** | [v1.3.70](../RELEASE_NOTES_v1.3.70.md) arena sync; [v1.3.69](../RELEASE_NOTES_v1.3.69.md) sat session |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

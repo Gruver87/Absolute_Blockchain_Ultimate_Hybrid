@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.71] — 2026-07-25
+
+### EVM — in-Rust inline leaf frame (Priority 37)
+
+- Eligible DELEGATECALL/CALLCODE (value=0) children run as push/pop inside parent Rust host frame
+- Skips Python `contract_call` re-entry when child code is resolvable and host-op-free
+- Falls through to hook for CALL/STATICCALL, value transfer, ineligible bytecode, or host/handoff stop
+- Honesty: not a full multi-depth Rust host stack; CREATE/SELFDESTRUCT/value CALL still via Python
+
 ## [1.3.70] — 2026-07-25
 
 ### EVM — recursive frame correctness (arena sync)

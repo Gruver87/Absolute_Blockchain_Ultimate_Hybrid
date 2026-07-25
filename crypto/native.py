@@ -1125,6 +1125,8 @@ def evm_bytecode_is_nested_native_eligible(bytecode: bytes) -> bool:
     Bridge ops (BALANCE/EXTCODE*/BLOCKHASH) are allowed when host_context carries
     bridge_hooks or bridge_state — industrial nested CALL surface in abs_native.
     """
+    if _native is not None and hasattr(_native, "evm_bytecode_is_nested_native_eligible"):
+        return bool(_native.evm_bytecode_is_nested_native_eligible(bytes(bytecode or b"")))
     pc = 0
     bc = bytes(bytecode or b"")
     while pc < len(bc):

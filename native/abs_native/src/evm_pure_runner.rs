@@ -23,6 +23,24 @@ pub fn evm_opcode_is_host(op: u8) -> bool {
     matches!(op, 0xF0 | 0xF1 | 0xF2 | 0xF4 | 0xF5 | 0xFA | 0xFF) || (0xA0..=0xA4).contains(&op)
 }
 
+/// True when bytecode has no recursive host ops (CALL/CREATE/LOG/SELFDESTRUCT).
+/// Bridge ops (BALANCE/EXTCODE*/BLOCKHASH) are allowed — same gate as Python.
+pub fn bytecode_is_nested_native_eligible(bytecode: &[u8]) -> bool {
+    let mut pc = 0usize;
+    while pc < bytecode.len() {
+        let op = bytecode[pc];
+        if evm_opcode_is_host(op) {
+            return false;
+        }
+        if (0x60..=0x7F).contains(&op) {
+            pc = pc.saturating_add(1 + (op as usize - 0x5F));
+        } else {
+            pc += 1;
+        }
+    }
+    true
+}
+
 fn opcode_stops_segment(
     op: u8,
     host_context: Option<&Bound<'_, PyDict>>,
@@ -609,6 +627,7 @@ fn addr_string_to_u256(addr: &str) -> U256 {
 fn execute_call_native(
     py: Python<'_>,
     host_context: Option<&Bound<'_, PyDict>>,
+    host_bridge: Option<&Bound<'_, PyAny>>,
     op: u8,
     stack: &mut Vec<U256>,
     memory: &mut Vec<u8>,
@@ -618,17 +637,12 @@ fn execute_call_native(
     arena: &mut HashMap<U256, U256>,
     return_data: &mut Vec<u8>,
 ) -> PyResult<()> {
-    let call_fn = hook_contract_call(host_context).ok_or_else(|| {
-        pyo3::exceptions::PyRuntimeError::new_err("contract_call_hook_unavailable")
-    })?;
     let frame = decode_call_from_stack(op, stack)?;
     // v1.3.70: flush Rust arena → Python before nested CALL so DELEGATECALL
     // children (and hooks) see parent SSTOREs from this frame.
     restore_storage_dict(storage, arena)?;
     mem_extend(memory, frame.args_offset, frame.args_size);
     let call_data = evm_memory_slice_inner(memory, frame.args_offset, frame.args_size);
-    let call_data_py = PyBytes::new_bound(py, &call_data);
-    let to_addr = word_to_address(frame.to_word);
     let remaining = gas_limit.saturating_sub(*gas_used);
     let requested = if frame.gas > U256::from(u64::MAX) {
         u64::MAX
@@ -641,6 +655,32 @@ fn execute_call_native(
         frame.value.low_u64() as i64
     };
     let call_gas = plan_nested_call_gas(remaining, requested, value_i64, frame.kind);
+
+    // v1.3.71: in-Rust leaf frame for eligible DELEGATECALL/CALLCODE (no Python
+    // contract_call re-entry). Falls through to hook when ineligible / code missing.
+    if try_inline_leaf_delegate_call(
+        py,
+        host_context,
+        host_bridge,
+        &frame,
+        &call_data,
+        call_gas,
+        gas_limit,
+        gas_used,
+        storage,
+        arena,
+        stack,
+        memory,
+        return_data,
+    )? {
+        return Ok(());
+    }
+
+    let call_fn = hook_contract_call(host_context).ok_or_else(|| {
+        pyo3::exceptions::PyRuntimeError::new_err("contract_call_hook_unavailable")
+    })?;
+    let call_data_py = PyBytes::new_bound(py, &call_data);
+    let to_addr = word_to_address(frame.to_word);
     let value_obj = py_u256_int(py, frame.value)?;
     let out = if frame.callcode {
         call_fn.call1((
@@ -702,6 +742,110 @@ fn execute_call_native(
         },
     );
     Ok(())
+}
+
+/// v1.3.71 Priority 37: push/pop eligible DELEGATECALL/CALLCODE leaf inside parent
+/// Rust frame (no Python `_contract_call_hook` re-entry).
+/// Returns Ok(true) when handled; Ok(false) to fall through to Python hook.
+fn try_inline_leaf_delegate_call(
+    py: Python<'_>,
+    host_context: Option<&Bound<'_, PyDict>>,
+    host_bridge: Option<&Bound<'_, PyAny>>,
+    frame: &DecodedCall,
+    call_data: &[u8],
+    call_gas: u64,
+    gas_limit: u64,
+    gas_used: &mut u64,
+    storage: Option<&Bound<'_, PyDict>>,
+    arena: &mut HashMap<U256, U256>,
+    stack: &mut Vec<U256>,
+    memory: &mut Vec<u8>,
+    return_data: &mut Vec<u8>,
+) -> PyResult<bool> {
+    // Only DELEGATECALL / value-0 CALLCODE share parent storage without value transfer.
+    if !(frame.delegate || frame.callcode) {
+        return Ok(false);
+    }
+    if frame.callcode && !frame.value.is_zero() {
+        return Ok(false);
+    }
+    let code = match resolve_full_code(host_context, host_bridge, frame.to_word) {
+        Ok(c) if !c.is_empty() => c,
+        _ => return Ok(false),
+    };
+    if !bytecode_is_nested_native_eligible(&code) {
+        return Ok(false);
+    }
+    // Pre-leaf snap: if child stops host/handoff, restore and fall through.
+    let pre_snap = snapshot_storage_dict(storage)?.unwrap_or_default();
+    let jumpdest = crate::evm_build_jumpdest_table_inner(&code);
+    let stack_py = PyList::empty_bound(py);
+    let memory_py = PyByteArray::new_bound(py, &[]);
+    // Leaf: no host_bridge — recursive host ops are rejected by eligibility.
+    // Pass host_context so bridge ops (BALANCE/…) can still resolve via bridge_state.
+    let child = run_pure_segment_inner(
+        py,
+        &code,
+        0,
+        call_gas,
+        0,
+        &stack_py,
+        &memory_py,
+        &jumpdest,
+        call_data,
+        &[],
+        host_context,
+        storage,
+        None,
+        MAX_FULL_STEPS,
+        true,
+    )?;
+    let child_dict = child.downcast_bound::<PyDict>(py)?;
+    let reason = child_dict
+        .get_item("stop_reason")?
+        .map(|v| v.extract::<String>().unwrap_or_default())
+        .unwrap_or_default();
+    if !matches!(
+        reason.as_str(),
+        "halt" | "return" | "revert" | "out_of_gas"
+    ) {
+        restore_storage_dict(storage, &pre_snap)?;
+        *arena = pre_snap;
+        return Ok(false);
+    }
+    let sub_gas = child_dict
+        .get_item("gas_used")?
+        .map(|v| v.extract::<u64>().unwrap_or(0))
+        .unwrap_or(0)
+        .min(call_gas);
+    if let Err(reason) = consume_gas(gas_used, gas_limit, sub_gas) {
+        return Err(pyo3::exceptions::PyRuntimeError::new_err(reason));
+    }
+    let rd = child_dict
+        .get_item("return_data")?
+        .map(|v| v.extract::<Vec<u8>>().unwrap_or_default())
+        .unwrap_or_default();
+    *return_data = rd.clone();
+    // Shared parent storage already mutated in place; re-sync arena (v1.3.70+71).
+    *arena = snapshot_storage_dict(storage)?.unwrap_or_default();
+    write_return_to_memory(memory, frame.ret_offset, frame.ret_size, &rd);
+    let reverted = child_dict
+        .get_item("reverted")?
+        .map(|v| v.is_truthy().unwrap_or(false))
+        .unwrap_or(false)
+        || reason == "out_of_gas";
+    let success = !reverted && matches!(reason.as_str(), "halt" | "return");
+    stack_push(
+        stack,
+        if success {
+            U256::one()
+        } else {
+            U256::zero()
+        },
+    );
+    // Mark for observability (tests assert via storage side-effects / hook counter).
+    let _ = child_dict.set_item("native_inline_leaf_frame", true);
+    Ok(true)
 }
 
 fn execute_create_native(
@@ -1699,6 +1843,7 @@ fn run_pure_segment_inner(
                     execute_call_native(
                         py,
                         host_context,
+                        host_bridge,
                         op,
                         &mut stack,
                         &mut memory,
@@ -1850,6 +1995,12 @@ pub fn evm_opcode_is_bridge_py(op: u8) -> PyResult<bool> {
 #[pyo3(name = "evm_opcode_is_host")]
 pub fn evm_opcode_is_host_py(op: u8) -> PyResult<bool> {
     Ok(evm_opcode_is_host(op))
+}
+
+#[pyfunction]
+#[pyo3(name = "evm_bytecode_is_nested_native_eligible")]
+pub fn evm_bytecode_is_nested_native_eligible_py(bytecode: Vec<u8>) -> PyResult<bool> {
+    Ok(bytecode_is_nested_native_eligible(&bytecode))
 }
 
 #[pyfunction]

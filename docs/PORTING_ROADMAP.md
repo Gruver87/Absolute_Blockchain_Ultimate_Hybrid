@@ -368,7 +368,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] Flush arena before nested CALL; re-sync after DELEGATECALL/CALLCODE merge
 - [x] Live parent storage for recursive DELEGATECALL (`_abs_live_storage`)
-- Remaining: Rust-owned multi-frame stack (not claimed)
+- Remaining: see Priority 37
+
+### Priority 37 — In-Rust inline leaf frame ✅ (v1.3.71)
+
+- [x] Eligible DELEGATECALL/CALLCODE (value=0) push/pop inside parent Rust frame
+- [x] Skip Python `contract_call` when leaf succeeds; fall through otherwise
+- Remaining: multi-depth Rust host stack / value CALL ownership (not claimed)
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
 
@@ -390,6 +396,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.68: bridge semantic event bind + fail-closed debit
 - [x] v1.3.69: block-scoped sat session + verify_industrial_waves
 - [x] v1.3.70: recursive frame arena sync + live DELEGATECALL storage
+- [x] v1.3.71: in-Rust inline leaf frame (eligible DELEGATECALL/CALLCODE)
 
 ## Process per module
 

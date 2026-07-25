@@ -1321,8 +1321,11 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         )
         if "_abs_live_storage" not in adapter_py:
             errors.append("evm_adapter must expose _abs_live_storage for DELEGATECALL (v1.3.70)")
+        # v1.3.71 — inline leaf frame
+        if "try_inline_leaf_delegate_call" not in rust_runner or "v1.3.71" not in rust_runner:
+            errors.append("evm_pure_runner must inline eligible DELEGATECALL leaf (v1.3.71)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..70 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..71 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:
