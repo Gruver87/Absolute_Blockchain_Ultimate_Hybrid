@@ -523,6 +523,24 @@ class MetricsCollector:
                     f"abs_p2p_native_housekeeping_gate{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_housekeeping_gate') else 0}"
                 ),
+                "# HELP abs_p2p_native_read_batch Configured native read_messages batch size",
+                "# TYPE abs_p2p_native_read_batch gauge",
+                (
+                    f"abs_p2p_native_read_batch{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('native_read_batch') or 0)}"
+                ),
+                "# HELP abs_p2p_native_write_batch Configured native write batch size",
+                "# TYPE abs_p2p_native_write_batch gauge",
+                (
+                    f"abs_p2p_native_write_batch{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('native_write_batch') or 0)}"
+                ),
+                "# HELP abs_p2p_native_read_chunk Configured native read chunk bytes",
+                "# TYPE abs_p2p_native_read_chunk gauge",
+                (
+                    f"abs_p2p_native_read_chunk{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('native_read_chunk') or 0)}"
+                ),
                 "# HELP abs_p2p_native_accept_total Native TCP accepts",
                 "# TYPE abs_p2p_native_accept_total counter",
                 (

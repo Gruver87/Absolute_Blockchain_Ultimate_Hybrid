@@ -59,8 +59,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.100` — native P2P housekeeping gate |
-| **Notes** | [RELEASE_NOTES_v1.3.100.md](../RELEASE_NOTES_v1.3.100.md) |
+| **Tag** | `v1.3.101` — native P2P batch/chunk config |
+| **Notes** | [RELEASE_NOTES_v1.3.101.md](../RELEASE_NOTES_v1.3.101.md) |
 | **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

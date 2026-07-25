@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.101] — 2026-07-25
+
+### P2P — native batch/chunk config knobs
+
+- Config `p2p_native_read_batch` / `write_batch` / `read_chunk` (+ env)
+- Shared Rust clamp helpers; status + Prometheus gauges
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.100] — 2026-07-25
 
 ### P2P — native housekeeping payload gate

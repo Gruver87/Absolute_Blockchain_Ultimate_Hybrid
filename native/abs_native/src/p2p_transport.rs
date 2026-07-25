@@ -1,4 +1,4 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.100).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.101).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
 //! v1.3.92: `read_message` fuses framed read + wire parse.
@@ -10,6 +10,7 @@
 //! v1.3.98: auto-pong on read path (keepalive only; not full dispatch).
 //! v1.3.99: consume inbound pong + keepalive_touches (still not full dispatch).
 //! v1.3.100: housekeeping payload gate on read (parity with Python).
+//! v1.3.101: clamp helpers for configurable batch/chunk sizes.
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -35,6 +36,15 @@ use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
+
+/// v1.3.101: batch size bounds for `read_messages` / write batching.
+pub const NATIVE_BATCH_MIN: usize = 1;
+pub const NATIVE_BATCH_MAX: usize = 64;
+pub const NATIVE_BATCH_DEFAULT: usize = 8;
+/// Read chunk bounds (bytes).
+pub const NATIVE_CHUNK_MIN: usize = 1024;
+pub const NATIVE_CHUNK_MAX: usize = 1024 * 1024;
+pub const NATIVE_CHUNK_DEFAULT: usize = 65536;
 
 fn io_err(e: std::io::Error) -> String {
     format!("p2p_transport_io:{e}")
@@ -890,7 +900,7 @@ impl P2PNativeConn {
         allowed_types: Option<Vec<String>>,
         auto_pong: bool,
     ) -> PyResult<PyObject> {
-        let max_n = max_n.clamp(1, 64);
+        let max_n = max_n.clamp(NATIVE_BATCH_MIN, NATIVE_BATCH_MAX);
         let allowed_set = allowed_types.map(|items| items.into_iter().collect::<HashSet<_>>());
         let pongs_before = self.auto_pongs;
         let keeps_before = self.auto_keeps;
@@ -1432,11 +1442,29 @@ fn p2p_native_tls_available() -> bool {
     true
 }
 
+/// Clamp native read/write batch size (v1.3.101).
+#[pyfunction]
+fn p2p_native_clamp_batch(n: usize) -> usize {
+    n.clamp(NATIVE_BATCH_MIN, NATIVE_BATCH_MAX)
+}
+
+/// Clamp native read chunk size in bytes (v1.3.101).
+#[pyfunction]
+fn p2p_native_clamp_chunk(n: usize) -> usize {
+    n.clamp(NATIVE_CHUNK_MIN, NATIVE_CHUNK_MAX)
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<P2PNativeConn>()?;
     m.add_class::<P2PNativeListener>()?;
+    m.add("NATIVE_BATCH_DEFAULT", NATIVE_BATCH_DEFAULT)?;
+    m.add("NATIVE_BATCH_MAX", NATIVE_BATCH_MAX)?;
+    m.add("NATIVE_CHUNK_DEFAULT", NATIVE_CHUNK_DEFAULT)?;
+    m.add("NATIVE_CHUNK_MAX", NATIVE_CHUNK_MAX)?;
     m.add_function(wrap_pyfunction!(p2p_native_transport_available, m)?)?;
     m.add_function(wrap_pyfunction!(p2p_native_tls_available, m)?)?;
+    m.add_function(wrap_pyfunction!(p2p_native_clamp_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(p2p_native_clamp_chunk, m)?)?;
     Ok(())
 }
 

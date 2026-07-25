@@ -154,6 +154,34 @@ def _housekeeping_payload_ok(msg_type: str, data: Any) -> bool:
     return False
 
 
+def _clamp_native_batch(n: Any, default: int = 8) -> int:
+    """v1.3.101: clamp read/write batch size to Rust bounds (1..64)."""
+    try:
+        raw = int(n if n is not None else default)
+    except (TypeError, ValueError):
+        raw = int(default)
+    if hasattr(native, "p2p_native_clamp_batch"):
+        try:
+            return int(native.p2p_native_clamp_batch(max(0, raw)))
+        except Exception:
+            pass
+    return max(1, min(64, raw if raw > 0 else default))
+
+
+def _clamp_native_chunk(n: Any, default: int = 65536) -> int:
+    """v1.3.101: clamp native read chunk (1024..1MiB)."""
+    try:
+        raw = int(n if n is not None else default)
+    except (TypeError, ValueError):
+        raw = int(default)
+    if hasattr(native, "p2p_native_clamp_chunk"):
+        try:
+            return int(native.p2p_native_clamp_chunk(max(0, raw)))
+        except Exception:
+            pass
+    return max(1024, min(1024 * 1024, raw if raw > 0 else default))
+
+
 def _peer_health_score(
     *,
     height_gap: int,
@@ -987,6 +1015,15 @@ class P2PNode:
         self._native_handshake = False
         self._native_peer_identities = False
         self._native_auto_pong = False
+        self._native_read_batch = _clamp_native_batch(
+            getattr(config, "p2p_native_read_batch", 8), 8
+        )
+        self._native_write_batch = _clamp_native_batch(
+            getattr(config, "p2p_native_write_batch", 8), 8
+        )
+        self._native_read_chunk = _clamp_native_chunk(
+            getattr(config, "p2p_native_read_chunk", 65536), 65536
+        )
         if self._use_native_transport:
             try:
                 import abs_native as _abs_nat
@@ -1247,7 +1284,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.100)"
+                    f"({label} v1.3.101)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -1385,6 +1422,9 @@ class P2PNode:
         peer._on_egress_reject = self._bump_egress_reject
         peer._egress_max_bytes = _max_p2p_line_bytes(self.config)
         peer._native_auto_pong = bool(getattr(self, "_native_auto_pong", False))
+        peer._native_read_batch = int(getattr(self, "_native_read_batch", 8) or 8)
+        peer._native_write_batch = int(getattr(self, "_native_write_batch", 8) or 8)
+        peer._read_chunk = int(getattr(self, "_native_read_chunk", 65536) or 65536)
         if self._use_native_egress:
             peer._rl_table = self._rl_table
             peer._use_egress_prepare = hasattr(native, "p2p_egress_prepare")
@@ -3714,6 +3754,9 @@ class P2PNode:
             "native_auto_pong": bool(getattr(self, "_native_auto_pong", False)),
             "native_keepalive": bool(getattr(self, "_native_auto_pong", False)),
             "native_housekeeping_gate": bool(getattr(self, "_use_native_transport", False)),
+            "native_read_batch": int(getattr(self, "_native_read_batch", 8) or 8),
+            "native_write_batch": int(getattr(self, "_native_write_batch", 8) or 8),
+            "native_read_chunk": int(getattr(self, "_native_read_chunk", 65536) or 65536),
             "native_accept_total": int(self._native_accept_total or 0),
             "native_accept_errors": int(self._native_accept_errors or 0),
             "native_connect_total": int(self._native_connect_total or 0),

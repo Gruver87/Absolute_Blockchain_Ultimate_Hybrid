@@ -141,6 +141,8 @@ def native_crypto_status(required: bool = False) -> dict:
             "P2PNativeListener",
             "p2p_native_transport_available",
             "p2p_native_tls_available",
+            "p2p_native_clamp_batch",
+            "p2p_native_clamp_chunk",
             "p2p_native_connect",
             "p2p_frame_feed_once",
             "p2p_subnet_key",
@@ -2636,6 +2638,20 @@ def p2p_native_tls_available() -> bool:
     if _native is not None and hasattr(_native, "p2p_native_tls_available"):
         return bool(_native.p2p_native_tls_available())
     return False
+
+
+def p2p_native_clamp_batch(n: int) -> int:
+    """Clamp native read/write batch size to 1..64 (v1.3.101)."""
+    if _native is not None and hasattr(_native, "p2p_native_clamp_batch"):
+        return int(_native.p2p_native_clamp_batch(int(n)))
+    return max(1, min(64, int(n)))
+
+
+def p2p_native_clamp_chunk(n: int) -> int:
+    """Clamp native read chunk bytes to 1024..1MiB (v1.3.101)."""
+    if _native is not None and hasattr(_native, "p2p_native_clamp_chunk"):
+        return int(_native.p2p_native_clamp_chunk(int(n)))
+    return max(1024, min(1024 * 1024, int(n)))
 
 
 def P2PLineFramer(*args, **kwargs):
