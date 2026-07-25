@@ -713,8 +713,7 @@ fn execute_call_native(
         return Ok(());
     }
 
-    // v1.3.74/75 Priority 38: value=0 CALL/STATICCALL in-Rust frame (leaf or
-    // multi-depth call-frame up to MAX_INLINE_CALL_DEPTH).
+    // v1.3.74–76 Priority 38: CALL/STATICCALL in-Rust (value transfer via balances in v1.3.76).
     if try_inline_leaf_value0_call(
         py,
         host_context,
@@ -951,9 +950,116 @@ fn store_inline_storage(
     Ok(())
 }
 
-/// v1.3.74/75 Priority 38: value=0 CALL/STATICCALL in-Rust frame with callee
-/// storage. Leaf (no CALL) or call-frame (CALL*/LOG allowed, no CREATE/SELFDESTRUCT)
-/// up to MAX_INLINE_CALL_DEPTH. No value transfer.
+/// Snapshot `bridge_state.balances` for fail-closed value transfer (v1.3.76).
+fn snapshot_inline_balances(
+    host_context: Option<&Bound<'_, PyDict>>,
+) -> PyResult<Option<HashMap<String, U256>>> {
+    let Some(state) = bridge_state_dict(host_context) else {
+        return Ok(None);
+    };
+    let Ok(Some(balances_any)) = state.get_item("balances") else {
+        return Ok(None);
+    };
+    let Ok(balances) = balances_any.downcast::<PyDict>() else {
+        return Ok(None);
+    };
+    let mut map = HashMap::new();
+    for (k, v) in balances.iter() {
+        let key = k.extract::<String>().unwrap_or_default();
+        if key.is_empty() {
+            continue;
+        }
+        map.insert(key, py_to_u256_or_int(v)?);
+    }
+    Ok(Some(map))
+}
+
+fn restore_inline_balances(
+    host_context: Option<&Bound<'_, PyDict>>,
+    snap: &HashMap<String, U256>,
+) -> PyResult<()> {
+    let Some(state) = bridge_state_dict(host_context) else {
+        return Ok(());
+    };
+    let py = state.py();
+    let balances = match state.get_item("balances")? {
+        Some(b) => match b.downcast::<PyDict>() {
+            Ok(d) => d.clone(),
+            Err(_) => {
+                let d = PyDict::new_bound(py);
+                state.set_item("balances", &d)?;
+                d
+            }
+        },
+        None => {
+            let d = PyDict::new_bound(py);
+            state.set_item("balances", &d)?;
+            d
+        }
+    };
+    balances.clear();
+    for (k, v) in snap {
+        balances.set_item(k.as_str(), u256_to_py_int(py, *v)?)?;
+    }
+    Ok(())
+}
+
+enum InlineValueTransfer {
+    /// Balances map missing — fall through to Python for real DB debit.
+    Unavailable,
+    /// Fail-closed: insufficient balance (CALL fails without executing child).
+    Insufficient,
+    /// Transferred; caller must restore `snap` on child revert.
+    Transferred { snap: HashMap<String, U256> },
+}
+
+/// Fail-closed wei transfer in `bridge_state.balances` (v1.3.76).
+fn try_inline_value_transfer(
+    host_context: Option<&Bound<'_, PyDict>>,
+    from: U256,
+    to: U256,
+    value: U256,
+) -> PyResult<InlineValueTransfer> {
+    if value.is_zero() {
+        return Ok(InlineValueTransfer::Transferred {
+            snap: HashMap::new(),
+        });
+    }
+    let Some(snap) = snapshot_inline_balances(host_context)? else {
+        return Ok(InlineValueTransfer::Unavailable);
+    };
+    let Some(state) = bridge_state_dict(host_context) else {
+        return Ok(InlineValueTransfer::Unavailable);
+    };
+    let Ok(Some(balances_any)) = state.get_item("balances") else {
+        return Ok(InlineValueTransfer::Unavailable);
+    };
+    let Ok(balances) = balances_any.downcast::<PyDict>() else {
+        return Ok(InlineValueTransfer::Unavailable);
+    };
+    let py = balances.py();
+    let from_s = word_to_address(from);
+    let to_s = word_to_address(to);
+    let from_bal = match balances.get_item(from_s.as_str())? {
+        Some(v) => py_to_u256_or_int(v)?,
+        None => U256::zero(),
+    };
+    if from_bal < value {
+        return Ok(InlineValueTransfer::Insufficient);
+    }
+    let to_bal = match balances.get_item(to_s.as_str())? {
+        Some(v) => py_to_u256_or_int(v)?,
+        None => U256::zero(),
+    };
+    let new_from = from_bal - value;
+    let new_to = to_bal + value;
+    balances.set_item(from_s.as_str(), u256_to_py_int(py, new_from)?)?;
+    balances.set_item(to_s.as_str(), u256_to_py_int(py, new_to)?)?;
+    Ok(InlineValueTransfer::Transferred { snap })
+}
+
+/// v1.3.74–76 Priority 38: CALL/STATICCALL in-Rust frame with callee storage.
+/// v1.3.76: value>0 CALL via fail-closed `bridge_state.balances` (no silent debit).
 fn try_inline_leaf_value0_call(
     py: Python<'_>,
     host_context: Option<&Bound<'_, PyDict>>,
@@ -971,7 +1077,7 @@ fn try_inline_leaf_value0_call(
     if frame.delegate || frame.callcode {
         return Ok(false);
     }
-    if !frame.value.is_zero() {
+    if frame.static_call && !frame.value.is_zero() {
         return Ok(false);
     }
     let depth = get_inline_depth(host_context);
@@ -987,6 +1093,31 @@ fn try_inline_leaf_value0_call(
     if !leaf_ok && !frame_ok {
         return Ok(false);
     }
+
+    // v1.3.76: value transfer before child execution (EVM order).
+    let mut balance_snap: Option<HashMap<String, U256>> = None;
+    if !frame.value.is_zero() {
+        let static_ctx = parse_static_context(host_context)?;
+        match try_inline_value_transfer(
+            host_context,
+            static_ctx.address,
+            frame.to_word,
+            frame.value,
+        )? {
+            InlineValueTransfer::Unavailable => return Ok(false),
+            InlineValueTransfer::Insufficient => {
+                // CALL fails closed without executing child (no silent clamp).
+                *return_data = Vec::new();
+                write_return_to_memory(memory, frame.ret_offset, frame.ret_size, &[]);
+                stack_push(stack, U256::zero());
+                return Ok(true);
+            }
+            InlineValueTransfer::Transferred { snap } => {
+                balance_snap = Some(snap);
+            }
+        }
+    }
+
     // Callee storage: prefer bridge_state.storages[addr], else empty (ephemeral).
     let child_storage = if let Some(existing) = inline_storage_dict(host_context, frame.to_word) {
         existing
@@ -1017,7 +1148,15 @@ fn try_inline_leaf_value0_call(
         true,
     );
     let _ = set_inline_depth(host_context, prev_depth);
-    let child = child?;
+    let child = match child {
+        Ok(c) => c,
+        Err(e) => {
+            if let Some(ref snap) = balance_snap {
+                restore_inline_balances(host_context, snap)?;
+            }
+            return Err(e);
+        }
+    };
     let child_dict = child.downcast_bound::<PyDict>(py)?;
     let reason = child_dict
         .get_item("stop_reason")?
@@ -1027,6 +1166,9 @@ fn try_inline_leaf_value0_call(
         reason.as_str(),
         "halt" | "return" | "revert" | "out_of_gas"
     ) {
+        if let Some(ref snap) = balance_snap {
+            restore_inline_balances(host_context, snap)?;
+        }
         return Ok(false);
     }
     let sub_gas = child_dict
@@ -1035,6 +1177,9 @@ fn try_inline_leaf_value0_call(
         .unwrap_or(0)
         .min(call_gas);
     if let Err(reason) = consume_gas(gas_used, gas_limit, sub_gas) {
+        if let Some(ref snap) = balance_snap {
+            restore_inline_balances(host_context, snap)?;
+        }
         return Err(pyo3::exceptions::PyRuntimeError::new_err(reason));
     }
     let rd = child_dict
@@ -1050,6 +1195,9 @@ fn try_inline_leaf_value0_call(
     let success = !reverted && matches!(reason.as_str(), "halt" | "return");
     if success {
         store_inline_storage(host_context, frame.to_word, &child_storage)?;
+    } else if let Some(ref snap) = balance_snap {
+        // Revert value transfer with the child.
+        restore_inline_balances(host_context, snap)?;
     }
     write_return_to_memory(memory, frame.ret_offset, frame.ret_size, &rd);
     stack_push(
@@ -1061,6 +1209,9 @@ fn try_inline_leaf_value0_call(
         },
     );
     let _ = child_dict.set_item("native_inline_value0_call", true);
+    if balance_snap.is_some() {
+        let _ = child_dict.set_item("native_inline_value_call", true);
+    }
     if !leaf_ok {
         let _ = child_dict.set_item("native_inline_call_frame", true);
         let _ = child_dict.set_item("native_inline_depth", depth + 1);

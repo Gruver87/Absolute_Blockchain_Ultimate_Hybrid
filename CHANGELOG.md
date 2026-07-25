@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.76] — 2026-07-25
+
+### EVM — value-transfer CALL ownership (fail-closed balances)
+
+- Inline CALL with `value > 0` when `bridge_state.balances` is present
+- Fail-closed debit (no silent clamp); insufficient → CALL fails without child exec
+- Revert restores balance snapshot; success keeps transfer + storage
+- Missing balances map → fall through to Python hook (real DB path)
+- Honesty: CALLCODE value / DB-backed satoshi writeback still via adapter journal
+
 ## [1.3.75] — 2026-07-25
 
 ### EVM — multi-depth value=0 CALL frames (Priority 38)

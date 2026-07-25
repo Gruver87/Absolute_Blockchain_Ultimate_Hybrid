@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.75` — multi-depth value=0 CALL frames |
-| **Notes** | [RELEASE_NOTES_v1.3.75.md](../RELEASE_NOTES_v1.3.75.md) |
-| **Prior** | [v1.3.74](../RELEASE_NOTES_v1.3.74.md) CALL leaf; [v1.3.73](../RELEASE_NOTES_v1.3.73.md) apply priority |
+| **Tag** | `v1.3.76` — value-transfer CALL (fail-closed balances) |
+| **Notes** | [RELEASE_NOTES_v1.3.76.md](../RELEASE_NOTES_v1.3.76.md) |
+| **Prior** | [v1.3.75](../RELEASE_NOTES_v1.3.75.md) multi-depth; [v1.3.74](../RELEASE_NOTES_v1.3.74.md) CALL leaf |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

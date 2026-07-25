@@ -1343,8 +1343,11 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("evm_pure_runner must allow multi-depth call-frames (v1.3.75)")
         if "MAX_INLINE_CALL_DEPTH" not in rust_runner or "_abs_inline_depth" not in rust_runner:
             errors.append("evm_pure_runner must track inline CALL depth (v1.3.75)")
+        # v1.3.76 — value CALL fail-closed
+        if "try_inline_value_transfer" not in rust_runner or "v1.3.76" not in rust_runner:
+            errors.append("evm_pure_runner must fail-closed value CALL transfer (v1.3.76)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..75 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..76 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:
