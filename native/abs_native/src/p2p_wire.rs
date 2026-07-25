@@ -461,7 +461,7 @@ fn validate_handshake_inner(data: &Value) -> Option<(i64, i64, String, String, i
     Some((chain_id, height, head_hash, node_id, p2p_port, true))
 }
 
-fn validate_get_blocks_inner(data: &Value) -> Option<(i64, i64)> {
+pub(crate) fn validate_get_blocks_inner(data: &Value) -> Option<(i64, i64)> {
     let obj = data.as_object()?;
     let from_height = obj.get("from_height").and_then(json_i64).unwrap_or(0);
     let to_height = obj
@@ -711,7 +711,7 @@ pub(crate) fn validate_get_block_inner(data: &Value) -> Option<i64> {
     }
 }
 
-fn validate_get_block_by_hash_inner(data: &Value) -> Option<String> {
+pub(crate) fn validate_get_block_by_hash_inner(data: &Value) -> Option<String> {
     let hash = match data {
         Value::String(s) => s.trim().to_string(),
         Value::Object(obj) => obj
@@ -728,7 +728,7 @@ fn validate_get_block_by_hash_inner(data: &Value) -> Option<String> {
     Some(hash)
 }
 
-fn validate_blocks_batch_inner(data: &Value) -> Option<usize> {
+pub(crate) fn validate_blocks_batch_inner(data: &Value) -> Option<usize> {
     let arr = data.as_array()?;
     if arr.len() > MAX_P2P_BLOCKS_BATCH {
         return None;

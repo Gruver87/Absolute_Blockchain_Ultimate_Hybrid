@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.107] — 2026-07-25
+
+### P2P — native block fetch shape gates
+
+- Fail-closed `get_blocks` / `get_block_by_hash` / `blocks` on native read
+- Strike reasons: `bad_get_blocks` / `bad_get_block_by_hash` / `bad_blocks_batch`
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.106] — 2026-07-25
 
 ### P2P — native block sync shape gates

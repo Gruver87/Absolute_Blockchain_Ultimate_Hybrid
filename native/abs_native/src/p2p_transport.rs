@@ -1,4 +1,4 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.106).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.107).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
 //! v1.3.92: `read_message` fuses framed read + wire parse.
@@ -16,13 +16,15 @@
 //! v1.3.104: status payload gate on read (parity with Python).
 //! v1.3.105: attestation shape gate on read (parity with Python).
 //! v1.3.106: new_block / get_block shape gates on read (parity with Python).
+//! v1.3.107: get_blocks / get_block_by_hash / blocks shape gates on read.
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
 use crate::p2p_frame::P2PLineFramer;
 use crate::p2p_wire::{
     clamp_max_bytes, encode_p2p_wire_message_inner, parse_p2p_wire_line_inner,
-    validate_attestation_shape_inner, validate_block_announce_inner, validate_get_block_inner,
+    validate_attestation_shape_inner, validate_block_announce_inner, validate_blocks_batch_inner,
+    validate_get_block_by_hash_inner, validate_get_block_inner, validate_get_blocks_inner,
     validate_status_inner, DEFAULT_MAX_P2P_LINE_BYTES,
 };
 use pyo3::prelude::*;
@@ -176,6 +178,39 @@ fn check_get_block_payload(msg_type: &str, data: &serde_json::Value) -> Result<(
     }
     if validate_get_block_inner(data).is_none() {
         return Err("bad_get_block".to_string());
+    }
+    Ok(())
+}
+
+/// v1.3.107: parity with Python `get_blocks` range gate (fail-closed).
+fn check_get_blocks_payload(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+    if msg_type != "get_blocks" {
+        return Ok(());
+    }
+    if validate_get_blocks_inner(data).is_none() {
+        return Err("bad_get_blocks".to_string());
+    }
+    Ok(())
+}
+
+/// v1.3.107: parity with Python `get_block_by_hash` gate (fail-closed).
+fn check_get_block_by_hash_payload(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+    if msg_type != "get_block_by_hash" {
+        return Ok(());
+    }
+    if validate_get_block_by_hash_inner(data).is_none() {
+        return Err("bad_get_block_by_hash".to_string());
+    }
+    Ok(())
+}
+
+/// v1.3.107: parity with Python `blocks` batch gate (fail-closed).
+fn check_blocks_batch_payload(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+    if msg_type != "blocks" {
+        return Ok(());
+    }
+    if validate_blocks_batch_inner(data).is_none() {
+        return Err("bad_blocks_batch".to_string());
     }
     Ok(())
 }
@@ -898,6 +933,7 @@ impl P2PNativeConn {
     /// v1.3.104: status payload gate (bad dict → `bad_status_payload`).
     /// v1.3.105: attestation shape gate (`bad_attestation_shape`).
     /// v1.3.106: new_block / get_block shape gates.
+    /// v1.3.107: get_blocks / get_block_by_hash / blocks shape gates.
     #[pyo3(signature = (chunk_sz=65536, allowed_types=None, auto_pong=false))]
     fn read_message(
         &mut self,
@@ -919,6 +955,9 @@ impl P2PNativeConn {
                         check_attestation_payload(&msg_type, &data)?;
                         check_block_announce_payload(&msg_type, &data)?;
                         check_get_block_payload(&msg_type, &data)?;
+                        check_get_blocks_payload(&msg_type, &data)?;
+                        check_get_block_by_hash_payload(&msg_type, &data)?;
+                        check_blocks_batch_payload(&msg_type, &data)?;
                         // Early reject get_* always; ping/pong gated inside auto_pong path.
                         if msg_type == "get_mempool" || msg_type == "get_peers" {
                             check_housekeeping(&msg_type, &data)?;
@@ -982,6 +1021,7 @@ impl P2PNativeConn {
     /// v1.3.104: status payload gate (bad dict → `bad_status_payload`).
     /// v1.3.105: attestation shape gate (`bad_attestation_shape`).
     /// v1.3.106: new_block / get_block shape gates.
+    /// v1.3.107: get_blocks / get_block_by_hash / blocks shape gates.
     ///
     /// `{ok:true, messages:[{type,data,nbytes},...], eof:bool, auto_pongs, keepalive_touches}` |
     /// `{ok:false, reason, messages:[...], eof:false, ...}`.
@@ -1029,6 +1069,18 @@ impl P2PNativeConn {
                             break;
                         }
                         if let Err(reason) = check_get_block_payload(&msg_type, &data) {
+                            err = Some(reason);
+                            break;
+                        }
+                        if let Err(reason) = check_get_blocks_payload(&msg_type, &data) {
+                            err = Some(reason);
+                            break;
+                        }
+                        if let Err(reason) = check_get_block_by_hash_payload(&msg_type, &data) {
+                            err = Some(reason);
+                            break;
+                        }
+                        if let Err(reason) = check_blocks_batch_payload(&msg_type, &data) {
                             err = Some(reason);
                             break;
                         }
@@ -1772,5 +1824,52 @@ mod tests {
         assert!(check_get_block_payload("get_block", &serde_json::json!(7)).is_ok());
         assert!(check_get_block_payload("get_block", &serde_json::json!({"height": 3})).is_ok());
         assert!(check_get_block_payload("new_block", &serde_json::json!(null)).is_ok());
+    }
+
+    #[test]
+    fn block_fetch_payload_gate_parity() {
+        assert_eq!(
+            check_get_blocks_payload("get_blocks", &serde_json::json!(null)).unwrap_err(),
+            "bad_get_blocks"
+        );
+        assert_eq!(
+            check_get_blocks_payload(
+                "get_blocks",
+                &serde_json::json!({"from_height": 5, "to_height": 1})
+            )
+            .unwrap_err(),
+            "bad_get_blocks"
+        );
+        assert!(check_get_blocks_payload(
+            "get_blocks",
+            &serde_json::json!({"from_height": 0, "to_height": 2})
+        )
+        .is_ok());
+
+        assert_eq!(
+            check_get_block_by_hash_payload("get_block_by_hash", &serde_json::json!("")).unwrap_err(),
+            "bad_get_block_by_hash"
+        );
+        assert!(check_get_block_by_hash_payload(
+            "get_block_by_hash",
+            &serde_json::json!({"hash": "aa"})
+        )
+        .is_ok());
+
+        assert_eq!(
+            check_blocks_batch_payload("blocks", &serde_json::json!({})).unwrap_err(),
+            "bad_blocks_batch"
+        );
+        assert_eq!(
+            check_blocks_batch_payload("blocks", &serde_json::json!([{}])).unwrap_err(),
+            "bad_blocks_batch"
+        );
+        assert!(check_blocks_batch_payload("blocks", &serde_json::json!([])).is_ok());
+        assert!(check_blocks_batch_payload(
+            "blocks",
+            &serde_json::json!([{"height": 1, "hash": "aa"}])
+        )
+        .is_ok());
+        assert!(check_get_blocks_payload("new_block", &serde_json::json!(null)).is_ok());
     }
 }
