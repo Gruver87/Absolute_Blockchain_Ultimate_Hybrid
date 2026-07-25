@@ -6,6 +6,13 @@
 
 ---
 
+## [1.3.59] — 2026-07-25
+
+### Added — nested CALL writeback ops (Rust planner)
+
+- `evm_plan_nested_call_writeback` — concrete `ops[]` with resolved addresses
+- Adapter applies ops via Python DB (`_apply_nested_writeback_ops`)
+
 ## [1.3.58] — 2026-07-25
 
 ### Added — native account view decode (nested CALL preload)

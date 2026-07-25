@@ -10,6 +10,7 @@ mod consensus_ghost;
 mod consensus_select;
 mod eth_tx;
 mod evm_pure_runner;
+mod evm_writeback;
 mod p2p_rate_limit;
 mod p2p_wire;
 mod rlp;
@@ -1949,6 +1950,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_hash_chain, m)?)?;
     storage::register(m)?;
     account_view::register(m)?;
+    evm_writeback::register(m)?;
     state_trie::register(m)?;
     consensus_select::register(m)?;
     consensus_ghost::register(m)?;

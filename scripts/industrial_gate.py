@@ -1167,8 +1167,21 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("evm_adapter must define _account_view (v1.3.58)")
         if "account_storage_map_from_raw" not in adapter_av:
             errors.append("evm_adapter must use account_storage_map_from_raw")
+        # v1.3.59 — nested CALL writeback ops
+        if "def evm_plan_nested_call_writeback" not in native_py:
+            errors.append("crypto/native.py must export evm_plan_nested_call_writeback (v1.3.59)")
+        wb_rs = ROOT / "native" / "abs_native" / "src" / "evm_writeback.rs"
+        if not wb_rs.is_file():
+            errors.append("evm_writeback.rs missing (v1.3.59)")
+        elif "evm_plan_nested_call_writeback" not in wb_rs.read_text(encoding="utf-8"):
+            errors.append("evm_writeback.rs must define evm_plan_nested_call_writeback")
+        adapter_wb = (ROOT / "execution" / "evm_adapter.py").read_text(encoding="utf-8")
+        if "evm_plan_nested_call_writeback" not in adapter_wb:
+            errors.append("evm_adapter must wire evm_plan_nested_call_writeback")
+        if "def _apply_nested_writeback_ops" not in adapter_wb:
+            errors.append("evm_adapter must define _apply_nested_writeback_ops")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..58 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..59 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

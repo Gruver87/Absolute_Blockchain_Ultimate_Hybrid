@@ -306,7 +306,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `account_view_from_blob` / `account_storage_map_from_raw` — fail-closed decode
 - [x] `RocksEngine.get_account_view` + adapter `_account_view` nested CALL preload
-- Remaining: persist/CREATE write path + in-process Rocks handle inside EVM runner
+- Remaining: see Priority 27
+
+### Priority 27 — Nested CALL writeback ops ✅ (v1.3.59)
+
+- [x] `evm_plan_nested_call_writeback` — concrete `ops[]` (set_storage / transfer_value / append_logs)
+- [x] Adapter `_apply_nested_writeback_ops` applies via Python DB only
+- Remaining: CREATE write planner; native apply; in-process Rocks in EVM runner
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
 
@@ -318,6 +324,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.56: nested host frame (CALL/CREATE/LOG orchestration in Rust + bridge)
 - [x] v1.3.57: host opcode bodies in Rust (thin hooks for state)
 - [x] v1.3.58: native account-blob decode for nested CALL preload
+- [x] v1.3.59: nested CALL writeback ops planned in Rust
 
 ## Process per module
 

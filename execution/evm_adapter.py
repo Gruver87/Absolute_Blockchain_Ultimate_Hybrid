@@ -350,22 +350,21 @@ class EVMAdapter:
             result = evm.execute_bytecode(bytecode)
 
         success = not result.get("reverted")
-        plan = native.evm_plan_nested_call_effects(
+        plan = native.evm_plan_nested_call_writeback(
             kind,
             parent_ro,
             caller_ctx.address,
             target,
             int(call_value or 0),
             success,
+            result.get("storage"),
+            result.get("logs"),
         )
 
         # Fail-closed: never persist storage/value/logs for reverted nested calls.
         if not result.get("reverted"):
-            if not (
-                plan.get("persist_storage")
-                or plan.get("persist_value")
-                or plan.get("persist_logs")
-            ):
+            ops = list(plan.get("ops") or [])
+            if not ops:
                 return {
                     "success": success,
                     "reverted": False,
@@ -373,28 +372,7 @@ class EVMAdapter:
                     "gas_used": result.get("gas_used", 0),
                 }
 
-            if plan.get("persist_storage"):
-                new_storage = {str(k): v for k, v in result.get("storage", {}).items()}
-                owner = (
-                    caller_ctx.address
-                    if plan.get("storage_owner") == "caller"
-                    else target
-                )
-                self.db.update_account_storage(owner, new_storage)
-
-            if plan.get("persist_value") and int(plan.get("effective_value_wei") or 0) > 0:
-                wei_to_abs = int(plan["effective_value_wei"]) / 10**18
-                from_addr = (
-                    caller_ctx.address if plan.get("value_from") == "caller" else caller
-                )
-                to_addr = target if plan.get("value_to") == "target" else target
-                self.db.update_balance(from_addr, -wei_to_abs)
-                self.db.update_balance(to_addr, wei_to_abs)
-
-            if plan.get("persist_logs"):
-                sub_logs = result.get("logs") or []
-                if sub_logs:
-                    self._persist_logs(caller_ctx.address, sub_logs)
+            self._apply_nested_writeback_ops(ops)
 
             return {
                 "success": success,
@@ -403,6 +381,7 @@ class EVMAdapter:
                 "storage": result.get("storage", {}),
                 "gas_used": result.get("gas_used", 0),
                 "logs": result.get("logs", []),
+                "native_writeback_ops": len(ops),
             }
 
         return {
@@ -411,6 +390,32 @@ class EVMAdapter:
             "return_data": result.get("return_data", b"") or b"",
             "gas_used": result.get("gas_used", 0),
         }
+
+    def _apply_nested_writeback_ops(self, ops: List[Dict[str, Any]]) -> None:
+        """Apply Rust-planned nested CALL writeback ops via Python DB (v1.3.59)."""
+        for op in ops:
+            kind = str(op.get("op") or "")
+            if kind == "set_storage":
+                addr = self._normalize_addr(str(op.get("address") or ""))
+                storage = op.get("storage") or {}
+                new_storage = {str(k): int(v) for k, v in dict(storage).items()}
+                self.db.update_account_storage(addr, new_storage)
+            elif kind == "transfer_value":
+                value_wei = int(op.get("value_wei") or 0)
+                if value_wei <= 0:
+                    continue
+                wei_to_abs = value_wei / 10**18
+                from_addr = self._normalize_addr(str(op.get("from") or ""))
+                to_addr = self._normalize_addr(str(op.get("to") or ""))
+                self.db.update_balance(from_addr, -wei_to_abs)
+                self.db.update_balance(to_addr, wei_to_abs)
+            elif kind == "append_logs":
+                addr = self._normalize_addr(str(op.get("address") or ""))
+                logs = list(op.get("logs") or [])
+                if logs:
+                    self._persist_logs(addr, logs)
+            else:
+                raise RuntimeError(f"unsupported_nested_writeback_op:{kind}")
 
     def _contract_create_hook(self, init_code: bytes, value: int,
                               caller_ctx: EVMContext,

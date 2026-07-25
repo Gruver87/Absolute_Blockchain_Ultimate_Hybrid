@@ -96,6 +96,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "evm_host_snapshot_storage",
             "evm_host_restore_storage",
             "evm_plan_nested_call_effects",
+            "evm_plan_nested_call_writeback",
             "evm_plan_nested_call_gas",
             "evm_decode_nested_call_frame",
             "evm_run_nested_pure_frame",
@@ -1387,6 +1388,99 @@ def evm_plan_nested_call_effects(
         _require_native_kernel("evm_plan_nested_call_effects")
     return _evm_plan_nested_call_effects_py(
         kind, parent_read_only, caller, target, value_wei, success
+    )
+
+
+def _evm_plan_nested_call_writeback_py(
+    kind: str,
+    parent_read_only: bool,
+    caller: str,
+    target: str,
+    value_wei: int,
+    success: bool,
+    storage=None,
+    logs=None,
+) -> dict:
+    """Python reference: effects policy + concrete writeback ops."""
+    base = _evm_plan_nested_call_effects_py(
+        kind, parent_read_only, caller, target, value_wei, success
+    )
+    ops: list = []
+    if base.get("persist_storage"):
+        storage_map = {}
+        if isinstance(storage, dict):
+            storage_map = {str(int(k)): int(v) for k, v in storage.items()}
+        elif storage is not None:
+            try:
+                parsed = json.loads(storage) if isinstance(storage, (str, bytes, bytearray)) else {}
+                storage_map = {str(int(k)): int(v) for k, v in dict(parsed).items()}
+            except Exception:
+                storage_map = {}
+        owner = caller if base.get("storage_owner") == "caller" else target
+        ops.append({"op": "set_storage", "address": str(owner or ""), "storage": storage_map})
+    if base.get("persist_value") and int(base.get("effective_value_wei") or 0) > 0:
+        from_addr = caller if base.get("value_from") == "caller" else target
+        to_addr = target if base.get("value_to") == "target" else caller
+        ops.append({
+            "op": "transfer_value",
+            "from": str(from_addr or ""),
+            "to": str(to_addr or ""),
+            "value_wei": int(base["effective_value_wei"]),
+        })
+    if base.get("persist_logs"):
+        log_list = list(logs or [])
+        if log_list:
+            ops.append({
+                "op": "append_logs",
+                "address": str(caller or ""),
+                "logs": log_list,
+            })
+    base["ops"] = ops
+    base["native_writeback"] = False
+    return base
+
+
+def evm_plan_nested_call_writeback(
+    kind: str,
+    parent_read_only: bool,
+    caller: str,
+    target: str,
+    value_wei: int,
+    success: bool,
+    storage=None,
+    logs=None,
+) -> dict:
+    """Plan nested CALL writeback ops with resolved addresses (v1.3.59)."""
+    storage_json = None
+    if storage is not None:
+        if isinstance(storage, dict):
+            storage_json = json.dumps({str(int(k)): int(v) for k, v in storage.items()})
+        elif isinstance(storage, (bytes, bytearray)):
+            storage_json = storage.decode("utf-8", errors="replace")
+        else:
+            storage_json = str(storage)
+    logs_json = None
+    if logs is not None:
+        logs_json = json.dumps(list(logs))
+    if _native is not None and hasattr(_native, "evm_plan_nested_call_writeback"):
+        raw = _native.evm_plan_nested_call_writeback(
+            str(kind),
+            bool(parent_read_only),
+            str(caller or ""),
+            str(target or ""),
+            int(value_wei or 0),
+            bool(success),
+            storage_json,
+            logs_json,
+        )
+        out = json.loads(raw) if isinstance(raw, str) else dict(raw)
+        out["native_writeback"] = True
+        out["native_plan"] = True
+        return out
+    if _REQUIRE_NATIVE:
+        _require_native_kernel("evm_plan_nested_call_writeback")
+    return _evm_plan_nested_call_writeback_py(
+        kind, parent_read_only, caller, target, value_wei, success, storage, logs
     )
 
 
