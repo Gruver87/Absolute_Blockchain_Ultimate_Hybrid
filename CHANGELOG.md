@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.106] — 2026-07-25
+
+### P2P — native block sync shape gates
+
+- Fail-closed `new_block` announce check on native read (`bad_block_announce`)
+- Fail-closed `get_block` height check on native read (`bad_get_block`)
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.105] — 2026-07-25
 
 ### P2P — native attestation shape gate

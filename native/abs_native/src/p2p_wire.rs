@@ -282,7 +282,7 @@ fn validate_p2p_attestation_payload(data_json: String) -> PyResult<bool> {
 
 const MAX_P2P_BLOCK_TXS: usize = 10_000;
 
-fn validate_block_announce_inner(data: &Value) -> Option<(i64, String)> {
+pub(crate) fn validate_block_announce_inner(data: &Value) -> Option<(i64, String)> {
     let obj = data.as_object()?;
     let height = obj
         .get("height")
@@ -688,7 +688,7 @@ fn validate_peers_list_inner(data: &Value) -> Option<Vec<String>> {
     Some(out)
 }
 
-fn validate_get_block_inner(data: &Value) -> Option<i64> {
+pub(crate) fn validate_get_block_inner(data: &Value) -> Option<i64> {
     match data {
         Value::Number(_) | Value::String(_) => {
             let h = json_i64(data)?;

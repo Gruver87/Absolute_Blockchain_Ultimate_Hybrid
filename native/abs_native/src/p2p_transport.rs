@@ -1,4 +1,4 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.105).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.106).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
 //! v1.3.92: `read_message` fuses framed read + wire parse.
@@ -15,13 +15,15 @@
 //! v1.3.103: mid-session handshake reject once session_established.
 //! v1.3.104: status payload gate on read (parity with Python).
 //! v1.3.105: attestation shape gate on read (parity with Python).
+//! v1.3.106: new_block / get_block shape gates on read (parity with Python).
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
 use crate::p2p_frame::P2PLineFramer;
 use crate::p2p_wire::{
     clamp_max_bytes, encode_p2p_wire_message_inner, parse_p2p_wire_line_inner,
-    validate_attestation_shape_inner, validate_status_inner, DEFAULT_MAX_P2P_LINE_BYTES,
+    validate_attestation_shape_inner, validate_block_announce_inner, validate_get_block_inner,
+    validate_status_inner, DEFAULT_MAX_P2P_LINE_BYTES,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
@@ -70,10 +72,8 @@ fn wire_fail_reason(err: &str) -> String {
     {
         return err.to_string();
     }
-    if err.starts_with("bad_") && err.ends_with("_payload") {
-        return err.to_string();
-    }
-    if err == "bad_attestation_shape" {
+    // Preserve strike reasons: bad_*_payload, bad_attestation_shape, bad_block_announce, …
+    if err.starts_with("bad_") {
         return err.to_string();
     }
     if err.starts_with("p2p_line_too_large") {
@@ -154,6 +154,28 @@ fn check_attestation_payload(msg_type: &str, data: &serde_json::Value) -> Result
     }
     if !validate_attestation_shape_inner(data) {
         return Err("bad_attestation_shape".to_string());
+    }
+    Ok(())
+}
+
+/// v1.3.106: parity with Python `new_block` announce gate (fail-closed).
+fn check_block_announce_payload(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+    if msg_type != "new_block" {
+        return Ok(());
+    }
+    if validate_block_announce_inner(data).is_none() {
+        return Err("bad_block_announce".to_string());
+    }
+    Ok(())
+}
+
+/// v1.3.106: parity with Python `get_block` height gate (fail-closed).
+fn check_get_block_payload(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+    if msg_type != "get_block" {
+        return Ok(());
+    }
+    if validate_get_block_inner(data).is_none() {
+        return Err("bad_get_block".to_string());
     }
     Ok(())
 }
@@ -875,6 +897,7 @@ impl P2PNativeConn {
     /// v1.3.103: mid-session handshake reject when `session_established`.
     /// v1.3.104: status payload gate (bad dict → `bad_status_payload`).
     /// v1.3.105: attestation shape gate (`bad_attestation_shape`).
+    /// v1.3.106: new_block / get_block shape gates.
     #[pyo3(signature = (chunk_sz=65536, allowed_types=None, auto_pong=false))]
     fn read_message(
         &mut self,
@@ -894,6 +917,8 @@ impl P2PNativeConn {
                         check_mid_session_handshake(self.session_established, &msg_type)?;
                         check_status_payload(&msg_type, &data)?;
                         check_attestation_payload(&msg_type, &data)?;
+                        check_block_announce_payload(&msg_type, &data)?;
+                        check_get_block_payload(&msg_type, &data)?;
                         // Early reject get_* always; ping/pong gated inside auto_pong path.
                         if msg_type == "get_mempool" || msg_type == "get_peers" {
                             check_housekeeping(&msg_type, &data)?;
@@ -956,6 +981,7 @@ impl P2PNativeConn {
     /// v1.3.103: mid-session handshake reject when `session_established`.
     /// v1.3.104: status payload gate (bad dict → `bad_status_payload`).
     /// v1.3.105: attestation shape gate (`bad_attestation_shape`).
+    /// v1.3.106: new_block / get_block shape gates.
     ///
     /// `{ok:true, messages:[{type,data,nbytes},...], eof:bool, auto_pongs, keepalive_touches}` |
     /// `{ok:false, reason, messages:[...], eof:false, ...}`.
@@ -995,6 +1021,14 @@ impl P2PNativeConn {
                             break;
                         }
                         if let Err(reason) = check_attestation_payload(&msg_type, &data) {
+                            err = Some(reason);
+                            break;
+                        }
+                        if let Err(reason) = check_block_announce_payload(&msg_type, &data) {
+                            err = Some(reason);
+                            break;
+                        }
+                        if let Err(reason) = check_get_block_payload(&msg_type, &data) {
                             err = Some(reason);
                             break;
                         }
@@ -1711,5 +1745,32 @@ mod tests {
         });
         assert!(check_attestation_payload("attestation", &good).is_ok());
         assert!(check_attestation_payload("status", &serde_json::json!({})).is_ok());
+    }
+
+    #[test]
+    fn block_sync_payload_gate_parity() {
+        assert_eq!(
+            check_block_announce_payload("new_block", &serde_json::json!(null)).unwrap_err(),
+            "bad_block_announce"
+        );
+        assert_eq!(
+            check_block_announce_payload("new_block", &serde_json::json!({})).unwrap_err(),
+            "bad_block_announce"
+        );
+        let good_announce = serde_json::json!({"height": 1, "hash": "aa"});
+        assert!(check_block_announce_payload("new_block", &good_announce).is_ok());
+        assert!(check_block_announce_payload("status", &serde_json::json!({})).is_ok());
+
+        assert_eq!(
+            check_get_block_payload("get_block", &serde_json::json!(null)).unwrap_err(),
+            "bad_get_block"
+        );
+        assert_eq!(
+            check_get_block_payload("get_block", &serde_json::json!({"height": -1})).unwrap_err(),
+            "bad_get_block"
+        );
+        assert!(check_get_block_payload("get_block", &serde_json::json!(7)).is_ok());
+        assert!(check_get_block_payload("get_block", &serde_json::json!({"height": 3})).is_ok());
+        assert!(check_get_block_payload("new_block", &serde_json::json!(null)).is_ok());
     }
 }

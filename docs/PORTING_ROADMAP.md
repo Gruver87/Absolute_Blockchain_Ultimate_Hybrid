@@ -455,6 +455,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.103: Native mid-session handshake gate (Priority 58)
 - [x] v1.3.104: Native status payload gate (Priority 59)
 - [x] v1.3.105: Native attestation shape gate (Priority 60)
+- [x] v1.3.106: Native block sync shape gates (Priority 61)
 
 ### Priority 39 — P2P Rust ingress data plane ✅ (v1.3.77–v1.3.78)
 
@@ -582,6 +583,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `check_attestation_payload` via `validate_attestation_shape_inner`
 - [x] Bad shape → `bad_attestation_shape` before Python sig verify
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
+### Priority 61 — Native block sync shape gates ✅ (v1.3.106)
+
+- [x] `check_block_announce_payload` / `check_get_block_payload` on native read
+- [x] Bad → `bad_block_announce` / `bad_get_block` before Python dispatch
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
 ## Process per module

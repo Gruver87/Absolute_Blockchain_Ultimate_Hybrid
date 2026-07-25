@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""v1.3.105: native attestation shape gate on read path."""
+"""v1.3.106: native new_block / get_block shape gates on read path."""
 
 from __future__ import annotations
 
@@ -20,19 +20,21 @@ from network.p2p_node import P2PNode
 from runtime.config import Config
 
 
-def test_needles_v13105():
+def test_needles_v13106():
     transport = (ROOT / "native" / "abs_native" / "src" / "p2p_transport.rs").read_text(
         encoding="utf-8"
     )
-    assert "check_attestation_payload" in transport
-    assert "validate_attestation_shape_inner" in transport
-    assert "v1.3.105" in transport
+    assert "check_block_announce_payload" in transport
+    assert "check_get_block_payload" in transport
+    assert "validate_block_announce_inner" in transport
+    assert "validate_get_block_inner" in transport
+    assert "v1.3.106" in transport
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
-    assert "native_attestation_gate" in p2p
-    notes = (ROOT / "RELEASE_NOTES_v1.3.105.md").read_text(encoding="utf-8")
-    assert "1.3.105-industrial" in notes
-    # Live Config().node_version advances with later waves; pin notes not config.
-    assert "abs_p2p_native_attestation_gate" in (
+    assert "native_block_sync_gate" in p2p
+    notes = (ROOT / "RELEASE_NOTES_v1.3.106.md").read_text(encoding="utf-8")
+    assert "1.3.106-industrial" in notes
+    assert Config().node_version == "1.3.106-industrial"
+    assert "abs_p2p_native_block_sync_gate" in (
         ROOT / "observability" / "metrics.py"
     ).read_text(encoding="utf-8")
 
@@ -41,7 +43,7 @@ def test_needles_v13105():
     not getattr(native, "native_available", lambda: False)(),
     reason="abs_native required",
 )
-def test_native_rejects_bad_attestation_shape():
+def test_native_rejects_bad_block_announce():
     listener = native.P2PNativeListener("127.0.0.1", 0, 1024 * 1024, 5000)
     addr = listener.local_addr
     host, port_s = addr.rsplit(":", 1)
@@ -55,7 +57,7 @@ def test_native_rejects_bad_attestation_shape():
             out = listener.accept()
             if out.get("ok") and out.get("conn") is not None:
                 c = out["conn"]
-                batch = c.read_messages(8, 65536, ["attestation", "status"], False)
+                batch = c.read_messages(8, 65536, ["new_block", "get_block"], False)
                 got["batch"] = batch
                 c.close()
                 return
@@ -64,7 +66,7 @@ def test_native_rejects_bad_attestation_shape():
     t.start()
     time.sleep(0.05)
     conn = native.p2p_native_connect(host, port, 1024 * 1024, 8000)
-    conn.write_message("attestation", "{}", ["attestation", "status"])
+    conn.write_message("new_block", "{}", ["new_block", "get_block"])
     time.sleep(0.15)
     conn.close()
     t.join(timeout=3)
@@ -72,23 +74,20 @@ def test_native_rejects_bad_attestation_shape():
 
     batch = got.get("batch") or {}
     assert batch.get("ok") is False, batch
-    assert batch.get("reason") == "bad_attestation_shape"
+    assert batch.get("reason") == "bad_block_announce"
 
 
 @pytest.mark.skipif(
     not getattr(native, "native_available", lambda: False)(),
     reason="abs_native required",
 )
-def test_native_allows_well_shaped_attestation():
+def test_native_rejects_bad_get_block():
     listener = native.P2PNativeListener("127.0.0.1", 0, 1024 * 1024, 5000)
     addr = listener.local_addr
     host, port_s = addr.rsplit(":", 1)
     port = int(port_s)
     host = host.strip("[]")
     got = {}
-    payload = (
-        '{"validator":"abs-1","target_hash":"aa","signature":"ab","public_key":"cd"}'
-    )
 
     def server():
         deadline = time.time() + 8.0
@@ -96,7 +95,7 @@ def test_native_allows_well_shaped_attestation():
             out = listener.accept()
             if out.get("ok") and out.get("conn") is not None:
                 c = out["conn"]
-                msg = c.read_message(65536, ["attestation", "status"], False)
+                msg = c.read_message(65536, ["new_block", "get_block"], False)
                 got["msg"] = msg
                 c.close()
                 return
@@ -105,21 +104,63 @@ def test_native_allows_well_shaped_attestation():
     t.start()
     time.sleep(0.05)
     conn = native.p2p_native_connect(host, port, 1024 * 1024, 8000)
-    conn.write_message("attestation", payload, ["attestation", "status"])
+    conn.write_message("get_block", '{"height": -1}', ["new_block", "get_block"])
+    time.sleep(0.15)
+    conn.close()
+    t.join(timeout=3)
+    listener.close()
+
+    msg = got.get("msg") or {}
+    assert msg.get("ok") is False, msg
+    assert msg.get("reason") == "bad_get_block"
+
+
+@pytest.mark.skipif(
+    not getattr(native, "native_available", lambda: False)(),
+    reason="abs_native required",
+)
+def test_native_allows_well_shaped_block_sync():
+    listener = native.P2PNativeListener("127.0.0.1", 0, 1024 * 1024, 5000)
+    addr = listener.local_addr
+    host, port_s = addr.rsplit(":", 1)
+    port = int(port_s)
+    host = host.strip("[]")
+    got = {}
+
+    def server():
+        deadline = time.time() + 8.0
+        while time.time() < deadline:
+            out = listener.accept()
+            if out.get("ok") and out.get("conn") is not None:
+                c = out["conn"]
+                msg = c.read_message(65536, ["new_block", "get_block"], False)
+                got["msg"] = msg
+                c.close()
+                return
+
+    t = threading.Thread(target=server, daemon=True)
+    t.start()
+    time.sleep(0.05)
+    conn = native.p2p_native_connect(host, port, 1024 * 1024, 8000)
+    conn.write_message(
+        "new_block",
+        '{"height": 1, "hash": "aa"}',
+        ["new_block", "get_block"],
+    )
     time.sleep(0.15)
     conn.close()
     t.join(timeout=3)
     listener.close()
     msg = got.get("msg") or {}
     assert msg.get("ok") is True, msg
-    assert msg.get("type") == "attestation"
+    assert msg.get("type") == "new_block"
 
 
-def test_p2p_node_native_attestation_gate_flag():
+def test_p2p_node_native_block_sync_gate_flag():
     cfg = Config()
     cfg.require_native_crypto = False
     cfg.deployment_mode = "dev"
     cfg.p2p_native_transport = True
     cfg.p2p_tls_enabled = False
     node = P2PNode(cfg, MagicMock(), MagicMock())
-    assert node.get_p2p_security_status().get("native_attestation_gate") is True
+    assert node.get_p2p_security_status().get("native_block_sync_gate") is True
