@@ -6,6 +6,13 @@
 
 ---
 
+## [1.3.58] — 2026-07-25
+
+### Added — native account view decode (nested CALL preload)
+
+- `account_view_from_blob` / `account_storage_map_from_raw` in abs_native
+- `RocksEngine.get_account_view`; adapter `_account_view` for nested CALL code/storage
+
 ## [1.3.57] — 2026-07-25
 
 ### Added — LOG/CALL/CREATE host bodies in Rust

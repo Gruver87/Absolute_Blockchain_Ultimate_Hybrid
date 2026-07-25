@@ -1139,8 +1139,36 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         interp = (ROOT / "evm_interpreter.py").read_text(encoding="utf-8")
         if 'seg.get("logs")' not in interp:
             errors.append("evm_interpreter must merge native segment logs (v1.3.57)")
+        # v1.3.58 — native account view decode for nested CALL preload
+        if "def account_storage_map_from_raw" not in native_py:
+            errors.append("crypto/native.py must export account_storage_map_from_raw (v1.3.58)")
+        if "def account_view_from_blob" not in native_py:
+            errors.append("crypto/native.py must export account_view_from_blob (v1.3.58)")
+        if "def account_view_from_row" not in native_py:
+            errors.append("crypto/native.py must export account_view_from_row (v1.3.58)")
+        av_rs = ROOT / "native" / "abs_native" / "src" / "account_view.rs"
+        if not av_rs.is_file():
+            errors.append("account_view.rs missing (v1.3.58)")
+        else:
+            av_txt = av_rs.read_text(encoding="utf-8")
+            for needle in (
+                "account_storage_map_from_raw",
+                "account_view_from_blob",
+                "fn decode_account_view_bytes",
+            ):
+                if needle not in av_txt:
+                    errors.append(f"account_view.rs missing {needle}")
+        if "get_account_view" not in (
+            ROOT / "native" / "abs_native" / "src" / "storage" / "mod.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append("RocksEngine must expose get_account_view (v1.3.58)")
+        adapter_av = (ROOT / "execution" / "evm_adapter.py").read_text(encoding="utf-8")
+        if "def _account_view" not in adapter_av:
+            errors.append("evm_adapter must define _account_view (v1.3.58)")
+        if "account_storage_map_from_raw" not in adapter_av:
+            errors.append("evm_adapter must use account_storage_map_from_raw")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..57 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..58 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

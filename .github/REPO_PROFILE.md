@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.57` — host CALL/CREATE/LOG bodies in Rust |
-| **Notes** | [RELEASE_NOTES_v1.3.57.md](../RELEASE_NOTES_v1.3.57.md) |
-| **Prior** | [v1.3.56](../RELEASE_NOTES_v1.3.56.md) nested host frame; [v1.3.55](../RELEASE_NOTES_v1.3.55.md) nested bridge |
+| **Tag** | `v1.3.58` — native account view decode |
+| **Notes** | [RELEASE_NOTES_v1.3.58.md](../RELEASE_NOTES_v1.3.58.md) |
+| **Prior** | [v1.3.57](../RELEASE_NOTES_v1.3.57.md) host bodies; [v1.3.56](../RELEASE_NOTES_v1.3.56.md) nested host frame |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

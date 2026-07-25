@@ -300,7 +300,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] LOG0–LOG4 gas/stack/memory + segment `logs[]` entirely in Rust
 - [x] CALL/CREATE/SELFDESTRUCT bodies in Rust via thin `bridge_hooks`
-- Remaining: DB/state still behind Python hooks (not in-process Rocks in runner)
+- Remaining: see Priority 26
+
+### Priority 26 — Native account view decode ✅ (v1.3.58 first slice)
+
+- [x] `account_view_from_blob` / `account_storage_map_from_raw` — fail-closed decode
+- [x] `RocksEngine.get_account_view` + adapter `_account_view` nested CALL preload
+- Remaining: persist/CREATE write path + in-process Rocks handle inside EVM runner
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
 
@@ -311,6 +317,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.55: nested CALL native bridge (BALANCE/EXTCODE*/BLOCKHASH via host_context)
 - [x] v1.3.56: nested host frame (CALL/CREATE/LOG orchestration in Rust + bridge)
 - [x] v1.3.57: host opcode bodies in Rust (thin hooks for state)
+- [x] v1.3.58: native account-blob decode for nested CALL preload
 
 ## Process per module
 

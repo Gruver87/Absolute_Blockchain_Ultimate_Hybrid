@@ -62,6 +62,11 @@ class EVMAdapter:
         self._calldata_decode_failures = 0
 
     def _code_bytes(self, addr: str) -> bytes:
+        view = self._account_view(addr)
+        if view.get("ok") and not view.get("corrupt"):
+            code = bytes(view.get("code_bytes") or b"")
+            if code:
+                return code
         account = self.db.get_account(self._normalize_addr(addr))
         if not account or not account.get("code"):
             return b""
@@ -141,6 +146,11 @@ class EVMAdapter:
 
     def _loads_contract_storage(self, storage_raw: Any) -> Optional[Dict[int, int]]:
         """Fail-closed storage decode; None means corrupt."""
+        if hasattr(native, "account_storage_map_from_raw"):
+            out = native.account_storage_map_from_raw(storage_raw)
+            if out is None:
+                self._storage_decode_failures += 1
+            return out
         try:
             raw = storage_raw or "{}"
             if isinstance(raw, dict):
@@ -151,6 +161,28 @@ class EVMAdapter:
         except Exception:
             self._storage_decode_failures += 1
             return None
+
+    def _account_view(self, addr: str) -> Dict[str, Any]:
+        """Native-preferring account view for nested CALL preload (v1.3.58)."""
+        addr = self._normalize_addr(addr)
+        engine = getattr(self.db, "_engine", None)
+        if engine is None:
+            core = getattr(self.db, "_core", None)
+            engine = getattr(core, "_engine", None) if core is not None else None
+        if engine is not None and hasattr(engine, "get_account_view"):
+            try:
+                view = dict(engine.get_account_view(addr))
+                if view.get("native_account_view"):
+                    if view.get("ok") and not view.get("corrupt"):
+                        storage = view.get("storage") or {}
+                        view["storage"] = {int(k): int(v) for k, v in dict(storage).items()}
+                        code_bytes = view.get("code_bytes") or b""
+                        view["code_bytes"] = bytes(code_bytes)
+                    return view
+            except Exception:
+                pass
+        account = self.db.get_account(addr) if hasattr(self.db, "get_account") else None
+        return native.account_view_from_row(account)
 
     def _normalize_addr(self, word_or_addr: str) -> str:
         raw = str(word_or_addr).replace("0x", "").lower()
@@ -163,13 +195,26 @@ class EVMAdapter:
                             caller_ctx: EVMContext,
                             callcode: bool = False) -> Dict[str, Any]:
         target = self._normalize_addr(target)
-        account = self.db.get_account(target)
-        if not account or not account.get("code"):
-            return {"success": False, "reverted": True, "return_data": b""}
-        try:
-            bytecode = bytes.fromhex(account["code"].replace("0x", ""))
-        except ValueError:
-            return {"success": False, "reverted": True, "return_data": b""}
+        view = self._account_view(target)
+        if view.get("corrupt"):
+            return {"success": False, "reverted": True, "return_data": b"", "error": "corrupt_storage"}
+        bytecode = bytes(view.get("code_bytes") or b"")
+        if not bytecode:
+            # Fallback: legacy account row may still have code when view missed it.
+            account = self.db.get_account(target)
+            if not account or not account.get("code"):
+                return {"success": False, "reverted": True, "return_data": b""}
+            try:
+                bytecode = bytes.fromhex(str(account["code"]).replace("0x", ""))
+            except ValueError:
+                return {"success": False, "reverted": True, "return_data": b""}
+            account_row = account
+        else:
+            account_row = self.db.get_account(target) or {
+                "address": target,
+                "storage": "{}",
+                "code": view.get("code") or "",
+            }
 
         kind = (
             "staticcall"
@@ -182,20 +227,29 @@ class EVMAdapter:
         )
         parent_ro = bool(getattr(caller_ctx, "_abs_read_only", False))
         if delegate or callcode:
-            storage_raw = self.db.get_account(caller_ctx.address)
-            storage_src = (storage_raw or {}).get("storage") or "{}"
+            caller_view = self._account_view(caller_ctx.address)
+            if caller_view.get("corrupt"):
+                return {"success": False, "reverted": True, "return_data": b"", "error": "corrupt_storage"}
+            storage = dict(caller_view.get("storage") or {})
+            if not storage and caller_view.get("missing"):
+                storage_raw = self.db.get_account(caller_ctx.address)
+                storage_src = (storage_raw or {}).get("storage") or "{}"
+                storage = self._loads_contract_storage(storage_src)
+                if storage is None:
+                    return {"success": False, "reverted": True, "return_data": b"", "error": "corrupt_storage"}
             exec_addr = caller_ctx.address
             call_value = 0 if delegate else value
             caller = caller_ctx.caller if delegate else caller_ctx.address
         else:
-            storage_src = account.get("storage") or "{}"
+            storage = dict(view.get("storage") or {})
+            if view.get("missing") or (not storage and not view.get("ok")):
+                storage_src = (account_row or {}).get("storage") or "{}"
+                storage = self._loads_contract_storage(storage_src)
+                if storage is None:
+                    return {"success": False, "reverted": True, "return_data": b"", "error": "corrupt_storage"}
             exec_addr = target
             call_value = value
             caller = caller_ctx.address
-
-        storage = self._loads_contract_storage(storage_src)
-        if storage is None:
-            return {"success": False, "reverted": True, "return_data": b"", "error": "corrupt_storage"}
 
         plan_pre = native.evm_plan_nested_call_effects(
             kind, parent_ro, caller_ctx.address, target, int(call_value or 0), True

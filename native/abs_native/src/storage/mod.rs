@@ -177,22 +177,34 @@ impl RocksEngine {
         })
     }
 
-    fn get<'py>(&self, py: Python<'py>, key: &[u8]) -> PyResult<Option<Py<PyBytes>>> {
+    fn get_bytes(&self, key: &[u8]) -> PyResult<Option<Vec<u8>>> {
         if !self.column_families {
-            return match self.db.get(key).map_err(map_db_err)? {
-                Some(value) => Ok(Some(PyBytes::new_bound(py, &value).unbind())),
-                None => Ok(None),
-            };
+            return self.db.get(key).map_err(map_db_err);
         }
         let cf = self.cf_handle(cf_name_for_key(key))?;
         if let Some(value) = self.db.get_cf(cf, key).map_err(map_db_err)? {
-            return Ok(Some(PyBytes::new_bound(py, &value).unbind()));
+            return Ok(Some(value));
         }
-        // Legacy dual-read: data written before CF split lives in default.
         let default_cf = self.cf_handle(CF_DEFAULT)?;
-        match self.db.get_cf(default_cf, key).map_err(map_db_err)? {
+        self.db.get_cf(default_cf, key).map_err(map_db_err)
+    }
+
+    fn get<'py>(&self, py: Python<'py>, key: &[u8]) -> PyResult<Option<Py<PyBytes>>> {
+        match self.get_bytes(key)? {
             Some(value) => Ok(Some(PyBytes::new_bound(py, &value).unbind())),
             None => Ok(None),
+        }
+    }
+
+    /// Decode account JSON blob for `address` into a structured view (v1.3.58).
+    fn get_account_view(&self, py: Python<'_>, address: String) -> PyResult<PyObject> {
+        let addr = address.trim().to_ascii_lowercase();
+        let mut key = Vec::with_capacity(1 + addr.len());
+        key.push(0x10);
+        key.extend_from_slice(addr.as_bytes());
+        match self.get_bytes(&key)? {
+            Some(blob) => crate::account_view::decode_account_view_bytes(py, &blob, &addr),
+            None => crate::account_view::decode_account_view_bytes(py, &[], &addr),
         }
     }
 

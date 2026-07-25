@@ -100,6 +100,9 @@ def native_crypto_status(required: bool = False) -> dict:
             "evm_decode_nested_call_frame",
             "evm_run_nested_pure_frame",
             "evm_run_nested_host_frame",
+            "account_storage_map_from_raw",
+            "account_view_from_blob",
+            "account_view_from_json",
             "evm_bytecode_is_nested_native_eligible",
             "evm_deploy_address",
             "evm_create2_eip1014",
@@ -1209,6 +1212,88 @@ def evm_run_nested_host_frame(
     if _REQUIRE_NATIVE:
         _require_native_kernel("evm_run_nested_host_frame")
     raise RuntimeError("evm_run_nested_host_frame requires abs_native")
+
+
+def account_storage_map_from_raw(raw=None) -> Optional[dict]:
+    """Decode contract storage JSON/dict → `{int: int}` or None if corrupt (v1.3.58)."""
+    if _native is not None and hasattr(_native, "account_storage_map_from_raw"):
+        out = _native.account_storage_map_from_raw(raw)
+        if out is None:
+            return None
+        return {int(k): int(v) for k, v in dict(out).items()}
+    # Python fail-closed reference
+    try:
+        if raw is None:
+            return {}
+        if isinstance(raw, dict):
+            return {int(k): int(v) for k, v in raw.items()}
+        text = raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else str(raw or "{}")
+        text = text.strip() or "{}"
+        parsed = json.loads(text)
+        return {int(k): int(v) for k, v in parsed.items()}
+    except Exception:
+        return None
+
+
+def account_view_from_blob(blob: bytes) -> dict:
+    """Decode Rocks/SQLite account JSON blob into a structured view."""
+    if _native is not None and hasattr(_native, "account_view_from_blob"):
+        return dict(_native.account_view_from_blob(bytes(blob or b"")))
+    if _REQUIRE_NATIVE:
+        _require_native_kernel("account_view_from_blob")
+    raise RuntimeError("account_view_from_blob requires abs_native")
+
+
+def account_view_from_json(account_json: str) -> dict:
+    if _native is not None and hasattr(_native, "account_view_from_json"):
+        return dict(_native.account_view_from_json(str(account_json or "")))
+    if _REQUIRE_NATIVE:
+        _require_native_kernel("account_view_from_json")
+    raise RuntimeError("account_view_from_json requires abs_native")
+
+
+def account_view_from_row(row: Optional[dict]) -> dict:
+    """Build account view from a DB row dict (uses native storage/code decode)."""
+    if not row:
+        return {
+            "ok": True,
+            "corrupt": False,
+            "missing": True,
+            "address": "",
+            "balance_satoshi": 0,
+            "nonce": 0,
+            "code": "",
+            "code_bytes": b"",
+            "storage": {},
+            "native_account_view": True,
+        }
+    storage = account_storage_map_from_raw(row.get("storage"))
+    if storage is None:
+        return {
+            "ok": False,
+            "corrupt": True,
+            "missing": False,
+            "address": str(row.get("address") or ""),
+            "error": "corrupt_storage",
+            "native_account_view": True,
+        }
+    code = str(row.get("code") or "")
+    try:
+        code_bytes = bytes.fromhex(code.replace("0x", "")) if code else b""
+    except ValueError:
+        code_bytes = b""
+    return {
+        "ok": True,
+        "corrupt": False,
+        "missing": False,
+        "address": str(row.get("address") or ""),
+        "balance_satoshi": int(row.get("balance_satoshi") or 0),
+        "nonce": int(row.get("nonce") or 0),
+        "code": code,
+        "code_bytes": code_bytes,
+        "storage": storage,
+        "native_account_view": True,
+    }
 
 
 def evm_host_snapshot_storage(storage: dict) -> dict:

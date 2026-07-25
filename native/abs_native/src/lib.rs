@@ -3,6 +3,7 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::type_complexity)]
 
+mod account_view;
 mod amount;
 mod consensus_ffg;
 mod consensus_ghost;
@@ -1947,6 +1948,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(verify_secp256k1_sha256_batch, m)?)?;
     m.add_function(wrap_pyfunction!(validate_hash_chain, m)?)?;
     storage::register(m)?;
+    account_view::register(m)?;
     state_trie::register(m)?;
     consensus_select::register(m)?;
     consensus_ghost::register(m)?;

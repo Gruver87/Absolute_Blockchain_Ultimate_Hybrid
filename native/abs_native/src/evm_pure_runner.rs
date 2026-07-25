@@ -1,6 +1,6 @@
 use primitive_types::U256;
 use pyo3::prelude::*;
-use pyo3::types::{PyByteArray, PyDict, PyList};
+use pyo3::types::{PyByteArray, PyBytes, PyDict, PyList};
 use std::collections::HashMap;
 
 use crate::{
@@ -639,6 +639,7 @@ fn execute_call_native(
     let frame = decode_call_from_stack(op, stack)?;
     mem_extend(memory, frame.args_offset, frame.args_size);
     let call_data = evm_memory_slice_inner(memory, frame.args_offset, frame.args_size);
+    let call_data_py = PyBytes::new_bound(py, &call_data);
     let to_addr = word_to_address(frame.to_word);
     let remaining = gas_limit.saturating_sub(*gas_used);
     let requested = if frame.gas > U256::from(u64::MAX) {
@@ -656,7 +657,7 @@ fn execute_call_native(
     let out = if frame.callcode {
         call_fn.call1((
             to_addr,
-            call_data,
+            call_data_py,
             value_obj,
             call_gas,
             frame.delegate,
@@ -666,7 +667,7 @@ fn execute_call_native(
     } else {
         call_fn.call1((
             to_addr,
-            call_data,
+            call_data_py,
             value_obj,
             call_gas,
             frame.delegate,
@@ -734,12 +735,13 @@ fn execute_create_native(
     let value = stack_pop(stack)?;
     mem_extend(memory, offset, size);
     let init_code = evm_memory_slice_inner(memory, offset, size);
+    let init_py = PyBytes::new_bound(py, &init_code);
     let value_obj = py_u256_int(py, value)?;
     let out = if let Some(salt_word) = salt {
         let salt_obj = py_u256_int(py, salt_word)?;
-        create_fn.call1((init_code, value_obj, salt_obj))?
+        create_fn.call1((init_py, value_obj, salt_obj))?
     } else {
-        create_fn.call1((init_code, value_obj))?
+        create_fn.call1((init_py, value_obj))?
     };
     let out_dict = out.downcast::<PyDict>()?;
     let sub_gas = out_dict
