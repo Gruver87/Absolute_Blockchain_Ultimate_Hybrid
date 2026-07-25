@@ -1,4 +1,4 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.108).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.109).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
 //! v1.3.92: `read_message` fuses framed read + wire parse.
@@ -18,6 +18,7 @@
 //! v1.3.106: new_block / get_block shape gates on read (parity with Python).
 //! v1.3.107: get_blocks / get_block_by_hash / blocks shape gates on read.
 //! v1.3.108: new_tx / mempool shape gates on read (parity with Python).
+//! v1.3.109: singular `block` payload gate on read (null = not-found).
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -239,7 +240,21 @@ fn check_mempool_batch_payload(msg_type: &str, data: &serde_json::Value) -> Resu
     Ok(())
 }
 
-/// Run all fail-closed ingress shape gates (status…mempool). Still not full dispatch.
+/// v1.3.109: parity with Python singular `block` gate (null = not-found OK).
+fn check_block_payload(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+    if msg_type != "block" {
+        return Ok(());
+    }
+    if data.is_null() {
+        return Ok(());
+    }
+    if validate_block_announce_inner(data).is_none() {
+        return Err("bad_block_payload".to_string());
+    }
+    Ok(())
+}
+
+/// Run all fail-closed ingress shape gates (status…block). Still not full dispatch.
 fn check_ingress_shape_gates(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
     check_status_payload(msg_type, data)?;
     check_attestation_payload(msg_type, data)?;
@@ -250,6 +265,7 @@ fn check_ingress_shape_gates(msg_type: &str, data: &serde_json::Value) -> Result
     check_blocks_batch_payload(msg_type, data)?;
     check_wire_tx_payload(msg_type, data)?;
     check_mempool_batch_payload(msg_type, data)?;
+    check_block_payload(msg_type, data)?;
     Ok(())
 }
 
@@ -973,6 +989,7 @@ impl P2PNativeConn {
     /// v1.3.106: new_block / get_block shape gates.
     /// v1.3.107: get_blocks / get_block_by_hash / blocks shape gates.
     /// v1.3.108: new_tx / mempool shape gates.
+    /// v1.3.109: singular `block` payload gate (null = not-found).
     #[pyo3(signature = (chunk_sz=65536, allowed_types=None, auto_pong=false))]
     fn read_message(
         &mut self,
@@ -1056,6 +1073,7 @@ impl P2PNativeConn {
     /// v1.3.106: new_block / get_block shape gates.
     /// v1.3.107: get_blocks / get_block_by_hash / blocks shape gates.
     /// v1.3.108: new_tx / mempool shape gates.
+    /// v1.3.109: singular `block` payload gate (null = not-found).
     ///
     /// `{ok:true, messages:[{type,data,nbytes},...], eof:bool, auto_pongs, keepalive_touches}` |
     /// `{ok:false, reason, messages:[...], eof:false, ...}`.
@@ -1916,5 +1934,24 @@ mod tests {
             &serde_json::json!({"transactions": [{"from": "a", "to": "b"}]})
         )
         .is_ok());
+    }
+
+    #[test]
+    fn singular_block_payload_gate_parity() {
+        assert!(check_block_payload("block", &serde_json::json!(null)).is_ok());
+        assert_eq!(
+            check_block_payload("block", &serde_json::json!({})).unwrap_err(),
+            "bad_block_payload"
+        );
+        assert_eq!(
+            check_block_payload("block", &serde_json::json!([1, 2])).unwrap_err(),
+            "bad_block_payload"
+        );
+        assert!(check_block_payload(
+            "block",
+            &serde_json::json!({"height": 1, "hash": "aa"})
+        )
+        .is_ok());
+        assert!(check_block_payload("new_block", &serde_json::json!({})).is_ok());
     }
 }

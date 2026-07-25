@@ -458,6 +458,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.106: Native block sync shape gates (Priority 61)
 - [x] v1.3.107: Native block fetch shape gates (Priority 62)
 - [x] v1.3.108: Native tx gossip shape gates (Priority 63)
+- [x] v1.3.109: Native singular block payload gate (Priority 64)
 
 ### Priority 39 — P2P Rust ingress data plane ✅ (v1.3.77–v1.3.78)
 
@@ -603,6 +604,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `check_wire_tx_payload` / `check_mempool_batch_payload` on native read
 - [x] Bad → `bad_wire_tx` / `bad_mempool_batch`; `check_ingress_shape_gates` helper
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
+### Priority 64 — Native singular block payload gate ✅ (v1.3.109)
+
+- [x] `check_block_payload` on native read (null = not-found OK)
+- [x] Bad non-null → `bad_block_payload` before Python dispatch
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
 ## Process per module

@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.109] — 2026-07-25
+
+### P2P — native singular block payload gate
+
+- Fail-closed non-null `block` shape check on native read (`bad_block_payload`)
+- Null not-found responses still allowed (Python parity)
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.108] — 2026-07-25
 
 ### P2P — native tx gossip shape gates
