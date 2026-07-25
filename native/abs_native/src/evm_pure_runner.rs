@@ -1619,6 +1619,42 @@ pub fn evm_run_nested_pure_frame_py(
     )
 }
 
+/// Nested CALL child with runtime host_bridge (CALL/CREATE/LOG via Python callbacks).
+/// Same dispatch loop as `evm_run_until_halt`, started at pc=0 for a fresh child frame.
+#[pyfunction]
+#[pyo3(name = "evm_run_nested_host_frame")]
+#[pyo3(signature = (bytecode, gas_limit, calldata, host_context=None, storage=None, host_bridge=None))]
+pub fn evm_run_nested_host_frame_py(
+    py: Python<'_>,
+    bytecode: Vec<u8>,
+    gas_limit: u64,
+    calldata: Vec<u8>,
+    host_context: Option<&Bound<'_, PyDict>>,
+    storage: Option<&Bound<'_, PyDict>>,
+    host_bridge: Option<&Bound<'_, PyAny>>,
+) -> PyResult<PyObject> {
+    let jumpdest = crate::evm_build_jumpdest_table_inner(&bytecode);
+    let stack = PyList::empty_bound(py);
+    let memory = PyByteArray::new_bound(py, &[]);
+    run_pure_segment_inner(
+        py,
+        &bytecode,
+        0,
+        gas_limit,
+        0,
+        &stack,
+        &memory,
+        &jumpdest,
+        &calldata,
+        &[],
+        host_context,
+        storage,
+        host_bridge,
+        MAX_FULL_STEPS,
+        true,
+    )
+}
+
 #[pyfunction]
 #[pyo3(name = "evm_host_snapshot_storage")]
 pub fn evm_host_snapshot_storage_py(storage: &Bound<'_, PyDict>) -> PyResult<PyObject> {

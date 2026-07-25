@@ -221,14 +221,14 @@ class EVMAdapter:
             )
 
         result: Optional[Dict[str, Any]] = None
-        # v1.3.55: nested native frame allows BALANCE/EXTCODE* via bridge hooks;
-        # still fall back to Python for recursive CALL/CREATE/LOG host ops.
+        gas_budget = int(gas or self.config.evm_gas_limit)
+        # v1.3.55: bridge-eligible (BALANCE/EXTCODE*) via nested pure + allow_bridge.
         if native.evm_bytecode_is_nested_native_eligible(bytecode):
             try:
                 host_ctx = native.evm_host_context_from_evm(sub_ctx)
                 nested = native.evm_run_nested_pure_frame(
                     bytecode,
-                    int(gas or self.config.evm_gas_limit),
+                    gas_budget,
                     bytes(calldata or b""),
                     host_ctx,
                     storage,
@@ -250,8 +250,48 @@ class EVMAdapter:
             except Exception:
                 result = None
 
+        # v1.3.56: recursive CALL/CREATE/LOG via Rust runner + runtime host_bridge.
+        if result is None and hasattr(native, "evm_run_nested_host_frame"):
+            try:
+                from execution.evm_host_bridge import make_evm_runtime_bridge
+
+                evm = EVM(gas_limit=gas_budget, context=sub_ctx)
+                evm.storage = storage
+                bridge = make_evm_runtime_bridge(evm)
+                host_ctx = native.evm_host_context_from_evm(sub_ctx)
+                nested = native.evm_run_nested_host_frame(
+                    bytecode,
+                    gas_budget,
+                    bytes(calldata or b""),
+                    host_ctx,
+                    evm.storage,
+                    bridge,
+                )
+                reason = str(nested.get("stop_reason") or "")
+                if reason in ("halt", "return", "revert", "out_of_gas"):
+                    evm.gas_used = int(nested.get("gas_used", 0) or 0)
+                    evm.return_data = bytes(nested.get("return_data", b"") or b"")
+                    evm.reverted = bool(nested.get("reverted")) or reason == "out_of_gas"
+                    evm.running = bool(nested.get("running", False))
+                    if "stack" in nested:
+                        evm.stack = [int(x) for x in nested["stack"]]
+                    if "memory" in nested:
+                        evm.memory = bytearray(nested["memory"])
+                    reverted = bool(evm.reverted)
+                    result = {
+                        "success": (not reverted) and reason in ("halt", "return"),
+                        "reverted": reverted,
+                        "return_data": evm.return_data,
+                        "storage": nested.get("storage", dict(evm.storage)),
+                        "gas_used": int(evm.gas_used),
+                        "logs": list(evm.logs),
+                        "native_nested_host": True,
+                    }
+            except Exception:
+                result = None
+
         if result is None:
-            evm = EVM(gas_limit=gas or self.config.evm_gas_limit, context=sub_ctx)
+            evm = EVM(gas_limit=gas_budget, context=sub_ctx)
             evm.storage = dict(storage)
             result = evm.execute_bytecode(bytecode)
 

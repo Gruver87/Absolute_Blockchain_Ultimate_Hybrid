@@ -288,7 +288,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `evm_bytecode_is_nested_native_eligible` — bridge ops OK; recursive host still Python
 - [x] `allow_bridge=True` keeps BALANCE/EXTCODE*/BLOCKHASH in abs_native nested frame
-- Remaining: recursive CALL/CREATE/LOG host-in-Rust (optional / large)
+- Remaining: see Priority 24
+
+### Priority 24 — Nested CALL/CREATE/LOG host frame ✅ (v1.3.56 first slice)
+
+- [x] `evm_run_nested_host_frame` — child frame via full runner + `host_bridge`
+- [x] Adapter wires recursive CALL/CREATE/LOG through Rust + `EvmRuntimeBridge`
+- Remaining: host op bodies still Python callbacks (not pure-Rust semantics)
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
 
@@ -297,7 +303,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.53: dedicated sync executor + Prometheus apply metrics + backpressure honesty
 - [x] v1.3.54: EVM/mempool high-load soak harness (`scripts/evm_mempool_load_harness.py`)
 - [x] v1.3.55: nested CALL native bridge (BALANCE/EXTCODE*/BLOCKHASH via host_context)
-- Remaining: recursive CALL/CREATE/LOG host-in-Rust (optional / large)
+- [x] v1.3.56: nested host frame (CALL/CREATE/LOG orchestration in Rust + bridge)
 
 ## Process per module
 

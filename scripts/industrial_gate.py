@@ -1109,8 +1109,20 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "execution" / "evm_adapter.py"
         ).read_text(encoding="utf-8"):
             errors.append("evm_adapter must call nested frame with allow_bridge=True")
+        # v1.3.56 — nested host frame (CALL/CREATE/LOG via Rust + host_bridge)
+        if "def evm_run_nested_host_frame" not in native_py:
+            errors.append("crypto/native.py must export evm_run_nested_host_frame (v1.3.56)")
+        adapter_now = (ROOT / "execution" / "evm_adapter.py").read_text(encoding="utf-8")
+        if "evm_run_nested_host_frame" not in adapter_now:
+            errors.append("evm_adapter must wire evm_run_nested_host_frame")
+        if "native_nested_host" not in adapter_now:
+            errors.append("evm_adapter must mark native_nested_host results")
+        if "evm_run_nested_host_frame" not in (
+            ROOT / "native" / "abs_native" / "src" / "evm_pure_runner.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append("evm_pure_runner.rs must define evm_run_nested_host_frame")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..55 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..56 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

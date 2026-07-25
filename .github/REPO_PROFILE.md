@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.55` — nested CALL native bridge |
-| **Notes** | [RELEASE_NOTES_v1.3.55.md](../RELEASE_NOTES_v1.3.55.md) |
-| **Prior** | [v1.3.54](../RELEASE_NOTES_v1.3.54.md) load harness; [v1.3.53](../RELEASE_NOTES_v1.3.53.md) metrics |
+| **Tag** | `v1.3.56` — nested CALL/CREATE/LOG host frame |
+| **Notes** | [RELEASE_NOTES_v1.3.56.md](../RELEASE_NOTES_v1.3.56.md) |
+| **Prior** | [v1.3.55](../RELEASE_NOTES_v1.3.55.md) nested bridge; [v1.3.54](../RELEASE_NOTES_v1.3.54.md) load harness |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

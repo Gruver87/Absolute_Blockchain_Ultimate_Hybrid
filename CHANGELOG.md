@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.56] — 2026-07-25
+
+### Added — nested CALL/CREATE/LOG host frame (Rust runner + bridge)
+
+- `evm_run_nested_host_frame` — child frame with runtime `host_bridge` (CALL/CREATE/LOG)
+- `EVMAdapter._contract_call_hook` prefers nested host frame before Python opcode loop
+- Honesty: host op *bodies* remain Python callbacks via `EvmRuntimeBridge`
+
 ## [1.3.55] — 2026-07-25
 
 ### Added — nested CALL native bridge surface (BALANCE/EXTCODE*)

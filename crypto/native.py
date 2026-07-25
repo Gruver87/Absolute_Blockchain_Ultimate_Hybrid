@@ -99,6 +99,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "evm_plan_nested_call_gas",
             "evm_decode_nested_call_frame",
             "evm_run_nested_pure_frame",
+            "evm_run_nested_host_frame",
             "evm_bytecode_is_nested_native_eligible",
             "evm_deploy_address",
             "evm_create2_eip1014",
@@ -1145,6 +1146,42 @@ def evm_run_nested_pure_frame(
     if _REQUIRE_NATIVE:
         _require_native_kernel("evm_run_nested_pure_frame")
     raise RuntimeError("evm_run_nested_pure_frame requires abs_native")
+
+
+def evm_run_nested_host_frame(
+    bytecode: bytes,
+    gas_limit: int,
+    calldata: bytes = b"",
+    host_context: Optional[dict] = None,
+    storage: Optional[dict] = None,
+    host_bridge: Any = None,
+) -> dict:
+    """Nested CALL child via Rust runner with runtime host_bridge.
+
+    CALL/CREATE/LOG/SELFDESTRUCT go through ``host_bridge.apply_host_op``
+    (Python callbacks) without dropping into the Python opcode loop (v1.3.56).
+    Mutates ``storage`` in place when provided.
+    """
+    storage_work = storage if storage is not None else {}
+    ctx = dict(host_context or {})
+    if _native is not None and hasattr(_native, "evm_run_nested_host_frame"):
+        seg = _native.evm_run_nested_host_frame(
+            bytes(bytecode),
+            int(gas_limit),
+            bytes(calldata or b""),
+            ctx,
+            storage_work,
+            host_bridge,
+        )
+        out = _parse_native_segment(seg)
+        out["storage"] = {int(k): int(v) for k, v in dict(storage_work).items()}
+        out["native_nested_host"] = True
+        reason = str(out.get("stop_reason") or "")
+        out["success"] = (not out.get("reverted")) and reason in ("halt", "return")
+        return out
+    if _REQUIRE_NATIVE:
+        _require_native_kernel("evm_run_nested_host_frame")
+    raise RuntimeError("evm_run_nested_host_frame requires abs_native")
 
 
 def evm_host_snapshot_storage(storage: dict) -> dict:

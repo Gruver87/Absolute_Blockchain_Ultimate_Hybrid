@@ -1906,6 +1906,10 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m
     )?)?;
     m.add_function(wrap_pyfunction!(
+        evm_pure_runner::evm_run_nested_host_frame_py,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
         evm_pure_runner::evm_host_snapshot_storage_py,
         m
     )?)?;
