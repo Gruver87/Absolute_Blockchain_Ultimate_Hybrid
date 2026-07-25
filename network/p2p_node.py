@@ -241,6 +241,7 @@ class PeerConnection:
         self.chain_id: int = 0
         self.height: int = 0
         self.head: Optional[str] = None  # head block hash for SyncEngine/GHOST
+        self.dial_target = ""  # v1.3.132: outbound "host:port" as dialed
         self.connected_at = time.time()
         self.last_seen = time.time()
         self.is_synced = False
@@ -1207,6 +1208,7 @@ class P2PNode:
         self._status_height_head_rejects_total: int = 0
         self._unsolicited_mempool_rejects_total: int = 0
         self._status_height_cap_total: int = 0
+        self._bootstrap_redial_total: int = 0
         self._handshake_rejects: int = 0
         self._eclipse_at_risk: int = 0
         self._eclipse_ratio: float = 0.0
@@ -1443,7 +1445,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.131)"
+                    f"({label} v1.3.132)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -1776,6 +1778,7 @@ class P2PNode:
             self._attach_peer_hooks(peer)
             peer.host = host
             peer.port = port
+            peer.dial_target = addr
 
             ok = await self._do_handshake(peer, initiator=True)
             if not ok:
@@ -3907,16 +3910,25 @@ class P2PNode:
                 logger.warning("[P2P] discovery_loop: %s", exc)
 
     async def _bootstrap_retry_loop(self):
-        """Переподключение к bootstrap-пирам, пока нет соединений."""
+        """v1.3.132: keep dialing missing bootstrap peers even if other peers exist.
+
+        Stops sticky-first discovery eclipse: one random peer must not cancel bootstrap.
+        """
         while self._running:
             await asyncio.sleep(20)
             try:
-                if self.peers or not self.config.bootstrap_peers:
+                if not self.config.bootstrap_peers:
                     continue
-                for peer_addr in self.config.bootstrap_peers:
+                missing = self._missing_bootstrap_addrs()
+                if not missing:
+                    continue
+                for peer_addr in missing:
                     parts = str(peer_addr).rsplit(":", 1)
                     if len(parts) == 2:
                         try:
+                            self._bootstrap_redial_total = int(
+                                self._bootstrap_redial_total or 0
+                            ) + 1
                             asyncio.create_task(
                                 self.connect_peer(parts[0], int(parts[1]))
                             )
@@ -3930,6 +3942,51 @@ class P2PNode:
             except Exception as exc:
                 self._bootstrap_loop_fail = int(self._bootstrap_loop_fail or 0) + 1
                 logger.warning("[P2P] bootstrap_retry_loop: %s", exc)
+
+    @staticmethod
+    def _normalize_dial_addr(addr: str) -> str:
+        s = str(addr or "").strip()
+        if not s or ":" not in s:
+            return ""
+        host, port_s = s.rsplit(":", 1)
+        host = host.strip().strip("[]").lower()
+        try:
+            port = int(port_s)
+        except (TypeError, ValueError):
+            return ""
+        if not host or port <= 0:
+            return ""
+        return f"{host}:{port}"
+
+    def _peer_covers_bootstrap(self, peer: PeerConnection, boot_addr: str) -> bool:
+        """True if this live peer satisfies a configured bootstrap target."""
+        want = self._normalize_dial_addr(boot_addr)
+        if not want:
+            return False
+        dial = self._normalize_dial_addr(str(getattr(peer, "dial_target", "") or ""))
+        if dial and dial == want:
+            return True
+        host, _, port_s = want.partition(":")
+        try:
+            port = int(port_s)
+        except (TypeError, ValueError):
+            return False
+        ph = str(peer.host or "").strip().strip("[]").lower()
+        pl = int(peer.listen_port or peer.port or 0)
+        return bool(ph and ph == host and pl == port)
+
+    def _missing_bootstrap_addrs(self) -> list:
+        """Bootstrap addresses not covered by any connected peer."""
+        out = []
+        peers = list(self.peers.values())
+        for raw in list(getattr(self.config, "bootstrap_peers", []) or []):
+            addr = str(raw).strip()
+            if not self._normalize_dial_addr(addr):
+                continue
+            if any(self._peer_covers_bootstrap(p, addr) for p in peers):
+                continue
+            out.append(addr)
+        return out
 
     async def _maintenance_loop(self):
         """Periodic peer hygiene: stale eviction, ban expiry, low-score drops."""
@@ -4300,6 +4357,7 @@ class P2PNode:
             "native_state_root_outbound_honesty": True,
             "native_state_root_response_head_gate": True,
             "native_mempool_solicit_only": True,
+            "native_bootstrap_resilient": True,
             "native_discovery_dialability_gate": True,
             "native_handshake_head_semantic_gate": True,
             "native_status_height_head_gate": True,
@@ -4345,6 +4403,12 @@ class P2PNode:
             "status_height_cap_total": int(
                 getattr(self, "_status_height_cap_total", 0) or 0
             ),
+            "bootstrap_redial_total": int(
+                getattr(self, "_bootstrap_redial_total", 0) or 0
+            ),
+            "bootstrap_missing_count": len(self._missing_bootstrap_addrs())
+            if getattr(self.config, "bootstrap_peers", None)
+            else 0,
             "p2p_discovery_allow_private": bool(
                 getattr(self.config, "p2p_discovery_allow_private", False)
             ),

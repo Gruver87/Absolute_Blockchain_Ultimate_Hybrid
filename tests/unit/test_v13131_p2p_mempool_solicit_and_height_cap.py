@@ -70,7 +70,7 @@ def test_needles_v13131():
     ).read_text(encoding="utf-8")
     notes = (ROOT / "RELEASE_NOTES_v1.3.131.md").read_text(encoding="utf-8")
     assert "1.3.131-industrial" in notes
-    assert Config().node_version == "1.3.131-industrial"
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_mempool_solicit_only" in metrics
     assert "abs_p2p_unsolicited_mempool_rejects_total" in metrics

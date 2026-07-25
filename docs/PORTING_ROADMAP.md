@@ -751,7 +751,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `request_ctx.kind=mempool` waiter; unsolicited `MSG_MEMPOOL` struck
 - [x] `p2p_max_peer_height_ahead` caps mid-session status height inflation
-- Remaining: bootstrap sticky-first-peer / tip proof / libp2p (not claimed)
+- Remaining: tip proof / libp2p (not claimed)
+
+### Priority 87 — Resilient bootstrap (sticky-first-peer fix) ✅ (v1.3.132)
+
+- [x] Redial missing bootstrap seeds even when non-bootstrap peers exist
+- [x] `dial_target` coverage for hostname→IP mismatch
+- Remaining: tip proof / authenticated seed identity / libp2p (not claimed)
 
 ## Process per module
 

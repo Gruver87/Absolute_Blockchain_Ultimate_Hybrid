@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.131 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.132 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -92,6 +92,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13129_p2p_state_root_outbound_honesty.py",
     "tests/unit/test_v13130_p2p_state_root_expected_head.py",
     "tests/unit/test_v13131_p2p_mempool_solicit_and_height_cap.py",
+    "tests/unit/test_v13132_p2p_bootstrap_resilient.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1487,6 +1488,30 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_status_height_cap_total",
         ],
     ),
+    (
+        "1.3.132",
+        "RELEASE_NOTES_v1.3.132.md",
+        ["1.3.132-industrial", "bootstrap"],
+    ),
+    (
+        "1.3.132",
+        "network/p2p_node.py",
+        [
+            "_missing_bootstrap_addrs",
+            "_peer_covers_bootstrap",
+            "native_bootstrap_resilient",
+            "dial_target",
+        ],
+    ),
+    (
+        "1.3.132",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_bootstrap_resilient",
+            "abs_p2p_bootstrap_redial_total",
+            "abs_p2p_bootstrap_missing_count",
+        ],
+    ),
 ]
 
 
@@ -1514,8 +1539,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.131"):
-            errors.append(f"node_version expected 1.3.131-*, got {ver}")
+        if not ver.startswith("1.3.132"):
+            errors.append(f"node_version expected 1.3.132-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

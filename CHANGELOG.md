@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.132] — 2026-07-25
+
+### P2P — resilient bootstrap redial
+
+- Missing bootstrap seeds keep dialing even when other peers exist
+- Outbound `dial_target` covers hostname seeds after DNS resolve
+- Honesty: not authenticated seed identity / libp2p / mainnet
+
 ## [1.3.131] — 2026-07-25
 
 ### P2P — solicit-only mempool + status height ahead cap

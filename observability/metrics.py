@@ -751,6 +751,24 @@ class MetricsCollector:
                     f"abs_p2p_status_height_cap_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('status_height_cap_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_bootstrap_resilient Whether missing-bootstrap redial is active (0/1)",
+                "# TYPE abs_p2p_native_bootstrap_resilient gauge",
+                (
+                    f"abs_p2p_native_bootstrap_resilient{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_bootstrap_resilient') else 0}"
+                ),
+                "# HELP abs_p2p_bootstrap_redial_total Bootstrap redial attempts for missing seeds",
+                "# TYPE abs_p2p_bootstrap_redial_total counter",
+                (
+                    f"abs_p2p_bootstrap_redial_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('bootstrap_redial_total', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_bootstrap_missing_count Configured bootstrap peers not currently covered",
+                "# TYPE abs_p2p_bootstrap_missing_count gauge",
+                (
+                    f"abs_p2p_bootstrap_missing_count{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('bootstrap_missing_count', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_discovery_dialability_gate Whether discovery dialability gate is active (0/1)",
                 "# TYPE abs_p2p_native_discovery_dialability_gate gauge",
                 (
