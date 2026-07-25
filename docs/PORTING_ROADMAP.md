@@ -782,7 +782,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] Refuse `MSG_ATTESTATION` when slot/target_height > local tip/slot + max_ahead
 - [x] No LMD apply / relay on far-ahead votes (`p2p_max_attestation_slot_ahead`)
-- Remaining: attestation↔head crypto binding / tip proof / libp2p (not claimed)
+- Remaining: tip proof / libp2p (not claimed)
+
+### Priority 92 — Attestation local-head + solicit-only block responses ✅ (v1.3.137)
+
+- [x] Known `target_hash` ⇒ `target_height` must match local header
+- [x] Unsolicited `MSG_BLOCKS` / `MSG_BLOCK` struck (waiter-only like mempool)
+- Remaining: attestation↔canonical crypto / tip proof / libp2p / ceremony (not claimed)
 
 ## Process per module
 

@@ -85,7 +85,7 @@ def test_needles_v13136():
     ).read_text(encoding="utf-8")
     notes = (ROOT / "RELEASE_NOTES_v1.3.136.md").read_text(encoding="utf-8")
     assert "1.3.136-industrial" in notes
-    assert Config().node_version == "1.3.136-industrial"
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_attestation_slot_ahead" in metrics
     assert "abs_p2p_attestation_slot_ahead_rejects_total" in metrics

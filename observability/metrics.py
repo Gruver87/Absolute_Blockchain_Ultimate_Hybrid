@@ -805,6 +805,30 @@ class MetricsCollector:
                     f"abs_p2p_attestation_slot_ahead_rejects_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('attestation_slot_ahead_rejects_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_attestation_local_head Whether known-block attestation height match is enforced (0/1)",
+                "# TYPE abs_p2p_native_attestation_local_head gauge",
+                (
+                    f"abs_p2p_native_attestation_local_head{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_attestation_local_head') else 0}"
+                ),
+                "# HELP abs_p2p_attestation_local_head_rejects_total Attestations refused for local height mismatch",
+                "# TYPE abs_p2p_attestation_local_head_rejects_total counter",
+                (
+                    f"abs_p2p_attestation_local_head_rejects_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('attestation_local_head_rejects_total', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_native_block_solicit_only Whether unsolicited block/blocks responses are rejected (0/1)",
+                "# TYPE abs_p2p_native_block_solicit_only gauge",
+                (
+                    f"abs_p2p_native_block_solicit_only{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_block_solicit_only') else 0}"
+                ),
+                "# HELP abs_p2p_unsolicited_block_rejects_total Unsolicited MSG_BLOCK/MSG_BLOCKS rejects",
+                "# TYPE abs_p2p_unsolicited_block_rejects_total counter",
+                (
+                    f"abs_p2p_unsolicited_block_rejects_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('unsolicited_block_rejects_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_bootstrap_resilient Whether missing-bootstrap redial is active (0/1)",
                 "# TYPE abs_p2p_native_bootstrap_resilient gauge",
                 (

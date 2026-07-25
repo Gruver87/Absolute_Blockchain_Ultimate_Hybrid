@@ -1213,6 +1213,8 @@ class P2PNode:
         self._handshake_height_cap_total: int = 0
         self._state_root_local_rejects_total: int = 0
         self._attestation_slot_ahead_rejects_total: int = 0
+        self._attestation_local_head_rejects_total: int = 0
+        self._unsolicited_block_rejects_total: int = 0
         self._bootstrap_redial_total: int = 0
         self._bootstrap_pin_rejects_total: int = 0
         self._handshake_rejects: int = 0
@@ -1451,7 +1453,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.136)"
+                    f"({label} v1.3.137)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -2511,6 +2513,33 @@ class P2PNode:
                         self._strike_peer_sync(peer, "unsolicited_mempool")
                         fut.set_result(None)
                     return
+                if msg_type == MSG_BLOCKS:
+                    # v1.3.137: solicit-only — only active get_blocks waiters.
+                    if (
+                        isinstance(request_ctx, dict)
+                        and request_ctx.get("kind") == "blocks"
+                    ):
+                        fut.set_result(msg)
+                    else:
+                        self._unsolicited_block_rejects_total = int(
+                            self._unsolicited_block_rejects_total or 0
+                        ) + 1
+                        self._strike_peer_sync(peer, "unsolicited_blocks")
+                        fut.set_result(None)
+                    return
+                if msg_type == MSG_BLOCK:
+                    if (
+                        isinstance(request_ctx, dict)
+                        and request_ctx.get("kind") == "block"
+                    ):
+                        fut.set_result(msg)
+                    else:
+                        self._unsolicited_block_rejects_total = int(
+                            self._unsolicited_block_rejects_total or 0
+                        ) + 1
+                        self._strike_peer_sync(peer, "unsolicited_block")
+                        fut.set_result(None)
+                    return
                 fut.set_result(msg)
                 return
 
@@ -2556,6 +2585,21 @@ class P2PNode:
                 self._unsolicited_mempool_rejects_total or 0
             ) + 1
             self._strike_peer_sync(peer, "unsolicited_mempool")
+            return
+
+        elif msg_type == MSG_BLOCKS:
+            # v1.3.137: pull-only — unsolicited batches never steer sync.
+            self._unsolicited_block_rejects_total = int(
+                self._unsolicited_block_rejects_total or 0
+            ) + 1
+            self._strike_peer_sync(peer, "unsolicited_blocks")
+            return
+
+        elif msg_type == MSG_BLOCK:
+            self._unsolicited_block_rejects_total = int(
+                self._unsolicited_block_rejects_total or 0
+            ) + 1
+            self._strike_peer_sync(peer, "unsolicited_block")
             return
 
         elif msg_type == MSG_GET_PEERS:
@@ -2777,6 +2821,14 @@ class P2PNode:
             ) + 1
             self._strike_peer_sync(peer, ahead_reason)
             return
+        # v1.3.137: when local block known, target_height must match header height.
+        local_reason = self._attestation_local_head_reject_reason(data)
+        if local_reason:
+            self._attestation_local_head_rejects_total = int(
+                self._attestation_local_head_rejects_total or 0
+            ) + 1
+            self._strike_peer_sync(peer, local_reason)
+            return
         validator = data.get("validator", "")
         block_hash = data.get("target_hash", "")
         if not validator or not block_hash:
@@ -2787,6 +2839,33 @@ class P2PNode:
         if consensus and hasattr(consensus, "attest"):
             if consensus.attest(validator, block_hash, slot=slot):
                 await self._relay_attestation(data, exclude_peer=peer.peer_id)
+
+    def _attestation_local_head_reject_reason(self, data: Dict) -> str:
+        """Empty if unknown locally or consistent; else strike for height mismatch."""
+        if not isinstance(data, dict):
+            return ""
+        block_hash = str(data.get("target_hash") or "").strip()
+        if not block_hash:
+            return ""
+        th_raw = data.get("target_height")
+        if th_raw is None:
+            return ""
+        try:
+            want_h = int(th_raw)
+        except (TypeError, ValueError):
+            return ""
+        blk = self.get_block(block_hash)
+        if not isinstance(blk, dict):
+            return ""
+        try:
+            local_h = int(blk.get("height", blk.get("number", -1)))
+        except (TypeError, ValueError):
+            return ""
+        if local_h < 0:
+            return ""
+        if local_h != want_h:
+            return "attestation_local_height_mismatch"
+        return ""
 
     def _local_attestation_anchor(self) -> int:
         """Local tip/slot used as soft attestation ahead reference."""
@@ -4555,6 +4634,8 @@ class P2PNode:
             "native_handshake_height_cap": True,
             "native_status_capped_head_refuse": True,
             "native_attestation_slot_ahead": True,
+            "native_attestation_local_head": True,
+            "native_block_solicit_only": True,
             "native_bootstrap_resilient": True,
             "native_bootstrap_pin_gate": True,
             "native_discovery_dialability_gate": True,
@@ -4613,6 +4694,12 @@ class P2PNode:
             ),
             "attestation_slot_ahead_rejects_total": int(
                 getattr(self, "_attestation_slot_ahead_rejects_total", 0) or 0
+            ),
+            "attestation_local_head_rejects_total": int(
+                getattr(self, "_attestation_local_head_rejects_total", 0) or 0
+            ),
+            "unsolicited_block_rejects_total": int(
+                getattr(self, "_unsolicited_block_rejects_total", 0) or 0
             ),
             "bootstrap_redial_total": int(
                 getattr(self, "_bootstrap_redial_total", 0) or 0

@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.137] — 2026-07-26
+
+### P2P — attestation local-head + solicit-only block responses
+
+- Known target_hash ⇒ target_height must match local header
+- Unsolicited MSG_BLOCKS/MSG_BLOCK struck; waiter-only fulfillment
+- Honesty: not tip proof / attestation crypto binding / libp2p / mainnet
+
 ## [1.3.136] — 2026-07-26
 
 ### P2P — soft attestation slot-ahead ownership gate
