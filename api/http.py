@@ -976,6 +976,7 @@ class RESTHandler(BaseHTTPRequestHandler):
     finality_engine = None           # FinalityEngine
     sync_engine = None               # SyncEngine
     ws_server = None                 # network.websocket.WebSocketServer
+    apply_queue = None               # core.chain_apply_queue.ChainApplyQueue
     feature_init_errors = None       # dict name -> error when feature flag on but init failed
     state_engine = None              # StateEngine
     slashing_engine = None           # SlashingEngine
@@ -1334,6 +1335,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                         "immutable_state": self.__class__.immutable_state is not None,
                     },
                     ws_stats=ws_stats,
+                    apply_isolation=self._apply_isolation_metrics(p2p),
                 )
                 body = text.encode()
                 self.send_response(200)
@@ -6766,6 +6768,23 @@ class RESTHandler(BaseHTTPRequestHandler):
         except Exception as e:
             logger.exception(f"REST POST error: {e}")
             self._error(500, str(e))
+
+    def _apply_isolation_metrics(self, p2p) -> dict:
+        """Snapshot for Prometheus apply-isolation gauges (v1.3.53)."""
+        aq = self.__class__.apply_queue
+        out = {
+            "queue_depth": 0,
+            "wait_seconds_total": 0.0,
+            "reject_total": 0,
+            "import_offload_total": 0,
+        }
+        if aq is not None:
+            out["queue_depth"] = int(getattr(aq, "depth", 0) or 0)
+            out["wait_seconds_total"] = float(getattr(aq, "wait_seconds_total", 0) or 0)
+            out["reject_total"] = int(getattr(aq, "reject_total", 0) or 0)
+        if p2p is not None:
+            out["import_offload_total"] = int(getattr(p2p, "_import_offload_total", 0) or 0)
+        return out
 
     def _json(self, data: Any):
         body = json.dumps(data, default=str).encode()

@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.52` — serial ChainApplyQueue |
-| **Notes** | [RELEASE_NOTES_v1.3.52.md](../RELEASE_NOTES_v1.3.52.md) |
-| **Prior** | [v1.3.51](../RELEASE_NOTES_v1.3.51.md) P2P offload; [v1.3.50](../RELEASE_NOTES_v1.3.50.md) nested pure |
+| **Tag** | `v1.3.53` — apply isolation metrics |
+| **Notes** | [RELEASE_NOTES_v1.3.53.md](../RELEASE_NOTES_v1.3.53.md) |
+| **Prior** | [v1.3.52](../RELEASE_NOTES_v1.3.52.md) apply queue; [v1.3.51](../RELEASE_NOTES_v1.3.51.md) P2P offload |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

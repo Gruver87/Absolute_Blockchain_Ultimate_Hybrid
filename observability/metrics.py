@@ -43,6 +43,7 @@ class MetricsCollector:
         sync_status: Optional[dict[str, Any]] = None,
         core_engines: Optional[dict[str, Any]] = None,
         ws_stats: Optional[dict[str, Any]] = None,
+        apply_isolation: Optional[dict[str, Any]] = None,
     ) -> str:
         native_crypto = native_crypto or {}
         bridge_health = bridge_health or {}
@@ -51,6 +52,7 @@ class MetricsCollector:
         sync_status = sync_status or {}
         core_engines = core_engines or {}
         ws_stats = ws_stats or {}
+        apply_isolation = apply_isolation or {}
         lines = [
             "# HELP abs_uptime_seconds Node uptime",
             "# TYPE abs_uptime_seconds gauge",
@@ -322,6 +324,30 @@ class MetricsCollector:
                 (
                     f"abs_ims_available{{node_id=\"{node_id}\"}} "
                     f"{1 if core_engines.get('immutable_state') else 0}"
+                ),
+                "# HELP abs_chain_apply_queue_depth Serial apply queue depth",
+                "# TYPE abs_chain_apply_queue_depth gauge",
+                (
+                    f"abs_chain_apply_queue_depth{{node_id=\"{node_id}\"}} "
+                    f"{int(apply_isolation.get('queue_depth', 0) or 0)}"
+                ),
+                "# HELP abs_chain_apply_wait_seconds_total Cumulative wait on apply queue",
+                "# TYPE abs_chain_apply_wait_seconds_total counter",
+                (
+                    f"abs_chain_apply_wait_seconds_total{{node_id=\"{node_id}\"}} "
+                    f"{float(apply_isolation.get('wait_seconds_total', 0) or 0):.6f}"
+                ),
+                "# HELP abs_chain_apply_reject_total Apply queue backpressure rejects",
+                "# TYPE abs_chain_apply_reject_total counter",
+                (
+                    f"abs_chain_apply_reject_total{{node_id=\"{node_id}\"}} "
+                    f"{int(apply_isolation.get('reject_total', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_import_offload_total P2P import/reorg offload submissions",
+                "# TYPE abs_p2p_import_offload_total counter",
+                (
+                    f"abs_p2p_import_offload_total{{node_id=\"{node_id}\"}} "
+                    f"{int(apply_isolation.get('import_offload_total', 0) or 0)}"
                 ),
             ]
         )

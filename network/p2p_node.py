@@ -319,6 +319,7 @@ class P2PNode:
         self._import_block_fail: int = 0
         self._import_offload_total: int = 0
         self.apply_queue = None  # set by AbsoluteNode — serial mine+import
+        self.sync_executor = None  # dedicated pool for sync_state (not default executor)
         self._sync_fail: int = 0
         self._peer_sync_fail: int = 0
         self._discovery_loop_fail: int = 0
@@ -459,6 +460,14 @@ class P2PNode:
         if q is not None:
             return bool(await q.submit_import_async(block_data))
         return await asyncio.to_thread(self.import_block, block_data)
+
+    async def _sync_state_async(self) -> bool:
+        """Run SyncEngine.sync_state on the dedicated sync executor (not default pool)."""
+        if not self.sync_engine:
+            return False
+        loop = asyncio.get_running_loop()
+        ex = getattr(self, "sync_executor", None)
+        return bool(await loop.run_in_executor(ex, self.sync_engine.sync_state))
 
     def _reorg_and_import(self, rollback_to: int, peer_block: Dict) -> bool:
         """Sync reorg+import for worker-thread execution."""
@@ -1254,9 +1263,7 @@ class P2PNode:
         if await self._import_block_async(data):
             print(f"[P2P] Accepted block #{block.height} from {peer.peer_id[:8]}")
             if self.sync_engine:
-                loop = asyncio.get_running_loop()
-                ok = await loop.run_in_executor(None, self.sync_engine.sync_state)
-                self._state_consistent = bool(ok)
+                self._state_consistent = bool(await self._sync_state_async())
             if self._consensus and self.validator_keys:
                 try:
                     # Match proposer attestation slot (block forged at slot height-1).
@@ -1539,9 +1546,7 @@ class P2PNode:
             if peer_head and local_head != peer_head:
                 await self._reconcile_fork_at_peer(peer)
             elif self.sync_engine:
-                loop = asyncio.get_running_loop()
-                ok = await loop.run_in_executor(None, self.sync_engine.sync_state)
-                self._state_consistent = bool(ok)
+                self._state_consistent = bool(await self._sync_state_async())
             await self._sync_mempool_with_peer(peer)
             return
 
@@ -1631,9 +1636,7 @@ class P2PNode:
             )
 
         if self.sync_engine:
-            loop = asyncio.get_running_loop()
-            ok = await loop.run_in_executor(None, self.sync_engine.sync_state)
-            self._state_consistent = bool(ok)
+            self._state_consistent = bool(await self._sync_state_async())
 
         # Never raise state-root baseline after a stalled/incomplete sync —
         # that would greenwash partial catch-up as a new strict tip.
@@ -1760,9 +1763,7 @@ class P2PNode:
             results.append(entry)
 
         if self.sync_engine:
-            loop = asyncio.get_running_loop()
-            ok = await loop.run_in_executor(None, self.sync_engine.sync_state)
-            self._state_consistent = bool(ok)
+            self._state_consistent = bool(await self._sync_state_async())
         elif self.peers:
             # Reconcile "ok" without a SyncEngine must not leave stale mesh-green.
             self._state_consistent = False

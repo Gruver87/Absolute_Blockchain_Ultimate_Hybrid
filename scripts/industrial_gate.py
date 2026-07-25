@@ -1074,8 +1074,28 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("main.py mining must use ChainApplyQueue forge_and_apply")
         if "apply_queue" not in p2p_py:
             errors.append("p2p_node must wire apply_queue")
+        # v1.3.53 — metrics + dedicated sync executor
+        metrics_src = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
+        for needle in (
+            "abs_chain_apply_queue_depth",
+            "abs_chain_apply_wait_seconds_total",
+            "abs_chain_apply_reject_total",
+            "abs_p2p_import_offload_total",
+        ):
+            if needle not in metrics_src:
+                errors.append(f"metrics.py missing {needle} (v1.3.53)")
+        if "ThreadPoolExecutor" not in main_py or "sync_executor" not in main_py:
+            errors.append("main.py must create dedicated sync_executor")
+        if "async def _sync_state_async" not in p2p_py:
+            errors.append("p2p_node must define _sync_state_async")
+        if "apply queue backpressure" not in main_py:
+            errors.append("mining must fail-loud on apply queue backpressure")
+        if "_apply_isolation_metrics" not in (
+            ROOT / "api" / "http.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("api/http.py must expose apply isolation metrics")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..52 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..53 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

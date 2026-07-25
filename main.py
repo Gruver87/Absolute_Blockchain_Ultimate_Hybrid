@@ -25,6 +25,7 @@ import os
 import time
 import threading
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 _node_log = logging.getLogger("Node")
 
@@ -357,10 +358,14 @@ class NodeOrchestrator:
             maxsize=int(getattr(config, "chain_apply_queue_max", 64) or 64),
             timeout_sec=float(getattr(config, "chain_apply_timeout_sec", 120.0) or 120.0),
         )
+        self.sync_executor = ThreadPoolExecutor(
+            max_workers=2, thread_name_prefix="AbsSyncState"
+        )
         print(
             f"[Node] ChainApplyQueue: max={self.apply_queue.maxsize} "
             f"timeout={self.apply_queue.timeout_sec}s (serial mine+import)"
         )
+        print("[Node] SyncState executor: dedicated pool (max_workers=2)")
         self.mempool.set_blockchain(self.blockchain)
         print(f"[Node] Blockchain height: {self.blockchain.get_height()}")
         if (
@@ -638,6 +643,7 @@ class NodeOrchestrator:
         # 7. P2P
         self.p2p = P2PNode(config, self.blockchain, self.mempool, self.bus)
         self.p2p.apply_queue = self.apply_queue
+        self.p2p.sync_executor = self.sync_executor
 
         # 8. Мост
         self.bridge = RustBridge(config, self.db, self.bus) if config.bridge_enabled else None
@@ -1322,6 +1328,7 @@ class NodeOrchestrator:
         )
         from api.http import RESTHandler
         RESTHandler.ws_server = self.ws_server
+        RESTHandler.apply_queue = self.apply_queue
         RESTHandler.feature_init_errors = dict(self.feature_init_errors)
 
         self._print_banner()
@@ -1606,6 +1613,14 @@ class NodeOrchestrator:
                 aq.stop()
             except Exception as exc:
                 _node_log.warning("apply_queue stop failed: %s", exc)
+        se = getattr(self, "sync_executor", None)
+        if se is not None:
+            try:
+                se.shutdown(wait=False, cancel_futures=True)
+            except TypeError:
+                se.shutdown(wait=False)
+            except Exception as exc:
+                _node_log.warning("sync_executor shutdown failed: %s", exc)
         if self.bridge:
             self.bridge.stop()
         try:
@@ -1675,7 +1690,10 @@ class NodeOrchestrator:
                 if not getattr(self.p2p, "_state_consistent", False) and self.sync_engine:
                     try:
                         loop = asyncio.get_running_loop()
-                        ok = await loop.run_in_executor(None, self.sync_engine.sync_state)
+                        ex = getattr(self, "sync_executor", None) or getattr(
+                            self.p2p, "sync_executor", None
+                        )
+                        ok = await loop.run_in_executor(ex, self.sync_engine.sync_state)
                         self.p2p._state_consistent = bool(ok)
                     except Exception as _sync_probe_err:
                         print(f"[Mining] sync_state probe failed: {_sync_probe_err}")
@@ -1900,6 +1918,7 @@ class NodeOrchestrator:
 
             # Atomic create+sign+add relative to P2P import (ChainApplyQueue).
             aq = getattr(self, "apply_queue", None)
+            reject_before = int(getattr(aq, "reject_total", 0) or 0) if aq else 0
             if aq is not None:
                 success, block = await aq.submit_forge_and_apply_async(
                     txs, proposer, _sign_block
@@ -1910,11 +1929,15 @@ class NodeOrchestrator:
                 success = await asyncio.to_thread(self.blockchain.add_block, block)
 
             if not success and txs:
+                if aq is not None and int(aq.reject_total) > reject_before:
+                    print("[Mining] apply queue backpressure — skip forge tick")
+                    continue
                 print(
                     f"[Mining] Block with {len(txs)} tx(s) rejected; evicting and forging empty block"
                 )
                 for tx in txs:
                     self.mempool.remove(tx.hash)
+                reject_before = int(getattr(aq, "reject_total", 0) or 0) if aq else 0
                 if aq is not None:
                     success, block = await aq.submit_forge_and_apply_async(
                         [], proposer, _sign_block
@@ -1925,6 +1948,8 @@ class NodeOrchestrator:
                     success = await asyncio.to_thread(self.blockchain.add_block, block)
 
             if not success or block is None:
+                if aq is not None and int(aq.reject_total) > reject_before:
+                    print("[Mining] apply queue backpressure — skip forge tick")
                 continue
 
             if int(getattr(self.config, "mesh_min_peers_before_mine", 0) or 0) > 0:
@@ -1960,7 +1985,10 @@ class NodeOrchestrator:
             if self.sync_engine and self.p2p:
                 try:
                     loop = asyncio.get_running_loop()
-                    loop.run_in_executor(None, self.sync_engine.sync_state)
+                    ex = getattr(self, "sync_executor", None) or getattr(
+                        self.p2p, "sync_executor", None
+                    )
+                    loop.run_in_executor(ex, self.sync_engine.sync_state)
                 except Exception as exc:
                     print(f"[Mining] sync_state schedule failed: {exc}")
                     if bool(getattr(self.config, "is_production", False)):

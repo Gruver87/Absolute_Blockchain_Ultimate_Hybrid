@@ -284,6 +284,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `evm_bytecode_is_nested_pure_eligible` + adapter fast-path; fallback to Python on host/bridge
 - Remaining: recursive CALL/CREATE host-in-Rust · BALANCE/EXTCODE* without Python (optional / large)
 
+### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
+
+- [x] v1.3.51: P2P/sync `import_block` off asyncio loop
+- [x] v1.3.52: serial `ChainApplyQueue` (atomic forge_and_apply)
+- [x] v1.3.53: dedicated sync executor + Prometheus apply metrics + backpressure honesty
+- Remaining: EVM/mempool high-load soak harness · nested CALL host-in-Rust
+
 ## Process per module
 
 1. Python tests + golden vectors first.

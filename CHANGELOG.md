@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.53] — 2026-07-25
+
+### Added — apply isolation metrics + dedicated sync executor
+
+- Prometheus: `abs_chain_apply_queue_depth`, `abs_chain_apply_wait_seconds_total`, `abs_chain_apply_reject_total`, `abs_p2p_import_offload_total`
+- Dedicated `AbsSyncState` ThreadPoolExecutor (no longer shares default pool with apply)
+- Mining logs and skips forge tick on apply-queue backpressure
+
 ## [1.3.52] — 2026-07-25
 
 ### Added — serial ChainApplyQueue (mine + import)
