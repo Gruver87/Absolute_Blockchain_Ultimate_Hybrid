@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.45` — native apply honesty + ceremony example manifest |
-| **Notes** | [RELEASE_NOTES_v1.3.45.md](../RELEASE_NOTES_v1.3.45.md) |
-| **Prior** | [v1.3.44](../RELEASE_NOTES_v1.3.44.md) EVM host-in-apply; [v1.3.43](../RELEASE_NOTES_v1.3.43.md) P2P rate |
+| **Tag** | `v1.3.46` — mixed simple+EVM native apply |
+| **Notes** | [RELEASE_NOTES_v1.3.46.md](../RELEASE_NOTES_v1.3.46.md) |
+| **Prior** | [v1.3.45](../RELEASE_NOTES_v1.3.45.md) apply honesty; [v1.3.44](../RELEASE_NOTES_v1.3.44.md) EVM host-in-apply |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

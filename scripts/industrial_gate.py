@@ -1007,8 +1007,13 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "validators.manifest.example.json"
         ).read_text(encoding="utf-8"):
             errors.append("validators.manifest.example.json must not use 0x…0001 placeholders")
+        # v1.3.46 — mixed simple+EVM native apply
+        if "_apply_mixed_block_native" not in bc_py or "_block_transactions_are_mixed" not in bc_py:
+            errors.append("blockchain.py must wire mixed simple+EVM native apply (v1.3.46)")
+        if "expected_nonce" not in bc_py:
+            errors.append("validate_transaction must accept expected_nonce for block assembly")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..45 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..46 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

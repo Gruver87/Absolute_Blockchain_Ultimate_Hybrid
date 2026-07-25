@@ -583,6 +583,21 @@ class Blockchain:
                                 block.height,
                                 native_exc,
                             )
+                    if (
+                        not native_applied
+                        and native.native_available()
+                        and hasattr(native, "blockchain_apply_host_effects")
+                        and self._block_transactions_are_mixed(block.transactions)
+                    ):
+                        try:
+                            block_burned = self._apply_mixed_block_native(block)
+                            native_applied = True
+                        except Exception as native_exc:
+                            _logger.debug(
+                                "[Blockchain] native mixed apply fallback #%s: %s",
+                                block.height,
+                                native_exc,
+                            )
                     if not native_applied:
                         for tx in block.transactions:
                             result = self._apply_transaction(
@@ -722,7 +737,7 @@ class Blockchain:
         expected = nonce_cursor.get(tx.from_addr, self.db.get_nonce(tx.from_addr))
         if tx.nonce != expected:
             return {"valid": False, "error": "nonce_mismatch_in_block"}
-        return self.validate_transaction(tx)
+        return self.validate_transaction(tx, expected_nonce=expected)
 
     def _apply_block_reward(self, proposer: str, in_atomic: bool = False) -> float:
         current_supply = self.db.get_total_supply()
@@ -760,6 +775,23 @@ class Blockchain:
         if not getattr(self, "evm", None):
             return False
         return all(not self._tx_is_simple(tx) for tx in transactions)
+
+    def _block_transactions_are_mixed(self, transactions) -> bool:
+        """True when block has both simple transfers and EVM calldata txs."""
+        if not transactions:
+            return False
+        if not getattr(self, "evm", None):
+            return False
+        has_simple = False
+        has_evm = False
+        for tx in transactions:
+            if self._tx_is_simple(tx):
+                has_simple = True
+            else:
+                has_evm = True
+            if has_simple and has_evm:
+                return True
+        return False
 
     def _collect_addrs_for_simple_block(self, block: "Block") -> set:
         addrs = set()
@@ -972,6 +1004,115 @@ class Blockchain:
         self._writeback_accounts_sat(result.get("accounts") or {})
         burned_sat = int(result.get("total_burned_sat", 0) or 0)
         return float(from_satoshi_float(burned_sat))
+
+    def _apply_mixed_block_native(self, block: "Block") -> float:
+        """Apply mixed simple+EVM block via host_effects (per-tx) + final reward.
+
+        EVM calldata txs run the Python host first (code/storage/value on DB);
+        simple transfers use apply_value=True in native. Each tx is applied with
+        reward=0 so subsequent EVM hosts observe prior balance updates; block
+        reward is applied once at the end.
+        """
+        from runtime.amount import from_satoshi_float, plan_transfer_fees, to_satoshi
+
+        if not getattr(self, "evm", None):
+            raise RuntimeError("evm_unavailable")
+
+        total_burned_sat = 0
+        miner = str(block.miner or "")
+        burn_addr = str(getattr(self.config, "burn_address", "") or "")
+        max_supply_sat = int(to_satoshi(float(getattr(self.config, "max_supply", MAX_SUPPLY_ABS))))
+
+        for tx in block.transactions:
+            addrs = {miner, burn_addr, tx.from_addr or "", tx.to_addr or ""}
+            addrs.discard("")
+            if self._tx_is_simple(tx):
+                gas_used = int(tx.gas or 21000)
+                effect = {
+                    "from": tx.from_addr,
+                    "to": tx.to_addr or "",
+                    "value": float(tx.value or 0),
+                    "apply_value": True,
+                    "gas": int(tx.gas or 21000),
+                    "gas_used": gas_used,
+                    "nonce": int(tx.nonce),
+                }
+                plan = plan_transfer_fees(
+                    tx.gas,
+                    self.config.gas_price_wei,
+                    self.config.burn_rate,
+                    tx.value,
+                )
+            else:
+                host = self._run_evm_host_only(tx, block.height)
+                if not host.get("success"):
+                    raise RuntimeError(host.get("error") or "evm_host_failed")
+                gas_used = int(host.get("gas_used") or tx.gas or 0)
+                if host.get("contract_address"):
+                    addrs.add(str(host["contract_address"]))
+                effect = {
+                    "from": tx.from_addr,
+                    "to": tx.to_addr or "",
+                    "value": float(tx.value or 0),
+                    "apply_value": False,
+                    "gas": int(tx.gas or 21000),
+                    "gas_used": gas_used,
+                    "nonce": int(tx.nonce),
+                }
+                plan = plan_transfer_fees(
+                    tx.gas,
+                    self.config.gas_price_wei,
+                    self.config.burn_rate,
+                    0.0,
+                    gas_used=gas_used,
+                )
+
+            snap = self._accounts_sat_snapshot(addrs)
+            if hasattr(self.db, "get_total_supply"):
+                supply_sat = int(to_satoshi(self.db.get_total_supply()))
+            else:
+                supply_sat = sum(int(v["balance"]) for v in snap.values())
+            raw = native.blockchain_apply_host_effects(
+                json.dumps(snap, separators=(",", ":"), ensure_ascii=False),
+                json.dumps([effect], separators=(",", ":"), ensure_ascii=False),
+                float(self.config.gas_price_wei),
+                float(self.config.burn_rate),
+                miner,
+                burn_addr,
+                0.0,
+                supply_sat,
+                max_supply_sat,
+            )
+            result = json.loads(raw)
+            self._writeback_accounts_sat(result.get("accounts") or {})
+            total_burned_sat += int(result.get("total_burned_sat", 0) or 0)
+            tx.fee = plan["fee"]
+            tx.burned = plan["burned"]
+            tx.gas_used = gas_used
+            tx.block_height = block.height
+            tx.status = 1
+
+        # Final block reward (empty effects).
+        reward_addrs = {miner}
+        reward_addrs.discard("")
+        snap = self._accounts_sat_snapshot(reward_addrs)
+        if hasattr(self.db, "get_total_supply"):
+            supply_sat = int(to_satoshi(self.db.get_total_supply()))
+        else:
+            supply_sat = sum(int(v["balance"]) for v in snap.values())
+        raw = native.blockchain_apply_host_effects(
+            json.dumps(snap, separators=(",", ":"), ensure_ascii=False),
+            "[]",
+            float(self.config.gas_price_wei),
+            float(self.config.burn_rate),
+            miner,
+            burn_addr,
+            float(self.config.block_reward),
+            supply_sat,
+            max_supply_sat,
+        )
+        self._writeback_accounts_sat(json.loads(raw).get("accounts") or {})
+        return float(from_satoshi_float(total_burned_sat))
 
     def _blocks_range_are_simple(self, from_h: int, to_h: int) -> bool:
         for h in range(from_h, to_h + 1):
@@ -1210,8 +1351,10 @@ class Blockchain:
 
     # ── Валидация ────────────────────────────────────────────────────────────
 
-    def validate_transaction(self, tx: Transaction) -> Dict:
-        """Проверяет транзакцию перед добавлением в мемпул."""
+    def validate_transaction(
+        self, tx: Transaction, *, expected_nonce: Optional[int] = None
+    ) -> Dict:
+        """Проверяет транзакцию перед добавлением в мемпул / сборкой блока."""
         if not tx.from_addr or not tx.to_addr:
             return {"valid": False, "error": "missing_address"}
         if tx.value < 0:
@@ -1219,9 +1362,13 @@ class Blockchain:
         if tx.gas < self.config.base_gas_price:
             return {"valid": False, "error": "gas_too_low"}
 
-        expected_nonce = self.db.get_nonce(tx.from_addr)
-        if tx.nonce != expected_nonce:
-            return {"valid": False, "error": f"nonce_mismatch (got {tx.nonce}, expected {expected_nonce})"}
+        tip_nonce = self.db.get_nonce(tx.from_addr)
+        want_nonce = tip_nonce if expected_nonce is None else int(expected_nonce)
+        if tx.nonce != want_nonce:
+            return {
+                "valid": False,
+                "error": f"nonce_mismatch (got {tx.nonce}, expected {want_nonce})",
+            }
 
         from runtime.amount import can_afford_transfer, from_satoshi_float, plan_transfer_fees
 

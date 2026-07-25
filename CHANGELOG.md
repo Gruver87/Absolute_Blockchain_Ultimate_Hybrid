@@ -6,6 +6,12 @@
 
 ---
 
+## [1.3.46] — 2026-07-25
+
+### Added — mixed simple+EVM native apply
+
+- `_apply_mixed_block_native` via host_effects; multi-tx block assembly honors nonce cursor
+
 ## [1.3.45] — 2026-07-21
 
 ### Fixed — native apply honesty + prod example ceremony addresses

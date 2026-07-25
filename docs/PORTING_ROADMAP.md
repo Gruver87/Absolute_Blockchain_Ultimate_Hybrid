@@ -251,7 +251,14 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `blockchain_apply_host_effects` — fee/nonce/reward after Python EVM host
 - [x] All-EVM blocks: host runs storage/code/value, native applies economics
 - [x] v1.3.45: writeback preserves code/storage; no empty burn materialization; receipt status=1
-- Remaining: mixed simple+EVM atomic native apply · deeper host-in-Rust CALL
+- Remaining: see Priority 18
+
+### Priority 18 — Mixed simple+EVM native apply ✅ (v1.3.46)
+
+- [x] `_block_transactions_are_mixed` + `_apply_mixed_block_native`
+- [x] Per-tx host_effects (reward=0) then final native reward; EVM host between
+- [x] `create_block` nonce cursor honored via `validate_transaction(expected_nonce=…)`
+- Remaining: deeper CALL host inside Rust
 
 ## Process per module
 
