@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.51-industrial"
+    node_version: str = "1.3.52-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -82,6 +82,8 @@ class Config:
     bootstrap_peers: List[str] = field(default_factory=list)
     follower_genesis_sync: bool = False  # prod followers: import genesis from peers, no local mint
     mesh_min_peers_before_mine: int = 0   # prod mesh hub: wait for N peers before forging
+    chain_apply_queue_max: int = 64       # serial apply backlog (mine + P2P import)
+    chain_apply_timeout_sec: float = 120.0
     max_peers: int = 50
     testnet_expected_peers: int = 1     # mesh health threshold (3-node devnet: 2 on hub)
     testnet_expected_validators: int = 0  # Wave 55: 5-validator devnet
@@ -305,6 +307,15 @@ class Config:
         self.mesh_min_peers_before_mine = env_int(
             "MESH_MIN_PEERS_BEFORE_MINE", self.mesh_min_peers_before_mine
         )
+        self.chain_apply_queue_max = env_int(
+            "CHAIN_APPLY_QUEUE_MAX", self.chain_apply_queue_max
+        )
+        try:
+            self.chain_apply_timeout_sec = float(
+                env_str("CHAIN_APPLY_TIMEOUT_SEC", str(self.chain_apply_timeout_sec))
+            )
+        except (TypeError, ValueError):
+            pass
         if "TESTNET_EXPECTED_PEERS" in os.environ:
             self.testnet_expected_peers = env_int(
                 "TESTNET_EXPECTED_PEERS", self.testnet_expected_peers

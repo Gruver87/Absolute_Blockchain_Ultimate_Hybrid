@@ -53,6 +53,7 @@ if BASE_DIR not in sys.path:
 from runtime.config import Config
 from storage.factory import open_database
 from core.blockchain import Blockchain, Transaction
+from core.chain_apply_queue import ChainApplyQueue
 from blockchain.mempool import Mempool, MempoolTransaction
 from kernel.event_bus import EventBus
 from consensus.adapter import ConsensusAdapter
@@ -351,6 +352,15 @@ class NodeOrchestrator:
 
         # 4. Ядро блокчейна
         self.blockchain = Blockchain(config, self.db, self.bus)
+        self.apply_queue = ChainApplyQueue(
+            self.blockchain,
+            maxsize=int(getattr(config, "chain_apply_queue_max", 64) or 64),
+            timeout_sec=float(getattr(config, "chain_apply_timeout_sec", 120.0) or 120.0),
+        )
+        print(
+            f"[Node] ChainApplyQueue: max={self.apply_queue.maxsize} "
+            f"timeout={self.apply_queue.timeout_sec}s (serial mine+import)"
+        )
         self.mempool.set_blockchain(self.blockchain)
         print(f"[Node] Blockchain height: {self.blockchain.get_height()}")
         if (
@@ -627,6 +637,7 @@ class NodeOrchestrator:
 
         # 7. P2P
         self.p2p = P2PNode(config, self.blockchain, self.mempool, self.bus)
+        self.p2p.apply_queue = self.apply_queue
 
         # 8. Мост
         self.bridge = RustBridge(config, self.db, self.bus) if config.bridge_enabled else None
@@ -1589,6 +1600,12 @@ class NodeOrchestrator:
                 task.cancel()
         # Останавливаем синхронные компоненты
         self.p2p.stop()
+        aq = getattr(self, "apply_queue", None)
+        if aq is not None:
+            try:
+                aq.stop()
+            except Exception as exc:
+                _node_log.warning("apply_queue stop failed: %s", exc)
         if self.bridge:
             self.bridge.stop()
         try:
@@ -1859,19 +1876,21 @@ class NodeOrchestrator:
             if proposer != "genesis":
                 self.config.miner_address = proposer
 
-            # ── Создаём и добавляем блок ──────────────────────────────────────
-            block = self.blockchain.create_block(txs, proposer)
-
-            # Sign block with ValidatorKeys if available
-            if self.validator_keys:
+            def _sign_block(blk):
+                if not self.validator_keys:
+                    return
                 try:
-                    block_dict = {"hash": block.hash, "number": block.height,
-                                  "proposer": proposer, "timestamp": block.timestamp}
-                    block.signature = self.validator_keys.sign_block(block_dict)
+                    block_dict = {
+                        "hash": blk.hash,
+                        "number": blk.height,
+                        "proposer": proposer,
+                        "timestamp": blk.timestamp,
+                    }
+                    blk.signature = self.validator_keys.sign_block(block_dict)
                 except Exception as exc:
                     _node_log.warning(
                         "Block signing failed (height=%s): %s",
-                        block.height,
+                        getattr(blk, "height", "?"),
                         exc,
                     )
                     if bool(getattr(self.config, "is_production", False)):
@@ -1879,147 +1898,145 @@ class NodeOrchestrator:
                             f"Production mode requires block signature: {exc}"
                         ) from exc
 
-            success = await asyncio.to_thread(self.blockchain.add_block, block)
+            # Atomic create+sign+add relative to P2P import (ChainApplyQueue).
+            aq = getattr(self, "apply_queue", None)
+            if aq is not None:
+                success, block = await aq.submit_forge_and_apply_async(
+                    txs, proposer, _sign_block
+                )
+            else:
+                block = self.blockchain.create_block(txs, proposer)
+                _sign_block(block)
+                success = await asyncio.to_thread(self.blockchain.add_block, block)
 
             if not success and txs:
                 print(
-                    f"[Mining] Block #{block.height} with {len(txs)} tx(s) rejected; evicting and forging empty block"
+                    f"[Mining] Block with {len(txs)} tx(s) rejected; evicting and forging empty block"
                 )
                 for tx in txs:
                     self.mempool.remove(tx.hash)
-                block = self.blockchain.create_block([], proposer)
-                if self.validator_keys:
-                    try:
-                        block_dict = {
-                            "hash": block.hash,
-                            "number": block.height,
-                            "proposer": proposer,
-                            "timestamp": block.timestamp,
-                        }
-                        block.signature = self.validator_keys.sign_block(block_dict)
-                    except Exception as exc:
-                        _node_log.warning(
-                            "Empty block signing failed (height=%s): %s",
-                            block.height,
-                            exc,
-                        )
-                        if bool(getattr(self.config, "is_production", False)):
-                            raise RuntimeError(
-                                f"Production mode requires block signature: {exc}"
-                            ) from exc
-                success = await asyncio.to_thread(self.blockchain.add_block, block)
-
-            if success:
-                if int(getattr(self.config, "mesh_min_peers_before_mine", 0) or 0) > 0:
-                    self._mesh_forge_hold_height = int(block.height)
-                # Удаляем включённые транзакции из мемпула
-                for tx in block.transactions:
-                    self.mempool.remove(tx.hash)
-
-                # LMD-GHOST: attest at current slot, then advance for next block
-                try:
-                    self.consensus.attest(proposer, block.hash)
-                except Exception as exc:
-                    logger = getattr(self, "logger", None) or __import__("logging").getLogger("Node")
-                    logger.error(
-                        "Consensus attest failed (height=%s hash=%s): %s",
-                        getattr(block, "height", "?"),
-                        getattr(block, "hash", "?"),
-                        exc,
+                if aq is not None:
+                    success, block = await aq.submit_forge_and_apply_async(
+                        [], proposer, _sign_block
                     )
+                else:
+                    block = self.blockchain.create_block([], proposer)
+                    _sign_block(block)
+                    success = await asyncio.to_thread(self.blockchain.add_block, block)
+
+            if not success or block is None:
+                continue
+
+            if int(getattr(self.config, "mesh_min_peers_before_mine", 0) or 0) > 0:
+                self._mesh_forge_hold_height = int(block.height)
+            # Удаляем включённые транзакции из мемпула
+            for tx in block.transactions:
+                self.mempool.remove(tx.hash)
+
+            # LMD-GHOST: attest at current slot, then advance for next block
+            try:
+                self.consensus.attest(proposer, block.hash)
+            except Exception as exc:
+                logger = getattr(self, "logger", None) or __import__("logging").getLogger("Node")
+                logger.error(
+                    "Consensus attest failed (height=%s hash=%s): %s",
+                    getattr(block, "height", "?"),
+                    getattr(block, "hash", "?"),
+                    exc,
+                )
+                if bool(getattr(self.config, "is_production", False)):
+                    raise
+
+            self.consensus.mark_block_produced(proposer=proposer)
+
+            self._log_block(block)
+
+            if self.p2p and self.p2p._loop and self.p2p._running:
+                try:
+                    asyncio.create_task(self.p2p._broadcast_block(block.to_dict()))
+                except Exception as exc:
+                    print(f"[Mining] broadcast_block schedule failed: {exc}")
+
+            if self.sync_engine and self.p2p:
+                try:
+                    loop = asyncio.get_running_loop()
+                    loop.run_in_executor(None, self.sync_engine.sync_state)
+                except Exception as exc:
+                    print(f"[Mining] sync_state schedule failed: {exc}")
                     if bool(getattr(self.config, "is_production", False)):
+                        self.p2p._state_consistent = False
+
+            # Deterministic proposer entropy mix (not commit/reveal RANDAO)
+            if self.validator_selection:
+                self.validator_selection.update_seed(block.hash)
+
+            # AI Validator: обновляем performance proposer'а
+            if self.ai_validator:
+                self.ai_validator.update_performance(proposer, success=True)
+
+            # ImmutableState: mirror DB satoshi after L1 apply (fees/rewards/burns)
+            if self.immutable_state:
+                try:
+                    addrs = set()
+                    for tx in block.transactions:
+                        if getattr(tx, "from_addr", None):
+                            addrs.add(tx.from_addr)
+                        if getattr(tx, "to_addr", None):
+                            addrs.add(tx.to_addr)
+                    addrs.add(proposer)
+                    burn = getattr(self.config, "burn_address", None)
+                    if burn:
+                        addrs.add(burn)
+                    n = self.immutable_state.reconcile_from_store(
+                        self.db,
+                        addrs,
+                        fail_loud=bool(getattr(self.config, "is_production", False)),
+                    )
+                    if n < 0:
+                        raise RuntimeError("IMS reconcile_from_store returned failure")
+                except Exception as _ims_err:
+                    print(f"[ImmutableState] reconcile_from_store failed: {_ims_err}")
+                    if getattr(self.config, "is_production", False):
                         raise
 
-                self.consensus.mark_block_produced(proposer=proposer)
+            # Light client: новый заголовок
+            if self.light_client:
+                try:
+                    from core.block_header import BlockHeader
+                    self.light_client.add_header(BlockHeader.from_block_dict(block.to_dict()))
+                except Exception as exc:
+                    _node_log.warning("[Mining] light client header add failed: %s", exc)
 
-                self._log_block(block)
+            # Epoch boundary: разблокировка staking-пула
+            if self.epoch_manager and self.pool_locks:
+                try:
+                    if self.epoch_manager.is_epoch_boundary(block.height):
+                        ep = self.epoch_manager.get_epoch(block.height)
+                        rel = self.pool_locks.on_epoch_boundary(ep)
+                        delta = rel.get("staking_released_delta", 0)
+                        if delta > 0:
+                            print(f"[Epoch] #{ep}: staking +{delta:,.0f} ABS released")
+                except Exception as exc:
+                    _node_log.warning("[Mining] epoch pool unlock failed: %s", exc)
 
-                if self.p2p and self.p2p._loop and self.p2p._running:
-                    try:
-                        asyncio.create_task(self.p2p._broadcast_block(block.to_dict()))
-                    except Exception as exc:
-                        print(f"[Mining] broadcast_block schedule failed: {exc}")
-
-                if self.sync_engine and self.p2p:
-                    try:
-                        loop = asyncio.get_running_loop()
-                        loop.run_in_executor(None, self.sync_engine.sync_state)
-                    except Exception as exc:
-                        print(f"[Mining] sync_state schedule failed: {exc}")
-                        if bool(getattr(self.config, "is_production", False)):
-                            self.p2p._state_consistent = False
-
-                # Deterministic proposer entropy mix (not commit/reveal RANDAO)
-                if self.validator_selection:
-                    self.validator_selection.update_seed(block.hash)
-
-                # AI Validator: обновляем performance proposer'а
-                if self.ai_validator:
-                    self.ai_validator.update_performance(proposer, success=True)
-
-                # ImmutableState: mirror DB satoshi after L1 apply (fees/rewards/burns)
-                if self.immutable_state:
-                    try:
-                        addrs = set()
-                        for tx in block.transactions:
-                            if getattr(tx, "from_addr", None):
-                                addrs.add(tx.from_addr)
-                            if getattr(tx, "to_addr", None):
-                                addrs.add(tx.to_addr)
-                        addrs.add(proposer)
-                        burn = getattr(self.config, "burn_address", None)
-                        if burn:
-                            addrs.add(burn)
-                        n = self.immutable_state.reconcile_from_store(
-                            self.db,
-                            addrs,
-                            fail_loud=bool(getattr(self.config, "is_production", False)),
+            # ChainStorage: JSON backup (non-authoritative; failures must be visible)
+            if self.chain_storage:
+                try:
+                    block_dict = {
+                        "number": block.height,
+                        "hash": block.hash,
+                        "parent_hash": block.parent_hash,
+                        "timestamp": block.timestamp,
+                        "proposer": proposer,
+                        "tx_count": len(block.transactions),
+                    }
+                    ok_backup = self.chain_storage.save_block(block.height, block_dict)
+                    if not ok_backup:
+                        print(
+                            f"[ChainStorage] WARN: backup save failed for height={block.height}"
                         )
-                        if n < 0:
-                            raise RuntimeError("IMS reconcile_from_store returned failure")
-                    except Exception as _ims_err:
-                        print(f"[ImmutableState] reconcile_from_store failed: {_ims_err}")
-                        if getattr(self.config, "is_production", False):
-                            raise
-
-                # Light client: новый заголовок
-                if self.light_client:
-                    try:
-                        from core.block_header import BlockHeader
-                        self.light_client.add_header(BlockHeader.from_block_dict(block.to_dict()))
-                    except Exception as exc:
-                        _node_log.warning("[Mining] light client header add failed: %s", exc)
-
-                # Epoch boundary: разблокировка staking-пула
-                if self.epoch_manager and self.pool_locks:
-                    try:
-                        if self.epoch_manager.is_epoch_boundary(block.height):
-                            ep = self.epoch_manager.get_epoch(block.height)
-                            rel = self.pool_locks.on_epoch_boundary(ep)
-                            delta = rel.get("staking_released_delta", 0)
-                            if delta > 0:
-                                print(f"[Epoch] #{ep}: staking +{delta:,.0f} ABS released")
-                    except Exception as exc:
-                        _node_log.warning("[Mining] epoch pool unlock failed: %s", exc)
-
-                # ChainStorage: JSON backup (non-authoritative; failures must be visible)
-                if self.chain_storage:
-                    try:
-                        block_dict = {
-                            "number": block.height,
-                            "hash": block.hash,
-                            "parent_hash": block.parent_hash,
-                            "timestamp": block.timestamp,
-                            "proposer": proposer,
-                            "tx_count": len(block.transactions),
-                        }
-                        ok_backup = self.chain_storage.save_block(block.height, block_dict)
-                        if not ok_backup:
-                            print(
-                                f"[ChainStorage] WARN: backup save failed for height={block.height}"
-                            )
-                    except Exception as exc:
-                        print(f"[ChainStorage] backup save error height={block.height}: {exc}")
+                except Exception as exc:
+                    print(f"[ChainStorage] backup save error height={block.height}: {exc}")
 
     async def _mempool_monitor(self):
         """Периодически логирует статус мемпула."""

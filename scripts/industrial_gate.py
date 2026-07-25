@@ -1065,8 +1065,17 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         main_py = (ROOT / "main.py").read_text(encoding="utf-8")
         if "asyncio.to_thread(self.sync_engine.fast_sync)" not in main_py:
             errors.append("main.py follower genesis must offload fast_sync")
+        # v1.3.52 — serial ChainApplyQueue
+        if "class ChainApplyQueue" not in (
+            ROOT / "core" / "chain_apply_queue.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("core/chain_apply_queue.py must define ChainApplyQueue")
+        if "ChainApplyQueue" not in main_py or "submit_forge_and_apply_async" not in main_py:
+            errors.append("main.py mining must use ChainApplyQueue forge_and_apply")
+        if "apply_queue" not in p2p_py:
+            errors.append("p2p_node must wire apply_queue")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..51 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..52 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

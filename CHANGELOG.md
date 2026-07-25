@@ -6,6 +6,13 @@
 
 ---
 
+## [1.3.52] — 2026-07-25
+
+### Added — serial ChainApplyQueue (mine + import)
+
+- `core/chain_apply_queue.py`: single worker serializes forge_and_apply / import / reorg
+- Mining uses atomic create+sign+add; P2P imports share the same queue (closes tip race)
+
 ## [1.3.51] — 2026-07-25
 
 ### Changed — P2P/sync import off the asyncio event loop
