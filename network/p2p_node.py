@@ -4688,6 +4688,7 @@ class P2PNode:
                 getattr(self.config, "p2p_catch_up_require_head", True)
             ),
             "native_sync_heads_no_invent": True,
+            "native_sync_state_wire_only": True,
             "native_bootstrap_resilient": True,
             "native_bootstrap_pin_gate": True,
             "native_discovery_dialability_gate": True,

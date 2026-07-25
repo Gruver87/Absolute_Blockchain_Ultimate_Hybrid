@@ -382,6 +382,9 @@ class SyncEngine:
             self._set_state_consistent(False)
             return False
 
+        # v1.3.141: same-height consistency only from wire roots — never invent a
+        # match from the local tip at the peer's claimed height. Soft honesty only —
+        # not tip proof.
         same_height_match = False
         for entry in wire_roots:
             peer_root = entry.get("state_root", "")
@@ -393,24 +396,6 @@ class SyncEngine:
                     mismatches.append(entry.get("peer_id", "peer")[:8])
                 else:
                     same_height_match = True
-
-        # Peer still catching up — not a root mismatch; only same-height tips count.
-        for peer in peers:
-            peer_height = int(getattr(peer, "height", 0) or 0)
-            if peer_height != local_height:
-                continue
-            blk = self.node.blockchain.get_block(peer_height)
-            if not blk:
-                continue
-            tip_root = blk.get("state_root", "")
-            if not tip_root:
-                continue
-            pid = getattr(peer, "peer_id", "peer")[:8]
-            if tip_root != local_root:
-                if pid not in mismatches:
-                    mismatches.append(pid)
-            else:
-                same_height_match = True
 
         if mismatches:
             print(f"   State root mismatch vs peers: {', '.join(mismatches)}")
@@ -471,6 +456,7 @@ class SyncEngine:
                 getattr(self, "_heads_skipped_no_head", 0) or 0
             ),
             "native_sync_heads_no_invent": True,
+            "native_sync_state_wire_only": True,
         }
 
     def reset(self):

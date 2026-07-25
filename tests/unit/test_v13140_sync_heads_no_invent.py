@@ -46,12 +46,12 @@ def test_needles_v13140():
     assert "get_block(peer.height)" not in sync
     notes = (ROOT / "RELEASE_NOTES_v1.3.140.md").read_text(encoding="utf-8")
     assert "1.3.140-industrial" in notes
-    assert Config().node_version == "1.3.140-industrial"
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_sync_heads_no_invent" in metrics
     assert "abs_p2p_heads_skipped_no_head" in metrics
     check = (ROOT / "scripts" / "check_all.ps1").read_text(encoding="utf-8")
-    assert 'EvidenceGitTag = "v1.3.139"' in check or "v1.3.140" in check
+    assert 'EvidenceGitTag = "v1.3.139"' in check or "v1.3.140" in check or "v1.3.141" in check
 
 
 def test_request_heads_skips_empty_head_no_local_invent():

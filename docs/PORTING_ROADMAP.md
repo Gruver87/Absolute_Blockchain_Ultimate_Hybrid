@@ -808,6 +808,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Telemetry `heads_skipped_no_head` + check_all evidence tag refresh
 - Remaining: tip proof / fork-choice / libp2p / ceremony (not claimed)
 
+### Priority 96 — sync_state same-height match wire-only ✅ (v1.3.141)
+
+- [x] Remove local `get_block(peer_height)` invent loop in `sync_state`
+- [x] `native_sync_state_wire_only` status + metrics
+- Remaining: tip proof / fork-choice / libp2p / ceremony (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

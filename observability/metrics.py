@@ -859,6 +859,12 @@ class MetricsCollector:
                     f"abs_p2p_native_sync_heads_no_invent{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_sync_heads_no_invent') else 0}"
                 ),
+                "# HELP abs_p2p_native_sync_state_wire_only Whether sync_state same-height match is wire-only (0/1)",
+                "# TYPE abs_p2p_native_sync_state_wire_only gauge",
+                (
+                    f"abs_p2p_native_sync_state_wire_only{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_sync_state_wire_only') else 0}"
+                ),
                 "# HELP abs_p2p_heads_skipped_no_head Peers skipped in request_heads due to empty peer.head",
                 "# TYPE abs_p2p_heads_skipped_no_head gauge",
                 (

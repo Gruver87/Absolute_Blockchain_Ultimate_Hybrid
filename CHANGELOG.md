@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.141] — 2026-07-26
+
+### Sync — same-height state match is wire-only
+
+- `sync_state` no longer invents consistency from local `get_block(peer_height)`
+- Only wire same-height roots may paint `state_consistent=True`
+- Honesty: not tip proof / fork-choice / libp2p / mainnet
+
 ## [1.3.140] — 2026-07-26
 
 ### Sync — never invent peer.head from local blocks

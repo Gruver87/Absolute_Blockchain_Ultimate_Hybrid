@@ -2154,8 +2154,27 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_sync_heads_no_invent (v1.3.140)"
             )
+        # v1.3.141 — sync_state same-height match is wire-only
+        if "same-height consistency only from wire roots" not in sync_py:
+            errors.append(
+                "sync_engine must document wire-only same-height match (v1.3.141)"
+            )
+        if "get_block(peer_height)" in sync_py:
+            errors.append(
+                "sync_engine must not invent same-height match via get_block(peer_height) (v1.3.141)"
+            )
+        if "native_sync_state_wire_only" not in sync_py:
+            errors.append(
+                "sync_engine must expose native_sync_state_wire_only (v1.3.141)"
+            )
+        if "abs_p2p_native_sync_state_wire_only" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_sync_state_wire_only (v1.3.141)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..140 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..141 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:
