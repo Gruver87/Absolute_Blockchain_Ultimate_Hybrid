@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.135] — 2026-07-26
+
+### P2P — local state_root consistency + tip ownership completion
+
+- Known local header ⇒ peer state_root must match; historical expected_head fixed
+- Handshake height-ahead; status capped height refuses fantasy peer.head
+- Honesty: not merkle tip proof / fork-choice / libp2p / mainnet
+
 ## [1.3.134] — 2026-07-26
 
 ### P2P — soft NEW_BLOCK height-ahead ownership gate

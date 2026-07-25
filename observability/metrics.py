@@ -763,6 +763,36 @@ class MetricsCollector:
                     f"abs_p2p_new_block_height_cap_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('new_block_height_cap_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_handshake_height_cap Whether handshake peer.height ahead gate is active (0/1)",
+                "# TYPE abs_p2p_native_handshake_height_cap gauge",
+                (
+                    f"abs_p2p_native_handshake_height_cap{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_handshake_height_cap') else 0}"
+                ),
+                "# HELP abs_p2p_handshake_height_cap_total Handshake peer.height claims capped above local tip",
+                "# TYPE abs_p2p_handshake_height_cap_total counter",
+                (
+                    f"abs_p2p_handshake_height_cap_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('handshake_height_cap_total', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_native_status_capped_head_refuse Whether capped status skips fantasy peer.head (0/1)",
+                "# TYPE abs_p2p_native_status_capped_head_refuse gauge",
+                (
+                    f"abs_p2p_native_status_capped_head_refuse{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_status_capped_head_refuse') else 0}"
+                ),
+                "# HELP abs_p2p_native_state_root_local_consistency Whether known-header state_root match is enforced (0/1)",
+                "# TYPE abs_p2p_native_state_root_local_consistency gauge",
+                (
+                    f"abs_p2p_native_state_root_local_consistency{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_state_root_local_consistency') else 0}"
+                ),
+                "# HELP abs_p2p_state_root_local_rejects_total state_root responses mismatching known local header root",
+                "# TYPE abs_p2p_state_root_local_rejects_total counter",
+                (
+                    f"abs_p2p_state_root_local_rejects_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('state_root_local_rejects_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_bootstrap_resilient Whether missing-bootstrap redial is active (0/1)",
                 "# TYPE abs_p2p_native_bootstrap_resilient gauge",
                 (

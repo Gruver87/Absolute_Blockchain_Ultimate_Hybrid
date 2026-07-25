@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.134-industrial"
+    node_version: str = "1.3.135-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -107,7 +107,7 @@ class Config:
     p2p_evict_min_score: int = 0                  # evict peers below score when >1 peer (0=off)
     p2p_eclipse_warn_ratio: float = 0.34          # densest public subnet / public peers (0=off)
     p2p_discovery_allow_private: bool = False     # v1.3.128: allow RFC1918/link-local in MSG_PEERS dials
-    p2p_max_peer_height_ahead: int = 100_000      # v1.3.131/134: cap status+new_block peer.height above local tip
+    p2p_max_peer_height_ahead: int = 100_000      # v1.3.131+: cap status/new_block/handshake peer.height above local tip
     p2p_native_transport: bool = False            # v1.3.90+; prod forces True (v1.3.114)
     p2p_native_auto_pong: bool = True             # v1.3.98/99: ping reply + pong consume on read path
     p2p_native_read_batch: int = 8                # v1.3.101: read_messages max_n (1..64)

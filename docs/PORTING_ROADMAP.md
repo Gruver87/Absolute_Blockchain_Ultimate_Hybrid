@@ -771,6 +771,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Fantasy announces refused before sync/import steering
 - Remaining: tip proof / fork-choice / libp2p (not claimed)
 
+### Priority 90 — Local state_root consistency + tip ownership completion ✅ (v1.3.135)
+
+- [x] Known-header `expected_state_root` / historical `expected_head` on state_root waiters
+- [x] Handshake height-ahead + status capped ⇒ refuse fantasy `peer.head`
+- [x] Shared `_cap_claimed_peer_height`
+- Remaining: merkle tip proof / fork-choice / libp2p / ceremony (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

@@ -2052,8 +2052,23 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_new_block_height_cap (v1.3.134)"
             )
+        # v1.3.135 — local state_root consistency + handshake/status tip ownership
+        if "_state_root_request_ctx" not in p2p_py:
+            errors.append("p2p_node must expose _state_root_request_ctx (v1.3.135)")
+        if "bad_state_root_response_local_root" not in p2p_py:
+            errors.append(
+                "p2p_node must strike bad_state_root_response_local_root (v1.3.135)"
+            )
+        if "native_handshake_height_cap" not in p2p_py:
+            errors.append("p2p_node must advertise native_handshake_height_cap (v1.3.135)")
+        if "abs_p2p_state_root_local_rejects_total" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_state_root_local_rejects_total (v1.3.135)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..134 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..135 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

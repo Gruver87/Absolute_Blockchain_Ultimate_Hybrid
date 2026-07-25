@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.134 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.135 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -95,6 +95,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13132_p2p_bootstrap_resilient.py",
     "tests/unit/test_v13133_p2p_bootstrap_pins.py",
     "tests/unit/test_v13134_p2p_new_block_height_cap.py",
+    "tests/unit/test_v13135_p2p_tip_ownership_and_local_root.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1569,6 +1570,30 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_new_block_height_cap_total",
         ],
     ),
+    (
+        "1.3.135",
+        "RELEASE_NOTES_v1.3.135.md",
+        ["1.3.135-industrial", "local"],
+    ),
+    (
+        "1.3.135",
+        "network/p2p_node.py",
+        [
+            "_state_root_request_ctx",
+            "bad_state_root_response_local_root",
+            "native_handshake_height_cap",
+            "_cap_claimed_peer_height",
+        ],
+    ),
+    (
+        "1.3.135",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_handshake_height_cap",
+            "abs_p2p_state_root_local_rejects_total",
+            "abs_p2p_native_status_capped_head_refuse",
+        ],
+    ),
 ]
 
 
@@ -1596,8 +1621,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.134"):
-            errors.append(f"node_version expected 1.3.134-*, got {ver}")
+        if not ver.startswith("1.3.135"):
+            errors.append(f"node_version expected 1.3.135-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

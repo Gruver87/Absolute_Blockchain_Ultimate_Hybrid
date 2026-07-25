@@ -1210,6 +1210,8 @@ class P2PNode:
         self._unsolicited_mempool_rejects_total: int = 0
         self._status_height_cap_total: int = 0
         self._new_block_height_cap_total: int = 0
+        self._handshake_height_cap_total: int = 0
+        self._state_root_local_rejects_total: int = 0
         self._bootstrap_redial_total: int = 0
         self._bootstrap_pin_rejects_total: int = 0
         self._handshake_rejects: int = 0
@@ -1448,7 +1450,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.134)"
+                    f"({label} v1.3.135)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -1998,8 +2000,17 @@ class P2PNode:
 
         peer.peer_id = claimed_id
         peer.chain_id = hs.get("chain_id", 0)
-        peer.height = hs.get("height", 0)
-        peer.head = hs.get("head_hash") or peer.head
+        # v1.3.135: soft handshake height-ahead ownership (same window as status/new_block).
+        hs_h = int(hs.get("height", 0) or 0)
+        hs_head = str(hs.get("head_hash") or "").strip()
+        owned_h, capped = self._cap_claimed_peer_height(hs_h)
+        if capped:
+            self._handshake_height_cap_total = int(
+                self._handshake_height_cap_total or 0
+            ) + 1
+            hs_head = ""  # do not install fantasy head with capped height
+        peer.height = owned_h
+        peer.head = hs_head or peer.head
         peer.listen_port = int(hs.get("p2p_port", 0) or peer.port or 0)
         if peer.host and peer.listen_port:
             self._remember_addr(f"{peer.host}:{peer.listen_port}")
@@ -2470,6 +2481,21 @@ class P2PNode:
                         self._strike_peer_sync(peer, str(reason))
                         fut.set_result(None)
                         return
+                    # v1.3.135: when we know the local header, peer root must match.
+                    expect_root = str(
+                        request_ctx.get("expected_state_root") or ""
+                    ).strip()
+                    if expect_root and isinstance(data, dict):
+                        got_root = str(data.get("state_root") or "").strip()
+                        if got_root and got_root.lower() != expect_root.lower():
+                            self._state_root_local_rejects_total = int(
+                                self._state_root_local_rejects_total or 0
+                            ) + 1
+                            self._strike_peer_sync(
+                                peer, "bad_state_root_response_local_root"
+                            )
+                            fut.set_result(None)
+                            return
                 if msg_type == MSG_MEMPOOL:
                     # v1.3.131: only fulfill when this waiter's ctx is mempool pull.
                     if (
@@ -2589,22 +2615,20 @@ class P2PNode:
                 incoming_h = int(status.get("height", 0) or 0)
                 if incoming_h:
                     # v1.3.131: cap fantasy height inflation above local tip.
-                    local_h = int(self.blockchain.get_height() or 0)
-                    max_ahead = int(
-                        getattr(self.config, "p2p_max_peer_height_ahead", 100_000)
-                        or 100_000
-                    )
-                    capped = incoming_h
-                    if max_ahead > 0:
-                        capped = min(incoming_h, local_h + max_ahead)
-                        if incoming_h > capped:
-                            self._status_height_cap_total = int(
-                                self._status_height_cap_total or 0
-                            ) + 1
-                    peer.height = max(int(peer.height or 0), capped)
-                incoming_head = status.get("head_hash") or ""
-                if incoming_head:
-                    peer.head = str(incoming_head)
+                    capped_h, was_capped = self._cap_claimed_peer_height(incoming_h)
+                    if was_capped:
+                        self._status_height_cap_total = int(
+                            self._status_height_cap_total or 0
+                        ) + 1
+                    peer.height = max(int(peer.height or 0), capped_h)
+                    incoming_head = status.get("head_hash") or ""
+                    # v1.3.135: capped height ⇒ refuse fantasy head install.
+                    if incoming_head and not was_capped:
+                        peer.head = str(incoming_head)
+                else:
+                    incoming_head = status.get("head_hash") or ""
+                    if incoming_head:
+                        peer.head = str(incoming_head)
                 our_h = int(self.blockchain.get_height() or 0)
                 if incoming_h and incoming_h != our_h:
                     await peer.send(MSG_STATUS, {
@@ -2773,17 +2797,14 @@ class P2PNode:
 
         block_h = int(announce.get("height", 0) or 0)
         block_hash = announce.get("hash", "")
-        local_h = int(self.blockchain.get_height() or 0)
-        max_ahead = int(
-            getattr(self.config, "p2p_max_peer_height_ahead", 100_000) or 100_000
-        )
-        # v1.3.134: soft ownership gate — fantasy gossip must not inflate peer tip
-        # or schedule unbounded catch-up (same window as status height cap).
-        if max_ahead > 0 and block_h > local_h + max_ahead:
+        owned_h, was_capped = self._cap_claimed_peer_height(block_h)
+        # v1.3.134/135: soft ownership gate — fantasy gossip must not inflate peer tip
+        # or schedule unbounded catch-up (same window as status/handshake).
+        if was_capped:
             self._new_block_height_cap_total = int(
                 self._new_block_height_cap_total or 0
             ) + 1
-            peer.height = max(int(peer.height or 0), local_h + max_ahead)
+            peer.height = max(int(peer.height or 0), owned_h)
             return
 
         peer.height = max(int(peer.height or 0), block_h)
@@ -3537,6 +3558,45 @@ class P2PNode:
         except Exception as exc:
             return {"ok": False, "error": str(exc), "after": self.peer_count()}
 
+    def _cap_claimed_peer_height(self, claimed_h: int) -> tuple:
+        """Return (owned_height, was_capped) using p2p_max_peer_height_ahead.
+
+        Soft scheduling bound only — not tip proof / fork-choice.
+        """
+        try:
+            claimed = int(claimed_h or 0)
+        except (TypeError, ValueError):
+            return 0, False
+        if claimed <= 0:
+            return 0, False
+        local_h = int(self.blockchain.get_height() or 0)
+        max_ahead = int(
+            getattr(self.config, "p2p_max_peer_height_ahead", 100_000) or 100_000
+        )
+        if max_ahead <= 0:
+            return claimed, False
+        ceiling = local_h + max_ahead
+        if claimed > ceiling:
+            return ceiling, True
+        return claimed, False
+
+    def _state_root_request_ctx(self, height: int) -> Dict:
+        """v1.3.135: bind expected head/root from local tip or known historical header."""
+        tip = int(self.blockchain.get_height() or 0)
+        h = tip if int(height) <= 0 else int(height)
+        ctx: Dict = {"kind": "state_root", "height": h, "expected_head": "", "expected_state_root": ""}
+        if h == tip:
+            ctx["expected_head"] = str(self.head() or "")
+            ctx["expected_state_root"] = str(self.blockchain.get_state_root() or "")
+            return ctx
+        if h > tip:
+            return ctx
+        blk = self.blockchain.get_block(h)
+        if isinstance(blk, dict):
+            ctx["expected_head"] = str(blk.get("hash") or blk.get("block_hash") or "")
+            ctx["expected_state_root"] = str(blk.get("state_root") or "")
+        return ctx
+
     def _state_root_response_for_height(self, req_h: int) -> Optional[Dict]:
         """v1.3.129: build honest state_root_response for a requested height.
 
@@ -3574,11 +3634,7 @@ class P2PNode:
             (MSG_STATE_ROOT_RESPONSE,),
             timeout=4,
             presend=lambda: peer.send(MSG_STATE_ROOT_REQUEST, {"height": h}),
-            request_ctx={
-                "kind": "state_root",
-                "height": int(h),
-                "expected_head": str(self.head() or ""),
-            },
+            request_ctx=self._state_root_request_ctx(int(h)),
         )
         if not msg or msg.get("type") != MSG_STATE_ROOT_RESPONSE:
             return None
@@ -4444,8 +4500,11 @@ class P2PNode:
             "native_state_root_response_request_gate": True,
             "native_state_root_outbound_honesty": True,
             "native_state_root_response_head_gate": True,
+            "native_state_root_local_consistency": True,
             "native_mempool_solicit_only": True,
             "native_new_block_height_cap": True,
+            "native_handshake_height_cap": True,
+            "native_status_capped_head_refuse": True,
             "native_bootstrap_resilient": True,
             "native_bootstrap_pin_gate": True,
             "native_discovery_dialability_gate": True,
@@ -4495,6 +4554,12 @@ class P2PNode:
             ),
             "new_block_height_cap_total": int(
                 getattr(self, "_new_block_height_cap_total", 0) or 0
+            ),
+            "handshake_height_cap_total": int(
+                getattr(self, "_handshake_height_cap_total", 0) or 0
+            ),
+            "state_root_local_rejects_total": int(
+                getattr(self, "_state_root_local_rejects_total", 0) or 0
             ),
             "bootstrap_redial_total": int(
                 getattr(self, "_bootstrap_redial_total", 0) or 0
