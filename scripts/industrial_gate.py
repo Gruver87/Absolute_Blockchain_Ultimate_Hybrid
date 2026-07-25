@@ -2140,8 +2140,22 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_catch_up_require_head (v1.3.139)"
             )
+        # v1.3.140 — SyncEngine never invents peer.head from local blocks
+        sync_py = (ROOT / "sync" / "sync_engine.py").read_text(encoding="utf-8")
+        if "never invent peer.head" not in sync_py:
+            errors.append("sync_engine must refuse inventing peer.head (v1.3.140)")
+        if "get_block(peer.height)" in sync_py:
+            errors.append(
+                "sync_engine must not invent head via get_block(peer.height) (v1.3.140)"
+            )
+        if "abs_p2p_native_sync_heads_no_invent" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_sync_heads_no_invent (v1.3.140)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..139 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..140 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

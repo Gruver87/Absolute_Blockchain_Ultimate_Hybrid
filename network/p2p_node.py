@@ -1455,7 +1455,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.139)"
+                    f"({label} v1.3.140)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -4687,6 +4687,7 @@ class P2PNode:
             "native_catch_up_require_head": bool(
                 getattr(self.config, "p2p_catch_up_require_head", True)
             ),
+            "native_sync_heads_no_invent": True,
             "native_bootstrap_resilient": True,
             "native_bootstrap_pin_gate": True,
             "native_discovery_dialability_gate": True,
@@ -4757,6 +4758,10 @@ class P2PNode:
             ),
             "catch_up_no_head_refuse_total": int(
                 getattr(self, "_catch_up_no_head_refuse_total", 0) or 0
+            ),
+            "heads_skipped_no_head": int(
+                getattr(getattr(self, "sync_engine", None), "_heads_skipped_no_head", 0)
+                or 0
             ),
             "bootstrap_redial_total": int(
                 getattr(self, "_bootstrap_redial_total", 0) or 0

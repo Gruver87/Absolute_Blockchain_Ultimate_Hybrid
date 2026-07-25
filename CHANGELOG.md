@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.140] — 2026-07-26
+
+### Sync — never invent peer.head from local blocks
+
+- `request_heads` skips peers with empty head (no local tip invent)
+- Aligns with catch-up-require-head; check_all evidence tag refreshed
+- Honesty: not tip proof / fork-choice / libp2p / mainnet
+
 ## [1.3.139] — 2026-07-26
 
 ### P2P — catch-up requires peer.head

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.139 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.140 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -100,6 +100,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13137_p2p_attestation_local_and_block_solicit.py",
     "tests/unit/test_v13138_state_root_solicit_and_ceremony_status.py",
     "tests/unit/test_v13139_p2p_catch_up_require_head.py",
+    "tests/unit/test_v13140_sync_heads_no_invent.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1707,6 +1708,28 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_catch_up_no_head_refuse_total",
         ],
     ),
+    (
+        "1.3.140",
+        "RELEASE_NOTES_v1.3.140.md",
+        ["1.3.140-industrial", "invent"],
+    ),
+    (
+        "1.3.140",
+        "sync/sync_engine.py",
+        [
+            "never invent peer.head",
+            "heads_skipped_no_head",
+            "native_sync_heads_no_invent",
+        ],
+    ),
+    (
+        "1.3.140",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_sync_heads_no_invent",
+            "abs_p2p_heads_skipped_no_head",
+        ],
+    ),
 ]
 
 
@@ -1734,8 +1757,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.139"):
-            errors.append(f"node_version expected 1.3.139-*, got {ver}")
+        if not ver.startswith("1.3.140"):
+            errors.append(f"node_version expected 1.3.140-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

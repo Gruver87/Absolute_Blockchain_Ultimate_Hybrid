@@ -26,6 +26,7 @@ class SyncEngine:
         self._sync_fail = 0
         self._last_sync_error = ""
         self._last_sync_ok_at = 0
+        self._heads_skipped_no_head = 0
 
     def add_peer(self, peer):
         """Добавляет пира для синхронизации"""
@@ -54,8 +55,14 @@ class SyncEngine:
         return list(self.peers)
 
     def request_heads(self) -> List[Dict]:
-        """Collect head hashes from connected P2P peers."""
+        """Collect head hashes from connected P2P peers.
+
+        v1.3.140: never invent peer.head from the local block at peer.height —
+        empty head means the peer is not eligible for head selection (aligns
+        with p2p_catch_up_require_head). Soft honesty only — not tip proof.
+        """
         heads = []
+        skipped_no_head = 0
         for peer in self._collect_p2p_peers():
             head_raw = getattr(peer, "head", None)
             head_hash = ""
@@ -63,18 +70,17 @@ class SyncEngine:
                 head_hash = head_raw.get("hash", "")
             elif isinstance(head_raw, str):
                 head_hash = head_raw
-            if not head_hash and getattr(peer, "height", 0):
-                p2p = getattr(self.node, "p2p", None)
-                if p2p and hasattr(self.node, "blockchain"):
-                    blk = self.node.blockchain.get_block(peer.height)
-                    if blk:
-                        head_hash = blk.get("hash")
-            if head_hash:
-                heads.append({
-                    "hash": head_hash,
-                    "height": int(getattr(peer, "height", 0) or 0),
-                    "peer_id": getattr(peer, "peer_id", ""),
-                })
+            head_hash = str(head_hash or "").strip()
+            if not head_hash:
+                if int(getattr(peer, "height", 0) or 0) > 0:
+                    skipped_no_head += 1
+                continue
+            heads.append({
+                "hash": head_hash,
+                "height": int(getattr(peer, "height", 0) or 0),
+                "peer_id": getattr(peer, "peer_id", ""),
+            })
+        self._heads_skipped_no_head = int(skipped_no_head)
         return heads
 
     def select_best_head(self, heads: List[Dict]) -> Optional[str]:
@@ -461,6 +467,10 @@ class SyncEngine:
             "sync_fail": int(self._sync_fail),
             "last_sync_error": self._last_sync_error or "",
             "last_sync_ok_at": int(self._last_sync_ok_at or 0),
+            "heads_skipped_no_head": int(
+                getattr(self, "_heads_skipped_no_head", 0) or 0
+            ),
+            "native_sync_heads_no_invent": True,
         }
 
     def reset(self):

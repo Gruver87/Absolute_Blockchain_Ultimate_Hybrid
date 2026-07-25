@@ -853,6 +853,18 @@ class MetricsCollector:
                     f"abs_p2p_catch_up_no_head_refuse_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('catch_up_no_head_refuse_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_sync_heads_no_invent Whether SyncEngine refuses inventing peer.head from local blocks (0/1)",
+                "# TYPE abs_p2p_native_sync_heads_no_invent gauge",
+                (
+                    f"abs_p2p_native_sync_heads_no_invent{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_sync_heads_no_invent') else 0}"
+                ),
+                "# HELP abs_p2p_heads_skipped_no_head Peers skipped in request_heads due to empty peer.head",
+                "# TYPE abs_p2p_heads_skipped_no_head gauge",
+                (
+                    f"abs_p2p_heads_skipped_no_head{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('heads_skipped_no_head', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_bootstrap_resilient Whether missing-bootstrap redial is active (0/1)",
                 "# TYPE abs_p2p_native_bootstrap_resilient gauge",
                 (

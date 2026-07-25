@@ -802,6 +802,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `p2p_catch_up_require_head` (default true)
 - Remaining: tip existence proof / fork-choice / libp2p / ceremony (not claimed)
 
+### Priority 95 — SyncEngine never invents peer.head ✅ (v1.3.140)
+
+- [x] `request_heads` skips empty heads (no local `get_block(peer.height)` invent)
+- [x] Telemetry `heads_skipped_no_head` + check_all evidence tag refresh
+- Remaining: tip proof / fork-choice / libp2p / ceremony (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
