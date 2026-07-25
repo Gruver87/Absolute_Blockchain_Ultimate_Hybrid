@@ -1313,12 +1313,19 @@ class RocksChainStore:
         net_amount: float,
         tx_hash: str,
     ) -> None:
-        """Debit sender, burn fee share, and persist pending lock in one Rocks batch."""
+        """Debit sender (fail on underflow), burn fee share, persist lock — one Rocks batch."""
+        from runtime.amount import dual_write_balance, from_satoshi_float, try_debit_satoshi
+
         with self.atomic():
-            self.balance_delta(from_addr, -float(amount))
+            row = self._load_account(from_addr)
+            cur = int(row.get("balance_satoshi", 0) or 0)
+            new_sat = try_debit_satoshi(cur, float(amount))
+            dual_write_balance(row, from_satoshi_float(new_sat))
+            row["balance_satoshi"] = new_sat
+            self._save_account_row(row)
             if burn_amount and burn_address:
                 self.balance_delta(burn_address, float(burn_amount))
-            row = {
+            lock_row = {
                 "tx_hash": tx_hash,
                 "from_addr": from_addr,
                 "to_chain": to_chain,
@@ -1327,7 +1334,7 @@ class RocksChainStore:
                 "status": "pending",
                 "created_at": int(time.time()),
             }
-            self._raw_put(kc.key_bridge_lock(tx_hash), json.dumps(row).encode("utf-8"))
+            self._raw_put(kc.key_bridge_lock(tx_hash), json.dumps(lock_row).encode("utf-8"))
 
     def refund_pending_bridge_lock(self, tx_hash: str) -> Dict:
         """Credit back pending lock amount and mark refunded atomically."""

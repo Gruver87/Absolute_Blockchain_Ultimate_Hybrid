@@ -1757,9 +1757,32 @@ class Database:
         net_amount: float,
         tx_hash: str,
     ) -> None:
-        """Debit sender, burn fee share, and persist pending lock in one transaction."""
+        """Debit sender (fail on underflow), burn fee share, persist lock atomically."""
+        from runtime.amount import account_satoshi, dual_write_balance, from_satoshi_float, try_debit_satoshi
+
         with self.atomic():
-            self.balance_delta(from_addr, -float(amount))
+            row = self.get_account(from_addr) or {
+                "address": from_addr,
+                "balance": 0.0,
+                "balance_satoshi": 0,
+                "nonce": 0,
+            }
+            cur = int(account_satoshi(row))
+            new_sat = try_debit_satoshi(cur, float(amount))
+            dual_write_balance(row, from_satoshi_float(new_sat))
+            row["balance_satoshi"] = new_sat
+            self.save_account(
+                address=from_addr,
+                balance=float(row["balance"]),
+                nonce=int(row.get("nonce") or 0),
+                code=row.get("code"),
+                storage=row.get("storage"),
+            )
+            # Re-write satoshi after save_account float path
+            self.conn.execute(
+                "UPDATE accounts SET balance=?, balance_satoshi=? WHERE address=?",
+                (float(row["balance"]), int(new_sat), from_addr),
+            )
             if burn_amount and burn_address:
                 self.balance_delta(burn_address, float(burn_amount))
             self.conn.execute(

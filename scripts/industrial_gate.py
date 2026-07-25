@@ -1283,8 +1283,30 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         metrics_py2 = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_chain_apply_expired_total" not in metrics_py2:
             errors.append("metrics must emit apply expired counter (v1.3.66)")
+        # v1.3.67 — EVM journal + arena
+        adapter_py = (ROOT / "execution" / "evm_adapter.py").read_text(encoding="utf-8")
+        if "begin_writeback_journal" not in adapter_py or "commit_writeback_journal" not in adapter_py:
+            errors.append("evm_adapter must expose writeback journal (v1.3.67)")
+        pure_rs = (
+            ROOT / "native" / "abs_native" / "src" / "evm_pure_runner.rs"
+        ).read_text(encoding="utf-8")
+        if "Rust-owned storage arena" not in pure_rs:
+            errors.append("evm_pure_runner must use Rust storage arena (v1.3.67)")
+        # v1.3.68 — bridge debit + semantic event
+        if "def try_debit_satoshi" not in amount_py:
+            errors.append("amount.py must define try_debit_satoshi (v1.3.68)")
+        if "try_debit_satoshi" not in rocks_py2:
+            errors.append("rocks_store debit must use try_debit_satoshi (v1.3.68)")
+        bridge_rs = (ROOT / "bridge" / "rust_bridge" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        if "receipt_has_semantic_lock_log" not in bridge_rs:
+            errors.append("rust_bridge must support semantic lock-log bind (v1.3.68)")
+        cfg_py = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
+        if "bridge_require_l1_event=true" not in cfg_py and "BRIDGE_REQUIRE_L1_EVENT=true" not in cfg_py:
+            errors.append("prod config must require bridge_require_l1_event (v1.3.68)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..66 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..68 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

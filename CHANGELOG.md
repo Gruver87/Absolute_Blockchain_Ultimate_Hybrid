@@ -6,6 +6,22 @@
 
 ---
 
+## [1.3.68] — 2026-07-25
+
+### Bridge — semantic event bind + fail-closed debit
+
+- `try_debit_satoshi` — underflow raises (no silent clamp)
+- Rocks/SQLite `debit_and_create_bridge_lock` uses fail-closed debit
+- Rust bridge: optional topic0/recipient/amount semantic lock-log bind
+- Prod bridge requires `bridge_require_l1_event=true`
+
+## [1.3.67] — 2026-07-25
+
+### EVM — tx writeback journal + Rust storage arena
+
+- Nested writeback ops buffered until top-level call/deploy success
+- SLOAD/SSTORE use Rust-owned HashMap arena, flushed to Python dict on exit
+
 ## [1.3.66] — 2026-07-25
 
 ### Load — apply backpressure + tip O(1) + P2P coalesce

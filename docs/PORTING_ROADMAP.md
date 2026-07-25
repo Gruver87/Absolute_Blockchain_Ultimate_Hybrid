@@ -345,7 +345,18 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `RocksEngine.get_account_rows` — batch account blob load for touched addresses
 - [x] `RocksChainStore.load_writeback_accounts` / Hybrid delegate
 - [x] Adapter preloads via Rocks before `evm_apply_writeback_ops`
-- Remaining: deeper in-runner Rocks ownership during opcode execution (not claimed)
+- Remaining: see Priority 33
+
+### Priority 33 — Tx-scoped writeback journal ✅ (v1.3.67)
+
+- [x] Buffer nested CALL/CREATE writeback ops until top-level success
+- [x] Discard journal on revert/exception
+- Remaining: see Priority 34
+
+### Priority 34 — Rust frame storage arena ✅ (v1.3.67)
+
+- [x] SLOAD/SSTORE against Rust HashMap arena; flush to Python dict on exit
+- Remaining: recursive native frames / block-scoped session (not claimed)
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
 
@@ -362,7 +373,9 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.61: native in-memory writeback apply
 - [x] v1.3.62: store-lock Rocks writeback commit
 - [x] v1.3.63: unified writeback bundle (accounts + logs)
-- [x] v1.3.64: Rocks batch writeback account preload
+- [x] v1.3.66: load backpressure + tip O(1)
+- [x] v1.3.67: tx writeback journal + Rust storage arena
+- [x] v1.3.68: bridge semantic event bind + fail-closed debit
 
 ## Process per module
 

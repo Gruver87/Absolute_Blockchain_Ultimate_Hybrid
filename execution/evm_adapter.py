@@ -60,6 +60,27 @@ class EVMAdapter:
         self.config = config
         self._storage_decode_failures = 0
         self._calldata_decode_failures = 0
+        # v1.3.67: tx-scoped nested writeback journal (commit once on top-level success)
+        self._writeback_journal: List[Dict[str, Any]] = []
+        self._writeback_journaling = False
+
+    def begin_writeback_journal(self) -> None:
+        """Start buffering nested writeback ops (Priority 33 / v1.3.67)."""
+        self._writeback_journal = []
+        self._writeback_journaling = True
+
+    def discard_writeback_journal(self) -> None:
+        self._writeback_journal = []
+        self._writeback_journaling = False
+
+    def commit_writeback_journal(self) -> int:
+        """Flush buffered nested ops once, then clear journal."""
+        ops = list(self._writeback_journal)
+        self._writeback_journal = []
+        self._writeback_journaling = False
+        if ops:
+            self._apply_nested_writeback_ops_now(ops)
+        return len(ops)
 
     def _code_bytes(self, addr: str) -> bytes:
         view = self._account_view(addr)
@@ -401,7 +422,16 @@ class EVMAdapter:
         return None
 
     def _apply_nested_writeback_ops(self, ops: List[Dict[str, Any]]) -> None:
-        """Apply writeback ops: native apply + Rocks preload/bundle (v1.3.64)."""
+        """Buffer into tx journal when active; otherwise apply immediately (v1.3.67)."""
+        if not ops:
+            return
+        if self._writeback_journaling:
+            self._writeback_journal.extend(list(ops))
+            return
+        self._apply_nested_writeback_ops_now(ops)
+
+    def _apply_nested_writeback_ops_now(self, ops: List[Dict[str, Any]]) -> None:
+        """Apply writeback ops: native apply + Rocks preload/bundle (v1.3.64+)."""
         if not ops:
             return
         if hasattr(native, "evm_apply_writeback_ops"):
@@ -683,6 +713,7 @@ class EVMAdapter:
             return EVMResult(success=False, error=addr_err)
 
         # Выполняем конструктор
+        self.begin_writeback_journal()
         try:
             result = self._run_evm(
                 bytecode, {}, gas_limit,
@@ -691,9 +722,11 @@ class EVMAdapter:
                 value=int(value * 10**18) if value else 0,
             )
         except Exception as e:
+            self.discard_writeback_journal()
             return EVMResult(success=False, error=str(e))
 
         if result.get("reverted"):
+            self.discard_writeback_journal()
             return EVMResult(success=False, error="constructor_reverted",
                              gas_used=result["gas_used"])
 
@@ -706,6 +739,7 @@ class EVMAdapter:
             storage=json.dumps(result.get("storage", {})),
         )
         self._persist_logs(contract_addr, result.get("logs", []))
+        self.commit_writeback_journal()
 
         # Стоимость деплоя списывается с deployer
         if value > 0:
@@ -749,6 +783,7 @@ class EVMAdapter:
         except ValueError:
             return EVMResult(success=False, error="invalid_calldata")
 
+        self.begin_writeback_journal()
         try:
             result = self._run_evm(
                 bytecode, storage, gas_limit,
@@ -758,16 +793,19 @@ class EVMAdapter:
                 value=int(value * 10**18) if value else 0,
             )
         except Exception as e:
+            self.discard_writeback_journal()
             return EVMResult(success=False, error=str(e))
 
         if result.get("reverted"):
+            self.discard_writeback_journal()
             return EVMResult(success=False, error="execution_reverted",
                              gas_used=result["gas_used"])
 
-        # Сохраняем изменённое storage
+        # Сохраняем изменённое storage + flush nested journal once
         new_storage = {str(k): v for k, v in result.get("storage", {}).items()}
         self.db.update_account_storage(contract_addr, new_storage)
         self._persist_logs(contract_addr, result.get("logs", []))
+        self.commit_writeback_journal()
 
         # Перевод value от caller к контракту
         if value > 0:

@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.66-industrial"
+    node_version: str = "1.3.68-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -692,6 +692,10 @@ class Config:
                 errors.append("prod bridge requires at least one L1 RPC URL (ETH_RPC_URL/BSC_RPC_URL/POLYGON_RPC_URL)")
             if not self.bridge_require_l1_proof:
                 errors.append("prod bridge requires BRIDGE_REQUIRE_L1_PROOF=true")
+            if not self.bridge_require_l1_event:
+                errors.append(
+                    "prod bridge requires BRIDGE_REQUIRE_L1_EVENT=true (semantic L1 bind, v1.3.68)"
+                )
             if os.environ.get("BRIDGE_REQUIRE_L1_PROOF", "").strip().lower() in (
                 "0",
                 "false",

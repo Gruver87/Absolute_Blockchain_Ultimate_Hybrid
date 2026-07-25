@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.65` — L1 fail-closed hardening |
-| **Notes** | [RELEASE_NOTES_v1.3.65.md](../RELEASE_NOTES_v1.3.65.md) |
-| **Prior** | [v1.3.64](../RELEASE_NOTES_v1.3.64.md) writeback preload; [v1.3.63](../RELEASE_NOTES_v1.3.63.md) bundle |
+| **Tag** | `v1.3.68` — bridge semantic bind + fail-closed debit |
+| **Notes** | [RELEASE_NOTES_v1.3.68.md](../RELEASE_NOTES_v1.3.68.md) · [v1.3.67](../RELEASE_NOTES_v1.3.67.md) journal/arena |
+| **Prior** | [v1.3.66](../RELEASE_NOTES_v1.3.66.md) load; [v1.3.65](../RELEASE_NOTES_v1.3.65.md) L1 fail-closed |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

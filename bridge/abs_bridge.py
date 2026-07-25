@@ -175,10 +175,17 @@ class RustBridge:
         if net_amount <= 0:
             return {"error": "Amount too small after fee"}
 
-        # Проверяем баланс отправителя
+        # Проверяем баланс отправителя (TOCTOU still possible until debit; debit fails closed)
         balance = self.db.get_balance(from_addr)
         if balance < amount:
             return {"error": "Insufficient balance"}
+
+        # v1.3.68: prod + bridge_enabled requires semantic L1 event mode
+        if self._is_prod and bool(getattr(self.config, "bridge_enabled", False)):
+            if not bool(getattr(self.config, "bridge_require_l1_event", False)):
+                return {
+                    "error": "prod bridge requires bridge_require_l1_event=true (semantic L1 bind)"
+                }
 
         # Выбираем режим
         if self._mode == "rust":

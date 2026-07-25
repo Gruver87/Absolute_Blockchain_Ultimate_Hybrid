@@ -118,6 +118,91 @@ fn receipt_status_ok(receipt: &serde_json::Value) -> bool {
     }
 }
 
+fn expected_lock_topic0() -> Option<String> {
+    env::var("BRIDGE_L1_LOCK_TOPIC0")
+        .ok()
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| s.starts_with("0x") && s.len() >= 66)
+}
+
+fn normalize_addr_topic(addr: &str) -> Option<String> {
+    let mut h = addr.trim().to_lowercase();
+    if let Some(rest) = h.strip_prefix("0x") {
+        h = rest.to_string();
+    }
+    if h.len() > 40 {
+        h = h[h.len() - 40..].to_string();
+    }
+    if h.len() != 40 {
+        return None;
+    }
+    Some(format!("0x{:0>64}", h))
+}
+
+fn amount_to_uint256_topic(amount: f64) -> Option<String> {
+    // ABS amounts are decimal; bridge passes float ABS. Encode integer satoshi-ish * 1e18 wei style.
+    if !amount.is_finite() || amount < 0.0 {
+        return None;
+    }
+    let wei = (amount * 1e18).round() as u128;
+    Some(format!("0x{:064x}", wei))
+}
+
+fn receipt_has_semantic_lock_log(
+    receipt: &serde_json::Value,
+    expected_contract: &str,
+    topic0: &str,
+    recipient_topic: &str,
+    amount_data: &str,
+) -> bool {
+    let logs = match receipt.get("logs") {
+        Some(serde_json::Value::Array(arr)) => arr,
+        _ => return false,
+    };
+    let want_addr = expected_contract.to_lowercase();
+    let want_t0 = topic0.to_lowercase();
+    let want_recip = recipient_topic.to_lowercase();
+    let want_amt = amount_data.to_lowercase();
+    logs.iter().any(|log| {
+        let addr_ok = log
+            .get("address")
+            .and_then(|a| a.as_str())
+            .map(|a| a.to_lowercase() == want_addr)
+            .unwrap_or(false);
+        if !addr_ok {
+            return false;
+        }
+        let topics = match log.get("topics") {
+            Some(serde_json::Value::Array(t)) => t,
+            _ => return false,
+        };
+        let t0 = topics
+            .first()
+            .and_then(|x| x.as_str())
+            .map(|s| s.to_lowercase())
+            .unwrap_or_default();
+        if t0 != want_t0 {
+            return false;
+        }
+        // Prefer topics[2] as recipient when present; else topics[1].
+        let recip = topics
+            .get(2)
+            .or_else(|| topics.get(1))
+            .and_then(|x| x.as_str())
+            .map(|s| s.to_lowercase())
+            .unwrap_or_default();
+        if recip != want_recip {
+            return false;
+        }
+        let data = log
+            .get("data")
+            .and_then(|d| d.as_str())
+            .map(|s| s.to_lowercase())
+            .unwrap_or_default();
+        data.contains(want_amt.trim_start_matches("0x")) || data == want_amt
+    })
+}
+
 fn receipt_has_contract_log(receipt: &serde_json::Value, expected: &str) -> bool {
     let logs = match receipt.get("logs") {
         Some(serde_json::Value::Array(arr)) => arr,
@@ -154,7 +239,11 @@ fn rpc_call(rpc_url: &str, method: &str, params: serde_json::Value) -> Option<se
 }
 
 /// Returns (confirmations, l1_event_bound).
-fn verify_l1_tx(rpc_url: &str, tx_hash: &str) -> Result<(u32, bool), String> {
+fn verify_l1_tx(
+    rpc_url: &str,
+    tx_hash: &str,
+    args: &serde_json::Value,
+) -> Result<(u32, bool), String> {
     let receipt = rpc_call(
         rpc_url,
         "eth_getTransactionReceipt",
@@ -187,11 +276,29 @@ fn verify_l1_tx(rpc_url: &str, tx_hash: &str) -> Result<(u32, bool), String> {
         let contract = expected_lock_contract().ok_or_else(|| {
             "BRIDGE_L1_LOCK_CONTRACT required when BRIDGE_REQUIRE_L1_EVENT=1".to_string()
         })?;
-        if !receipt_has_contract_log(&receipt, &contract) {
-            return Err("L1 receipt has no log from expected lock contract".into());
+        // v1.3.68: when topic0 + recipient/amount are available, require semantic bind.
+        if let (Some(topic0), Some(to_addr), Some(amount)) = (
+            expected_lock_topic0(),
+            args.get("to_addr").and_then(|v| v.as_str()),
+            args.get("amount").and_then(|v| v.as_f64()),
+        ) {
+            let recip = normalize_addr_topic(to_addr)
+                .ok_or_else(|| "invalid to_addr for semantic L1 event bind".to_string())?;
+            let amt = amount_to_uint256_topic(amount)
+                .ok_or_else(|| "invalid amount for semantic L1 event bind".to_string())?;
+            if !receipt_has_semantic_lock_log(&receipt, &contract, &topic0, &recip, &amt) {
+                return Err(
+                    "L1 receipt missing semantic lock event (topic0/recipient/amount)".into(),
+                );
+            }
+            event_bound = true;
+        } else {
+            if !receipt_has_contract_log(&receipt, &contract) {
+                return Err("L1 receipt has no log from expected lock contract".into());
+            }
+            // Address-level binding when topic0 not configured.
+            event_bound = true;
         }
-        // Address-level binding only — not ABI amount/recipient decode.
-        event_bound = true;
     }
     Ok((conf, event_bound))
 }
@@ -240,7 +347,7 @@ fn verify_l1_if_present(
         None => return Ok((need, false)),
     };
     let rpc = rpc.ok_or_else(|| format!("no RPC for chain {chain_name}"))?;
-    let (conf, event_bound) = verify_l1_tx(&rpc, &l1_tx)?;
+    let (conf, event_bound) = verify_l1_tx(&rpc, &l1_tx, args)?;
     if conf < need {
         return Err(format!("L1 confirmations {conf} < required {need}"));
     }

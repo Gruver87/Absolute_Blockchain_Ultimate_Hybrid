@@ -219,34 +219,16 @@ fn u256_to_py_int(py: Python<'_>, value: U256) -> PyResult<PyObject> {
         .into())
 }
 
-fn storage_load(storage: Option<&Bound<'_, PyDict>>, key: U256) -> PyResult<U256> {
-    let Some(dict) = storage else {
-        return Err(pyo3::exceptions::PyRuntimeError::new_err(
-            "storage_unavailable",
-        ));
-    };
-    let py = dict.py();
-    let key_obj = u256_to_py_int(py, key)?;
-    match dict.get_item(key_obj)? {
-        Some(value) => py_to_u256(value),
-        None => Ok(U256::zero()),
-    }
+fn storage_load(arena: &HashMap<U256, U256>, key: U256) -> U256 {
+    arena.get(&key).copied().unwrap_or_else(U256::zero)
 }
 
-fn storage_store(storage: Option<&Bound<'_, PyDict>>, key: U256, value: U256) -> PyResult<()> {
-    let Some(dict) = storage else {
-        return Err(pyo3::exceptions::PyRuntimeError::new_err(
-            "storage_unavailable",
-        ));
-    };
-    let py = dict.py();
-    let key_obj = u256_to_py_int(py, key)?;
+fn storage_store(arena: &mut HashMap<U256, U256>, key: U256, value: U256) {
     if value.is_zero() {
-        let _ = dict.del_item(key_obj);
+        arena.remove(&key);
     } else {
-        dict.set_item(key_obj, u256_to_py_int(py, value)?)?;
+        arena.insert(key, value);
     }
-    Ok(())
 }
 
 fn snapshot_storage_dict(
@@ -287,9 +269,11 @@ fn restore_storage_dict(
 fn abort_restore_host_storage(
     storage: Option<&Bound<'_, PyDict>>,
     snap: &Option<HashMap<U256, U256>>,
+    arena: &mut HashMap<U256, U256>,
     transient: &mut HashMap<U256, U256>,
 ) -> PyResult<()> {
     if let Some(map) = snap {
+        *arena = map.clone();
         restore_storage_dict(storage, map)?;
     }
     transient.clear();
@@ -1187,8 +1171,10 @@ fn run_pure_segment_inner(
     let mut host_logs: Vec<HostLogEntry> = Vec::new();
     let static_ctx = parse_static_context(host_context)?;
     let mut transient: HashMap<U256, U256> = HashMap::new();
+    // v1.3.67: Rust-owned storage arena for SLOAD/SSTORE (Priority 34)
+    let mut arena: HashMap<U256, U256> = snapshot_storage_dict(storage)?.unwrap_or_default();
     let storage_snap = if host_frame_snapshot {
-        snapshot_storage_dict(storage)?
+        Some(arena.clone())
     } else {
         None
     };
@@ -1212,7 +1198,9 @@ fn run_pure_segment_inner(
             if let Err(reason) = consume_gas(&mut gas_used, gas_limit, cost) {
                 running = false;
                 if host_frame_snapshot {
-                    abort_restore_host_storage(storage, &storage_snap, &mut transient)?;
+                    abort_restore_host_storage(storage, &storage_snap, &mut arena, &mut transient)?;
+                } else {
+                    restore_storage_dict(storage, &arena)?;
                 }
                 let stack = stack_to_pylist(py, &stack)?;
                 let memory_out = PyByteArray::new_bound(py, &memory);
@@ -1573,13 +1561,13 @@ fn run_pure_segment_inner(
                 }
                 0x54 => {
                     let key = stack_pop(&mut stack)?;
-                    stack_push(&mut stack, storage_load(storage, key)?);
+                    stack_push(&mut stack, storage_load(&arena, key));
                     Ok(Some(false))
                 }
                 0x55 => {
                     let key = stack_pop(&mut stack)?;
                     let value = stack_pop(&mut stack)?;
-                    storage_store(storage, key, value)?;
+                    storage_store(&mut arena, key, value);
                     Ok(Some(false))
                 }
                 0x56 => {
@@ -1764,7 +1752,9 @@ fn run_pure_segment_inner(
                 let error_msg = err.to_string();
                 running = false;
                 if host_frame_snapshot {
-                    abort_restore_host_storage(storage, &storage_snap, &mut transient)?;
+                    abort_restore_host_storage(storage, &storage_snap, &mut arena, &mut transient)?;
+                } else {
+                    restore_storage_dict(storage, &arena)?;
                 }
                 let stop = if error_msg.contains("out_of_gas") {
                     "out_of_gas"
@@ -1811,7 +1801,10 @@ fn run_pure_segment_inner(
     };
 
     if host_frame_snapshot && reverted {
-        abort_restore_host_storage(storage, &storage_snap, &mut transient)?;
+        abort_restore_host_storage(storage, &storage_snap, &mut arena, &mut transient)?;
+    } else {
+        // Flush Rust storage arena back to Python dict (v1.3.67).
+        restore_storage_dict(storage, &arena)?;
     }
 
     let host_opcode = if stop_reason == "host" {

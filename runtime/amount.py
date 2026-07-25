@@ -110,7 +110,7 @@ def dual_write_balance(row: MutableMapping[str, Any], balance_abs: NumberLike) -
 
 
 def apply_delta_satoshi(current_sat: int, delta_abs: NumberLike) -> int:
-    """Apply ABS delta to satoshi balance (never negative)."""
+    """Apply ABS delta to satoshi balance (never negative — clamps)."""
     try:
         from crypto import native
 
@@ -127,6 +127,19 @@ def apply_delta_satoshi(current_sat: int, delta_abs: NumberLike) -> int:
     except Exception as exc:
         _native_fallback("amount_apply_delta_satoshi", exc)
     return max(0, int(current_sat) + to_satoshi(delta_abs))
+
+
+def try_debit_satoshi(current_sat: int, debit_abs: NumberLike) -> int:
+    """Debit ABS amount from satoshi; raise on underflow (v1.3.68 — no silent clamp)."""
+    if isinstance(debit_abs, bool):
+        raise TypeError("bool is not a valid amount")
+    debit = to_satoshi(debit_abs)
+    if debit < 0:
+        raise ValueError("debit must be non-negative")
+    cur = int(current_sat)
+    if cur < debit:
+        raise ValueError(f"insufficient_balance: have={cur} need={debit}")
+    return cur - debit
 
 
 def plan_transfer_fees(
