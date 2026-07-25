@@ -63,7 +63,7 @@ def test_needles_v13133():
     ).read_text(encoding="utf-8")
     notes = (ROOT / "RELEASE_NOTES_v1.3.133.md").read_text(encoding="utf-8")
     assert "1.3.133-industrial" in notes
-    assert Config().node_version == "1.3.133-industrial"
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_bootstrap_pin_gate" in metrics
     assert "abs_p2p_bootstrap_pin_rejects_total" in metrics

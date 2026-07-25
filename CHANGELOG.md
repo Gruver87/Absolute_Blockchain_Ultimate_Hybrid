@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.134] — 2026-07-26
+
+### P2P — soft NEW_BLOCK height-ahead ownership gate
+
+- Fantasy `MSG_NEW_BLOCK` cannot inflate peer tip beyond `p2p_max_peer_height_ahead`
+- Over-window announces refused before sync/import steering
+- Honesty: not tip proof / fork-choice / libp2p / mainnet
+
 ## [1.3.133] — 2026-07-26
 
 ### P2P — authenticated bootstrap seed pins

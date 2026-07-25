@@ -1209,6 +1209,7 @@ class P2PNode:
         self._status_height_head_rejects_total: int = 0
         self._unsolicited_mempool_rejects_total: int = 0
         self._status_height_cap_total: int = 0
+        self._new_block_height_cap_total: int = 0
         self._bootstrap_redial_total: int = 0
         self._bootstrap_pin_rejects_total: int = 0
         self._handshake_rejects: int = 0
@@ -1447,7 +1448,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.133)"
+                    f"({label} v1.3.134)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -2772,7 +2773,20 @@ class P2PNode:
 
         block_h = int(announce.get("height", 0) or 0)
         block_hash = announce.get("hash", "")
-        peer.height = max(peer.height, block_h)
+        local_h = int(self.blockchain.get_height() or 0)
+        max_ahead = int(
+            getattr(self.config, "p2p_max_peer_height_ahead", 100_000) or 100_000
+        )
+        # v1.3.134: soft ownership gate — fantasy gossip must not inflate peer tip
+        # or schedule unbounded catch-up (same window as status height cap).
+        if max_ahead > 0 and block_h > local_h + max_ahead:
+            self._new_block_height_cap_total = int(
+                self._new_block_height_cap_total or 0
+            ) + 1
+            peer.height = max(int(peer.height or 0), local_h + max_ahead)
+            return
+
+        peer.height = max(int(peer.height or 0), block_h)
         if block_hash:
             peer.head = block_hash
 
@@ -4431,6 +4445,7 @@ class P2PNode:
             "native_state_root_outbound_honesty": True,
             "native_state_root_response_head_gate": True,
             "native_mempool_solicit_only": True,
+            "native_new_block_height_cap": True,
             "native_bootstrap_resilient": True,
             "native_bootstrap_pin_gate": True,
             "native_discovery_dialability_gate": True,
@@ -4477,6 +4492,9 @@ class P2PNode:
             ),
             "status_height_cap_total": int(
                 getattr(self, "_status_height_cap_total", 0) or 0
+            ),
+            "new_block_height_cap_total": int(
+                getattr(self, "_new_block_height_cap_total", 0) or 0
             ),
             "bootstrap_redial_total": int(
                 getattr(self, "_bootstrap_redial_total", 0) or 0

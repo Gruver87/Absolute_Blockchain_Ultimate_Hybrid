@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.133 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.134 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -94,6 +94,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13131_p2p_mempool_solicit_and_height_cap.py",
     "tests/unit/test_v13132_p2p_bootstrap_resilient.py",
     "tests/unit/test_v13133_p2p_bootstrap_pins.py",
+    "tests/unit/test_v13134_p2p_new_block_height_cap.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1546,6 +1547,28 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_bootstrap_pins_configured",
         ],
     ),
+    (
+        "1.3.134",
+        "RELEASE_NOTES_v1.3.134.md",
+        ["1.3.134-industrial", "new_block"],
+    ),
+    (
+        "1.3.134",
+        "network/p2p_node.py",
+        [
+            "new_block_height_cap_total",
+            "native_new_block_height_cap",
+            "v1.3.134",
+        ],
+    ),
+    (
+        "1.3.134",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_new_block_height_cap",
+            "abs_p2p_new_block_height_cap_total",
+        ],
+    ),
 ]
 
 
@@ -1573,8 +1596,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.133"):
-            errors.append(f"node_version expected 1.3.133-*, got {ver}")
+        if not ver.startswith("1.3.134"):
+            errors.append(f"node_version expected 1.3.134-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

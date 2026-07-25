@@ -751,6 +751,18 @@ class MetricsCollector:
                     f"abs_p2p_status_height_cap_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('status_height_cap_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_new_block_height_cap Whether new_block peer.height ahead gate is active (0/1)",
+                "# TYPE abs_p2p_native_new_block_height_cap gauge",
+                (
+                    f"abs_p2p_native_new_block_height_cap{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_new_block_height_cap') else 0}"
+                ),
+                "# HELP abs_p2p_new_block_height_cap_total new_block announces capped/refused above local tip window",
+                "# TYPE abs_p2p_new_block_height_cap_total counter",
+                (
+                    f"abs_p2p_new_block_height_cap_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('new_block_height_cap_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_bootstrap_resilient Whether missing-bootstrap redial is active (0/1)",
                 "# TYPE abs_p2p_native_bootstrap_resilient gauge",
                 (

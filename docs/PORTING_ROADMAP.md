@@ -765,6 +765,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Handshake reject + coverage requires pin match when configured
 - Remaining: tip proof / DHT trust roots / libp2p / ceremony (not claimed)
 
+### Priority 89 — Soft NEW_BLOCK height-ahead ownership gate ✅ (v1.3.134)
+
+- [x] `MSG_NEW_BLOCK` uses `p2p_max_peer_height_ahead` for peer.height/head ownership
+- [x] Fantasy announces refused before sync/import steering
+- Remaining: tip proof / fork-choice / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
