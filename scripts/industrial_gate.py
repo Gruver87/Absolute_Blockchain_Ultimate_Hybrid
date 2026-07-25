@@ -1623,8 +1623,21 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "observability" / "metrics.py"
         ).read_text(encoding="utf-8"):
             errors.append("metrics must export abs_p2p_native_block_fetch_gate (v1.3.107)")
+        # v1.3.108 — tx gossip shape gates
+        if "check_wire_tx_payload" not in transport_rs or "v1.3.108" not in transport_rs:
+            errors.append("p2p_transport must expose wire_tx gate (v1.3.108)")
+        if "check_mempool_batch_payload" not in transport_rs:
+            errors.append("p2p_transport must expose mempool batch gate (v1.3.108)")
+        if "check_ingress_shape_gates" not in transport_rs:
+            errors.append("p2p_transport must expose check_ingress_shape_gates (v1.3.108)")
+        if "native_tx_gossip_gate" not in p2p_py:
+            errors.append("p2p_node must expose native_tx_gossip_gate (v1.3.108)")
+        if "abs_p2p_native_tx_gossip_gate" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("metrics must export abs_p2p_native_tx_gossip_gate (v1.3.108)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..107 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..108 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

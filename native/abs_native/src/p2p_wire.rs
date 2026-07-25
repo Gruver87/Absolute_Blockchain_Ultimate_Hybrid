@@ -484,7 +484,7 @@ pub(crate) fn validate_get_blocks_inner(data: &Value) -> Option<(i64, i64)> {
     Some((from_height, to_height))
 }
 
-fn validate_wire_tx_inner(data: &Value) -> bool {
+pub(crate) fn validate_wire_tx_inner(data: &Value) -> bool {
     let Some(obj) = data.as_object() else {
         return false;
     };
@@ -556,7 +556,7 @@ fn validate_wire_tx_inner(data: &Value) -> bool {
     true
 }
 
-fn validate_mempool_batch_inner(data: &Value) -> Option<usize> {
+pub(crate) fn validate_mempool_batch_inner(data: &Value) -> Option<usize> {
     let obj = data.as_object()?;
     let txs = obj.get("transactions")?.as_array()?;
     if txs.len() > MAX_P2P_MEMPOOL_TXS {

@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.108] — 2026-07-25
+
+### P2P — native tx gossip shape gates
+
+- Fail-closed `new_tx` / `mempool` on native read (`bad_wire_tx` / `bad_mempool_batch`)
+- Unified `check_ingress_shape_gates` helper on read path
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.107] — 2026-07-25
 
 ### P2P — native block fetch shape gates

@@ -59,8 +59,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.107` — native P2P block fetch shape gates |
-| **Notes** | [RELEASE_NOTES_v1.3.107.md](../RELEASE_NOTES_v1.3.107.md) |
+| **Tag** | `v1.3.108` — native P2P tx gossip shape gates |
+| **Notes** | [RELEASE_NOTES_v1.3.108.md](../RELEASE_NOTES_v1.3.108.md) |
 | **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

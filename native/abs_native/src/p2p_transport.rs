@@ -1,4 +1,4 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.107).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.108).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
 //! v1.3.92: `read_message` fuses framed read + wire parse.
@@ -17,6 +17,7 @@
 //! v1.3.105: attestation shape gate on read (parity with Python).
 //! v1.3.106: new_block / get_block shape gates on read (parity with Python).
 //! v1.3.107: get_blocks / get_block_by_hash / blocks shape gates on read.
+//! v1.3.108: new_tx / mempool shape gates on read (parity with Python).
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -25,7 +26,8 @@ use crate::p2p_wire::{
     clamp_max_bytes, encode_p2p_wire_message_inner, parse_p2p_wire_line_inner,
     validate_attestation_shape_inner, validate_block_announce_inner, validate_blocks_batch_inner,
     validate_get_block_by_hash_inner, validate_get_block_inner, validate_get_blocks_inner,
-    validate_status_inner, DEFAULT_MAX_P2P_LINE_BYTES,
+    validate_mempool_batch_inner, validate_status_inner, validate_wire_tx_inner,
+    DEFAULT_MAX_P2P_LINE_BYTES,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
@@ -212,6 +214,42 @@ fn check_blocks_batch_payload(msg_type: &str, data: &serde_json::Value) -> Resul
     if validate_blocks_batch_inner(data).is_none() {
         return Err("bad_blocks_batch".to_string());
     }
+    Ok(())
+}
+
+/// v1.3.108: parity with Python `new_tx` wire-tx gate (fail-closed).
+fn check_wire_tx_payload(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+    if msg_type != "new_tx" {
+        return Ok(());
+    }
+    if !validate_wire_tx_inner(data) {
+        return Err("bad_wire_tx".to_string());
+    }
+    Ok(())
+}
+
+/// v1.3.108: parity with Python `mempool` batch gate (fail-closed).
+fn check_mempool_batch_payload(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+    if msg_type != "mempool" {
+        return Ok(());
+    }
+    if validate_mempool_batch_inner(data).is_none() {
+        return Err("bad_mempool_batch".to_string());
+    }
+    Ok(())
+}
+
+/// Run all fail-closed ingress shape gates (status…mempool). Still not full dispatch.
+fn check_ingress_shape_gates(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+    check_status_payload(msg_type, data)?;
+    check_attestation_payload(msg_type, data)?;
+    check_block_announce_payload(msg_type, data)?;
+    check_get_block_payload(msg_type, data)?;
+    check_get_blocks_payload(msg_type, data)?;
+    check_get_block_by_hash_payload(msg_type, data)?;
+    check_blocks_batch_payload(msg_type, data)?;
+    check_wire_tx_payload(msg_type, data)?;
+    check_mempool_batch_payload(msg_type, data)?;
     Ok(())
 }
 
@@ -934,6 +972,7 @@ impl P2PNativeConn {
     /// v1.3.105: attestation shape gate (`bad_attestation_shape`).
     /// v1.3.106: new_block / get_block shape gates.
     /// v1.3.107: get_blocks / get_block_by_hash / blocks shape gates.
+    /// v1.3.108: new_tx / mempool shape gates.
     #[pyo3(signature = (chunk_sz=65536, allowed_types=None, auto_pong=false))]
     fn read_message(
         &mut self,
@@ -951,13 +990,7 @@ impl P2PNativeConn {
                     None => return Ok(None),
                     Some((msg_type, data, nbytes)) => {
                         check_mid_session_handshake(self.session_established, &msg_type)?;
-                        check_status_payload(&msg_type, &data)?;
-                        check_attestation_payload(&msg_type, &data)?;
-                        check_block_announce_payload(&msg_type, &data)?;
-                        check_get_block_payload(&msg_type, &data)?;
-                        check_get_blocks_payload(&msg_type, &data)?;
-                        check_get_block_by_hash_payload(&msg_type, &data)?;
-                        check_blocks_batch_payload(&msg_type, &data)?;
+                        check_ingress_shape_gates(&msg_type, &data)?;
                         // Early reject get_* always; ping/pong gated inside auto_pong path.
                         if msg_type == "get_mempool" || msg_type == "get_peers" {
                             check_housekeeping(&msg_type, &data)?;
@@ -1022,6 +1055,7 @@ impl P2PNativeConn {
     /// v1.3.105: attestation shape gate (`bad_attestation_shape`).
     /// v1.3.106: new_block / get_block shape gates.
     /// v1.3.107: get_blocks / get_block_by_hash / blocks shape gates.
+    /// v1.3.108: new_tx / mempool shape gates.
     ///
     /// `{ok:true, messages:[{type,data,nbytes},...], eof:bool, auto_pongs, keepalive_touches}` |
     /// `{ok:false, reason, messages:[...], eof:false, ...}`.
@@ -1056,31 +1090,7 @@ impl P2PNativeConn {
                             err = Some(reason);
                             break;
                         }
-                        if let Err(reason) = check_status_payload(&msg_type, &data) {
-                            err = Some(reason);
-                            break;
-                        }
-                        if let Err(reason) = check_attestation_payload(&msg_type, &data) {
-                            err = Some(reason);
-                            break;
-                        }
-                        if let Err(reason) = check_block_announce_payload(&msg_type, &data) {
-                            err = Some(reason);
-                            break;
-                        }
-                        if let Err(reason) = check_get_block_payload(&msg_type, &data) {
-                            err = Some(reason);
-                            break;
-                        }
-                        if let Err(reason) = check_get_blocks_payload(&msg_type, &data) {
-                            err = Some(reason);
-                            break;
-                        }
-                        if let Err(reason) = check_get_block_by_hash_payload(&msg_type, &data) {
-                            err = Some(reason);
-                            break;
-                        }
-                        if let Err(reason) = check_blocks_batch_payload(&msg_type, &data) {
+                        if let Err(reason) = check_ingress_shape_gates(&msg_type, &data) {
                             err = Some(reason);
                             break;
                         }
@@ -1871,5 +1881,40 @@ mod tests {
         )
         .is_ok());
         assert!(check_get_blocks_payload("new_block", &serde_json::json!(null)).is_ok());
+    }
+
+    #[test]
+    fn tx_gossip_payload_gate_parity() {
+        assert_eq!(
+            check_wire_tx_payload("new_tx", &serde_json::json!(null)).unwrap_err(),
+            "bad_wire_tx"
+        );
+        assert_eq!(
+            check_wire_tx_payload("new_tx", &serde_json::json!({})).unwrap_err(),
+            "bad_wire_tx"
+        );
+        let good_tx = serde_json::json!({"from": "alice", "to": "bob"});
+        assert!(check_wire_tx_payload("new_tx", &good_tx).is_ok());
+        assert!(check_wire_tx_payload("mempool", &good_tx).is_ok());
+
+        assert_eq!(
+            check_mempool_batch_payload("mempool", &serde_json::json!(null)).unwrap_err(),
+            "bad_mempool_batch"
+        );
+        assert_eq!(
+            check_mempool_batch_payload("mempool", &serde_json::json!({"transactions": [{}]}))
+                .unwrap_err(),
+            "bad_mempool_batch"
+        );
+        assert!(check_mempool_batch_payload(
+            "mempool",
+            &serde_json::json!({"transactions": []})
+        )
+        .is_ok());
+        assert!(check_mempool_batch_payload(
+            "mempool",
+            &serde_json::json!({"transactions": [{"from": "a", "to": "b"}]})
+        )
+        .is_ok());
     }
 }
