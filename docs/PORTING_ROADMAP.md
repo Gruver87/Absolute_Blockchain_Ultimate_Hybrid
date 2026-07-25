@@ -387,7 +387,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] PriorityQueue: REORG > FORGE > ADD > IMPORT
 - Remaining: see Priority 38
 
-### Priority 38 — value=0 CALL + multi-depth + value transfer ✅ (v1.3.74–v1.3.83)
+### Priority 38 — value=0 CALL + multi-depth + value transfer ✅ (v1.3.74–v1.3.84)
 
 - [x] Eligible value=0 CALL/STATICCALL leaf (v1.3.74)
 - [x] Multi-depth call-frames (CALL*/LOG) with depth cap 4 (v1.3.75)
@@ -397,7 +397,8 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] CREATE2 empty/STOP init (EIP-1014 / legacy) (v1.3.81)
 - [x] Eligible CREATE init with RETURN runtime (v1.3.82)
 - [x] Inline value → `pending_writeback_ops` → adapter satoshi journal (v1.3.83)
-- Remaining: inline CREATE `save_account` journal; full Rust P2P transport (not claimed)
+- [x] Inline CREATE `save_account` journal (v1.3.84)
+- Remaining: full Rust P2P transport (not claimed)
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
 
@@ -432,6 +433,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.81: CREATE2 empty/STOP (EIP-1014 default)
 - [x] v1.3.82: CREATE eligible init → RETURN runtime
 - [x] v1.3.83: inline value → pending_writeback_ops / satoshi journal
+- [x] v1.3.84: inline CREATE → save_account writeback journal
 
 ### Priority 39 — P2P Rust ingress data plane ✅ (v1.3.77–v1.3.78)
 

@@ -1146,21 +1146,7 @@ fn push_pending_writeback_transfer(
         return Ok(());
     };
     let py = state.py();
-    let pending = match state.get_item("pending_writeback_ops")? {
-        Some(existing) => match existing.downcast::<PyList>() {
-            Ok(list) => list.clone(),
-            Err(_) => {
-                let list = PyList::empty_bound(py);
-                state.set_item("pending_writeback_ops", &list)?;
-                list
-            }
-        },
-        None => {
-            let list = PyList::empty_bound(py);
-            state.set_item("pending_writeback_ops", &list)?;
-            list
-        }
-    };
+    let pending = pending_writeback_list(py, &state)?;
     let op = PyDict::new_bound(py);
     op.set_item("op", "transfer_value")?;
     op.set_item("from", from_s.as_str())?;
@@ -1169,6 +1155,57 @@ fn push_pending_writeback_transfer(
     op.set_item("native_inline_writeback", true)?;
     pending.append(op)?;
     state.set_item("native_inline_writeback_value", true)?;
+    state.set_item("native_inline_writeback_ops", pending.len())?;
+    Ok(())
+}
+
+/// Ensure `bridge_state.pending_writeback_ops` is a mutable list (v1.3.83+).
+fn pending_writeback_list<'py>(
+    py: Python<'py>,
+    state: &Bound<'py, PyDict>,
+) -> PyResult<Bound<'py, PyList>> {
+    match state.get_item("pending_writeback_ops")? {
+        Some(existing) => match existing.downcast::<PyList>() {
+            Ok(list) => Ok(list.clone()),
+            Err(_) => {
+                let list = PyList::empty_bound(py);
+                state.set_item("pending_writeback_ops", &list)?;
+                Ok(list)
+            }
+        },
+        None => {
+            let list = PyList::empty_bound(py);
+            state.set_item("pending_writeback_ops", &list)?;
+            Ok(list)
+        }
+    }
+}
+
+/// v1.3.84: enqueue `save_account` for inline CREATE/CREATE2 (balance 0; value is separate).
+fn push_pending_writeback_save_account(
+    host_context: Option<&Bound<'_, PyDict>>,
+    address: &str,
+    runtime: &[u8],
+) -> PyResult<()> {
+    if address.is_empty() {
+        return Ok(());
+    }
+    let Some(state) = bridge_state_dict(host_context) else {
+        return Ok(());
+    };
+    let py = state.py();
+    let pending = pending_writeback_list(py, &state)?;
+    let code_hex = hex::encode(runtime);
+    let op = PyDict::new_bound(py);
+    op.set_item("op", "save_account")?;
+    op.set_item("address", address)?;
+    op.set_item("balance", 0)?;
+    op.set_item("nonce", 0u64)?;
+    op.set_item("code", code_hex.as_str())?;
+    op.set_item("storage", "{}")?;
+    op.set_item("native_inline_writeback", true)?;
+    pending.append(op)?;
+    state.set_item("native_inline_writeback_create", true)?;
     state.set_item("native_inline_writeback_ops", pending.len())?;
     Ok(())
 }
@@ -1557,7 +1594,7 @@ fn run_inline_create_init(
     Ok(Some((runtime, sub_gas, true)))
 }
 
-/// v1.3.80–83 Priority 38: CREATE/CREATE2 via bridge_state.
+/// v1.3.80–84 Priority 38: CREATE/CREATE2 via bridge_state.
 /// Empty/STOP or leaf-eligible init (RETURN runtime) owned in Rust.
 /// CREATE2 defaults to EIP-1014 (`create2_eip1014=false` → legacy Absolute seed).
 fn try_inline_simple_create(
@@ -1673,6 +1710,8 @@ fn try_inline_simple_create(
     }
 
     let _ = balance_snap; // success keeps transfer
+    // v1.3.84: plan save_account then optional transfer_value (same order as evm_plan_create_writeback).
+    push_pending_writeback_save_account(host_context, addr.as_str(), &runtime)?;
     // v1.3.83: enqueue transfer_value for adapter satoshi journal.
     if !value.is_zero() {
         push_pending_writeback_transfer(host_context, static_ctx.address, addr_word, value)?;

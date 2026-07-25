@@ -1395,8 +1395,13 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         adapter_py = (ROOT / "execution" / "evm_adapter.py").read_text(encoding="utf-8")
         if "_take_bridge_pending_writeback" not in adapter_py:
             errors.append("evm_adapter must flush bridge pending_writeback_ops (v1.3.83)")
+        # v1.3.84 — inline CREATE save_account journal
+        if "push_pending_writeback_save_account" not in rust_runner or "v1.3.84" not in rust_runner:
+            errors.append("evm_pure_runner must plan inline CREATE save_account (v1.3.84)")
+        if "native_inline_writeback_create" not in rust_runner:
+            errors.append("evm_pure_runner must mark CREATE writeback (v1.3.84)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..83 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..84 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

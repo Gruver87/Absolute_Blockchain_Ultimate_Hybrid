@@ -198,13 +198,15 @@ def test_create_value_enqueues_writeback_op():
     assert hook_calls["n"] == 0
     bs = host_ctx["bridge_state"]
     assert bs.get("native_inline_writeback_value") is True
-    ops = list(bs.get("pending_writeback_ops") or [])
-    assert len(ops) == 1
-    op = dict(ops[0])
-    assert op["op"] == "transfer_value"
-    assert int(op["value_wei"]) == 5
-    assert op["from"].lower() == DEPLOYER.lower()
-    assert op["to"].lower() == bs["native_inline_create_address"].lower()
+    assert bs.get("native_inline_writeback_create") is True
+    ops = [dict(o) for o in (bs.get("pending_writeback_ops") or [])]
+    assert [o["op"] for o in ops] == ["save_account", "transfer_value"]
+    assert ops[0]["address"].lower() == bs["native_inline_create_address"].lower()
+    assert ops[0]["code"] == ""
+    assert int(ops[0]["balance"]) == 0
+    assert int(ops[1]["value_wei"]) == 5
+    assert ops[1]["from"].lower() == DEPLOYER.lower()
+    assert ops[1]["to"].lower() == bs["native_inline_create_address"].lower()
 
 
 def test_needles_v1383():
@@ -218,5 +220,5 @@ def test_needles_v1383():
     adapter = (ROOT / "execution" / "evm_adapter.py").read_text(encoding="utf-8")
     assert "_take_bridge_pending_writeback" in adapter
     assert "native_inline_writeback" in adapter
-    cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "1.3.83-industrial" in cfg
+    notes = (ROOT / "RELEASE_NOTES_v1.3.83.md").read_text(encoding="utf-8")
+    assert "1.3.83-industrial" in notes

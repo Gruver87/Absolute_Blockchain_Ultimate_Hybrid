@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.83 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.84 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -44,6 +44,7 @@ WAVE_TESTS = [
     "tests/unit/test_v1381_create2.py",
     "tests/unit/test_v1382_create_runtime.py",
     "tests/unit/test_v1383_writeback_journal.py",
+    "tests/unit/test_v1384_create_writeback.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -278,7 +279,7 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
     ),
     (
         "1.3.83",
-        "runtime/config.py",
+        "RELEASE_NOTES_v1.3.83.md",
         ["1.3.83-industrial"],
     ),
     (
@@ -295,6 +296,20 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "1.3.83",
         "execution/evm_adapter.py",
         ["_take_bridge_pending_writeback", "native_inline_writeback"],
+    ),
+    (
+        "1.3.84",
+        "runtime/config.py",
+        ["1.3.84-industrial"],
+    ),
+    (
+        "1.3.84",
+        "native/abs_native/src/evm_pure_runner.rs",
+        [
+            "push_pending_writeback_save_account",
+            "native_inline_writeback_create",
+            "v1.3.84",
+        ],
     ),
 ]
 
@@ -323,8 +338,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.83"):
-            errors.append(f"node_version expected 1.3.83-*, got {ver}")
+        if not ver.startswith("1.3.84"):
+            errors.append(f"node_version expected 1.3.84-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

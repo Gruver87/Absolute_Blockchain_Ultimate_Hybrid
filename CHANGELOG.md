@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.84] — 2026-07-25
+
+### EVM — inline CREATE → save_account writeback journal
+
+- Successful inline CREATE/CREATE2 appends `save_account` to `pending_writeback_ops` (before `transfer_value`)
+- Marker: `native_inline_writeback_create`
+- Honesty: full Rust P2P transport still not claimed; not public mainnet
+
 ## [1.3.83] — 2026-07-25
 
 ### EVM — inline value → satoshi writeback journal

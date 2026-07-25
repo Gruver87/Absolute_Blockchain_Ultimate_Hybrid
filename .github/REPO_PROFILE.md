@@ -41,8 +41,8 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.83` — inline value → satoshi writeback journal |
-| **Notes** | [RELEASE_NOTES_v1.3.83.md](../RELEASE_NOTES_v1.3.83.md) |
+| **Tag** | `v1.3.84` — inline CREATE → save_account writeback journal |
+| **Notes** | [RELEASE_NOTES_v1.3.84.md](../RELEASE_NOTES_v1.3.84.md) |
 | **Prior** | [v1.3.81](../RELEASE_NOTES_v1.3.81.md) CREATE2; [v1.3.80](../RELEASE_NOTES_v1.3.80.md) CREATE |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
