@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""v1.3.121: native blocks batch canonical-hash semantic gate on message-loop shell."""
+"""v1.3.122: native singular block response hash semantic gate on message-loop shell."""
 
 from __future__ import annotations
 
@@ -33,39 +33,32 @@ def _wire(msg_type: str, data) -> bytes:
     ).encode("utf-8")
 
 
-def _valid_block(*, height: int = 1) -> dict:
+def _valid_block() -> dict:
     blk = Block(
-        height=height,
+        height=1,
         parent_hash="0" * 64,
         miner="0x" + ("11" * 20),
         transactions=[],
-        timestamp=1_700_000_000 + height,
+        timestamp=1_700_000_000,
         extra_data="",
         state_root="0" * 64,
     )
     return blk.to_dict()
 
 
-def test_needles_v13121():
+def test_needles_v13122():
     transport = (ROOT / "native" / "abs_native" / "src" / "p2p_transport.rs").read_text(
         encoding="utf-8"
     )
-    wire = (ROOT / "native" / "abs_native" / "src" / "p2p_wire.rs").read_text(
-        encoding="utf-8"
-    )
-    assert "check_blocks_batch_semantics" in transport
-    assert "verify_blocks_batch_semantics_inner" in wire
-    assert "v1.3.121" in transport
-    makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
-    assert "test-quick" in makefile
-    assert "build_native.sh" in makefile
+    assert "check_block_payload_semantics" in transport
+    assert "v1.3.122" in transport
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
-    assert "native_blocks_batch_semantic_gate" in p2p
-    notes = (ROOT / "RELEASE_NOTES_v1.3.121.md").read_text(encoding="utf-8")
-    assert "1.3.121-industrial" in notes
-    # Live Config().node_version advances with later waves; pin notes not config.
+    assert "native_block_payload_semantic_gate" in p2p
+    notes = (ROOT / "RELEASE_NOTES_v1.3.122.md").read_text(encoding="utf-8")
+    assert "1.3.122-industrial" in notes
+    assert Config().node_version == "1.3.122-industrial"
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
-    assert "abs_p2p_native_blocks_batch_semantic_gate" in metrics
+    assert "abs_p2p_native_block_payload_semantic_gate" in metrics
 
 
 def _loop_once(payload: bytes) -> dict:
@@ -83,7 +76,7 @@ def _loop_once(payload: bytes) -> dict:
             if out.get("ok") and out.get("conn") is not None:
                 c = out["conn"]
                 got["out"] = c.read_message_loop_events(
-                    8, 65536, ["blocks", "status"], False, None, False
+                    8, 65536, ["block", "status"], False, None, False
                 )
                 c.close()
                 return
@@ -102,23 +95,21 @@ def _loop_once(payload: bytes) -> dict:
     not getattr(native, "native_available", lambda: False)(),
     reason="abs_native required",
 )
-def test_native_loop_dispatches_valid_blocks_batch():
-    batch = [_valid_block(height=1), _valid_block(height=2)]
-    out = _loop_once(_wire("blocks", batch))
+def test_native_loop_dispatches_valid_block():
+    out = _loop_once(_wire("block", _valid_block()))
     assert out.get("ok") is True
     events = list(out.get("events") or [])
-    assert any(e.get("action") == "dispatch" and e.get("type") == "blocks" for e in events)
+    assert any(e.get("action") == "dispatch" and e.get("type") == "block" for e in events)
 
 
 @pytest.mark.skipif(
     not getattr(native, "native_available", lambda: False)(),
     reason="abs_native required",
 )
-def test_native_loop_strikes_tampered_batch_block():
-    good = _valid_block(height=1)
-    bad = _valid_block(height=2)
-    bad["extra_data"] = "tampered"
-    out = _loop_once(_wire("blocks", [good, bad]))
+def test_native_loop_strikes_tampered_block():
+    block = _valid_block()
+    block["extra_data"] = "tampered"
+    out = _loop_once(_wire("block", block))
     events = list(out.get("events") or [])
     assert any(
         e.get("action") == "strike" and e.get("reason") == "bad_block_hash"
@@ -130,13 +121,26 @@ def test_native_loop_strikes_tampered_batch_block():
     not getattr(native, "native_available", lambda: False)(),
     reason="abs_native required",
 )
-def test_native_loop_empty_batch_ok():
-    out = _loop_once(_wire("blocks", []))
+def test_native_loop_null_block_ok():
+    out = _loop_once(_wire("block", None))
     events = list(out.get("events") or [])
-    assert any(e.get("action") == "dispatch" and e.get("type") == "blocks" for e in events)
+    assert any(e.get("action") == "dispatch" and e.get("type") == "block" for e in events)
 
 
-def test_status_exposes_blocks_batch_semantic_gate():
+@pytest.mark.skipif(
+    not getattr(native, "native_available", lambda: False)(),
+    reason="abs_native required",
+)
+def test_native_loop_bad_shape_before_hash():
+    out = _loop_once(_wire("block", {"height": 1}))  # missing hash
+    events = list(out.get("events") or [])
+    assert any(
+        e.get("action") == "strike" and e.get("reason") == "bad_block_payload"
+        for e in events
+    )
+
+
+def test_status_exposes_block_payload_semantic_gate():
     cfg = Config()
     cfg.p2p_native_transport = True
     cfg.p2p_tls_enabled = False
@@ -146,4 +150,4 @@ def test_status_exposes_blocks_batch_semantic_gate():
     node = P2PNode(cfg, MagicMock(), MagicMock())
     node._native_message_loop_shell = True
     st = node.get_p2p_security_status()
-    assert st.get("native_blocks_batch_semantic_gate") is True
+    assert st.get("native_block_payload_semantic_gate") is True

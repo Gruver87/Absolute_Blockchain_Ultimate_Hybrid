@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.121 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.122 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -82,6 +82,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13119_p2p_native_mempool_semantic_gate.py",
     "tests/unit/test_v13120_p2p_native_block_semantic_gate.py",
     "tests/unit/test_v13121_p2p_native_blocks_batch_semantic_gate.py",
+    "tests/unit/test_v13122_p2p_native_block_payload_semantic_gate.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1159,6 +1160,26 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "observability/metrics.py",
         ["abs_p2p_native_blocks_batch_semantic_gate"],
     ),
+    (
+        "1.3.122",
+        "RELEASE_NOTES_v1.3.122.md",
+        ["1.3.122-industrial", "block"],
+    ),
+    (
+        "1.3.122",
+        "native/abs_native/src/p2p_transport.rs",
+        ["check_block_payload_semantics", "v1.3.122"],
+    ),
+    (
+        "1.3.122",
+        "network/p2p_node.py",
+        ["native_block_payload_semantic_gate"],
+    ),
+    (
+        "1.3.122",
+        "observability/metrics.py",
+        ["abs_p2p_native_block_payload_semantic_gate"],
+    ),
 ]
 
 
@@ -1186,8 +1207,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.121"):
-            errors.append(f"node_version expected 1.3.121-*, got {ver}")
+        if not ver.startswith("1.3.122"):
+            errors.append(f"node_version expected 1.3.122-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

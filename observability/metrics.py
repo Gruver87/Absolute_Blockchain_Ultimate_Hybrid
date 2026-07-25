@@ -649,6 +649,12 @@ class MetricsCollector:
                     f"abs_p2p_native_blocks_batch_semantic_gate{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_blocks_batch_semantic_gate') else 0}"
                 ),
+                "# HELP abs_p2p_native_block_payload_semantic_gate Whether native singular block hash gate is active (0/1)",
+                "# TYPE abs_p2p_native_block_payload_semantic_gate gauge",
+                (
+                    f"abs_p2p_native_block_payload_semantic_gate{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_block_payload_semantic_gate') else 0}"
+                ),
                 "# HELP abs_p2p_native_message_loop_dispatch_total Dispatch events from native loop shell",
                 "# TYPE abs_p2p_native_message_loop_dispatch_total counter",
                 (

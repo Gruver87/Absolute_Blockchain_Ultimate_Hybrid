@@ -30,6 +30,7 @@
 //! v1.3.119: mempool batch signature semantic gate on loop-shell (per-tx; nonce/balance stay Python).
 //! v1.3.120: new_block canonical-hash semantic gate on loop-shell (parent/proposer stay Python).
 //! v1.3.121: blocks batch canonical-hash semantic gate on loop-shell (per-block; import stays Python).
+//! v1.3.122: singular `block` response canonical-hash semantic gate (null = not-found OK).
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -247,6 +248,20 @@ fn check_blocks_batch_semantics(
         return Ok(());
     }
     verify_blocks_batch_semantics_inner(data)
+}
+
+/// v1.3.122: singular `block` response — null OK; non-null must match canonical hash.
+fn check_block_payload_semantics(
+    msg_type: &str,
+    data: &serde_json::Value,
+) -> Result<(), String> {
+    if msg_type != "block" {
+        return Ok(());
+    }
+    if data.is_null() {
+        return Ok(());
+    }
+    verify_block_announce_semantics_inner(data)
 }
 
 /// v1.3.106: parity with Python `new_block` announce gate (fail-closed).
@@ -1540,6 +1555,11 @@ impl P2PNativeConn {
                         }
                         // v1.3.121: blocks batch per-block canonical-hash semantic.
                         if let Err(reason) = check_blocks_batch_semantics(&msg_type, &data) {
+                            terminal_strike = Some(reason);
+                            break;
+                        }
+                        // v1.3.122: singular block response canonical-hash semantic.
+                        if let Err(reason) = check_block_payload_semantics(&msg_type, &data) {
                             terminal_strike = Some(reason);
                             break;
                         }

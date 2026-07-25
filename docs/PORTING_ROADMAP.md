@@ -692,6 +692,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Continuity / import / fork-choice stay Python
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
+### Priority 77 — Native singular block response hash semantic ingress ✅ (v1.3.122)
+
+- [x] `check_block_payload_semantics` on loop-shell (null OK; non-null canonical hash)
+- [x] Request correlation / import / fork-choice stay Python
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
