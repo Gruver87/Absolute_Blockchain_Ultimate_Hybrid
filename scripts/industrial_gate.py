@@ -1204,8 +1204,25 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "execution" / "evm_adapter.py"
         ).read_text(encoding="utf-8"):
             errors.append("evm_adapter must wire evm_apply_writeback_ops")
+        # v1.3.62 — store-lock Rocks writeback commit
+        storage_rs = (
+            ROOT / "native" / "abs_native" / "src" / "storage" / "mod.rs"
+        ).read_text(encoding="utf-8")
+        if "fn commit_account_rows" not in storage_rs:
+            errors.append("RocksEngine must expose commit_account_rows (v1.3.62)")
+        rocks_py = (ROOT / "storage" / "rocks_store.py").read_text(encoding="utf-8")
+        if "def commit_writeback_accounts" not in rocks_py:
+            errors.append("rocks_store must define commit_writeback_accounts (v1.3.62)")
+        if "commit_writeback_accounts" not in (
+            ROOT / "execution" / "evm_adapter.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("evm_adapter must wire commit_writeback_accounts")
+        if "def commit_writeback_accounts" not in (
+            ROOT / "storage" / "hybrid_database.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("hybrid_database must delegate commit_writeback_accounts")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..61 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..62 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

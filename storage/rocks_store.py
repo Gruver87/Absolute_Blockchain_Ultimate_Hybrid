@@ -501,6 +501,58 @@ class RocksChainStore:
             row["storage"] = json.dumps(storage)
             self._save_account_row(row)
 
+    def commit_writeback_accounts(self, accounts: Dict[str, Any]) -> int:
+        """Store-lock aware batch commit of native-applied account rows (v1.3.62).
+
+        Holds ``_write_lock`` once, updates root accumulator via ``_save_account_row``,
+        and prefers ``RocksEngine.commit_account_rows`` when available.
+        """
+        from runtime.amount import dual_write_balance, from_satoshi_float
+        from storage.database import Database as SqliteDatabase
+
+        if not accounts:
+            return 0
+        prepared: Dict[str, Dict[str, Any]] = {}
+        with self._write_lock:
+            for addr_raw, row_in in dict(accounts).items():
+                addr = SqliteDatabase._normalize_address(str(addr_raw))
+                merged = self._load_account(addr)
+                row = dict(row_in or {})
+                if row.get("balance_satoshi") is not None:
+                    dual_write_balance(merged, from_satoshi_float(int(row["balance_satoshi"])))
+                elif row.get("balance") is not None:
+                    dual_write_balance(merged, float(row.get("balance") or 0))
+                if "nonce" in row:
+                    merged["nonce"] = int(row.get("nonce") or 0)
+                if "code" in row:
+                    merged["code"] = row.get("code")
+                if "storage" in row:
+                    storage = row.get("storage")
+                    if isinstance(storage, dict):
+                        merged["storage"] = json.dumps(
+                            {str(k): int(v) for k, v in storage.items()}
+                        )
+                    else:
+                        merged["storage"] = str(storage or "{}")
+                merged["address"] = addr
+                prepared[addr] = merged
+
+            engine = self._engine
+            # Prefer native batch put outside atomic(); keep accumulator coherent.
+            if (
+                engine is not None
+                and hasattr(engine, "commit_account_rows")
+                and self._pending_batch is None
+            ):
+                for row in prepared.values():
+                    blob = json.dumps(row, ensure_ascii=False).encode("utf-8")
+                    self._root_acc_upsert_blob(blob)
+                return int(engine.commit_account_rows(json.dumps(prepared, ensure_ascii=False)))
+
+            for row in prepared.values():
+                self._save_account_row(row)
+            return len(prepared)
+
     def get_all_accounts(self) -> List[Dict]:
         rows = self._scan_prefix(kc.prefix_accounts())
         out: List[Dict] = []

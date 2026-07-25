@@ -208,6 +208,44 @@ impl RocksEngine {
         }
     }
 
+    /// Batch-put account JSON rows (caller must hold store write lock) — v1.3.62.
+    /// `accounts_json`: `{ "0xaddr": { ...account fields... }, ... }`
+    fn commit_account_rows(&self, accounts_json: &str) -> PyResult<usize> {
+        use serde_json::Value;
+        let parsed: Value = serde_json::from_str(accounts_json).map_err(|e| {
+            pyo3::exceptions::PyValueError::new_err(format!("accounts_json invalid: {e}"))
+        })?;
+        let obj = parsed.as_object().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err("accounts_json must be an object")
+        })?;
+        let mut batch = RocksWriteBatch { ops: Vec::new() };
+        let mut count = 0usize;
+        for (addr_raw, row) in obj {
+            let addr = addr_raw.trim().to_ascii_lowercase();
+            if addr.is_empty() {
+                continue;
+            }
+            let mut key = Vec::with_capacity(1 + addr.len());
+            key.push(0x10);
+            key.extend_from_slice(addr.as_bytes());
+            // Ensure address field is present in blob.
+            let mut row_obj = match row {
+                Value::Object(map) => map.clone(),
+                _ => continue,
+            };
+            row_obj.insert("address".into(), Value::String(addr.clone()));
+            let blob = serde_json::to_vec(&Value::Object(row_obj)).map_err(|e| {
+                pyo3::exceptions::PyValueError::new_err(format!("account encode failed: {e}"))
+            })?;
+            batch.put(&key, &blob);
+            count += 1;
+        }
+        if count > 0 {
+            self.write_batch(&mut batch)?;
+        }
+        Ok(count)
+    }
+
     fn put(&self, key: &[u8], value: &[u8]) -> PyResult<()> {
         let mut write_opts = WriteOptions::default();
         write_opts.set_sync(self.sync_writes);

@@ -402,6 +402,10 @@ class HybridDatabase:
     def update_account_storage(self, address: str, storage: Dict) -> None:
         self._core.update_account_storage(address, storage)
 
+    def commit_writeback_accounts(self, accounts: Dict[str, Any]) -> int:
+        """Delegate store-lock Rocks writeback commit (v1.3.62)."""
+        return int(self._core.commit_writeback_accounts(accounts))
+
     def save_validator(self, address: str, stake: float) -> None:
         self._core.save_validator(address, stake)
 

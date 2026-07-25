@@ -391,8 +391,17 @@ class EVMAdapter:
             "gas_used": result.get("gas_used", 0),
         }
 
+    def _writeback_store(self):
+        """Rocks/hybrid store exposing commit_writeback_accounts (v1.3.62)."""
+        if hasattr(self.db, "commit_writeback_accounts"):
+            return self.db
+        core = getattr(self.db, "_core", None)
+        if core is not None and hasattr(core, "commit_writeback_accounts"):
+            return core
+        return None
+
     def _apply_nested_writeback_ops(self, ops: List[Dict[str, Any]]) -> None:
-        """Apply writeback ops: native in-memory apply + Python DB commit (v1.3.61)."""
+        """Apply writeback ops: native apply + store-lock Rocks commit (v1.3.62)."""
         if not ops:
             return
         if hasattr(native, "evm_apply_writeback_ops"):
@@ -424,19 +433,24 @@ class EVMAdapter:
                             item[key] = self._normalize_addr(str(item[key]))
                     norm_ops.append(item)
                 applied = native.evm_apply_writeback_ops(accounts, norm_ops)
-                for addr, row in dict(applied.get("accounts") or {}).items():
-                    storage = row.get("storage")
-                    if isinstance(storage, dict):
-                        storage_str = json.dumps({str(k): int(v) for k, v in storage.items()})
-                    else:
-                        storage_str = str(storage or "{}")
-                    self.db.save_account(
-                        address=self._normalize_addr(str(addr)),
-                        balance=float(row.get("balance") or 0.0),
-                        nonce=int(row.get("nonce") or 0),
-                        code=str(row.get("code") or "") if row.get("code") is not None else "",
-                        storage=storage_str,
-                    )
+                rows = dict(applied.get("accounts") or {})
+                store = self._writeback_store()
+                if store is not None and rows:
+                    store.commit_writeback_accounts(rows)
+                else:
+                    for addr, row in rows.items():
+                        storage = row.get("storage")
+                        if isinstance(storage, dict):
+                            storage_str = json.dumps({str(k): int(v) for k, v in storage.items()})
+                        else:
+                            storage_str = str(storage or "{}")
+                        self.db.save_account(
+                            address=self._normalize_addr(str(addr)),
+                            balance=float(row.get("balance") or 0.0),
+                            nonce=int(row.get("nonce") or 0),
+                            code=str(row.get("code") or "") if row.get("code") is not None else "",
+                            storage=storage_str,
+                        )
                 for batch in list(applied.get("log_batches") or []):
                     addr = self._normalize_addr(str(batch.get("address") or ""))
                     logs = list(batch.get("logs") or [])

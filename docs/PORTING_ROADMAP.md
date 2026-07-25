@@ -324,7 +324,14 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `evm_apply_writeback_ops` — in-memory accounts map transform
 - [x] Adapter loads accounts → native apply → `save_account` commit + log persist
-- Remaining: in-process Rocks handle inside EVM runner (store-lock aware)
+- Remaining: see Priority 30
+
+### Priority 30 — Store-lock Rocks writeback commit ✅ (v1.3.62)
+
+- [x] `RocksEngine.commit_account_rows` — batch put under caller-held store lock
+- [x] `RocksChainStore.commit_writeback_accounts` / Hybrid delegate
+- [x] Adapter prefers store-lock commit after native apply (logs still Python)
+- Remaining: deeper in-runner Rocks ownership (not claimed)
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
 
@@ -339,6 +346,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.59: nested CALL writeback ops planned in Rust
 - [x] v1.3.60: CREATE writeback ops planned in Rust
 - [x] v1.3.61: native in-memory writeback apply
+- [x] v1.3.62: store-lock Rocks writeback commit
 
 ## Process per module
 

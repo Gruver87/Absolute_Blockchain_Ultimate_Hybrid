@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.62] — 2026-07-25
+
+### Added — store-lock Rocks writeback commit
+
+- `RocksEngine.commit_account_rows` — native batch account put
+- `RocksChainStore.commit_writeback_accounts` under `_write_lock`
+- Adapter uses store-lock commit after `evm_apply_writeback_ops`
+
 ## [1.3.61] — 2026-07-25
 
 ### Added — native writeback apply (in-memory)
