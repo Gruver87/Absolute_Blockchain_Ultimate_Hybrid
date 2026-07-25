@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.59` — nested CALL writeback ops |
-| **Notes** | [RELEASE_NOTES_v1.3.59.md](../RELEASE_NOTES_v1.3.59.md) |
-| **Prior** | [v1.3.58](../RELEASE_NOTES_v1.3.58.md) account view; [v1.3.57](../RELEASE_NOTES_v1.3.57.md) host bodies |
+| **Tag** | `v1.3.60` — CREATE writeback ops |
+| **Notes** | [RELEASE_NOTES_v1.3.60.md](../RELEASE_NOTES_v1.3.60.md) |
+| **Prior** | [v1.3.59](../RELEASE_NOTES_v1.3.59.md) CALL writeback; [v1.3.58](../RELEASE_NOTES_v1.3.58.md) account view |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

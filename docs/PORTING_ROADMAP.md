@@ -312,7 +312,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `evm_plan_nested_call_writeback` — concrete `ops[]` (set_storage / transfer_value / append_logs)
 - [x] Adapter `_apply_nested_writeback_ops` applies via Python DB only
-- Remaining: CREATE write planner; native apply; in-process Rocks in EVM runner
+- Remaining: see Priority 28
+
+### Priority 28 — CREATE writeback ops ✅ (v1.3.60)
+
+- [x] `evm_plan_create_writeback` — `save_account` + optional `transfer_value`
+- [x] Adapter CREATE path applies via shared writeback ops (no double-credit balance)
+- Remaining: native apply of ops; in-process Rocks in EVM runner
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
 
@@ -325,6 +331,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.57: host opcode bodies in Rust (thin hooks for state)
 - [x] v1.3.58: native account-blob decode for nested CALL preload
 - [x] v1.3.59: nested CALL writeback ops planned in Rust
+- [x] v1.3.60: CREATE writeback ops planned in Rust
 
 ## Process per module
 

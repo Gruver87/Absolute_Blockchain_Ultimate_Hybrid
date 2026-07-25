@@ -97,6 +97,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "evm_host_restore_storage",
             "evm_plan_nested_call_effects",
             "evm_plan_nested_call_writeback",
+            "evm_plan_create_writeback",
             "evm_plan_nested_call_gas",
             "evm_decode_nested_call_frame",
             "evm_run_nested_pure_frame",
@@ -1481,6 +1482,90 @@ def evm_plan_nested_call_writeback(
         _require_native_kernel("evm_plan_nested_call_writeback")
     return _evm_plan_nested_call_writeback_py(
         kind, parent_read_only, caller, target, value_wei, success, storage, logs
+    )
+
+
+def _evm_plan_create_writeback_py(
+    deployer: str,
+    contract_address: str,
+    value_wei: int,
+    success: bool,
+    code_hex: str = "",
+    storage=None,
+) -> dict:
+    """Python reference for CREATE/CREATE2 writeback ops."""
+    ops: list = []
+    deployer = str(deployer or "")
+    contract_address = str(contract_address or "")
+    value_wei = max(0, int(value_wei or 0))
+    if success and contract_address:
+        if isinstance(storage, dict):
+            storage_str = json.dumps({str(int(k)): int(v) for k, v in storage.items()})
+        elif storage is None:
+            storage_str = "{}"
+        else:
+            storage_str = str(storage)
+        ops.append({
+            "op": "save_account",
+            "address": contract_address,
+            "balance": 0.0,
+            "nonce": 0,
+            "code": str(code_hex or ""),
+            "storage": storage_str,
+        })
+        if value_wei > 0 and deployer:
+            ops.append({
+                "op": "transfer_value",
+                "from": deployer,
+                "to": contract_address,
+                "value_wei": value_wei,
+            })
+    return {
+        "deployer": deployer,
+        "address": contract_address,
+        "value_wei": value_wei,
+        "success": bool(success),
+        "reverted": not bool(success),
+        "ops": ops,
+        "native_create_writeback": False,
+        "native_plan": False,
+    }
+
+
+def evm_plan_create_writeback(
+    deployer: str,
+    contract_address: str,
+    value_wei: int,
+    success: bool,
+    code_hex: str = "",
+    storage=None,
+) -> dict:
+    """Plan CREATE/CREATE2 writeback ops with resolved addresses (v1.3.60)."""
+    storage_json = None
+    if storage is not None:
+        if isinstance(storage, dict):
+            storage_json = json.dumps({str(int(k)): int(v) for k, v in storage.items()})
+        elif isinstance(storage, (bytes, bytearray)):
+            storage_json = storage.decode("utf-8", errors="replace")
+        else:
+            storage_json = str(storage)
+    if _native is not None and hasattr(_native, "evm_plan_create_writeback"):
+        raw = _native.evm_plan_create_writeback(
+            str(deployer or ""),
+            str(contract_address or ""),
+            int(value_wei or 0),
+            bool(success),
+            str(code_hex or ""),
+            storage_json,
+        )
+        out = json.loads(raw) if isinstance(raw, str) else dict(raw)
+        out["native_create_writeback"] = True
+        out["native_plan"] = True
+        return out
+    if _REQUIRE_NATIVE:
+        _require_native_kernel("evm_plan_create_writeback")
+    return _evm_plan_create_writeback_py(
+        deployer, contract_address, value_wei, success, code_hex, storage
     )
 
 

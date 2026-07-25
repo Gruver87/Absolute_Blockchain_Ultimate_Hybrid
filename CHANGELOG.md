@@ -6,6 +6,13 @@
 
 ---
 
+## [1.3.60] — 2026-07-25
+
+### Added — CREATE writeback ops (Rust planner)
+
+- `evm_plan_create_writeback` — `save_account` + optional `transfer_value`
+- Adapter CREATE path applies via shared writeback ops (no double-credit)
+
 ## [1.3.59] — 2026-07-25
 
 ### Added — nested CALL writeback ops (Rust planner)

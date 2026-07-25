@@ -1,7 +1,6 @@
-//! Nested CALL writeback planner (v1.3.59).
+//! Nested CALL / CREATE writeback planners (v1.3.59–v1.3.60).
 //!
-//! Builds concrete persist ops (set_storage / transfer_value / append_logs).
-//! Python DB still applies — not in-process Rocks / CREATE write.
+//! Builds concrete persist ops. Python DB still applies — not in-process Rocks.
 
 use pyo3::prelude::*;
 use serde_json::{Map, Number, Value};
@@ -199,7 +198,72 @@ pub fn evm_plan_nested_call_writeback_py(
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
 }
 
+/// Plan CREATE/CREATE2 writeback as concrete ops (v1.3.60).
+/// Address is already computed by the adapter; this only plans persist ops.
+#[pyfunction]
+#[pyo3(name = "evm_plan_create_writeback")]
+#[pyo3(signature = (deployer, contract_address, value_wei, success, code_hex=None, storage_json=None))]
+pub fn evm_plan_create_writeback_py(
+    deployer: String,
+    contract_address: String,
+    value_wei: i64,
+    success: bool,
+    code_hex: Option<String>,
+    storage_json: Option<String>,
+) -> PyResult<String> {
+    let deployer = deployer.trim().to_string();
+    let contract_address = contract_address.trim().to_string();
+    let value_wei = value_wei.max(0);
+    let mut ops: Vec<Value> = Vec::new();
+
+    if success && !contract_address.is_empty() {
+        let code = code_hex.unwrap_or_default();
+        let storage = storage_object_from_json(storage_json.as_deref());
+        let storage_str = match &storage {
+            Value::Object(_) => serde_json::to_string(&storage).unwrap_or_else(|_| "{}".into()),
+            _ => "{}".into(),
+        };
+        let mut save = Map::new();
+        save.insert("op".into(), Value::String("save_account".into()));
+        save.insert("address".into(), Value::String(contract_address.clone()));
+        // Balance starts at 0; value transfer is a separate op (no double-credit).
+        save.insert("balance".into(), Value::Number(Number::from(0)));
+        save.insert("nonce".into(), Value::Number(Number::from(0u64)));
+        save.insert("code".into(), Value::String(code));
+        save.insert("storage".into(), Value::String(storage_str));
+        ops.push(Value::Object(save));
+
+        if value_wei > 0 && !deployer.is_empty() {
+            let mut xfer = Map::new();
+            xfer.insert("op".into(), Value::String("transfer_value".into()));
+            xfer.insert("from".into(), Value::String(deployer.clone()));
+            xfer.insert("to".into(), Value::String(contract_address.clone()));
+            xfer.insert("value_wei".into(), Value::Number(Number::from(value_wei)));
+            ops.push(Value::Object(xfer));
+        }
+    }
+
+    let mut out = Map::new();
+    out.insert("deployer".into(), Value::String(deployer));
+    out.insert(
+        "address".into(),
+        Value::String(contract_address),
+    );
+    out.insert(
+        "value_wei".into(),
+        Value::Number(Number::from(value_wei)),
+    );
+    out.insert("success".into(), Value::Bool(success));
+    out.insert("reverted".into(), Value::Bool(!success));
+    out.insert("ops".into(), Value::Array(ops));
+    out.insert("native_create_writeback".into(), Value::Bool(true));
+    out.insert("native_plan".into(), Value::Bool(true));
+    serde_json::to_string(&Value::Object(out))
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_plan_nested_call_writeback_py, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_plan_create_writeback_py, m)?)?;
     Ok(())
 }

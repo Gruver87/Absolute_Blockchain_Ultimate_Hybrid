@@ -392,7 +392,7 @@ class EVMAdapter:
         }
 
     def _apply_nested_writeback_ops(self, ops: List[Dict[str, Any]]) -> None:
-        """Apply Rust-planned nested CALL writeback ops via Python DB (v1.3.59)."""
+        """Apply Rust-planned writeback ops via Python DB (v1.3.59/60)."""
         for op in ops:
             kind = str(op.get("op") or "")
             if kind == "set_storage":
@@ -400,6 +400,20 @@ class EVMAdapter:
                 storage = op.get("storage") or {}
                 new_storage = {str(k): int(v) for k, v in dict(storage).items()}
                 self.db.update_account_storage(addr, new_storage)
+            elif kind == "save_account":
+                addr = self._normalize_addr(str(op.get("address") or ""))
+                storage = op.get("storage")
+                if isinstance(storage, dict):
+                    storage_str = json.dumps({str(k): int(v) for k, v in storage.items()})
+                else:
+                    storage_str = str(storage or "{}")
+                self.db.save_account(
+                    address=addr,
+                    balance=float(op.get("balance") or 0.0),
+                    nonce=int(op.get("nonce") or 0),
+                    code=str(op.get("code") or ""),
+                    storage=storage_str,
+                )
             elif kind == "transfer_value":
                 value_wei = int(op.get("value_wei") or 0)
                 if value_wei <= 0:
@@ -461,25 +475,24 @@ class EVMAdapter:
 
         ret_code = result.get("return_data") or b""
         code_hex = ret_code.hex() if ret_code else init_code.hex()
-        self.db.save_account(
-            address=contract_addr,
-            balance=value / 10**18 if value else 0.0,
-            nonce=0,
-            code=code_hex,
-            storage=json.dumps(
-                {str(k): v for k, v in result.get("storage", {}).items()}
-            ),
+        plan = native.evm_plan_create_writeback(
+            deployer,
+            contract_addr,
+            int(value or 0),
+            True,
+            code_hex,
+            result.get("storage"),
         )
-        if value > 0:
-            wei_to_abs = value / 10**18
-            self.db.update_balance(deployer, -wei_to_abs)
-            self.db.update_balance(contract_addr, wei_to_abs)
+        ops = list(plan.get("ops") or [])
+        if ops:
+            self._apply_nested_writeback_ops(ops)
 
         return {
             "success": True,
             "reverted": False,
             "address": contract_addr,
             "gas_used": result.get("gas_used", 0),
+            "native_create_writeback_ops": len(ops),
         }
 
     def _run_evm(self, bytecode: bytes, storage: Dict[int, int], gas_limit: int,
