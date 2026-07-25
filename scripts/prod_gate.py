@@ -48,6 +48,7 @@ REQUIRED_TRUE = [
     "require_wallet_file",
     "bridge_require_l1_proof",
     "require_native_crypto",
+    "p2p_native_transport",
     "evm_create2_eip1014",
     "evm_require_deploy_salt",
 ]

@@ -463,6 +463,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.111: Native state-root shape gates (Priority 66)
 - [x] v1.3.112: Native cross-shard shape gates (Priority 67)
 - [x] v1.3.113: Native handshake payload gate (Priority 68)
+- [x] v1.3.114: Prod-mandatory native P2P transport + skip dual shape re-validate (Priority 69)
 
 ### Priority 39 — P2P Rust ingress data plane ✅ (v1.3.77–v1.3.78)
 
@@ -638,6 +639,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `check_handshake_payload` on `handshake_roundtrip` inbound handshake/ack
 - [x] Bad → `bad_handshake_payload`; chain-id / TLS policy stay Python
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
+### Priority 69 — Prod-mandatory native P2P transport ✅ (v1.3.114)
+
+- [x] Prod default + `prod_gate` / config fail-closed for `p2p_native_transport`
+- [x] No silent asyncio fallback when prod / `require_native_crypto` requires transport
+- [x] Skip Python dual shape re-validate when `_use_native_transport`
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
 ## Process per module

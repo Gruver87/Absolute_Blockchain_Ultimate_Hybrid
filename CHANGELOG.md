@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.114] — 2026-07-25
+
+### P2P — prod-mandatory native transport
+
+- Prod defaults/requires `p2p_native_transport=true` (config + `prod_gate`)
+- Fail-closed when native transport required but unavailable (no asyncio fallback)
+- Skip Python dual shape re-validate on native read path
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.113] — 2026-07-25
 
 ### P2P — native handshake payload gate

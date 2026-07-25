@@ -589,6 +589,12 @@ class MetricsCollector:
                     f"abs_p2p_native_handshake_payload_gate{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_handshake_payload_gate') else 0}"
                 ),
+                "# HELP abs_p2p_native_shape_revalidate Whether Python dual shape re-validate is active (0=native skipped)",
+                "# TYPE abs_p2p_native_shape_revalidate gauge",
+                (
+                    f"abs_p2p_native_shape_revalidate{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_shape_revalidate') else 0}"
+                ),
                 "# HELP abs_p2p_native_read_batch Configured native read_messages batch size",
                 "# TYPE abs_p2p_native_read_batch gauge",
                 (

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.113 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.114 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -74,6 +74,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13111_p2p_native_state_root_gate.py",
     "tests/unit/test_v13112_p2p_native_cross_shard_gate.py",
     "tests/unit/test_v13113_p2p_native_handshake_payload_gate.py",
+    "tests/unit/test_v13114_p2p_native_transport_prod.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -939,6 +940,31 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "observability/metrics.py",
         ["abs_p2p_native_handshake_payload_gate"],
     ),
+    (
+        "1.3.114",
+        "RELEASE_NOTES_v1.3.114.md",
+        ["1.3.114-industrial", "transport"],
+    ),
+    (
+        "1.3.114",
+        "runtime/config.py",
+        ["p2p_native_transport", "prod mode requires p2p_native_transport"],
+    ),
+    (
+        "1.3.114",
+        "scripts/prod_gate.py",
+        ["p2p_native_transport"],
+    ),
+    (
+        "1.3.114",
+        "network/p2p_node.py",
+        ["must_native_tx", "native_shape_revalidate", "check_ingress_shape_gates"],
+    ),
+    (
+        "1.3.114",
+        "observability/metrics.py",
+        ["abs_p2p_native_shape_revalidate"],
+    ),
 ]
 
 
@@ -966,8 +992,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.113"):
-            errors.append(f"node_version expected 1.3.113-*, got {ver}")
+        if not ver.startswith("1.3.114"):
+            errors.append(f"node_version expected 1.3.114-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

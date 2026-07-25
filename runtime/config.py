@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.113-industrial"
+    node_version: str = "1.3.114-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -106,7 +106,7 @@ class Config:
     p2p_max_outbound_bytes_per_sec: int = 4 * 1024 * 1024  # per-peer outbound bandwidth (0=off)
     p2p_evict_min_score: int = 0                  # evict peers below score when >1 peer (0=off)
     p2p_eclipse_warn_ratio: float = 0.34          # densest public subnet / public peers (0=off)
-    p2p_native_transport: bool = False            # v1.3.90+: Rust TCP+framer (+TLS in v1.3.91)
+    p2p_native_transport: bool = False            # v1.3.90+; prod forces True (v1.3.114)
     p2p_native_auto_pong: bool = True             # v1.3.98/99: ping reply + pong consume on read path
     p2p_native_read_batch: int = 8                # v1.3.101: read_messages max_n (1..64)
     p2p_native_write_batch: int = 8               # v1.3.101: send-queue write batch (1..64)
@@ -340,7 +340,8 @@ class Config:
         except (TypeError, ValueError):
             pass
         self.p2p_native_transport = env_bool(
-            "P2P_NATIVE_TRANSPORT", self.p2p_native_transport
+            "P2P_NATIVE_TRANSPORT",
+            self.p2p_native_transport if not self.is_production else True,
         )
         self.p2p_native_auto_pong = env_bool(
             "P2P_NATIVE_AUTO_PONG", self.p2p_native_auto_pong
@@ -667,6 +668,11 @@ class Config:
                 )
             if not self.require_native_crypto:
                 errors.append("prod mode requires ABS_REQUIRE_NATIVE_CRYPTO=true")
+            if not self.p2p_native_transport:
+                errors.append(
+                    "prod mode requires p2p_native_transport=true "
+                    "(native TCP+TLS data plane; set P2P_NATIVE_TRANSPORT=true)"
+                )
             if not self.evm_create2_eip1014:
                 errors.append("prod mode requires evm_create2_eip1014=true")
             if not self.evm_require_deploy_salt:
@@ -691,6 +697,13 @@ class Config:
                         errors.append(
                             "ABS_REQUIRE_NATIVE_CRYPTO=true but native self_test failed: "
                             + str(st.get("error") or st)
+                        )
+                    if self.p2p_native_transport and not getattr(
+                        native, "p2p_native_transport_available", lambda: False
+                    )():
+                        errors.append(
+                            "p2p_native_transport=true but abs_native P2P transport unavailable "
+                            "(rebuild native wheel with p2p_transport)"
                         )
             except Exception as e:
                 errors.append(f"ABS_REQUIRE_NATIVE_CRYPTO=true but native crypto check failed: {e}")

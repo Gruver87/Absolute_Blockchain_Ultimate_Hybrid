@@ -1689,8 +1689,23 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "observability" / "metrics.py"
         ).read_text(encoding="utf-8"):
             errors.append("metrics must export abs_p2p_native_handshake_payload_gate (v1.3.113)")
+        # v1.3.114 — prod-mandatory native transport + skip dual shape re-validate
+        if "prod mode requires p2p_native_transport" not in (
+            ROOT / "runtime" / "config.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("config must fail-closed for prod p2p_native_transport (v1.3.114)")
+        if '"p2p_native_transport"' not in (
+            ROOT / "scripts" / "prod_gate.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("prod_gate must require p2p_native_transport (v1.3.114)")
+        if "must_native_tx" not in p2p_py or "native_shape_revalidate" not in p2p_py:
+            errors.append("p2p_node must fail-closed + skip dual shape re-validate (v1.3.114)")
+        if "abs_p2p_native_shape_revalidate" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("metrics must export abs_p2p_native_shape_revalidate (v1.3.114)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..113 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..114 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

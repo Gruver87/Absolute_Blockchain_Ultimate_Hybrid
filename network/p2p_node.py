@@ -1005,26 +1005,41 @@ class P2PNode:
                 logger.warning("[P2P] native P2PConnectionGovernor unavailable: %s", exc)
                 self._conn_governor = None
         # v1.3.90/91: native TCP(+TLS) transport
+        # v1.3.114: prod / require_native_crypto fail-closed (no silent asyncio fallback).
         want_native_tx = bool(getattr(config, "p2p_native_transport", False))
+        must_native_tx = want_native_tx and (
+            bool(getattr(config, "require_native_crypto", False))
+            or str(getattr(config, "deployment_mode", "") or "").lower() == "prod"
+        )
         if want_native_tx:
             if native.native_available() and hasattr(native, "P2PNativeListener"):
                 if p2p_tls_enabled(config):
                     errs, _warn = validate_p2p_tls_config(config)
                     if errs:
-                        logger.warning(
-                            "[P2P] p2p_native_transport+TLS misconfigured: %s",
-                            "; ".join(errs),
+                        msg = (
+                            "[P2P] p2p_native_transport+TLS misconfigured: "
+                            + "; ".join(errs)
                         )
+                        if must_native_tx:
+                            raise RuntimeError(msg)
+                        logger.warning("%s", msg)
                     elif not getattr(native, "p2p_native_tls_available", lambda: False)():
-                        logger.warning(
-                            "[P2P] native TLS unavailable; falling back to asyncio TLS"
+                        msg = (
+                            "[P2P] native TLS unavailable; "
+                            "cannot use p2p_native_transport with TLS"
                         )
+                        if must_native_tx:
+                            raise RuntimeError(msg)
+                        logger.warning("%s", msg)
                     else:
                         self._use_native_transport = True
                 else:
                     self._use_native_transport = True
             else:
-                logger.warning("[P2P] p2p_native_transport requested but abs_native missing")
+                msg = "[P2P] p2p_native_transport requested but abs_native missing"
+                if must_native_tx:
+                    raise RuntimeError(msg)
+                logger.warning("%s", msg)
         self._native_tls = bool(
             self._use_native_transport and p2p_tls_enabled(config)
         )
@@ -1307,7 +1322,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.113)"
+                    f"({label} v1.3.114)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -2046,83 +2061,85 @@ class P2PNode:
         data = msg.get("data")
 
         # Fail-closed shape gates before sync waiters consume the message.
-        if msg_type == MSG_STATE_ROOT_RESPONSE:
-            if not native.validate_p2p_state_root_response(data):
-                self._strike_peer_sync(peer, "bad_state_root_response")
-                return
-        elif msg_type == MSG_STATE_ROOT_REQUEST:
-            if native.validate_p2p_state_root_request(data) is None:
-                self._strike_peer_sync(peer, "bad_state_root_request")
-                return
-        elif msg_type == MSG_NEW_BLOCK:
-            if not native.validate_p2p_block_announce(data):
-                self._strike_peer_sync(peer, "bad_block_announce")
-                return
-        elif msg_type == MSG_ATTESTATION:
-            if not native.validate_p2p_attestation_payload(data):
-                self._strike_peer_sync(peer, "bad_attestation_shape")
-                return
-        elif msg_type == MSG_STATUS:
-            if native.validate_p2p_status_payload(data) is None and data is not None:
-                # Allow null/empty status keepalives; reject malformed dicts.
-                if isinstance(data, dict):
-                    self._strike_peer_sync(peer, "bad_status_payload")
+        # v1.3.114: native read path already ran check_ingress_shape_gates — skip dual re-validate.
+        if not getattr(self, "_use_native_transport", False):
+            if msg_type == MSG_STATE_ROOT_RESPONSE:
+                if not native.validate_p2p_state_root_response(data):
+                    self._strike_peer_sync(peer, "bad_state_root_response")
                     return
+            elif msg_type == MSG_STATE_ROOT_REQUEST:
+                if native.validate_p2p_state_root_request(data) is None:
+                    self._strike_peer_sync(peer, "bad_state_root_request")
+                    return
+            elif msg_type == MSG_NEW_BLOCK:
+                if not native.validate_p2p_block_announce(data):
+                    self._strike_peer_sync(peer, "bad_block_announce")
+                    return
+            elif msg_type == MSG_ATTESTATION:
+                if not native.validate_p2p_attestation_payload(data):
+                    self._strike_peer_sync(peer, "bad_attestation_shape")
+                    return
+            elif msg_type == MSG_STATUS:
+                if native.validate_p2p_status_payload(data) is None and data is not None:
+                    # Allow null/empty status keepalives; reject malformed dicts.
+                    if isinstance(data, dict):
+                        self._strike_peer_sync(peer, "bad_status_payload")
+                        return
 
-        elif msg_type == MSG_NEW_TX:
-            if not native.validate_p2p_wire_tx(data):
-                self._strike_peer_sync(peer, "bad_wire_tx")
-                return
-        elif msg_type == MSG_MEMPOOL:
-            if native.validate_p2p_mempool_batch(data) is None:
-                self._strike_peer_sync(peer, "bad_mempool_batch")
-                return
-        elif msg_type == MSG_GET_BLOCKS:
-            if native.validate_p2p_get_blocks_payload(data) is None:
-                self._strike_peer_sync(peer, "bad_get_blocks")
-                return
-        elif msg_type == MSG_GET_BLOCK:
-            if native.validate_p2p_get_block(data) is None:
-                self._strike_peer_sync(peer, "bad_get_block")
-                return
-        elif msg_type == MSG_GET_BLOCK_BY_HASH:
-            if native.validate_p2p_get_block_by_hash(data) is None:
-                self._strike_peer_sync(peer, "bad_get_block_by_hash")
-                return
-        elif msg_type == MSG_BLOCKS:
-            if native.validate_p2p_blocks_batch(data) is None:
-                self._strike_peer_sync(peer, "bad_blocks_batch")
-                return
-        elif msg_type == MSG_BLOCK:
-            # null/None = not found; non-null must match block announce shape
-            if data is not None and native.validate_p2p_block_announce(data) is None:
-                self._strike_peer_sync(peer, "bad_block_payload")
-                return
-        elif msg_type == MSG_PEERS:
-            if native.validate_p2p_peers_list(data) is None:
-                self._strike_peer_sync(peer, "bad_peers_list")
-                return
-        elif msg_type == MSG_VALIDATOR_REGISTER:
-            if native.validate_p2p_validator_register(data) is None:
-                self._strike_peer_sync(peer, "bad_validator_register")
-                return
-        elif msg_type == MSG_CROSS_SHARD_TX:
-            if native.validate_p2p_cross_shard_tx(data) is None:
-                self._strike_peer_sync(peer, "bad_cross_shard_tx")
-                return
-        elif msg_type == MSG_CROSS_SHARD_ACK:
-            if native.validate_p2p_cross_shard_ack(data) is None:
-                self._strike_peer_sync(peer, "bad_cross_shard_ack")
-                return
-        elif msg_type == MSG_SHARD_MIGRATION:
-            if native.validate_p2p_shard_migration(data) is None:
-                self._strike_peer_sync(peer, "bad_shard_migration")
-                return
-        elif msg_type in (MSG_GET_MEMPOOL, MSG_GET_PEERS, MSG_PING, MSG_PONG):
-            if not _housekeeping_payload_ok(msg_type, data):
-                if self._strike_peer_sync(peer, f"bad_{msg_type}_payload"):
-                    self._remove_peer(peer.peer_id, peer)
-                return
+            elif msg_type == MSG_NEW_TX:
+                if not native.validate_p2p_wire_tx(data):
+                    self._strike_peer_sync(peer, "bad_wire_tx")
+                    return
+            elif msg_type == MSG_MEMPOOL:
+                if native.validate_p2p_mempool_batch(data) is None:
+                    self._strike_peer_sync(peer, "bad_mempool_batch")
+                    return
+            elif msg_type == MSG_GET_BLOCKS:
+                if native.validate_p2p_get_blocks_payload(data) is None:
+                    self._strike_peer_sync(peer, "bad_get_blocks")
+                    return
+            elif msg_type == MSG_GET_BLOCK:
+                if native.validate_p2p_get_block(data) is None:
+                    self._strike_peer_sync(peer, "bad_get_block")
+                    return
+            elif msg_type == MSG_GET_BLOCK_BY_HASH:
+                if native.validate_p2p_get_block_by_hash(data) is None:
+                    self._strike_peer_sync(peer, "bad_get_block_by_hash")
+                    return
+            elif msg_type == MSG_BLOCKS:
+                if native.validate_p2p_blocks_batch(data) is None:
+                    self._strike_peer_sync(peer, "bad_blocks_batch")
+                    return
+            elif msg_type == MSG_BLOCK:
+                # null/None = not found; non-null must match block announce shape
+                if data is not None and native.validate_p2p_block_announce(data) is None:
+                    self._strike_peer_sync(peer, "bad_block_payload")
+                    return
+            elif msg_type == MSG_PEERS:
+                if native.validate_p2p_peers_list(data) is None:
+                    self._strike_peer_sync(peer, "bad_peers_list")
+                    return
+            elif msg_type == MSG_VALIDATOR_REGISTER:
+                if native.validate_p2p_validator_register(data) is None:
+                    self._strike_peer_sync(peer, "bad_validator_register")
+                    return
+            elif msg_type == MSG_CROSS_SHARD_TX:
+                if native.validate_p2p_cross_shard_tx(data) is None:
+                    self._strike_peer_sync(peer, "bad_cross_shard_tx")
+                    return
+            elif msg_type == MSG_CROSS_SHARD_ACK:
+                if native.validate_p2p_cross_shard_ack(data) is None:
+                    self._strike_peer_sync(peer, "bad_cross_shard_ack")
+                    return
+            elif msg_type == MSG_SHARD_MIGRATION:
+                if native.validate_p2p_shard_migration(data) is None:
+                    self._strike_peer_sync(peer, "bad_shard_migration")
+                    return
+            elif msg_type in (MSG_GET_MEMPOOL, MSG_GET_PEERS, MSG_PING, MSG_PONG):
+                if not _housekeeping_payload_ok(msg_type, data):
+                    if self._strike_peer_sync(peer, f"bad_{msg_type}_payload"):
+                        self._remove_peer(peer.peer_id, peer)
+                    return
 
         waiter = self._sync_waiters.get(peer.peer_id)
         if waiter:
@@ -3820,6 +3837,15 @@ class P2PNode:
             "native_state_root_gate": bool(getattr(self, "_use_native_transport", False)),
             "native_cross_shard_gate": bool(getattr(self, "_use_native_transport", False)),
             "native_handshake_payload_gate": bool(getattr(self, "_use_native_transport", False)),
+            "native_transport_prod_required": bool(
+                getattr(self.config, "p2p_native_transport", False)
+                and (
+                    bool(getattr(self.config, "require_native_crypto", False))
+                    or str(getattr(self.config, "deployment_mode", "") or "").lower()
+                    == "prod"
+                )
+            ),
+            "native_shape_revalidate": not bool(getattr(self, "_use_native_transport", False)),
             "native_read_batch": int(getattr(self, "_native_read_batch", 8) or 8),
             "native_write_batch": int(getattr(self, "_native_write_batch", 8) or 8),
             "native_read_chunk": int(getattr(self, "_native_read_chunk", 65536) or 65536),
