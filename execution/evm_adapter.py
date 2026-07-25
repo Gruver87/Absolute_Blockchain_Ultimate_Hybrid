@@ -305,15 +305,16 @@ class EVMAdapter:
 
         result: Optional[Dict[str, Any]] = None
         gas_budget = int(gas or self.config.evm_gas_limit)
+        host_ctx_for_wb: Any = None
         # v1.3.55: bridge-eligible (BALANCE/EXTCODE*) via nested pure + allow_bridge.
         if native.evm_bytecode_is_nested_native_eligible(bytecode):
             try:
-                host_ctx = native.evm_host_context_from_evm(sub_ctx)
+                host_ctx_for_wb = native.evm_host_context_from_evm(sub_ctx)
                 nested = native.evm_run_nested_pure_frame(
                     bytecode,
                     gas_budget,
                     bytes(calldata or b""),
-                    host_ctx,
+                    host_ctx_for_wb,
                     storage,
                     allow_bridge=True,
                 )
@@ -341,12 +342,12 @@ class EVMAdapter:
                 evm = EVM(gas_limit=gas_budget, context=sub_ctx)
                 evm.storage = storage
                 bridge = make_evm_runtime_bridge(evm)
-                host_ctx = native.evm_host_context_from_evm(sub_ctx)
+                host_ctx_for_wb = native.evm_host_context_from_evm(sub_ctx)
                 nested = native.evm_run_nested_host_frame(
                     bytecode,
                     gas_budget,
                     bytes(calldata or b""),
-                    host_ctx,
+                    host_ctx_for_wb,
                     evm.storage,
                     bridge,
                 )
@@ -393,6 +394,10 @@ class EVMAdapter:
         # Fail-closed: never persist storage/value/logs for reverted nested calls.
         if not result.get("reverted"):
             ops = list(plan.get("ops") or [])
+            # v1.3.83: flush inline value transfers planned on bridge_state.
+            inline_ops = self._take_bridge_pending_writeback(host_ctx_for_wb)
+            if inline_ops:
+                ops.extend(inline_ops)
             native_flags = {
                 k: result[k]
                 for k in (
@@ -402,6 +407,9 @@ class EVMAdapter:
                 )
                 if k in result
             }
+            if inline_ops:
+                native_flags["native_inline_writeback"] = True
+                native_flags["native_inline_writeback_ops"] = len(inline_ops)
             if not ops:
                 return {
                     "success": success,
@@ -430,6 +438,33 @@ class EVMAdapter:
             "return_data": result.get("return_data", b"") or b"",
             "gas_used": result.get("gas_used", 0),
         }
+
+    def _take_bridge_pending_writeback(self, host_ctx: Any) -> List[Dict[str, Any]]:
+        """Pop Rust-planned inline transfer_value ops (v1.3.83)."""
+        if host_ctx is None:
+            return []
+        try:
+            bs = host_ctx.get("bridge_state")
+            if bs is None:
+                return []
+            raw = None
+            if hasattr(bs, "pop"):
+                raw = bs.pop("pending_writeback_ops", None)
+            elif hasattr(bs, "get"):
+                raw = bs.get("pending_writeback_ops")
+                if raw is not None:
+                    try:
+                        del bs["pending_writeback_ops"]
+                    except Exception:
+                        pass
+            if not raw:
+                return []
+            out: List[Dict[str, Any]] = []
+            for item in list(raw):
+                out.append(dict(item))
+            return out
+        except Exception:
+            return []
 
     def _writeback_store(self):
         """Rocks/hybrid store exposing commit_writeback_accounts (v1.3.62)."""

@@ -1122,6 +1122,57 @@ fn try_inline_value_transfer(
     Ok(InlineValueTransfer::Transferred { snap })
 }
 
+/// v1.3.83: enqueue `transfer_value` for adapter satoshi writeback journal.
+/// Same-addr / zero / >i64 wei → no op (fail-closed: no silent wrong satoshi).
+fn push_pending_writeback_transfer(
+    host_context: Option<&Bound<'_, PyDict>>,
+    from: U256,
+    to: U256,
+    value: U256,
+) -> PyResult<()> {
+    if value.is_zero() {
+        return Ok(());
+    }
+    let from_s = word_to_address(from);
+    let to_s = word_to_address(to);
+    if from_s == to_s {
+        return Ok(());
+    }
+    if value.bits() > 63 {
+        return Ok(());
+    }
+    let wei = value.as_u64() as i64;
+    let Some(state) = bridge_state_dict(host_context) else {
+        return Ok(());
+    };
+    let py = state.py();
+    let pending = match state.get_item("pending_writeback_ops")? {
+        Some(existing) => match existing.downcast::<PyList>() {
+            Ok(list) => list.clone(),
+            Err(_) => {
+                let list = PyList::empty_bound(py);
+                state.set_item("pending_writeback_ops", &list)?;
+                list
+            }
+        },
+        None => {
+            let list = PyList::empty_bound(py);
+            state.set_item("pending_writeback_ops", &list)?;
+            list
+        }
+    };
+    let op = PyDict::new_bound(py);
+    op.set_item("op", "transfer_value")?;
+    op.set_item("from", from_s.as_str())?;
+    op.set_item("to", to_s.as_str())?;
+    op.set_item("value_wei", wei)?;
+    op.set_item("native_inline_writeback", true)?;
+    pending.append(op)?;
+    state.set_item("native_inline_writeback_value", true)?;
+    state.set_item("native_inline_writeback_ops", pending.len())?;
+    Ok(())
+}
+
 /// v1.3.74–76 Priority 38: CALL/STATICCALL in-Rust frame with callee storage.
 /// v1.3.76: value>0 CALL via fail-closed `bridge_state.balances` (no silent debit).
 fn try_inline_leaf_value0_call(
@@ -1259,6 +1310,16 @@ fn try_inline_leaf_value0_call(
     let success = !reverted && matches!(reason.as_str(), "halt" | "return");
     if success {
         store_inline_storage(host_context, frame.to_word, &child_storage)?;
+        // v1.3.83: plan satoshi journal op only after child success (matches balance keep).
+        if !frame.value.is_zero() {
+            let static_ctx = parse_static_context(host_context)?;
+            push_pending_writeback_transfer(
+                host_context,
+                static_ctx.address,
+                frame.to_word,
+                frame.value,
+            )?;
+        }
     } else if let Some(ref snap) = balance_snap {
         // Revert value transfer with the child.
         restore_inline_balances(host_context, snap)?;
@@ -1496,7 +1557,7 @@ fn run_inline_create_init(
     Ok(Some((runtime, sub_gas, true)))
 }
 
-/// v1.3.80–82 Priority 38: CREATE/CREATE2 via bridge_state.
+/// v1.3.80–83 Priority 38: CREATE/CREATE2 via bridge_state.
 /// Empty/STOP or leaf-eligible init (RETURN runtime) owned in Rust.
 /// CREATE2 defaults to EIP-1014 (`create2_eip1014=false` → legacy Absolute seed).
 fn try_inline_simple_create(
@@ -1612,6 +1673,10 @@ fn try_inline_simple_create(
     }
 
     let _ = balance_snap; // success keeps transfer
+    // v1.3.83: enqueue transfer_value for adapter satoshi journal.
+    if !value.is_zero() {
+        push_pending_writeback_transfer(host_context, static_ctx.address, addr_word, value)?;
+    }
     stack_push(stack, addr_word);
     state.set_item("native_inline_simple_create", true)?;
     state.set_item("native_inline_create_address", addr.as_str())?;

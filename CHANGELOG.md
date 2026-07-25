@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.83] — 2026-07-25
+
+### EVM — inline value → satoshi writeback journal
+
+- Successful inline value CALL/CREATE appends `transfer_value` to `bridge_state.pending_writeback_ops`
+- Adapter flushes into nested writeback / tx journal (`_take_bridge_pending_writeback`)
+- Markers: `native_inline_writeback_value`, `native_inline_writeback_ops`
+- Honesty: inline CREATE `save_account` journal still not claimed; not public mainnet
+
 ## [1.3.82] — 2026-07-25
 
 ### EVM — CREATE/CREATE2 eligible init with RETURN runtime

@@ -176,5 +176,5 @@ def test_needles_v1382():
     assert "native_inline_create_runtime" in rust
     assert "MAX_INLINE_CREATE_CODE_BYTES" in rust
     assert "v1.3.82" in rust
-    cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "1.3.82-industrial" in cfg
+    notes = (ROOT / "RELEASE_NOTES_v1.3.82.md").read_text(encoding="utf-8")
+    assert "1.3.82-industrial" in notes
