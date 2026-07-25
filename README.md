@@ -1,33 +1,23 @@
 # Absolute Blockchain Ultimate Hybrid
 
-<p align="center">
-  <img src="docs/assets/repo-banner.svg" alt="Absolute Blockchain Ultimate Hybrid — Python + Rust L1" width="100%"/>
-</p>
+![Absolute Blockchain Ultimate Hybrid — Python + Rust L1](docs/assets/repo-banner.svg)
 
-<p align="center">
-  <strong>Hybrid Python + Rust Layer-1 node</strong> — production-profile mesh, RocksDB, REST/JSON-RPC explorer,<br/>
-  native crypto (<code>abs_native</code>), EVM path, Docker/K8s deploy profiles, evidence-first ops.
-</p>
+**Hybrid Python + Rust Layer-1 node** — production-profile mesh, RocksDB, REST/JSON-RPC explorer, native crypto (`abs_native`), EVM path, Docker/K8s deploy profiles, evidence-first ops.
 
-<p align="center">
-  <a href="https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/stargazers"><img src="https://img.shields.io/github/stars/Gruver87/Absolute_Blockchain_Ultimate_Hybrid?style=social" alt="Stars"/></a>
-  <a href="https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/network/members"><img src="https://img.shields.io/github/forks/Gruver87/Absolute_Blockchain_Ultimate_Hybrid?style=social" alt="Forks"/></a>
-  <a href="https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases"><img src="https://img.shields.io/github/v/release/Gruver87/Absolute_Blockchain_Ultimate_Hybrid?include_prereleases&sort=semver" alt="Release"/></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green" alt="License"/></a>
-</p>
+[![Stars](https://img.shields.io/github/stars/Gruver87/Absolute_Blockchain_Ultimate_Hybrid?style=social)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/stargazers)
+[![Forks](https://img.shields.io/github/forks/Gruver87/Absolute_Blockchain_Ultimate_Hybrid?style=social)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/network/members)
+[![Release](https://img.shields.io/github/v/release/Gruver87/Absolute_Blockchain_Ultimate_Hybrid?include_prereleases&sort=semver)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://www.python.org/)
+[![Rust](https://img.shields.io/badge/Rust-abs__native%20PyO3-orange)](native/abs_native)
+[![Tests CI](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/test.yml)
+[![Docker CI](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/docker-prod-image.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/docker-prod-image.yml)
+[![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
+[![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
+[![48h soak](https://img.shields.io/badge/48h%20soak-PASS%20Jul%202026-brightgreen)](docs/EVIDENCE_MATRIX.md)
+[![Release v1.3.87](https://img.shields.io/badge/Release-v1.3.87-blue)](RELEASE_NOTES_v1.3.87.md)
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.10+-blue" alt="Python"/>
-  <img src="https://img.shields.io/badge/Rust-abs__native%20PyO3-orange" alt="Rust"/>
-  <a href="https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/test.yml"><img src="https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/test.yml/badge.svg?branch=master" alt="Tests CI"/></a>
-  <a href="https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/docker-prod-image.yml"><img src="https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/docker-prod-image.yml/badge.svg?branch=master" alt="Docker CI"/></a>
-  <a href="https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml"><img src="https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master" alt="Security audit"/></a>
-  <img src="https://img.shields.io/badge/API%20Wave-61-blue" alt="API Wave"/>
-  <a href="docs/EVIDENCE_MATRIX.md"><img src="https://img.shields.io/badge/48h%20soak-PASS%20Jul%202026-brightgreen" alt="48h soak"/></a>
-  <a href="RELEASE_NOTES_v1.3.87.md"><img src="https://img.shields.io/badge/Release-v1.3.87-blue" alt="v1.3.87"/></a>
-</p>
-
-**Keywords:** Absolute Blockchain · hybrid L1 · Python Rust PyO3 · P2P mesh · RocksDB · EVM · JSON-RPC · industrial soak · fail-closed prod profile  
+**Keywords:** Absolute Blockchain · hybrid L1 · Python Rust PyO3 · P2P mesh · RocksDB · EVM · JSON-RPC · industrial soak · fail-closed prod profile
 
 **Repo:** [github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · **Default branch:** `master`  
 **Author:** **ULADZIMIR DABRANSKI** (D.U.P.) · **Owner:** [Gruver87](https://github.com/Gruver87)
@@ -51,7 +41,7 @@
 | Local / Docker devnet | **Proven** | `docker_devnet*.ps1`, CI |
 | Prod-profile 3-node mesh (778888) | **Proven** | `docker_prod_3node.ps1`, ports `:18180–18182` |
 | Failover + signed tx + EVM mempool on prod mesh | **Proven** | Jul 2026 evidence suite |
-| **7h + 48h soak** | **PASS** | 48h: 2026-07-19→21 · `soak_report_48h.json` |
+| **7h + 48h soak** | **PASS** | 48h: 2026-07-19→21 on prod mesh (`logs/soak_report_48h.json`, `fail_lines=0`; run tagged at **v1.2.84** evidence era — later industrial tags build on that baseline) |
 | Public mainnet / listed ABS / external audit | **Not claimed** | Gaps in [MAINNET_GAP_ANALYSIS](docs/MAINNET_GAP_ANALYSIS.md) |
 | Bridge L1 cutover | **Off by design** on prod mesh | [BRIDGE_L1_MAINNET](docs/BRIDGE_L1_MAINNET.md) |
 
@@ -65,7 +55,7 @@ Most “blockchain” GitHub pages advertise features. This one separates **code
 
 1. **Evidence matrix** — every major ops claim maps to a command + artifact ([EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md)).
 2. **Fail-closed prod profile** — secrets, native crypto, no simulator bridge, admin JWT, RPC API keys.
-3. **48h soak under Docker** — completed with `fail_lines=0`; log rotation + WSL memory hardening after real OOM/daemon.json incidents.
+3. **48h soak under Docker** — `passed=true`, `fail_lines=0` in `logs/soak_report_48h.json` (11 transient ±1 height mesh WARNs accepted); log rotation + WSL memory hardening after real OOM/`daemon.json` incidents.
 4. **Hybrid honesty** — Python orchestrates; Rust owns deterministic hot paths; gaps (audit, public VPS, bridge cutover) are listed, not hidden.
 5. **One-command self-check** — `.\scripts\check_all.ps1` (waves → full gate → optional live + isolated P2P CI).
 
@@ -83,7 +73,7 @@ cd Absolute_Blockchain_Ultimate_Hybrid
 .\scripts\check_all.ps1 -Help
 ```
 
-Report: `data/check_all.json`. Aliases: `test_all.ps1`, `check_everything.ps1`, `test_blockchain_full.ps1`.
+Report: `data/check_all.json`. Aliases: `.\scripts\test_all.ps1`, `.\scripts\check_everything.ps1`, `.\scripts\test_blockchain_full.ps1`.
 
 ---
 
@@ -109,7 +99,7 @@ Report: `data/check_all.json`. Aliases: `test_all.ps1`, `check_everything.ps1`, 
 | Area | Level | Verified |
 |------|-------|----------|
 | **L1 core** | Hardened R&D | Blocks, balances, burn, genesis, ECDSA txs, auto-mine ~12–15s |
-| **REST + Explorer** | Solid | 288+ handlers, OpenAPI, Wave 61, SPA explorer |
+| **REST + Explorer** | Solid | 270+ HTTP path branches in `api/http.py`, OpenAPI, Wave 61, SPA explorer |
 | **P2P** | Verified | 2/3/5-node Docker; state_root; topology; rejoin; isolated CI |
 | **TX / EVM on prod mesh** | Proven | Signed gossip + mempool deploy smoke (Jul 2026) |
 | **Rust native** | Hybrid path | `abs_native` required in prod (`ABS_REQUIRE_NATIVE_CRYPTO`) |
@@ -118,7 +108,7 @@ Report: `data/check_all.json`. Aliases: `test_all.ps1`, `check_everything.ps1`, 
 | **L2 / PQ / ZK modules** | R&D | Unit-tested; not mainnet Lightning/Plasma/audited SNARKs |
 | **Public mainnet** | **Not launched** | External audit + validator ops + L1 cutover remaining |
 
-**Quality gate:** CI badges · `.\scripts\check_all.ps1` · **1100+** tests (`pytest tests/ --collect-only`)
+**Quality gate:** CI badges · `.\scripts\check_all.ps1` · **1260** tests collected (`pytest tests/ --collect-only`, Jul 2026)
 
 ---
 
