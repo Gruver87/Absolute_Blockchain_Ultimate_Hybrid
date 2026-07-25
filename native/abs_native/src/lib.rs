@@ -18,8 +18,8 @@ mod p2p_rate_limit;
 mod p2p_wire;
 
 pub use fuzz_api::{
-    fuzz_p2p_frame_feed, fuzz_p2p_rate_limit_sequence, fuzz_p2p_wire_parse,
-    fuzz_p2p_wire_parse_allowlist, fuzz_p2p_wire_roundtrip,
+    fuzz_p2p_frame_feed, fuzz_p2p_governor_sequence, fuzz_p2p_rate_limit_sequence,
+    fuzz_p2p_wire_parse, fuzz_p2p_wire_parse_allowlist, fuzz_p2p_wire_roundtrip,
 };
 mod rlp;
 mod rocks_keycodec;

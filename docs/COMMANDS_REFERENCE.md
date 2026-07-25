@@ -6,7 +6,7 @@
 
 | | |
 |---|---|
-| **Версия** | `1.3.88-industrial` |
+| **Версия** | `1.3.89-industrial` |
 | **API Wave** | `61` |
 | **Обновлено** | 2026-07-25 |
 | **Entry** | `python main.py` / `.\scripts\start_node.ps1` |
@@ -119,7 +119,7 @@ python scripts/apply_local_secrets.py
 .\scripts\start_two_nodes.ps1 -RustBridge -Fresh
 python scripts/verify_p2p_ci.py --mode devnet --wait 240
 
-# Industrial waves (v1.3.65–88)
+# Industrial waves (v1.3.65–89)
 python scripts/verify_industrial_waves.py
 
 # Native P2P fuzz smoke (Windows-friendly; cargo-fuzz on Linux CI)

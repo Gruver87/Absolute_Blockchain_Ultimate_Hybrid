@@ -1436,8 +1436,20 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("p2p_ingress must expose p2p_egress_prepare (v1.3.87)")
         if "_prepare_outbound" not in p2p_py or "p2p_egress_prepare" not in p2p_py:
             errors.append("p2p_node must wire egress prepare (v1.3.87)")
+        # v1.3.89 — Sybil / Eclipse governor
+        if "p2p_subnet_key" not in ingress_rs87 or "reserved_outbound_slots" not in ingress_rs87:
+            errors.append("p2p_ingress must expose subnet/reserved Sybil defenses (v1.3.89)")
+        if "p2p_max_peers_per_subnet" not in cfg_py or "p2p_eclipse_warn_ratio" not in cfg_py:
+            errors.append("config must define Sybil/Eclipse knobs (v1.3.89)")
+        if "_maybe_eclipse_prune" not in p2p_py or "diversity_snapshot" not in p2p_py:
+            errors.append("p2p_node must wire eclipse prune + diversity (v1.3.89)")
+        metrics_sybil = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
+        if "abs_p2p_subnet_rejects_total" not in metrics_sybil:
+            errors.append("metrics must export abs_p2p_subnet_rejects_total (v1.3.89)")
+        if "abs_p2p_eclipse_at_risk" not in metrics_sybil:
+            errors.append("metrics must export abs_p2p_eclipse_at_risk (v1.3.89)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..87 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..89 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

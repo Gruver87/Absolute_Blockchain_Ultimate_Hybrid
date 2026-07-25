@@ -615,11 +615,18 @@ class P2PNode:
                 self._conn_governor = native.P2PConnectionGovernor(
                     int(getattr(config, "max_peers", 50) or 50),
                     int(getattr(config, "p2p_max_inbound_per_ip", 8) or 0),
+                    int(getattr(config, "p2p_max_peers_per_subnet", 0) or 0),
+                    int(getattr(config, "p2p_reserved_outbound_slots", 0) or 0),
                 )
             except Exception as exc:
                 logger.warning("[P2P] native P2PConnectionGovernor unavailable: %s", exc)
                 self._conn_governor = None
         self._handshake_rejects: int = 0
+        self._eclipse_at_risk: int = 0
+        self._eclipse_ratio: float = 0.0
+        self._eclipse_unique_public_subnets: int = 0
+        self._eclipse_public_peers: int = 0
+        self._eclipse_prune_total: int = 0
         self._attestation_local_fail: int = 0
         self._propagation_log_fail: int = 0
         self._peer_connect_task_fail: int = 0
@@ -933,11 +940,15 @@ class P2PNode:
             return
         logger.debug(f"[P2P] Incoming from {peer_addr}")
 
-        # v1.3.77: native connection governor (max_peers + per-IP inbound)
+        # v1.3.77/89: native connection governor (max_peers + per-IP + public subnet + reserved)
         if self._conn_governor is not None:
             deny = self._conn_governor.allow_inbound(len(self.peers), str(peer.host or ""))
             if deny:
                 reason = str(deny)
+                self._handshake_rejects = int(self._handshake_rejects or 0) + 1
+                self._shape_reject_counts[reason] = int(
+                    self._shape_reject_counts.get(reason, 0) or 0
+                ) + 1
                 await peer.send(MSG_HANDSHAKE_ACK, {"accepted": False, "reason": reason})
                 peer.close()
                 return
@@ -2316,6 +2327,8 @@ class P2PNode:
                 if score < evict_below:
                     self._remove_peer(pid, peer)
                     removed += 1
+        # v1.3.89: eclipse prune — drop worst-score peer in densest public subnet
+        removed += self._maybe_eclipse_prune(local_height=local_height, health_timeout=health_timeout)
         expired_bans = [k for k, until in self._peer_bans.items() if now >= until]
         for key in expired_bans:
             self._peer_bans.pop(key, None)
@@ -2855,6 +2868,81 @@ class P2PNode:
                 f"python main.py --port 5001 --peers 127.0.0.1:{self.config.p2p_port}"
             )
 
+    def _refresh_eclipse_snapshot(self) -> Dict:
+        """Update eclipse telemetry from live peer IPs (v1.3.89)."""
+        warn = float(getattr(self.config, "p2p_eclipse_warn_ratio", 0) or 0)
+        empty = {
+            "public_peers": 0,
+            "unique_public_subnets": 0,
+            "eclipse_ratio": 0.0,
+            "at_risk": False,
+            "densest_subnet": "",
+        }
+        if self._conn_governor is None or not hasattr(self._conn_governor, "diversity_snapshot"):
+            self._eclipse_at_risk = 0
+            self._eclipse_ratio = 0.0
+            self._eclipse_unique_public_subnets = 0
+            self._eclipse_public_peers = 0
+            return empty
+        ips = [str(p.host or "") for p in self.peers.values()]
+        try:
+            snap = self._conn_governor.diversity_snapshot(ips, warn)
+        except Exception as exc:
+            logger.debug("[P2P] diversity_snapshot failed: %s", exc)
+            return empty
+        self._eclipse_public_peers = int(snap.get("public_peers", 0) or 0)
+        self._eclipse_unique_public_subnets = int(snap.get("unique_public_subnets", 0) or 0)
+        self._eclipse_ratio = float(snap.get("eclipse_ratio", 0) or 0)
+        self._eclipse_at_risk = 1 if snap.get("at_risk") else 0
+        return snap
+
+    def _maybe_eclipse_prune(self, *, local_height: int, health_timeout: float) -> int:
+        """If public peers are eclipse-at-risk, drop lowest-score peer in densest subnet."""
+        warn = float(getattr(self.config, "p2p_eclipse_warn_ratio", 0) or 0)
+        if warn <= 0 or len(self.peers) <= 1 or self._conn_governor is None:
+            self._refresh_eclipse_snapshot()
+            return 0
+        snap = self._refresh_eclipse_snapshot()
+        if not snap.get("at_risk"):
+            return 0
+        densest = str(snap.get("densest_subnet") or "")
+        if not densest or not hasattr(native, "p2p_subnet_key"):
+            return 0
+        candidates = []
+        for pid, peer in self.peers.items():
+            host = str(peer.host or "")
+            try:
+                if not native.p2p_ip_is_public(host):
+                    continue
+                if native.p2p_subnet_key(host) != densest:
+                    continue
+            except Exception:
+                continue
+            gap = abs(int(peer.height or 0) - local_height)
+            age = max(0.0, time.time() - peer.last_seen)
+            score = _peer_health_score(
+                height_gap=gap,
+                last_seen_age=age,
+                health_timeout=health_timeout,
+            )
+            candidates.append((score, pid, peer))
+        if len(candidates) < 2:
+            # Need concentration; if only one peer in densest, still may prune if >1 total public
+            if not candidates:
+                return 0
+        candidates.sort(key=lambda t: (t[0], t[1]))
+        score, pid, peer = candidates[0]
+        self._remove_peer(pid, peer)
+        self._eclipse_prune_total = int(self._eclipse_prune_total or 0) + 1
+        logger.warning(
+            "[P2P] eclipse prune peer=%s score=%s subnet=%s ratio=%.3f",
+            str(pid)[:12],
+            score,
+            densest,
+            float(snap.get("eclipse_ratio", 0) or 0),
+        )
+        return 1
+
     def _remove_peer(self, peer_id: str, expected: Optional[PeerConnection] = None):
         if expected is not None and self.peers.get(peer_id) is not expected:
             return
@@ -2977,6 +3065,7 @@ class P2PNode:
         }
 
     def get_p2p_security_status(self) -> Dict:
+        self._refresh_eclipse_snapshot()
         now = time.time()
         if self._rl_table is not None:
             active_bans = []
@@ -3021,6 +3110,30 @@ class P2PNode:
             "native_p2p_framer": bool(hasattr(native, "P2PLineFramer")),
             "native_conn_governor": self._conn_governor is not None,
             "max_inbound_per_ip": int(getattr(self.config, "p2p_max_inbound_per_ip", 0) or 0),
+            "max_peers_per_subnet": int(
+                getattr(self.config, "p2p_max_peers_per_subnet", 0) or 0
+            ),
+            "reserved_outbound_slots": int(
+                getattr(self.config, "p2p_reserved_outbound_slots", 0) or 0
+            ),
+            "eclipse_warn_ratio": float(
+                getattr(self.config, "p2p_eclipse_warn_ratio", 0) or 0
+            ),
+            "subnet_rejects": (
+                int(getattr(self._conn_governor, "subnet_rejects", 0) or 0)
+                if self._conn_governor is not None
+                else 0
+            ),
+            "reserved_slot_rejects": (
+                int(getattr(self._conn_governor, "reserved_slot_rejects", 0) or 0)
+                if self._conn_governor is not None
+                else 0
+            ),
+            "eclipse_ratio": float(self._eclipse_ratio or 0),
+            "eclipse_at_risk": bool(self._eclipse_at_risk),
+            "unique_public_subnets": int(self._eclipse_unique_public_subnets or 0),
+            "public_peers": int(self._eclipse_public_peers or 0),
+            "eclipse_prune_total": int(self._eclipse_prune_total or 0),
             "max_bytes_per_sec": int(getattr(self.config, "p2p_max_bytes_per_sec", 0) or 0),
             "max_outbound_bytes_per_sec": int(
                 getattr(self.config, "p2p_max_outbound_bytes_per_sec", 0) or 0

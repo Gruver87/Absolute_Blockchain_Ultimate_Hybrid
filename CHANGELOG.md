@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.89] — 2026-07-25
+
+### P2P — Sybil / Eclipse hardening
+
+- Public-only `/24`/`/64` subnet diversity + reserved outbound dial slots on `P2PConnectionGovernor`
+- Eclipse ratio telemetry + densest-subnet prune; Prometheus subnet/reserved/eclipse metrics
+- Honesty: not ASN/BGP diversity; not full Rust transport; private mesh exempt from subnet caps
+
 ## [1.3.88] — 2026-07-25
 
 ### Native — P2P kernel fuzz / smoke

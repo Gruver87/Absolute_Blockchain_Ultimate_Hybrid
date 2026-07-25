@@ -427,6 +427,36 @@ class MetricsCollector:
                     f"abs_p2p_max_outbound_bytes_per_sec{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('max_outbound_bytes_per_sec', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_subnet_rejects_total Public subnet diversity inbound rejects",
+                "# TYPE abs_p2p_subnet_rejects_total counter",
+                (
+                    f"abs_p2p_subnet_rejects_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('subnet_rejects', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_reserved_slot_rejects_total Inbound rejects preserving outbound dial slots",
+                "# TYPE abs_p2p_reserved_slot_rejects_total counter",
+                (
+                    f"abs_p2p_reserved_slot_rejects_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('reserved_slot_rejects', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_eclipse_at_risk Eclipse risk gauge (1 when densest public subnet ratio exceeds warn)",
+                "# TYPE abs_p2p_eclipse_at_risk gauge",
+                (
+                    f"abs_p2p_eclipse_at_risk{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('eclipse_at_risk') else 0}"
+                ),
+                "# HELP abs_p2p_eclipse_ratio Densest public subnet share of public peers",
+                "# TYPE abs_p2p_eclipse_ratio gauge",
+                (
+                    f"abs_p2p_eclipse_ratio{{node_id=\"{node_id}\"}} "
+                    f"{float(p2p_security.get('eclipse_ratio', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_eclipse_prune_total Peers pruned due to eclipse concentration",
+                "# TYPE abs_p2p_eclipse_prune_total counter",
+                (
+                    f"abs_p2p_eclipse_prune_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('eclipse_prune_total', 0) or 0)}"
+                ),
             ]
         )
         for kernel in native_crypto.get("kernels", []):

@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.88-industrial"
+    node_version: str = "1.3.89-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -100,9 +100,12 @@ class Config:
     p2p_ban_seconds: int = 300                    # temp ban after repeated abuse
     p2p_rate_limit_strikes: int = 5               # strikes before ban
     p2p_max_inbound_per_ip: int = 8               # inbound connections per remote IP (0=off)
+    p2p_max_peers_per_subnet: int = 4             # public /24|/64 inbound cap (0=off; private IPs exempt)
+    p2p_reserved_outbound_slots: int = 2          # inbound cannot fill these dial slots
     p2p_max_bytes_per_sec: int = 4 * 1024 * 1024  # per-peer inbound bandwidth budget (0=off)
     p2p_max_outbound_bytes_per_sec: int = 4 * 1024 * 1024  # per-peer outbound bandwidth (0=off)
     p2p_evict_min_score: int = 0                  # evict peers below score when >1 peer (0=off)
+    p2p_eclipse_warn_ratio: float = 0.34          # densest public subnet / public peers (0=off)
     p2p_tls_enabled: bool = False                 # TLS on P2P wire (mainnet / public mesh)
     p2p_tls_cert_path: str = ""                   # node cert (PEM)
     p2p_tls_key_path: str = ""                    # node private key (PEM)
@@ -309,6 +312,12 @@ class Config:
         self.p2p_max_inbound_per_ip = env_int(
             "P2P_MAX_INBOUND_PER_IP", self.p2p_max_inbound_per_ip
         )
+        self.p2p_max_peers_per_subnet = env_int(
+            "P2P_MAX_PEERS_PER_SUBNET", self.p2p_max_peers_per_subnet
+        )
+        self.p2p_reserved_outbound_slots = env_int(
+            "P2P_RESERVED_OUTBOUND_SLOTS", self.p2p_reserved_outbound_slots
+        )
         self.p2p_max_bytes_per_sec = env_int(
             "P2P_MAX_BYTES_PER_SEC", self.p2p_max_bytes_per_sec
         )
@@ -318,6 +327,12 @@ class Config:
         self.p2p_evict_min_score = env_int(
             "P2P_EVICT_MIN_SCORE", self.p2p_evict_min_score
         )
+        try:
+            self.p2p_eclipse_warn_ratio = float(
+                env_str("P2P_ECLIPSE_WARN_RATIO", str(self.p2p_eclipse_warn_ratio))
+            )
+        except (TypeError, ValueError):
+            pass
         self.p2p_tls_enabled = env_bool("P2P_TLS_ENABLED", self.p2p_tls_enabled)
         self.p2p_tls_cert_path = env_str("P2P_TLS_CERT_PATH", self.p2p_tls_cert_path)
         self.p2p_tls_key_path = env_str("P2P_TLS_KEY_PATH", self.p2p_tls_key_path)

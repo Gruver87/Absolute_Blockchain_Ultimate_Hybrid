@@ -10,8 +10,6 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from runtime.config import Config
-
 
 def test_needles_v1388():
     fuzz_api = (ROOT / "native" / "abs_native" / "src" / "fuzz_api.rs").read_text(
@@ -33,4 +31,3 @@ def test_needles_v1388():
     assert "cargo fuzz run" in wf
     notes = (ROOT / "RELEASE_NOTES_v1.3.88.md").read_text(encoding="utf-8")
     assert "1.3.88-industrial" in notes
-    assert Config().node_version == "1.3.88-industrial"

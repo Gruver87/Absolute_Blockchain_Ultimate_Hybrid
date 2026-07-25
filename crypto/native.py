@@ -138,6 +138,8 @@ def native_crypto_status(required: bool = False) -> dict:
             "P2PConnectionGovernor",
             "P2PLineFramer",
             "p2p_frame_feed_once",
+            "p2p_subnet_key",
+            "p2p_ip_is_public",
             "p2p_rate_limit_is_exempt",
             "p2p_rate_limit_tick",
             "p2p_strike_should_ban",
@@ -2561,6 +2563,22 @@ def P2PConnectionGovernor(*args, **kwargs):
     if _native is not None and hasattr(_native, "P2PConnectionGovernor"):
         return _native.P2PConnectionGovernor(*args, **kwargs)
     raise RuntimeError("P2PConnectionGovernor requires abs_native")
+
+
+def p2p_subnet_key(ip: str) -> str:
+    """IPv4 /24 or IPv6 /64 subnet key (v1.3.89)."""
+    _require_native_kernel("p2p_subnet_key")
+    if _native is not None and hasattr(_native, "p2p_subnet_key"):
+        return str(_native.p2p_subnet_key(str(ip or "")))
+    raise RuntimeError("p2p_subnet_key requires abs_native")
+
+
+def p2p_ip_is_public(ip: str) -> bool:
+    """True for globally routable IPs (v1.3.89 Sybil/Eclipse)."""
+    _require_native_kernel("p2p_ip_is_public")
+    if _native is not None and hasattr(_native, "p2p_ip_is_public"):
+        return bool(_native.p2p_ip_is_public(str(ip or "")))
+    raise RuntimeError("p2p_ip_is_public requires abs_native")
 
 
 def P2PLineFramer(*args, **kwargs):

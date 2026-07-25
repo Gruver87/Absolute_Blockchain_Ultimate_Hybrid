@@ -4,6 +4,9 @@
 //! Python objects — suitable for `cargo fuzz` (Linux CI) and Windows smoke.
 
 use crate::p2p_frame::P2PLineFramer;
+use crate::p2p_ingress::{
+    p2p_ip_is_public_inner, p2p_subnet_key_inner, P2PConnectionGovernor,
+};
 use crate::p2p_rate_limit::P2PRateLimitTable;
 use crate::p2p_wire::{
     encode_p2p_wire_message_inner, parse_p2p_wire_line_inner, DEFAULT_MAX_P2P_LINE_BYTES,
@@ -70,6 +73,35 @@ pub fn fuzz_p2p_wire_parse_allowlist(
 ) -> Result<(), String> {
     let set: HashSet<String> = allowed.iter().map(|s| (*s).to_string()).collect();
     parse_p2p_wire_line_inner(line, max_bytes, Some(&set)).map(|_| ())
+}
+
+/// Sybil/Eclipse governor smoke: subnet keys + allow/connect sequences (v1.3.89).
+pub fn fuzz_p2p_governor_sequence(
+    max_peers: usize,
+    max_per_ip: usize,
+    max_per_subnet: usize,
+    reserved: usize,
+    ips: &[&str],
+) {
+    let mut gov = P2PConnectionGovernor::rust_new(max_peers, max_per_ip, max_per_subnet, reserved);
+    let mut peer_count = 0usize;
+    let mut live: Vec<String> = Vec::new();
+    for ip in ips {
+        let _ = p2p_subnet_key_inner(ip);
+        let _ = p2p_ip_is_public_inner(ip);
+        if gov.allow_inbound_inner(peer_count, ip).is_none() {
+            gov.on_connected_inner(ip);
+            peer_count = peer_count.saturating_add(1);
+            live.push((*ip).to_string());
+        } else if gov.allow_outbound_inner(peer_count).is_none() {
+            peer_count = peer_count.saturating_add(1);
+            live.push((*ip).to_string());
+        }
+        let _ = gov.diversity_snapshot_inner(&live, 0.34);
+    }
+    for ip in live.iter().rev().take(live.len() / 2 + 1) {
+        gov.on_disconnected_inner(ip);
+    }
 }
 
 #[cfg(test)]
@@ -149,6 +181,42 @@ mod smoke {
                 rng.gen::<u64>() % 50_000,
                 rng.gen::<u64>() % 50_000,
                 &events,
+            );
+        }
+    }
+
+    #[test]
+    fn fuzz_p2p_governor_smoke_5k() {
+        let mut rng = StdRng::seed_from_u64(0x0A85_3389);
+        for _ in 0..5_000u64 {
+            let n = 1 + (rng.gen::<usize>() % 24);
+            let mut ips: Vec<String> = Vec::with_capacity(n);
+            for _ in 0..n {
+                if rng.gen_bool(0.35) {
+                    // private docker-like
+                    ips.push(format!(
+                        "172.{}.{}.{}",
+                        16 + (rng.gen::<u8>() % 16),
+                        rng.gen::<u8>(),
+                        1 + (rng.gen::<u8>() % 254)
+                    ));
+                } else {
+                    ips.push(format!(
+                        "{}.{}.{}.{}",
+                        1 + (rng.gen::<u8>() % 223),
+                        rng.gen::<u8>(),
+                        rng.gen::<u8>(),
+                        1 + (rng.gen::<u8>() % 254)
+                    ));
+                }
+            }
+            let refs: Vec<&str> = ips.iter().map(|s| s.as_str()).collect();
+            fuzz_p2p_governor_sequence(
+                4 + (rng.gen::<usize>() % 20),
+                rng.gen::<usize>() % 5,
+                rng.gen::<usize>() % 5,
+                rng.gen::<usize>() % 4,
+                &refs,
             );
         }
     }
