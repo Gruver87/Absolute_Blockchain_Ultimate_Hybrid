@@ -283,18 +283,72 @@ class PeerConnection:
         except Exception:
             return False
 
-    async def recv(self, config=None):
+    async def recv(self, config=None, *, rl_table=None, peer_key: str = "", use_ingress: bool = False):
         """Читает одно JSON-сообщение от пира.
 
         Returns:
-            dict — valid envelope; WireReject — parse/size fail; None — EOF;
+            dict — valid envelope; WireReject — parse/size/rate fail; None — EOF;
             MSG_IDLE dict — read timeout (keep-alive).
+
+        When use_ingress + rl_table: native p2p_ingress_admit (wire + rate) in one path.
         """
         limit = _max_p2p_line_bytes(config)
         try:
             line = await asyncio.wait_for(self.reader.readline(), timeout=30)
             if not line:
                 return None
+            if (
+                use_ingress
+                and rl_table is not None
+                and hasattr(native, "p2p_ingress_admit")
+            ):
+                try:
+                    admitted = native.p2p_ingress_admit(
+                        line,
+                        str(peer_key or self.peer_id or self.host or ""),
+                        float(time.time()),
+                        int(limit),
+                        list(ALLOWED_WIRE_TYPES),
+                        rl_table,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "[P2P] ingress admit error from %s: %s",
+                        self.peer_id or self.host,
+                        exc,
+                    )
+                    return WireReject("ingress_error")
+                if not isinstance(admitted, dict) or not admitted.get("ok"):
+                    reason = "bad_wire_line"
+                    if isinstance(admitted, dict):
+                        reason = str(admitted.get("reason") or reason)
+                    if reason == "p2p_line_too_large" or "p2p_line_too_large" in reason:
+                        reason = "p2p_line_too_large"
+                        logger.warning(
+                            "[P2P] wire reject from %s (%s, %s bytes, limit=%s)",
+                            self.peer_id or self.host,
+                            reason,
+                            len(line),
+                            limit,
+                        )
+                    elif reason in ("rate_limit_exceeded", "exempt_rate_exceeded"):
+                        logger.warning(
+                            "[P2P] ingress rate reject from %s (%s)",
+                            self.peer_id or self.host,
+                            reason,
+                        )
+                    else:
+                        logger.warning(
+                            "[P2P] wire reject from %s (%s, %s bytes)",
+                            self.peer_id or self.host,
+                            reason,
+                            len(line),
+                        )
+                    return WireReject(reason)
+                return {
+                    "type": admitted.get("type"),
+                    "data": admitted.get("data"),
+                }
             try:
                 parsed = native.parse_p2p_wire_line(
                     line,
@@ -367,6 +421,8 @@ class P2PNode:
         self._peer_strikes: Dict[str, int] = {}
         self._peer_bans: Dict[str, float] = {}
         self._rl_table = None
+        self._conn_governor = None
+        self._use_native_ingress = False
         self._peer_exempt_windows: Dict[str, tuple[int, float]] = {}
         _want_native_rl = bool(
             getattr(config, "require_native_crypto", False)
@@ -379,7 +435,9 @@ class P2PNode:
                     int(getattr(config, "p2p_rate_limit_strikes", 5) or 5),
                     int(getattr(config, "p2p_ban_seconds", 300) or 300),
                     sorted(RATE_LIMIT_EXEMPT_TYPES),
+                    int(getattr(config, "p2p_exempt_messages_per_sec", 0) or 0),
                 )
+                self._use_native_ingress = hasattr(native, "p2p_ingress_admit")
             except Exception as exc:
                 if _want_native_rl:
                     raise RuntimeError(
@@ -387,6 +445,16 @@ class P2PNode:
                     ) from exc
                 logger.warning("[P2P] native P2PRateLimitTable unavailable: %s", exc)
                 self._rl_table = None
+                self._use_native_ingress = False
+        if native.native_available() and hasattr(native, "P2PConnectionGovernor"):
+            try:
+                self._conn_governor = native.P2PConnectionGovernor(
+                    int(getattr(config, "max_peers", 50) or 50),
+                    int(getattr(config, "p2p_max_inbound_per_ip", 8) or 0),
+                )
+            except Exception as exc:
+                logger.warning("[P2P] native P2PConnectionGovernor unavailable: %s", exc)
+                self._conn_governor = None
         self._handshake_rejects: int = 0
         self._attestation_local_fail: int = 0
         self._propagation_log_fail: int = 0
@@ -689,7 +757,15 @@ class P2PNode:
             return
         logger.debug(f"[P2P] Incoming from {peer_addr}")
 
-        if len(self.peers) >= self.config.max_peers:
+        # v1.3.77: native connection governor (max_peers + per-IP inbound)
+        if self._conn_governor is not None:
+            deny = self._conn_governor.allow_inbound(len(self.peers), str(peer.host or ""))
+            if deny:
+                reason = str(deny)
+                await peer.send(MSG_HANDSHAKE_ACK, {"accepted": False, "reason": reason})
+                peer.close()
+                return
+        elif len(self.peers) >= self.config.max_peers:
             await peer.send(MSG_HANDSHAKE_ACK, {"accepted": False, "reason": "max_peers"})
             peer.close()
             return
@@ -711,6 +787,9 @@ class P2PNode:
                 return
             old.close()
         self.peers[peer.peer_id] = peer
+        peer._inbound = True  # type: ignore[attr-defined]
+        if self._conn_governor is not None:
+            self._conn_governor.on_connected(str(peer.host or ""))
         print(f"[P2P] Connected: {peer}")
 
         self._schedule_sync(peer)
@@ -727,8 +806,13 @@ class P2PNode:
         if self._is_addr_banned(host, port):
             return False
         self._prune_stale_peers()
-        # v1.3.72: outbound max_peers (inbound already enforced at handshake)
-        if len(self.peers) >= int(getattr(self.config, "max_peers", 50) or 50):
+        # v1.3.72/77: outbound max_peers (inbound already enforced at handshake)
+        if self._conn_governor is not None:
+            deny = self._conn_governor.allow_outbound(len(self.peers))
+            if deny:
+                logger.debug("[P2P] outbound connect skipped: %s", deny)
+                return False
+        elif len(self.peers) >= int(getattr(self.config, "max_peers", 50) or 50):
             logger.debug("[P2P] outbound connect skipped: max_peers=%s", self.config.max_peers)
             return False
         # Не дублировать соединения
@@ -763,7 +847,12 @@ class P2PNode:
                 return True
 
             # Re-check after handshake (race with inbound accepts).
-            if len(self.peers) >= int(getattr(self.config, "max_peers", 50) or 50):
+            if self._conn_governor is not None:
+                deny = self._conn_governor.allow_outbound(len(self.peers))
+                if deny:
+                    peer.close()
+                    return False
+            elif len(self.peers) >= int(getattr(self.config, "max_peers", 50) or 50):
                 peer.close()
                 return False
 
@@ -876,9 +965,15 @@ class P2PNode:
 
     async def _message_loop(self, peer: PeerConnection):
         """Основной цикл чтения сообщений от пира."""
+        use_ingress = bool(self._use_native_ingress and self._rl_table is not None)
         try:
             while self._running and self.peers.get(peer.peer_id) is peer:
-                msg = await peer.recv(self.config)
+                msg = await peer.recv(
+                    self.config,
+                    rl_table=self._rl_table if use_ingress else None,
+                    peer_key=self._peer_key(peer),
+                    use_ingress=use_ingress,
+                )
                 if msg is None:
                     break
                 if isinstance(msg, WireReject):
@@ -888,7 +983,8 @@ class P2PNode:
                 if msg.get("type") == MSG_IDLE:
                     continue
                 peer.touch()
-                if not self._rate_limit_ok(peer.peer_id, msg.get("type")):
+                # Native ingress already applied primary + exempt rate budgets.
+                if not use_ingress and not self._rate_limit_ok(peer.peer_id, msg.get("type")):
                     if self._strike_peer_sync(peer, "rate_limit_exceeded"):
                         break
                     continue
@@ -986,7 +1082,19 @@ class P2PNode:
 
         Primary rate limit exempts sync/tx gossip so catch-up works; this ceiling
         still bounds get_blocks/new_tx floods. 0 = disabled.
+        Prefer native table.exempt_rate_ok when available (v1.3.77).
         """
+        if self._rl_table is not None and hasattr(self._rl_table, "exempt_rate_ok"):
+            ok = bool(
+                self._rl_table.exempt_rate_ok(str(peer_id or ""), float(time.time()))
+            )
+            if not ok:
+                logger.warning(
+                    "[P2P] exempt-type rate exceeded for %s (%s/s)",
+                    peer_id,
+                    int(getattr(self.config, "p2p_exempt_messages_per_sec", 0) or 0),
+                )
+            return ok
         limit = int(getattr(self.config, "p2p_exempt_messages_per_sec", 0) or 0)
         if limit <= 0 or not peer_id:
             return True
@@ -2576,6 +2684,11 @@ class P2PNode:
             return
         peer = self.peers.pop(peer_id, None)
         if peer:
+            if getattr(peer, "_inbound", False) and self._conn_governor is not None:
+                try:
+                    self._conn_governor.on_disconnected(str(peer.host or ""))
+                except Exception as exc:
+                    logger.debug("[P2P] conn governor disconnect failed: %s", exc)
             peer.close()
             print(f"[P2P] Disconnected: {peer_id[:12]}")
 
@@ -2724,6 +2837,9 @@ class P2PNode:
             "banned": active_bans[:20],
             "tracked_strikes": tracked,
             "native_rate_limit_table": self._rl_table is not None,
+            "native_p2p_ingress": bool(self._use_native_ingress and self._rl_table is not None),
+            "native_conn_governor": self._conn_governor is not None,
+            "max_inbound_per_ip": int(getattr(self.config, "p2p_max_inbound_per_ip", 0) or 0),
             "handshake_rejects": int(self._handshake_rejects),
             "attestation_local_fail": int(self._attestation_local_fail),
             "shape_rejects_total": int(sum(self._shape_reject_counts.values())),

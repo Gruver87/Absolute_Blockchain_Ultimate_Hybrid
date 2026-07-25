@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.77] — 2026-07-25
+
+### P2P — Rust ingress data plane (wire + rate) + connection governor
+
+- `p2p_ingress_admit`: one native path for decode → type allowlist → primary/exempt rate
+- `P2PConnectionGovernor`: max_peers + per-IP inbound cap (`p2p_max_inbound_per_ip`)
+- Python message loop uses ingress when available (skips duplicate Python rate tick)
+- Honesty: not a full Rust P2P rewrite; gossip/sync/apply stay Python control plane
+
 ## [1.3.76] — 2026-07-25
 
 ### EVM — value-transfer CALL ownership (fail-closed balances)

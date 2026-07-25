@@ -420,6 +420,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.74: value=0 CALL/STATICCALL inline leaf (Priority 38)
 - [x] v1.3.75: multi-depth value=0 CALL frames (depth cap 4)
 - [x] v1.3.76: value-transfer CALL (fail-closed bridge_state.balances)
+- [x] v1.3.77: Rust P2P ingress admit (wire+rate) + connection governor
+
+### Priority 39 — P2P Rust ingress data plane ✅ (v1.3.77)
+
+- [x] Unified native admit: decode → allowlist → primary/exempt rate
+- [x] Connection governor: max_peers + per-IP inbound
+- Remaining: bandwidth/cost accounting; full Rust transport (not claimed)
 
 ## Process per module
 

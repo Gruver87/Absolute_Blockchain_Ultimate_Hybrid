@@ -14,7 +14,7 @@ fn clamp_max_bytes(max_bytes: usize) -> usize {
     max_bytes.clamp(MIN_P2P_LINE_BYTES, MAX_P2P_LINE_BYTES)
 }
 
-fn parse_p2p_wire_line_inner(
+pub(crate) fn parse_p2p_wire_line_inner(
     line: &[u8],
     max_bytes: usize,
     allowed_types: Option<&HashSet<String>>,

@@ -25,23 +25,70 @@ const DEFAULT_EXEMPT: &[&str] = &[
 #[pyclass]
 pub struct P2PRateLimitTable {
     windows: HashMap<String, (u64, f64)>,
+    exempt_windows: HashMap<String, (u64, f64)>,
     strikes: HashMap<String, u64>,
     bans: HashMap<String, f64>,
     limit: u64,
+    exempt_limit: u64,
     max_strikes: u64,
     ban_seconds: u64,
     exempt: HashSet<String>,
 }
 
+impl P2PRateLimitTable {
+    fn tick_window(
+        map: &mut HashMap<String, (u64, f64)>,
+        peer_id: &str,
+        now: f64,
+        limit: u64,
+    ) -> bool {
+        if limit == 0 || peer_id.is_empty() {
+            return true;
+        }
+        let (mut count, mut start) = map.get(peer_id).copied().unwrap_or((0, now));
+        if now - start >= 1.0 {
+            count = 0;
+            start = now;
+        }
+        count = count.saturating_add(1);
+        map.insert(peer_id.to_string(), (count, start));
+        count <= limit
+    }
+
+    /// Primary + secondary exempt budget. `None` = allowed, `Some(reason)` = reject.
+    pub(crate) fn admit_rate_inner(
+        &mut self,
+        peer_id: &str,
+        msg_type: &str,
+        now: f64,
+    ) -> Option<String> {
+        if self.is_exempt_inner(msg_type) {
+            if !Self::tick_window(&mut self.exempt_windows, peer_id, now, self.exempt_limit) {
+                return Some("exempt_rate_exceeded".to_string());
+            }
+            return None;
+        }
+        if !Self::tick_window(&mut self.windows, peer_id, now, self.limit) {
+            return Some("rate_limit_exceeded".to_string());
+        }
+        None
+    }
+
+    fn is_exempt_inner(&self, msg_type: &str) -> bool {
+        !msg_type.is_empty() && self.exempt.contains(msg_type)
+    }
+}
+
 #[pymethods]
 impl P2PRateLimitTable {
     #[new]
-    #[pyo3(signature = (limit=500, max_strikes=5, ban_seconds=300, exempt_types=None))]
+    #[pyo3(signature = (limit=500, max_strikes=5, ban_seconds=300, exempt_types=None, exempt_limit=0))]
     fn new(
         limit: u64,
         max_strikes: u64,
         ban_seconds: u64,
         exempt_types: Option<Vec<String>>,
+        exempt_limit: u64,
     ) -> Self {
         let exempt = match exempt_types {
             Some(list) if !list.is_empty() => list.into_iter().collect(),
@@ -49,9 +96,11 @@ impl P2PRateLimitTable {
         };
         Self {
             windows: HashMap::new(),
+            exempt_windows: HashMap::new(),
             strikes: HashMap::new(),
             bans: HashMap::new(),
             limit,
+            exempt_limit,
             max_strikes: max_strikes.max(1),
             ban_seconds: ban_seconds.max(30),
             exempt,
@@ -60,31 +109,28 @@ impl P2PRateLimitTable {
 
     /// True if message type is rate-limit exempt.
     fn is_exempt(&self, msg_type: &str) -> bool {
-        !msg_type.is_empty() && self.exempt.contains(msg_type)
+        self.is_exempt_inner(msg_type)
     }
 
     /// Per-peer rate window tick. Returns True when the message is allowed.
     #[pyo3(signature = (peer_id, msg_type, now))]
     fn rate_ok(&mut self, peer_id: &str, msg_type: &str, now: f64) -> bool {
-        if self.is_exempt(msg_type) {
+        if self.is_exempt_inner(msg_type) {
             return true;
         }
-        if self.limit == 0 || peer_id.is_empty() {
-            return true;
-        }
-        let (mut count, mut start) = self
-            .windows
-            .get(peer_id)
-            .copied()
-            .unwrap_or((0, now));
-        if now - start >= 1.0 {
-            count = 0;
-            start = now;
-        }
-        count = count.saturating_add(1);
-        self.windows
-            .insert(peer_id.to_string(), (count, start));
-        count <= self.limit
+        Self::tick_window(&mut self.windows, peer_id, now, self.limit)
+    }
+
+    /// Secondary budget for exempt types (v1.3.72 / v1.3.77). 0 = disabled.
+    #[pyo3(signature = (peer_id, now))]
+    fn exempt_rate_ok(&mut self, peer_id: &str, now: f64) -> bool {
+        Self::tick_window(&mut self.exempt_windows, peer_id, now, self.exempt_limit)
+    }
+
+    /// Combined primary + exempt secondary. Returns None when allowed.
+    #[pyo3(signature = (peer_id, msg_type, now))]
+    fn admit_rate(&mut self, peer_id: &str, msg_type: &str, now: f64) -> Option<String> {
+        self.admit_rate_inner(peer_id, msg_type, now)
     }
 
     /// Increment strike. Returns True when the peer must be banned/disconnected.
@@ -162,6 +208,7 @@ impl P2PRateLimitTable {
 
     fn clear_key(&mut self, key: &str) {
         self.windows.remove(key);
+        self.exempt_windows.remove(key);
         self.strikes.remove(key);
         self.bans.remove(key);
     }
@@ -175,6 +222,11 @@ impl P2PRateLimitTable {
     #[getter]
     fn limit(&self) -> u64 {
         self.limit
+    }
+
+    #[getter]
+    fn exempt_limit(&self) -> u64 {
+        self.exempt_limit
     }
 
     #[getter]

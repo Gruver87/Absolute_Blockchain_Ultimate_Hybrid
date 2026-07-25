@@ -1346,8 +1346,22 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         # v1.3.76 — value CALL fail-closed
         if "try_inline_value_transfer" not in rust_runner or "v1.3.76" not in rust_runner:
             errors.append("evm_pure_runner must fail-closed value CALL transfer (v1.3.76)")
+        # v1.3.77 — Rust P2P ingress pipeline
+        ingress_rs = (
+            ROOT / "native" / "abs_native" / "src" / "p2p_ingress.rs"
+        ).read_text(encoding="utf-8")
+        if "p2p_ingress_admit" not in ingress_rs or "P2PConnectionGovernor" not in ingress_rs:
+            errors.append("p2p_ingress must expose admit + connection governor (v1.3.77)")
+        if "p2p_ingress_admit" not in p2p_py or "_use_native_ingress" not in p2p_py:
+            errors.append("p2p_node must wire native ingress admit (v1.3.77)")
+        if "p2p_max_inbound_per_ip" not in cfg_py:
+            errors.append("config must define p2p_max_inbound_per_ip (v1.3.77)")
+        if "mod p2p_ingress" not in (
+            ROOT / "native" / "abs_native" / "src" / "lib.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append("abs_native lib.rs must register p2p_ingress (v1.3.77)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..76 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..77 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

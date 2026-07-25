@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.76 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.77 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -37,6 +37,7 @@ WAVE_TESTS = [
     "tests/unit/test_v1374_value0_call.py",
     "tests/unit/test_v1375_multidepth_call.py",
     "tests/unit/test_v1376_value_call.py",
+    "tests/unit/test_v1377_p2p_ingress.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -191,13 +192,28 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
     ),
     (
         "1.3.76",
-        "runtime/config.py",
-        ["1.3.76-industrial"],
+        "RELEASE_NOTES_v1.3.76.md",
+        ["1.3.76-industrial", "fail-closed"],
     ),
     (
         "1.3.76",
         "native/abs_native/src/evm_pure_runner.rs",
         ["try_inline_value_transfer", "InlineValueTransfer", "v1.3.76"],
+    ),
+    (
+        "1.3.77",
+        "runtime/config.py",
+        ["1.3.77-industrial", "p2p_max_inbound_per_ip"],
+    ),
+    (
+        "1.3.77",
+        "native/abs_native/src/p2p_ingress.rs",
+        ["p2p_ingress_admit", "P2PConnectionGovernor"],
+    ),
+    (
+        "1.3.77",
+        "network/p2p_node.py",
+        ["p2p_ingress_admit", "_use_native_ingress", "P2PConnectionGovernor"],
     ),
 ]
 
@@ -226,8 +242,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.76"):
-            errors.append(f"node_version expected 1.3.76-*, got {ver}")
+        if not ver.startswith("1.3.77"):
+            errors.append(f"node_version expected 1.3.77-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

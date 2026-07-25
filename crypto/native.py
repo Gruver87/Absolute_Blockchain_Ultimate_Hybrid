@@ -135,9 +135,11 @@ def native_crypto_status(required: bool = False) -> dict:
             "rocks_pack_u64",
             "rocks_key_block_height",
             "P2PRateLimitTable",
+            "P2PConnectionGovernor",
             "p2p_rate_limit_is_exempt",
             "p2p_rate_limit_tick",
             "p2p_strike_should_ban",
+            "p2p_ingress_admit",
             "validator_selection_proposer",
             "validator_selection_proposer_weighted",
             "validator_selection_committee",
@@ -2546,6 +2548,35 @@ def P2PRateLimitTable(*args, **kwargs):
     if _native is not None and hasattr(_native, "P2PRateLimitTable"):
         return _native.P2PRateLimitTable(*args, **kwargs)
     raise RuntimeError("P2PRateLimitTable requires abs_native")
+
+
+def P2PConnectionGovernor(*args, **kwargs):
+    _require_native_kernel("P2PConnectionGovernor")
+    if _native is not None and hasattr(_native, "P2PConnectionGovernor"):
+        return _native.P2PConnectionGovernor(*args, **kwargs)
+    raise RuntimeError("P2PConnectionGovernor requires abs_native")
+
+
+def p2p_ingress_admit(
+    line: bytes,
+    peer_id: str,
+    now: float,
+    max_bytes: int = 2 * 1024 * 1024,
+    allowed_types: Optional[List[str]] = None,
+    rl=None,
+):
+    """Native wire+rate ingress admit. Returns {ok, type/data} or {ok:False, reason}."""
+    _require_native_kernel("p2p_ingress_admit")
+    if _native is not None and hasattr(_native, "p2p_ingress_admit"):
+        return _native.p2p_ingress_admit(
+            bytes(line),
+            str(peer_id or ""),
+            float(now),
+            int(max_bytes),
+            list(allowed_types) if allowed_types is not None else None,
+            rl,
+        )
+    raise RuntimeError("p2p_ingress_admit requires abs_native")
 
 
 def p2p_rate_limit_is_exempt(msg_type: str) -> bool:
