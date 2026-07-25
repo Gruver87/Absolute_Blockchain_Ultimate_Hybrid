@@ -1418,7 +1418,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.118)"
+                    f"({label} v1.3.119)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -2013,6 +2013,7 @@ class P2PNode:
                                 "missing_tx_public_key",
                                 "bad_tx_signature",
                             ):
+                                # Covers new_tx + mempool batch signature semantic rejects.
                                 self._tx_semantic_rejects_total = int(
                                     self._tx_semantic_rejects_total or 0
                                 ) + 1
@@ -4044,6 +4045,9 @@ class P2PNode:
                 getattr(self, "_native_message_loop_shell", False)
             ),
             "native_tx_semantic_gate": bool(
+                getattr(self, "_native_message_loop_shell", False)
+            ),
+            "native_mempool_semantic_gate": bool(
                 getattr(self, "_native_message_loop_shell", False)
             ),
             "attestation_semantic_rejects_total": int(

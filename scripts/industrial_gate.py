@@ -1759,8 +1759,25 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "observability" / "metrics.py"
         ).read_text(encoding="utf-8"):
             errors.append("metrics must export abs_p2p_native_tx_semantic_gate (v1.3.118)")
+        # v1.3.119 — mempool batch signature semantic gate on loop-shell
+        if "check_mempool_batch_semantics" not in transport_rs or "v1.3.119" not in transport_rs:
+            errors.append("p2p_transport must expose mempool semantic gate (v1.3.119)")
+        if "verify_mempool_batch_signatures_inner" not in (
+            ROOT / "native" / "abs_native" / "src" / "p2p_wire.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "p2p_wire must expose verify_mempool_batch_signatures_inner (v1.3.119)"
+            )
+        if "native_mempool_semantic_gate" not in p2p_py:
+            errors.append("p2p_node must expose native_mempool_semantic_gate (v1.3.119)")
+        if "abs_p2p_native_mempool_semantic_gate" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_mempool_semantic_gate (v1.3.119)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..118 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..119 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

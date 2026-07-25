@@ -720,6 +720,27 @@ pub(crate) fn validate_mempool_batch_inner(data: &Value) -> Option<usize> {
     Some(txs.len())
 }
 
+/// v1.3.119: signature-only semantic gate for every tx in a mempool batch.
+/// Shape must pass first; nonce/balance/ingest stay Python.
+pub(crate) fn verify_mempool_batch_signatures_inner(
+    data: &Value,
+    expected_chain_id: i64,
+    require_signature: bool,
+) -> Result<(), String> {
+    if validate_mempool_batch_inner(data).is_none() {
+        return Err("bad_mempool_batch".to_string());
+    }
+    let txs = data
+        .as_object()
+        .and_then(|o| o.get("transactions"))
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| "bad_mempool_batch".to_string())?;
+    for tx in txs {
+        verify_wire_tx_signature_inner(tx, expected_chain_id, require_signature)?;
+    }
+    Ok(())
+}
+
 #[pyfunction]
 fn validate_p2p_handshake_payload(py: Python<'_>, data_json: String) -> PyResult<Option<PyObject>> {
     let value: Value = match serde_json::from_str(&data_json) {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""v1.3.118: native new_tx signature semantic gate on message-loop shell."""
+"""v1.3.119: native mempool batch signature semantic gate on message-loop shell."""
 
 from __future__ import annotations
 
@@ -40,27 +40,23 @@ def _signed_tx(*, chain_id: int = CHAIN, to: str = "0x" + ("22" * 20)) -> dict:
     return w.sign_transaction(to=to, value=1, nonce=0, chain_id=chain_id)
 
 
-def test_needles_v13118():
+def test_needles_v13119():
     transport = (ROOT / "native" / "abs_native" / "src" / "p2p_transport.rs").read_text(
         encoding="utf-8"
     )
     wire = (ROOT / "native" / "abs_native" / "src" / "p2p_wire.rs").read_text(
         encoding="utf-8"
     )
-    assert "check_wire_tx_semantics" in transport
-    assert "verify_wire_tx_signature_inner" in wire
-    assert "missing_tx_signature" in wire
-    assert "v1.3.118" in transport
+    assert "check_mempool_batch_semantics" in transport
+    assert "verify_mempool_batch_signatures_inner" in wire
+    assert "v1.3.119" in transport
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
-    assert "native_tx_semantic_gate" in p2p
-    assert "tx_semantic_rejects_total" in p2p
-    assert "require_tx_signatures" in p2p or "require_signatures" in p2p
-    notes = (ROOT / "RELEASE_NOTES_v1.3.118.md").read_text(encoding="utf-8")
-    assert "1.3.118-industrial" in notes
-    # Live Config().node_version advances with later waves; pin notes not config.
+    assert "native_mempool_semantic_gate" in p2p
+    notes = (ROOT / "RELEASE_NOTES_v1.3.119.md").read_text(encoding="utf-8")
+    assert "1.3.119-industrial" in notes
+    assert Config().node_version == "1.3.119-industrial"
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
-    assert "abs_p2p_native_tx_semantic_gate" in metrics
-    assert "abs_p2p_tx_semantic_rejects_total" in metrics
+    assert "abs_p2p_native_mempool_semantic_gate" in metrics
 
 
 def _loop_once(payload: bytes, *, chain_id: int, require_sigs: bool) -> dict:
@@ -78,7 +74,7 @@ def _loop_once(payload: bytes, *, chain_id: int, require_sigs: bool) -> dict:
             if out.get("ok") and out.get("conn") is not None:
                 c = out["conn"]
                 got["out"] = c.read_message_loop_events(
-                    8, 65536, ["new_tx", "status"], False, chain_id, require_sigs
+                    8, 65536, ["mempool", "status"], False, chain_id, require_sigs
                 )
                 c.close()
                 return
@@ -97,22 +93,24 @@ def _loop_once(payload: bytes, *, chain_id: int, require_sigs: bool) -> dict:
     not getattr(native, "native_available", lambda: False)(),
     reason="abs_native required",
 )
-def test_native_loop_dispatches_valid_signed_tx():
-    tx = _signed_tx()
-    out = _loop_once(_wire("new_tx", tx), chain_id=CHAIN, require_sigs=True)
+def test_native_loop_dispatches_valid_mempool_batch():
+    batch = {"transactions": [_signed_tx(), _signed_tx(to="0x" + ("33" * 20))]}
+    out = _loop_once(_wire("mempool", batch), chain_id=CHAIN, require_sigs=True)
     assert out.get("ok") is True
     events = list(out.get("events") or [])
-    assert any(e.get("action") == "dispatch" and e.get("type") == "new_tx" for e in events)
+    assert any(e.get("action") == "dispatch" and e.get("type") == "mempool" for e in events)
 
 
 @pytest.mark.skipif(
     not getattr(native, "native_available", lambda: False)(),
     reason="abs_native required",
 )
-def test_native_loop_strikes_tampered_tx():
-    tx = _signed_tx()
-    tx["value"] = 999999
-    out = _loop_once(_wire("new_tx", tx), chain_id=CHAIN, require_sigs=True)
+def test_native_loop_strikes_tampered_batch_tx():
+    good = _signed_tx()
+    bad = _signed_tx(to="0x" + ("44" * 20))
+    bad["value"] = 999999
+    batch = {"transactions": [good, bad]}
+    out = _loop_once(_wire("mempool", batch), chain_id=CHAIN, require_sigs=True)
     events = list(out.get("events") or [])
     assert any(
         e.get("action") == "strike" and e.get("reason") == "bad_tx_signature"
@@ -124,41 +122,23 @@ def test_native_loop_strikes_tampered_tx():
     not getattr(native, "native_available", lambda: False)(),
     reason="abs_native required",
 )
-def test_native_loop_strikes_wrong_chain_preimage():
-    # Signed for chain 1, verified under expected 778888 → bad_tx_signature
-    tx = _signed_tx(chain_id=1)
-    out = _loop_once(_wire("new_tx", tx), chain_id=CHAIN, require_sigs=True)
-    events = list(out.get("events") or [])
-    assert any(
-        e.get("action") == "strike" and e.get("reason") == "bad_tx_signature"
-        for e in events
-    )
-
-
-@pytest.mark.skipif(
-    not getattr(native, "native_available", lambda: False)(),
-    reason="abs_native required",
-)
-def test_native_loop_missing_sig_policy():
-    tx = {
+def test_native_loop_strikes_missing_sig_in_batch():
+    unsigned = {
         "from": "0x" + ("11" * 20),
         "to": "0x" + ("22" * 20),
         "value": 1,
         "nonce": 0,
     }
-    out_req = _loop_once(_wire("new_tx", tx), chain_id=CHAIN, require_sigs=True)
+    batch = {"transactions": [unsigned]}
+    out = _loop_once(_wire("mempool", batch), chain_id=CHAIN, require_sigs=True)
+    events = list(out.get("events") or [])
     assert any(
         e.get("action") == "strike" and e.get("reason") == "missing_tx_signature"
-        for e in (out_req.get("events") or [])
-    )
-    out_opt = _loop_once(_wire("new_tx", tx), chain_id=CHAIN, require_sigs=False)
-    assert any(
-        e.get("action") == "dispatch" and e.get("type") == "new_tx"
-        for e in (out_opt.get("events") or [])
+        for e in events
     )
 
 
-def test_status_exposes_tx_semantic_gate():
+def test_status_exposes_mempool_semantic_gate():
     cfg = Config()
     cfg.p2p_native_transport = True
     cfg.p2p_tls_enabled = False
@@ -168,5 +148,4 @@ def test_status_exposes_tx_semantic_gate():
     node = P2PNode(cfg, MagicMock(), MagicMock())
     node._native_message_loop_shell = True
     st = node.get_p2p_security_status()
-    assert st.get("native_tx_semantic_gate") is True
-    assert "tx_semantic_rejects_total" in st
+    assert st.get("native_mempool_semantic_gate") is True

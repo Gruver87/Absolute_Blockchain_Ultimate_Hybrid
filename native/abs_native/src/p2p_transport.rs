@@ -27,6 +27,7 @@
 //! v1.3.116: message-loop event shell (`read_message_loop_events`) — ordered dispatch/strike.
 //! v1.3.117: attestation semantic gate on loop-shell (identity + secp256k1 before dispatch).
 //! v1.3.118: new_tx signature semantic gate on loop-shell (chain_id-bound; mempool stays Python).
+//! v1.3.119: mempool batch signature semantic gate on loop-shell (per-tx; nonce/balance stay Python).
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -39,7 +40,8 @@ use crate::p2p_wire::{
     validate_mempool_batch_inner, validate_peers_list_inner, validate_shard_migration_inner,
     validate_state_root_request_inner, validate_state_root_response_inner, validate_status_inner,
     validate_validator_register_inner, validate_wire_tx_inner, verify_attestation_semantics_inner,
-    verify_wire_tx_signature_inner, DEFAULT_MAX_P2P_LINE_BYTES,
+    verify_mempool_batch_signatures_inner, verify_wire_tx_signature_inner,
+    DEFAULT_MAX_P2P_LINE_BYTES,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
@@ -189,7 +191,7 @@ fn check_attestation_semantics(msg_type: &str, data: &serde_json::Value) -> Resu
     verify_attestation_semantics_inner(data)
 }
 
-/// v1.3.118: new_tx signature-only semantic gate (local chain_id; mempool batch stays Python).
+/// v1.3.118: new_tx signature-only semantic gate (local chain_id).
 fn check_wire_tx_semantics(
     msg_type: &str,
     data: &serde_json::Value,
@@ -204,6 +206,22 @@ fn check_wire_tx_semantics(
         return Ok(());
     };
     verify_wire_tx_signature_inner(data, chain_id, require_signature)
+}
+
+/// v1.3.119: mempool batch per-tx signature semantic gate (local chain_id).
+fn check_mempool_batch_semantics(
+    msg_type: &str,
+    data: &serde_json::Value,
+    expected_chain_id: Option<i64>,
+    require_signature: bool,
+) -> Result<(), String> {
+    if msg_type != "mempool" {
+        return Ok(());
+    }
+    let Some(chain_id) = expected_chain_id else {
+        return Ok(());
+    };
+    verify_mempool_batch_signatures_inner(data, chain_id, require_signature)
 }
 
 /// v1.3.106: parity with Python `new_block` announce gate (fail-closed).
@@ -1470,8 +1488,18 @@ impl P2PNativeConn {
                             terminal_strike = Some(reason);
                             break;
                         }
-                        // v1.3.118: new_tx signature-only semantic (mempool stays Python).
+                        // v1.3.118: new_tx signature-only semantic.
                         if let Err(reason) = check_wire_tx_semantics(
+                            &msg_type,
+                            &data,
+                            expected_chain_id,
+                            require_tx_signatures,
+                        ) {
+                            terminal_strike = Some(reason);
+                            break;
+                        }
+                        // v1.3.119: mempool batch per-tx signature semantic.
+                        if let Err(reason) = check_mempool_batch_semantics(
                             &msg_type,
                             &data,
                             expected_chain_id,

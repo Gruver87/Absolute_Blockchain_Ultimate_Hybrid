@@ -673,6 +673,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Mempool batch / nonce-balance / full dispatch stay Python
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
+### Priority 74 — Native mempool batch signature semantic ingress ✅ (v1.3.119)
+
+- [x] `verify_mempool_batch_signatures_inner` on loop-shell (per-tx; same chain_id policy)
+- [x] Nonce/balance ingest / full dispatch stay Python
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

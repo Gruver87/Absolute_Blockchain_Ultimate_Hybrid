@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.119] — 2026-07-25
+
+### P2P — native mempool batch signature semantic gate
+
+- Loop-shell verifies each tx in `mempool` batches with local chain_id preimage
+- Reuses new_tx strike reasons; shape failures stay `bad_mempool_batch`
+- Honesty: nonce/balance ingest / full message-loop / libp2p not claimed
+
 ## [1.3.118] — 2026-07-25
 
 ### P2P — native new_tx signature semantic gate
