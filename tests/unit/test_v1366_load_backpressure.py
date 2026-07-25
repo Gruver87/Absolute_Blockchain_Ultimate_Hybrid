@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from core.chain_apply_queue import ApplyOpKind, ChainApplyQueue, _Job
+from core.chain_apply_queue import ApplyOpKind, ChainApplyQueue, _Job, _PriItem
 
 
 class _FakeBC:
@@ -31,7 +31,7 @@ def test_apply_queue_expires_stale_jobs():
             payload={},
             deadline_monotonic=time.monotonic() - 1.0,
         )
-        q._q.put_nowait(job)
+        q._q.put_nowait(_PriItem(priority=4, seq=1, job=job))
         time.sleep(0.2)
         assert fut.done()
         assert fut.result()[0] == "expired"

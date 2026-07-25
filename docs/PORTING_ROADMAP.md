@@ -380,7 +380,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] Global sync inflight cap; outbound max_peers; outbound drop metrics
 - [x] Config-driven send queue/drain; secondary exempt-type rate budget
-- Remaining: apply-queue priority lanes; full P2P QoS (not claimed)
+- Remaining: see Priority 37c
+
+### Priority 37c — Apply-queue priority lanes ✅ (v1.3.73)
+
+- [x] PriorityQueue: REORG > FORGE > ADD > IMPORT
+- Remaining: Priority 38 multi-depth / value CALL (EVM)
 
 ### Priority 38 — Multi-depth / value CALL (next EVM)
 
@@ -408,6 +413,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.70: recursive frame arena sync + live DELEGATECALL storage
 - [x] v1.3.71: in-Rust inline leaf frame (eligible DELEGATECALL/CALLCODE)
 - [x] v1.3.72: P2P sync admission + outbound honesty
+- [x] v1.3.73: apply-queue priority lanes (reorg>forge>add>import)
 
 ## Process per module
 

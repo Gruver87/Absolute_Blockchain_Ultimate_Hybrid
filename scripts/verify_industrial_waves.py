@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.72 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.73 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -33,6 +33,7 @@ WAVE_TESTS = [
     "tests/unit/test_v1370_recursive_native_frames.py",
     "tests/unit/test_v1371_inline_leaf_frame.py",
     "tests/unit/test_v1372_p2p_admission.py",
+    "tests/unit/test_v1373_apply_priority.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -149,7 +150,7 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
     (
         "1.3.72",
         "runtime/config.py",
-        ["1.3.72-industrial", "p2p_max_sync_inflight"],
+        ["p2p_max_sync_inflight", "p2p_exempt_messages_per_sec"],
     ),
     (
         "1.3.72",
@@ -160,6 +161,21 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "1.3.72",
         "observability/metrics.py",
         ["abs_p2p_outbound_drops_total", "abs_p2p_sync_admission_rejects_total"],
+    ),
+    (
+        "1.3.73",
+        "runtime/config.py",
+        ["1.3.73-industrial"],
+    ),
+    (
+        "1.3.73",
+        "core/chain_apply_queue.py",
+        ["PriorityQueue", "_APPLY_PRIORITY", "v1.3.73"],
+    ),
+    (
+        "1.3.73",
+        "observability/metrics.py",
+        ["abs_chain_apply_error_total", "abs_chain_apply_priority_lanes"],
     ),
 ]
 
@@ -188,8 +204,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.72"):
-            errors.append(f"node_version expected 1.3.72-*, got {ver}")
+        if not ver.startswith("1.3.73"):
+            errors.append(f"node_version expected 1.3.73-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

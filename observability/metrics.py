@@ -355,6 +355,18 @@ class MetricsCollector:
                     f"abs_chain_apply_timeout_total{{node_id=\"{node_id}\"}} "
                     f"{int(apply_isolation.get('timeout_total', 0) or 0)}"
                 ),
+                "# HELP abs_chain_apply_error_total Apply worker exceptions",
+                "# TYPE abs_chain_apply_error_total counter",
+                (
+                    f"abs_chain_apply_error_total{{node_id=\"{node_id}\"}} "
+                    f"{int(apply_isolation.get('error_total', 0) or 0)}"
+                ),
+                "# HELP abs_chain_apply_priority_lanes Priority lanes enabled (reorg>forge>add>import)",
+                "# TYPE abs_chain_apply_priority_lanes gauge",
+                (
+                    f"abs_chain_apply_priority_lanes{{node_id=\"{node_id}\"}} "
+                    f"{1 if apply_isolation.get('priority_lanes') else 0}"
+                ),
                 "# HELP abs_chain_apply_exec_seconds_total Cumulative apply execution time",
                 "# TYPE abs_chain_apply_exec_seconds_total counter",
                 (

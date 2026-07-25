@@ -1332,8 +1332,11 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("p2p_node must enforce sync admission + outbound drop metrics (v1.3.72)")
         if "p2p_max_sync_inflight" not in cfg_py:
             errors.append("config must define p2p_max_sync_inflight (v1.3.72)")
+        # v1.3.73 — apply priority lanes
+        if "PriorityQueue" not in apply_q or "_APPLY_PRIORITY" not in apply_q:
+            errors.append("chain_apply_queue must use PriorityQueue lanes (v1.3.73)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..72 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..73 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

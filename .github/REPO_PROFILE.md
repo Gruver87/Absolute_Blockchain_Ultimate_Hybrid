@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.72` — P2P sync admission + outbound honesty |
-| **Notes** | [RELEASE_NOTES_v1.3.72.md](../RELEASE_NOTES_v1.3.72.md) |
-| **Prior** | [v1.3.71](../RELEASE_NOTES_v1.3.71.md) leaf frame; [v1.3.70](../RELEASE_NOTES_v1.3.70.md) arena sync |
+| **Tag** | `v1.3.73` — apply-queue priority lanes (reorg>forge>add>import) |
+| **Notes** | [RELEASE_NOTES_v1.3.73.md](../RELEASE_NOTES_v1.3.73.md) |
+| **Prior** | [v1.3.72](../RELEASE_NOTES_v1.3.72.md) P2P admission; [v1.3.71](../RELEASE_NOTES_v1.3.71.md) leaf frame |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.73] — 2026-07-25
+
+### Load — apply-queue priority lanes
+
+- `ChainApplyQueue` uses `PriorityQueue`: REORG > FORGE > ADD > IMPORT (FIFO within lane)
+- Sync import floods no longer starve forge / fork resolution once jobs are queued
+- Prometheus: `abs_chain_apply_error_total`, `abs_chain_apply_priority_lanes`
+- Honesty: does not invent separate apply workers; still one serial tip mutator
+
 ## [1.3.72] — 2026-07-25
 
 ### P2P — sync admission + outbound honesty (close v1.3.66 debt)

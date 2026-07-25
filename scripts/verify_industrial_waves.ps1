@@ -1,4 +1,4 @@
-# Verify industrial hardening waves v1.3.65–v1.3.72
+# Verify industrial hardening waves v1.3.65–v1.3.73
 # Usage (repo root):
 #   .\scripts\verify_industrial_waves.ps1
 #   .\scripts\verify_industrial_waves.ps1 -SkipGate

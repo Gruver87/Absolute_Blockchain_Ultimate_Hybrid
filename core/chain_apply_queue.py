@@ -7,6 +7,9 @@ by serializing all tip mutations on a single thread with a bounded queue.
 
 v1.3.66: enqueue deadlines — not-yet-started jobs expire instead of applying
 after the caller's Future.result timeout.
+
+v1.3.73: priority lanes — REORG > FORGE > ADD > IMPORT so sync floods cannot
+starve mining / fork resolution (FIFO within the same priority).
 """
 
 from __future__ import annotations
@@ -30,6 +33,17 @@ class ApplyOpKind(Enum):
     STOP = auto()
 
 
+# Lower number = higher priority (queue.PriorityQueue).
+_APPLY_PRIORITY: Dict[ApplyOpKind, int] = {
+    ApplyOpKind.STOP: 0,
+    ApplyOpKind.REORG: 1,
+    ApplyOpKind.REORG_AND_IMPORT: 1,
+    ApplyOpKind.FORGE_AND_APPLY: 2,
+    ApplyOpKind.ADD: 3,
+    ApplyOpKind.IMPORT: 4,
+}
+
+
 @dataclass
 class _Job:
     kind: ApplyOpKind
@@ -37,6 +51,15 @@ class _Job:
     payload: Any = None
     deadline_monotonic: float = 0.0
     enqueued_at: float = field(default_factory=time.monotonic)
+
+
+@dataclass(order=True)
+class _PriItem:
+    """PriorityQueue entry: priority, then FIFO seq for equal lanes."""
+
+    priority: int
+    seq: int
+    job: _Job = field(compare=False)
 
 
 class ChainApplyQueue:
@@ -53,7 +76,10 @@ class ChainApplyQueue:
         self.blockchain = blockchain
         self.maxsize = max(1, int(maxsize))
         self.timeout_sec = float(timeout_sec)
-        self._q: queue.Queue = queue.Queue(maxsize=self.maxsize)
+        # v1.3.73: PriorityQueue (not FIFO Queue)
+        self._q: queue.PriorityQueue = queue.PriorityQueue(maxsize=self.maxsize)
+        self._seq = 0
+        self._seq_lock = threading.Lock()
         self._running = True
         self.reject_total = 0
         self.completed_total = 0
@@ -82,15 +108,24 @@ class ChainApplyQueue:
             "exec_seconds_total": float(self.exec_seconds_total),
             "timeout_sec": float(self.timeout_sec),
             "maxsize": int(self.maxsize),
+            "priority_lanes": True,
+            "priority_order": "reorg>forge>add>import",
         }
 
     def stop(self, join_timeout: float = 5.0) -> None:
         self._running = False
         try:
-            self._q.put_nowait(_Job(ApplyOpKind.STOP, Future()))
+            self._put_job(_Job(ApplyOpKind.STOP, Future()))
         except queue.Full:
             pass
         self._worker.join(timeout=join_timeout)
+
+    def _put_job(self, job: _Job) -> None:
+        with self._seq_lock:
+            self._seq += 1
+            seq = self._seq
+        pri = int(_APPLY_PRIORITY.get(job.kind, 9))
+        self._q.put_nowait(_PriItem(priority=pri, seq=seq, job=job))
 
     def _enqueue(self, kind: ApplyOpKind, payload: Any = None) -> Future:
         fut: Future = Future()
@@ -103,7 +138,7 @@ class ChainApplyQueue:
             enqueued_at=now,
         )
         try:
-            self._q.put_nowait(job)
+            self._put_job(job)
         except queue.Full:
             self.reject_total += 1
             fut.set_result(("rejected", None))
@@ -193,9 +228,10 @@ class ChainApplyQueue:
     def _run(self) -> None:
         while self._running:
             try:
-                job: _Job = self._q.get(timeout=0.5)
+                item: _PriItem = self._q.get(timeout=0.5)
             except queue.Empty:
                 continue
+            job = item.job
             if job.kind is ApplyOpKind.STOP:
                 job.future.set_result(True)
                 break

@@ -6841,7 +6841,13 @@ class RESTHandler(BaseHTTPRequestHandler):
             out["reject_total"] = int(getattr(aq, "reject_total", 0) or 0)
             out["expired_total"] = int(getattr(aq, "expired_total", 0) or 0)
             out["timeout_total"] = int(getattr(aq, "timeout_total", 0) or 0)
+            out["error_total"] = int(getattr(aq, "error_total", 0) or 0)
             out["exec_seconds_total"] = float(getattr(aq, "exec_seconds_total", 0) or 0)
+            try:
+                st = aq.stats() if hasattr(aq, "stats") else {}
+                out["priority_lanes"] = bool(st.get("priority_lanes"))
+            except Exception:
+                out["priority_lanes"] = False
         if p2p is not None:
             out["import_offload_total"] = int(getattr(p2p, "_import_offload_total", 0) or 0)
             sync_tasks = getattr(p2p, "_sync_tasks", {}) or {}
