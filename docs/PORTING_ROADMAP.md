@@ -387,10 +387,11 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] PriorityQueue: REORG > FORGE > ADD > IMPORT
 - Remaining: see Priority 38
 
-### Priority 38 — value=0 CALL inline leaf ✅ (v1.3.74 first slice)
+### Priority 38 — value=0 CALL inline + multi-depth ✅ (v1.3.74–v1.3.75)
 
-- [x] Eligible value=0 CALL/STATICCALL in-Rust with callee `bridge_state.storages`
-- Remaining: multi-depth CALL-containing frames / value-transfer ownership (not claimed)
+- [x] Eligible value=0 CALL/STATICCALL leaf (v1.3.74)
+- [x] Multi-depth call-frames (CALL*/LOG) with depth cap 4 (v1.3.75)
+- Remaining: value-transfer CALL ownership / CREATE frames (not claimed)
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
 
@@ -416,6 +417,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.72: P2P sync admission + outbound honesty
 - [x] v1.3.73: apply-queue priority lanes (reorg>forge>add>import)
 - [x] v1.3.74: value=0 CALL/STATICCALL inline leaf (Priority 38)
+- [x] v1.3.75: multi-depth value=0 CALL frames (depth cap 4)
 
 ## Process per module
 

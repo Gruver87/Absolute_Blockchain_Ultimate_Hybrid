@@ -1140,6 +1140,28 @@ def evm_bytecode_is_nested_native_eligible(bytecode: bytes) -> bool:
     return True
 
 
+def evm_bytecode_is_inline_call_frame_eligible(bytecode: bytes) -> bool:
+    """True when bytecode may run as an in-Rust call-frame (v1.3.75).
+
+    Allows CALL*/LOG; rejects CREATE/CREATE2/SELFDESTRUCT.
+    """
+    if _native is not None and hasattr(_native, "evm_bytecode_is_inline_call_frame_eligible"):
+        return bool(
+            _native.evm_bytecode_is_inline_call_frame_eligible(bytes(bytecode or b""))
+        )
+    pc = 0
+    bc = bytes(bytecode or b"")
+    while pc < len(bc):
+        op = bc[pc]
+        if op in (0xF0, 0xF5, 0xFF):
+            return False
+        if 0x60 <= op <= 0x7F:
+            pc += 1 + (op - 0x5F)
+        else:
+            pc += 1
+    return True
+
+
 def evm_run_nested_pure_frame(
     bytecode: bytes,
     gas_limit: int,

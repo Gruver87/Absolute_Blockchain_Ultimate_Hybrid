@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.75] — 2026-07-25
+
+### EVM — multi-depth value=0 CALL frames (Priority 38)
+
+- Call-frames may contain CALL*/LOG (not only leaf-eligible bytecode)
+- Depth tracked via `_abs_inline_depth` (cap `MAX_INLINE_CALL_DEPTH=4`)
+- CREATE/SELFDESTRUCT still fall through to Python hook
+- Honesty: value-transfer CALL still not owned in Rust
+
 ## [1.3.74] — 2026-07-25
 
 ### EVM — value=0 CALL/STATICCALL inline leaf (Priority 38)

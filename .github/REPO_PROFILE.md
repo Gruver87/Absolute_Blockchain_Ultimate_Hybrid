@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.74` — value=0 CALL/STATICCALL inline leaf |
-| **Notes** | [RELEASE_NOTES_v1.3.74.md](../RELEASE_NOTES_v1.3.74.md) |
-| **Prior** | [v1.3.73](../RELEASE_NOTES_v1.3.73.md) apply priority; [v1.3.72](../RELEASE_NOTES_v1.3.72.md) P2P |
+| **Tag** | `v1.3.75` — multi-depth value=0 CALL frames |
+| **Notes** | [RELEASE_NOTES_v1.3.75.md](../RELEASE_NOTES_v1.3.75.md) |
+| **Prior** | [v1.3.74](../RELEASE_NOTES_v1.3.74.md) CALL leaf; [v1.3.73](../RELEASE_NOTES_v1.3.73.md) apply priority |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

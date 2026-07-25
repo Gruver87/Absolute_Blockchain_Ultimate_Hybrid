@@ -1902,6 +1902,10 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         evm_pure_runner::evm_bytecode_is_nested_native_eligible_py,
         m
     )?)?;
+    m.add_function(wrap_pyfunction!(
+        evm_pure_runner::evm_bytecode_is_inline_call_frame_eligible_py,
+        m
+    )?)?;
     m.add_function(wrap_pyfunction!(evm_pure_runner::evm_run_until_halt_py, m)?)?;
     m.add_function(wrap_pyfunction!(
         evm_pure_runner::evm_run_pure_until_host_py,

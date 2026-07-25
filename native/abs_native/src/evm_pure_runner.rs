@@ -41,6 +41,43 @@ pub fn bytecode_is_nested_native_eligible(bytecode: &[u8]) -> bool {
     true
 }
 
+/// v1.3.75: allow CALL*/LOG inside an in-Rust frame; reject CREATE/SELFDESTRUCT.
+pub fn bytecode_is_inline_call_frame_eligible(bytecode: &[u8]) -> bool {
+    let mut pc = 0usize;
+    while pc < bytecode.len() {
+        let op = bytecode[pc];
+        if matches!(op, 0xF0 | 0xF5 | 0xFF) {
+            return false;
+        }
+        if (0x60..=0x7F).contains(&op) {
+            pc = pc.saturating_add(1 + (op as usize - 0x5F));
+        } else {
+            pc += 1;
+        }
+    }
+    true
+}
+
+const MAX_INLINE_CALL_DEPTH: usize = 4; // v1.3.75 multi-depth value=0 CALL frames
+
+fn get_inline_depth(host_context: Option<&Bound<'_, PyDict>>) -> usize {
+    let Some(ctx) = host_context else {
+        return 0;
+    };
+    match ctx.get_item("_abs_inline_depth") {
+        Ok(Some(v)) => v.extract::<usize>().unwrap_or(0),
+        _ => 0,
+    }
+}
+
+fn set_inline_depth(host_context: Option<&Bound<'_, PyDict>>, depth: usize) -> PyResult<()> {
+    let Some(ctx) = host_context else {
+        return Ok(());
+    };
+    ctx.set_item("_abs_inline_depth", depth)?;
+    Ok(())
+}
+
 fn opcode_stops_segment(
     op: u8,
     host_context: Option<&Bound<'_, PyDict>>,
@@ -676,8 +713,8 @@ fn execute_call_native(
         return Ok(());
     }
 
-    // v1.3.74 Priority 38: value=0 CALL/STATICCALL leaf with own storage
-    // (bridge_state.storages / empty), no value transfer / writeback via Python.
+    // v1.3.74/75 Priority 38: value=0 CALL/STATICCALL in-Rust frame (leaf or
+    // multi-depth call-frame up to MAX_INLINE_CALL_DEPTH).
     if try_inline_leaf_value0_call(
         py,
         host_context,
@@ -914,8 +951,9 @@ fn store_inline_storage(
     Ok(())
 }
 
-/// v1.3.74 Priority 38: value=0 CALL/STATICCALL leaf with callee storage
-/// (not parent). No value transfer; writeback via bridge_state.storages when present.
+/// v1.3.74/75 Priority 38: value=0 CALL/STATICCALL in-Rust frame with callee
+/// storage. Leaf (no CALL) or call-frame (CALL*/LOG allowed, no CREATE/SELFDESTRUCT)
+/// up to MAX_INLINE_CALL_DEPTH. No value transfer.
 fn try_inline_leaf_value0_call(
     py: Python<'_>,
     host_context: Option<&Bound<'_, PyDict>>,
@@ -936,11 +974,17 @@ fn try_inline_leaf_value0_call(
     if !frame.value.is_zero() {
         return Ok(false);
     }
+    let depth = get_inline_depth(host_context);
+    if depth >= MAX_INLINE_CALL_DEPTH {
+        return Ok(false);
+    }
     let code = match resolve_full_code(host_context, host_bridge, frame.to_word) {
         Ok(c) if !c.is_empty() => c,
         _ => return Ok(false),
     };
-    if !bytecode_is_nested_native_eligible(&code) {
+    let leaf_ok = bytecode_is_nested_native_eligible(&code);
+    let frame_ok = bytecode_is_inline_call_frame_eligible(&code);
+    if !leaf_ok && !frame_ok {
         return Ok(false);
     }
     // Callee storage: prefer bridge_state.storages[addr], else empty (ephemeral).
@@ -953,6 +997,8 @@ fn try_inline_leaf_value0_call(
     let jumpdest = crate::evm_build_jumpdest_table_inner(&code);
     let stack_py = PyList::empty_bound(py);
     let memory_py = PyByteArray::new_bound(py, &[]);
+    let prev_depth = depth;
+    set_inline_depth(host_context, depth + 1)?;
     let child = run_pure_segment_inner(
         py,
         &code,
@@ -969,7 +1015,9 @@ fn try_inline_leaf_value0_call(
         None,
         MAX_FULL_STEPS,
         true,
-    )?;
+    );
+    let _ = set_inline_depth(host_context, prev_depth);
+    let child = child?;
     let child_dict = child.downcast_bound::<PyDict>(py)?;
     let reason = child_dict
         .get_item("stop_reason")?
@@ -1013,6 +1061,10 @@ fn try_inline_leaf_value0_call(
         },
     );
     let _ = child_dict.set_item("native_inline_value0_call", true);
+    if !leaf_ok {
+        let _ = child_dict.set_item("native_inline_call_frame", true);
+        let _ = child_dict.set_item("native_inline_depth", depth + 1);
+    }
     Ok(true)
 }
 
@@ -2169,6 +2221,12 @@ pub fn evm_opcode_is_host_py(op: u8) -> PyResult<bool> {
 #[pyo3(name = "evm_bytecode_is_nested_native_eligible")]
 pub fn evm_bytecode_is_nested_native_eligible_py(bytecode: Vec<u8>) -> PyResult<bool> {
     Ok(bytecode_is_nested_native_eligible(&bytecode))
+}
+
+#[pyfunction]
+#[pyo3(name = "evm_bytecode_is_inline_call_frame_eligible")]
+pub fn evm_bytecode_is_inline_call_frame_eligible_py(bytecode: Vec<u8>) -> PyResult<bool> {
+    Ok(bytecode_is_inline_call_frame_eligible(&bytecode))
 }
 
 #[pyfunction]
