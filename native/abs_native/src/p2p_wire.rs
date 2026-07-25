@@ -434,6 +434,28 @@ pub(crate) fn validate_state_root_response_inner(data: &Value) -> Option<(i64, S
     Some((height, state_root, head_hash))
 }
 
+/// Exactly 32-byte digest as 64 hex chars (optional `0x` prefix).
+fn is_digest32_hex(s: &str) -> bool {
+    let t = s.trim();
+    let t = t
+        .strip_prefix("0x")
+        .or_else(|| t.strip_prefix("0X"))
+        .unwrap_or(t);
+    t.len() == 64 && is_hex(t)
+}
+
+/// v1.3.123: state_root + head_hash must be 32-byte hex digests.
+/// Correlation / root-belongs-to-head stay Python.
+pub(crate) fn verify_state_root_response_semantics_inner(data: &Value) -> Result<(), String> {
+    let Some((_height, state_root, head_hash)) = validate_state_root_response_inner(data) else {
+        return Err("bad_state_root_response".to_string());
+    };
+    if !is_digest32_hex(&state_root) || !is_digest32_hex(&head_hash) {
+        return Err("bad_state_root_digest".to_string());
+    }
+    Ok(())
+}
+
 #[pyfunction]
 fn validate_p2p_block_announce(py: Python<'_>, data_json: String) -> PyResult<Option<PyObject>> {
     let value: Value = match serde_json::from_str(&data_json) {

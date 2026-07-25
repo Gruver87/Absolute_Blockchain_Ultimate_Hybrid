@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.123] — 2026-07-25
+
+### P2P — native state_root_response digest semantic gate
+
+- Loop-shell requires 32-byte hex `state_root` + `head_hash` (optional `0x`)
+- Strike: `bad_state_root_digest`; shape still `bad_state_root_response`
+- Honesty: correlation / proof / sync ownership / full message-loop not claimed
+
 ## [1.3.122] — 2026-07-25
 
 ### P2P — native singular block response hash semantic gate

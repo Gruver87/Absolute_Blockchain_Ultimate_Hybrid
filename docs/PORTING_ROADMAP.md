@@ -698,6 +698,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Request correlation / import / fork-choice stay Python
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
+### Priority 78 — Native state_root_response digest semantic ingress ✅ (v1.3.123)
+
+- [x] `verify_state_root_response_semantics_inner` on loop-shell (32-byte hex digests)
+- [x] Correlation / root-belongs-to-head / sync ownership stay Python
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
