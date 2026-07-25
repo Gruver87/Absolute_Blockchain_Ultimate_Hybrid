@@ -612,6 +612,100 @@ pub(crate) fn validate_wire_tx_inner(data: &Value) -> bool {
     true
 }
 
+/// v1.3.118: signature-only semantic gate for singular `new_tx` (mempool batch stays Python).
+/// Uses trusted local `expected_chain_id` in the canonical preimage (ignore wire chain_id).
+pub(crate) fn verify_wire_tx_signature_inner(
+    data: &Value,
+    expected_chain_id: i64,
+    require_signature: bool,
+) -> Result<(), String> {
+    if !validate_wire_tx_inner(data) {
+        return Err("bad_wire_tx".to_string());
+    }
+    let obj = data
+        .as_object()
+        .ok_or_else(|| "bad_wire_tx".to_string())?;
+    let sig_hex = obj
+        .get("signature")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim();
+    let pk_hex = obj
+        .get("public_key")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim();
+    if sig_hex.is_empty() {
+        if require_signature {
+            return Err("missing_tx_signature".to_string());
+        }
+        return Ok(());
+    }
+    if pk_hex.is_empty() {
+        return Err("missing_tx_public_key".to_string());
+    }
+    let from_addr = obj
+        .get("from")
+        .or_else(|| obj.get("from_addr"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim();
+    let to_addr = obj
+        .get("to")
+        .or_else(|| obj.get("to_addr"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim();
+    if from_addr.is_empty() || to_addr.is_empty() {
+        return Err("bad_wire_tx".to_string());
+    }
+    let value = obj
+        .get("value")
+        .and_then(json_i64)
+        .ok_or_else(|| "bad_tx_signature".to_string())?;
+    let nonce = obj.get("nonce").and_then(json_i64).unwrap_or(0);
+    if nonce < 0 {
+        return Err("bad_tx_signature".to_string());
+    }
+    // Parity with Wallet._canonical_tx_for_hash + local chain_id injection.
+    let mut payload = serde_json::Map::new();
+    payload.insert("from".into(), Value::String(from_addr.to_string()));
+    payload.insert("to".into(), Value::String(to_addr.to_string()));
+    payload.insert("value".into(), Value::Number(value.into()));
+    payload.insert("nonce".into(), Value::Number(nonce.into()));
+    payload.insert(
+        "chain_id".into(),
+        Value::Number(expected_chain_id.into()),
+    );
+    let data_s = obj
+        .get("data")
+        .or_else(|| obj.get("input"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    if !data_s.is_empty() {
+        payload.insert("data".into(), Value::String(data_s));
+    }
+    let gas = obj
+        .get("gas_limit")
+        .or_else(|| obj.get("gas"))
+        .and_then(json_i64);
+    if let Some(g) = gas {
+        if g != 21000 {
+            payload.insert("gas_limit".into(), Value::Number(g.into()));
+        }
+    }
+    let encoded = serde_json::to_string(&sort_keys_value(&Value::Object(payload)))
+        .map_err(|_| "bad_tx_signature".to_string())?;
+    let tx_hash = crate::hash_string(&encoded);
+    let signature = hex::decode(sig_hex).map_err(|_| "bad_tx_signature".to_string())?;
+    let public_key = hex::decode(pk_hex).map_err(|_| "bad_tx_signature".to_string())?;
+    if !crate::verify_secp256k1_sha256_inner(tx_hash.as_bytes(), &signature, &public_key) {
+        return Err("bad_tx_signature".to_string());
+    }
+    Ok(())
+}
+
 pub(crate) fn validate_mempool_batch_inner(data: &Value) -> Option<usize> {
     let obj = data.as_object()?;
     let txs = obj.get("transactions")?.as_array()?;

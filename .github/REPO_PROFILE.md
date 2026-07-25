@@ -59,8 +59,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.117` — native attestation semantic gate |
-| **Notes** | [RELEASE_NOTES_v1.3.117.md](../RELEASE_NOTES_v1.3.117.md) |
+| **Tag** | `v1.3.118` — native new_tx signature gate |
+| **Notes** | [RELEASE_NOTES_v1.3.118.md](../RELEASE_NOTES_v1.3.118.md) |
 | **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

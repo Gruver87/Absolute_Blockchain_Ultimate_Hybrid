@@ -1746,8 +1746,21 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_attestation_semantic_gate (v1.3.117)"
             )
+        # v1.3.118 — new_tx signature semantic gate on loop-shell
+        if "check_wire_tx_semantics" not in transport_rs or "v1.3.118" not in transport_rs:
+            errors.append("p2p_transport must expose new_tx semantic gate (v1.3.118)")
+        if "verify_wire_tx_signature_inner" not in (
+            ROOT / "native" / "abs_native" / "src" / "p2p_wire.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append("p2p_wire must expose verify_wire_tx_signature_inner (v1.3.118)")
+        if "native_tx_semantic_gate" not in p2p_py:
+            errors.append("p2p_node must expose native_tx_semantic_gate (v1.3.118)")
+        if "abs_p2p_native_tx_semantic_gate" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("metrics must export abs_p2p_native_tx_semantic_gate (v1.3.118)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..117 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..118 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

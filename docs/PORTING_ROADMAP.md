@@ -667,6 +667,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Identity + secp256k1; tx semantic / mempool stay Python
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
+### Priority 73 — Native new_tx signature semantic ingress ✅ (v1.3.118)
+
+- [x] `verify_wire_tx_signature_inner` on loop-shell (`expected_chain_id` + `require_tx_signatures`)
+- [x] Mempool batch / nonce-balance / full dispatch stay Python
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

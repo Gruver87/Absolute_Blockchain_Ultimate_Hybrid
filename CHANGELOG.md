@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.118] — 2026-07-25
+
+### P2P — native new_tx signature semantic gate
+
+- Loop-shell verifies singular `new_tx` signatures with local chain_id preimage
+- Strike reasons: `missing_tx_signature` / `missing_tx_public_key` / `bad_tx_signature`
+- Honesty: mempool batch / state checks / full message-loop not claimed
+
 ## [1.3.117] — 2026-07-25
 
 ### P2P — native attestation semantic gate

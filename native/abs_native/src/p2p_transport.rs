@@ -26,6 +26,7 @@
 //! v1.3.115: handshake policy fuse (chain_id + TLS identity) on handshake_roundtrip.
 //! v1.3.116: message-loop event shell (`read_message_loop_events`) — ordered dispatch/strike.
 //! v1.3.117: attestation semantic gate on loop-shell (identity + secp256k1 before dispatch).
+//! v1.3.118: new_tx signature semantic gate on loop-shell (chain_id-bound; mempool stays Python).
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -38,7 +39,7 @@ use crate::p2p_wire::{
     validate_mempool_batch_inner, validate_peers_list_inner, validate_shard_migration_inner,
     validate_state_root_request_inner, validate_state_root_response_inner, validate_status_inner,
     validate_validator_register_inner, validate_wire_tx_inner, verify_attestation_semantics_inner,
-    DEFAULT_MAX_P2P_LINE_BYTES,
+    verify_wire_tx_signature_inner, DEFAULT_MAX_P2P_LINE_BYTES,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
@@ -86,6 +87,9 @@ fn wire_fail_reason(err: &str) -> String {
         || err == "tls_missing"
         || err == "tls_identity_mismatch"
         || err == "handshake_rejected"
+        || err == "missing_tx_signature"
+        || err == "missing_tx_public_key"
+        || err == "bad_tx_signature"
         || err.starts_with("p2p_transport_")
         || err.starts_with("p2p_handshake_")
     {
@@ -183,6 +187,23 @@ fn check_attestation_semantics(msg_type: &str, data: &serde_json::Value) -> Resu
         return Ok(());
     }
     verify_attestation_semantics_inner(data)
+}
+
+/// v1.3.118: new_tx signature-only semantic gate (local chain_id; mempool batch stays Python).
+fn check_wire_tx_semantics(
+    msg_type: &str,
+    data: &serde_json::Value,
+    expected_chain_id: Option<i64>,
+    require_signature: bool,
+) -> Result<(), String> {
+    if msg_type != "new_tx" {
+        return Ok(());
+    }
+    let Some(chain_id) = expected_chain_id else {
+        // No chain_id provided → skip semantic (compat with older callers).
+        return Ok(());
+    };
+    verify_wire_tx_signature_inner(data, chain_id, require_signature)
 }
 
 /// v1.3.106: parity with Python `new_block` announce gate (fail-closed).
@@ -1394,11 +1415,19 @@ impl P2PNativeConn {
     /// Ordered message-loop events (v1.3.116) — shell only, not full dispatch ownership.
     ///
     /// v1.3.117: attestation semantic gate (identity + sig) before `dispatch`.
+    /// v1.3.118: optional `new_tx` signature gate (`expected_chain_id` + `require_tx_signatures`).
     /// Returns `{ok:true, events:[{action,...},...], eof:bool}` where actions are:
     /// `dispatch` | `strike` | `keepalive` | `idle` | `eof`.
     /// Valid messages before a hard reject are preserved as `dispatch` then `strike`.
     /// Application handlers / rate strikes / peer lifecycle remain Python.
-    #[pyo3(signature = (max_n=8, chunk_sz=65536, allowed_types=None, auto_pong=false))]
+    #[pyo3(signature = (
+        max_n=8,
+        chunk_sz=65536,
+        allowed_types=None,
+        auto_pong=false,
+        expected_chain_id=None,
+        require_tx_signatures=false
+    ))]
     fn read_message_loop_events(
         &mut self,
         py: Python<'_>,
@@ -1406,6 +1435,8 @@ impl P2PNativeConn {
         chunk_sz: usize,
         allowed_types: Option<Vec<String>>,
         auto_pong: bool,
+        expected_chain_id: Option<i64>,
+        require_tx_signatures: bool,
     ) -> PyResult<PyObject> {
         let max_n = max_n.clamp(NATIVE_BATCH_MIN, NATIVE_BATCH_MAX);
         let allowed_set = allowed_types.map(|items| items.into_iter().collect::<HashSet<_>>());
@@ -1434,8 +1465,18 @@ impl P2PNativeConn {
                             terminal_strike = Some(reason);
                             break;
                         }
-                        // v1.3.117: semantic attestation verify before dispatch (tx stays Python).
+                        // v1.3.117: semantic attestation verify before dispatch.
                         if let Err(reason) = check_attestation_semantics(&msg_type, &data) {
+                            terminal_strike = Some(reason);
+                            break;
+                        }
+                        // v1.3.118: new_tx signature-only semantic (mempool stays Python).
+                        if let Err(reason) = check_wire_tx_semantics(
+                            &msg_type,
+                            &data,
+                            expected_chain_id,
+                            require_tx_signatures,
+                        ) {
                             terminal_strike = Some(reason);
                             break;
                         }

@@ -55,7 +55,7 @@ def test_needles_v13117():
     assert "attestation_semantic_rejects_total" in p2p
     notes = (ROOT / "RELEASE_NOTES_v1.3.117.md").read_text(encoding="utf-8")
     assert "1.3.117-industrial" in notes
-    assert Config().node_version == "1.3.117-industrial"
+    # Live Config().node_version advances with later waves; pin notes not config.
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_attestation_semantic_gate" in metrics
     assert "abs_p2p_attestation_semantic_rejects_total" in metrics

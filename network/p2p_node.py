@@ -720,6 +720,8 @@ class PeerConnection:
             self._native_conn, "read_message_loop_events"
         ):
             return []
+        chain_id = int(getattr(config, "chain_id", 0) or 0) if config is not None else 0
+        require_sigs = bool(getattr(config, "require_signatures", False)) if config is not None else False
         out = await asyncio.wait_for(
             asyncio.to_thread(
                 self._native_conn.read_message_loop_events,
@@ -727,6 +729,8 @@ class PeerConnection:
                 int(self._read_chunk or 65536),
                 list(ALLOWED_WIRE_TYPES),
                 bool(getattr(self, "_native_auto_pong", True)),
+                int(chain_id) if chain_id else None,
+                bool(require_sigs),
             ),
             timeout=self._native_recv_wait_sec(),
         )
@@ -1177,6 +1181,7 @@ class P2PNode:
         self._native_message_loop_dispatch_total: int = 0
         self._native_message_loop_strikes_total: int = 0
         self._attestation_semantic_rejects_total: int = 0
+        self._tx_semantic_rejects_total: int = 0
         self._handshake_rejects: int = 0
         self._eclipse_at_risk: int = 0
         self._eclipse_ratio: float = 0.0
@@ -1413,7 +1418,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.117)"
+                    f"({label} v1.3.118)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -2002,6 +2007,14 @@ class P2PNode:
                             ):
                                 self._attestation_semantic_rejects_total = int(
                                     self._attestation_semantic_rejects_total or 0
+                                ) + 1
+                            if reason in (
+                                "missing_tx_signature",
+                                "missing_tx_public_key",
+                                "bad_tx_signature",
+                            ):
+                                self._tx_semantic_rejects_total = int(
+                                    self._tx_semantic_rejects_total or 0
                                 ) + 1
                             if reason == "mid_session_handshake":
                                 self._handshake_rejects = int(
@@ -4030,8 +4043,14 @@ class P2PNode:
             "native_attestation_semantic_gate": bool(
                 getattr(self, "_native_message_loop_shell", False)
             ),
+            "native_tx_semantic_gate": bool(
+                getattr(self, "_native_message_loop_shell", False)
+            ),
             "attestation_semantic_rejects_total": int(
                 getattr(self, "_attestation_semantic_rejects_total", 0) or 0
+            ),
+            "tx_semantic_rejects_total": int(
+                getattr(self, "_tx_semantic_rejects_total", 0) or 0
             ),
             "native_message_loop_dispatch_total": int(
                 getattr(self, "_native_message_loop_dispatch_total", 0) or 0

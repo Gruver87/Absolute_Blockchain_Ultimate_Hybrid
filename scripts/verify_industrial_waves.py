@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.117 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.118 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -78,6 +78,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13115_p2p_native_handshake_policy.py",
     "tests/unit/test_v13116_p2p_native_message_loop_shell.py",
     "tests/unit/test_v13117_p2p_native_attestation_semantic_gate.py",
+    "tests/unit/test_v13118_p2p_native_tx_semantic_gate.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1045,6 +1046,31 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_attestation_semantic_rejects_total",
         ],
     ),
+    (
+        "1.3.118",
+        "RELEASE_NOTES_v1.3.118.md",
+        ["1.3.118-industrial", "new_tx"],
+    ),
+    (
+        "1.3.118",
+        "native/abs_native/src/p2p_wire.rs",
+        ["verify_wire_tx_signature_inner", "missing_tx_signature", "bad_tx_signature"],
+    ),
+    (
+        "1.3.118",
+        "native/abs_native/src/p2p_transport.rs",
+        ["check_wire_tx_semantics", "require_tx_signatures", "v1.3.118"],
+    ),
+    (
+        "1.3.118",
+        "network/p2p_node.py",
+        ["native_tx_semantic_gate", "tx_semantic_rejects_total"],
+    ),
+    (
+        "1.3.118",
+        "observability/metrics.py",
+        ["abs_p2p_native_tx_semantic_gate", "abs_p2p_tx_semantic_rejects_total"],
+    ),
 ]
 
 
@@ -1072,8 +1098,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.117"):
-            errors.append(f"node_version expected 1.3.117-*, got {ver}")
+        if not ver.startswith("1.3.118"):
+            errors.append(f"node_version expected 1.3.118-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors
