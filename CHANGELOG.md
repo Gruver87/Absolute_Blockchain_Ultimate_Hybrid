@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.94] — 2026-07-25
+
+### P2P — native read_messages batch pump
+
+- `P2PNativeConn.read_messages` drains up to N decoded envelopes per call
+- `PeerConnection.recv` queues `_pending_msgs`; admit stays Python
+- Honesty: still not full message-loop / libp2p; default still asyncio
+
 ## [1.3.93] — 2026-07-25
 
 ### P2P — native write_message pump (encode + write)

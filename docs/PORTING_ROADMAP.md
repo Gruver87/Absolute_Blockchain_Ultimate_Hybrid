@@ -443,6 +443,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.91: Native rustls TLS on transport (Priority 46)
 - [x] v1.3.92: Native read_message pump — frame+parse (Priority 47)
 - [x] v1.3.93: Native write_message pump — encode+write (Priority 48)
+- [x] v1.3.94: Native read_messages batch pump (Priority 49)
 
 ### Priority 39 — P2P Rust ingress data plane ✅ (v1.3.77–v1.3.78)
 
@@ -498,6 +499,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `P2PNativeConn.write_message`: wire encode + write in one native call
 - [x] `PeerConnection._write_message` wired; egress prepare/admit stays Python
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
+### Priority 49 — Native read_messages batch ✅ (v1.3.94)
+
+- [x] `P2PNativeConn.read_messages`: drain up to N decoded envelopes per call
+- [x] `PeerConnection.recv` queues `_pending_msgs`; rate admit stays Python
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
 ## Process per module

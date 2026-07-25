@@ -1,8 +1,9 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.93).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.94).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
 //! v1.3.92: `read_message` fuses framed read + wire parse.
 //! v1.3.93: `write_message` fuses wire encode + write.
+//! v1.3.94: `read_messages` batch drain (still not full message-loop).
 //! Python remains the control plane (handshake, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -12,7 +13,7 @@ use crate::p2p_wire::{
     DEFAULT_MAX_P2P_LINE_BYTES,
 };
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict};
+use pyo3::types::{PyBytes, PyDict, PyList};
 use std::collections::HashSet;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
@@ -51,6 +52,46 @@ fn wire_fail_reason(err: &str) -> String {
         return err.split(':').next().unwrap_or(err).to_string();
     }
     "bad_wire_line".to_string()
+}
+
+fn decoded_ok_dict(
+    py: Python<'_>,
+    msg_type: &str,
+    data: &serde_json::Value,
+    nbytes: usize,
+) -> PyResult<PyObject> {
+    let dict = PyDict::new_bound(py);
+    dict.set_item("ok", true)?;
+    dict.set_item("eof", false)?;
+    dict.set_item("type", msg_type)?;
+    dict.set_item("nbytes", nbytes)?;
+    let data_json = serde_json::to_string(data)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let data_obj = pyo3::types::PyModule::import_bound(py, "json")?
+        .getattr("loads")?
+        .call1((data_json,))?;
+    dict.set_item("data", data_obj)?;
+    Ok(dict.into_any().unbind())
+}
+
+fn messages_to_list(
+    py: Python<'_>,
+    batch: &[(String, serde_json::Value, usize)],
+) -> PyResult<PyObject> {
+    let list = PyList::empty_bound(py);
+    for (msg_type, data, nbytes) in batch {
+        let item = PyDict::new_bound(py);
+        item.set_item("type", msg_type)?;
+        item.set_item("nbytes", *nbytes)?;
+        let data_json = serde_json::to_string(data)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        let data_obj = pyo3::types::PyModule::import_bound(py, "json")?
+            .getattr("loads")?
+            .call1((data_json,))?;
+        item.set_item("data", data_obj)?;
+        list.append(item)?;
+    }
+    Ok(list.into_any().unbind())
 }
 
 fn tls_err(e: impl std::fmt::Display) -> String {
@@ -425,6 +466,24 @@ impl P2PNativeConn {
             }
         }
     }
+
+    /// One framed line → decoded envelope (or EOF / error).
+    fn read_one_decoded(
+        &mut self,
+        chunk_sz: usize,
+        allowed: Option<&HashSet<String>>,
+    ) -> Result<Option<(String, serde_json::Value, usize)>, String> {
+        match self.read_line_inner(chunk_sz) {
+            Ok(None) => Ok(None),
+            Ok(Some(line)) => {
+                let nbytes = line.len();
+                let (msg_type, data) =
+                    parse_p2p_wire_line_inner(&line, self.max_bytes, allowed)?;
+                Ok(Some((msg_type, data, nbytes)))
+            }
+            Err(reason) => Err(reason),
+        }
+    }
 }
 
 #[pymethods]
@@ -585,19 +644,7 @@ impl P2PNativeConn {
         allowed_types: Option<Vec<String>>,
     ) -> PyResult<PyObject> {
         let allowed_set = allowed_types.map(|items| items.into_iter().collect::<HashSet<_>>());
-        let max_bytes = self.max_bytes;
-        let result = py.allow_threads(|| -> Result<Option<(String, serde_json::Value, usize)>, String> {
-            match self.read_line_inner(chunk_sz) {
-                Ok(None) => Ok(None),
-                Ok(Some(line)) => {
-                    let nbytes = line.len();
-                    let (msg_type, data) =
-                        parse_p2p_wire_line_inner(&line, max_bytes, allowed_set.as_ref())?;
-                    Ok(Some((msg_type, data, nbytes)))
-                }
-                Err(reason) => Err(reason),
-            }
-        });
+        let result = py.allow_threads(|| self.read_one_decoded(chunk_sz, allowed_set.as_ref()));
         match result {
             Ok(None) => {
                 let dict = PyDict::new_bound(py);
@@ -605,20 +652,7 @@ impl P2PNativeConn {
                 dict.set_item("eof", true)?;
                 Ok(dict.into_any().unbind())
             }
-            Ok(Some((msg_type, data, nbytes))) => {
-                let dict = PyDict::new_bound(py);
-                dict.set_item("ok", true)?;
-                dict.set_item("eof", false)?;
-                dict.set_item("type", &msg_type)?;
-                dict.set_item("nbytes", nbytes)?;
-                let data_json = serde_json::to_string(&data)
-                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
-                let data_obj = pyo3::types::PyModule::import_bound(py, "json")?
-                    .getattr("loads")?
-                    .call1((data_json,))?;
-                dict.set_item("data", data_obj)?;
-                Ok(dict.into_any().unbind())
-            }
+            Ok(Some((msg_type, data, nbytes))) => decoded_ok_dict(py, &msg_type, &data, nbytes),
             Err(reason) => {
                 let short = wire_fail_reason(&reason);
                 let dict = PyDict::new_bound(py);
@@ -628,6 +662,64 @@ impl P2PNativeConn {
                 Ok(dict.into_any().unbind())
             }
         }
+    }
+
+    /// Batch framed read + wire parse (v1.3.94).
+    ///
+    /// Reads up to `max_n` envelopes in one `allow_threads` call.
+    /// Timeout after ≥1 message → success with partial batch (no idle).
+    /// Timeout with empty batch → `{ok:false, reason:p2p_transport_timeout}`.
+    ///
+    /// `{ok:true, messages:[{type,data,nbytes},...], eof:bool}` |
+    /// `{ok:false, reason, messages:[...], eof:false}`.
+    #[pyo3(signature = (max_n=8, chunk_sz=65536, allowed_types=None))]
+    fn read_messages(
+        &mut self,
+        py: Python<'_>,
+        max_n: usize,
+        chunk_sz: usize,
+        allowed_types: Option<Vec<String>>,
+    ) -> PyResult<PyObject> {
+        let max_n = max_n.clamp(1, 64);
+        let allowed_set = allowed_types.map(|items| items.into_iter().collect::<HashSet<_>>());
+        let result = py.allow_threads(|| {
+            let mut batch: Vec<(String, serde_json::Value, usize)> = Vec::new();
+            let mut eof = false;
+            let mut err: Option<String> = None;
+            while batch.len() < max_n {
+                match self.read_one_decoded(chunk_sz, allowed_set.as_ref()) {
+                    Ok(None) => {
+                        eof = true;
+                        break;
+                    }
+                    Ok(Some(item)) => batch.push(item),
+                    Err(reason) => {
+                        // Partial batch on timeout is success for the caller.
+                        if reason == "p2p_transport_timeout" && !batch.is_empty() {
+                            break;
+                        }
+                        err = Some(reason);
+                        break;
+                    }
+                }
+            }
+            (batch, eof, err)
+        });
+        let (batch, eof, err) = result;
+        if let Some(reason) = err {
+            let short = wire_fail_reason(&reason);
+            let dict = PyDict::new_bound(py);
+            dict.set_item("ok", false)?;
+            dict.set_item("reason", short)?;
+            dict.set_item("eof", false)?;
+            dict.set_item("messages", messages_to_list(py, &batch)?)?;
+            return Ok(dict.into_any().unbind());
+        }
+        let dict = PyDict::new_bound(py);
+        dict.set_item("ok", true)?;
+        dict.set_item("eof", eof)?;
+        dict.set_item("messages", messages_to_list(py, &batch)?)?;
+        Ok(dict.into_any().unbind())
     }
 
     fn write(&mut self, py: Python<'_>, data: &[u8]) -> PyResult<usize> {

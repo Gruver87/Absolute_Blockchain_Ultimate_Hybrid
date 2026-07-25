@@ -15,7 +15,7 @@
 [![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
 [![48h soak](https://img.shields.io/badge/48h%20soak-PASS%20Jul%202026-brightgreen)](docs/EVIDENCE_MATRIX.md)
-[![Release v1.3.93](https://img.shields.io/badge/Release-v1.3.93-blue)](RELEASE_NOTES_v1.3.93.md)
+[![Release v1.3.94](https://img.shields.io/badge/Release-v1.3.94-blue)](RELEASE_NOTES_v1.3.94.md)
 [![Native fuzz](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/fuzz-native.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/fuzz-native.yml)
 
 **Keywords:** Absolute Blockchain · hybrid L1 · Python Rust PyO3 · P2P mesh · RocksDB · EVM · JSON-RPC · industrial soak · fail-closed prod profile
@@ -25,7 +25,7 @@
 
 | | |
 |---|---|
-| **Release** | **v1.3.93** — [notes](RELEASE_NOTES_v1.3.93.md) · [CHANGELOG](CHANGELOG.md) · [Releases](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases) |
+| **Release** | **v1.3.94** — [notes](RELEASE_NOTES_v1.3.94.md) · [CHANGELOG](CHANGELOG.md) · [Releases](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases) |
 | **Self-check** | `.\scripts\check_all.ps1` (Quick / Standard / Full / Live / Max) |
 | **Entry** | `python main.py` |
 | **Dev chain** | `77777` |
@@ -274,9 +274,9 @@ Code: `runtime/tokenomics.py` · `GET /tokenomics` — **not** a listed token.
 | Jul 13–17 | Prod mesh hardening, P2P/TLS/resilience, industrial gates |
 | Jul 17–18 | First 48h attempt interrupted (Docker OOM / corrupted `daemon.json`) |
 | Jul 19–21 | Clean **48h soak PASS** after log rotation + Docker RAM headroom |
-| Jul 21–25 | Industrial waves **v1.3.65–v1.3.93** · read/write_message pumps · TCP+TLS · Sybil/Eclipse · fuzz |
+| Jul 21–25 | Industrial waves **v1.3.65–v1.3.94** · read_messages batch · read/write pumps · TCP+TLS · Sybil/Eclipse |
 
-Details: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) · [RELEASE_NOTES_v1.3.93](RELEASE_NOTES_v1.3.93.md)
+Details: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) · [RELEASE_NOTES_v1.3.94](RELEASE_NOTES_v1.3.94.md)
 
 ---
 
@@ -296,4 +296,4 @@ MIT — see [LICENSE](LICENSE).
 
 ---
 
-*Last update: 2026-07-25 — **v1.3.93** + native P2P write_message pump. Not a launched public mainnet.*
+*Last update: 2026-07-25 — **v1.3.94** + native P2P read_messages batch. Not a launched public mainnet.*

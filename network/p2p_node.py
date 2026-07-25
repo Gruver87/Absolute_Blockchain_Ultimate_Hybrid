@@ -210,6 +210,8 @@ class PeerConnection:
         self._rl_table = None  # optional native P2PRateLimitTable (egress v1.3.85)
         self._line_framer = None  # optional native P2PLineFramer (v1.3.86)
         self._pending_lines: list = []
+        self._pending_msgs: list = []  # v1.3.94 decoded batch from read_messages
+        self._native_read_batch: int = 8
         self._use_egress_prepare = False  # v1.3.87 unified prepare
         self._egress_max_bytes = DEFAULT_MAX_P2P_LINE_BYTES
         # v1.3.66/72: bounded outbound queue (config-driven size + drain timeout)
@@ -514,6 +516,35 @@ class PeerConnection:
                 self._pending_lines.extend(lines[1:])
                 return lines[0]
 
+    def _admit_pending_item(
+        self,
+        item: dict,
+        *,
+        use_ingress: bool = False,
+        rl_table=None,
+        peer_key: str = "",
+    ):
+        """Apply optional ingress rate admit to a decoded native batch item."""
+        msg_type = item.get("type")
+        data = item.get("data")
+        nbytes = int(item.get("nbytes") or 0)
+        if use_ingress and rl_table is not None and hasattr(rl_table, "admit_rate"):
+            reject = rl_table.admit_rate(
+                str(peer_key or self.peer_id or self.host or ""),
+                str(msg_type or ""),
+                float(time.time()),
+                int(nbytes),
+            )
+            if reject:
+                reason = str(reject)
+                logger.warning(
+                    "[P2P] ingress rate reject from %s (%s)",
+                    self.peer_id or self.host,
+                    reason,
+                )
+                return WireReject(reason)
+        return {"type": msg_type, "data": data}
+
     async def recv(self, config=None, *, rl_table=None, peer_key: str = "", use_ingress: bool = False):
         """Читает одно JSON-сообщение от пира.
 
@@ -523,61 +554,92 @@ class PeerConnection:
 
         When use_ingress + rl_table: wire parse (+ optional rate) after native read.
         v1.3.92: P2PNativeConn.read_message fuses frame+parse in one to_thread hop.
+        v1.3.94: prefers read_messages batch drain into `_pending_msgs`.
         """
         limit = _max_p2p_line_bytes(config)
         try:
-            # v1.3.92: native transport fused read+wire parse
-            if (
-                self._native_conn is not None
-                and hasattr(self._native_conn, "read_message")
+            # v1.3.94/92: native transport fused read+wire parse (batch when available)
+            if self._native_conn is not None and (
+                hasattr(self._native_conn, "read_messages")
+                or hasattr(self._native_conn, "read_message")
             ):
-                out = await asyncio.wait_for(
-                    asyncio.to_thread(
-                        self._native_conn.read_message,
-                        int(self._read_chunk or 65536),
-                        list(ALLOWED_WIRE_TYPES),
-                    ),
-                    timeout=30,
-                )
-                if not isinstance(out, dict) or not out.get("ok"):
-                    reason = "bad_wire_line"
-                    if isinstance(out, dict):
-                        reason = str(out.get("reason") or reason)
-                    if reason == "p2p_transport_timeout":
-                        raise asyncio.TimeoutError()
-                    if reason == "p2p_line_too_large" or "p2p_line_too_large" in reason:
-                        reason = "p2p_line_too_large"
-                    logger.warning(
-                        "[P2P] wire reject from %s (%s)",
-                        self.peer_id or self.host,
-                        reason,
+                if self._pending_msgs:
+                    item = self._pending_msgs.pop(0)
+                elif hasattr(self._native_conn, "read_messages"):
+                    out = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            self._native_conn.read_messages,
+                            int(self._native_read_batch or 8),
+                            int(self._read_chunk or 65536),
+                            list(ALLOWED_WIRE_TYPES),
+                        ),
+                        timeout=30,
                     )
-                    return WireReject(reason)
-                if out.get("eof"):
-                    return None
-                msg_type = out.get("type")
-                data = out.get("data")
-                nbytes = int(out.get("nbytes") or 0)
-                if (
-                    use_ingress
-                    and rl_table is not None
-                    and hasattr(rl_table, "admit_rate")
-                ):
-                    reject = rl_table.admit_rate(
-                        str(peer_key or self.peer_id or self.host or ""),
-                        str(msg_type or ""),
-                        float(time.time()),
-                        int(nbytes),
-                    )
-                    if reject:
-                        reason = str(reject)
+                    if not isinstance(out, dict) or not out.get("ok"):
+                        reason = "bad_wire_line"
+                        if isinstance(out, dict):
+                            reason = str(out.get("reason") or reason)
+                            # Partial messages before a hard reject — queue then reject next.
+                            partial = list(out.get("messages") or [])
+                            if partial and reason != "p2p_transport_timeout":
+                                self._pending_msgs.extend(partial)
+                                item = self._pending_msgs.pop(0)
+                                return self._admit_pending_item(
+                                    item, use_ingress=use_ingress, rl_table=rl_table, peer_key=peer_key
+                                )
+                        if reason == "p2p_transport_timeout":
+                            raise asyncio.TimeoutError()
+                        if reason == "p2p_line_too_large" or "p2p_line_too_large" in reason:
+                            reason = "p2p_line_too_large"
                         logger.warning(
-                            "[P2P] ingress rate reject from %s (%s)",
+                            "[P2P] wire reject from %s (%s)",
                             self.peer_id or self.host,
                             reason,
                         )
                         return WireReject(reason)
-                return {"type": msg_type, "data": data}
+                    msgs = list(out.get("messages") or [])
+                    if not msgs:
+                        if out.get("eof"):
+                            return None
+                        raise asyncio.TimeoutError()
+                    self._pending_msgs.extend(msgs[1:])
+                    item = msgs[0]
+                    if out.get("eof") and not self._pending_msgs:
+                        # eof with last message still to process — deliver it now
+                        pass
+                else:
+                    out = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            self._native_conn.read_message,
+                            int(self._read_chunk or 65536),
+                            list(ALLOWED_WIRE_TYPES),
+                        ),
+                        timeout=30,
+                    )
+                    if not isinstance(out, dict) or not out.get("ok"):
+                        reason = "bad_wire_line"
+                        if isinstance(out, dict):
+                            reason = str(out.get("reason") or reason)
+                        if reason == "p2p_transport_timeout":
+                            raise asyncio.TimeoutError()
+                        if reason == "p2p_line_too_large" or "p2p_line_too_large" in reason:
+                            reason = "p2p_line_too_large"
+                        logger.warning(
+                            "[P2P] wire reject from %s (%s)",
+                            self.peer_id or self.host,
+                            reason,
+                        )
+                        return WireReject(reason)
+                    if out.get("eof"):
+                        return None
+                    item = {
+                        "type": out.get("type"),
+                        "data": out.get("data"),
+                        "nbytes": int(out.get("nbytes") or 0),
+                    }
+                return self._admit_pending_item(
+                    item, use_ingress=use_ingress, rl_table=rl_table, peer_key=peer_key
+                )
 
             line = await self._read_wire_line(limit)
             if not line:
@@ -807,19 +869,19 @@ class P2PNode:
         )
         self._native_read_message = False
         self._native_write_message = False
+        self._native_read_messages = False
         if self._use_native_transport:
             try:
                 import abs_native as _abs_nat
 
-                self._native_read_message = hasattr(
-                    getattr(_abs_nat, "P2PNativeConn", None), "read_message"
-                )
-                self._native_write_message = hasattr(
-                    getattr(_abs_nat, "P2PNativeConn", None), "write_message"
-                )
+                _cls = getattr(_abs_nat, "P2PNativeConn", None)
+                self._native_read_message = hasattr(_cls, "read_message")
+                self._native_write_message = hasattr(_cls, "write_message")
+                self._native_read_messages = hasattr(_cls, "read_messages")
             except Exception:
                 self._native_read_message = False
                 self._native_write_message = False
+                self._native_read_messages = False
         self._handshake_rejects: int = 0
         self._eclipse_at_risk: int = 0
         self._eclipse_ratio: float = 0.0
@@ -1056,7 +1118,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.93)"
+                    f"({label} v1.3.94)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -3459,6 +3521,7 @@ class P2PNode:
             "native_p2p_tls": bool(getattr(self, "_native_tls", False)),
             "native_read_message": bool(getattr(self, "_native_read_message", False)),
             "native_write_message": bool(getattr(self, "_native_write_message", False)),
+            "native_read_messages": bool(getattr(self, "_native_read_messages", False)),
             "native_accept_total": int(self._native_accept_total or 0),
             "native_accept_errors": int(self._native_accept_errors or 0),
             "native_connect_total": int(self._native_connect_total or 0),
