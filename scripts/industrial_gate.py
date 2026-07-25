@@ -1536,8 +1536,17 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "observability" / "metrics.py"
         ).read_text(encoding="utf-8"):
             errors.append("metrics must export abs_p2p_native_auto_pong (v1.3.98)")
+        # v1.3.99 — keepalive consume + touch
+        if "keepalive_touches" not in transport_rs or "v1.3.99" not in transport_rs:
+            errors.append("p2p_transport must expose keepalive_touches (v1.3.99)")
+        if "keepalive_touches" not in p2p_py or "native_keepalive" not in p2p_py:
+            errors.append("p2p_node must wire keepalive touch (v1.3.99)")
+        if "abs_p2p_native_keepalive" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("metrics must export abs_p2p_native_keepalive (v1.3.99)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..98 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..99 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.99] — 2026-07-25
+
+### P2P — native keepalive consume (pong + touch)
+
+- Consume inbound `pong` on native read path; report `keepalive_touches`
+- Empty keepalive-only batches touch `last_seen` via synthetic pong in Python
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.98] — 2026-07-25
 
 ### P2P — native auto-pong keepalive

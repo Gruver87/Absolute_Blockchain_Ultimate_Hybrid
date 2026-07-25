@@ -448,6 +448,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.96: Native handshake_roundtrip I/O fuse (Priority 51)
 - [x] v1.3.97: Native peer cert CN/SAN identities (Priority 52)
 - [x] v1.3.98: Native auto-pong keepalive (Priority 53)
+- [x] v1.3.99: Native keepalive consume / touch (Priority 54)
 
 ### Priority 39 — P2P Rust ingress data plane ✅ (v1.3.77–v1.3.78)
 
@@ -533,6 +534,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `auto_pong` on `read_message` / `read_messages`; ping answered in-band
 - [x] Config `p2p_native_auto_pong`; Python recv wired
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
+### Priority 54 — Native keepalive consume ✅ (v1.3.99)
+
+- [x] Consume inbound `pong`; `keepalive_touches` / `auto_keeps`
+- [x] Empty keepalive batch → Python touch (synthetic pong)
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
 ## Process per module

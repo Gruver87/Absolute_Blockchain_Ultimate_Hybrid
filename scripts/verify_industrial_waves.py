@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.98 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.99 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -59,6 +59,7 @@ WAVE_TESTS = [
     "tests/unit/test_v1396_p2p_native_handshake.py",
     "tests/unit/test_v1397_p2p_native_peer_identities.py",
     "tests/unit/test_v1398_p2p_native_auto_pong.py",
+    "tests/unit/test_v1399_p2p_native_keepalive.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -567,7 +568,7 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
     ),
     (
         "1.3.98",
-        "runtime/config.py",
+        "RELEASE_NOTES_v1.3.98.md",
         ["1.3.98-industrial", "p2p_native_auto_pong"],
     ),
     (
@@ -584,6 +585,26 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "1.3.98",
         "observability/metrics.py",
         ["abs_p2p_native_auto_pong"],
+    ),
+    (
+        "1.3.99",
+        "RELEASE_NOTES_v1.3.99.md",
+        ["1.3.99-industrial", "keepalive_touches"],
+    ),
+    (
+        "1.3.99",
+        "native/abs_native/src/p2p_transport.rs",
+        ["keepalive_touches", "auto_keeps", "v1.3.99"],
+    ),
+    (
+        "1.3.99",
+        "network/p2p_node.py",
+        ["keepalive_touches", "native_keepalive"],
+    ),
+    (
+        "1.3.99",
+        "observability/metrics.py",
+        ["abs_p2p_native_keepalive"],
     ),
 ]
 
@@ -612,8 +633,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.98"):
-            errors.append(f"node_version expected 1.3.98-*, got {ver}")
+        if not ver.startswith("1.3.99"):
+            errors.append(f"node_version expected 1.3.99-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

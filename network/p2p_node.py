@@ -708,6 +708,11 @@ class PeerConnection:
                     if not msgs:
                         if out.get("eof"):
                             return None
+                        # v1.3.99: empty batch after keepalive skips → touch last_seen
+                        if int(out.get("keepalive_touches") or 0) > 0 or int(
+                            out.get("auto_pongs") or 0
+                        ) > 0:
+                            return {"type": MSG_PONG, "data": {"ts": time.time()}}
                         raise asyncio.TimeoutError()
                     self._pending_msgs.extend(msgs[1:])
                     item = msgs[0]
@@ -1242,7 +1247,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.98)"
+                    f"({label} v1.3.99)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -3707,6 +3712,7 @@ class P2PNode:
             "native_handshake": bool(getattr(self, "_native_handshake", False)),
             "native_peer_identities": bool(getattr(self, "_native_peer_identities", False)),
             "native_auto_pong": bool(getattr(self, "_native_auto_pong", False)),
+            "native_keepalive": bool(getattr(self, "_native_auto_pong", False)),
             "native_accept_total": int(self._native_accept_total or 0),
             "native_accept_errors": int(self._native_accept_errors or 0),
             "native_connect_total": int(self._native_connect_total or 0),

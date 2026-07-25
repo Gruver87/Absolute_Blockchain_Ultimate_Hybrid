@@ -511,6 +511,12 @@ class MetricsCollector:
                     f"abs_p2p_native_auto_pong{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_auto_pong') else 0}"
                 ),
+                "# HELP abs_p2p_native_keepalive Whether native ping/pong keepalive consume is active (0/1)",
+                "# TYPE abs_p2p_native_keepalive gauge",
+                (
+                    f"abs_p2p_native_keepalive{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_auto_pong') else 0}"
+                ),
                 "# HELP abs_p2p_native_accept_total Native TCP accepts",
                 "# TYPE abs_p2p_native_accept_total counter",
                 (
