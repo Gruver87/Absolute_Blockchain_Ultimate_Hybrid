@@ -14,7 +14,6 @@ if str(ROOT) not in sys.path:
 
 from core.blockchain import Block
 from crypto import native
-from runtime.config import Config
 
 
 def _block(height: int, parent: str, *, extra: str = "") -> dict:
@@ -43,7 +42,7 @@ def test_needles_v13126():
     assert "expected_hash" in p2p
     notes = (ROOT / "RELEASE_NOTES_v1.3.126.md").read_text(encoding="utf-8")
     assert "1.3.126-industrial" in notes
-    assert Config().node_version == "1.3.126-industrial"
+    # Live Config().node_version advances with later waves; pin notes not config.
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_block_response_semantic_gate" in metrics
     assert "abs_p2p_block_response_semantic_rejects_total" in metrics

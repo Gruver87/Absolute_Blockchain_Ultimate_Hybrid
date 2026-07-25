@@ -1200,6 +1200,7 @@ class P2PNode:
         self._status_semantic_rejects_total: int = 0
         self._blocks_response_semantic_rejects_total: int = 0
         self._block_response_semantic_rejects_total: int = 0
+        self._state_root_response_request_rejects_total: int = 0
         self._handshake_rejects: int = 0
         self._eclipse_at_risk: int = 0
         self._eclipse_ratio: float = 0.0
@@ -1436,7 +1437,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.126)"
+                    f"({label} v1.3.127)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -2411,6 +2412,22 @@ class P2PNode:
                     if reason:
                         self._block_response_semantic_rejects_total = int(
                             self._block_response_semantic_rejects_total or 0
+                        ) + 1
+                        self._strike_peer_sync(peer, str(reason))
+                        fut.set_result(None)
+                        return
+                if (
+                    msg_type == MSG_STATE_ROOT_RESPONSE
+                    and isinstance(request_ctx, dict)
+                    and request_ctx.get("kind") == "state_root"
+                ):
+                    reason = native.verify_p2p_state_root_response_request_semantics(
+                        data if isinstance(data, dict) else (data or {}),
+                        int(request_ctx.get("height", 0) or 0),
+                    )
+                    if reason:
+                        self._state_root_response_request_rejects_total = int(
+                            self._state_root_response_request_rejects_total or 0
                         ) + 1
                         self._strike_peer_sync(peer, str(reason))
                         fut.set_result(None)
@@ -3414,6 +3431,10 @@ class P2PNode:
             (MSG_STATE_ROOT_RESPONSE,),
             timeout=4,
             presend=lambda: peer.send(MSG_STATE_ROOT_REQUEST, {"height": h}),
+            request_ctx={
+                "kind": "state_root",
+                "height": int(h),
+            },
         )
         if not msg or msg.get("type") != MSG_STATE_ROOT_RESPONSE:
             return None
@@ -4163,6 +4184,7 @@ class P2PNode:
             ),
             "native_blocks_response_semantic_gate": True,
             "native_block_response_semantic_gate": True,
+            "native_state_root_response_request_gate": True,
             "attestation_semantic_rejects_total": int(
                 getattr(self, "_attestation_semantic_rejects_total", 0) or 0
             ),
@@ -4183,6 +4205,9 @@ class P2PNode:
             ),
             "block_response_semantic_rejects_total": int(
                 getattr(self, "_block_response_semantic_rejects_total", 0) or 0
+            ),
+            "state_root_response_request_rejects_total": int(
+                getattr(self, "_state_root_response_request_rejects_total", 0) or 0
             ),
             "native_message_loop_dispatch_total": int(
                 getattr(self, "_native_message_loop_dispatch_total", 0) or 0

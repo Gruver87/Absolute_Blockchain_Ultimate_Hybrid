@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.126 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.127 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -87,6 +87,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13124_p2p_native_status_semantic_gate.py",
     "tests/unit/test_v13125_p2p_blocks_response_semantic_gate.py",
     "tests/unit/test_v13126_p2p_block_response_semantic_gate.py",
+    "tests/unit/test_v13127_p2p_state_root_response_request_gate.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1317,6 +1318,43 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_block_response_semantic_rejects_total",
         ],
     ),
+    (
+        "1.3.127",
+        "RELEASE_NOTES_v1.3.127.md",
+        ["1.3.127-industrial", "state_root"],
+    ),
+    (
+        "1.3.127",
+        "native/abs_native/src/p2p_wire.rs",
+        [
+            "verify_state_root_response_request_semantics_inner",
+            "bad_state_root_response_height",
+        ],
+    ),
+    (
+        "1.3.127",
+        "network/p2p_node.py",
+        [
+            "verify_p2p_state_root_response_request_semantics",
+            'kind": "state_root"',
+        ],
+    ),
+    (
+        "1.3.127",
+        "crypto/native.py",
+        [
+            "verify_p2p_state_root_response_request_semantics",
+            "state_root_response_request_native_required",
+        ],
+    ),
+    (
+        "1.3.127",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_state_root_response_request_gate",
+            "abs_p2p_state_root_response_request_rejects_total",
+        ],
+    ),
 ]
 
 
@@ -1344,8 +1382,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.126"):
-            errors.append(f"node_version expected 1.3.126-*, got {ver}")
+        if not ver.startswith("1.3.127"):
+            errors.append(f"node_version expected 1.3.127-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

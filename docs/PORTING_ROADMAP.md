@@ -723,6 +723,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Null = not-found OK; mismatched hash never steers reconcile
 - Remaining: tip existence proof / fork-choice / full sync ownership / libp2p (not claimed)
 
+### Priority 82 — Request-bound state_root_response height correlation ✅ (v1.3.127)
+
+- [x] `verify_state_root_response_request_semantics_inner` on state_root waiters
+- [x] Height must match probe; digests remain gated
+- Remaining: root-belongs-to-head / tip proof / full sync ownership / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

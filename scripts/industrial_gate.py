@@ -1922,8 +1922,25 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_block_response_semantic_gate (v1.3.126)"
             )
+        # v1.3.127 — request-bound state_root_response height correlation
+        if "verify_state_root_response_request_semantics_inner" not in (
+            ROOT / "native" / "abs_native" / "src" / "p2p_wire.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "p2p_wire must expose verify_state_root_response_request_semantics_inner (v1.3.127)"
+            )
+        if "verify_p2p_state_root_response_request_semantics" not in p2p_py:
+            errors.append(
+                "p2p_node must call verify_p2p_state_root_response_request_semantics (v1.3.127)"
+            )
+        if "abs_p2p_native_state_root_response_request_gate" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_state_root_response_request_gate (v1.3.127)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..126 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..127 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

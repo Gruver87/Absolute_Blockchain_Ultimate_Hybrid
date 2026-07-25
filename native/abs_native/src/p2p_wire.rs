@@ -445,13 +445,29 @@ fn is_digest32_hex(s: &str) -> bool {
 }
 
 /// v1.3.123: state_root + head_hash must be 32-byte hex digests.
-/// Correlation / root-belongs-to-head stay Python.
+/// Request height correlation is v1.3.127; root-belongs-to-head stays Python.
 pub(crate) fn verify_state_root_response_semantics_inner(data: &Value) -> Result<(), String> {
     let Some((_height, state_root, head_hash)) = validate_state_root_response_inner(data) else {
         return Err("bad_state_root_response".to_string());
     };
     if !is_digest32_hex(&state_root) || !is_digest32_hex(&head_hash) {
         return Err("bad_state_root_digest".to_string());
+    }
+    Ok(())
+}
+
+/// v1.3.127: request-bound state_root_response — height must match probe + digests OK.
+/// Does not prove root belongs to head / tip / sync ownership.
+pub(crate) fn verify_state_root_response_request_semantics_inner(
+    data: &Value,
+    expected_height: i64,
+) -> Result<(), String> {
+    verify_state_root_response_semantics_inner(data)?;
+    let Some((height, _state_root, _head_hash)) = validate_state_root_response_inner(data) else {
+        return Err("bad_state_root_response".to_string());
+    };
+    if height != expected_height {
+        return Err("bad_state_root_response_height".to_string());
     }
     Ok(())
 }
@@ -1122,6 +1138,21 @@ fn verify_p2p_block_response_semantics(
 }
 
 #[pyfunction]
+fn verify_p2p_state_root_response_request_semantics(
+    data_json: String,
+    expected_height: i64,
+) -> PyResult<Option<String>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(Some("bad_state_root_response".to_string())),
+    };
+    match verify_state_root_response_request_semantics_inner(&value, expected_height) {
+        Ok(()) => Ok(None),
+        Err(reason) => Ok(Some(reason)),
+    }
+}
+
+#[pyfunction]
 fn validate_p2p_validator_register(
     py: Python<'_>,
     data_json: String,
@@ -1428,6 +1459,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_p2p_blocks_batch, m)?)?;
     m.add_function(wrap_pyfunction!(verify_p2p_blocks_response_semantics, m)?)?;
     m.add_function(wrap_pyfunction!(verify_p2p_block_response_semantics, m)?)?;
+    m.add_function(wrap_pyfunction!(verify_p2p_state_root_response_request_semantics, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_cross_shard_tx, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_cross_shard_ack, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_shard_migration, m)?)?;

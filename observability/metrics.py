@@ -703,6 +703,18 @@ class MetricsCollector:
                     f"abs_p2p_block_response_semantic_rejects_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('block_response_semantic_rejects_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_state_root_response_request_gate Whether request-bound state_root height gate is active (0/1)",
+                "# TYPE abs_p2p_native_state_root_response_request_gate gauge",
+                (
+                    f"abs_p2p_native_state_root_response_request_gate{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_state_root_response_request_gate') else 0}"
+                ),
+                "# HELP abs_p2p_state_root_response_request_rejects_total request-bound state_root height rejects",
+                "# TYPE abs_p2p_state_root_response_request_rejects_total counter",
+                (
+                    f"abs_p2p_state_root_response_request_rejects_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('state_root_response_request_rejects_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_message_loop_dispatch_total Dispatch events from native loop shell",
                 "# TYPE abs_p2p_native_message_loop_dispatch_total counter",
                 (

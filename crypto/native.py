@@ -181,6 +181,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "validate_p2p_blocks_batch",
             "verify_p2p_blocks_response_semantics",
             "verify_p2p_block_response_semantics",
+            "verify_p2p_state_root_response_request_semantics",
             "validate_p2p_cross_shard_tx",
             "validate_p2p_cross_shard_ack",
             "validate_p2p_shard_migration",
@@ -3181,6 +3182,30 @@ def verify_p2p_block_response_semantics(
         )
         return str(result) if result else None
     return "block_response_native_required"
+
+
+def verify_p2p_state_root_response_request_semantics(
+    data: Any,
+    expected_height: int,
+) -> Optional[str]:
+    """v1.3.127: request-bound state_root_response (height + digests).
+
+    Fail-closed without native. Does not prove root belongs to head.
+    """
+    payload = (
+        json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+        if not isinstance(data, str)
+        else data
+    )
+    if _native is not None and hasattr(
+        _native, "verify_p2p_state_root_response_request_semantics"
+    ):
+        result = _native.verify_p2p_state_root_response_request_semantics(
+            payload,
+            int(expected_height),
+        )
+        return str(result) if result else None
+    return "state_root_response_request_native_required"
 
 
 def validate_p2p_cross_shard_tx(data: Any) -> Optional[dict]:

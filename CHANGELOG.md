@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.127] — 2026-07-25
+
+### P2P — request-bound state_root_response height gate
+
+- Waiters for state_root probes require matching response height (+ digests)
+- Wrong-height answers never fulfill consistency waiters
+- Honesty: not root-belongs-to-head / tip proof / fork-choice / libp2p / mainnet
+
 ## [1.3.126] — 2026-07-25
 
 ### P2P — request-bound singular block response hash gate
