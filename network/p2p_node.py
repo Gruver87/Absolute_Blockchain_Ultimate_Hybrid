@@ -253,7 +253,9 @@ class PeerConnection:
         self._line_framer = None  # optional native P2PLineFramer (v1.3.86)
         self._pending_lines: list = []
         self._pending_msgs: list = []  # v1.3.94 decoded batch from read_messages
+        self._pending_loop_events: list = []  # v1.3.116 shell events
         self._native_read_batch: int = 8
+        self._native_message_loop_shell: bool = False
         self._native_write_batch: int = 8
         self._native_auto_pong: bool = True
         self._native_io_timeout_ms: int = 30000
@@ -699,6 +701,86 @@ class PeerConnection:
                 return WireReject(reason)
         return {"type": msg_type, "data": data}
 
+    async def recv_loop_events(
+        self,
+        config=None,
+        *,
+        rl_table=None,
+        peer_key: str = "",
+        use_ingress: bool = False,
+    ) -> list:
+        """v1.3.116: drain native ordered loop-shell events (dispatch/strike/…).
+
+        Returns a list of event dicts. Empty list means idle/timeout with no work.
+        Application dispatch and strike policy remain in P2PNode._message_loop.
+        """
+        if self._pending_loop_events:
+            return [self._pending_loop_events.pop(0)]
+        if self._native_conn is None or not hasattr(
+            self._native_conn, "read_message_loop_events"
+        ):
+            return []
+        out = await asyncio.wait_for(
+            asyncio.to_thread(
+                self._native_conn.read_message_loop_events,
+                int(self._native_read_batch or 8),
+                int(self._read_chunk or 65536),
+                list(ALLOWED_WIRE_TYPES),
+                bool(getattr(self, "_native_auto_pong", True)),
+            ),
+            timeout=self._native_recv_wait_sec(),
+        )
+        if not isinstance(out, dict) or not out.get("ok"):
+            reason = "p2p_loop_bad_result"
+            if isinstance(out, dict):
+                reason = str(out.get("reason") or reason)
+            return [{"action": "strike", "reason": reason}]
+        events = list(out.get("events") or [])
+        if not events:
+            if out.get("eof"):
+                return [{"action": "eof"}]
+            touches = int(out.get("keepalive_touches") or 0)
+            if touches > 0:
+                return [{"action": "keepalive", "touches": touches}]
+            return [{"action": "idle"}]
+        # Ingress rate admit on dispatch events only (fail → strike).
+        normalized: list = []
+        for ev in events:
+            if not isinstance(ev, dict):
+                continue
+            action = str(ev.get("action") or "")
+            if action == "dispatch":
+                admitted = self._admit_pending_item(
+                    {
+                        "type": ev.get("type"),
+                        "data": ev.get("data"),
+                        "nbytes": int(ev.get("nbytes") or 0),
+                    },
+                    use_ingress=use_ingress,
+                    rl_table=rl_table,
+                    peer_key=peer_key,
+                )
+                if isinstance(admitted, WireReject):
+                    normalized.append(
+                        {"action": "strike", "reason": str(admitted.reason or "")}
+                    )
+                    # Stop delivering further dispatches after ingress reject.
+                    break
+                normalized.append(
+                    {
+                        "action": "dispatch",
+                        "type": admitted.get("type"),
+                        "data": admitted.get("data"),
+                        "nbytes": int(ev.get("nbytes") or 0),
+                    }
+                )
+            else:
+                normalized.append(ev)
+        if not normalized:
+            return [{"action": "idle"}]
+        self._pending_loop_events.extend(normalized[1:])
+        return [normalized[0]]
+
     async def recv(self, config=None, *, rl_table=None, peer_key: str = "", use_ingress: bool = False):
         """Читает одно JSON-сообщение от пира.
 
@@ -1075,6 +1157,9 @@ class P2PNode:
                 )
                 self._native_handshake = hasattr(_cls, "handshake_roundtrip")
                 self._native_peer_identities = hasattr(_cls, "peer_cert_identities")
+                self._native_message_loop_shell = hasattr(
+                    _cls, "read_message_loop_events"
+                )
                 self._native_auto_pong = bool(
                     getattr(config, "p2p_native_auto_pong", True)
                 )
@@ -1085,7 +1170,12 @@ class P2PNode:
                 self._native_write_messages = False
                 self._native_handshake = False
                 self._native_peer_identities = False
+                self._native_message_loop_shell = False
                 self._native_auto_pong = False
+        else:
+            self._native_message_loop_shell = False
+        self._native_message_loop_dispatch_total: int = 0
+        self._native_message_loop_strikes_total: int = 0
         self._handshake_rejects: int = 0
         self._eclipse_at_risk: int = 0
         self._eclipse_ratio: float = 0.0
@@ -1322,7 +1412,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.115)"
+                    f"({label} v1.3.116)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -1466,6 +1556,9 @@ class P2PNode:
         peer._read_chunk = int(getattr(self, "_native_read_chunk", 65536) or 65536)
         peer._native_io_timeout_ms = int(
             getattr(self, "_native_io_timeout_ms", 30000) or 30000
+        )
+        peer._native_message_loop_shell = bool(
+            getattr(self, "_native_message_loop_shell", False)
         )
         if self._use_native_egress:
             peer._rl_table = self._rl_table
@@ -1867,8 +1960,76 @@ class P2PNode:
     async def _message_loop(self, peer: PeerConnection):
         """Основной цикл чтения сообщений от пира."""
         use_ingress = bool(self._use_native_ingress and self._rl_table is not None)
+        use_shell = bool(
+            getattr(self, "_native_message_loop_shell", False)
+            and peer._native_conn is not None
+            and hasattr(peer._native_conn, "read_message_loop_events")
+        )
         try:
             while self._running and self.peers.get(peer.peer_id) is peer:
+                if use_shell:
+                    # v1.3.116: ordered native shell events (dispatch/strike/keepalive).
+                    # Handlers + strike/ban tables stay Python — not full loop ownership.
+                    try:
+                        events = await peer.recv_loop_events(
+                            self.config,
+                            rl_table=self._rl_table if use_ingress else None,
+                            peer_key=self._peer_key(peer),
+                            use_ingress=use_ingress,
+                        )
+                    except asyncio.TimeoutError:
+                        continue
+                    for ev in events:
+                        if not self._running or self.peers.get(peer.peer_id) is not peer:
+                            break
+                        action = str((ev or {}).get("action") or "")
+                        if action == "eof":
+                            return
+                        if action in ("idle",):
+                            continue
+                        if action == "keepalive":
+                            peer.touch()
+                            continue
+                        if action == "strike":
+                            reason = str((ev or {}).get("reason") or "unknown")
+                            self._native_message_loop_strikes_total = int(
+                                self._native_message_loop_strikes_total or 0
+                            ) + 1
+                            if reason == "mid_session_handshake":
+                                self._handshake_rejects = int(
+                                    self._handshake_rejects or 0
+                                ) + 1
+                                logger.warning(
+                                    "[P2P] mid-session handshake (native shell) from %s",
+                                    peer.peer_id or self._peer_key(peer),
+                                )
+                            if self._strike_peer_sync(peer, reason):
+                                return
+                            continue
+                        if action == "dispatch":
+                            msg = {
+                                "type": (ev or {}).get("type"),
+                                "data": (ev or {}).get("data"),
+                            }
+                            peer.touch()
+                            self._native_message_loop_dispatch_total = int(
+                                self._native_message_loop_dispatch_total or 0
+                            ) + 1
+                            if not use_ingress and not self._rate_limit_ok(
+                                peer.peer_id, msg.get("type")
+                            ):
+                                if self._strike_peer_sync(peer, "rate_limit_exceeded"):
+                                    return
+                                continue
+                            await self._handle_message(peer, msg)
+                            continue
+                        logger.debug(
+                            "[P2P] unknown loop-shell action %r from %s",
+                            action,
+                            peer.peer_id or self._peer_key(peer),
+                        )
+                    continue
+
                 msg = await peer.recv(
                     self.config,
                     rl_table=self._rl_table if use_ingress else None,
@@ -3855,6 +4016,15 @@ class P2PNode:
             "native_cross_shard_gate": bool(getattr(self, "_use_native_transport", False)),
             "native_handshake_payload_gate": bool(getattr(self, "_use_native_transport", False)),
             "native_handshake_policy_gate": bool(getattr(self, "_use_native_transport", False)),
+            "native_message_loop_shell": bool(
+                getattr(self, "_native_message_loop_shell", False)
+            ),
+            "native_message_loop_dispatch_total": int(
+                getattr(self, "_native_message_loop_dispatch_total", 0) or 0
+            ),
+            "native_message_loop_strikes_total": int(
+                getattr(self, "_native_message_loop_strikes_total", 0) or 0
+            ),
             "native_transport_prod_required": bool(
                 getattr(self.config, "p2p_native_transport", False)
                 and (

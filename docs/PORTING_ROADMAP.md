@@ -655,6 +655,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Max-gate: `/health/ready` native listener + k8s/smoke `p2p_native_transport` sync
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
+### Priority 71 — Native message-loop event shell ✅ (v1.3.116)
+
+- [x] `read_message_loop_events` ordered dispatch/strike/keepalive/idle/eof
+- [x] Python `_message_loop` shell path; handlers + ban policy stay Python
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

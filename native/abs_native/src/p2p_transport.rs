@@ -24,6 +24,7 @@
 //! v1.3.112: cross_shard_tx / cross_shard_ack / shard_migration shape gates.
 //! v1.3.113: handshake payload shape gate on handshake_roundtrip.
 //! v1.3.115: handshake policy fuse (chain_id + TLS identity) on handshake_roundtrip.
+//! v1.3.116: message-loop event shell (`read_message_loop_events`) — ordered dispatch/strike.
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -449,6 +450,63 @@ fn messages_to_list(
             .getattr("loads")?
             .call1((data_json,))?;
         item.set_item("data", data_obj)?;
+        list.append(item)?;
+    }
+    Ok(list.into_any().unbind())
+}
+
+/// v1.3.116: ordered shell events for Python `_message_loop` (not full dispatch).
+enum LoopShellEvent {
+    Dispatch {
+        msg_type: String,
+        data: serde_json::Value,
+        nbytes: usize,
+    },
+    Strike {
+        reason: String,
+    },
+    Keepalive {
+        touches: u64,
+    },
+    Idle,
+    Eof,
+}
+
+fn loop_events_to_list(py: Python<'_>, events: &[LoopShellEvent]) -> PyResult<PyObject> {
+    let list = PyList::empty_bound(py);
+    for ev in events {
+        let item = PyDict::new_bound(py);
+        match ev {
+            LoopShellEvent::Dispatch {
+                msg_type,
+                data,
+                nbytes,
+            } => {
+                item.set_item("action", "dispatch")?;
+                item.set_item("type", msg_type)?;
+                item.set_item("nbytes", *nbytes)?;
+                let data_json = serde_json::to_string(data)
+                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+                let data_obj = pyo3::types::PyModule::import_bound(py, "json")?
+                    .getattr("loads")?
+                    .call1((data_json,))?;
+                item.set_item("data", data_obj)?;
+            }
+            LoopShellEvent::Strike { reason } => {
+                item.set_item("action", "strike")?;
+                item.set_item("reason", reason)?;
+            }
+            LoopShellEvent::Keepalive { touches } => {
+                item.set_item("action", "keepalive")?;
+                item.set_item("touches", *touches)?;
+            }
+            LoopShellEvent::Idle => {
+                item.set_item("action", "idle")?;
+            }
+            LoopShellEvent::Eof => {
+                item.set_item("action", "eof")?;
+            }
+        }
         list.append(item)?;
     }
     Ok(list.into_any().unbind())
@@ -1320,6 +1378,114 @@ impl P2PNativeConn {
         dict.set_item("auto_pongs", auto_pongs)?;
         dict.set_item("keepalive_touches", keepalive_touches)?;
         dict.set_item("messages", messages_to_list(py, &batch)?)?;
+        Ok(dict.into_any().unbind())
+    }
+
+    /// Ordered message-loop events (v1.3.116) — shell only, not full dispatch ownership.
+    ///
+    /// Returns `{ok:true, events:[{action,...},...], eof:bool}` where actions are:
+    /// `dispatch` | `strike` | `keepalive` | `idle` | `eof`.
+    /// Valid messages before a hard reject are preserved as `dispatch` then `strike`.
+    /// Application handlers / rate strikes / peer lifecycle remain Python.
+    #[pyo3(signature = (max_n=8, chunk_sz=65536, allowed_types=None, auto_pong=false))]
+    fn read_message_loop_events(
+        &mut self,
+        py: Python<'_>,
+        max_n: usize,
+        chunk_sz: usize,
+        allowed_types: Option<Vec<String>>,
+        auto_pong: bool,
+    ) -> PyResult<PyObject> {
+        let max_n = max_n.clamp(NATIVE_BATCH_MIN, NATIVE_BATCH_MAX);
+        let allowed_set = allowed_types.map(|items| items.into_iter().collect::<HashSet<_>>());
+        let keeps_before = self.auto_keeps;
+        let result = py.allow_threads(|| {
+            let mut events: Vec<LoopShellEvent> = Vec::new();
+            let mut dispatch_n = 0usize;
+            let mut eof = false;
+            let mut skips = 0u32;
+            let mut terminal_strike: Option<String> = None;
+            while dispatch_n < max_n {
+                match self.read_one_decoded(chunk_sz, allowed_set.as_ref()) {
+                    Ok(None) => {
+                        eof = true;
+                        events.push(LoopShellEvent::Eof);
+                        break;
+                    }
+                    Ok(Some((msg_type, data, nbytes))) => {
+                        if let Err(reason) =
+                            check_mid_session_handshake(self.session_established, &msg_type)
+                        {
+                            terminal_strike = Some(reason);
+                            break;
+                        }
+                        if let Err(reason) = check_ingress_shape_gates(&msg_type, &data) {
+                            terminal_strike = Some(reason);
+                            break;
+                        }
+                        if msg_type == "get_mempool" || msg_type == "get_peers" {
+                            if let Err(reason) = check_housekeeping(&msg_type, &data) {
+                                terminal_strike = Some(reason);
+                                break;
+                            }
+                        }
+                        match self.maybe_auto_pong(&msg_type, &data, auto_pong) {
+                            Ok(true) => {
+                                skips = skips.saturating_add(1);
+                                if skips >= 64 {
+                                    terminal_strike = Some("p2p_auto_pong_flood".to_string());
+                                    break;
+                                }
+                                continue;
+                            }
+                            Ok(false) => {
+                                events.push(LoopShellEvent::Dispatch {
+                                    msg_type,
+                                    data,
+                                    nbytes,
+                                });
+                                dispatch_n = dispatch_n.saturating_add(1);
+                            }
+                            Err(reason) => {
+                                terminal_strike = Some(reason);
+                                break;
+                            }
+                        }
+                    }
+                    Err(reason) => {
+                        if reason == "p2p_transport_timeout" {
+                            if dispatch_n > 0 {
+                                break;
+                            }
+                            let touches = self.auto_keeps.saturating_sub(keeps_before);
+                            if touches > 0 || skips > 0 {
+                                events.push(LoopShellEvent::Keepalive {
+                                    touches: touches.max(u64::from(skips)),
+                                });
+                            } else {
+                                events.push(LoopShellEvent::Idle);
+                            }
+                            break;
+                        }
+                        terminal_strike = Some(reason);
+                        break;
+                    }
+                }
+            }
+            if let Some(reason) = terminal_strike {
+                events.push(LoopShellEvent::Strike {
+                    reason: wire_fail_reason(&reason),
+                });
+            }
+            (events, eof)
+        });
+        let (events, eof) = result;
+        let keepalive_touches = self.auto_keeps.saturating_sub(keeps_before);
+        let dict = PyDict::new_bound(py);
+        dict.set_item("ok", true)?;
+        dict.set_item("eof", eof)?;
+        dict.set_item("keepalive_touches", keepalive_touches)?;
+        dict.set_item("events", loop_events_to_list(py, &events)?)?;
         Ok(dict.into_any().unbind())
     }
 

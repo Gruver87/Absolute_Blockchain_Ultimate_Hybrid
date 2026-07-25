@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.116] — 2026-07-25
+
+### P2P — native message-loop event shell
+
+- `read_message_loop_events` ordered dispatch/strike/keepalive/idle/eof
+- Python `_message_loop` consumes shell when available; handlers/bans stay Python
+- Honesty: still not full message-loop ownership / libp2p
+
 ## [1.3.115] — 2026-07-25
 
 ### P2P — native handshake policy fuse + Max-gate fixes

@@ -595,6 +595,24 @@ class MetricsCollector:
                     f"abs_p2p_native_handshake_policy_gate{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_handshake_policy_gate') else 0}"
                 ),
+                "# HELP abs_p2p_native_message_loop_shell Whether native message-loop event shell is active (0/1)",
+                "# TYPE abs_p2p_native_message_loop_shell gauge",
+                (
+                    f"abs_p2p_native_message_loop_shell{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_message_loop_shell') else 0}"
+                ),
+                "# HELP abs_p2p_native_message_loop_dispatch_total Dispatch events from native loop shell",
+                "# TYPE abs_p2p_native_message_loop_dispatch_total counter",
+                (
+                    f"abs_p2p_native_message_loop_dispatch_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('native_message_loop_dispatch_total', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_native_message_loop_strikes_total Strike events from native loop shell",
+                "# TYPE abs_p2p_native_message_loop_strikes_total counter",
+                (
+                    f"abs_p2p_native_message_loop_strikes_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('native_message_loop_strikes_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_shape_revalidate Whether Python dual shape re-validate is active (0=native skipped)",
                 "# TYPE abs_p2p_native_shape_revalidate gauge",
                 (
