@@ -1,4 +1,4 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.97).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.98).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
 //! v1.3.92: `read_message` fuses framed read + wire parse.
@@ -7,6 +7,7 @@
 //! v1.3.95: `write_messages` / `write_payloads` batch send.
 //! v1.3.96: `handshake_roundtrip` I/O fuse (validate still Python).
 //! v1.3.97: peer cert CN/SAN identities for native TLS bind.
+//! v1.3.98: auto-pong on read path (keepalive only; not full dispatch).
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -42,6 +43,7 @@ fn wire_fail_reason(err: &str) -> String {
     if err == "p2p_transport_timeout"
         || err == "p2p_transport_closed"
         || err == "p2p_handshake_eof"
+        || err == "p2p_auto_pong_flood"
         || err.starts_with("p2p_transport_")
         || err.starts_with("p2p_handshake_")
     {
@@ -434,6 +436,7 @@ pub struct P2PNativeConn {
     bytes_read: u64,
     bytes_written: u64,
     lines_read: u64,
+    auto_pongs: u64,
     closed: bool,
     tls: bool,
 }
@@ -452,6 +455,7 @@ impl P2PNativeConn {
             bytes_read: 0,
             bytes_written: 0,
             lines_read: 0,
+            auto_pongs: 0,
             closed: false,
             tls,
         }
@@ -460,6 +464,25 @@ impl P2PNativeConn {
     fn from_plain(stream: TcpStream, max_bytes: usize, timeout_ms: u64) -> Result<Self, String> {
         set_timeouts(&stream, timeout_ms)?;
         Ok(Self::from_stream(ConnStream::Plain(stream), max_bytes, false))
+    }
+
+    /// If `auto_pong` and message is ping: write pong and return Ok(true) (consumed).
+    fn maybe_auto_pong(&mut self, msg_type: &str, auto_pong: bool) -> Result<bool, String> {
+        if !auto_pong || msg_type != "ping" {
+            return Ok(false);
+        }
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs_f64())
+            .unwrap_or(0.0);
+        let data_json = format!(r#"{{"ts":{ts}}}"#);
+        let payload = encode_p2p_wire_message_inner("pong", &data_json)?;
+        if payload.len() > self.max_bytes {
+            return Err("p2p_line_too_large".to_string());
+        }
+        self.write_inner(&payload)?;
+        self.auto_pongs = self.auto_pongs.saturating_add(1);
+        Ok(true)
     }
 
     fn read_line_inner(&mut self, chunk_sz: usize) -> Result<Option<Vec<u8>>, String> {
@@ -654,6 +677,11 @@ impl P2PNativeConn {
     }
 
     #[getter]
+    fn auto_pongs(&self) -> u64 {
+        self.auto_pongs
+    }
+
+    #[getter]
     fn closed(&self) -> bool {
         self.closed
     }
@@ -708,16 +736,31 @@ impl P2PNativeConn {
     ///
     /// `{ok:true, type, data, nbytes, eof:false}` | `{ok:true, eof:true}` |
     /// `{ok:false, reason, eof:false}`.
-    /// Rate-limit / dispatch remain Python (or separate `admit_rate`).
-    #[pyo3(signature = (chunk_sz=65536, allowed_types=None))]
+    /// v1.3.98: `auto_pong` replies to ping in-band and skips returning it.
+    #[pyo3(signature = (chunk_sz=65536, allowed_types=None, auto_pong=false))]
     fn read_message(
         &mut self,
         py: Python<'_>,
         chunk_sz: usize,
         allowed_types: Option<Vec<String>>,
+        auto_pong: bool,
     ) -> PyResult<PyObject> {
         let allowed_set = allowed_types.map(|items| items.into_iter().collect::<HashSet<_>>());
-        let result = py.allow_threads(|| self.read_one_decoded(chunk_sz, allowed_set.as_ref()));
+        let result = py.allow_threads(|| -> Result<Option<(String, serde_json::Value, usize)>, String> {
+            // Bound auto-pong skips so a ping flood cannot spin forever.
+            for _ in 0..64 {
+                match self.read_one_decoded(chunk_sz, allowed_set.as_ref())? {
+                    None => return Ok(None),
+                    Some((msg_type, data, nbytes)) => {
+                        if self.maybe_auto_pong(&msg_type, auto_pong)? {
+                            continue;
+                        }
+                        return Ok(Some((msg_type, data, nbytes)));
+                    }
+                }
+            }
+            Err("p2p_auto_pong_flood".to_string())
+        });
         match result {
             Ok(None) => {
                 let dict = PyDict::new_bound(py);
@@ -742,33 +785,56 @@ impl P2PNativeConn {
     /// Reads up to `max_n` envelopes in one `allow_threads` call.
     /// Timeout after ≥1 message → success with partial batch (no idle).
     /// Timeout with empty batch → `{ok:false, reason:p2p_transport_timeout}`.
+    /// v1.3.98: `auto_pong` replies to ping in-band and omits them from `messages`.
     ///
-    /// `{ok:true, messages:[{type,data,nbytes},...], eof:bool}` |
+    /// `{ok:true, messages:[{type,data,nbytes},...], eof:bool, auto_pongs}` |
     /// `{ok:false, reason, messages:[...], eof:false}`.
-    #[pyo3(signature = (max_n=8, chunk_sz=65536, allowed_types=None))]
+    #[pyo3(signature = (max_n=8, chunk_sz=65536, allowed_types=None, auto_pong=false))]
     fn read_messages(
         &mut self,
         py: Python<'_>,
         max_n: usize,
         chunk_sz: usize,
         allowed_types: Option<Vec<String>>,
+        auto_pong: bool,
     ) -> PyResult<PyObject> {
         let max_n = max_n.clamp(1, 64);
         let allowed_set = allowed_types.map(|items| items.into_iter().collect::<HashSet<_>>());
+        let pongs_before = self.auto_pongs;
         let result = py.allow_threads(|| {
             let mut batch: Vec<(String, serde_json::Value, usize)> = Vec::new();
             let mut eof = false;
             let mut err: Option<String> = None;
+            let mut skips = 0u32;
             while batch.len() < max_n {
                 match self.read_one_decoded(chunk_sz, allowed_set.as_ref()) {
                     Ok(None) => {
                         eof = true;
                         break;
                     }
-                    Ok(Some(item)) => batch.push(item),
+                    Ok(Some((msg_type, data, nbytes))) => {
+                        match self.maybe_auto_pong(&msg_type, auto_pong) {
+                            Ok(true) => {
+                                skips = skips.saturating_add(1);
+                                if skips >= 64 {
+                                    err = Some("p2p_auto_pong_flood".to_string());
+                                    break;
+                                }
+                                continue;
+                            }
+                            Ok(false) => batch.push((msg_type, data, nbytes)),
+                            Err(reason) => {
+                                err = Some(reason);
+                                break;
+                            }
+                        }
+                    }
                     Err(reason) => {
-                        // Partial batch on timeout is success for the caller.
                         if reason == "p2p_transport_timeout" && !batch.is_empty() {
+                            break;
+                        }
+                        // Timeout with only auto-pongs consumed still counts as idle.
+                        if reason == "p2p_transport_timeout" && batch.is_empty() && skips > 0 {
                             break;
                         }
                         err = Some(reason);
@@ -779,18 +845,21 @@ impl P2PNativeConn {
             (batch, eof, err)
         });
         let (batch, eof, err) = result;
+        let auto_pongs = self.auto_pongs.saturating_sub(pongs_before);
         if let Some(reason) = err {
             let short = wire_fail_reason(&reason);
             let dict = PyDict::new_bound(py);
             dict.set_item("ok", false)?;
             dict.set_item("reason", short)?;
             dict.set_item("eof", false)?;
+            dict.set_item("auto_pongs", auto_pongs)?;
             dict.set_item("messages", messages_to_list(py, &batch)?)?;
             return Ok(dict.into_any().unbind());
         }
         let dict = PyDict::new_bound(py);
         dict.set_item("ok", true)?;
         dict.set_item("eof", eof)?;
+        dict.set_item("auto_pongs", auto_pongs)?;
         dict.set_item("messages", messages_to_list(py, &batch)?)?;
         Ok(dict.into_any().unbind())
     }

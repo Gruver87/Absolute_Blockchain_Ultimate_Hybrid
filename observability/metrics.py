@@ -505,6 +505,12 @@ class MetricsCollector:
                     f"abs_p2p_native_peer_identities{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_peer_identities') else 0}"
                 ),
+                "# HELP abs_p2p_native_auto_pong Whether native read-path auto-pong is active (0/1)",
+                "# TYPE abs_p2p_native_auto_pong gauge",
+                (
+                    f"abs_p2p_native_auto_pong{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_auto_pong') else 0}"
+                ),
                 "# HELP abs_p2p_native_accept_total Native TCP accepts",
                 "# TYPE abs_p2p_native_accept_total counter",
                 (

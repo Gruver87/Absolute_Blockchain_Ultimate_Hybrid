@@ -46,10 +46,10 @@ def test_needles_v1397():
     assert "peer_cert_identities" in p2p
     assert "_native_peer_identities" in p2p
     cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "1.3.97-industrial" in cfg
+    assert "p2p_native_transport" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.97.md").read_text(encoding="utf-8")
     assert "1.3.97-industrial" in notes
-    assert Config().node_version == "1.3.97-industrial"
+    assert "1.3.97" in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert hasattr(abs_native.P2PNativeConn, "peer_cert_identities")
 
 

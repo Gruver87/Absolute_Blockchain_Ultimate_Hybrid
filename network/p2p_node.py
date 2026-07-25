@@ -213,6 +213,7 @@ class PeerConnection:
         self._pending_msgs: list = []  # v1.3.94 decoded batch from read_messages
         self._native_read_batch: int = 8
         self._native_write_batch: int = 8
+        self._native_auto_pong: bool = True
         self._use_egress_prepare = False  # v1.3.87 unified prepare
         self._egress_max_bytes = DEFAULT_MAX_P2P_LINE_BYTES
         # v1.3.66/72: bounded outbound queue (config-driven size + drain timeout)
@@ -677,6 +678,7 @@ class PeerConnection:
                             int(self._native_read_batch or 8),
                             int(self._read_chunk or 65536),
                             list(ALLOWED_WIRE_TYPES),
+                            bool(getattr(self, "_native_auto_pong", True)),
                         ),
                         timeout=30,
                     )
@@ -718,6 +720,7 @@ class PeerConnection:
                             self._native_conn.read_message,
                             int(self._read_chunk or 65536),
                             list(ALLOWED_WIRE_TYPES),
+                            bool(getattr(self, "_native_auto_pong", True)),
                         ),
                         timeout=30,
                     )
@@ -978,6 +981,7 @@ class P2PNode:
         self._native_write_messages = False
         self._native_handshake = False
         self._native_peer_identities = False
+        self._native_auto_pong = False
         if self._use_native_transport:
             try:
                 import abs_native as _abs_nat
@@ -991,6 +995,9 @@ class P2PNode:
                 )
                 self._native_handshake = hasattr(_cls, "handshake_roundtrip")
                 self._native_peer_identities = hasattr(_cls, "peer_cert_identities")
+                self._native_auto_pong = bool(
+                    getattr(config, "p2p_native_auto_pong", True)
+                )
             except Exception:
                 self._native_read_message = False
                 self._native_write_message = False
@@ -998,6 +1005,7 @@ class P2PNode:
                 self._native_write_messages = False
                 self._native_handshake = False
                 self._native_peer_identities = False
+                self._native_auto_pong = False
         self._handshake_rejects: int = 0
         self._eclipse_at_risk: int = 0
         self._eclipse_ratio: float = 0.0
@@ -1234,7 +1242,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.97)"
+                    f"({label} v1.3.98)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -1371,6 +1379,7 @@ class P2PNode:
         peer._on_send_drop = self._bump_outbound_drop
         peer._on_egress_reject = self._bump_egress_reject
         peer._egress_max_bytes = _max_p2p_line_bytes(self.config)
+        peer._native_auto_pong = bool(getattr(self, "_native_auto_pong", False))
         if self._use_native_egress:
             peer._rl_table = self._rl_table
             peer._use_egress_prepare = hasattr(native, "p2p_egress_prepare")
@@ -3697,6 +3706,7 @@ class P2PNode:
             "native_write_messages": bool(getattr(self, "_native_write_messages", False)),
             "native_handshake": bool(getattr(self, "_native_handshake", False)),
             "native_peer_identities": bool(getattr(self, "_native_peer_identities", False)),
+            "native_auto_pong": bool(getattr(self, "_native_auto_pong", False)),
             "native_accept_total": int(self._native_accept_total or 0),
             "native_accept_errors": int(self._native_accept_errors or 0),
             "native_connect_total": int(self._native_connect_total or 0),

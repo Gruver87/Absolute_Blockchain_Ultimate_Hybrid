@@ -447,6 +447,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.95: Native write_messages / write_payloads batch (Priority 50)
 - [x] v1.3.96: Native handshake_roundtrip I/O fuse (Priority 51)
 - [x] v1.3.97: Native peer cert CN/SAN identities (Priority 52)
+- [x] v1.3.98: Native auto-pong keepalive (Priority 53)
 
 ### Priority 39 — P2P Rust ingress data plane ✅ (v1.3.77–v1.3.78)
 
@@ -526,6 +527,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] CN/SAN extract via `x509-parser`; `peer_cert_identities` getter
 - [x] Native TLS identity bind in `_do_handshake`
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
+### Priority 53 — Native auto-pong keepalive ✅ (v1.3.98)
+
+- [x] `auto_pong` on `read_message` / `read_messages`; ping answered in-band
+- [x] Config `p2p_native_auto_pong`; Python recv wired
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
 ## Process per module

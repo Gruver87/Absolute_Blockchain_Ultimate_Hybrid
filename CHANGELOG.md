@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.98] — 2026-07-25
+
+### P2P — native auto-pong keepalive
+
+- `read_message` / `read_messages` can auto-reply to ping and omit it from results
+- Config `p2p_native_auto_pong` (default true with native transport)
+- Honesty: keepalive only — still not full message-loop / libp2p
+
 ## [1.3.97] — 2026-07-25
 
 ### P2P — native peer cert CN/SAN identities

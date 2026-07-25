@@ -1525,8 +1525,19 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "observability" / "metrics.py"
         ).read_text(encoding="utf-8"):
             errors.append("metrics must export abs_p2p_native_peer_identities (v1.3.97)")
+        # v1.3.98 — native auto-pong
+        if "maybe_auto_pong" not in transport_rs or "v1.3.98" not in transport_rs:
+            errors.append("p2p_transport must expose auto_pong (v1.3.98)")
+        if "_native_auto_pong" not in p2p_py:
+            errors.append("p2p_node must wire native auto_pong (v1.3.98)")
+        if "p2p_native_auto_pong" not in cfg_py:
+            errors.append("config must define p2p_native_auto_pong (v1.3.98)")
+        if "abs_p2p_native_auto_pong" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("metrics must export abs_p2p_native_auto_pong (v1.3.98)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..97 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..98 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:
