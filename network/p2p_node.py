@@ -1247,7 +1247,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.99)"
+                    f"({label} v1.3.100)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -3713,6 +3713,7 @@ class P2PNode:
             "native_peer_identities": bool(getattr(self, "_native_peer_identities", False)),
             "native_auto_pong": bool(getattr(self, "_native_auto_pong", False)),
             "native_keepalive": bool(getattr(self, "_native_auto_pong", False)),
+            "native_housekeeping_gate": bool(getattr(self, "_use_native_transport", False)),
             "native_accept_total": int(self._native_accept_total or 0),
             "native_accept_errors": int(self._native_accept_errors or 0),
             "native_connect_total": int(self._native_connect_total or 0),

@@ -517,6 +517,12 @@ class MetricsCollector:
                     f"abs_p2p_native_keepalive{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_auto_pong') else 0}"
                 ),
+                "# HELP abs_p2p_native_housekeeping_gate Whether native housekeeping payload gate is active (0/1)",
+                "# TYPE abs_p2p_native_housekeeping_gate gauge",
+                (
+                    f"abs_p2p_native_housekeeping_gate{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_housekeeping_gate') else 0}"
+                ),
                 "# HELP abs_p2p_native_accept_total Native TCP accepts",
                 "# TYPE abs_p2p_native_accept_total counter",
                 (

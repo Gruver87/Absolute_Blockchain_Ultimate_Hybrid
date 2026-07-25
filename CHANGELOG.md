@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.100] — 2026-07-25
+
+### P2P — native housekeeping payload gate
+
+- Fail-closed `ping`/`pong`/`get_mempool`/`get_peers` shape check on native read
+- Closes auto-keepalive bypass of Python `_housekeeping_payload_ok`
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.99] — 2026-07-25
 
 ### P2P — native keepalive consume (pong + touch)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.99 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.100 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -60,6 +60,7 @@ WAVE_TESTS = [
     "tests/unit/test_v1397_p2p_native_peer_identities.py",
     "tests/unit/test_v1398_p2p_native_auto_pong.py",
     "tests/unit/test_v1399_p2p_native_keepalive.py",
+    "tests/unit/test_v13100_p2p_native_housekeeping.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -606,6 +607,26 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "observability/metrics.py",
         ["abs_p2p_native_keepalive"],
     ),
+    (
+        "1.3.100",
+        "RELEASE_NOTES_v1.3.100.md",
+        ["1.3.100-industrial", "housekeeping"],
+    ),
+    (
+        "1.3.100",
+        "native/abs_native/src/p2p_transport.rs",
+        ["housekeeping_payload_ok", "check_housekeeping", "v1.3.100"],
+    ),
+    (
+        "1.3.100",
+        "network/p2p_node.py",
+        ["native_housekeeping_gate"],
+    ),
+    (
+        "1.3.100",
+        "observability/metrics.py",
+        ["abs_p2p_native_housekeeping_gate"],
+    ),
 ]
 
 
@@ -633,8 +654,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.99"):
-            errors.append(f"node_version expected 1.3.99-*, got {ver}")
+        if not ver.startswith("1.3.100"):
+            errors.append(f"node_version expected 1.3.100-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

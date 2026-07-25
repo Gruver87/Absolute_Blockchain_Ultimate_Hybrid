@@ -1,4 +1,4 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.99).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.100).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
 //! v1.3.92: `read_message` fuses framed read + wire parse.
@@ -9,6 +9,7 @@
 //! v1.3.97: peer cert CN/SAN identities for native TLS bind.
 //! v1.3.98: auto-pong on read path (keepalive only; not full dispatch).
 //! v1.3.99: consume inbound pong + keepalive_touches (still not full dispatch).
+//! v1.3.100: housekeeping payload gate on read (parity with Python).
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -50,6 +51,9 @@ fn wire_fail_reason(err: &str) -> String {
     {
         return err.to_string();
     }
+    if err.starts_with("bad_") && err.ends_with("_payload") {
+        return err.to_string();
+    }
     if err.starts_with("p2p_line_too_large") {
         return "p2p_line_too_large".to_string();
     }
@@ -60,6 +64,39 @@ fn wire_fail_reason(err: &str) -> String {
         return err.split(':').next().unwrap_or(err).to_string();
     }
     "bad_wire_line".to_string()
+}
+
+/// Parity with Python `_housekeeping_payload_ok` (v1.3.100).
+fn housekeeping_payload_ok(msg_type: &str, data: &serde_json::Value) -> bool {
+    match msg_type {
+        "ping" | "pong" => {
+            if data.is_null() {
+                return true;
+            }
+            let Some(obj) = data.as_object() else {
+                return false;
+            };
+            if obj.is_empty() {
+                return true;
+            }
+            if obj.len() == 1 {
+                if let Some(ts) = obj.get("ts") {
+                    return ts.is_number();
+                }
+            }
+            false
+        }
+        "get_mempool" | "get_peers" => data.as_object().map(|o| o.is_empty()).unwrap_or(false),
+        _ => true,
+    }
+}
+
+fn check_housekeeping(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+    if housekeeping_payload_ok(msg_type, data) {
+        Ok(())
+    } else {
+        Err(format!("bad_{msg_type}_payload"))
+    }
 }
 
 fn decoded_ok_dict(
@@ -471,11 +508,18 @@ impl P2PNativeConn {
     }
 
     /// If `auto_pong`: reply to ping / silently consume pong; Ok(true) = consumed.
-    fn maybe_auto_pong(&mut self, msg_type: &str, auto_pong: bool) -> Result<bool, String> {
+    /// Validates housekeeping payload before reply/consume (v1.3.100).
+    fn maybe_auto_pong(
+        &mut self,
+        msg_type: &str,
+        data: &serde_json::Value,
+        auto_pong: bool,
+    ) -> Result<bool, String> {
         if !auto_pong {
             return Ok(false);
         }
         if msg_type == "pong" {
+            check_housekeeping(msg_type, data)?;
             // Inbound pong is keepalive only — drop before Python dispatch.
             self.auto_keeps = self.auto_keeps.saturating_add(1);
             return Ok(true);
@@ -483,6 +527,7 @@ impl P2PNativeConn {
         if msg_type != "ping" {
             return Ok(false);
         }
+        check_housekeeping(msg_type, data)?;
         let ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs_f64())
@@ -757,6 +802,7 @@ impl P2PNativeConn {
     /// `{ok:false, reason, eof:false}`.
     /// v1.3.98: `auto_pong` replies to ping in-band and skips returning it.
     /// v1.3.99: also consumes inbound pong; empty keepalive → synthetic pong.
+    /// v1.3.100: housekeeping payload gate before auto-keepalive / return.
     #[pyo3(signature = (chunk_sz=65536, allowed_types=None, auto_pong=false))]
     fn read_message(
         &mut self,
@@ -773,7 +819,11 @@ impl P2PNativeConn {
                 match self.read_one_decoded(chunk_sz, allowed_set.as_ref())? {
                     None => return Ok(None),
                     Some((msg_type, data, nbytes)) => {
-                        if self.maybe_auto_pong(&msg_type, auto_pong)? {
+                        // Early reject get_* always; ping/pong gated inside auto_pong path.
+                        if msg_type == "get_mempool" || msg_type == "get_peers" {
+                            check_housekeeping(&msg_type, &data)?;
+                        }
+                        if self.maybe_auto_pong(&msg_type, &data, auto_pong)? {
                             continue;
                         }
                         return Ok(Some((msg_type, data, nbytes)));
@@ -827,6 +877,7 @@ impl P2PNativeConn {
     /// Timeout with only keepalive skips → `{ok:true, messages:[], keepalive_touches}`.
     /// v1.3.98: `auto_pong` replies to ping in-band and omits them from `messages`.
     /// v1.3.99: also consumes inbound pong; reports `keepalive_touches`.
+    /// v1.3.100: housekeeping payload gate before auto-keepalive / return.
     ///
     /// `{ok:true, messages:[{type,data,nbytes},...], eof:bool, auto_pongs, keepalive_touches}` |
     /// `{ok:false, reason, messages:[...], eof:false, ...}`.
@@ -855,7 +906,13 @@ impl P2PNativeConn {
                         break;
                     }
                     Ok(Some((msg_type, data, nbytes))) => {
-                        match self.maybe_auto_pong(&msg_type, auto_pong) {
+                        if msg_type == "get_mempool" || msg_type == "get_peers" {
+                            if let Err(reason) = check_housekeeping(&msg_type, &data) {
+                                err = Some(reason);
+                                break;
+                            }
+                        }
+                        match self.maybe_auto_pong(&msg_type, &data, auto_pong) {
                             Ok(true) => {
                                 skips = skips.saturating_add(1);
                                 if skips >= 64 {
@@ -1434,5 +1491,29 @@ mod tests {
         assert_eq!(data["height"], 7);
         assert!(nbytes > 10);
         handle.join().unwrap();
+    }
+
+    #[test]
+    fn housekeeping_payload_ok_parity() {
+        assert!(housekeeping_payload_ok("ping", &serde_json::json!(null)));
+        assert!(housekeeping_payload_ok("ping", &serde_json::json!({})));
+        assert!(housekeeping_payload_ok("ping", &serde_json::json!({"ts": 1.5})));
+        assert!(!housekeeping_payload_ok(
+            "ping",
+            &serde_json::json!({"ts": "x"})
+        ));
+        assert!(!housekeeping_payload_ok(
+            "ping",
+            &serde_json::json!({"ts": 1, "extra": 1})
+        ));
+        assert!(housekeeping_payload_ok("get_peers", &serde_json::json!({})));
+        assert!(!housekeeping_payload_ok(
+            "get_peers",
+            &serde_json::json!({"x": 1})
+        ));
+        assert!(housekeeping_payload_ok(
+            "status",
+            &serde_json::json!({"height": 1})
+        ));
     }
 }
