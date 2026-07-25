@@ -1979,8 +1979,27 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_state_root_outbound_honesty (v1.3.129)"
             )
+        # v1.3.130 — soft expected_head + professional repo surface
+        if "bad_state_root_response_head" not in (
+            ROOT / "native" / "abs_native" / "src" / "p2p_wire.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "p2p_wire must expose bad_state_root_response_head (v1.3.130)"
+            )
+        if "expected_head" not in p2p_py:
+            errors.append("p2p_node must pass expected_head on state_root waiters (v1.3.130)")
+        if not (ROOT / ".github" / "dependabot.yml").is_file():
+            errors.append("missing .github/dependabot.yml (v1.3.130)")
+        if not (ROOT / "docs" / "AUDITS.md").is_file():
+            errors.append("missing docs/AUDITS.md (v1.3.130)")
+        if "abs_p2p_native_state_root_response_head_gate" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_state_root_response_head_gate (v1.3.130)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..129 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..130 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

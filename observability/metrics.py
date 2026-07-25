@@ -727,6 +727,12 @@ class MetricsCollector:
                     f"abs_p2p_state_root_outbound_refuse_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('state_root_outbound_refuse_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_state_root_response_head_gate Whether soft expected_head on state_root waiters is active (0/1)",
+                "# TYPE abs_p2p_native_state_root_response_head_gate gauge",
+                (
+                    f"abs_p2p_native_state_root_response_head_gate{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_state_root_response_head_gate') else 0}"
+                ),
                 "# HELP abs_p2p_native_discovery_dialability_gate Whether discovery dialability gate is active (0/1)",
                 "# TYPE abs_p2p_native_discovery_dialability_gate gauge",
                 (

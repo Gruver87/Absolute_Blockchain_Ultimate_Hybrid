@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.130] — 2026-07-25
+
+### Repo professionalism + soft state_root expected_head
+
+- Dependabot, EditorConfig, SUPPORT, AUDITS/RELEASING/REPO_PROFESSIONAL docs, SBOM-on-release
+- State_root waiters optionally bind peer `head_hash` to local expected head
+- Honesty: not external audit / tip proof / libp2p / mainnet
+
 ## [1.3.129] — 2026-07-25
 
 ### P2P — outbound state_root height honesty

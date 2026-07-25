@@ -12,13 +12,13 @@
 [![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 [![Native fuzz](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/fuzz-native.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/fuzz-native.yml)
 [![48h soak](https://img.shields.io/badge/48h%20soak-PASS-brightgreen)](docs/EVIDENCE_MATRIX.md)
-[![v1.3.129](https://img.shields.io/badge/tag-v1.3.129-blue)](RELEASE_NOTES_v1.3.129.md)
+[![v1.3.130](https://img.shields.io/badge/tag-v1.3.130-blue)](RELEASE_NOTES_v1.3.130.md)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://www.python.org/)
 [![Rust](https://img.shields.io/badge/Rust-abs__native-orange)](native/abs_native)
 
 | | |
 |---|---|
-| **Release** | [v1.3.129](RELEASE_NOTES_v1.3.129.md) · [CHANGELOG](CHANGELOG.md) · [Releases](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases) |
+| **Release** | [v1.3.130](RELEASE_NOTES_v1.3.130.md) · [CHANGELOG](CHANGELOG.md) · [Releases](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases) |
 | **Prove it** | `make test-quick` · `.\scripts\check_all.ps1` · CI badges above |
 | **Run** | `python main.py` → http://localhost:8080 |
 | **Chains** | `77777` lab · `778888` prod-profile (**not** public mainnet) |
@@ -39,7 +39,7 @@
 
 > Not an investment product. ABS = in-repo tokenomics (221M), not a listed asset. No real funds without independent audit.
 
-**Jump:** [Start](#start-in-60-seconds) · [Layout](#repo-layout-skimmers) · [Architecture](#architecture) · [Ops](#operator-cheatsheet) · [Docs](#docs-map) · [Contribute](CONTRIBUTING.md)
+**Jump:** [Start](#start-in-60-seconds) · [Layout](#repo-layout-skimmers) · [Architecture](#architecture) · [Ops](#operator-cheatsheet) · [Docs](#docs-map) · [Professional posture](docs/REPO_PROFESSIONAL.md) · [Contribute](CONTRIBUTING.md) · [Support](SUPPORT.md)
 
 ---
 
@@ -93,7 +93,8 @@ Makefile             make build | test-quick | test-gate | mesh-up
 | Path to mainnet-v1 | [MAINNET_GAP_ANALYSIS](docs/MAINNET_GAP_ANALYSIS.md) |
 | System design | [ARCHITECTURE](docs/ARCHITECTURE.md) |
 | Operator commands | [COMMANDS_REFERENCE](docs/COMMANDS_REFERENCE.md) · [ALL_COMMANDS](docs/ALL_COMMANDS.txt) |
-| Security / contribute | [SECURITY](SECURITY.md) · [CONTRIBUTING](CONTRIBUTING.md) |
+| Security / contribute | [SECURITY](SECURITY.md) · [CONTRIBUTING](CONTRIBUTING.md) · [SUPPORT](SUPPORT.md) |
+| Audits / releasing | [AUDITS](docs/AUDITS.md) · [RELEASING](docs/RELEASING.md) · [REPO_PROFESSIONAL](docs/REPO_PROFESSIONAL.md) |
 | GitHub About paste | [REPO_PROFILE](.github/REPO_PROFILE.md) |
 
 ---
@@ -207,7 +208,7 @@ Code: `runtime/tokenomics.py` · `GET /tokenomics` — **not** a listed token.
 |------|------|
 | Jul 12 | Failover, signed tx, EVM, **7h soak PASS** |
 | Jul 19–21 | **48h soak PASS** |
-| Jul 21–25 | Industrial **v1.3.65–v1.3.129** (native P2P gates + sync correlation + discovery + state_root honesty) |
+| Jul 21–25 | Industrial **v1.3.65–v1.3.130** + professional repo surface (Dependabot/SBOM/SUPPORT) |
 
 Ledger: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md)
 
@@ -228,4 +229,4 @@ MIT — [LICENSE](LICENSE)
 ---
 
 *Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87) · Default branch: `master`*  
-*Last update: 2026-07-25 — **v1.3.129** outbound state_root height honesty. Not a launched public mainnet.*
+*Last update: 2026-07-25 — **v1.3.130** professional repo + soft state_root head. Not a launched public mainnet.*

@@ -1441,7 +1441,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.129)"
+                    f"({label} v1.3.130)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -2440,6 +2440,7 @@ class P2PNode:
                     reason = native.verify_p2p_state_root_response_request_semantics(
                         data if isinstance(data, dict) else (data or {}),
                         int(request_ctx.get("height", 0) or 0),
+                        str(request_ctx.get("expected_head") or ""),
                     )
                     if reason:
                         self._state_root_response_request_rejects_total = int(
@@ -3509,6 +3510,7 @@ class P2PNode:
             request_ctx={
                 "kind": "state_root",
                 "height": int(h),
+                "expected_head": str(self.head() or ""),
             },
         )
         if not msg or msg.get("type") != MSG_STATE_ROOT_RESPONSE:
@@ -4261,6 +4263,7 @@ class P2PNode:
             "native_block_response_semantic_gate": True,
             "native_state_root_response_request_gate": True,
             "native_state_root_outbound_honesty": True,
+            "native_state_root_response_head_gate": True,
             "native_discovery_dialability_gate": True,
             "native_handshake_head_semantic_gate": True,
             "native_status_height_head_gate": True,

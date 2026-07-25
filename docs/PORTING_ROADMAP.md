@@ -741,6 +741,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Unsolicited `state_root_response` no longer inflates `peer.height`
 - Remaining: tip proof / root-belongs-to-head crypto / libp2p (not claimed)
 
+### Priority 85 — Soft expected_head + professional repo surface ✅ (v1.3.130)
+
+- [x] `expected_head` on state_root waiters (`bad_state_root_response_head`)
+- [x] Dependabot / EditorConfig / SUPPORT / AUDITS / RELEASING / SBOM workflow
+- Remaining: external audit / ceremony pin / tip proof / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

@@ -39,6 +39,7 @@
 //! v1.3.128: discovery dialability (private spray blocked unless allow_private) +
 //!           handshake/status soft height↔head binding (not tip proof).
 //! v1.3.129: outbound state_root_response height honesty (not tip proof).
+//! v1.3.130: soft expected_head on state_root waiters (not root-belongs-to-head proof).
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 

@@ -3205,10 +3205,12 @@ def verify_p2p_block_response_semantics(
 def verify_p2p_state_root_response_request_semantics(
     data: Any,
     expected_height: int,
+    expected_head: str = "",
 ) -> Optional[str]:
-    """v1.3.127: request-bound state_root_response (height + digests).
+    """v1.3.127/130: request-bound state_root_response (height + digests + soft head).
 
-    Fail-closed without native. Does not prove root belongs to head.
+    Fail-closed without native. Empty expected_head skips head match.
+    Does not prove root belongs to head cryptographically.
     """
     payload = (
         json.dumps(data, separators=(",", ":"), ensure_ascii=False)
@@ -3221,6 +3223,7 @@ def verify_p2p_state_root_response_request_semantics(
         result = _native.verify_p2p_state_root_response_request_semantics(
             payload,
             int(expected_height),
+            str(expected_head or ""),
         )
         return str(result) if result else None
     return "state_root_response_request_native_required"

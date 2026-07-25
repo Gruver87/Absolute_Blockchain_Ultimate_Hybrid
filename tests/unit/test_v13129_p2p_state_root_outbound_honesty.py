@@ -55,7 +55,7 @@ def test_needles_v13129():
     assert "must not inflate peer.height" in p2p
     notes = (ROOT / "RELEASE_NOTES_v1.3.129.md").read_text(encoding="utf-8")
     assert "1.3.129-industrial" in notes
-    assert Config().node_version == "1.3.129-industrial"
+    # Live Config().node_version advances with later waves; pin notes not config.
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_state_root_outbound_honesty" in metrics
     assert "abs_p2p_state_root_outbound_refuse_total" in metrics

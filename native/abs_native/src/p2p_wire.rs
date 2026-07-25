@@ -457,17 +457,22 @@ pub(crate) fn verify_state_root_response_semantics_inner(data: &Value) -> Result
 }
 
 /// v1.3.127: request-bound state_root_response — height must match probe + digests OK.
-/// Does not prove root belongs to head / tip / sync ownership.
+/// v1.3.130: optional expected_head soft match (empty expected = skip; not root-belongs-to-head proof).
 pub(crate) fn verify_state_root_response_request_semantics_inner(
     data: &Value,
     expected_height: i64,
+    expected_head: &str,
 ) -> Result<(), String> {
     verify_state_root_response_semantics_inner(data)?;
-    let Some((height, _state_root, _head_hash)) = validate_state_root_response_inner(data) else {
+    let Some((height, _state_root, head_hash)) = validate_state_root_response_inner(data) else {
         return Err("bad_state_root_response".to_string());
     };
     if height != expected_height {
         return Err("bad_state_root_response_height".to_string());
+    }
+    let exp = expected_head.trim();
+    if !exp.is_empty() && normalize_hash_cmp(&head_hash) != normalize_hash_cmp(exp) {
+        return Err("bad_state_root_response_head".to_string());
     }
     Ok(())
 }
@@ -1185,12 +1190,17 @@ fn verify_p2p_block_response_semantics(
 fn verify_p2p_state_root_response_request_semantics(
     data_json: String,
     expected_height: i64,
+    expected_head: String,
 ) -> PyResult<Option<String>> {
     let value: Value = match serde_json::from_str(&data_json) {
         Ok(v) => v,
         Err(_) => return Ok(Some("bad_state_root_response".to_string())),
     };
-    match verify_state_root_response_request_semantics_inner(&value, expected_height) {
+    match verify_state_root_response_request_semantics_inner(
+        &value,
+        expected_height,
+        &expected_head,
+    ) {
         Ok(()) => Ok(None),
         Err(reason) => Ok(Some(reason)),
     }

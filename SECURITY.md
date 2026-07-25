@@ -4,10 +4,10 @@
 
 | Version | Supported |
 |---------|-----------|
-| `v1.2.x` on `master` | Yes (best-effort R&D) |
-| Older tags | Limited — prefer latest release |
+| `v1.3.x` on `master` (latest industrial tag) | Yes |
+| Older `v1.2.x` / earlier tags | Limited — prefer latest release |
 
-This project is a **production-hardened R&D / devnet** stack. It is **not** a launched public mainnet and has **not** completed an independent external security audit.
+This project is a **production-hardened R&D / devnet** stack. It is **not** a launched public mainnet and has **not** completed an independent external security audit. See [docs/AUDITS.md](docs/AUDITS.md).
 
 ## Reporting a vulnerability
 
@@ -62,6 +62,12 @@ python scripts/check_secrets.py
 ```
 
 Runs in CI — commits with embedded secrets should fail.
+
+## Supply chain
+
+- Dependabot: [`.github/dependabot.yml`](.github/dependabot.yml) (pip / cargo / actions)
+- SBOM artifact on GitHub Release: workflow `sbom-on-release.yml`
+- Release process: [docs/RELEASING.md](docs/RELEASING.md)
 
 ## If a secret was committed
 

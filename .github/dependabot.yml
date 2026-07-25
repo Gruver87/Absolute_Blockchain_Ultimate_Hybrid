@@ -1,0 +1,43 @@
+# Dependabot — Absolute Blockchain Ultimate Hybrid
+# https://docs.github.com/en/code-security/dependabot
+#
+# Keeps Python, Rust (abs_native), and GitHub Actions current.
+# Honesty: Dependabot green ≠ external audit / public mainnet.
+
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - python
+    commit-message:
+      prefix: "deps(pip)"
+
+  - package-ecosystem: cargo
+    directory: "/native/abs_native"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - rust
+    commit-message:
+      prefix: "deps(cargo)"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: "deps(actions)"

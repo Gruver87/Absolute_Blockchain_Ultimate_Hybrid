@@ -1,0 +1,43 @@
+# SBOM on release — Absolute Blockchain Ultimate Hybrid
+#
+# Generates a CycloneDX SBOM artifact for supply-chain transparency.
+# Honesty: SBOM ≠ external audit / public mainnet.
+
+name: sbom-on-release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install CycloneDX Python
+        run: pip install --upgrade pip cyclonedx-bom
+
+      - name: Generate SBOM (requirements)
+        run: |
+          mkdir -p artifacts
+          cyclonedx-py requirements requirements.txt \
+            --of JSON \
+            -o artifacts/sbom-python.cdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-python-cdx
+          path: artifacts/sbom-python.cdx.json
+          if-no-files-found: error
