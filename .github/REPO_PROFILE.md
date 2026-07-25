@@ -60,8 +60,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.138` — solicit-only state_root + ceremony status in check_all |
-| **Notes** | [RELEASE_NOTES_v1.3.138.md](../RELEASE_NOTES_v1.3.138.md) |
+| **Tag** | `v1.3.139` — catch-up requires peer.head |
+| **Notes** | [RELEASE_NOTES_v1.3.139.md](../RELEASE_NOTES_v1.3.139.md) |
 | **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

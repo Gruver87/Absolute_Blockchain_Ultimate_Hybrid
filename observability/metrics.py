@@ -841,6 +841,18 @@ class MetricsCollector:
                     f"abs_p2p_unsolicited_state_root_rejects_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('unsolicited_state_root_rejects_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_catch_up_require_head Whether catch-up requires peer.head (0/1)",
+                "# TYPE abs_p2p_native_catch_up_require_head gauge",
+                (
+                    f"abs_p2p_native_catch_up_require_head{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_catch_up_require_head') else 0}"
+                ),
+                "# HELP abs_p2p_catch_up_no_head_refuse_total Catch-up refused for height-only claims without peer.head",
+                "# TYPE abs_p2p_catch_up_no_head_refuse_total counter",
+                (
+                    f"abs_p2p_catch_up_no_head_refuse_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('catch_up_no_head_refuse_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_bootstrap_resilient Whether missing-bootstrap redial is active (0/1)",
                 "# TYPE abs_p2p_native_bootstrap_resilient gauge",
                 (

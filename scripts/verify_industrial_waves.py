@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.138 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.139 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -99,6 +99,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13136_p2p_attestation_slot_ahead.py",
     "tests/unit/test_v13137_p2p_attestation_local_and_block_solicit.py",
     "tests/unit/test_v13138_state_root_solicit_and_ceremony_status.py",
+    "tests/unit/test_v13139_p2p_catch_up_require_head.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1679,6 +1680,33 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_unsolicited_state_root_rejects_total",
         ],
     ),
+    (
+        "1.3.139",
+        "RELEASE_NOTES_v1.3.139.md",
+        ["1.3.139-industrial", "catch-up"],
+    ),
+    (
+        "1.3.139",
+        "network/p2p_node.py",
+        [
+            "_catch_up_ahead_refuse_reason",
+            "catch_up_no_head",
+            "native_catch_up_require_head",
+        ],
+    ),
+    (
+        "1.3.139",
+        "runtime/config.py",
+        ["p2p_catch_up_require_head"],
+    ),
+    (
+        "1.3.139",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_catch_up_require_head",
+            "abs_p2p_catch_up_no_head_refuse_total",
+        ],
+    ),
 ]
 
 
@@ -1706,8 +1734,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.138"):
-            errors.append(f"node_version expected 1.3.138-*, got {ver}")
+        if not ver.startswith("1.3.139"):
+            errors.append(f"node_version expected 1.3.139-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

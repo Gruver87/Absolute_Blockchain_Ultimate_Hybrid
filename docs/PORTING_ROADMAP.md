@@ -796,6 +796,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `scripts/ceremony_status.py` + `check_all.ps1` informational step (never invents pin)
 - Remaining: operator `GENESIS_CEREMONY_HASH` / external audit / tip proof / libp2p (not claimed)
 
+### Priority 94 — Catch-up requires peer.head ✅ (v1.3.139)
+
+- [x] Refuse height-only catch-up / `_schedule_sync` when ahead without `peer.head`
+- [x] `p2p_catch_up_require_head` (default true)
+- Remaining: tip existence proof / fork-choice / libp2p / ceremony (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

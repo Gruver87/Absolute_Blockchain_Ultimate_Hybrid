@@ -1216,6 +1216,7 @@ class P2PNode:
         self._attestation_local_head_rejects_total: int = 0
         self._unsolicited_block_rejects_total: int = 0
         self._unsolicited_state_root_rejects_total: int = 0
+        self._catch_up_no_head_refuse_total: int = 0
         self._bootstrap_redial_total: int = 0
         self._bootstrap_pin_rejects_total: int = 0
         self._handshake_rejects: int = 0
@@ -1454,7 +1455,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.138)"
+                    f"({label} v1.3.139)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -3221,8 +3222,38 @@ class P2PNode:
             self._peer_sync_locks[peer_id] = asyncio.Lock()
         return self._peer_sync_locks[peer_id]
 
+    def _catch_up_ahead_refuse_reason(self, peer: PeerConnection) -> str:
+        """v1.3.139: refuse height-only catch-up without a concrete peer.head.
+
+        Soft scheduling gate — not tip existence proof.
+        """
+        if not bool(getattr(self.config, "p2p_catch_up_require_head", True)):
+            return ""
+        try:
+            our_h = int(self.blockchain.get_height() or 0)
+            peer_h = int(getattr(peer, "height", 0) or 0)
+        except (TypeError, ValueError):
+            return ""
+        if peer_h <= our_h:
+            return ""
+        if str(getattr(peer, "head", "") or "").strip():
+            return ""
+        return "catch_up_no_head"
+
     def _schedule_sync(self, peer: PeerConnection) -> None:
         """Coalesce duplicate sync tasks per peer (v1.3.66) + global inflight cap (v1.3.72)."""
+        refuse = self._catch_up_ahead_refuse_reason(peer)
+        if refuse:
+            self._catch_up_no_head_refuse_total = int(
+                self._catch_up_no_head_refuse_total or 0
+            ) + 1
+            logger.debug(
+                "[P2P] catch-up refuse %s peer=%s height=%s",
+                refuse,
+                (peer.peer_id or "")[:12],
+                getattr(peer, "height", 0),
+            )
+            return
         key = str(peer.peer_id or self._peer_key(peer) or id(peer))
         existing = self._sync_tasks.get(key)
         if existing is not None and not existing.done():
@@ -3320,6 +3351,20 @@ class P2PNode:
             elif self.sync_engine:
                 self._state_consistent = bool(await self._sync_state_async())
             await self._sync_mempool_with_peer(peer)
+            return
+
+        # v1.3.139: height-only ahead without peer.head — refuse get_blocks catch-up.
+        refuse = self._catch_up_ahead_refuse_reason(peer)
+        if refuse:
+            self._catch_up_no_head_refuse_total = int(
+                self._catch_up_no_head_refuse_total or 0
+            ) + 1
+            logger.info(
+                "[P2P] catch-up refuse %s peer=%s claimed_height=%s (no head)",
+                refuse,
+                (peer.peer_id or "")[:12],
+                peer.height,
+            )
             return
 
         if self.sync_engine:
@@ -4639,6 +4684,9 @@ class P2PNode:
             "native_attestation_local_head": True,
             "native_block_solicit_only": True,
             "native_state_root_solicit_only": True,
+            "native_catch_up_require_head": bool(
+                getattr(self.config, "p2p_catch_up_require_head", True)
+            ),
             "native_bootstrap_resilient": True,
             "native_bootstrap_pin_gate": True,
             "native_discovery_dialability_gate": True,
@@ -4706,6 +4754,9 @@ class P2PNode:
             ),
             "unsolicited_state_root_rejects_total": int(
                 getattr(self, "_unsolicited_state_root_rejects_total", 0) or 0
+            ),
+            "catch_up_no_head_refuse_total": int(
+                getattr(self, "_catch_up_no_head_refuse_total", 0) or 0
             ),
             "bootstrap_redial_total": int(
                 getattr(self, "_bootstrap_redial_total", 0) or 0

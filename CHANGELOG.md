@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.139] — 2026-07-26
+
+### P2P — catch-up requires peer.head
+
+- Height-only ahead claims without peer.head refuse get_blocks catch-up
+- Closes soft ownership hole after fantasy-head clear on height cap
+- Honesty: not tip proof / fork-choice / libp2p / mainnet
+
 ## [1.3.138] — 2026-07-26
 
 ### P2P + ops — solicit-only state_root + ceremony status

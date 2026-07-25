@@ -55,6 +55,7 @@ def test_sync_admission_caps_inflight():
         host = "127.0.0.1"
         port = 1
         height = 10
+        head = "ab" * 32
 
     class _PeerB(_Peer):
         peer_id = "peer-b"
