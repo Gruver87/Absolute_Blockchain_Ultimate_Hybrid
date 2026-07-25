@@ -679,6 +679,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Nonce/balance ingest / full dispatch stay Python
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
+### Priority 75 — Native new_block canonical-hash semantic ingress ✅ (v1.3.120)
+
+- [x] `verify_block_announce_semantics_inner` on loop-shell (claimed hash vs canonical recompute)
+- [x] Parent/height / proposer / state_root / import stay Python
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""v1.3.119: native mempool batch signature semantic gate on message-loop shell."""
+"""v1.3.120: native new_block canonical-hash semantic gate on message-loop shell."""
 
 from __future__ import annotations
 
@@ -16,12 +16,10 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from core.blockchain import Block
 from crypto import native
-from crypto.wallet import Wallet
 from network.p2p_node import P2PNode
 from runtime.config import Config
-
-CHAIN = 778888
 
 
 def _wire(msg_type: str, data: dict) -> bytes:
@@ -35,31 +33,44 @@ def _wire(msg_type: str, data: dict) -> bytes:
     ).encode("utf-8")
 
 
-def _signed_tx(*, chain_id: int = CHAIN, to: str = "0x" + ("22" * 20)) -> dict:
-    w = Wallet.create_new()
-    return w.sign_transaction(to=to, value=1, nonce=0, chain_id=chain_id)
+def _valid_block() -> dict:
+    blk = Block(
+        height=1,
+        parent_hash="0" * 64,
+        miner="0x" + ("11" * 20),
+        transactions=[],
+        timestamp=1_700_000_000,
+        extra_data="",
+        state_root="0" * 64,
+    )
+    return blk.to_dict()
 
 
-def test_needles_v13119():
+def test_needles_v13120():
     transport = (ROOT / "native" / "abs_native" / "src" / "p2p_transport.rs").read_text(
         encoding="utf-8"
     )
     wire = (ROOT / "native" / "abs_native" / "src" / "p2p_wire.rs").read_text(
         encoding="utf-8"
     )
-    assert "check_mempool_batch_semantics" in transport
-    assert "verify_mempool_batch_signatures_inner" in wire
-    assert "v1.3.119" in transport
+    lib = (ROOT / "native" / "abs_native" / "src" / "lib.rs").read_text(encoding="utf-8")
+    assert "check_block_announce_semantics" in transport
+    assert "verify_block_announce_semantics_inner" in wire
+    assert "recomputed_canonical_block_hash" in lib
+    assert "bad_block_hash" in wire
+    assert "v1.3.120" in transport
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
-    assert "native_mempool_semantic_gate" in p2p
-    notes = (ROOT / "RELEASE_NOTES_v1.3.119.md").read_text(encoding="utf-8")
-    assert "1.3.119-industrial" in notes
-    # Live Config().node_version advances with later waves; pin notes not config.
+    assert "native_block_semantic_gate" in p2p
+    assert "block_semantic_rejects_total" in p2p
+    notes = (ROOT / "RELEASE_NOTES_v1.3.120.md").read_text(encoding="utf-8")
+    assert "1.3.120-industrial" in notes
+    assert Config().node_version == "1.3.120-industrial"
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
-    assert "abs_p2p_native_mempool_semantic_gate" in metrics
+    assert "abs_p2p_native_block_semantic_gate" in metrics
+    assert "abs_p2p_block_semantic_rejects_total" in metrics
 
 
-def _loop_once(payload: bytes, *, chain_id: int, require_sigs: bool) -> dict:
+def _loop_once(payload: bytes) -> dict:
     listener = native.P2PNativeListener("127.0.0.1", 0, 1024 * 1024, 5000)
     addr = listener.local_addr
     host, port_s = addr.rsplit(":", 1)
@@ -74,7 +85,7 @@ def _loop_once(payload: bytes, *, chain_id: int, require_sigs: bool) -> dict:
             if out.get("ok") and out.get("conn") is not None:
                 c = out["conn"]
                 got["out"] = c.read_message_loop_events(
-                    8, 65536, ["mempool", "status"], False, chain_id, require_sigs
+                    8, 65536, ["new_block", "status"], False, None, False
                 )
                 c.close()
                 return
@@ -93,27 +104,26 @@ def _loop_once(payload: bytes, *, chain_id: int, require_sigs: bool) -> dict:
     not getattr(native, "native_available", lambda: False)(),
     reason="abs_native required",
 )
-def test_native_loop_dispatches_valid_mempool_batch():
-    batch = {"transactions": [_signed_tx(), _signed_tx(to="0x" + ("33" * 20))]}
-    out = _loop_once(_wire("mempool", batch), chain_id=CHAIN, require_sigs=True)
+def test_native_loop_dispatches_valid_new_block():
+    block = _valid_block()
+    out = _loop_once(_wire("new_block", block))
     assert out.get("ok") is True
     events = list(out.get("events") or [])
-    assert any(e.get("action") == "dispatch" and e.get("type") == "mempool" for e in events)
+    assert any(e.get("action") == "dispatch" and e.get("type") == "new_block" for e in events)
 
 
 @pytest.mark.skipif(
     not getattr(native, "native_available", lambda: False)(),
     reason="abs_native required",
 )
-def test_native_loop_strikes_tampered_batch_tx():
-    good = _signed_tx()
-    bad = _signed_tx(to="0x" + ("44" * 20))
-    bad["value"] = 999999
-    batch = {"transactions": [good, bad]}
-    out = _loop_once(_wire("mempool", batch), chain_id=CHAIN, require_sigs=True)
+def test_native_loop_strikes_tampered_block_hash():
+    block = _valid_block()
+    block["extra_data"] = "tampered"
+    # Keep claimed hash from pre-tamper → mismatch
+    out = _loop_once(_wire("new_block", block))
     events = list(out.get("events") or [])
     assert any(
-        e.get("action") == "strike" and e.get("reason") == "bad_tx_signature"
+        e.get("action") == "strike" and e.get("reason") == "bad_block_hash"
         for e in events
     )
 
@@ -122,23 +132,27 @@ def test_native_loop_strikes_tampered_batch_tx():
     not getattr(native, "native_available", lambda: False)(),
     reason="abs_native required",
 )
-def test_native_loop_strikes_missing_sig_in_batch():
-    unsigned = {
-        "from": "0x" + ("11" * 20),
-        "to": "0x" + ("22" * 20),
-        "value": 1,
-        "nonce": 0,
-    }
-    batch = {"transactions": [unsigned]}
-    out = _loop_once(_wire("mempool", batch), chain_id=CHAIN, require_sigs=True)
+def test_native_loop_strikes_bad_shape_before_hash():
+    out = _loop_once(_wire("new_block", {"height": 1}))  # missing hash
     events = list(out.get("events") or [])
     assert any(
-        e.get("action") == "strike" and e.get("reason") == "missing_tx_signature"
+        e.get("action") == "strike" and e.get("reason") == "bad_block_announce"
         for e in events
     )
 
 
-def test_status_exposes_mempool_semantic_gate():
+@pytest.mark.skipif(
+    not getattr(native, "native_available", lambda: False)(),
+    reason="abs_native required",
+)
+def test_canonical_hash_parity_with_block_compute():
+    block = _valid_block()
+    # Recompute via Block path must equal claimed hash used by gate.
+    again = Block.from_dict(block)
+    assert again._compute_hash() == block["hash"]
+
+
+def test_status_exposes_block_semantic_gate():
     cfg = Config()
     cfg.p2p_native_transport = True
     cfg.p2p_tls_enabled = False
@@ -148,4 +162,5 @@ def test_status_exposes_mempool_semantic_gate():
     node = P2PNode(cfg, MagicMock(), MagicMock())
     node._native_message_loop_shell = True
     st = node.get_p2p_security_status()
-    assert st.get("native_mempool_semantic_gate") is True
+    assert st.get("native_block_semantic_gate") is True
+    assert "block_semantic_rejects_total" in st

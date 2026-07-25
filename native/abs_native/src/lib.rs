@@ -522,6 +522,13 @@ fn extract_canonical_block(block: &Value) -> PyResult<Value> {
     Ok(Value::Object(canonical))
 }
 
+/// Parity with import_block / Block._compute_hash (strip wire extras, then hash).
+pub(crate) fn recomputed_canonical_block_hash(block: &Value) -> Result<String, String> {
+    let canonical = extract_canonical_block(block).map_err(|e| e.to_string())?;
+    let encoded = canonical_serialize_json(&canonical).map_err(|e| e.to_string())?;
+    Ok(hash_string(&encoded))
+}
+
 fn validate_imported_block_chain_inner(
     blocks_json: &[String],
     expected_parent_hash: &str,

@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.120] — 2026-07-25
+
+### P2P — native new_block canonical-hash semantic gate
+
+- Loop-shell rejects `new_block` when claimed hash ≠ canonical recompute
+- Strike: `bad_block_hash`; shape still `bad_block_announce`
+- Honesty: parent/proposer/state_root / full message-loop / libp2p not claimed
+
 ## [1.3.119] — 2026-07-25
 
 ### P2P — native mempool batch signature semantic gate

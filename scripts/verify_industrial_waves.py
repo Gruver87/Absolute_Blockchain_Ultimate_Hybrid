@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.119 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.120 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -80,6 +80,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13117_p2p_native_attestation_semantic_gate.py",
     "tests/unit/test_v13118_p2p_native_tx_semantic_gate.py",
     "tests/unit/test_v13119_p2p_native_mempool_semantic_gate.py",
+    "tests/unit/test_v13120_p2p_native_block_semantic_gate.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1097,6 +1098,36 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "observability/metrics.py",
         ["abs_p2p_native_mempool_semantic_gate"],
     ),
+    (
+        "1.3.120",
+        "RELEASE_NOTES_v1.3.120.md",
+        ["1.3.120-industrial", "new_block"],
+    ),
+    (
+        "1.3.120",
+        "native/abs_native/src/lib.rs",
+        ["recomputed_canonical_block_hash"],
+    ),
+    (
+        "1.3.120",
+        "native/abs_native/src/p2p_wire.rs",
+        ["verify_block_announce_semantics_inner", "bad_block_hash"],
+    ),
+    (
+        "1.3.120",
+        "native/abs_native/src/p2p_transport.rs",
+        ["check_block_announce_semantics", "v1.3.120"],
+    ),
+    (
+        "1.3.120",
+        "network/p2p_node.py",
+        ["native_block_semantic_gate", "block_semantic_rejects_total"],
+    ),
+    (
+        "1.3.120",
+        "observability/metrics.py",
+        ["abs_p2p_native_block_semantic_gate", "abs_p2p_block_semantic_rejects_total"],
+    ),
 ]
 
 
@@ -1124,8 +1155,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.119"):
-            errors.append(f"node_version expected 1.3.119-*, got {ver}")
+        if not ver.startswith("1.3.120"):
+            errors.append(f"node_version expected 1.3.120-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

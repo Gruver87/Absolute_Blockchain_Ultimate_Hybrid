@@ -384,6 +384,20 @@ pub(crate) fn validate_block_announce_inner(data: &Value) -> Option<(i64, String
     Some((height, block_hash))
 }
 
+/// v1.3.120: claimed hash must match canonical recompute (import_block parity).
+/// Parent/height continuity / proposer / state_root validity stay Python.
+pub(crate) fn verify_block_announce_semantics_inner(data: &Value) -> Result<(), String> {
+    let Some((_, claimed)) = validate_block_announce_inner(data) else {
+        return Err("bad_block_announce".to_string());
+    };
+    let recomputed = crate::recomputed_canonical_block_hash(data)
+        .map_err(|_| "bad_block_hash".to_string())?;
+    if recomputed != claimed {
+        return Err("bad_block_hash".to_string());
+    }
+    Ok(())
+}
+
 pub(crate) fn validate_state_root_request_inner(data: &Value) -> Option<i64> {
     let obj = data.as_object()?;
     let height = obj.get("height").and_then(json_i64).unwrap_or(0);

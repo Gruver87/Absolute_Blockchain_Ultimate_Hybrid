@@ -1776,8 +1776,29 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_mempool_semantic_gate (v1.3.119)"
             )
+        # v1.3.120 — new_block canonical-hash semantic gate on loop-shell
+        if "check_block_announce_semantics" not in transport_rs or "v1.3.120" not in transport_rs:
+            errors.append("p2p_transport must expose block semantic gate (v1.3.120)")
+        if "verify_block_announce_semantics_inner" not in (
+            ROOT / "native" / "abs_native" / "src" / "p2p_wire.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "p2p_wire must expose verify_block_announce_semantics_inner (v1.3.120)"
+            )
+        if "recomputed_canonical_block_hash" not in (
+            ROOT / "native" / "abs_native" / "src" / "lib.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append("lib.rs must expose recomputed_canonical_block_hash (v1.3.120)")
+        if "native_block_semantic_gate" not in p2p_py:
+            errors.append("p2p_node must expose native_block_semantic_gate (v1.3.120)")
+        if "abs_p2p_native_block_semantic_gate" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_block_semantic_gate (v1.3.120)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..119 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..120 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:
