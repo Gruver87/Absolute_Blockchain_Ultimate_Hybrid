@@ -78,6 +78,7 @@ POST_SOAK_TESTS = [
     "tests/unit/test_v1346_mixed_apply.py",
     "tests/unit/test_v1347_nested_call_effects.py",
     "tests/unit/test_v1348_nested_call_gas.py",
+    "tests/unit/test_v1349_nested_call_decode.py",
     "tests/unit/test_sqlite_reorg_parity.py",
     "tests/unit/test_bridge_health.py",
     "tests/unit/test_rpc_methods.py",
