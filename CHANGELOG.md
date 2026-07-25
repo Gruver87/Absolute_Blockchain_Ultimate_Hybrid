@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.78] — 2026-07-25
+
+### P2P — per-peer bandwidth / cost-weighted ingress budget
+
+- `P2PRateLimitTable` byte window + `ingress_cost_units` (blocks/mempool ×2)
+- Wired into `p2p_ingress_admit`; reject reason `bandwidth_exceeded`
+- Config: `p2p_max_bytes_per_sec` (default 4 MiB/s, `P2P_MAX_BYTES_PER_SEC`)
+- Prometheus: `abs_p2p_bandwidth_rejects_total`, `abs_p2p_max_bytes_per_sec`
+- Honesty: not full Rust transport; outbound bandwidth not claimed
+
 ## [1.3.77] — 2026-07-25
 
 ### P2P — Rust ingress data plane (wire + rate) + connection governor

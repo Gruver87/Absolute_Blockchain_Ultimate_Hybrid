@@ -33,8 +33,9 @@ def test_needles_v1377():
     assert "P2PConnectionGovernor" in p2p
     assert "p2p_max_inbound_per_ip" in p2p
     cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "1.3.77-industrial" in cfg
     assert "p2p_max_inbound_per_ip" in cfg
+    notes = (ROOT / "RELEASE_NOTES_v1.3.77.md").read_text(encoding="utf-8")
+    assert "1.3.77-industrial" in notes
     assert hasattr(abs_native, "p2p_ingress_admit")
     assert hasattr(abs_native, "P2PConnectionGovernor")
     assert hasattr(native, "p2p_ingress_admit")

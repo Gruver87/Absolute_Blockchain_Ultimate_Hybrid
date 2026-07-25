@@ -1,5 +1,6 @@
-//! Unified P2P ingress admit: wire parse + primary/exempt rate in one native path.
+//! Unified P2P ingress admit: wire parse + primary/exempt rate + bandwidth in one native path.
 //! Connection governor: max_peers + per-IP inbound caps (Python remains control plane).
+//! v1.3.78: cost-weighted per-peer byte budget (`bandwidth_exceeded`).
 
 use crate::p2p_rate_limit::P2PRateLimitTable;
 use crate::p2p_wire::{parse_p2p_wire_line_inner, DEFAULT_MAX_P2P_LINE_BYTES};
@@ -49,7 +50,9 @@ fn p2p_ingress_admit(
     };
 
     if let Some(ref mut table) = rl {
-        if let Some(reason) = table.admit_rate_inner(peer_id, &msg_type, now) {
+        if let Some(reason) =
+            table.admit_rate_inner(peer_id, &msg_type, now, line.len() as u64)
+        {
             return reject_dict(py, &reason);
         }
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.77 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.78 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -38,6 +38,7 @@ WAVE_TESTS = [
     "tests/unit/test_v1375_multidepth_call.py",
     "tests/unit/test_v1376_value_call.py",
     "tests/unit/test_v1377_p2p_ingress.py",
+    "tests/unit/test_v1378_p2p_bandwidth.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -202,8 +203,8 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
     ),
     (
         "1.3.77",
-        "runtime/config.py",
-        ["1.3.77-industrial", "p2p_max_inbound_per_ip"],
+        "RELEASE_NOTES_v1.3.77.md",
+        ["1.3.77-industrial", "p2p_ingress_admit"],
     ),
     (
         "1.3.77",
@@ -214,6 +215,21 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "1.3.77",
         "network/p2p_node.py",
         ["p2p_ingress_admit", "_use_native_ingress", "P2PConnectionGovernor"],
+    ),
+    (
+        "1.3.78",
+        "runtime/config.py",
+        ["1.3.78-industrial", "p2p_max_bytes_per_sec"],
+    ),
+    (
+        "1.3.78",
+        "native/abs_native/src/p2p_rate_limit.rs",
+        ["bandwidth_exceeded", "ingress_cost_units", "byte_limit"],
+    ),
+    (
+        "1.3.78",
+        "observability/metrics.py",
+        ["abs_p2p_bandwidth_rejects_total"],
     ),
 ]
 
@@ -242,8 +258,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.77"):
-            errors.append(f"node_version expected 1.3.77-*, got {ver}")
+        if not ver.startswith("1.3.78"):
+            errors.append(f"node_version expected 1.3.78-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

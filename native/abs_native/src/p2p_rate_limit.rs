@@ -26,13 +26,26 @@ const DEFAULT_EXEMPT: &[&str] = &[
 pub struct P2PRateLimitTable {
     windows: HashMap<String, (u64, f64)>,
     exempt_windows: HashMap<String, (u64, f64)>,
+    byte_windows: HashMap<String, (u64, f64)>,
     strikes: HashMap<String, u64>,
     bans: HashMap<String, f64>,
     limit: u64,
     exempt_limit: u64,
+    byte_limit: u64,
     max_strikes: u64,
     ban_seconds: u64,
     exempt: HashSet<String>,
+    bandwidth_rejects: u64,
+}
+
+/// Weighted ingress cost units (v1.3.78). Large sync payloads burn budget faster.
+pub(crate) fn ingress_cost_units(msg_type: &str, nbytes: u64) -> u64 {
+    let weight: u64 = match msg_type {
+        "blocks" | "block" | "mempool" => 2,
+        "get_blocks" | "new_block" | "new_tx" | "state_root_response" => 1,
+        _ => 1,
+    };
+    nbytes.saturating_mul(weight).max(1)
 }
 
 impl P2PRateLimitTable {
@@ -55,21 +68,44 @@ impl P2PRateLimitTable {
         count <= limit
     }
 
-    /// Primary + secondary exempt budget. `None` = allowed, `Some(reason)` = reject.
+    fn tick_byte_window(&mut self, peer_id: &str, now: f64, cost: u64) -> bool {
+        if self.byte_limit == 0 || peer_id.is_empty() {
+            return true;
+        }
+        let (mut used, mut start) = self
+            .byte_windows
+            .get(peer_id)
+            .copied()
+            .unwrap_or((0, now));
+        if now - start >= 1.0 {
+            used = 0;
+            start = now;
+        }
+        used = used.saturating_add(cost);
+        self.byte_windows
+            .insert(peer_id.to_string(), (used, start));
+        used <= self.byte_limit
+    }
+
+    /// Primary + exempt + bandwidth. `None` = allowed, `Some(reason)` = reject.
     pub(crate) fn admit_rate_inner(
         &mut self,
         peer_id: &str,
         msg_type: &str,
         now: f64,
+        nbytes: u64,
     ) -> Option<String> {
         if self.is_exempt_inner(msg_type) {
             if !Self::tick_window(&mut self.exempt_windows, peer_id, now, self.exempt_limit) {
                 return Some("exempt_rate_exceeded".to_string());
             }
-            return None;
-        }
-        if !Self::tick_window(&mut self.windows, peer_id, now, self.limit) {
+        } else if !Self::tick_window(&mut self.windows, peer_id, now, self.limit) {
             return Some("rate_limit_exceeded".to_string());
+        }
+        let cost = ingress_cost_units(msg_type, nbytes);
+        if !self.tick_byte_window(peer_id, now, cost) {
+            self.bandwidth_rejects = self.bandwidth_rejects.saturating_add(1);
+            return Some("bandwidth_exceeded".to_string());
         }
         None
     }
@@ -82,13 +118,14 @@ impl P2PRateLimitTable {
 #[pymethods]
 impl P2PRateLimitTable {
     #[new]
-    #[pyo3(signature = (limit=500, max_strikes=5, ban_seconds=300, exempt_types=None, exempt_limit=0))]
+    #[pyo3(signature = (limit=500, max_strikes=5, ban_seconds=300, exempt_types=None, exempt_limit=0, byte_limit=0))]
     fn new(
         limit: u64,
         max_strikes: u64,
         ban_seconds: u64,
         exempt_types: Option<Vec<String>>,
         exempt_limit: u64,
+        byte_limit: u64,
     ) -> Self {
         let exempt = match exempt_types {
             Some(list) if !list.is_empty() => list.into_iter().collect(),
@@ -97,13 +134,16 @@ impl P2PRateLimitTable {
         Self {
             windows: HashMap::new(),
             exempt_windows: HashMap::new(),
+            byte_windows: HashMap::new(),
             strikes: HashMap::new(),
             bans: HashMap::new(),
             limit,
             exempt_limit,
+            byte_limit,
             max_strikes: max_strikes.max(1),
             ban_seconds: ban_seconds.max(30),
             exempt,
+            bandwidth_rejects: 0,
         }
     }
 
@@ -127,10 +167,34 @@ impl P2PRateLimitTable {
         Self::tick_window(&mut self.exempt_windows, peer_id, now, self.exempt_limit)
     }
 
-    /// Combined primary + exempt secondary. Returns None when allowed.
-    #[pyo3(signature = (peer_id, msg_type, now))]
-    fn admit_rate(&mut self, peer_id: &str, msg_type: &str, now: f64) -> Option<String> {
-        self.admit_rate_inner(peer_id, msg_type, now)
+    /// Bandwidth-only tick (cost-weighted bytes). None = allowed.
+    #[pyo3(signature = (peer_id, nbytes, now, msg_type=""))]
+    fn admit_bandwidth(
+        &mut self,
+        peer_id: &str,
+        nbytes: u64,
+        now: f64,
+        msg_type: &str,
+    ) -> Option<String> {
+        let cost = ingress_cost_units(msg_type, nbytes);
+        if self.tick_byte_window(peer_id, now, cost) {
+            None
+        } else {
+            self.bandwidth_rejects = self.bandwidth_rejects.saturating_add(1);
+            Some("bandwidth_exceeded".to_string())
+        }
+    }
+
+    /// Combined primary + exempt + bandwidth. Returns None when allowed.
+    #[pyo3(signature = (peer_id, msg_type, now, nbytes=0))]
+    fn admit_rate(
+        &mut self,
+        peer_id: &str,
+        msg_type: &str,
+        now: f64,
+        nbytes: u64,
+    ) -> Option<String> {
+        self.admit_rate_inner(peer_id, msg_type, now, nbytes)
     }
 
     /// Increment strike. Returns True when the peer must be banned/disconnected.
@@ -209,6 +273,7 @@ impl P2PRateLimitTable {
     fn clear_key(&mut self, key: &str) {
         self.windows.remove(key);
         self.exempt_windows.remove(key);
+        self.byte_windows.remove(key);
         self.strikes.remove(key);
         self.bans.remove(key);
     }
@@ -230,6 +295,16 @@ impl P2PRateLimitTable {
     }
 
     #[getter]
+    fn byte_limit(&self) -> u64 {
+        self.byte_limit
+    }
+
+    #[getter]
+    fn bandwidth_rejects(&self) -> u64 {
+        self.bandwidth_rejects
+    }
+
+    #[getter]
     fn max_strikes(&self) -> u64 {
         self.max_strikes
     }
@@ -248,6 +323,12 @@ impl P2PRateLimitTable {
 #[pyfunction]
 fn p2p_rate_limit_is_exempt(msg_type: String) -> bool {
     DEFAULT_EXEMPT.iter().any(|s| *s == msg_type.as_str())
+}
+
+/// Cost-weighted units for bandwidth budget (v1.3.78).
+#[pyfunction]
+fn p2p_ingress_cost_units(msg_type: String, nbytes: u64) -> u64 {
+    ingress_cost_units(&msg_type, nbytes)
 }
 
 /// Pure window tick without table state (for tests / scripting).
@@ -278,5 +359,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(p2p_rate_limit_is_exempt, m)?)?;
     m.add_function(wrap_pyfunction!(p2p_rate_limit_tick, m)?)?;
     m.add_function(wrap_pyfunction!(p2p_strike_should_ban, m)?)?;
+    m.add_function(wrap_pyfunction!(p2p_ingress_cost_units, m)?)?;
     Ok(())
 }

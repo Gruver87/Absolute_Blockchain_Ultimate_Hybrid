@@ -140,6 +140,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "p2p_rate_limit_tick",
             "p2p_strike_should_ban",
             "p2p_ingress_admit",
+            "p2p_ingress_cost_units",
             "validator_selection_proposer",
             "validator_selection_proposer_weighted",
             "validator_selection_committee",
@@ -2565,7 +2566,7 @@ def p2p_ingress_admit(
     allowed_types: Optional[List[str]] = None,
     rl=None,
 ):
-    """Native wire+rate ingress admit. Returns {ok, type/data} or {ok:False, reason}."""
+    """Native wire+rate+bandwidth ingress admit. Returns {ok, type/data} or {ok:False, reason}."""
     _require_native_kernel("p2p_ingress_admit")
     if _native is not None and hasattr(_native, "p2p_ingress_admit"):
         return _native.p2p_ingress_admit(
@@ -2577,6 +2578,14 @@ def p2p_ingress_admit(
             rl,
         )
     raise RuntimeError("p2p_ingress_admit requires abs_native")
+
+
+def p2p_ingress_cost_units(msg_type: str, nbytes: int) -> int:
+    """Cost-weighted units for per-peer bandwidth budget (v1.3.78)."""
+    _require_native_kernel("p2p_ingress_cost_units")
+    if _native is not None and hasattr(_native, "p2p_ingress_cost_units"):
+        return int(_native.p2p_ingress_cost_units(str(msg_type), int(nbytes)))
+    raise RuntimeError("p2p_ingress_cost_units requires abs_native")
 
 
 def p2p_rate_limit_is_exempt(msg_type: str) -> bool:

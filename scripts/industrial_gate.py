@@ -1360,8 +1360,19 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "native" / "abs_native" / "src" / "lib.rs"
         ).read_text(encoding="utf-8"):
             errors.append("abs_native lib.rs must register p2p_ingress (v1.3.77)")
+        # v1.3.78 — bandwidth / cost accounting
+        rl_rs = (ROOT / "native" / "abs_native" / "src" / "p2p_rate_limit.rs").read_text(
+            encoding="utf-8"
+        )
+        if "bandwidth_exceeded" not in rl_rs or "ingress_cost_units" not in rl_rs:
+            errors.append("p2p_rate_limit must enforce bandwidth budget (v1.3.78)")
+        if "p2p_max_bytes_per_sec" not in cfg_py:
+            errors.append("config must define p2p_max_bytes_per_sec (v1.3.78)")
+        metrics_bw = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
+        if "abs_p2p_bandwidth_rejects_total" not in metrics_bw:
+            errors.append("metrics must export abs_p2p_bandwidth_rejects_total (v1.3.78)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..77 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..78 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

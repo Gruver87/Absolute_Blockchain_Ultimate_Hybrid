@@ -403,6 +403,18 @@ class MetricsCollector:
                     f"abs_p2p_max_sync_inflight{{node_id=\"{node_id}\"}} "
                     f"{int(apply_isolation.get('max_sync_inflight', 2) or 2)}"
                 ),
+                "# HELP abs_p2p_bandwidth_rejects_total Per-peer inbound bandwidth budget rejects",
+                "# TYPE abs_p2p_bandwidth_rejects_total counter",
+                (
+                    f"abs_p2p_bandwidth_rejects_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('bandwidth_rejects', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_max_bytes_per_sec Configured per-peer inbound bandwidth budget",
+                "# TYPE abs_p2p_max_bytes_per_sec gauge",
+                (
+                    f"abs_p2p_max_bytes_per_sec{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('max_bytes_per_sec', 0) or 0)}"
+                ),
             ]
         )
         for kernel in native_crypto.get("kernels", []):

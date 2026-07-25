@@ -331,7 +331,11 @@ class PeerConnection:
                             len(line),
                             limit,
                         )
-                    elif reason in ("rate_limit_exceeded", "exempt_rate_exceeded"):
+                    elif reason in (
+                        "rate_limit_exceeded",
+                        "exempt_rate_exceeded",
+                        "bandwidth_exceeded",
+                    ):
                         logger.warning(
                             "[P2P] ingress rate reject from %s (%s)",
                             self.peer_id or self.host,
@@ -436,6 +440,7 @@ class P2PNode:
                     int(getattr(config, "p2p_ban_seconds", 300) or 300),
                     sorted(RATE_LIMIT_EXEMPT_TYPES),
                     int(getattr(config, "p2p_exempt_messages_per_sec", 0) or 0),
+                    int(getattr(config, "p2p_max_bytes_per_sec", 0) or 0),
                 )
                 self._use_native_ingress = hasattr(native, "p2p_ingress_admit")
             except Exception as exc:
@@ -2840,6 +2845,12 @@ class P2PNode:
             "native_p2p_ingress": bool(self._use_native_ingress and self._rl_table is not None),
             "native_conn_governor": self._conn_governor is not None,
             "max_inbound_per_ip": int(getattr(self.config, "p2p_max_inbound_per_ip", 0) or 0),
+            "max_bytes_per_sec": int(getattr(self.config, "p2p_max_bytes_per_sec", 0) or 0),
+            "bandwidth_rejects": (
+                int(getattr(self._rl_table, "bandwidth_rejects", 0) or 0)
+                if self._rl_table is not None
+                else 0
+            ),
             "handshake_rejects": int(self._handshake_rejects),
             "attestation_local_fail": int(self._attestation_local_fail),
             "shape_rejects_total": int(sum(self._shape_reject_counts.values())),
