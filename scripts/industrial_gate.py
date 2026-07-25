@@ -1032,8 +1032,18 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "native" / "abs_native" / "src" / "lib.rs"
         ).read_text(encoding="utf-8"):
             errors.append("lib.rs must define evm_plan_nested_call_gas")
+        # v1.3.49 — nested CALL frame decode
+        if "def evm_decode_nested_call_frame" not in native_py:
+            errors.append("crypto/native.py must export evm_decode_nested_call_frame (v1.3.49)")
+        bridge_py = (ROOT / "execution" / "evm_host_bridge.py").read_text(encoding="utf-8")
+        if "evm_decode_nested_call_frame" not in bridge_py:
+            errors.append("evm_host_bridge must wire evm_decode_nested_call_frame")
+        if "fn evm_decode_nested_call_frame" not in (
+            ROOT / "native" / "abs_native" / "src" / "lib.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append("lib.rs must define evm_decode_nested_call_frame")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..48 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..49 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

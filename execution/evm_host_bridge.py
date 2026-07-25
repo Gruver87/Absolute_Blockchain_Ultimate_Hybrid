@@ -122,19 +122,20 @@ class EvmRuntimeBridge(EvmHostBridge):
             value = evm._pop()
             evm._push(evm._execute_create(value, offset, size, salt))
         elif op in (0xF1, 0xF2, 0xF4, 0xFA):
-            gas = evm._pop()
-            to_word = evm._pop()
-            value = evm._pop() if op not in (0xF4, 0xFA) else 0
-            args_offset = evm._pop()
-            args_size = evm._pop()
-            ret_offset = evm._pop()
-            ret_size = evm._pop()
-            delegate = op == 0xF4
-            static = op == 0xFA
-            callcode = op == 0xF2
+            frame = native.evm_decode_nested_call_frame(op, list(evm.stack))
+            for _ in range(int(frame["stack_consumed"])):
+                evm._pop()
             evm._push(evm._execute_call(
-                to_word, value, args_offset, args_size, ret_offset, ret_size,
-                gas, delegate, static, callcode,
+                int(frame["to_word"]),
+                int(frame["value"]),
+                int(frame["args_offset"]),
+                int(frame["args_size"]),
+                int(frame["ret_offset"]),
+                int(frame["ret_size"]),
+                int(frame["gas"]),
+                bool(frame["delegate"]),
+                bool(frame["static"]),
+                bool(frame["callcode"]),
             ))
         elif op == 0xFF:
             beneficiary = evm._pop()

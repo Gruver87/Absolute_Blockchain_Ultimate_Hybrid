@@ -97,6 +97,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "evm_host_restore_storage",
             "evm_plan_nested_call_effects",
             "evm_plan_nested_call_gas",
+            "evm_decode_nested_call_frame",
             "evm_deploy_address",
             "evm_create2_eip1014",
             "validate_imported_block_chain",
@@ -1210,6 +1211,84 @@ def evm_plan_nested_call_gas(
     if _REQUIRE_NATIVE:
         _require_native_kernel("evm_plan_nested_call_gas")
     return _evm_plan_nested_call_gas_py(remaining, requested, value_wei, kind)
+
+
+def _evm_decode_nested_call_frame_py(
+    op: int,
+    stack_words: list,
+    memory: Optional[bytes] = None,
+) -> dict:
+    op = int(op)
+    kind_map = {
+        0xF1: ("call", 7, True),
+        0xF2: ("callcode", 7, True),
+        0xF4: ("delegatecall", 6, False),
+        0xFA: ("staticcall", 6, False),
+    }
+    if op not in kind_map:
+        raise ValueError("op must be CALL/CALLCODE/DELEGATECALL/STATICCALL")
+    kind, consume, has_value = kind_map[op]
+    words = [int(x) for x in list(stack_words)]
+    if len(words) < consume:
+        raise ValueError("stack underflow")
+    frame = words[-consume:]
+    gas = frame[-1]
+    to_word = frame[-2]
+    if has_value:
+        value = frame[-3]
+        args_offset = frame[-4]
+        args_size = frame[-5]
+        ret_offset = frame[-6]
+        ret_size = frame[-7]
+    else:
+        value = 0
+        args_offset = frame[-3]
+        args_size = frame[-4]
+        ret_offset = frame[-5]
+        ret_size = frame[-6]
+    to_address = "0x" + format(to_word & ((1 << 160) - 1), "040x")
+    out = {
+        "op": op,
+        "kind": kind,
+        "stack_consumed": consume,
+        "gas": str(gas),
+        "to_word": str(to_word),
+        "to_address": to_address,
+        "value": str(value),
+        "args_offset": str(args_offset),
+        "args_size": str(args_size),
+        "ret_offset": str(ret_offset),
+        "ret_size": str(ret_size),
+        "delegate": kind == "delegatecall",
+        "static": kind == "staticcall",
+        "callcode": kind == "callcode",
+        "native_plan": False,
+    }
+    if memory is not None:
+        data = evm_memory_slice(bytes(memory), int(args_offset), int(args_size))
+        out["call_data_hex"] = bytes(data).hex()
+    return out
+
+
+def evm_decode_nested_call_frame(
+    op: int,
+    stack_words: list,
+    memory: Optional[bytes] = None,
+) -> dict:
+    """Decode nested CALL stack frame. Prefers abs_native."""
+    words = [str(int(x)) for x in list(stack_words)]
+    if _native is not None and hasattr(_native, "evm_decode_nested_call_frame"):
+        raw = _native.evm_decode_nested_call_frame(
+            int(op),
+            words,
+            None if memory is None else bytes(memory),
+        )
+        out = json.loads(raw) if isinstance(raw, str) else dict(raw)
+        out["native_plan"] = True
+        return out
+    if _REQUIRE_NATIVE:
+        _require_native_kernel("evm_decode_nested_call_frame")
+    return _evm_decode_nested_call_frame_py(op, stack_words, memory)
 
 
 def evm_memory_copy(memory: bytearray, dest: int, src: bytes, src_offset: int, size: int) -> None:

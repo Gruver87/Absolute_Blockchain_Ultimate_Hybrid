@@ -117,6 +117,7 @@ REQUIRED_NATIVE_SYMBOLS = [
     "evm_host_restore_storage",
     "evm_plan_nested_call_effects",
     "evm_plan_nested_call_gas",
+    "evm_decode_nested_call_frame",
     "rocks_key_account",
     "rocks_pack_u64",
     "P2PRateLimitTable",

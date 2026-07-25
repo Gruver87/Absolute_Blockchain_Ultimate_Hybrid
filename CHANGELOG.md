@@ -6,6 +6,12 @@
 
 ---
 
+## [1.3.49] — 2026-07-25
+
+### Added — nested CALL frame decode planner
+
+- Rust `evm_decode_nested_call_frame`; host bridge CALL/CALLCODE/DELEGATECALL/STATICCALL stack decode
+
 ## [1.3.48] — 2026-07-25
 
 ### Added — nested CALL gas planner

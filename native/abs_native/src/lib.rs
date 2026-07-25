@@ -1322,6 +1322,96 @@ fn evm_plan_nested_call_gas(
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
 }
 
+fn parse_stack_word(raw: &str) -> PyResult<U256> {
+    let s = raw.trim();
+    if s.is_empty() {
+        return Ok(U256::zero());
+    }
+    if let Some(hex) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
+        return U256::from_str_radix(hex, 16)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()));
+    }
+    U256::from_dec_str(s).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
+/// Decode CALL/CALLCODE/DELEGATECALL/STATICCALL stack frame (gas-on-top Absolute layout).
+#[pyfunction]
+#[pyo3(signature = (op, stack_words, memory=None))]
+fn evm_decode_nested_call_frame(
+    op: u8,
+    stack_words: Vec<String>,
+    memory: Option<Vec<u8>>,
+) -> PyResult<String> {
+    let (kind, consume, has_value) = match op {
+        0xF1 => ("call", 7usize, true),
+        0xF2 => ("callcode", 7, true),
+        0xF4 => ("delegatecall", 6, false),
+        0xFA => ("staticcall", 6, false),
+        _ => {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "op must be CALL/CALLCODE/DELEGATECALL/STATICCALL",
+            ))
+        }
+    };
+    if stack_words.len() < consume {
+        return Err(pyo3::exceptions::PyValueError::new_err("stack underflow"));
+    }
+    let start = stack_words.len() - consume;
+    let frame = &stack_words[start..];
+    // Absolute layout: top (last) = gas, then to, [value], args_off, args_size, ret_off, ret_size
+    let gas = parse_stack_word(&frame[consume - 1])?;
+    let to_word = parse_stack_word(&frame[consume - 2])?;
+    let (value, args_offset, args_size, ret_offset, ret_size) = if has_value {
+        (
+            parse_stack_word(&frame[consume - 3])?,
+            parse_stack_word(&frame[consume - 4])?,
+            parse_stack_word(&frame[consume - 5])?,
+            parse_stack_word(&frame[consume - 6])?,
+            parse_stack_word(&frame[consume - 7])?,
+        )
+    } else {
+        (
+            U256::zero(),
+            parse_stack_word(&frame[consume - 3])?,
+            parse_stack_word(&frame[consume - 4])?,
+            parse_stack_word(&frame[consume - 5])?,
+            parse_stack_word(&frame[consume - 6])?,
+        )
+    };
+    let mask = (U256::one() << 160) - U256::one();
+    let to_address = format!("0x{:040x}", to_word & mask);
+    let mut out = Map::new();
+    out.insert("op".into(), Value::Number(op.into()));
+    out.insert("kind".into(), Value::String(kind.to_string()));
+    out.insert("stack_consumed".into(), Value::Number(consume.into()));
+    out.insert("gas".into(), Value::String(gas.to_string()));
+    out.insert("to_word".into(), Value::String(to_word.to_string()));
+    out.insert("to_address".into(), Value::String(to_address));
+    out.insert("value".into(), Value::String(value.to_string()));
+    out.insert(
+        "args_offset".into(),
+        Value::String(args_offset.to_string()),
+    );
+    out.insert("args_size".into(), Value::String(args_size.to_string()));
+    out.insert(
+        "ret_offset".into(),
+        Value::String(ret_offset.to_string()),
+    );
+    out.insert("ret_size".into(), Value::String(ret_size.to_string()));
+    out.insert("delegate".into(), Value::Bool(kind == "delegatecall"));
+    out.insert("static".into(), Value::Bool(kind == "staticcall"));
+    out.insert("callcode".into(), Value::Bool(kind == "callcode"));
+    if let Some(mem) = memory {
+        let off = args_offset.low_u64() as usize;
+        let size = args_size.low_u64() as usize;
+        let data = evm_memory_slice_inner(&mem, off, size);
+        out.insert("call_data_hex".into(), Value::String(hex::encode(data)));
+    }
+    out.insert("native_plan".into(), Value::Bool(true));
+    serde_json::to_string(&Value::Object(out))
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
 pub(crate) fn evm_memory_slice_inner(memory: &[u8], offset: usize, size: usize) -> Vec<u8> {
     let mut out = vec![0u8; size];
     if offset < memory.len() {
@@ -1795,6 +1885,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_call_gas_cap, m)?)?;
     m.add_function(wrap_pyfunction!(evm_plan_nested_call_effects, m)?)?;
     m.add_function(wrap_pyfunction!(evm_plan_nested_call_gas, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_decode_nested_call_frame, m)?)?;
     m.add_function(wrap_pyfunction!(evm_memory_slice, m)?)?;
     m.add_function(wrap_pyfunction!(evm_stack_dup, m)?)?;
     m.add_function(wrap_pyfunction!(evm_stack_swap, m)?)?;

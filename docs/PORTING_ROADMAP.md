@@ -270,6 +270,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `evm_plan_nested_call_gas` — EIP-150 + 2300 stipend
 - [x] `evm_interpreter._execute_call` uses planner for forwarded gas
+- Remaining: see Priority 21
+
+### Priority 21 — Nested CALL frame decode ✅ (v1.3.49)
+
+- [x] `evm_decode_nested_call_frame` — pure CALL stack-frame decode (kind + fields)
+- [x] `evm_host_bridge.apply_host_op` CALL branch uses decoder then `_execute_call`
 - Remaining: nested bytecode execution inside Rust (optional / large)
 
 ## Process per module

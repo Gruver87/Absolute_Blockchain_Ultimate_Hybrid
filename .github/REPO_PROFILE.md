@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.48` — nested CALL gas planner |
-| **Notes** | [RELEASE_NOTES_v1.3.48.md](../RELEASE_NOTES_v1.3.48.md) |
-| **Prior** | [v1.3.47](../RELEASE_NOTES_v1.3.47.md) CALL effects; [v1.3.46](../RELEASE_NOTES_v1.3.46.md) mixed apply |
+| **Tag** | `v1.3.49` — nested CALL frame decode |
+| **Notes** | [RELEASE_NOTES_v1.3.49.md](../RELEASE_NOTES_v1.3.49.md) |
+| **Prior** | [v1.3.48](../RELEASE_NOTES_v1.3.48.md) CALL gas; [v1.3.47](../RELEASE_NOTES_v1.3.47.md) CALL effects |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |
