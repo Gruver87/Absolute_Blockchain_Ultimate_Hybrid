@@ -490,7 +490,7 @@ pub(crate) fn verify_status_head_hash_semantics_inner(data: &Value) -> Result<()
     Ok(())
 }
 
-/// v1.3.129: soft height↔head binding for status (not tip existence proof).
+/// v1.3.128: soft height↔head binding for status (not tip existence proof).
 /// If height > 0, head_hash must be a non-empty 32-byte digest.
 pub(crate) fn verify_status_height_head_binding_inner(data: &Value) -> Result<(), String> {
     if data.is_null() || !data.is_object() {
@@ -508,7 +508,7 @@ pub(crate) fn verify_status_height_head_binding_inner(data: &Value) -> Result<()
     verify_status_head_hash_semantics_inner(data)
 }
 
-/// v1.3.129: handshake head_hash digest + soft height binding (rejection ack exempt).
+/// v1.3.128: handshake head_hash digest + soft height binding (rejection ack exempt).
 pub(crate) fn verify_handshake_head_semantics_inner(data: &Value) -> Result<(), String> {
     let Some((_chain_id, height, head_hash, _node_id, _p2p_port, accepted)) =
         validate_handshake_inner(data)

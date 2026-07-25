@@ -735,6 +735,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Handshake + status soft height↔head (height>0 ⇒ digest head)
 - Remaining: tip proof / DHT / libp2p / anti-Sybil / full sync ownership (not claimed)
 
+### Priority 84 — Outbound state_root height honesty ✅ (v1.3.129)
+
+- [x] `_state_root_response_for_height` — tip live vs historical header; ahead/missing refuse
+- [x] Unsolicited `state_root_response` no longer inflates `peer.height`
+- Remaining: tip proof / root-belongs-to-head crypto / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

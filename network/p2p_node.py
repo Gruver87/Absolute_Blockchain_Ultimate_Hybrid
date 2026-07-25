@@ -1201,6 +1201,7 @@ class P2PNode:
         self._blocks_response_semantic_rejects_total: int = 0
         self._block_response_semantic_rejects_total: int = 0
         self._state_root_response_request_rejects_total: int = 0
+        self._state_root_outbound_refuse_total: int = 0
         self._discovery_dial_rejects_total: int = 0
         self._handshake_head_rejects_total: int = 0
         self._status_height_head_rejects_total: int = 0
@@ -1440,7 +1441,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.128)"
+                    f"({label} v1.3.129)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -2568,21 +2569,23 @@ class P2PNode:
             if req_h is None:
                 self._strike_peer_sync(peer, "bad_state_root_request")
                 return
-            height = req_h if req_h > 0 else self.blockchain.get_height()
-            await peer.send(MSG_STATE_ROOT_RESPONSE, {
-                "height": height,
-                "state_root": self.blockchain.get_state_root(),
-                "head_hash": self.head() or "",
-            })
+            # v1.3.129: never label tip root/head as a non-tip height.
+            payload = self._state_root_response_for_height(int(req_h))
+            if payload is None:
+                self._state_root_outbound_refuse_total = int(
+                    self._state_root_outbound_refuse_total or 0
+                ) + 1
+                return
+            await peer.send(MSG_STATE_ROOT_RESPONSE, payload)
 
         elif msg_type == MSG_STATE_ROOT_RESPONSE:
             resp = native.validate_p2p_state_root_response(data)
             if not resp:
                 self._strike_peer_sync(peer, "bad_state_root_response")
                 return
+            # v1.3.129: height ownership stays handshake/status/new_block —
+            # unsolicited state_root_response must not inflate peer.height.
             peer_h = int(resp.get("height", 0) or 0)
-            if peer_h:
-                peer.height = max(int(peer.height or 0), peer_h)
             if waiter is None:
                 peer_root = resp.get("state_root", "")
                 local_root = self.blockchain.get_state_root()
@@ -3466,6 +3469,35 @@ class P2PNode:
         except Exception as exc:
             return {"ok": False, "error": str(exc), "after": self.peer_count()}
 
+    def _state_root_response_for_height(self, req_h: int) -> Optional[Dict]:
+        """v1.3.129: build honest state_root_response for a requested height.
+
+        Tip → live root + head. Historical → block header root/hash.
+        Ahead of tip / missing incomplete headers → None (refuse, never mislabel tip).
+        """
+        tip = int(self.blockchain.get_height() or 0)
+        height = tip if int(req_h) <= 0 else int(req_h)
+        if height > tip:
+            return None
+        if height == tip:
+            return {
+                "height": tip,
+                "state_root": self.blockchain.get_state_root(),
+                "head_hash": self.head() or "",
+            }
+        blk = self.blockchain.get_block(height)
+        if not isinstance(blk, dict):
+            return None
+        root = str(blk.get("state_root") or "").strip()
+        head = str(blk.get("hash") or blk.get("block_hash") or "").strip()
+        if not root or not head:
+            return None
+        return {
+            "height": height,
+            "state_root": root,
+            "head_hash": head,
+        }
+
     async def request_peer_state_root(self, peer: PeerConnection, height: int = None) -> Optional[Dict]:
         """Request state_root at height from a single peer."""
         h = height if height is not None else self.blockchain.get_height()
@@ -4228,6 +4260,7 @@ class P2PNode:
             "native_blocks_response_semantic_gate": True,
             "native_block_response_semantic_gate": True,
             "native_state_root_response_request_gate": True,
+            "native_state_root_outbound_honesty": True,
             "native_discovery_dialability_gate": True,
             "native_handshake_head_semantic_gate": True,
             "native_status_height_head_gate": True,
@@ -4254,6 +4287,9 @@ class P2PNode:
             ),
             "state_root_response_request_rejects_total": int(
                 getattr(self, "_state_root_response_request_rejects_total", 0) or 0
+            ),
+            "state_root_outbound_refuse_total": int(
+                getattr(self, "_state_root_outbound_refuse_total", 0) or 0
             ),
             "discovery_dial_rejects_total": int(
                 getattr(self, "_discovery_dial_rejects_total", 0) or 0

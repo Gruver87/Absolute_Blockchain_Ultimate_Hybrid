@@ -715,6 +715,18 @@ class MetricsCollector:
                     f"abs_p2p_state_root_response_request_rejects_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('state_root_response_request_rejects_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_state_root_outbound_honesty Whether outbound state_root height honesty is active (0/1)",
+                "# TYPE abs_p2p_native_state_root_outbound_honesty gauge",
+                (
+                    f"abs_p2p_native_state_root_outbound_honesty{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_state_root_outbound_honesty') else 0}"
+                ),
+                "# HELP abs_p2p_state_root_outbound_refuse_total Outbound state_root_request refused (ahead/missing)",
+                "# TYPE abs_p2p_state_root_outbound_refuse_total counter",
+                (
+                    f"abs_p2p_state_root_outbound_refuse_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('state_root_outbound_refuse_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_discovery_dialability_gate Whether discovery dialability gate is active (0/1)",
                 "# TYPE abs_p2p_native_discovery_dialability_gate gauge",
                 (

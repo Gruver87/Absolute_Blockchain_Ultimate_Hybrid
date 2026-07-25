@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.129] — 2026-07-25
+
+### P2P — outbound state_root height honesty
+
+- Historical state_root probes return that block’s root/hash (never mislabeled tip)
+- Ahead/missing requests refused; unsolicited responses cannot inflate peer.height
+- Honesty: not tip proof / fork-choice / libp2p / mainnet
+
 ## [1.3.128] — 2026-07-25
 
 ### P2P — discovery dialability + soft height↔head binding

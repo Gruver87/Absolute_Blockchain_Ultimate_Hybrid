@@ -36,8 +36,9 @@
 //! v1.3.125: request-bound blocks response semantics (waiter correlation; not full sync ownership).
 //! v1.3.126: request-bound singular block response hash correlation (not tip proof).
 //! v1.3.127: request-bound state_root_response height correlation (not root-belongs-to-head).
-//! v1.3.128: discovery dialability (private spray blocked unless allow_private).
-//! v1.3.129: handshake/status soft height↔head binding (not tip proof).
+//! v1.3.128: discovery dialability (private spray blocked unless allow_private) +
+//!           handshake/status soft height↔head binding (not tip proof).
+//! v1.3.129: outbound state_root_response height honesty (not tip proof).
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 

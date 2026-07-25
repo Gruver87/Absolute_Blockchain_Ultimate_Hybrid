@@ -3227,7 +3227,7 @@ def verify_p2p_state_root_response_request_semantics(
 
 
 def verify_p2p_status_height_head_binding(data: Any) -> Optional[str]:
-    """v1.3.129: soft status height↔head binding (height>0 requires digest head)."""
+    """v1.3.128: soft status height↔head binding (height>0 requires digest head)."""
     payload = (
         json.dumps(data, separators=(",", ":"), ensure_ascii=False)
         if not isinstance(data, str)
@@ -3240,7 +3240,7 @@ def verify_p2p_status_height_head_binding(data: Any) -> Optional[str]:
 
 
 def verify_p2p_handshake_head_semantics(data: Any) -> Optional[str]:
-    """v1.3.129: handshake head digest + soft height binding."""
+    """v1.3.128: handshake head digest + soft height binding."""
     payload = (
         json.dumps(data, separators=(",", ":"), ensure_ascii=False)
         if not isinstance(data, str)

@@ -13,7 +13,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from crypto import native
-from runtime.config import Config
 
 
 DIGEST = "aa" * 32
@@ -38,7 +37,7 @@ def test_needles_v13128():
     assert "verify_p2p_status_height_head_binding" in p2p
     notes = (ROOT / "RELEASE_NOTES_v1.3.128.md").read_text(encoding="utf-8")
     assert "1.3.128-industrial" in notes
-    assert Config().node_version == "1.3.128-industrial"
+    # Live Config().node_version advances with later waves; pin notes not config.
     assert "p2p_discovery_allow_private" in (
         ROOT / "runtime" / "config.py"
     ).read_text(encoding="utf-8")

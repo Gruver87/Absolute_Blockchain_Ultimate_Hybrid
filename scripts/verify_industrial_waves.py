@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.128 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.129 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -89,6 +89,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13126_p2p_block_response_semantic_gate.py",
     "tests/unit/test_v13127_p2p_state_root_response_request_gate.py",
     "tests/unit/test_v13128_p2p_discovery_and_head_binding.py",
+    "tests/unit/test_v13129_p2p_state_root_outbound_honesty.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1399,6 +1400,28 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_native_status_height_head_gate",
         ],
     ),
+    (
+        "1.3.129",
+        "RELEASE_NOTES_v1.3.129.md",
+        ["1.3.129-industrial", "outbound"],
+    ),
+    (
+        "1.3.129",
+        "network/p2p_node.py",
+        [
+            "_state_root_response_for_height",
+            "state_root_outbound_refuse_total",
+            "must not inflate peer.height",
+        ],
+    ),
+    (
+        "1.3.129",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_state_root_outbound_honesty",
+            "abs_p2p_state_root_outbound_refuse_total",
+        ],
+    ),
 ]
 
 
@@ -1426,8 +1449,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.128"):
-            errors.append(f"node_version expected 1.3.128-*, got {ver}")
+        if not ver.startswith("1.3.129"):
+            errors.append(f"node_version expected 1.3.129-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors
