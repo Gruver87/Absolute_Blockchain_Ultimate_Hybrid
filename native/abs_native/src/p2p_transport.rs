@@ -1,4 +1,4 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.104).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.105).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
 //! v1.3.92: `read_message` fuses framed read + wire parse.
@@ -14,13 +14,14 @@
 //! v1.3.102: configurable socket I/O timeout (set_timeout_ms + clamp).
 //! v1.3.103: mid-session handshake reject once session_established.
 //! v1.3.104: status payload gate on read (parity with Python).
+//! v1.3.105: attestation shape gate on read (parity with Python).
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
 use crate::p2p_frame::P2PLineFramer;
 use crate::p2p_wire::{
     clamp_max_bytes, encode_p2p_wire_message_inner, parse_p2p_wire_line_inner,
-    validate_status_inner, DEFAULT_MAX_P2P_LINE_BYTES,
+    validate_attestation_shape_inner, validate_status_inner, DEFAULT_MAX_P2P_LINE_BYTES,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
@@ -70,6 +71,9 @@ fn wire_fail_reason(err: &str) -> String {
         return err.to_string();
     }
     if err.starts_with("bad_") && err.ends_with("_payload") {
+        return err.to_string();
+    }
+    if err == "bad_attestation_shape" {
         return err.to_string();
     }
     if err.starts_with("p2p_line_too_large") {
@@ -139,6 +143,17 @@ fn check_status_payload(msg_type: &str, data: &serde_json::Value) -> Result<(), 
     }
     if validate_status_inner(data).is_none() {
         return Err("bad_status_payload".to_string());
+    }
+    Ok(())
+}
+
+/// v1.3.105: parity with Python attestation shape gate (fail-closed).
+fn check_attestation_payload(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+    if msg_type != "attestation" {
+        return Ok(());
+    }
+    if !validate_attestation_shape_inner(data) {
+        return Err("bad_attestation_shape".to_string());
     }
     Ok(())
 }
@@ -859,6 +874,7 @@ impl P2PNativeConn {
     /// v1.3.100: housekeeping payload gate before auto-keepalive / return.
     /// v1.3.103: mid-session handshake reject when `session_established`.
     /// v1.3.104: status payload gate (bad dict → `bad_status_payload`).
+    /// v1.3.105: attestation shape gate (`bad_attestation_shape`).
     #[pyo3(signature = (chunk_sz=65536, allowed_types=None, auto_pong=false))]
     fn read_message(
         &mut self,
@@ -877,6 +893,7 @@ impl P2PNativeConn {
                     Some((msg_type, data, nbytes)) => {
                         check_mid_session_handshake(self.session_established, &msg_type)?;
                         check_status_payload(&msg_type, &data)?;
+                        check_attestation_payload(&msg_type, &data)?;
                         // Early reject get_* always; ping/pong gated inside auto_pong path.
                         if msg_type == "get_mempool" || msg_type == "get_peers" {
                             check_housekeeping(&msg_type, &data)?;
@@ -938,6 +955,7 @@ impl P2PNativeConn {
     /// v1.3.100: housekeeping payload gate before auto-keepalive / return.
     /// v1.3.103: mid-session handshake reject when `session_established`.
     /// v1.3.104: status payload gate (bad dict → `bad_status_payload`).
+    /// v1.3.105: attestation shape gate (`bad_attestation_shape`).
     ///
     /// `{ok:true, messages:[{type,data,nbytes},...], eof:bool, auto_pongs, keepalive_touches}` |
     /// `{ok:false, reason, messages:[...], eof:false, ...}`.
@@ -973,6 +991,10 @@ impl P2PNativeConn {
                             break;
                         }
                         if let Err(reason) = check_status_payload(&msg_type, &data) {
+                            err = Some(reason);
+                            break;
+                        }
+                        if let Err(reason) = check_attestation_payload(&msg_type, &data) {
                             err = Some(reason);
                             break;
                         }
@@ -1669,5 +1691,25 @@ mod tests {
             "bad_status_payload"
         );
         assert!(check_status_payload("ping", &serde_json::json!({"height": -1})).is_ok());
+    }
+
+    #[test]
+    fn attestation_payload_gate_parity() {
+        assert_eq!(
+            check_attestation_payload("attestation", &serde_json::json!(null)).unwrap_err(),
+            "bad_attestation_shape"
+        );
+        assert_eq!(
+            check_attestation_payload("attestation", &serde_json::json!({})).unwrap_err(),
+            "bad_attestation_shape"
+        );
+        let good = serde_json::json!({
+            "validator": "abs-1",
+            "target_hash": "aa",
+            "signature": "ab",
+            "public_key": "cd"
+        });
+        assert!(check_attestation_payload("attestation", &good).is_ok());
+        assert!(check_attestation_payload("status", &serde_json::json!({})).is_ok());
     }
 }

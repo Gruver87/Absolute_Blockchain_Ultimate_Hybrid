@@ -213,7 +213,7 @@ pub(crate) fn validate_status_inner(data: &Value) -> Option<(i64, String)> {
     Some((height, head_hash))
 }
 
-fn validate_attestation_shape_inner(data: &Value) -> bool {
+pub(crate) fn validate_attestation_shape_inner(data: &Value) -> bool {
     let Some(obj) = data.as_object() else {
         return false;
     };

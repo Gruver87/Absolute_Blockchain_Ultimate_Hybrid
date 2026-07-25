@@ -535,6 +535,12 @@ class MetricsCollector:
                     f"abs_p2p_native_status_gate{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_status_gate') else 0}"
                 ),
+                "# HELP abs_p2p_native_attestation_gate Whether native attestation shape gate is active (0/1)",
+                "# TYPE abs_p2p_native_attestation_gate gauge",
+                (
+                    f"abs_p2p_native_attestation_gate{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_attestation_gate') else 0}"
+                ),
                 "# HELP abs_p2p_native_read_batch Configured native read_messages batch size",
                 "# TYPE abs_p2p_native_read_batch gauge",
                 (

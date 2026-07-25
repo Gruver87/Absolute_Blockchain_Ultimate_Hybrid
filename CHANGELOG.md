@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.105] — 2026-07-25
+
+### P2P — native attestation shape gate
+
+- Fail-closed attestation shape check on native read (`bad_attestation_shape`)
+- Signature verify remains Python
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.104] — 2026-07-25
 
 ### P2P — native status payload gate

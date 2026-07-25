@@ -454,6 +454,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.102: Native I/O timeout config (Priority 57)
 - [x] v1.3.103: Native mid-session handshake gate (Priority 58)
 - [x] v1.3.104: Native status payload gate (Priority 59)
+- [x] v1.3.105: Native attestation shape gate (Priority 60)
 
 ### Priority 39 — P2P Rust ingress data plane ✅ (v1.3.77–v1.3.78)
 
@@ -575,6 +576,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `check_status_payload` via `validate_status_inner` on native read
 - [x] Null keepalive allowed; bad dict → `bad_status_payload`
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
+### Priority 60 — Native attestation shape gate ✅ (v1.3.105)
+
+- [x] `check_attestation_payload` via `validate_attestation_shape_inner`
+- [x] Bad shape → `bad_attestation_shape` before Python sig verify
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
 ## Process per module
