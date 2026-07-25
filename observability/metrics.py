@@ -529,6 +529,12 @@ class MetricsCollector:
                     f"abs_p2p_native_housekeeping_gate{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_housekeeping_gate') else 0}"
                 ),
+                "# HELP abs_p2p_native_status_gate Whether native status payload gate is active (0/1)",
+                "# TYPE abs_p2p_native_status_gate gauge",
+                (
+                    f"abs_p2p_native_status_gate{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_status_gate') else 0}"
+                ),
                 "# HELP abs_p2p_native_read_batch Configured native read_messages batch size",
                 "# TYPE abs_p2p_native_read_batch gauge",
                 (

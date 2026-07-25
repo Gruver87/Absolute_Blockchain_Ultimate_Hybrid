@@ -1,4 +1,4 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.103).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.104).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
 //! v1.3.92: `read_message` fuses framed read + wire parse.
@@ -13,13 +13,14 @@
 //! v1.3.101: clamp helpers for configurable batch/chunk sizes.
 //! v1.3.102: configurable socket I/O timeout (set_timeout_ms + clamp).
 //! v1.3.103: mid-session handshake reject once session_established.
+//! v1.3.104: status payload gate on read (parity with Python).
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
 use crate::p2p_frame::P2PLineFramer;
 use crate::p2p_wire::{
     clamp_max_bytes, encode_p2p_wire_message_inner, parse_p2p_wire_line_inner,
-    DEFAULT_MAX_P2P_LINE_BYTES,
+    validate_status_inner, DEFAULT_MAX_P2P_LINE_BYTES,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
@@ -120,6 +121,24 @@ fn check_housekeeping(msg_type: &str, data: &serde_json::Value) -> Result<(), St
 fn check_mid_session_handshake(session_established: bool, msg_type: &str) -> Result<(), String> {
     if session_established && (msg_type == "handshake" || msg_type == "handshake_ack") {
         return Err("mid_session_handshake".to_string());
+    }
+    Ok(())
+}
+
+/// v1.3.104: parity with Python status shape gate (null ok; bad dict → reject).
+fn check_status_payload(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+    if msg_type != "status" {
+        return Ok(());
+    }
+    if data.is_null() {
+        return Ok(());
+    }
+    // Python only strikes when data is a dict that fails validate_p2p_status_payload.
+    if !data.is_object() {
+        return Ok(());
+    }
+    if validate_status_inner(data).is_none() {
+        return Err("bad_status_payload".to_string());
     }
     Ok(())
 }
@@ -839,6 +858,7 @@ impl P2PNativeConn {
     /// v1.3.99: also consumes inbound pong; empty keepalive → synthetic pong.
     /// v1.3.100: housekeeping payload gate before auto-keepalive / return.
     /// v1.3.103: mid-session handshake reject when `session_established`.
+    /// v1.3.104: status payload gate (bad dict → `bad_status_payload`).
     #[pyo3(signature = (chunk_sz=65536, allowed_types=None, auto_pong=false))]
     fn read_message(
         &mut self,
@@ -856,6 +876,7 @@ impl P2PNativeConn {
                     None => return Ok(None),
                     Some((msg_type, data, nbytes)) => {
                         check_mid_session_handshake(self.session_established, &msg_type)?;
+                        check_status_payload(&msg_type, &data)?;
                         // Early reject get_* always; ping/pong gated inside auto_pong path.
                         if msg_type == "get_mempool" || msg_type == "get_peers" {
                             check_housekeeping(&msg_type, &data)?;
@@ -916,6 +937,7 @@ impl P2PNativeConn {
     /// v1.3.99: also consumes inbound pong; reports `keepalive_touches`.
     /// v1.3.100: housekeeping payload gate before auto-keepalive / return.
     /// v1.3.103: mid-session handshake reject when `session_established`.
+    /// v1.3.104: status payload gate (bad dict → `bad_status_payload`).
     ///
     /// `{ok:true, messages:[{type,data,nbytes},...], eof:bool, auto_pongs, keepalive_touches}` |
     /// `{ok:false, reason, messages:[...], eof:false, ...}`.
@@ -947,6 +969,10 @@ impl P2PNativeConn {
                         if let Err(reason) =
                             check_mid_session_handshake(self.session_established, &msg_type)
                         {
+                            err = Some(reason);
+                            break;
+                        }
+                        if let Err(reason) = check_status_payload(&msg_type, &data) {
                             err = Some(reason);
                             break;
                         }
@@ -1621,5 +1647,27 @@ mod tests {
             check_mid_session_handshake(true, "handshake_ack").unwrap_err(),
             "mid_session_handshake"
         );
+    }
+
+    #[test]
+    fn status_payload_gate_parity() {
+        assert!(check_status_payload("status", &serde_json::json!(null)).is_ok());
+        assert!(check_status_payload("status", &serde_json::json!({})).is_ok());
+        assert!(check_status_payload(
+            "status",
+            &serde_json::json!({"height": 1, "head_hash": "ab"})
+        )
+        .is_ok());
+        // Non-dict non-null: Python does not strike
+        assert!(check_status_payload("status", &serde_json::json!([1, 2])).is_ok());
+        assert_eq!(
+            check_status_payload(
+                "status",
+                &serde_json::json!({"height": -1, "head_hash": "x"})
+            )
+            .unwrap_err(),
+            "bad_status_payload"
+        );
+        assert!(check_status_payload("ping", &serde_json::json!({"height": -1})).is_ok());
     }
 }

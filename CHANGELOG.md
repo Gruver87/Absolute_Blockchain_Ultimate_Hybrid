@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.104] — 2026-07-25
+
+### P2P — native status payload gate
+
+- Fail-closed `status` shape check on native read (`bad_status_payload`)
+- Null status keepalives still allowed (Python parity)
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.103] — 2026-07-25
 
 ### P2P — native mid-session handshake gate

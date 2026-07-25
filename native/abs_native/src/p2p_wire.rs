@@ -195,7 +195,7 @@ fn is_hex(s: &str) -> bool {
     !s.is_empty() && s.len().is_multiple_of(2) && s.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
-fn validate_status_inner(data: &Value) -> Option<(i64, String)> {
+pub(crate) fn validate_status_inner(data: &Value) -> Option<(i64, String)> {
     let obj = data.as_object()?;
     let height = obj.get("height").and_then(json_i64).unwrap_or(0);
     if !(0..=MAX_P2P_HEIGHT).contains(&height) {
