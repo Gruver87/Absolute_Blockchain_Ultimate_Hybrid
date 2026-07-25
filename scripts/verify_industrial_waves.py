@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.135 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.136 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -96,6 +96,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13133_p2p_bootstrap_pins.py",
     "tests/unit/test_v13134_p2p_new_block_height_cap.py",
     "tests/unit/test_v13135_p2p_tip_ownership_and_local_root.py",
+    "tests/unit/test_v13136_p2p_attestation_slot_ahead.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1594,6 +1595,33 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_native_status_capped_head_refuse",
         ],
     ),
+    (
+        "1.3.136",
+        "RELEASE_NOTES_v1.3.136.md",
+        ["1.3.136-industrial", "attestation"],
+    ),
+    (
+        "1.3.136",
+        "network/p2p_node.py",
+        [
+            "_attestation_ahead_reject_reason",
+            "attestation_slot_ahead",
+            "native_attestation_slot_ahead",
+        ],
+    ),
+    (
+        "1.3.136",
+        "runtime/config.py",
+        ["p2p_max_attestation_slot_ahead"],
+    ),
+    (
+        "1.3.136",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_attestation_slot_ahead",
+            "abs_p2p_attestation_slot_ahead_rejects_total",
+        ],
+    ),
 ]
 
 
@@ -1621,8 +1649,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.135"):
-            errors.append(f"node_version expected 1.3.135-*, got {ver}")
+        if not ver.startswith("1.3.136"):
+            errors.append(f"node_version expected 1.3.136-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

@@ -793,6 +793,18 @@ class MetricsCollector:
                     f"abs_p2p_state_root_local_rejects_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('state_root_local_rejects_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_attestation_slot_ahead Whether attestation slot/height ahead gate is active (0/1)",
+                "# TYPE abs_p2p_native_attestation_slot_ahead gauge",
+                (
+                    f"abs_p2p_native_attestation_slot_ahead{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_attestation_slot_ahead') else 0}"
+                ),
+                "# HELP abs_p2p_attestation_slot_ahead_rejects_total Attestations refused for slot/target_height above local window",
+                "# TYPE abs_p2p_attestation_slot_ahead_rejects_total counter",
+                (
+                    f"abs_p2p_attestation_slot_ahead_rejects_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('attestation_slot_ahead_rejects_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_bootstrap_resilient Whether missing-bootstrap redial is active (0/1)",
                 "# TYPE abs_p2p_native_bootstrap_resilient gauge",
                 (

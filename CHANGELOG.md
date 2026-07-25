@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.136] — 2026-07-26
+
+### P2P — soft attestation slot-ahead ownership gate
+
+- Far-ahead attestations refused before LMD apply/relay
+- `p2p_max_attestation_slot_ahead` (default matches height ahead window)
+- Honesty: not attestation↔head crypto / tip proof / libp2p / mainnet
+
 ## [1.3.135] — 2026-07-26
 
 ### P2P — local state_root consistency + tip ownership completion

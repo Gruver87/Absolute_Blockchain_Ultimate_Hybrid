@@ -74,7 +74,7 @@ def test_needles_v13135():
     assert "_cap_claimed_peer_height" in p2p
     notes = (ROOT / "RELEASE_NOTES_v1.3.135.md").read_text(encoding="utf-8")
     assert "1.3.135-industrial" in notes
-    assert Config().node_version == "1.3.135-industrial"
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_handshake_height_cap" in metrics
     assert "abs_p2p_state_root_local_rejects_total" in metrics

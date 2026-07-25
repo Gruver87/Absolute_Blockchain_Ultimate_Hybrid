@@ -1212,6 +1212,7 @@ class P2PNode:
         self._new_block_height_cap_total: int = 0
         self._handshake_height_cap_total: int = 0
         self._state_root_local_rejects_total: int = 0
+        self._attestation_slot_ahead_rejects_total: int = 0
         self._bootstrap_redial_total: int = 0
         self._bootstrap_pin_rejects_total: int = 0
         self._handshake_rejects: int = 0
@@ -1450,7 +1451,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.135)"
+                    f"({label} v1.3.136)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -2768,6 +2769,14 @@ class P2PNode:
             )
             self._strike_peer_sync(peer, "bad_attestation_sig")
             return
+        # v1.3.136: soft slot/target_height ahead vs local tip — stop LMD pollution / relay DoS.
+        ahead_reason = self._attestation_ahead_reject_reason(data)
+        if ahead_reason:
+            self._attestation_slot_ahead_rejects_total = int(
+                self._attestation_slot_ahead_rejects_total or 0
+            ) + 1
+            self._strike_peer_sync(peer, ahead_reason)
+            return
         validator = data.get("validator", "")
         block_hash = data.get("target_hash", "")
         if not validator or not block_hash:
@@ -2778,6 +2787,46 @@ class P2PNode:
         if consensus and hasattr(consensus, "attest"):
             if consensus.attest(validator, block_hash, slot=slot):
                 await self._relay_attestation(data, exclude_peer=peer.peer_id)
+
+    def _local_attestation_anchor(self) -> int:
+        """Local tip/slot used as soft attestation ahead reference."""
+        local = int(self.blockchain.get_height() or 0)
+        consensus = self._consensus
+        if consensus is not None:
+            eng = getattr(consensus, "engine", None)
+            if eng is not None:
+                try:
+                    local = max(local, int(getattr(eng, "current_slot", 0) or 0))
+                except (TypeError, ValueError):
+                    pass
+        return local
+
+    def _attestation_ahead_reject_reason(self, data: Dict) -> str:
+        """Empty if within window; else strike reason for far-ahead attestation."""
+        max_ahead = int(
+            getattr(self.config, "p2p_max_attestation_slot_ahead", 0) or 0
+        )
+        if max_ahead <= 0:
+            max_ahead = int(
+                getattr(self.config, "p2p_max_peer_height_ahead", 100_000) or 100_000
+            )
+        if max_ahead <= 0:
+            return ""
+        ceiling = self._local_attestation_anchor() + max_ahead
+        for key, reason in (
+            ("slot", "attestation_slot_ahead"),
+            ("target_height", "attestation_height_ahead"),
+        ):
+            raw = data.get(key) if isinstance(data, dict) else None
+            if raw is None:
+                continue
+            try:
+                value = int(raw)
+            except (TypeError, ValueError):
+                continue
+            if value > ceiling:
+                return reason
+        return ""
 
     async def _relay_attestation(self, attestation: Dict, exclude_peer: str = ""):
         tasks = []
@@ -4505,6 +4554,7 @@ class P2PNode:
             "native_new_block_height_cap": True,
             "native_handshake_height_cap": True,
             "native_status_capped_head_refuse": True,
+            "native_attestation_slot_ahead": True,
             "native_bootstrap_resilient": True,
             "native_bootstrap_pin_gate": True,
             "native_discovery_dialability_gate": True,
@@ -4560,6 +4610,9 @@ class P2PNode:
             ),
             "state_root_local_rejects_total": int(
                 getattr(self, "_state_root_local_rejects_total", 0) or 0
+            ),
+            "attestation_slot_ahead_rejects_total": int(
+                getattr(self, "_attestation_slot_ahead_rejects_total", 0) or 0
             ),
             "bootstrap_redial_total": int(
                 getattr(self, "_bootstrap_redial_total", 0) or 0

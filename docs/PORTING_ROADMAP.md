@@ -778,6 +778,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Shared `_cap_claimed_peer_height`
 - Remaining: merkle tip proof / fork-choice / libp2p / ceremony (not claimed)
 
+### Priority 91 — Soft attestation slot-ahead ownership gate ✅ (v1.3.136)
+
+- [x] Refuse `MSG_ATTESTATION` when slot/target_height > local tip/slot + max_ahead
+- [x] No LMD apply / relay on far-ahead votes (`p2p_max_attestation_slot_ahead`)
+- Remaining: attestation↔head crypto binding / tip proof / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
