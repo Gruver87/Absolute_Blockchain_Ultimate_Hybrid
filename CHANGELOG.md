@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.111] — 2026-07-25
+
+### P2P — native state-root shape gates
+
+- Fail-closed `state_root_request` / `state_root_response` on native read
+- Strike reasons: `bad_state_root_request` / `bad_state_root_response`
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.110] — 2026-07-25
 
 ### P2P — native peer discovery shape gates

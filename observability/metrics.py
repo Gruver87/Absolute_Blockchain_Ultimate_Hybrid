@@ -571,6 +571,12 @@ class MetricsCollector:
                     f"abs_p2p_native_peer_discovery_gate{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_peer_discovery_gate') else 0}"
                 ),
+                "# HELP abs_p2p_native_state_root_gate Whether native state_root request/response gates are active (0/1)",
+                "# TYPE abs_p2p_native_state_root_gate gauge",
+                (
+                    f"abs_p2p_native_state_root_gate{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_state_root_gate') else 0}"
+                ),
                 "# HELP abs_p2p_native_read_batch Configured native read_messages batch size",
                 "# TYPE abs_p2p_native_read_batch gauge",
                 (

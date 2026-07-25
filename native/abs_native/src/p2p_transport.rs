@@ -1,4 +1,4 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.110).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.111).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
 //! v1.3.92: `read_message` fuses framed read + wire parse.
@@ -20,6 +20,7 @@
 //! v1.3.108: new_tx / mempool shape gates on read (parity with Python).
 //! v1.3.109: singular `block` payload gate on read (null = not-found).
 //! v1.3.110: peers / validator_register shape gates on read.
+//! v1.3.111: state_root_request / state_root_response shape gates on read.
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -28,8 +29,9 @@ use crate::p2p_wire::{
     clamp_max_bytes, encode_p2p_wire_message_inner, parse_p2p_wire_line_inner,
     validate_attestation_shape_inner, validate_block_announce_inner, validate_blocks_batch_inner,
     validate_get_block_by_hash_inner, validate_get_block_inner, validate_get_blocks_inner,
-    validate_mempool_batch_inner, validate_peers_list_inner, validate_status_inner,
-    validate_validator_register_inner, validate_wire_tx_inner, DEFAULT_MAX_P2P_LINE_BYTES,
+    validate_mempool_batch_inner, validate_peers_list_inner, validate_state_root_request_inner,
+    validate_state_root_response_inner, validate_status_inner, validate_validator_register_inner,
+    validate_wire_tx_inner, DEFAULT_MAX_P2P_LINE_BYTES,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
@@ -277,7 +279,32 @@ fn check_validator_register_payload(msg_type: &str, data: &serde_json::Value) ->
     Ok(())
 }
 
-/// Run all fail-closed ingress shape gates (status…validator_register). Still not full dispatch.
+/// v1.3.111: parity with Python `state_root_request` gate (fail-closed).
+fn check_state_root_request_payload(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+    if msg_type != "state_root_request" {
+        return Ok(());
+    }
+    if validate_state_root_request_inner(data).is_none() {
+        return Err("bad_state_root_request".to_string());
+    }
+    Ok(())
+}
+
+/// v1.3.111: parity with Python `state_root_response` gate (fail-closed).
+fn check_state_root_response_payload(
+    msg_type: &str,
+    data: &serde_json::Value,
+) -> Result<(), String> {
+    if msg_type != "state_root_response" {
+        return Ok(());
+    }
+    if validate_state_root_response_inner(data).is_none() {
+        return Err("bad_state_root_response".to_string());
+    }
+    Ok(())
+}
+
+/// Run all fail-closed ingress shape gates (status…state_root). Still not full dispatch.
 fn check_ingress_shape_gates(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
     check_status_payload(msg_type, data)?;
     check_attestation_payload(msg_type, data)?;
@@ -291,6 +318,8 @@ fn check_ingress_shape_gates(msg_type: &str, data: &serde_json::Value) -> Result
     check_block_payload(msg_type, data)?;
     check_peers_list_payload(msg_type, data)?;
     check_validator_register_payload(msg_type, data)?;
+    check_state_root_request_payload(msg_type, data)?;
+    check_state_root_response_payload(msg_type, data)?;
     Ok(())
 }
 
@@ -1016,6 +1045,7 @@ impl P2PNativeConn {
     /// v1.3.108: new_tx / mempool shape gates.
     /// v1.3.109: singular `block` payload gate (null = not-found).
     /// v1.3.110: peers / validator_register shape gates.
+    /// v1.3.111: state_root_request / state_root_response shape gates.
     #[pyo3(signature = (chunk_sz=65536, allowed_types=None, auto_pong=false))]
     fn read_message(
         &mut self,
@@ -1101,6 +1131,7 @@ impl P2PNativeConn {
     /// v1.3.108: new_tx / mempool shape gates.
     /// v1.3.109: singular `block` payload gate (null = not-found).
     /// v1.3.110: peers / validator_register shape gates.
+    /// v1.3.111: state_root_request / state_root_response shape gates.
     ///
     /// `{ok:true, messages:[{type,data,nbytes},...], eof:bool, auto_pongs, keepalive_touches}` |
     /// `{ok:false, reason, messages:[...], eof:false, ...}`.
@@ -2018,5 +2049,47 @@ mod tests {
         )
         .is_ok());
         assert!(check_peers_list_payload("status", &serde_json::json!({})).is_ok());
+    }
+
+    #[test]
+    fn state_root_payload_gate_parity() {
+        assert_eq!(
+            check_state_root_request_payload("state_root_request", &serde_json::json!(null))
+                .unwrap_err(),
+            "bad_state_root_request"
+        );
+        assert_eq!(
+            check_state_root_request_payload(
+                "state_root_request",
+                &serde_json::json!({"height": -1})
+            )
+            .unwrap_err(),
+            "bad_state_root_request"
+        );
+        assert!(check_state_root_request_payload(
+            "state_root_request",
+            &serde_json::json!({"height": 3})
+        )
+        .is_ok());
+
+        assert_eq!(
+            check_state_root_response_payload("state_root_response", &serde_json::json!(null))
+                .unwrap_err(),
+            "bad_state_root_response"
+        );
+        assert_eq!(
+            check_state_root_response_payload(
+                "state_root_response",
+                &serde_json::json!({"height": -1})
+            )
+            .unwrap_err(),
+            "bad_state_root_response"
+        );
+        assert!(check_state_root_response_payload(
+            "state_root_response",
+            &serde_json::json!({"height": 1, "state_root": "aa", "head_hash": "bb"})
+        )
+        .is_ok());
+        assert!(check_state_root_request_payload("peers", &serde_json::json!(null)).is_ok());
     }
 }

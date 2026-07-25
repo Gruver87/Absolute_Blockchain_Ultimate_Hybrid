@@ -59,8 +59,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.110` — native P2P peer discovery shape gates |
-| **Notes** | [RELEASE_NOTES_v1.3.110.md](../RELEASE_NOTES_v1.3.110.md) |
+| **Tag** | `v1.3.111` — native P2P state-root shape gates |
+| **Notes** | [RELEASE_NOTES_v1.3.111.md](../RELEASE_NOTES_v1.3.111.md) |
 | **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

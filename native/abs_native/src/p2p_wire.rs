@@ -328,7 +328,7 @@ pub(crate) fn validate_block_announce_inner(data: &Value) -> Option<(i64, String
     Some((height, block_hash))
 }
 
-fn validate_state_root_request_inner(data: &Value) -> Option<i64> {
+pub(crate) fn validate_state_root_request_inner(data: &Value) -> Option<i64> {
     let obj = data.as_object()?;
     let height = obj.get("height").and_then(json_i64).unwrap_or(0);
     if !(0..=MAX_P2P_HEIGHT).contains(&height) {
@@ -337,7 +337,7 @@ fn validate_state_root_request_inner(data: &Value) -> Option<i64> {
     Some(height)
 }
 
-fn validate_state_root_response_inner(data: &Value) -> Option<(i64, String, String)> {
+pub(crate) fn validate_state_root_response_inner(data: &Value) -> Option<(i64, String, String)> {
     let obj = data.as_object()?;
     let height = obj.get("height").and_then(json_i64).unwrap_or(0);
     if !(0..=MAX_P2P_HEIGHT).contains(&height) {
