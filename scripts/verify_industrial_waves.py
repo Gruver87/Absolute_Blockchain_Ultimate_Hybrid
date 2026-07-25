@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.130 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.131 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -91,6 +91,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13128_p2p_discovery_and_head_binding.py",
     "tests/unit/test_v13129_p2p_state_root_outbound_honesty.py",
     "tests/unit/test_v13130_p2p_state_root_expected_head.py",
+    "tests/unit/test_v13131_p2p_mempool_solicit_and_height_cap.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1458,6 +1459,34 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "observability/metrics.py",
         ["abs_p2p_native_state_root_response_head_gate"],
     ),
+    (
+        "1.3.131",
+        "RELEASE_NOTES_v1.3.131.md",
+        ["1.3.131-industrial", "mempool"],
+    ),
+    (
+        "1.3.131",
+        "network/p2p_node.py",
+        [
+            'kind": "mempool"',
+            "unsolicited_mempool",
+            "p2p_max_peer_height_ahead",
+        ],
+    ),
+    (
+        "1.3.131",
+        "runtime/config.py",
+        ["p2p_max_peer_height_ahead"],
+    ),
+    (
+        "1.3.131",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_mempool_solicit_only",
+            "abs_p2p_unsolicited_mempool_rejects_total",
+            "abs_p2p_status_height_cap_total",
+        ],
+    ),
 ]
 
 
@@ -1485,8 +1514,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.130"):
-            errors.append(f"node_version expected 1.3.130-*, got {ver}")
+        if not ver.startswith("1.3.131"):
+            errors.append(f"node_version expected 1.3.131-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

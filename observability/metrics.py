@@ -733,6 +733,24 @@ class MetricsCollector:
                     f"abs_p2p_native_state_root_response_head_gate{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_state_root_response_head_gate') else 0}"
                 ),
+                "# HELP abs_p2p_native_mempool_solicit_only Whether unsolicited mempool batches are rejected (0/1)",
+                "# TYPE abs_p2p_native_mempool_solicit_only gauge",
+                (
+                    f"abs_p2p_native_mempool_solicit_only{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_mempool_solicit_only') else 0}"
+                ),
+                "# HELP abs_p2p_unsolicited_mempool_rejects_total Unsolicited mempool batch rejects",
+                "# TYPE abs_p2p_unsolicited_mempool_rejects_total counter",
+                (
+                    f"abs_p2p_unsolicited_mempool_rejects_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('unsolicited_mempool_rejects_total', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_status_height_cap_total Status peer.height claims capped above local tip",
+                "# TYPE abs_p2p_status_height_cap_total counter",
+                (
+                    f"abs_p2p_status_height_cap_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('status_height_cap_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_discovery_dialability_gate Whether discovery dialability gate is active (0/1)",
                 "# TYPE abs_p2p_native_discovery_dialability_gate gauge",
                 (

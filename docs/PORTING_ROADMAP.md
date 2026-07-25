@@ -747,6 +747,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Dependabot / EditorConfig / SUPPORT / AUDITS / RELEASING / SBOM workflow
 - Remaining: external audit / ceremony pin / tip proof / libp2p (not claimed)
 
+### Priority 86 — Solicit-only mempool + status height ahead cap ✅ (v1.3.131)
+
+- [x] `request_ctx.kind=mempool` waiter; unsolicited `MSG_MEMPOOL` struck
+- [x] `p2p_max_peer_height_ahead` caps mid-session status height inflation
+- Remaining: bootstrap sticky-first-peer / tip proof / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

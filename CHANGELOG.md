@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.131] — 2026-07-25
+
+### P2P — solicit-only mempool + status height ahead cap
+
+- Unsolicited `MSG_MEMPOOL` struck; only active get_mempool waiters ingest
+- Status `peer.height` capped to local tip + `p2p_max_peer_height_ahead`
+- Honesty: not tip proof / anti-Sybil / libp2p / mainnet
+
 ## [1.3.130] — 2026-07-25
 
 ### Repo professionalism + soft state_root expected_head

@@ -1205,6 +1205,8 @@ class P2PNode:
         self._discovery_dial_rejects_total: int = 0
         self._handshake_head_rejects_total: int = 0
         self._status_height_head_rejects_total: int = 0
+        self._unsolicited_mempool_rejects_total: int = 0
+        self._status_height_cap_total: int = 0
         self._handshake_rejects: int = 0
         self._eclipse_at_risk: int = 0
         self._eclipse_ratio: float = 0.0
@@ -1441,7 +1443,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.130)"
+                    f"({label} v1.3.131)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -2449,6 +2451,20 @@ class P2PNode:
                         self._strike_peer_sync(peer, str(reason))
                         fut.set_result(None)
                         return
+                if msg_type == MSG_MEMPOOL:
+                    # v1.3.131: only fulfill when this waiter's ctx is mempool pull.
+                    if (
+                        isinstance(request_ctx, dict)
+                        and request_ctx.get("kind") == "mempool"
+                    ):
+                        fut.set_result(msg)
+                    else:
+                        self._unsolicited_mempool_rejects_total = int(
+                            self._unsolicited_mempool_rejects_total or 0
+                        ) + 1
+                        self._strike_peer_sync(peer, "unsolicited_mempool")
+                        fut.set_result(None)
+                    return
                 fut.set_result(msg)
                 return
 
@@ -2489,7 +2505,12 @@ class P2PNode:
             await self._handle_get_mempool(peer)
 
         elif msg_type == MSG_MEMPOOL:
-            await self._handle_mempool_batch(peer, data)
+            # v1.3.131: pull-only — unsolicited batches never ingest.
+            self._unsolicited_mempool_rejects_total = int(
+                self._unsolicited_mempool_rejects_total or 0
+            ) + 1
+            self._strike_peer_sync(peer, "unsolicited_mempool")
+            return
 
         elif msg_type == MSG_GET_PEERS:
             allow_private = bool(
@@ -2548,7 +2569,20 @@ class P2PNode:
                     return
                 incoming_h = int(status.get("height", 0) or 0)
                 if incoming_h:
-                    peer.height = max(int(peer.height or 0), incoming_h)
+                    # v1.3.131: cap fantasy height inflation above local tip.
+                    local_h = int(self.blockchain.get_height() or 0)
+                    max_ahead = int(
+                        getattr(self.config, "p2p_max_peer_height_ahead", 100_000)
+                        or 100_000
+                    )
+                    capped = incoming_h
+                    if max_ahead > 0:
+                        capped = min(incoming_h, local_h + max_ahead)
+                        if incoming_h > capped:
+                            self._status_height_cap_total = int(
+                                self._status_height_cap_total or 0
+                            ) + 1
+                    peer.height = max(int(peer.height or 0), capped)
                 incoming_head = status.get("head_hash") or ""
                 if incoming_head:
                     peer.head = str(incoming_head)
@@ -2992,6 +3026,7 @@ class P2PNode:
             (MSG_MEMPOOL,),
             timeout=timeout,
             presend=lambda: peer.send(MSG_GET_MEMPOOL, {}),
+            request_ctx={"kind": "mempool"},
         )
         if msg and msg.get("type") == MSG_MEMPOOL:
             await self._handle_mempool_batch(peer, msg.get("data") or {})
@@ -4264,6 +4299,7 @@ class P2PNode:
             "native_state_root_response_request_gate": True,
             "native_state_root_outbound_honesty": True,
             "native_state_root_response_head_gate": True,
+            "native_mempool_solicit_only": True,
             "native_discovery_dialability_gate": True,
             "native_handshake_head_semantic_gate": True,
             "native_status_height_head_gate": True,
@@ -4302,6 +4338,12 @@ class P2PNode:
             ),
             "status_height_head_rejects_total": int(
                 getattr(self, "_status_height_head_rejects_total", 0) or 0
+            ),
+            "unsolicited_mempool_rejects_total": int(
+                getattr(self, "_unsolicited_mempool_rejects_total", 0) or 0
+            ),
+            "status_height_cap_total": int(
+                getattr(self, "_status_height_cap_total", 0) or 0
             ),
             "p2p_discovery_allow_private": bool(
                 getattr(self.config, "p2p_discovery_allow_private", False)
