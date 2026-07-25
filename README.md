@@ -15,7 +15,7 @@
 [![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
 [![48h soak](https://img.shields.io/badge/48h%20soak-PASS%20Jul%202026-brightgreen)](docs/EVIDENCE_MATRIX.md)
-[![Release v1.3.89](https://img.shields.io/badge/Release-v1.3.89-blue)](RELEASE_NOTES_v1.3.89.md)
+[![Release v1.3.90](https://img.shields.io/badge/Release-v1.3.90-blue)](RELEASE_NOTES_v1.3.90.md)
 [![Native fuzz](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/fuzz-native.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/fuzz-native.yml)
 
 **Keywords:** Absolute Blockchain · hybrid L1 · Python Rust PyO3 · P2P mesh · RocksDB · EVM · JSON-RPC · industrial soak · fail-closed prod profile
@@ -25,7 +25,7 @@
 
 | | |
 |---|---|
-| **Release** | **v1.3.89** — [notes](RELEASE_NOTES_v1.3.89.md) · [CHANGELOG](CHANGELOG.md) · [Releases](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases) |
+| **Release** | **v1.3.90** — [notes](RELEASE_NOTES_v1.3.90.md) · [CHANGELOG](CHANGELOG.md) · [Releases](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases) |
 | **Self-check** | `.\scripts\check_all.ps1` (Quick / Standard / Full / Live / Max) |
 | **Entry** | `python main.py` |
 | **Dev chain** | `77777` |
@@ -274,9 +274,9 @@ Code: `runtime/tokenomics.py` · `GET /tokenomics` — **not** a listed token.
 | Jul 13–17 | Prod mesh hardening, P2P/TLS/resilience, industrial gates |
 | Jul 17–18 | First 48h attempt interrupted (Docker OOM / corrupted `daemon.json`) |
 | Jul 19–21 | Clean **48h soak PASS** after log rotation + Docker RAM headroom |
-| Jul 21–25 | Industrial waves **v1.3.65–v1.3.89** · native P2P/EVM kernels · Sybil/Eclipse · fuzz smoke · unified `check_all` |
+| Jul 21–25 | Industrial waves **v1.3.65–v1.3.90** · native P2P transport slice · Sybil/Eclipse · fuzz · `check_all` |
 
-Details: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) · [RELEASE_NOTES_v1.3.89](RELEASE_NOTES_v1.3.89.md)
+Details: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) · [RELEASE_NOTES_v1.3.90](RELEASE_NOTES_v1.3.90.md)
 
 ---
 
@@ -296,4 +296,4 @@ MIT — see [LICENSE](LICENSE).
 
 ---
 
-*Last update: 2026-07-25 — **v1.3.89** + P2P Sybil/Eclipse hardening. Not a launched public mainnet.*
+*Last update: 2026-07-25 — **v1.3.90** + native plain-TCP P2P transport slice. Not a launched public mainnet.*

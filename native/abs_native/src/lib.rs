@@ -15,6 +15,7 @@ mod fuzz_api;
 mod p2p_frame;
 mod p2p_ingress;
 mod p2p_rate_limit;
+mod p2p_transport;
 mod p2p_wire;
 
 pub use fuzz_api::{
@@ -1974,6 +1975,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     rocks_keycodec::register(m)?;
     p2p_frame::register(m)?;
     p2p_ingress::register(m)?;
+    p2p_transport::register(m)?;
     p2p_rate_limit::register(m)?;
     p2p_wire::register(m)?;
     amount::register(m)?;

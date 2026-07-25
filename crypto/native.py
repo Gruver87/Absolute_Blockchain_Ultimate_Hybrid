@@ -137,6 +137,10 @@ def native_crypto_status(required: bool = False) -> dict:
             "P2PRateLimitTable",
             "P2PConnectionGovernor",
             "P2PLineFramer",
+            "P2PNativeConn",
+            "P2PNativeListener",
+            "p2p_native_transport_available",
+            "p2p_native_connect",
             "p2p_frame_feed_once",
             "p2p_subnet_key",
             "p2p_ip_is_public",
@@ -2579,6 +2583,43 @@ def p2p_ip_is_public(ip: str) -> bool:
     if _native is not None and hasattr(_native, "p2p_ip_is_public"):
         return bool(_native.p2p_ip_is_public(str(ip or "")))
     raise RuntimeError("p2p_ip_is_public requires abs_native")
+
+
+def P2PNativeListener(*args, **kwargs):
+    """Native plain-TCP listener (v1.3.90)."""
+    _require_native_kernel("P2PNativeListener")
+    if _native is not None and hasattr(_native, "P2PNativeListener"):
+        return _native.P2PNativeListener(*args, **kwargs)
+    raise RuntimeError("P2PNativeListener requires abs_native")
+
+
+def P2PNativeConn(*args, **kwargs):
+    """Native framed TCP connection (v1.3.90). Prefer p2p_native_connect()."""
+    _require_native_kernel("P2PNativeConn")
+    if _native is not None and hasattr(_native, "P2PNativeConn"):
+        return _native.P2PNativeConn(*args, **kwargs)
+    raise RuntimeError("P2PNativeConn requires abs_native")
+
+
+def p2p_native_connect(
+    host: str,
+    port: int,
+    max_bytes: int = 2 * 1024 * 1024,
+    timeout_ms: int = 10_000,
+):
+    """Outbound plain-TCP framed connect (v1.3.90)."""
+    _require_native_kernel("P2PNativeConn")
+    if _native is not None and hasattr(_native, "P2PNativeConn"):
+        return _native.P2PNativeConn.connect(
+            str(host), int(port), int(max_bytes), int(timeout_ms)
+        )
+    raise RuntimeError("P2PNativeConn requires abs_native")
+
+
+def p2p_native_transport_available() -> bool:
+    if _native is not None and hasattr(_native, "p2p_native_transport_available"):
+        return bool(_native.p2p_native_transport_available())
+    return False
 
 
 def P2PLineFramer(*args, **kwargs):

@@ -439,6 +439,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.87: P2P unified egress prepare (Priority 42)
 - [x] v1.3.88: P2P kernel fuzz_api + cargo-fuzz / smoke (Priority 43)
 - [x] v1.3.89: P2P Sybil/Eclipse subnet + reserved slots (Priority 44)
+- [x] v1.3.90: Native plain-TCP transport slice (Priority 45)
 
 ### Priority 39 — P2P Rust ingress data plane ✅ (v1.3.77–v1.3.78)
 
@@ -473,6 +474,11 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Public-only subnet diversity + reserved outbound slots on native governor
 - [x] Eclipse ratio telemetry + prune + Prometheus
 - Honesty: not ASN/BGP; remaining: full Rust transport (not claimed)
+
+### Priority 45 — Native plain-TCP transport slice ✅ (v1.3.90)
+
+- [x] `P2PNativeListener` + `P2PNativeConn` framed I/O; opt-in wire-up
+- Remaining: TLS in Rust, full message loop ownership, libp2p (not claimed)
 
 ## Process per module
 

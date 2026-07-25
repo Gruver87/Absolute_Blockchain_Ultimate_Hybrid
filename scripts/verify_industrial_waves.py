@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.89 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.90 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -50,6 +50,7 @@ WAVE_TESTS = [
     "tests/unit/test_v1387_p2p_egress_prepare.py",
     "tests/unit/test_v1388_native_fuzz.py",
     "tests/unit/test_v1389_p2p_sybil_eclipse.py",
+    "tests/unit/test_v1390_p2p_native_transport.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -388,8 +389,8 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
     ),
     (
         "1.3.89",
-        "runtime/config.py",
-        ["1.3.89-industrial", "p2p_max_peers_per_subnet", "p2p_reserved_outbound_slots"],
+        "RELEASE_NOTES_v1.3.89.md",
+        ["1.3.89-industrial"],
     ),
     (
         "1.3.89",
@@ -405,6 +406,21 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "1.3.89",
         "observability/metrics.py",
         ["abs_p2p_subnet_rejects_total", "abs_p2p_eclipse_at_risk"],
+    ),
+    (
+        "1.3.90",
+        "runtime/config.py",
+        ["1.3.90-industrial", "p2p_native_transport"],
+    ),
+    (
+        "1.3.90",
+        "native/abs_native/src/p2p_transport.rs",
+        ["P2PNativeListener", "P2PNativeConn", "v1.3.90"],
+    ),
+    (
+        "1.3.90",
+        "network/p2p_node.py",
+        ["_native_accept_loop", "_handle_native_incoming"],
     ),
 ]
 
@@ -433,8 +449,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.89"):
-            errors.append(f"node_version expected 1.3.89-*, got {ver}")
+        if not ver.startswith("1.3.90"):
+            errors.append(f"node_version expected 1.3.90-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

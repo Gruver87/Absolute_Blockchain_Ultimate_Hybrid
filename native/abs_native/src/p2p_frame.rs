@@ -32,6 +32,15 @@ impl P2PLineFramer {
         self.feed_inner(chunk)
     }
 
+    pub fn pending_len_rust(&self) -> usize {
+        self.buf.len()
+    }
+
+    pub fn clear_rust(&mut self) {
+        self.buf.clear();
+        self.skip_until_newline = false;
+    }
+
     fn feed_inner(&mut self, chunk: &[u8]) -> Result<Vec<Vec<u8>>, String> {
         let mut out: Vec<Vec<u8>> = Vec::new();
         let mut i = 0usize;

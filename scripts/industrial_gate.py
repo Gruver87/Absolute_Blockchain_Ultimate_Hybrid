@@ -1448,8 +1448,22 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("metrics must export abs_p2p_subnet_rejects_total (v1.3.89)")
         if "abs_p2p_eclipse_at_risk" not in metrics_sybil:
             errors.append("metrics must export abs_p2p_eclipse_at_risk (v1.3.89)")
+        # v1.3.90 — native plain-TCP transport slice
+        transport_rs = (
+            ROOT / "native" / "abs_native" / "src" / "p2p_transport.rs"
+        ).read_text(encoding="utf-8")
+        if "P2PNativeListener" not in transport_rs or "P2PNativeConn" not in transport_rs:
+            errors.append("p2p_transport must expose listener + conn (v1.3.90)")
+        if "p2p_native_transport" not in cfg_py:
+            errors.append("config must define p2p_native_transport (v1.3.90)")
+        if "_native_accept_loop" not in p2p_py:
+            errors.append("p2p_node must wire native accept loop (v1.3.90)")
+        if "mod p2p_transport" not in (
+            ROOT / "native" / "abs_native" / "src" / "lib.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append("abs_native lib.rs must register p2p_transport (v1.3.90)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..89 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..90 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

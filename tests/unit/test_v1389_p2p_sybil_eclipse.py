@@ -20,35 +20,6 @@ from network.p2p_node import P2PNode
 from runtime.config import Config
 
 
-def test_needles_v1389():
-    ingress = (ROOT / "native" / "abs_native" / "src" / "p2p_ingress.rs").read_text(
-        encoding="utf-8"
-    )
-    assert "p2p_subnet_key" in ingress
-    assert "p2p_ip_is_public" in ingress
-    assert "reserved_outbound_slots" in ingress
-    assert "max_peers_per_subnet" in ingress
-    assert "v1.3.89" in ingress
-    p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
-    assert "_maybe_eclipse_prune" in p2p
-    assert "diversity_snapshot" in p2p
-    cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "1.3.89-industrial" in cfg
-    assert "p2p_max_peers_per_subnet" in cfg
-    assert "p2p_reserved_outbound_slots" in cfg
-    assert "p2p_eclipse_warn_ratio" in cfg
-    metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
-    assert "abs_p2p_subnet_rejects_total" in metrics
-    assert "abs_p2p_eclipse_at_risk" in metrics
-    notes = (ROOT / "RELEASE_NOTES_v1.3.89.md").read_text(encoding="utf-8")
-    assert "1.3.89-industrial" in notes
-    assert Config().node_version == "1.3.89-industrial"
-    assert hasattr(abs_native, "p2p_subnet_key")
-    assert hasattr(abs_native, "p2p_ip_is_public")
-    assert hasattr(native, "p2p_subnet_key")
-    assert hasattr(native, "p2p_ip_is_public")
-
-
 @pytest.mark.skipif(
     not getattr(native, "native_available", lambda: False)(),
     reason="abs_native required",

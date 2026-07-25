@@ -172,21 +172,33 @@ def _peer_health_score(
 class PeerConnection:
     """Активное соединение с одним пиром."""
 
-    def __init__(self, reader: asyncio.StreamReader,
-                 writer: asyncio.StreamWriter,
-                 peer_id: str = "",
-                 *,
-                 send_queue_max: int = 256,
-                 drain_timeout_sec: float = 5.0):
+    def __init__(
+        self,
+        reader: Optional[asyncio.StreamReader] = None,
+        writer: Optional[asyncio.StreamWriter] = None,
+        peer_id: str = "",
+        *,
+        send_queue_max: int = 256,
+        drain_timeout_sec: float = 5.0,
+        native_conn=None,
+    ):
+        self._native_conn = native_conn  # optional P2PNativeConn (v1.3.90)
         self.reader = reader
         self.writer = writer
         self.peer_id = peer_id
-        self.host = writer.get_extra_info("peername", ("?", 0))[0]
-        self.port = 0
+        if native_conn is not None:
+            self.host = str(getattr(native_conn, "peer_host", "") or "")
+            self.port = int(getattr(native_conn, "peer_port", 0) or 0)
+        elif writer is not None:
+            self.host = writer.get_extra_info("peername", ("?", 0))[0]
+            self.port = 0
+        else:
+            self.host = "?"
+            self.port = 0
         self.listen_port = 0
         self.chain_id: int = 0
         self.height: int = 0
-        self.head: Optional[str] = None  # head block hash (for SyncEngine/GHOST)
+        self.head: Optional[str] = None  # head block hash for SyncEngine/GHOST
         self.connected_at = time.time()
         self.last_seen = time.time()
         self.is_synced = False
@@ -210,6 +222,19 @@ class PeerConnection:
 
     def touch(self):
         self.last_seen = time.time()
+
+    async def _write_payload(self, payload: bytes) -> None:
+        """Write framed bytes via native TCP conn or asyncio writer."""
+        if self._native_conn is not None:
+            await asyncio.wait_for(
+                asyncio.to_thread(self._native_conn.write, payload),
+                timeout=self._drain_timeout_sec,
+            )
+            return
+        if self.writer is None:
+            raise OSError("p2p_no_writer")
+        self.writer.write(payload)
+        await asyncio.wait_for(self.writer.drain(), timeout=self._drain_timeout_sec)
 
     def _egress_peer_key(self) -> str:
         if self.peer_id:
@@ -314,8 +339,7 @@ class PeerConnection:
                 if payload is None:
                     ok = False
                 else:
-                    self.writer.write(payload)
-                    await asyncio.wait_for(self.writer.drain(), timeout=self._drain_timeout_sec)
+                    await self._write_payload(payload)
                     ok = True
             except Exception as e:
                 logger.warning("[P2P] send error to %s: %s", self.peer_id or self.host, e)
@@ -347,8 +371,7 @@ class PeerConnection:
                 if payload is None:
                     return False
                 try:
-                    self.writer.write(payload)
-                    await asyncio.wait_for(self.writer.drain(), timeout=self._drain_timeout_sec)
+                    await self._write_payload(payload)
                     return True
                 except Exception as e:
                     logger.warning(
@@ -391,9 +414,27 @@ class PeerConnection:
 
         Falls back to asyncio readline. Returns bytes | None (EOF).
         Raises ValueError with reason p2p_line_too_large on oversize.
+        v1.3.90: optional P2PNativeConn owns TCP + framer in Rust.
         """
         if self._pending_lines:
             return self._pending_lines.pop(0)
+
+        if self._native_conn is not None:
+            out = await asyncio.wait_for(
+                asyncio.to_thread(self._native_conn.read_line, int(self._read_chunk or 65536)),
+                timeout=30,
+            )
+            if not isinstance(out, dict) or not out.get("ok"):
+                reason = "p2p_line_too_large"
+                if isinstance(out, dict):
+                    reason = str(out.get("reason") or reason)
+                if reason == "p2p_transport_timeout":
+                    raise asyncio.TimeoutError()
+                raise ValueError(reason)
+            if out.get("eof") or out.get("line") is None:
+                return None
+            line = out.get("line")
+            return bytes(line) if not isinstance(line, (bytes, bytearray)) else bytes(line)
 
         if self._line_framer is None and hasattr(native, "P2PLineFramer"):
             try:
@@ -403,10 +444,14 @@ class PeerConnection:
 
         framer = self._line_framer
         if framer is None:
+            if self.reader is None:
+                return None
             return await asyncio.wait_for(self.reader.readline(), timeout=30)
 
         chunk_sz = max(1024, int(self._read_chunk or 65536))
         while True:
+            if self.reader is None:
+                return None
             chunk = await asyncio.wait_for(self.reader.read(chunk_sz), timeout=30)
             if not chunk:
                 # EOF with incomplete pending → treat as closed (no silent partial envelope).
@@ -544,6 +589,16 @@ class PeerConnection:
             return WireReject("recv_error")
 
     def close(self):
+        if self._native_conn is not None:
+            try:
+                self._native_conn.close()
+            except Exception as exc:
+                logger.debug(
+                    "[P2P] native peer close failed %s:%s: %s", self.host, self.port, exc
+                )
+            return
+        if self.writer is None:
+            return
         try:
             self.writer.close()
         except Exception as exc:
@@ -610,6 +665,12 @@ class P2PNode:
                 self._rl_table = None
                 self._use_native_ingress = False
                 self._use_native_egress = False
+        self._conn_governor = None
+        self._native_listener = None  # v1.3.90 P2PNativeListener
+        self._use_native_transport = False
+        self._native_accept_total = 0
+        self._native_accept_errors = 0
+        self._native_connect_total = 0
         if native.native_available() and hasattr(native, "P2PConnectionGovernor"):
             try:
                 self._conn_governor = native.P2PConnectionGovernor(
@@ -621,6 +682,17 @@ class P2PNode:
             except Exception as exc:
                 logger.warning("[P2P] native P2PConnectionGovernor unavailable: %s", exc)
                 self._conn_governor = None
+        # v1.3.90: plain-TCP native transport (incompatible with P2P TLS)
+        want_native_tx = bool(getattr(config, "p2p_native_transport", False))
+        if want_native_tx:
+            if p2p_tls_enabled(config):
+                logger.warning(
+                    "[P2P] p2p_native_transport ignored: incompatible with P2P TLS"
+                )
+            elif native.native_available() and hasattr(native, "P2PNativeListener"):
+                self._use_native_transport = True
+            else:
+                logger.warning("[P2P] p2p_native_transport requested but abs_native missing")
         self._handshake_rejects: int = 0
         self._eclipse_at_risk: int = 0
         self._eclipse_ratio: float = 0.0
@@ -821,27 +893,44 @@ class P2PNode:
         self._running = True
         self._loop = asyncio.get_event_loop()
 
-        # Запускаем TCP-сервер
+        # Запускаем TCP-сервер (asyncio TLS path OR native plain-TCP transport)
         try:
-            if p2p_tls_enabled(self.config):
-                tls_errors, tls_warn = validate_p2p_tls_config(self.config)
-                for warn in tls_warn:
-                    logger.warning("[P2P] TLS: %s", warn)
-                if tls_errors:
-                    print(f"[P2P] TLS enabled but misconfigured: {tls_errors}")
+            if self._use_native_transport:
+                if p2p_tls_enabled(self.config):
+                    print("[P2P] native transport refused: TLS enabled")
                     self._running = False
                     return
-            server_ssl = build_p2p_server_ssl_context(self.config)
-            self._server = await asyncio.start_server(
-                self._handle_incoming,
-                self.config.p2p_host,
-                self.config.p2p_port,
-                ssl=server_ssl,
-            )
-            tls_label = "tls" if server_ssl else "plain"
-            print(
-                f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} ({tls_label})"
-            )
+                max_bytes = _max_p2p_line_bytes(self.config)
+                self._native_listener = native.P2PNativeListener(
+                    str(self.config.p2p_host or "0.0.0.0"),
+                    int(self.config.p2p_port),
+                    int(max_bytes),
+                    500,
+                )
+                print(
+                    f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
+                    f"(native-tcp v1.3.90)"
+                )
+            else:
+                if p2p_tls_enabled(self.config):
+                    tls_errors, tls_warn = validate_p2p_tls_config(self.config)
+                    for warn in tls_warn:
+                        logger.warning("[P2P] TLS: %s", warn)
+                    if tls_errors:
+                        print(f"[P2P] TLS enabled but misconfigured: {tls_errors}")
+                        self._running = False
+                        return
+                server_ssl = build_p2p_server_ssl_context(self.config)
+                self._server = await asyncio.start_server(
+                    self._handle_incoming,
+                    self.config.p2p_host,
+                    self.config.p2p_port,
+                    ssl=server_ssl,
+                )
+                tls_label = "tls" if server_ssl else "plain"
+                print(
+                    f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} ({tls_label})"
+                )
         except OSError as e:
             print(f"[P2P] Could not bind port {self.config.p2p_port}: {e}")
             print("[P2P] Hint: stop other node — .\\scripts\\stop_node.ps1 — or use --port 5001")
@@ -863,14 +952,89 @@ class P2PNode:
         asyncio.create_task(self._solo_node_hint())
         asyncio.create_task(self._catch_up_loop())
 
-        if self._server:
+        if self._use_native_transport and self._native_listener is not None:
+            await self._native_accept_loop()
+        elif self._server:
             async with self._server:
                 await self._server.serve_forever()
+
+    async def _native_accept_loop(self) -> None:
+        """Accept loop for P2PNativeListener (v1.3.90)."""
+        while self._running and self._native_listener is not None:
+            try:
+                out = await asyncio.to_thread(self._native_listener.accept)
+            except Exception as exc:
+                self._native_accept_errors = int(self._native_accept_errors or 0) + 1
+                logger.warning("[P2P] native accept error: %s", exc)
+                await asyncio.sleep(0.2)
+                continue
+            if not isinstance(out, dict) or not out.get("ok"):
+                self._native_accept_errors = int(self._native_accept_errors or 0) + 1
+                await asyncio.sleep(0.05)
+                continue
+            conn = out.get("conn")
+            if conn is None:
+                continue
+            self._native_accept_total = int(self._native_accept_total or 0) + 1
+            asyncio.create_task(self._handle_native_incoming(conn))
+
+    async def _handle_native_incoming(self, native_conn) -> None:
+        """Inbound peer path for native TCP conn (mirrors _handle_incoming)."""
+        qmax, dto = self._peer_send_queue_params()
+        peer = PeerConnection(
+            None, None, send_queue_max=qmax, drain_timeout_sec=dto, native_conn=native_conn
+        )
+        self._attach_peer_hooks(peer)
+        if self._is_addr_banned(peer.host, peer.port):
+            peer.close()
+            return
+        if self._conn_governor is not None:
+            deny = self._conn_governor.allow_inbound(len(self.peers), str(peer.host or ""))
+            if deny:
+                reason = str(deny)
+                self._handshake_rejects = int(self._handshake_rejects or 0) + 1
+                self._shape_reject_counts[reason] = int(
+                    self._shape_reject_counts.get(reason, 0) or 0
+                ) + 1
+                await peer.send(MSG_HANDSHAKE_ACK, {"accepted": False, "reason": reason})
+                peer.close()
+                return
+        elif len(self.peers) >= self.config.max_peers:
+            await peer.send(MSG_HANDSHAKE_ACK, {"accepted": False, "reason": "max_peers"})
+            peer.close()
+            return
+        ok = await self._do_handshake(peer, initiator=False)
+        if not ok:
+            peer.close()
+            return
+        if self._is_banned(self._peer_key(peer)):
+            peer.close()
+            return
+        old = self.peers.get(peer.peer_id)
+        if old and old is not peer:
+            stale_after = max(15.0, float(getattr(self.config, "peer_timeout", 30) or 30))
+            if time.time() - old.last_seen <= stale_after:
+                peer.close()
+                return
+            old.close()
+        self.peers[peer.peer_id] = peer
+        peer._inbound = True  # type: ignore[attr-defined]
+        if self._conn_governor is not None:
+            self._conn_governor.on_connected(str(peer.host or ""))
+        print(f"[P2P] Connected (native): {peer}")
+        self._schedule_sync(peer)
+        await self._message_loop(peer)
 
     def stop(self):
         self._running = False
         if self._server:
             self._server.close()
+        if self._native_listener is not None:
+            try:
+                self._native_listener.close()
+            except Exception:
+                pass
+            self._native_listener = None
         for peer in list(self.peers.values()):
             peer.close()
         self.peers.clear()
@@ -1010,12 +1174,34 @@ class P2PNode:
             return False
 
         try:
-            client_ssl = build_p2p_client_ssl_context(self.config)
-            reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(host, port, ssl=client_ssl),
-                timeout=10,
-            )
-            peer = self._new_peer_connection(reader, writer)
+            if self._use_native_transport and hasattr(native, "p2p_native_connect"):
+                max_bytes = _max_p2p_line_bytes(self.config)
+                nconn = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        native.p2p_native_connect,
+                        host,
+                        int(port),
+                        int(max_bytes),
+                        10_000,
+                    ),
+                    timeout=12,
+                )
+                qmax, dto = self._peer_send_queue_params()
+                peer = PeerConnection(
+                    None,
+                    None,
+                    send_queue_max=qmax,
+                    drain_timeout_sec=dto,
+                    native_conn=nconn,
+                )
+                self._native_connect_total = int(self._native_connect_total or 0) + 1
+            else:
+                client_ssl = build_p2p_client_ssl_context(self.config)
+                reader, writer = await asyncio.wait_for(
+                    asyncio.open_connection(host, port, ssl=client_ssl),
+                    timeout=10,
+                )
+                peer = self._new_peer_connection(reader, writer)
             self._attach_peer_hooks(peer)
             peer.host = host
             peer.port = port
@@ -3109,6 +3295,10 @@ class P2PNode:
             ),
             "native_p2p_framer": bool(hasattr(native, "P2PLineFramer")),
             "native_conn_governor": self._conn_governor is not None,
+            "native_p2p_transport": bool(self._use_native_transport),
+            "native_accept_total": int(self._native_accept_total or 0),
+            "native_accept_errors": int(self._native_accept_errors or 0),
+            "native_connect_total": int(self._native_connect_total or 0),
             "max_inbound_per_ip": int(getattr(self.config, "p2p_max_inbound_per_ip", 0) or 0),
             "max_peers_per_subnet": int(
                 getattr(self.config, "p2p_max_peers_per_subnet", 0) or 0

@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.90] — 2026-07-25
+
+### P2P — native plain-TCP transport slice
+
+- `P2PNativeListener` / `P2PNativeConn`: accept, connect, framed read/write in Rust
+- Opt-in `p2p_native_transport` (default off; TLS incompatible)
+- Honesty: not TLS/libp2p; handshake/dispatch still Python
+
 ## [1.3.89] — 2026-07-25
 
 ### P2P — Sybil / Eclipse hardening
