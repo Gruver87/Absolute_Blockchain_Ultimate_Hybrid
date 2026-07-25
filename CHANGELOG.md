@@ -6,6 +6,12 @@
 
 ---
 
+## [1.3.48] — 2026-07-25
+
+### Added — nested CALL gas planner
+
+- Rust `evm_plan_nested_call_gas`; interpreter CALL gas via EIP-150 + stipend planner
+
 ## [1.3.47] — 2026-07-25
 
 ### Added — nested CALL effects planner

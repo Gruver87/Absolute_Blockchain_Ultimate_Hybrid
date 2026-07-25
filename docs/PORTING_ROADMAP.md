@@ -264,7 +264,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `evm_plan_nested_call_effects` — read-only / persist / value policy kernel
 - [x] `EVMAdapter._contract_call_hook` driven by planner; Python fallback retained
-- Remaining: nested bytecode execution inside Rust (optional)
+- Remaining: see Priority 20
+
+### Priority 20 — Nested CALL gas planner ✅ (v1.3.48)
+
+- [x] `evm_plan_nested_call_gas` — EIP-150 + 2300 stipend
+- [x] `evm_interpreter._execute_call` uses planner for forwarded gas
+- Remaining: nested bytecode execution inside Rust (optional / large)
 
 ## Process per module
 

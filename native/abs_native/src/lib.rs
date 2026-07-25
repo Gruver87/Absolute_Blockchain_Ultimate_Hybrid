@@ -1281,6 +1281,47 @@ fn evm_plan_nested_call_effects(
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
 }
 
+/// Nested CALL gas planner: EIP-150 63/64 + 2300 stipend for value-bearing CALL/CALLCODE.
+#[pyfunction]
+fn evm_plan_nested_call_gas(
+    remaining: u64,
+    requested: u64,
+    value_wei: i64,
+    kind: String,
+) -> PyResult<String> {
+    let kind = kind.trim().to_ascii_lowercase();
+    let kind = match kind.as_str() {
+        "call" | "callcode" | "delegatecall" | "staticcall" => kind,
+        _ => {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "kind must be call|callcode|delegatecall|staticcall",
+            ))
+        }
+    };
+    let base_cap = if requested == 0 {
+        remaining.saturating_mul(63) / 64
+    } else {
+        (remaining.saturating_mul(63) / 64).min(requested)
+    };
+    let stipend_applied = value_wei > 0 && (kind == "call" || kind == "callcode");
+    let call_gas = if stipend_applied {
+        remaining.min(base_cap.saturating_add(2300))
+    } else {
+        base_cap
+    };
+    let mut out = Map::new();
+    out.insert("kind".into(), Value::String(kind));
+    out.insert("remaining".into(), Value::Number(remaining.into()));
+    out.insert("requested".into(), Value::Number(requested.into()));
+    out.insert("base_cap".into(), Value::Number(base_cap.into()));
+    out.insert("stipend_applied".into(), Value::Bool(stipend_applied));
+    out.insert("call_gas".into(), Value::Number(call_gas.into()));
+    out.insert("stipend".into(), Value::Number(2300u64.into()));
+    out.insert("native_plan".into(), Value::Bool(true));
+    serde_json::to_string(&Value::Object(out))
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
 pub(crate) fn evm_memory_slice_inner(memory: &[u8], offset: usize, size: usize) -> Vec<u8> {
     let mut out = vec![0u8; size];
     if offset < memory.len() {
@@ -1753,6 +1794,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_word_to_address, m)?)?;
     m.add_function(wrap_pyfunction!(evm_call_gas_cap, m)?)?;
     m.add_function(wrap_pyfunction!(evm_plan_nested_call_effects, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_plan_nested_call_gas, m)?)?;
     m.add_function(wrap_pyfunction!(evm_memory_slice, m)?)?;
     m.add_function(wrap_pyfunction!(evm_stack_dup, m)?)?;
     m.add_function(wrap_pyfunction!(evm_stack_swap, m)?)?;

@@ -165,12 +165,18 @@ class EVM:
         self._mem_extend(args_offset, args_size)
         call_data = native.evm_memory_slice(bytes(self.memory), args_offset, args_size)
         to_addr = self._word_to_addr(to_word)
-        call_gas = self._call_gas_cap(gas)
-        if value > 0 and not static and not delegate:
-            call_gas = min(
-                max(0, self.gas_limit - self.gas_used),
-                call_gas + self.CALL_STIPEND,
-            )
+        kind = (
+            "staticcall"
+            if static
+            else "delegatecall"
+            if delegate
+            else "callcode"
+            if callcode
+            else "call"
+        )
+        remaining = max(0, self.gas_limit - self.gas_used)
+        gas_plan = native.evm_plan_nested_call_gas(remaining, gas, value, kind)
+        call_gas = int(gas_plan.get("call_gas", 0) or 0)
         if callcode:
             out = self.ctx.contract_call(
                 to_addr, call_data, value, call_gas, delegate, static, callcode

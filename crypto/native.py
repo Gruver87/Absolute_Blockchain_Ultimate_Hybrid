@@ -96,6 +96,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "evm_host_snapshot_storage",
             "evm_host_restore_storage",
             "evm_plan_nested_call_effects",
+            "evm_plan_nested_call_gas",
             "evm_deploy_address",
             "evm_create2_eip1014",
             "validate_imported_block_chain",
@@ -1158,6 +1159,57 @@ def evm_plan_nested_call_effects(
     return _evm_plan_nested_call_effects_py(
         kind, parent_read_only, caller, target, value_wei, success
     )
+
+
+def _evm_plan_nested_call_gas_py(
+    remaining: int,
+    requested: int,
+    value_wei: int,
+    kind: str,
+) -> dict:
+    kind_n = str(kind or "").strip().lower()
+    if kind_n not in ("call", "callcode", "delegatecall", "staticcall"):
+        raise ValueError("kind must be call|callcode|delegatecall|staticcall")
+    remaining = max(0, int(remaining or 0))
+    requested = max(0, int(requested or 0))
+    value_wei = int(value_wei or 0)
+    base_cap = (remaining * 63) // 64
+    if requested > 0:
+        base_cap = min(base_cap, requested)
+    stipend_applied = value_wei > 0 and kind_n in ("call", "callcode")
+    call_gas = min(remaining, base_cap + 2300) if stipend_applied else base_cap
+    return {
+        "kind": kind_n,
+        "remaining": remaining,
+        "requested": requested,
+        "base_cap": base_cap,
+        "stipend_applied": stipend_applied,
+        "call_gas": call_gas,
+        "stipend": 2300,
+        "native_plan": False,
+    }
+
+
+def evm_plan_nested_call_gas(
+    remaining: int,
+    requested: int,
+    value_wei: int,
+    kind: str,
+) -> dict:
+    """Plan nested CALL gas (EIP-150 + 2300 stipend). Prefers abs_native."""
+    if _native is not None and hasattr(_native, "evm_plan_nested_call_gas"):
+        raw = _native.evm_plan_nested_call_gas(
+            int(remaining or 0),
+            int(requested or 0),
+            int(value_wei or 0),
+            str(kind),
+        )
+        out = json.loads(raw) if isinstance(raw, str) else dict(raw)
+        out["native_plan"] = True
+        return out
+    if _REQUIRE_NATIVE:
+        _require_native_kernel("evm_plan_nested_call_gas")
+    return _evm_plan_nested_call_gas_py(remaining, requested, value_wei, kind)
 
 
 def evm_memory_copy(memory: bytearray, dest: int, src: bytes, src_offset: int, size: int) -> None:
