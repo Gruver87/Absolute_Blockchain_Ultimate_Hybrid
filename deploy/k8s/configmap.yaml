@@ -86,6 +86,7 @@ data:
       "mining_enabled": false,
       "require_signatures": true,
       "require_native_crypto": true,
+      "p2p_native_transport": true,
       "enforce_proposer": true,
       "verify_peer_state_root": true,
       "state_root_strict_p2p": true,

@@ -23,6 +23,7 @@
 //! v1.3.111: state_root_request / state_root_response shape gates on read.
 //! v1.3.112: cross_shard_tx / cross_shard_ack / shard_migration shape gates.
 //! v1.3.113: handshake payload shape gate on handshake_roundtrip.
+//! v1.3.115: handshake policy fuse (chain_id + TLS identity) on handshake_roundtrip.
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -78,6 +79,10 @@ fn wire_fail_reason(err: &str) -> String {
         || err == "p2p_handshake_eof"
         || err == "p2p_auto_pong_flood"
         || err == "mid_session_handshake"
+        || err == "chain_id_mismatch"
+        || err == "tls_missing"
+        || err == "tls_identity_mismatch"
+        || err == "handshake_rejected"
         || err.starts_with("p2p_transport_")
         || err.starts_with("p2p_handshake_")
     {
@@ -344,6 +349,45 @@ fn check_shard_migration_payload(msg_type: &str, data: &serde_json::Value) -> Re
 fn check_handshake_payload(data: &serde_json::Value) -> Result<(), String> {
     if validate_handshake_inner(data).is_none() {
         return Err("bad_handshake_payload".to_string());
+    }
+    Ok(())
+}
+
+/// v1.3.115: chain_id + TLS identity policy after shape gate (fingerprint allowlist stays Python).
+fn check_handshake_policy(
+    data: &serde_json::Value,
+    expected_chain_id: Option<i64>,
+    tls_required: bool,
+    bind_identity: bool,
+    conn_tls: bool,
+    peer_identities: &[String],
+) -> Result<(), String> {
+    let Some((chain_id, _height, _head, node_id, _port, accepted)) =
+        validate_handshake_inner(data)
+    else {
+        return Err("bad_handshake_payload".to_string());
+    };
+    if !accepted {
+        return Err("handshake_rejected".to_string());
+    }
+    if let Some(want) = expected_chain_id {
+        if chain_id != want {
+            return Err("chain_id_mismatch".to_string());
+        }
+    }
+    if tls_required {
+        if !conn_tls {
+            return Err("tls_missing".to_string());
+        }
+        if bind_identity {
+            let claimed = node_id.trim();
+            if claimed.is_empty()
+                || peer_identities.is_empty()
+                || !peer_identities.iter().any(|id| id == claimed)
+            {
+                return Err("tls_identity_mismatch".to_string());
+            }
+        }
     }
     Ok(())
 }
@@ -1460,25 +1504,41 @@ impl P2PNativeConn {
         }
     }
 
-    /// Handshake I/O round-trip (v1.3.96). Policy/validation remain Python.
+    /// Handshake I/O round-trip (v1.3.96).
     ///
     /// Initiator: write `handshake` + read expecting `handshake_ack`.
     /// Responder: read expecting `handshake` + write `handshake_ack`.
     ///
     /// v1.3.113: inbound handshake/ack shape gate (`bad_handshake_payload`).
-    /// Chain-id / TLS identity / policy still Python.
+    /// v1.3.115: optional policy fuse — chain_id + TLS identity (fingerprint allowlist stays Python).
     ///
     /// `{ok:true, type, data, nbytes}` | `{ok:false, reason}`.
-    #[pyo3(signature = (initiator, our_data_json, chunk_sz=65536))]
+    #[pyo3(signature = (
+        initiator,
+        our_data_json,
+        chunk_sz=65536,
+        expected_chain_id=None,
+        tls_required=false,
+        bind_identity=true
+    ))]
     fn handshake_roundtrip(
         &mut self,
         py: Python<'_>,
         initiator: bool,
         our_data_json: &str,
         chunk_sz: usize,
+        expected_chain_id: Option<i64>,
+        tls_required: bool,
+        bind_identity: bool,
     ) -> PyResult<PyObject> {
         let our_data_json = our_data_json.to_string();
         let max_bytes = self.max_bytes;
+        let conn_tls = self.tls;
+        let peer_identities = if tls_required && bind_identity {
+            self.stream.peer_cert_identities()
+        } else {
+            Vec::new()
+        };
         let allowed: HashSet<String> = ["handshake".into(), "handshake_ack".into()]
             .into_iter()
             .collect();
@@ -1496,6 +1556,14 @@ impl P2PNativeConn {
                             return Err(format!("p2p_handshake_unexpected:{msg_type}"));
                         }
                         check_handshake_payload(&data)?;
+                        check_handshake_policy(
+                            &data,
+                            expected_chain_id,
+                            tls_required,
+                            bind_identity,
+                            conn_tls,
+                            &peer_identities,
+                        )?;
                         Ok((msg_type, data, nbytes))
                     }
                 }
@@ -1507,6 +1575,14 @@ impl P2PNativeConn {
                             return Err(format!("p2p_handshake_unexpected:{msg_type}"));
                         }
                         check_handshake_payload(&data)?;
+                        check_handshake_policy(
+                            &data,
+                            expected_chain_id,
+                            tls_required,
+                            bind_identity,
+                            conn_tls,
+                            &peer_identities,
+                        )?;
                         let payload =
                             encode_p2p_wire_message_inner("handshake_ack", &our_data_json)?;
                         if payload.len() > max_bytes {
@@ -2214,6 +2290,69 @@ mod tests {
             "node_id": "n1",
             "p2p_port": 5000
         }))
+        .is_ok());
+    }
+
+    #[test]
+    fn handshake_policy_gate_parity() {
+        let good = serde_json::json!({
+            "chain_id": 778888,
+            "height": 0,
+            "head_hash": "aa",
+            "node_id": "node-a",
+            "p2p_port": 5000
+        });
+        assert!(check_handshake_policy(
+            &good,
+            Some(778888),
+            false,
+            false,
+            false,
+            &[]
+        )
+        .is_ok());
+        assert_eq!(
+            check_handshake_policy(&good, Some(1), false, false, false, &[])
+                .unwrap_err(),
+            "chain_id_mismatch"
+        );
+        assert_eq!(
+            check_handshake_policy(
+                &serde_json::json!({"accepted": false}),
+                Some(1),
+                false,
+                false,
+                false,
+                &[]
+            )
+            .unwrap_err(),
+            "handshake_rejected"
+        );
+        assert_eq!(
+            check_handshake_policy(&good, Some(778888), true, false, false, &[])
+                .unwrap_err(),
+            "tls_missing"
+        );
+        assert_eq!(
+            check_handshake_policy(
+                &good,
+                Some(778888),
+                true,
+                true,
+                true,
+                &["other".into()]
+            )
+            .unwrap_err(),
+            "tls_identity_mismatch"
+        );
+        assert!(check_handshake_policy(
+            &good,
+            Some(778888),
+            true,
+            true,
+            true,
+            &["node-a".into()]
+        )
         .is_ok());
     }
 }

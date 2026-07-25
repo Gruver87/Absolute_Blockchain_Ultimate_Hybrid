@@ -492,6 +492,11 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("eth_mining must refuse when peers present and inconsistent (mesh_min=0)")
         if 'getattr(p2p, "_server", None) is not None' not in http_py:
             errors.append("/health/ready p2p_running must require bound _server")
+        if 'getattr(p2p, "_native_listener", None) is not None' not in http_py:
+            errors.append(
+                "/health/ready p2p_running must accept native _native_listener "
+                "(v1.3.114+ prod transport)"
+            )
     except Exception as exc:
         errors.append(f"fail-loud http inspect failed: {exc}")
     try:
@@ -1704,8 +1709,21 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "observability" / "metrics.py"
         ).read_text(encoding="utf-8"):
             errors.append("metrics must export abs_p2p_native_shape_revalidate (v1.3.114)")
+        # v1.3.115 — handshake policy fuse + native ready listener
+        if "check_handshake_policy" not in transport_rs or "v1.3.115" not in transport_rs:
+            errors.append("p2p_transport must expose handshake policy fuse (v1.3.115)")
+        if "native_policy_applied" not in p2p_py or "native_handshake_policy_gate" not in p2p_py:
+            errors.append("p2p_node must wire native handshake policy (v1.3.115)")
+        if 'getattr(p2p, "_native_listener", None) is not None' not in (
+            ROOT / "api" / "http.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("/health/ready must accept native _native_listener (v1.3.115)")
+        if "abs_p2p_native_handshake_policy_gate" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("metrics must export abs_p2p_native_handshake_policy_gate (v1.3.115)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..114 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..115 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

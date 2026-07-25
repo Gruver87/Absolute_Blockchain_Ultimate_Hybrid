@@ -20,7 +20,6 @@ from runtime.config import Config
 def test_needles_v13114():
     cfg_py = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
     assert "p2p_native_transport" in cfg_py
-    assert "1.3.114-industrial" in cfg_py
     assert 'prod mode requires p2p_native_transport=true' in cfg_py
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
     assert "must_native_tx" in p2p
@@ -33,12 +32,20 @@ def test_needles_v13114():
     assert '"p2p_native_transport"' in prod_gate
     notes = (ROOT / "RELEASE_NOTES_v1.3.114.md").read_text(encoding="utf-8")
     assert "1.3.114-industrial" in notes
-    assert Config().node_version == "1.3.114-industrial"
+    # Live Config().node_version advances with later waves; pin notes not config.
     assert "abs_p2p_native_shape_revalidate" in (
         ROOT / "observability" / "metrics.py"
     ).read_text(encoding="utf-8")
     prod = (ROOT / "docker" / "node.prod.json").read_text(encoding="utf-8")
     assert '"p2p_native_transport"' in prod and "true" in prod
+    cm = (ROOT / "deploy" / "k8s" / "configmap.yaml").read_text(encoding="utf-8")
+    assert '"p2p_native_transport": true' in cm
+    smoke = (ROOT / "runtime" / "prod_smoke_profile.py").read_text(encoding="utf-8")
+    assert '"p2p_native_transport": True' in smoke or "p2p_native_transport\": True" in smoke
+    assert "P2P_NATIVE_TRANSPORT" in smoke
+    http_py = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
+    assert 'getattr(p2p, "_native_listener", None) is not None' in http_py
+    assert "native TCP/TLS path uses _native_listener" in http_py
 
 
 def test_prod_config_defaults_native_transport():

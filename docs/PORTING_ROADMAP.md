@@ -648,6 +648,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Skip Python dual shape re-validate when `_use_native_transport`
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
+### Priority 70 — Native handshake policy fuse ✅ (v1.3.115)
+
+- [x] `check_handshake_policy` on `handshake_roundtrip` (chain_id + TLS identity)
+- [x] Skip Python dual chain/identity when native policy applied; fingerprint allowlist stays Python
+- [x] Max-gate: `/health/ready` native listener + k8s/smoke `p2p_native_transport` sync
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

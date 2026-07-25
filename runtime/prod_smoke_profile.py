@@ -55,6 +55,7 @@ def prod_smoke_secret_env() -> Dict[str, str]:
         "CORS_ORIGINS": "https://explorer.example.com",
         "BRIDGE_PROBE_L1_RPC": "false",
         "ABS_REQUIRE_NATIVE_CRYPTO": "true",
+        "P2P_NATIVE_TRANSPORT": "true",
         "DEPLOYMENT_MODE": "prod",
     }
     try:
@@ -244,6 +245,7 @@ def prod_node_config(
         "mining_enabled": mining_enabled,
         "require_signatures": True,
         "require_native_crypto": True,
+        "p2p_native_transport": True,
         "enforce_proposer": True,
         "verify_peer_state_root": True,
         "state_root_strict_p2p": True,

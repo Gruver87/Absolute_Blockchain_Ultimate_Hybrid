@@ -55,6 +55,11 @@ def test_import_offload_keeps_event_loop_responsive():
         cfg.p2p_max_messages_per_sec = 0
         cfg.p2p_rate_limit_strikes = 5
         cfg.p2p_ban_seconds = 300
+        # MagicMock attrs are truthy; pin transport/TLS off for this offload unit test.
+        cfg.p2p_native_transport = False
+        cfg.p2p_tls_enabled = False
+        cfg.require_native_crypto = False
+        cfg.deployment_mode = "dev"
         bc = MagicMock()
         mp = MagicMock()
 

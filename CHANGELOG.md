@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.115] — 2026-07-25
+
+### P2P — native handshake policy fuse + Max-gate fixes
+
+- `handshake_roundtrip` enforces chain_id + TLS identity (fingerprint allowlist stays Python)
+- `/health/ready` accepts native `_native_listener` for prod `p2p_running`
+- K8s configmap + prod smoke profile sync `p2p_native_transport`
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.114] — 2026-07-25
 
 ### P2P — prod-mandatory native transport

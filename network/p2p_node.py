@@ -1322,7 +1322,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.114)"
+                    f"({label} v1.3.115)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -1704,6 +1704,8 @@ class P2PNode:
         }
 
         # v1.3.96: native handshake I/O fuse when transport owns the socket.
+        # v1.3.115: pass chain_id + TLS identity policy into Rust (skip dual Python policy).
+        native_policy_applied = False
         if (
             peer._native_conn is not None
             and hasattr(peer._native_conn, "handshake_roundtrip")
@@ -1711,6 +1713,8 @@ class P2PNode:
             import json
 
             our_json = json.dumps(our_info, separators=(",", ":"), ensure_ascii=False)
+            tls_on = p2p_tls_enabled(self.config)
+            bind_id = bool(getattr(self.config, "p2p_tls_bind_identity", True))
             try:
                 out = await asyncio.wait_for(
                     asyncio.to_thread(
@@ -1718,6 +1722,9 @@ class P2PNode:
                         bool(initiator),
                         our_json,
                         int(peer._read_chunk or 65536),
+                        int(self.config.chain_id),
+                        bool(tls_on),
+                        bool(bind_id) if tls_on else False,
                     ),
                     timeout=30,
                 )
@@ -1734,6 +1741,14 @@ class P2PNode:
                 reason = ""
                 if isinstance(out, dict):
                     reason = str(out.get("reason") or "")
+                self._handshake_rejects += 1
+                if reason in (
+                    "bad_handshake_payload",
+                    "chain_id_mismatch",
+                    "tls_missing",
+                    "tls_identity_mismatch",
+                ):
+                    self._strike_peer_sync(peer, reason)
                 logger.warning(
                     "[P2P] native handshake reject from %s (%s)",
                     peer.host,
@@ -1744,6 +1759,7 @@ class P2PNode:
             if out.get("type") != expect:
                 return False
             ack = out.get("data", {})
+            native_policy_applied = True
         elif initiator:
             await peer.send(MSG_HANDSHAKE, our_info)
             msg = await peer.recv(self.config)
@@ -1766,8 +1782,8 @@ class P2PNode:
             self._handshake_rejects += 1
             return False
 
-        # Проверяем совместимость
-        if hs.get("chain_id") != self.config.chain_id:
+        # Проверяем совместимость (native path already fused chain_id + TLS identity).
+        if not native_policy_applied and hs.get("chain_id") != self.config.chain_id:
             self._handshake_rejects += 1
             self._strike_peer_sync(peer, "chain_id_mismatch")
             print(
@@ -1800,20 +1816,21 @@ class P2PNode:
             peer.tls_fingerprint = fp
             peer.tls_identities = sorted(identities)
             bind_id = bool(getattr(self.config, "p2p_tls_bind_identity", True))
-            if not tls_meta.get("ssl"):
-                self._handshake_rejects += 1
-                self._strike_peer_sync(peer, "tls_missing")
-                print(f"[P2P] Rejected {peer.host}:{peer.port}: TLS required but no ssl_object")
-                return False
-            if bind_id:
-                if not identities or not handshake_node_id_matches_cert(claimed_id, identities):
+            if not native_policy_applied:
+                if not tls_meta.get("ssl"):
                     self._handshake_rejects += 1
-                    self._strike_peer_sync(peer, "tls_identity_mismatch")
-                    print(
-                        f"[P2P] Rejected {peer.host}:{peer.port}: handshake node_id "
-                        f"{claimed_id!r} not in peer cert CN/SAN {sorted(identities)}"
-                    )
+                    self._strike_peer_sync(peer, "tls_missing")
+                    print(f"[P2P] Rejected {peer.host}:{peer.port}: TLS required but no ssl_object")
                     return False
+                if bind_id:
+                    if not identities or not handshake_node_id_matches_cert(claimed_id, identities):
+                        self._handshake_rejects += 1
+                        self._strike_peer_sync(peer, "tls_identity_mismatch")
+                        print(
+                            f"[P2P] Rejected {peer.host}:{peer.port}: handshake node_id "
+                            f"{claimed_id!r} not in peer cert CN/SAN {sorted(identities)}"
+                        )
+                        return False
             allow = fingerprint_allowlist(self.config)
             if allow and fp.lower() not in allow:
                 self._handshake_rejects += 1
@@ -3837,6 +3854,7 @@ class P2PNode:
             "native_state_root_gate": bool(getattr(self, "_use_native_transport", False)),
             "native_cross_shard_gate": bool(getattr(self, "_use_native_transport", False)),
             "native_handshake_payload_gate": bool(getattr(self, "_use_native_transport", False)),
+            "native_handshake_policy_gate": bool(getattr(self, "_use_native_transport", False)),
             "native_transport_prod_required": bool(
                 getattr(self.config, "p2p_native_transport", False)
                 and (

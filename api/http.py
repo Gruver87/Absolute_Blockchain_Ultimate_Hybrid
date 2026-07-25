@@ -1197,8 +1197,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                             checks[f"{name}_init"] = False
                 if is_prod and p2p is not None:
                     # Listener must exist — bind failure clears _running (fail-closed).
+                    # Asyncio path uses _server; native TCP/TLS path uses _native_listener.
                     checks["p2p_running"] = bool(getattr(p2p, "_running", False)) and (
                         getattr(p2p, "_server", None) is not None
+                        or getattr(p2p, "_native_listener", None) is not None
                     )
                     # With peers, ready requires state consistency (solo may stay ready).
                     # peer_count() probe failure must not skip the consistency gate.
