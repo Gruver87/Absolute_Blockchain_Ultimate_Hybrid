@@ -29,6 +29,7 @@
 //! v1.3.118: new_tx signature semantic gate on loop-shell (chain_id-bound; mempool stays Python).
 //! v1.3.119: mempool batch signature semantic gate on loop-shell (per-tx; nonce/balance stay Python).
 //! v1.3.120: new_block canonical-hash semantic gate on loop-shell (parent/proposer stay Python).
+//! v1.3.121: blocks batch canonical-hash semantic gate on loop-shell (per-block; import stays Python).
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -41,8 +42,9 @@ use crate::p2p_wire::{
     validate_mempool_batch_inner, validate_peers_list_inner, validate_shard_migration_inner,
     validate_state_root_request_inner, validate_state_root_response_inner, validate_status_inner,
     validate_validator_register_inner, validate_wire_tx_inner, verify_attestation_semantics_inner,
-    verify_block_announce_semantics_inner, verify_mempool_batch_signatures_inner,
-    verify_wire_tx_signature_inner, DEFAULT_MAX_P2P_LINE_BYTES,
+    verify_block_announce_semantics_inner, verify_blocks_batch_semantics_inner,
+    verify_mempool_batch_signatures_inner, verify_wire_tx_signature_inner,
+    DEFAULT_MAX_P2P_LINE_BYTES,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
@@ -234,6 +236,17 @@ fn check_block_announce_semantics(
         return Ok(());
     }
     verify_block_announce_semantics_inner(data)
+}
+
+/// v1.3.121: sync `blocks` array — each entry must pass canonical-hash semantic.
+fn check_blocks_batch_semantics(
+    msg_type: &str,
+    data: &serde_json::Value,
+) -> Result<(), String> {
+    if msg_type != "blocks" {
+        return Ok(());
+    }
+    verify_blocks_batch_semantics_inner(data)
 }
 
 /// v1.3.106: parity with Python `new_block` announce gate (fail-closed).
@@ -1522,6 +1535,11 @@ impl P2PNativeConn {
                         }
                         // v1.3.120: new_block canonical-hash semantic.
                         if let Err(reason) = check_block_announce_semantics(&msg_type, &data) {
+                            terminal_strike = Some(reason);
+                            break;
+                        }
+                        // v1.3.121: blocks batch per-block canonical-hash semantic.
+                        if let Err(reason) = check_blocks_batch_semantics(&msg_type, &data) {
                             terminal_strike = Some(reason);
                             break;
                         }

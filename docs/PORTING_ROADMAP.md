@@ -685,6 +685,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Parent/height / proposer / state_root / import stay Python
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
+### Priority 76 — Native blocks batch hash semantic ingress ✅ (v1.3.121)
+
+- [x] `verify_blocks_batch_semantics_inner` on loop-shell (per-block hash; reuses announce gate)
+- [x] Root Makefile Linux/macOS UX (does not replace PowerShell / existing CI)
+- [x] Continuity / import / fork-choice stay Python
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

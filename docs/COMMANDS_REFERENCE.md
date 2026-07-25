@@ -6,10 +6,10 @@
 
 | | |
 |---|---|
-| **Версия** | `1.3.120-industrial` |
+| **Версия** | `1.3.121-industrial` |
 | **API Wave** | `61` |
 | **Обновлено** | 2026-07-25 |
-| **Entry** | `python main.py` / `.\scripts\start_node.ps1` |
+| **Entry** | `python main.py` / `.\scripts\start_node.ps1` / `make build` |
 | **Статус** | production-hardened R&D / prod-profile mesh — **не** public audited mainnet |
 
 ---
@@ -28,6 +28,8 @@
 
 ## Единая проверка работоспособности
 
+**Windows (PowerShell):**
+
 ```powershell
 cd C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate_Hybrid
 
@@ -39,6 +41,17 @@ cd C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate_Hybrid
 .\scripts\check_all.ps1 -Help
 ```
 
+**Linux / macOS:**
+
+```bash
+make help
+make build        # abs_native
+make test-quick   # verify_industrial_waves.py
+make test-gate    # industrial_gate.py
+make mesh-up      # docker_prod_3node.sh
+```
+
+CI: `.github/workflows/test.yml` (Ubuntu) уже собирает native и гоняет pytest.
 Отчёт: `data/check_all.json`. Перед `-Mode Live` / `Max`: `python main.py` (или `.\scripts\start_node.ps1`).
 
 Алиасы того же полного gate: `.\scripts\test_all.ps1`, `.\scripts\check_everything.ps1`.

@@ -924,6 +924,21 @@ pub(crate) fn validate_blocks_batch_inner(data: &Value) -> Option<usize> {
     Some(arr.len())
 }
 
+/// v1.3.121: per-block canonical-hash gate for sync `blocks` arrays.
+/// Continuity / import / fork-choice stay Python.
+pub(crate) fn verify_blocks_batch_semantics_inner(data: &Value) -> Result<(), String> {
+    if validate_blocks_batch_inner(data).is_none() {
+        return Err("bad_blocks_batch".to_string());
+    }
+    let arr = data
+        .as_array()
+        .ok_or_else(|| "bad_blocks_batch".to_string())?;
+    for block in arr {
+        verify_block_announce_semantics_inner(block)?;
+    }
+    Ok(())
+}
+
 #[pyfunction]
 fn validate_p2p_validator_register(
     py: Python<'_>,

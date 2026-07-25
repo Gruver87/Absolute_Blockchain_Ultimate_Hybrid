@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.121] — 2026-07-25
+
+### P2P — native blocks batch hash semantic gate + Makefile UX
+
+- Loop-shell verifies each block in sync `blocks` arrays (canonical hash)
+- Root `Makefile` (`build` / `test-quick` / `test-gate` / `mesh-up`) for Linux/macOS
+- Honesty: import/fork-choice / full message-loop / crates split / fake PR theater not claimed
+
 ## [1.3.120] — 2026-07-25
 
 ### P2P — native new_block canonical-hash semantic gate

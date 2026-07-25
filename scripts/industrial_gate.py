@@ -1797,8 +1797,30 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_block_semantic_gate (v1.3.120)"
             )
+        # v1.3.121 — blocks batch hash semantic gate + Makefile
+        if "check_blocks_batch_semantics" not in transport_rs or "v1.3.121" not in transport_rs:
+            errors.append("p2p_transport must expose blocks batch semantic gate (v1.3.121)")
+        if "verify_blocks_batch_semantics_inner" not in (
+            ROOT / "native" / "abs_native" / "src" / "p2p_wire.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "p2p_wire must expose verify_blocks_batch_semantics_inner (v1.3.121)"
+            )
+        if "native_blocks_batch_semantic_gate" not in p2p_py:
+            errors.append(
+                "p2p_node must expose native_blocks_batch_semantic_gate (v1.3.121)"
+            )
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        if "test-quick" not in makefile or "build_native.sh" not in makefile:
+            errors.append("root Makefile must expose test-quick and build_native.sh (v1.3.121)")
+        if "abs_p2p_native_blocks_batch_semantic_gate" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_blocks_batch_semantic_gate (v1.3.121)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..120 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..121 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

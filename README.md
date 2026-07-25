@@ -15,7 +15,7 @@
 [![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
 [![48h soak](https://img.shields.io/badge/48h%20soak-PASS%20Jul%202026-brightgreen)](docs/EVIDENCE_MATRIX.md)
-[![Release v1.3.120](https://img.shields.io/badge/Release-v1.3.120-blue)](RELEASE_NOTES_v1.3.120.md)
+[![Release v1.3.121](https://img.shields.io/badge/Release-v1.3.121-blue)](RELEASE_NOTES_v1.3.121.md)
 [![Native fuzz](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/fuzz-native.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/fuzz-native.yml)
 
 **Keywords:** Absolute Blockchain · hybrid L1 · Python Rust PyO3 · P2P mesh · RocksDB · EVM · JSON-RPC · industrial soak · fail-closed prod profile
@@ -25,7 +25,7 @@
 
 | | |
 |---|---|
-| **Release** | **v1.3.120** — [notes](RELEASE_NOTES_v1.3.120.md) · [CHANGELOG](CHANGELOG.md) · [Releases](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases) |
+| **Release** | **v1.3.121** — [notes](RELEASE_NOTES_v1.3.121.md) · [CHANGELOG](CHANGELOG.md) · [Releases](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases) |
 | **Self-check** | `.\scripts\check_all.ps1` (Quick / Standard / Full / Live / Max) |
 | **Entry** | `python main.py` |
 | **Dev chain** | `77777` |
@@ -58,11 +58,13 @@ Most “blockchain” GitHub pages advertise features. This one separates **code
 2. **Fail-closed prod profile** — secrets, native crypto, no simulator bridge, admin JWT, RPC API keys.
 3. **48h soak under Docker** — `passed=true`, `fail_lines=0` in `logs/soak_report_48h.json` (11 transient ±1 height mesh WARNs accepted); log rotation + WSL memory hardening after real OOM/`daemon.json` incidents.
 4. **Hybrid honesty** — Python orchestrates; Rust owns deterministic hot paths; gaps (audit, public VPS, bridge cutover) are listed, not hidden.
-5. **One-command self-check** — `.\scripts\check_all.ps1` (waves → full gate → optional live + isolated P2P CI).
+5. **One-command self-check** — `.\scripts\check_all.ps1` (Windows) or `make test-quick` (Linux/macOS).
 
 ---
 
 ## Verify yourself (recommended)
+
+**Windows (PowerShell):**
 
 ```powershell
 cd Absolute_Blockchain_Ultimate_Hybrid
@@ -76,7 +78,19 @@ cd Absolute_Blockchain_Ultimate_Hybrid
 
 Report: `data/check_all.json`. Aliases: `.\scripts\test_all.ps1`, `.\scripts\check_everything.ps1`, `.\scripts\test_blockchain_full.ps1`.
 
----
+**Linux / macOS (`make`):**
+
+```bash
+cd Absolute_Blockchain_Ultimate_Hybrid
+
+make help         # list targets
+make build        # abs_native wheel (scripts/build_native.sh)
+make test-quick   # industrial waves + gate
+make test-gate    # industrial_gate only
+make mesh-up      # 3-node Docker prod mesh
+```
+
+CI already builds native + runs pytest on Ubuntu (see badges above). PowerShell scripts stay for Windows operators — not moved away.
 
 ## Docs map
 
@@ -109,7 +123,7 @@ Report: `data/check_all.json`. Aliases: `.\scripts\test_all.ps1`, `.\scripts\che
 | **L2 / PQ / ZK modules** | R&D | Unit-tested; not mainnet Lightning/Plasma/audited SNARKs |
 | **Public mainnet** | **Not launched** | External audit + validator ops + L1 cutover remaining |
 
-**Quality gate:** CI badges · `.\scripts\check_all.ps1` · **1260** tests collected (`pytest tests/ --collect-only`, Jul 2026)
+**Quality gate:** CI badges · `make test-quick` / `.\scripts\check_all.ps1` · **1260** tests collected (`pytest tests/ --collect-only`, Jul 2026)
 
 ---
 
@@ -139,7 +153,7 @@ Full diagram: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**
 | Industrial gate + soak | `python scripts/industrial_gate.py --min-soak-hours 48` |
 | Evidence suite | `.\scripts\prod_evidence_suite.ps1` |
 | Audit pack zip | `.\scripts\export_audit_pack.ps1` |
-| Unified self-check | `.\scripts\check_all.ps1 -Mode Max` |
+| Unified self-check | `.\scripts\check_all.ps1 -Mode Max` / `make test-quick` |
 
 ---
 
@@ -274,9 +288,9 @@ Code: `runtime/tokenomics.py` · `GET /tokenomics` — **not** a listed token.
 | Jul 13–17 | Prod mesh hardening, P2P/TLS/resilience, industrial gates |
 | Jul 17–18 | First 48h attempt interrupted (Docker OOM / corrupted `daemon.json`) |
 | Jul 19–21 | Clean **48h soak PASS** after log rotation + Docker RAM headroom |
-| Jul 21–25 | Industrial waves **v1.3.65–v1.3.120** · native keepalive · CN/SAN · handshake · batch pumps · TCP+TLS |
+| Jul 21–25 | Industrial waves **v1.3.65–v1.3.121** · native keepalive · CN/SAN · handshake · batch pumps · TCP+TLS |
 
-Details: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) · [RELEASE_NOTES_v1.3.120](RELEASE_NOTES_v1.3.120.md)
+Details: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) · [RELEASE_NOTES_v1.3.121](RELEASE_NOTES_v1.3.121.md)
 
 ---
 
@@ -296,4 +310,4 @@ MIT — see [LICENSE](LICENSE).
 
 ---
 
-*Last update: 2026-07-25 — **v1.3.120** + native new_block hash gate. Not a launched public mainnet.*
+*Last update: 2026-07-25 — **v1.3.121** + blocks batch hash gate + Makefile UX. Not a launched public mainnet.*

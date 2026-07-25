@@ -1419,7 +1419,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.120)"
+                    f"({label} v1.3.121)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -4056,6 +4056,9 @@ class P2PNode:
                 getattr(self, "_native_message_loop_shell", False)
             ),
             "native_block_semantic_gate": bool(
+                getattr(self, "_native_message_loop_shell", False)
+            ),
+            "native_blocks_batch_semantic_gate": bool(
                 getattr(self, "_native_message_loop_shell", False)
             ),
             "attestation_semantic_rejects_total": int(
