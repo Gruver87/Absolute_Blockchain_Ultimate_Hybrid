@@ -165,11 +165,11 @@ def test_create2_nontrivial_init_falls_to_hook():
             "gas_used": 50,
         }
 
-    # size=2 → not empty/STOP-only
+    # size=1 with CREATE opcode in init → not leaf-eligible
     bytecode = bytes(
         [
             0x60,
-            0x60,
+            0xF0,  # PUSH1 CREATE
             0x60,
             0x00,
             0x53,  # MSTORE8
@@ -178,7 +178,7 @@ def test_create2_nontrivial_init_falls_to_hook():
             0x60,
             0x00,  # offset
             0x60,
-            0x02,  # size
+            0x01,  # size
             0x60,
             0x01,  # salt
             0xF5,
@@ -204,4 +204,6 @@ def test_needles_v1381():
     assert "create2_eip1014_enabled" in rust
     assert "v1.3.81" in rust
     cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "1.3.81-industrial" in cfg
+    notes = (ROOT / "RELEASE_NOTES_v1.3.81.md").read_text(encoding="utf-8")
+    assert "1.3.81-industrial" in notes
+    assert "native_inline_create2" in rust

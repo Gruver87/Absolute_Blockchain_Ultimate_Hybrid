@@ -387,7 +387,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] PriorityQueue: REORG > FORGE > ADD > IMPORT
 - Remaining: see Priority 38
 
-### Priority 38 — value=0 CALL + multi-depth + value transfer ✅ (v1.3.74–v1.3.81)
+### Priority 38 — value=0 CALL + multi-depth + value transfer ✅ (v1.3.74–v1.3.82)
 
 - [x] Eligible value=0 CALL/STATICCALL leaf (v1.3.74)
 - [x] Multi-depth call-frames (CALL*/LOG) with depth cap 4 (v1.3.75)
@@ -395,7 +395,8 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] CALLCODE value via fail-closed balances (v1.3.79)
 - [x] Simple CREATE (empty/STOP init) inline (v1.3.80)
 - [x] CREATE2 empty/STOP init (EIP-1014 / legacy) (v1.3.81)
-- Remaining: non-trivial init runtime; DB satoshi journal ownership (not claimed)
+- [x] Eligible CREATE init with RETURN runtime (v1.3.82)
+- Remaining: DB satoshi journal ownership (not claimed)
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
 
@@ -428,6 +429,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.79: CALLCODE value (fail-closed bridge_state.balances)
 - [x] v1.3.80: simple CREATE (empty/STOP init) inline
 - [x] v1.3.81: CREATE2 empty/STOP (EIP-1014 default)
+- [x] v1.3.82: CREATE eligible init → RETURN runtime
 
 ### Priority 39 — P2P Rust ingress data plane ✅ (v1.3.77–v1.3.78)
 

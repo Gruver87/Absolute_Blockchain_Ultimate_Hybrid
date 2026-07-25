@@ -187,8 +187,8 @@ def test_stop_init_create_inline():
     not getattr(native, "native_available", lambda: False)(),
     reason="abs_native required",
 )
-def test_nontrivial_init_falls_to_hook():
-    """Init with RETURN is not simple → Python create hook."""
+def test_nontrivial_host_init_falls_to_hook():
+    """Init containing CREATE is not leaf-eligible → Python create hook."""
     hook_calls = {"n": 0}
 
     def create_hook(init_code, value, caller_ctx, salt=None):
@@ -200,13 +200,10 @@ def test_nontrivial_init_falls_to_hook():
             "gas_used": 100,
         }
 
-    # PUSH1 0x00 PUSH1 0x00 RETURN as init in memory — not empty/STOP-only
-    # Build: mstore return stub then CREATE size=4
-    # Simpler: size=2 with PUSH1 STOP is not STOP-only (len!=1 or !=[0])
     bytecode = bytes(
         [
             0x60,
-            0x60,  # PUSH1 0x60
+            0xF0,  # PUSH1 CREATE into mem
             0x60,
             0x00,
             0x53,  # MSTORE8
@@ -215,7 +212,7 @@ def test_nontrivial_init_falls_to_hook():
             0x60,
             0x00,  # offset
             0x60,
-            0x02,  # size=2 (not eligible)
+            0x01,  # size
             0xF0,
             0x00,
         ]

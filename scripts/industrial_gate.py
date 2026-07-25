@@ -1382,8 +1382,13 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("evm_pure_runner must inline CREATE2 (v1.3.81)")
         if "create2_eip1014_enabled" not in rust_runner:
             errors.append("evm_pure_runner must gate CREATE2 EIP-1014 (v1.3.81)")
+        # v1.3.82 — CREATE RETURN runtime
+        if "run_inline_create_init" not in rust_runner or "v1.3.82" not in rust_runner:
+            errors.append("evm_pure_runner must run eligible CREATE init (v1.3.82)")
+        if "native_inline_create_runtime" not in rust_runner:
+            errors.append("evm_pure_runner must mark CREATE runtime (v1.3.82)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..81 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..82 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

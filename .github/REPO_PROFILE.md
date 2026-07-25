@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.81` — CREATE2 empty/STOP (EIP-1014) |
-| **Notes** | [RELEASE_NOTES_v1.3.81.md](../RELEASE_NOTES_v1.3.81.md) |
-| **Prior** | [v1.3.80](../RELEASE_NOTES_v1.3.80.md) CREATE; [v1.3.79](../RELEASE_NOTES_v1.3.79.md) CALLCODE value |
+| **Tag** | `v1.3.82` — CREATE eligible init → RETURN runtime |
+| **Notes** | [RELEASE_NOTES_v1.3.82.md](../RELEASE_NOTES_v1.3.82.md) |
+| **Prior** | [v1.3.81](../RELEASE_NOTES_v1.3.81.md) CREATE2; [v1.3.80](../RELEASE_NOTES_v1.3.80.md) CREATE |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

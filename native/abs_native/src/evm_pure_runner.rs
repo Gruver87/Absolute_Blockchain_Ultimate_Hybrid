@@ -1357,10 +1357,12 @@ fn execute_create_native(
     Ok(())
 }
 
-/// Empty or STOP-only init → empty deployed runtime (v1.3.80).
+/// Empty/STOP or leaf-eligible init (no CALL/CREATE/LOG/SELFDESTRUCT) — v1.3.80/82.
 fn init_is_inline_create_eligible(init: &[u8]) -> bool {
-    init.is_empty() || init == [0x00]
+    init.is_empty() || init == [0x00] || bytecode_is_nested_native_eligible(init)
 }
+
+const MAX_INLINE_CREATE_CODE_BYTES: usize = 24_576; // EIP-170
 
 /// Prefer EIP-1014 CREATE2 unless bridge_state/host explicitly disables it.
 fn create2_eip1014_enabled(host_context: Option<&Bound<'_, PyDict>>) -> bool {
@@ -1414,8 +1416,88 @@ fn resolve_inline_create_address(
     }
 }
 
-/// v1.3.80/81 Priority 38: CREATE/CREATE2 with empty/STOP init via bridge_state.
-/// Non-trivial init falls through. Value uses fail-closed balances.
+fn code_entry_occupied(existing: &Bound<'_, PyAny>) -> bool {
+    if let Ok(b) = existing.extract::<Vec<u8>>() {
+        !b.is_empty()
+    } else if let Ok(s) = existing.extract::<String>() {
+        !s.is_empty()
+    } else {
+        true
+    }
+}
+
+/// Run eligible init bytecode; Ok(Some((runtime, gas_used, success))).
+/// Ok(None) = fall through to Python; success=false = fail-closed CREATE.
+fn run_inline_create_init(
+    py: Python<'_>,
+    host_context: Option<&Bound<'_, PyDict>>,
+    init_code: &[u8],
+    call_gas: u64,
+) -> PyResult<Option<(Vec<u8>, u64, bool)>> {
+    if init_code.is_empty() || init_code == [0x00] {
+        return Ok(Some((Vec::new(), 0, true)));
+    }
+    if !bytecode_is_nested_native_eligible(init_code) {
+        return Ok(None);
+    }
+    let init_storage = PyDict::new_bound(py);
+    let jumpdest = crate::evm_build_jumpdest_table_inner(init_code);
+    let stack_py = PyList::empty_bound(py);
+    let memory_py = PyByteArray::new_bound(py, &[]);
+    let child = run_pure_segment_inner(
+        py,
+        init_code,
+        0,
+        call_gas,
+        0,
+        &stack_py,
+        &memory_py,
+        &jumpdest,
+        &[],
+        &[],
+        host_context,
+        Some(&init_storage),
+        None,
+        MAX_PURE_STEPS.max(65_536),
+        true,
+    )?;
+    let child_dict = child.downcast_bound::<PyDict>(py)?;
+    let reason = child_dict
+        .get_item("stop_reason")?
+        .map(|v| v.extract::<String>().unwrap_or_default())
+        .unwrap_or_default();
+    if !matches!(
+        reason.as_str(),
+        "halt" | "return" | "revert" | "out_of_gas"
+    ) {
+        return Ok(None);
+    }
+    let sub_gas = child_dict
+        .get_item("gas_used")?
+        .map(|v| v.extract::<u64>().unwrap_or(0))
+        .unwrap_or(0)
+        .min(call_gas);
+    let reverted = child_dict
+        .get_item("reverted")?
+        .map(|v| v.is_truthy().unwrap_or(false))
+        .unwrap_or(false)
+        || reason == "out_of_gas"
+        || reason == "revert";
+    if reverted {
+        return Ok(Some((Vec::new(), sub_gas, false)));
+    }
+    let runtime = child_dict
+        .get_item("return_data")?
+        .map(|v| v.extract::<Vec<u8>>().unwrap_or_default())
+        .unwrap_or_default();
+    if runtime.len() > MAX_INLINE_CREATE_CODE_BYTES {
+        return Ok(Some((Vec::new(), sub_gas, false)));
+    }
+    Ok(Some((runtime, sub_gas, true)))
+}
+
+/// v1.3.80–82 Priority 38: CREATE/CREATE2 via bridge_state.
+/// Empty/STOP or leaf-eligible init (RETURN runtime) owned in Rust.
 /// CREATE2 defaults to EIP-1014 (`create2_eip1014=false` → legacy Absolute seed).
 fn try_inline_simple_create(
     py: Python<'_>,
@@ -1466,14 +1548,7 @@ fn try_inline_simple_create(
 
     // Collision: non-empty existing code → failed CREATE (push 0).
     if let Some(existing) = codes.get_item(addr.as_str())? {
-        let occupied = if let Ok(b) = existing.extract::<Vec<u8>>() {
-            !b.is_empty()
-        } else if let Ok(s) = existing.extract::<String>() {
-            !s.is_empty()
-        } else {
-            true
-        };
-        if occupied {
+        if code_entry_occupied(&existing) {
             stack_push(stack, U256::zero());
             return Ok(true);
         }
@@ -1493,8 +1568,18 @@ fn try_inline_simple_create(
         }
     }
 
-    // Charge init execution: STOP/empty = 0 beyond CREATE base already applied.
-    let init_gas: u64 = 0;
+    let remaining = gas_limit.saturating_sub(*gas_used);
+    let call_gas = remaining.saturating_sub(remaining / 64);
+    let init_result = match run_inline_create_init(py, host_context, init_code, call_gas)? {
+        Some(v) => v,
+        None => {
+            if let Some(ref snap) = balance_snap {
+                restore_inline_balances(host_context, snap)?;
+            }
+            return Ok(false);
+        }
+    };
+    let (runtime, init_gas, success) = init_result;
     if let Err(_reason) = consume_gas(gas_used, gas_limit, init_gas) {
         if let Some(ref snap) = balance_snap {
             restore_inline_balances(host_context, snap)?;
@@ -1502,9 +1587,20 @@ fn try_inline_simple_create(
         stack_push(stack, U256::zero());
         return Ok(true);
     }
+    if !success {
+        if let Some(ref snap) = balance_snap {
+            restore_inline_balances(host_context, snap)?;
+        }
+        stack_push(stack, U256::zero());
+        return Ok(true);
+    }
 
-    // Persist empty runtime code + empty storage under bridge_state.
-    codes.set_item(addr.as_str(), "")?;
+    // Persist runtime code + empty storage under bridge_state.
+    if runtime.is_empty() {
+        codes.set_item(addr.as_str(), "")?;
+    } else {
+        codes.set_item(addr.as_str(), PyBytes::new_bound(py, &runtime))?;
+    }
     if let Ok(Some(storages_any)) = state.get_item("storages") {
         if let Ok(storages) = storages_any.downcast::<PyDict>() {
             storages.set_item(addr.as_str(), PyDict::new_bound(py))?;
@@ -1519,6 +1615,11 @@ fn try_inline_simple_create(
     stack_push(stack, addr_word);
     state.set_item("native_inline_simple_create", true)?;
     state.set_item("native_inline_create_address", addr.as_str())?;
+    if !runtime.is_empty() {
+        // v1.3.82: eligible init returned runtime bytecode
+        state.set_item("native_inline_create_runtime", true)?;
+        state.set_item("native_inline_create_runtime_len", runtime.len())?;
+    }
     if op == 0xF5 {
         // v1.3.81
         state.set_item("native_inline_create2", true)?;

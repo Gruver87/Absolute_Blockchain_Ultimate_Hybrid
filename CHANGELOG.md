@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.82] — 2026-07-25
+
+### EVM — CREATE/CREATE2 eligible init with RETURN runtime
+
+- Leaf-eligible init (no CALL/CREATE/LOG/SELFDESTRUCT) runs in Rust
+- Deployed code = `return_data` (EIP-170 cap 24576); empty/STOP still supported
+- Markers: `native_inline_create_runtime`, `native_inline_create_runtime_len`
+- Host ops inside init still fall through to Python create hook
+- Honesty: DB satoshi journal ownership still not claimed
+
 ## [1.3.81] — 2026-07-25
 
 ### EVM — inline CREATE2 (empty / STOP init)
