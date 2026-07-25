@@ -436,6 +436,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.84: inline CREATE → save_account writeback journal
 - [x] v1.3.85: P2P outbound egress bandwidth (Priority 40)
 - [x] v1.3.86: P2P NDJSON line framer (Priority 41)
+- [x] v1.3.87: P2P unified egress prepare (Priority 42)
 
 ### Priority 39 — P2P Rust ingress data plane ✅ (v1.3.77–v1.3.78)
 
@@ -452,6 +453,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `P2PLineFramer` fail-closed extract before `\n`
 - [x] `PeerConnection._read_wire_line` chunked read + framer
+- Remaining: full Rust transport — TCP/TLS/message loop (not claimed)
+
+### Priority 42 — P2P unified egress prepare ✅ (v1.3.87)
+
+- [x] `p2p_egress_prepare`: encode + allowlist + size + egress admit
+- [x] `PeerConnection._prepare_outbound` on send path
 - Remaining: full Rust transport — TCP/TLS/message loop (not claimed)
 
 ## Process per module

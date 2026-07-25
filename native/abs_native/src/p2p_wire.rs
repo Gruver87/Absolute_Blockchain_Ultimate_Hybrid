@@ -54,7 +54,7 @@ pub(crate) fn parse_p2p_wire_line_inner(
     Ok((msg_type.to_string(), data))
 }
 
-fn encode_p2p_wire_message_inner(msg_type: &str, data_json: &str) -> Result<Vec<u8>, String> {
+pub(crate) fn encode_p2p_wire_message_inner(msg_type: &str, data_json: &str) -> Result<Vec<u8>, String> {
     if msg_type.is_empty() || msg_type.len() > MAX_P2P_TYPE_LEN {
         return Err("p2p_type_invalid".to_string());
     }

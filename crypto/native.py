@@ -145,6 +145,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "p2p_ingress_cost_units",
             "p2p_egress_admit",
             "p2p_egress_cost_units",
+            "p2p_egress_prepare",
             "validator_selection_proposer",
             "validator_selection_proposer_weighted",
             "validator_selection_committee",
@@ -2634,6 +2635,30 @@ def p2p_egress_admit(
             rl,
         )
     raise RuntimeError("p2p_egress_admit requires abs_native")
+
+
+def p2p_egress_prepare(
+    msg_type: str,
+    data_json: str,
+    peer_id: str,
+    now: float,
+    max_bytes: int = 2 * 1024 * 1024,
+    allowed_types: Optional[List[str]] = None,
+    rl=None,
+):
+    """Encode + allowlist + size + egress admit (v1.3.87). Returns {ok, payload} / reject."""
+    _require_native_kernel("p2p_egress_prepare")
+    if _native is not None and hasattr(_native, "p2p_egress_prepare"):
+        return _native.p2p_egress_prepare(
+            str(msg_type or ""),
+            str(data_json if data_json is not None else "null"),
+            str(peer_id or ""),
+            float(now),
+            int(max_bytes),
+            list(allowed_types) if allowed_types is not None else None,
+            rl,
+        )
+    raise RuntimeError("p2p_egress_prepare requires abs_native")
 
 
 def p2p_rate_limit_is_exempt(msg_type: str) -> bool:

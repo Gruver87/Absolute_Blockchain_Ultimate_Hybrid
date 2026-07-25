@@ -41,8 +41,8 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.86` — P2P NDJSON line framer |
-| **Notes** | [RELEASE_NOTES_v1.3.86.md](../RELEASE_NOTES_v1.3.86.md) |
+| **Tag** | `v1.3.87` — P2P unified egress prepare |
+| **Notes** | [RELEASE_NOTES_v1.3.87.md](../RELEASE_NOTES_v1.3.87.md) |
 | **Prior** | [v1.3.81](../RELEASE_NOTES_v1.3.81.md) CREATE2; [v1.3.80](../RELEASE_NOTES_v1.3.80.md) CREATE |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

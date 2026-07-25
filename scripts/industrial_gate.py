@@ -1428,8 +1428,16 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("abs_native lib.rs must register p2p_frame (v1.3.86)")
         if "_read_wire_line" not in p2p_py or "P2PLineFramer" not in p2p_py:
             errors.append("p2p_node must wire native line framer (v1.3.86)")
+        # v1.3.87 — unified egress prepare
+        ingress_rs87 = (
+            ROOT / "native" / "abs_native" / "src" / "p2p_ingress.rs"
+        ).read_text(encoding="utf-8")
+        if "p2p_egress_prepare" not in ingress_rs87 or "v1.3.87" not in ingress_rs87:
+            errors.append("p2p_ingress must expose p2p_egress_prepare (v1.3.87)")
+        if "_prepare_outbound" not in p2p_py or "p2p_egress_prepare" not in p2p_py:
+            errors.append("p2p_node must wire egress prepare (v1.3.87)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..86 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..87 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

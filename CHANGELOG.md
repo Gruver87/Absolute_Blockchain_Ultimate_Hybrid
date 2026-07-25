@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.87] — 2026-07-25
+
+### P2P — unified native egress prepare
+
+- `p2p_egress_prepare`: encode + allowlist + size + egress admit (mirror of ingress)
+- Wired into `PeerConnection._prepare_outbound` (send queue + priority)
+- Status: `native_p2p_egress_prepare`
+- Honesty: not full Rust transport; TCP/message loop still Python
+
 ## [1.3.86] — 2026-07-25
 
 ### P2P — native NDJSON line framer

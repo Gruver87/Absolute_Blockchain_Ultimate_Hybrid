@@ -10,14 +10,14 @@
 [![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 [![API Wave](https://img.shields.io/badge/API%20Wave-61-blue)](CHANGELOG.md)
 [![48h soak](https://img.shields.io/badge/48h%20soak-PASS%20Jul%202026-brightgreen)](docs/EVIDENCE_MATRIX.md)
-[![Release](https://img.shields.io/badge/Release-v1.3.86-blue)](RELEASE_NOTES_v1.3.86.md)
+[![Release](https://img.shields.io/badge/Release-v1.3.87-blue)](RELEASE_NOTES_v1.3.87.md)
 
 **Repo:** [github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid) · **Default branch:** `master`  
 **Author:** **ULADZIMIR DABRANSKI** (D.U.P.) · **Owner:** Gruver87
 
 | | |
 |---|---|
-| **Release** | **v1.3.86** - [notes](RELEASE_NOTES_v1.3.86.md) — [CHANGELOG](CHANGELOG.md) |
+| **Release** | **v1.3.87** - [notes](RELEASE_NOTES_v1.3.87.md) — [CHANGELOG](CHANGELOG.md) |
 | **Entry** | `python main.py` |
 | **Dev chain** | `77777` |
 | **Mainnet-v1 prep chain** | `778888` (prod profile — **not** a public mainnet) |
@@ -59,7 +59,8 @@ Most “blockchain” GitHub pages advertise features. This one separates **code
 | [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) | Proven vs not-proven (source of truth) |
 | [MAINNET_GAP_ANALYSIS](docs/MAINNET_GAP_ANALYSIS.md) | Honest checklist to mainnet-v1 |
 | [ARCHITECTURE](docs/ARCHITECTURE.md) | System design |
-| [COMMANDS_REFERENCE](docs/COMMANDS_REFERENCE.md) | Operator commands |
+| [COMMANDS_REFERENCE](docs/COMMANDS_REFERENCE.md) | Operator commands (short) |
+| [ALL_COMMANDS](docs/ALL_COMMANDS.txt) | Full command book (no secrets) |
 | [PUBLIC_TESTNET](docs/PUBLIC_TESTNET.md) | Testnet plan (local seed proven; public URL not yet) |
 | [STORAGE_ROCKSDB](docs/STORAGE_ROCKSDB.md) | Prod storage + DR |
 | [BRIDGE_L1_MAINNET](docs/BRIDGE_L1_MAINNET.md) | Bridge cutover rules |
@@ -256,4 +257,4 @@ MIT — see [LICENSE](LICENSE).
 
 ---
 
-*Last update: 2026-07-25 — **v1.3.86** (P2P NDJSON line framer). Not a launched public mainnet.*
+*Last update: 2026-07-25 — **v1.3.87** (P2P unified egress prepare). Not a launched public mainnet.*

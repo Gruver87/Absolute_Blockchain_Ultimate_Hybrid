@@ -198,6 +198,8 @@ class PeerConnection:
         self._rl_table = None  # optional native P2PRateLimitTable (egress v1.3.85)
         self._line_framer = None  # optional native P2PLineFramer (v1.3.86)
         self._pending_lines: list = []
+        self._use_egress_prepare = False  # v1.3.87 unified prepare
+        self._egress_max_bytes = DEFAULT_MAX_P2P_LINE_BYTES
         # v1.3.66/72: bounded outbound queue (config-driven size + drain timeout)
         qmax = max(8, int(send_queue_max or 256))
         self._send_q: asyncio.Queue = asyncio.Queue(maxsize=qmax)
@@ -237,6 +239,57 @@ class PeerConnection:
             return False
         return True
 
+    def _prepare_outbound(self, msg_type: str, data: Any) -> Optional[bytes]:
+        """v1.3.87: encode + allowlist + size + egress admit (or legacy fallback)."""
+        if self._use_egress_prepare and hasattr(native, "p2p_egress_prepare"):
+            import json
+
+            data_json = (
+                "null"
+                if data is None
+                else json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+            )
+            try:
+                out = native.p2p_egress_prepare(
+                    str(msg_type or ""),
+                    data_json,
+                    self._egress_peer_key(),
+                    float(time.time()),
+                    int(self._egress_max_bytes or DEFAULT_MAX_P2P_LINE_BYTES),
+                    list(ALLOWED_WIRE_TYPES),
+                    self._rl_table,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "[P2P] egress prepare error to %s: %s",
+                    self.peer_id or self.host,
+                    exc,
+                )
+                return None
+            if not isinstance(out, dict) or not out.get("ok"):
+                reason = ""
+                if isinstance(out, dict):
+                    reason = str(out.get("reason") or "")
+                if "egress_bandwidth" in reason:
+                    cb = self._on_egress_reject
+                    if cb is not None:
+                        try:
+                            cb()
+                        except Exception:
+                            pass
+                else:
+                    logger.warning(
+                        "[P2P] egress prepare reject to %s (%s)",
+                        self.peer_id or self.host,
+                        reason or "prepare_failed",
+                    )
+                return None
+            return bytes(out.get("payload") or b"")
+        payload = native.encode_p2p_wire_message(msg_type, data)
+        if not self._egress_ok(msg_type, payload):
+            return None
+        return payload
+
     def _ensure_send_worker(self) -> None:
         if self._send_worker is not None and not self._send_worker.done():
             return
@@ -257,8 +310,8 @@ class PeerConnection:
             msg_type, data, fut = item
             ok = False
             try:
-                payload = native.encode_p2p_wire_message(msg_type, data)
-                if not self._egress_ok(msg_type, payload):
+                payload = self._prepare_outbound(msg_type, data)
+                if payload is None:
                     ok = False
                 else:
                     self.writer.write(payload)
@@ -290,8 +343,8 @@ class PeerConnection:
         try:
             if priority and self._send_q.empty():
                 # Fast path when idle
-                payload = native.encode_p2p_wire_message(msg_type, data)
-                if not self._egress_ok(msg_type, payload):
+                payload = self._prepare_outbound(msg_type, data)
+                if payload is None:
                     return False
                 self.writer.write(payload)
                 await asyncio.wait_for(self.writer.drain(), timeout=self._drain_timeout_sec)
@@ -806,8 +859,10 @@ class P2PNode:
         peer._on_send_fail = self._bump_peer_send_fail
         peer._on_send_drop = self._bump_outbound_drop
         peer._on_egress_reject = self._bump_egress_reject
+        peer._egress_max_bytes = _max_p2p_line_bytes(self.config)
         if self._use_native_egress:
             peer._rl_table = self._rl_table
+            peer._use_egress_prepare = hasattr(native, "p2p_egress_prepare")
 
     def _bump_peer_send_fail(self) -> None:
         self._peer_send_fail = int(self._peer_send_fail or 0) + 1
@@ -2945,6 +3000,9 @@ class P2PNode:
             "native_rate_limit_table": self._rl_table is not None,
             "native_p2p_ingress": bool(self._use_native_ingress and self._rl_table is not None),
             "native_p2p_egress": bool(self._use_native_egress and self._rl_table is not None),
+            "native_p2p_egress_prepare": bool(
+                self._use_native_egress and hasattr(native, "p2p_egress_prepare")
+            ),
             "native_p2p_framer": bool(hasattr(native, "P2PLineFramer")),
             "native_conn_governor": self._conn_governor is not None,
             "max_inbound_per_ip": int(getattr(self.config, "p2p_max_inbound_per_ip", 0) or 0),

@@ -32,8 +32,8 @@ def test_needles_v1386():
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
     assert "_read_wire_line" in p2p
     assert "P2PLineFramer" in p2p
-    cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "1.3.86-industrial" in cfg
+    notes = (ROOT / "RELEASE_NOTES_v1.3.86.md").read_text(encoding="utf-8")
+    assert "1.3.86-industrial" in notes
     assert hasattr(abs_native, "P2PLineFramer")
     assert hasattr(native, "P2PLineFramer")
 
