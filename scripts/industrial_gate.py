@@ -1516,8 +1516,17 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "observability" / "metrics.py"
         ).read_text(encoding="utf-8"):
             errors.append("metrics must export abs_p2p_native_handshake (v1.3.96)")
+        # v1.3.97 — native peer cert identities
+        if "peer_cert_identities" not in transport_rs or "extract_cert_identities" not in transport_rs:
+            errors.append("p2p_transport must extract peer cert identities (v1.3.97)")
+        if "_native_peer_identities" not in p2p_py or "peer_cert_identities" not in p2p_py:
+            errors.append("p2p_node must wire native peer identities (v1.3.97)")
+        if "abs_p2p_native_peer_identities" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("metrics must export abs_p2p_native_peer_identities (v1.3.97)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..96 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..97 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

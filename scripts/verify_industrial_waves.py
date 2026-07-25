@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.96 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.97 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -57,6 +57,7 @@ WAVE_TESTS = [
     "tests/unit/test_v1394_p2p_native_read_messages.py",
     "tests/unit/test_v1395_p2p_native_write_messages.py",
     "tests/unit/test_v1396_p2p_native_handshake.py",
+    "tests/unit/test_v1397_p2p_native_peer_identities.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -525,7 +526,7 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
     ),
     (
         "1.3.96",
-        "runtime/config.py",
+        "RELEASE_NOTES_v1.3.96.md",
         ["1.3.96-industrial"],
     ),
     (
@@ -542,6 +543,26 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "1.3.96",
         "observability/metrics.py",
         ["abs_p2p_native_handshake"],
+    ),
+    (
+        "1.3.97",
+        "runtime/config.py",
+        ["1.3.97-industrial"],
+    ),
+    (
+        "1.3.97",
+        "native/abs_native/src/p2p_transport.rs",
+        ["peer_cert_identities", "extract_cert_identities", "v1.3.97"],
+    ),
+    (
+        "1.3.97",
+        "network/p2p_node.py",
+        ["_native_peer_identities", "peer_cert_identities"],
+    ),
+    (
+        "1.3.97",
+        "observability/metrics.py",
+        ["abs_p2p_native_peer_identities"],
     ),
 ]
 
@@ -570,8 +591,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.96"):
-            errors.append(f"node_version expected 1.3.96-*, got {ver}")
+        if not ver.startswith("1.3.97"):
+            errors.append(f"node_version expected 1.3.97-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

@@ -977,6 +977,7 @@ class P2PNode:
         self._native_read_messages = False
         self._native_write_messages = False
         self._native_handshake = False
+        self._native_peer_identities = False
         if self._use_native_transport:
             try:
                 import abs_native as _abs_nat
@@ -989,12 +990,14 @@ class P2PNode:
                     _cls, "write_payloads"
                 )
                 self._native_handshake = hasattr(_cls, "handshake_roundtrip")
+                self._native_peer_identities = hasattr(_cls, "peer_cert_identities")
             except Exception:
                 self._native_read_message = False
                 self._native_write_message = False
                 self._native_read_messages = False
                 self._native_write_messages = False
                 self._native_handshake = False
+                self._native_peer_identities = False
         self._handshake_rejects: int = 0
         self._eclipse_at_risk: int = 0
         self._eclipse_ratio: float = 0.0
@@ -1231,7 +1234,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.96)"
+                    f"({label} v1.3.97)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -1672,13 +1675,14 @@ class P2PNode:
             elif peer._native_conn is not None and bool(
                 getattr(peer._native_conn, "tls", False)
             ):
-                # Native rustls path: fingerprint from conn; CN/SAN bind stays best-effort.
+                # Native rustls path: fingerprint + CN/SAN identities (v1.3.97).
+                ids = list(getattr(peer._native_conn, "peer_cert_identities", []) or [])
                 tls_meta = {
                     "ssl": True,
                     "fingerprint_sha256": str(
                         getattr(peer._native_conn, "peer_cert_sha256", "") or ""
                     ),
-                    "identities": [],
+                    "identities": ids,
                 }
             else:
                 tls_meta = {"ssl": False, "fingerprint_sha256": "", "identities": []}
@@ -1692,7 +1696,7 @@ class P2PNode:
                 self._strike_peer_sync(peer, "tls_missing")
                 print(f"[P2P] Rejected {peer.host}:{peer.port}: TLS required but no ssl_object")
                 return False
-            if bind_id and peer.writer is not None:
+            if bind_id:
                 if not identities or not handshake_node_id_matches_cert(claimed_id, identities):
                     self._handshake_rejects += 1
                     self._strike_peer_sync(peer, "tls_identity_mismatch")
@@ -3692,6 +3696,7 @@ class P2PNode:
             "native_read_messages": bool(getattr(self, "_native_read_messages", False)),
             "native_write_messages": bool(getattr(self, "_native_write_messages", False)),
             "native_handshake": bool(getattr(self, "_native_handshake", False)),
+            "native_peer_identities": bool(getattr(self, "_native_peer_identities", False)),
             "native_accept_total": int(self._native_accept_total or 0),
             "native_accept_errors": int(self._native_accept_errors or 0),
             "native_connect_total": int(self._native_connect_total or 0),

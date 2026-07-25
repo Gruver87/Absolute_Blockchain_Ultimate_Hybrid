@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.97] — 2026-07-25
+
+### P2P — native peer cert CN/SAN identities
+
+- `peer_cert_identities` extracts CN + SAN DNS/URI from rustls peer cert
+- Native TLS handshake identity bind works without asyncio writer
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.96] — 2026-07-25
 
 ### P2P — native handshake_roundtrip I/O fuse

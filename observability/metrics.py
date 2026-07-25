@@ -499,6 +499,12 @@ class MetricsCollector:
                     f"abs_p2p_native_handshake{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_handshake') else 0}"
                 ),
+                "# HELP abs_p2p_native_peer_identities Whether native CN/SAN identity extract is active (0/1)",
+                "# TYPE abs_p2p_native_peer_identities gauge",
+                (
+                    f"abs_p2p_native_peer_identities{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_peer_identities') else 0}"
+                ),
                 "# HELP abs_p2p_native_accept_total Native TCP accepts",
                 "# TYPE abs_p2p_native_accept_total counter",
                 (

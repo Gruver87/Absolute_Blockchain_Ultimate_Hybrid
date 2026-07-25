@@ -1,4 +1,4 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.96).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.97).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
 //! v1.3.92: `read_message` fuses framed read + wire parse.
@@ -6,6 +6,7 @@
 //! v1.3.94: `read_messages` batch drain (still not full message-loop).
 //! v1.3.95: `write_messages` / `write_payloads` batch send.
 //! v1.3.96: `handshake_roundtrip` I/O fuse (validate still Python).
+//! v1.3.97: peer cert CN/SAN identities for native TLS bind.
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -100,6 +101,57 @@ fn messages_to_list(
 
 fn tls_err(e: impl std::fmt::Display) -> String {
     format!("p2p_transport_tls:{e}")
+}
+
+/// Extract CN + SAN DNS/URI identities from an X.509 DER certificate (v1.3.97).
+fn extract_cert_identities(der: &[u8]) -> Vec<String> {
+    use x509_parser::extensions::{GeneralName, ParsedExtension};
+    use x509_parser::prelude::*;
+
+    let mut out: HashSet<String> = HashSet::new();
+    let Ok((_, cert)) = X509Certificate::from_der(der) else {
+        return Vec::new();
+    };
+    for attr in cert.subject().iter_common_name() {
+        if let Ok(v) = attr.as_str() {
+            let s = v.trim();
+            if !s.is_empty() {
+                out.insert(s.to_string());
+            }
+        }
+    }
+    for ext in cert.extensions() {
+        if let ParsedExtension::SubjectAlternativeName(san) = ext.parsed_extension() {
+            for name in &san.general_names {
+                match name {
+                    GeneralName::DNSName(dns) => {
+                        let s = dns.trim();
+                        if !s.is_empty() {
+                            out.insert(s.to_string());
+                        }
+                    }
+                    GeneralName::URI(uri) => {
+                        let v = uri.trim();
+                        if v.is_empty() {
+                            continue;
+                        }
+                        out.insert(v.to_string());
+                        if v.contains('/') {
+                            if let Some(last) = v.trim_end_matches('/').rsplit('/').next() {
+                                if !last.is_empty() {
+                                    out.insert(last.to_string());
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    let mut list: Vec<String> = out.into_iter().collect();
+    list.sort();
+    list
 }
 
 fn set_timeouts(stream: &TcpStream, timeout_ms: u64) -> Result<(), String> {
@@ -300,18 +352,29 @@ impl ConnStream {
     }
 
     fn peer_cert_fingerprint_sha256(&self) -> String {
+        let Some(first) = self.peer_end_entity_der() else {
+            return String::new();
+        };
+        hex::encode(Sha256::digest(&first))
+    }
+
+    fn peer_end_entity_der(&self) -> Option<Vec<u8>> {
         let certs = match self {
-            ConnStream::Plain(_) => return String::new(),
+            ConnStream::Plain(_) => return None,
             ConnStream::TlsServer(s) => s.conn.peer_certificates(),
             ConnStream::TlsClient(s) => s.conn.peer_certificates(),
         };
-        let Some(chain) = certs else {
-            return String::new();
+        let chain = certs?;
+        let first = chain.first()?;
+        Some(first.as_ref().to_vec())
+    }
+
+    /// CN + SAN DNS/URI identities (parity with Python `peer_cert_identities`).
+    fn peer_cert_identities(&self) -> Vec<String> {
+        let Some(der) = self.peer_end_entity_der() else {
+            return Vec::new();
         };
-        let Some(first) = chain.first() else {
-            return String::new();
-        };
-        hex::encode(Sha256::digest(first.as_ref()))
+        extract_cert_identities(&der)
     }
 
     fn shutdown(&mut self) {
@@ -603,6 +666,12 @@ impl P2PNativeConn {
     #[getter]
     fn peer_cert_sha256(&self) -> String {
         self.stream.peer_cert_fingerprint_sha256()
+    }
+
+    /// Sorted CN + SAN DNS/URI identities from the peer end-entity cert (v1.3.97).
+    #[getter]
+    fn peer_cert_identities(&self) -> Vec<String> {
+        self.stream.peer_cert_identities()
     }
 
     /// `{ok:true, line:bytes|None}` or `{ok:false, reason}`. None line = EOF.
