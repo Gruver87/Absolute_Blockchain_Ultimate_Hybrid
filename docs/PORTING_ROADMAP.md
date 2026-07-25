@@ -461,6 +461,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.109: Native singular block payload gate (Priority 64)
 - [x] v1.3.110: Native peer discovery shape gates (Priority 65)
 - [x] v1.3.111: Native state-root shape gates (Priority 66)
+- [x] v1.3.112: Native cross-shard shape gates (Priority 67)
 
 ### Priority 39 — P2P Rust ingress data plane ✅ (v1.3.77–v1.3.78)
 
@@ -624,6 +625,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `check_state_root_request_payload` / `check_state_root_response_payload` on native read
 - [x] Bad → `bad_state_root_request` / `bad_state_root_response`
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
+### Priority 67 — Native cross-shard shape gates ✅ (v1.3.112)
+
+- [x] `check_cross_shard_tx_payload` / `check_cross_shard_ack_payload` / `check_shard_migration_payload`
+- [x] Bad → `bad_cross_shard_tx` / `bad_cross_shard_ack` / `bad_shard_migration`
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
 ## Process per module

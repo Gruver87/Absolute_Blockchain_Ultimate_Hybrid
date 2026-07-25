@@ -1,4 +1,4 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.111).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.112).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
 //! v1.3.92: `read_message` fuses framed read + wire parse.
@@ -21,6 +21,7 @@
 //! v1.3.109: singular `block` payload gate on read (null = not-found).
 //! v1.3.110: peers / validator_register shape gates on read.
 //! v1.3.111: state_root_request / state_root_response shape gates on read.
+//! v1.3.112: cross_shard_tx / cross_shard_ack / shard_migration shape gates.
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -28,8 +29,9 @@ use crate::p2p_frame::P2PLineFramer;
 use crate::p2p_wire::{
     clamp_max_bytes, encode_p2p_wire_message_inner, parse_p2p_wire_line_inner,
     validate_attestation_shape_inner, validate_block_announce_inner, validate_blocks_batch_inner,
-    validate_get_block_by_hash_inner, validate_get_block_inner, validate_get_blocks_inner,
-    validate_mempool_batch_inner, validate_peers_list_inner, validate_state_root_request_inner,
+    validate_cross_shard_ack_inner, validate_cross_shard_tx_inner, validate_get_block_by_hash_inner,
+    validate_get_block_inner, validate_get_blocks_inner, validate_mempool_batch_inner,
+    validate_peers_list_inner, validate_shard_migration_inner, validate_state_root_request_inner,
     validate_state_root_response_inner, validate_status_inner, validate_validator_register_inner,
     validate_wire_tx_inner, DEFAULT_MAX_P2P_LINE_BYTES,
 };
@@ -304,7 +306,40 @@ fn check_state_root_response_payload(
     Ok(())
 }
 
-/// Run all fail-closed ingress shape gates (status…state_root). Still not full dispatch.
+/// v1.3.112: parity with Python `cross_shard_tx` gate (fail-closed).
+fn check_cross_shard_tx_payload(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+    if msg_type != "cross_shard_tx" {
+        return Ok(());
+    }
+    if validate_cross_shard_tx_inner(data).is_none() {
+        return Err("bad_cross_shard_tx".to_string());
+    }
+    Ok(())
+}
+
+/// v1.3.112: parity with Python `cross_shard_ack` gate (fail-closed).
+fn check_cross_shard_ack_payload(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+    if msg_type != "cross_shard_ack" {
+        return Ok(());
+    }
+    if validate_cross_shard_ack_inner(data).is_none() {
+        return Err("bad_cross_shard_ack".to_string());
+    }
+    Ok(())
+}
+
+/// v1.3.112: parity with Python `shard_migration` gate (fail-closed).
+fn check_shard_migration_payload(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+    if msg_type != "shard_migration" {
+        return Ok(());
+    }
+    if validate_shard_migration_inner(data).is_none() {
+        return Err("bad_shard_migration".to_string());
+    }
+    Ok(())
+}
+
+/// Run all fail-closed ingress shape gates (status…cross-shard). Still not full dispatch.
 fn check_ingress_shape_gates(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
     check_status_payload(msg_type, data)?;
     check_attestation_payload(msg_type, data)?;
@@ -320,6 +355,9 @@ fn check_ingress_shape_gates(msg_type: &str, data: &serde_json::Value) -> Result
     check_validator_register_payload(msg_type, data)?;
     check_state_root_request_payload(msg_type, data)?;
     check_state_root_response_payload(msg_type, data)?;
+    check_cross_shard_tx_payload(msg_type, data)?;
+    check_cross_shard_ack_payload(msg_type, data)?;
+    check_shard_migration_payload(msg_type, data)?;
     Ok(())
 }
 
@@ -1046,6 +1084,7 @@ impl P2PNativeConn {
     /// v1.3.109: singular `block` payload gate (null = not-found).
     /// v1.3.110: peers / validator_register shape gates.
     /// v1.3.111: state_root_request / state_root_response shape gates.
+    /// v1.3.112: cross_shard_tx / cross_shard_ack / shard_migration shape gates.
     #[pyo3(signature = (chunk_sz=65536, allowed_types=None, auto_pong=false))]
     fn read_message(
         &mut self,
@@ -1132,6 +1171,7 @@ impl P2PNativeConn {
     /// v1.3.109: singular `block` payload gate (null = not-found).
     /// v1.3.110: peers / validator_register shape gates.
     /// v1.3.111: state_root_request / state_root_response shape gates.
+    /// v1.3.112: cross_shard_tx / cross_shard_ack / shard_migration shape gates.
     ///
     /// `{ok:true, messages:[{type,data,nbytes},...], eof:bool, auto_pongs, keepalive_touches}` |
     /// `{ok:false, reason, messages:[...], eof:false, ...}`.
@@ -2091,5 +2131,49 @@ mod tests {
         )
         .is_ok());
         assert!(check_state_root_request_payload("peers", &serde_json::json!(null)).is_ok());
+    }
+
+    #[test]
+    fn cross_shard_payload_gate_parity() {
+        assert_eq!(
+            check_cross_shard_tx_payload("cross_shard_tx", &serde_json::json!({})).unwrap_err(),
+            "bad_cross_shard_tx"
+        );
+        let good_tx = serde_json::json!({
+            "tx_id": "t1",
+            "from_shard": 0,
+            "to_shard": 1,
+            "from_addr": "a",
+            "to_addr": "b",
+            "amount": 1.0
+        });
+        assert!(check_cross_shard_tx_payload("cross_shard_tx", &good_tx).is_ok());
+
+        assert_eq!(
+            check_cross_shard_ack_payload("cross_shard_ack", &serde_json::json!({})).unwrap_err(),
+            "bad_cross_shard_ack"
+        );
+        assert!(check_cross_shard_ack_payload(
+            "cross_shard_ack",
+            &serde_json::json!({"tx_id": "t1"})
+        )
+        .is_ok());
+
+        assert_eq!(
+            check_shard_migration_payload("shard_migration", &serde_json::json!({})).unwrap_err(),
+            "bad_shard_migration"
+        );
+        assert!(check_shard_migration_payload(
+            "shard_migration",
+            &serde_json::json!({
+                "type": "shard_migration",
+                "address": "a",
+                "from_shard": 0,
+                "to_shard": 1,
+                "balance": 1.0
+            })
+        )
+        .is_ok());
+        assert!(check_cross_shard_tx_payload("peers", &serde_json::json!({})).is_ok());
     }
 }

@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.112] — 2026-07-25
+
+### P2P — native cross-shard shape gates
+
+- Fail-closed `cross_shard_tx` / `cross_shard_ack` / `shard_migration` on native read
+- Strike reasons: `bad_cross_shard_tx` / `bad_cross_shard_ack` / `bad_shard_migration`
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.111] — 2026-07-25
 
 ### P2P — native state-root shape gates

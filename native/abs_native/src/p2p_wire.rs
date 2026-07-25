@@ -815,7 +815,7 @@ fn json_shard_id(value: &Value) -> Option<i64> {
     Some(id)
 }
 
-fn validate_cross_shard_tx_inner(
+pub(crate) fn validate_cross_shard_tx_inner(
     data: &Value,
 ) -> Option<(String, i64, i64, String, String, f64, String, String)> {
     let obj = data.as_object()?;
@@ -886,7 +886,7 @@ fn validate_cross_shard_tx_inner(
     ))
 }
 
-fn validate_cross_shard_ack_inner(
+pub(crate) fn validate_cross_shard_ack_inner(
     data: &Value,
 ) -> Option<(String, Option<i64>, Option<i64>, String, String)> {
     let obj = data.as_object()?;
@@ -928,7 +928,7 @@ fn validate_cross_shard_ack_inner(
     Some((tx_id, shard_id, to_shard, status, validator_id))
 }
 
-fn validate_shard_migration_inner(data: &Value) -> Option<(String, i64, i64, f64)> {
+pub(crate) fn validate_shard_migration_inner(data: &Value) -> Option<(String, i64, i64, f64)> {
     let obj = data.as_object()?;
     let msg_type = obj
         .get("type")
