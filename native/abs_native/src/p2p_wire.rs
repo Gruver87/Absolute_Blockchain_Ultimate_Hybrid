@@ -979,6 +979,96 @@ pub(crate) fn verify_blocks_batch_semantics_inner(data: &Value) -> Result<(), St
     Ok(())
 }
 
+/// v1.3.125: request-bound `blocks` response — range + continuity + parent chain.
+/// Does not prove tip existence / fork-choice / state_root.
+pub(crate) fn verify_blocks_response_semantics_inner(
+    data: &Value,
+    expected_from: i64,
+    expected_to: i64,
+    expected_parent_hash: &str,
+    allow_empty: bool,
+) -> Result<(), String> {
+    verify_blocks_batch_semantics_inner(data)?;
+    let arr = data
+        .as_array()
+        .ok_or_else(|| "bad_blocks_batch".to_string())?;
+    if arr.is_empty() {
+        if allow_empty {
+            return Ok(());
+        }
+        return Err("empty_blocks_response".to_string());
+    }
+    if expected_from < 0 || expected_to < expected_from {
+        return Err("bad_blocks_response_range".to_string());
+    }
+    let mut prev_hash = String::new();
+    for (idx, block) in arr.iter().enumerate() {
+        let obj = block
+            .as_object()
+            .ok_or_else(|| "bad_blocks_batch".to_string())?;
+        let height = obj
+            .get("height")
+            .or_else(|| obj.get("number"))
+            .and_then(json_i64)
+            .ok_or_else(|| "bad_blocks_response_range".to_string())?;
+        let block_hash = obj
+            .get("hash")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        let parent = obj
+            .get("parent_hash")
+            .or_else(|| obj.get("parent"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if idx == 0 {
+            if height != expected_from {
+                return Err("bad_blocks_response_range".to_string());
+            }
+            let exp = expected_parent_hash.trim();
+            if !exp.is_empty() && parent != exp {
+                return Err("bad_blocks_response_parent".to_string());
+            }
+        } else if height != expected_from + idx as i64 {
+            return Err("bad_blocks_response_continuity".to_string());
+        } else if parent != prev_hash {
+            return Err("bad_blocks_response_parent".to_string());
+        }
+        if height > expected_to {
+            return Err("bad_blocks_response_range".to_string());
+        }
+        prev_hash = block_hash;
+    }
+    Ok(())
+}
+
+#[pyfunction]
+fn verify_p2p_blocks_response_semantics(
+    data_json: String,
+    expected_from: i64,
+    expected_to: i64,
+    expected_parent_hash: String,
+    allow_empty: bool,
+) -> PyResult<Option<String>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(Some("bad_blocks_batch".to_string())),
+    };
+    match verify_blocks_response_semantics_inner(
+        &value,
+        expected_from,
+        expected_to,
+        &expected_parent_hash,
+        allow_empty,
+    ) {
+        Ok(()) => Ok(None),
+        Err(reason) => Ok(Some(reason)),
+    }
+}
+
 #[pyfunction]
 fn validate_p2p_validator_register(
     py: Python<'_>,
@@ -1284,6 +1374,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_p2p_get_block, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_get_block_by_hash, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_blocks_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(verify_p2p_blocks_response_semantics, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_cross_shard_tx, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_cross_shard_ack, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_shard_migration, m)?)?;

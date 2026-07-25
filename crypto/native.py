@@ -179,6 +179,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "validate_p2p_get_block",
             "validate_p2p_get_block_by_hash",
             "validate_p2p_blocks_batch",
+            "verify_p2p_blocks_response_semantics",
             "validate_p2p_cross_shard_tx",
             "validate_p2p_cross_shard_ack",
             "validate_p2p_shard_migration",
@@ -3124,6 +3125,35 @@ def validate_p2p_blocks_batch(data: Any) -> Optional[int]:
         if validate_p2p_block_announce(block) is None:
             return None
     return len(data)
+
+
+def verify_p2p_blocks_response_semantics(
+    data: Any,
+    expected_from: int,
+    expected_to: int,
+    expected_parent_hash: str = "",
+    *,
+    allow_empty: bool = False,
+) -> Optional[str]:
+    """v1.3.125: request-bound blocks response (range/continuity/parent + hashes).
+
+    Returns None on OK, else a strike reason string. Fail-closed without native.
+    """
+    payload = (
+        json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+        if not isinstance(data, str)
+        else data
+    )
+    if _native is not None and hasattr(_native, "verify_p2p_blocks_response_semantics"):
+        result = _native.verify_p2p_blocks_response_semantics(
+            payload,
+            int(expected_from),
+            int(expected_to),
+            str(expected_parent_hash or ""),
+            bool(allow_empty),
+        )
+        return str(result) if result else None
+    return "blocks_response_native_required"
 
 
 def validate_p2p_cross_shard_tx(data: Any) -> Optional[dict]:

@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.125] — 2026-07-25
+
+### P2P — request-bound blocks response + prod native shell fail-closed
+
+- Sync waiters validate `blocks` against requested range/parent/continuity (Rust)
+- Rejected responses never fulfill waiters with attacker data
+- Prod/`require_native_crypto` requires `read_message_loop_events`; ready exposes shell flag
+- Honesty: not full sync ownership / tip proof / fork-choice / libp2p / mainnet
+
 ## [1.3.124] — 2026-07-25
 
 ### P2P — native status.head_hash digest semantic gate

@@ -1882,8 +1882,31 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_status_head_hash_semantic_gate (v1.3.124)"
             )
+        # v1.3.125 — request-bound blocks response + prod shell contract
+        if "verify_blocks_response_semantics_inner" not in (
+            ROOT / "native" / "abs_native" / "src" / "p2p_wire.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "p2p_wire must expose verify_blocks_response_semantics_inner (v1.3.125)"
+            )
+        if "verify_p2p_blocks_response_semantics" not in p2p_py:
+            errors.append(
+                "p2p_node must call verify_p2p_blocks_response_semantics (v1.3.125)"
+            )
+        if "stale wheel is not prod-safe" not in p2p_py:
+            errors.append("p2p_node must fail-closed on missing loop shell in prod (v1.3.125)")
+        if "p2p_native_message_loop_shell" not in (
+            ROOT / "api" / "http.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("/health/ready must expose p2p_native_message_loop_shell (v1.3.125)")
+        if "abs_p2p_native_blocks_response_semantic_gate" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_blocks_response_semantic_gate (v1.3.125)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..124 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..125 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

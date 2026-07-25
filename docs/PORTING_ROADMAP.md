@@ -710,6 +710,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Height↔hash binding / peer auth stay Python
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
+### Priority 80 — Request-bound blocks response + prod shell contract ✅ (v1.3.125)
+
+- [x] `verify_blocks_response_semantics_inner` on sync waiters (range/continuity/parent + hashes)
+- [x] Prod native transport fail-closed without `read_message_loop_events`
+- [x] `/health/ready` exposes `p2p_native_message_loop_shell`
+- Remaining: tip existence proof / fork-choice / full sync ownership / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

@@ -679,6 +679,18 @@ class MetricsCollector:
                     f"abs_p2p_status_semantic_rejects_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('status_semantic_rejects_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_blocks_response_semantic_gate Whether request-bound blocks response gate is active (0/1)",
+                "# TYPE abs_p2p_native_blocks_response_semantic_gate gauge",
+                (
+                    f"abs_p2p_native_blocks_response_semantic_gate{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_blocks_response_semantic_gate') else 0}"
+                ),
+                "# HELP abs_p2p_blocks_response_semantic_rejects_total request-bound blocks response rejects",
+                "# TYPE abs_p2p_blocks_response_semantic_rejects_total counter",
+                (
+                    f"abs_p2p_blocks_response_semantic_rejects_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('blocks_response_semantic_rejects_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_message_loop_dispatch_total Dispatch events from native loop shell",
                 "# TYPE abs_p2p_native_message_loop_dispatch_total counter",
                 (

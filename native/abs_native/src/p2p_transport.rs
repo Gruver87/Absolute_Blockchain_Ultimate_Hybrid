@@ -33,6 +33,7 @@
 //! v1.3.122: singular `block` response canonical-hash semantic gate (null = not-found OK).
 //! v1.3.123: state_root_response digest-semantic gate (32-byte hex; correlation stays Python).
 //! v1.3.124: status.head_hash digest-semantic gate (empty OK; non-empty must be 32-byte hex).
+//! v1.3.125: request-bound blocks response semantics (waiter correlation; not full sync ownership).
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 

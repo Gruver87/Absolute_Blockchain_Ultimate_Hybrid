@@ -1167,6 +1167,14 @@ class P2PNode:
                 self._native_auto_pong = bool(
                     getattr(config, "p2p_native_auto_pong", True)
                 )
+                if must_native_tx and not self._native_message_loop_shell:
+                    raise RuntimeError(
+                        "[P2P] p2p_native_transport requires "
+                        "P2PNativeConn.read_message_loop_events "
+                        "(rebuild/install abs_native; stale wheel is not prod-safe)"
+                    )
+            except RuntimeError:
+                raise
             except Exception:
                 self._native_read_message = False
                 self._native_write_message = False
@@ -1176,6 +1184,11 @@ class P2PNode:
                 self._native_peer_identities = False
                 self._native_message_loop_shell = False
                 self._native_auto_pong = False
+                if must_native_tx:
+                    raise RuntimeError(
+                        "[P2P] native capability probe failed under "
+                        "prod/require_native_crypto"
+                    ) from None
         else:
             self._native_message_loop_shell = False
         self._native_message_loop_dispatch_total: int = 0
@@ -1185,6 +1198,7 @@ class P2PNode:
         self._block_semantic_rejects_total: int = 0
         self._state_root_semantic_rejects_total: int = 0
         self._status_semantic_rejects_total: int = 0
+        self._blocks_response_semantic_rejects_total: int = 0
         self._handshake_rejects: int = 0
         self._eclipse_at_risk: int = 0
         self._eclipse_ratio: float = 0.0
@@ -1421,7 +1435,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.124)"
+                    f"({label} v1.3.125)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -2358,8 +2372,31 @@ class P2PNode:
 
         waiter = self._sync_waiters.get(peer.peer_id)
         if waiter:
-            expected_types, fut = waiter
+            if len(waiter) >= 3:
+                expected_types, fut, request_ctx = waiter[0], waiter[1], waiter[2]
+            else:
+                expected_types, fut = waiter[0], waiter[1]
+                request_ctx = None
             if msg_type in expected_types and not fut.done():
+                if (
+                    msg_type == MSG_BLOCKS
+                    and isinstance(request_ctx, dict)
+                    and request_ctx.get("kind") == "blocks"
+                ):
+                    reason = native.verify_p2p_blocks_response_semantics(
+                        data if isinstance(data, list) else (data or []),
+                        int(request_ctx.get("from_height", 0) or 0),
+                        int(request_ctx.get("to_height", 0) or 0),
+                        str(request_ctx.get("parent_hash") or ""),
+                        allow_empty=bool(request_ctx.get("allow_empty", False)),
+                    )
+                    if reason:
+                        self._blocks_response_semantic_rejects_total = int(
+                            self._blocks_response_semantic_rejects_total or 0
+                        ) + 1
+                        self._strike_peer_sync(peer, str(reason))
+                        fut.set_result(None)
+                        return
                 fut.set_result(msg)
                 return
 
@@ -2944,10 +2981,11 @@ class P2PNode:
         expected_types: tuple,
         timeout: float = 30,
         presend=None,
+        request_ctx: Optional[Dict] = None,
     ) -> Optional[Dict]:
         loop = asyncio.get_running_loop()
         fut = loop.create_future()
-        self._sync_waiters[peer.peer_id] = (expected_types, fut)
+        self._sync_waiters[peer.peer_id] = (expected_types, fut, request_ctx)
         try:
             if presend:
                 await presend()
@@ -2956,6 +2994,18 @@ class P2PNode:
             return None
         finally:
             self._sync_waiters.pop(peer.peer_id, None)
+
+    def _expected_parent_for_height(self, height: int) -> str:
+        """Parent digest expected for the first block at `height`."""
+        if int(height) <= 0:
+            return "0" * 64
+        prev = self.blockchain.get_block(int(height) - 1)
+        if isinstance(prev, dict):
+            h = str(prev.get("hash") or prev.get("block_hash") or "").strip()
+            if h:
+                return h
+        tip = (self.head() or "").strip()
+        return tip or ("0" * 64)
 
     async def _sync_with_peer(self, peer: PeerConnection):
         """Догоняем пира если он выше нас, или выравниваем форк на той же высоте."""
@@ -2980,6 +3030,7 @@ class P2PNode:
 
         while current <= peer.height and self._running:
             batch_end = min(current + self.config.sync_batch_size - 1, peer.height)
+            parent_hash = self._expected_parent_for_height(current)
 
             msg = await self._wait_peer_response(
                 peer,
@@ -2988,6 +3039,13 @@ class P2PNode:
                 presend=lambda c=current, e=batch_end: peer.send(
                     MSG_GET_BLOCKS, {"from_height": c, "to_height": e}
                 ),
+                request_ctx={
+                    "kind": "blocks",
+                    "from_height": int(current),
+                    "to_height": int(batch_end),
+                    "parent_hash": parent_hash,
+                    "allow_empty": False,
+                },
             )
             if not msg or msg.get("type") != MSG_BLOCKS:
                 print(f"[P2P] Sync stalled at #{current} (no blocks response)")
@@ -4080,6 +4138,7 @@ class P2PNode:
             "native_status_head_hash_semantic_gate": bool(
                 getattr(self, "_native_message_loop_shell", False)
             ),
+            "native_blocks_response_semantic_gate": True,
             "attestation_semantic_rejects_total": int(
                 getattr(self, "_attestation_semantic_rejects_total", 0) or 0
             ),
@@ -4094,6 +4153,9 @@ class P2PNode:
             ),
             "status_semantic_rejects_total": int(
                 getattr(self, "_status_semantic_rejects_total", 0) or 0
+            ),
+            "blocks_response_semantic_rejects_total": int(
+                getattr(self, "_blocks_response_semantic_rejects_total", 0) or 0
             ),
             "native_message_loop_dispatch_total": int(
                 getattr(self, "_native_message_loop_dispatch_total", 0) or 0

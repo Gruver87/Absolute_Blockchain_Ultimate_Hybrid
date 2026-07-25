@@ -60,8 +60,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.124` — status.head_hash digest semantic gate |
-| **Notes** | [RELEASE_NOTES_v1.3.124.md](../RELEASE_NOTES_v1.3.124.md) |
+| **Tag** | `v1.3.125` — request-bound blocks response + prod shell contract |
+| **Notes** | [RELEASE_NOTES_v1.3.125.md](../RELEASE_NOTES_v1.3.125.md) |
 | **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

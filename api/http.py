@@ -1202,6 +1202,14 @@ class RESTHandler(BaseHTTPRequestHandler):
                         getattr(p2p, "_server", None) is not None
                         or getattr(p2p, "_native_listener", None) is not None
                     )
+                    # v1.3.125: prod native transport must expose semantic message-loop shell.
+                    if (
+                        bool(getattr(getattr(p2p, "config", None), "p2p_native_transport", False))
+                        and getattr(p2p, "_native_listener", None) is not None
+                    ):
+                        checks["p2p_native_message_loop_shell"] = bool(
+                            getattr(p2p, "_native_message_loop_shell", False)
+                        )
                     # With peers, ready requires state consistency (solo may stay ready).
                     # peer_count() probe failure must not skip the consistency gate.
                     peer_count = 0
