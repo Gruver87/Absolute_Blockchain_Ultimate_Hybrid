@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.138] — 2026-07-26
+
+### P2P + ops — solicit-only state_root + ceremony status
+
+- Unsolicited state_root_response struck; never flips consistency
+- `ceremony_status.py` in `check_all` — honest readiness, never invents pin
+- Honesty: not tip proof / mainnet / completed audit
+
 ## [1.3.137] — 2026-07-26
 
 ### P2P — attestation local-head + solicit-only block responses

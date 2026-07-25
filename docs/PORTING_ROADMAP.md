@@ -788,7 +788,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] Known `target_hash` ⇒ `target_height` must match local header
 - [x] Unsolicited `MSG_BLOCKS` / `MSG_BLOCK` struck (waiter-only like mempool)
-- Remaining: attestation↔canonical crypto / tip proof / libp2p / ceremony (not claimed)
+- Remaining: tip proof / libp2p / ceremony (not claimed)
+
+### Priority 93 — Solicit-only state_root + ceremony status in check_all ✅ (v1.3.138)
+
+- [x] Unsolicited `MSG_STATE_ROOT_RESPONSE` struck; no consistency mutation
+- [x] `scripts/ceremony_status.py` + `check_all.ps1` informational step (never invents pin)
+- Remaining: operator `GENESIS_CEREMONY_HASH` / external audit / tip proof / libp2p (not claimed)
 
 ## Process per module
 

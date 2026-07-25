@@ -6,7 +6,7 @@
 
 | | |
 |---|---|
-| **Версия** | `1.3.137-industrial` |
+| **Версия** | `1.3.138-industrial` |
 | **API Wave** | `61` |
 | **Обновлено** | 2026-07-26 |
 | **Entry** | `python main.py` / `.\scripts\start_node.ps1` / `make build` |
@@ -33,7 +33,7 @@
 ```powershell
 cd C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate_Hybrid
 
-.\scripts\check_all.ps1                 # Quick — волны + industrial gate (~20–40 с)
+.\scripts\check_all.ps1                 # Quick — волны + industrial gate + ceremony_status (~20–40 с)
 .\scripts\check_all.ps1 -Mode Standard  # полный offline (pytest/audit)
 .\scripts\check_all.ps1 -Mode Full      # Standard + rebuild abs_native
 .\scripts\check_all.ps1 -Mode Live      # Quick + живой узел (:8080)

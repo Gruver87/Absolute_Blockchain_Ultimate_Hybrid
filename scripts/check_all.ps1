@@ -186,6 +186,16 @@ try {
         $report.steps += "verify_industrial_waves"
     }
 
+    # v1.3.138: honest ceremony readiness (informational — never invents a pin)
+    Invoke-Step "Ceremony status (informational, no fake pin)" {
+        $env:PYTHONPATH = "."
+        & python scripts/ceremony_status.py --json data/ceremony_status.json
+        if ($LASTEXITCODE -ne 0) {
+            throw ("ceremony_status rc={0}" -f $LASTEXITCODE)
+        }
+    }
+    $report.steps += "ceremony_status"
+
     if ($needFullGate) {
         # Hashtable splat (named params). Array splat binds POSITIONALLY and
         # would map "-EvidenceGitTag" onto [int]$P2PWait.

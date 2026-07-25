@@ -1215,6 +1215,7 @@ class P2PNode:
         self._attestation_slot_ahead_rejects_total: int = 0
         self._attestation_local_head_rejects_total: int = 0
         self._unsolicited_block_rejects_total: int = 0
+        self._unsolicited_state_root_rejects_total: int = 0
         self._bootstrap_redial_total: int = 0
         self._bootstrap_pin_rejects_total: int = 0
         self._handshake_rejects: int = 0
@@ -1453,7 +1454,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.137)"
+                    f"({label} v1.3.138)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -2499,6 +2500,16 @@ class P2PNode:
                             )
                             fut.set_result(None)
                             return
+                    fut.set_result(msg)
+                    return
+                if msg_type == MSG_STATE_ROOT_RESPONSE:
+                    # v1.3.138: solicit-only — wrong waiter ctx never fulfills.
+                    self._unsolicited_state_root_rejects_total = int(
+                        self._unsolicited_state_root_rejects_total or 0
+                    ) + 1
+                    self._strike_peer_sync(peer, "unsolicited_state_root_response")
+                    fut.set_result(None)
+                    return
                 if msg_type == MSG_MEMPOOL:
                     # v1.3.131: only fulfill when this waiter's ctx is mempool pull.
                     if (
@@ -2702,28 +2713,19 @@ class P2PNode:
             await peer.send(MSG_STATE_ROOT_RESPONSE, payload)
 
         elif msg_type == MSG_STATE_ROOT_RESPONSE:
+            # v1.3.129: must not inflate peer.height from unsolicited state_root_response.
+            # v1.3.138: solicit-only — strike unsolicited; never mutate _state_consistent
+            # (stronger than the v1.3.16 match/mismatch path: not flip consistent=True /
+            # must clear consistent on mismatch — unsolicited is refused entirely).
             resp = native.validate_p2p_state_root_response(data)
             if not resp:
                 self._strike_peer_sync(peer, "bad_state_root_response")
                 return
-            # v1.3.129: height ownership stays handshake/status/new_block —
-            # unsolicited state_root_response must not inflate peer.height.
-            peer_h = int(resp.get("height", 0) or 0)
-            if waiter is None:
-                peer_root = resp.get("state_root", "")
-                local_root = self.blockchain.get_state_root()
-                if peer_h == self.blockchain.get_height() and peer_root and peer_root != local_root:
-                    # Mismatch may clear consistency; only SyncEngine.sync_state may set True.
-                    self._state_consistent = False
-                    logger.warning(
-                        f"[P2P] State root mismatch vs {peer.peer_id[:8]}: "
-                        f"local={local_root[:12]} peer={peer_root[:12]}"
-                    )
-                elif peer_h == self.blockchain.get_height() and peer_root and peer_root == local_root:
-                    logger.debug(
-                        "[P2P] Unsolicited state_root match vs %s (not flipping consistent=True)",
-                        (peer.peer_id or "")[:8],
-                    )
+            self._unsolicited_state_root_rejects_total = int(
+                self._unsolicited_state_root_rejects_total or 0
+            ) + 1
+            self._strike_peer_sync(peer, "unsolicited_state_root_response")
+            return
         elif msg_type == MSG_CROSS_SHARD_TX:
             await self._handle_cross_shard_tx(peer, data)
 
@@ -4636,6 +4638,7 @@ class P2PNode:
             "native_attestation_slot_ahead": True,
             "native_attestation_local_head": True,
             "native_block_solicit_only": True,
+            "native_state_root_solicit_only": True,
             "native_bootstrap_resilient": True,
             "native_bootstrap_pin_gate": True,
             "native_discovery_dialability_gate": True,
@@ -4700,6 +4703,9 @@ class P2PNode:
             ),
             "unsolicited_block_rejects_total": int(
                 getattr(self, "_unsolicited_block_rejects_total", 0) or 0
+            ),
+            "unsolicited_state_root_rejects_total": int(
+                getattr(self, "_unsolicited_state_root_rejects_total", 0) or 0
             ),
             "bootstrap_redial_total": int(
                 getattr(self, "_bootstrap_redial_total", 0) or 0

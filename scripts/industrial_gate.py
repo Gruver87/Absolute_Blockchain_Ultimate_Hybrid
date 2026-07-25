@@ -584,10 +584,21 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         p2p_py = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
         if "self._state_consistent = False" not in p2p_py:
             errors.append("P2PNode must boot with _state_consistent=False")
-        if "Unsolicited state_root match" not in p2p_py:
-            errors.append("P2P unsolicited state_root match must not flip consistent=True")
-        if "State root mismatch vs" not in p2p_py:
-            errors.append("P2P unsolicited state_root mismatch must clear consistent")
+        # v1.3.138: solicit-only supersedes the older match/mismatch log path.
+        if "unsolicited_state_root_response" not in p2p_py and (
+            "Unsolicited state_root match" not in p2p_py
+        ):
+            errors.append(
+                "P2P unsolicited state_root must be solicit-only "
+                "(or legacy match must not flip consistent=True)"
+            )
+        if "unsolicited_state_root_response" not in p2p_py and (
+            "State root mismatch vs" not in p2p_py
+        ):
+            errors.append(
+                "P2P unsolicited state_root must be solicit-only "
+                "(or legacy mismatch must clear consistent)"
+            )
         if "Sync incomplete" not in p2p_py:
             errors.append("P2P sync must log Sync incomplete (not claim complete on stall)")
         if "reached_target" not in p2p_py:
@@ -2097,8 +2108,25 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_block_solicit_only (v1.3.137)"
             )
+        # v1.3.138 — solicit-only state_root + ceremony_status honesty
+        if "unsolicited_state_root_response" not in p2p_py:
+            errors.append(
+                "p2p_node must strike unsolicited_state_root_response (v1.3.138)"
+            )
+        if not (ROOT / "scripts" / "ceremony_status.py").is_file():
+            errors.append("scripts/ceremony_status.py missing (v1.3.138)")
+        if "ceremony_status" not in (
+            ROOT / "scripts" / "check_all.ps1"
+        ).read_text(encoding="utf-8"):
+            errors.append("check_all.ps1 must invoke ceremony_status (v1.3.138)")
+        if "abs_p2p_native_state_root_solicit_only" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_state_root_solicit_only (v1.3.138)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..137 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..138 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

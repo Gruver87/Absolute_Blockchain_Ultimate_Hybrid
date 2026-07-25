@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.137 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.138 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -98,6 +98,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13135_p2p_tip_ownership_and_local_root.py",
     "tests/unit/test_v13136_p2p_attestation_slot_ahead.py",
     "tests/unit/test_v13137_p2p_attestation_local_and_block_solicit.py",
+    "tests/unit/test_v13138_state_root_solicit_and_ceremony_status.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1647,6 +1648,37 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_native_block_solicit_only",
         ],
     ),
+    (
+        "1.3.138",
+        "RELEASE_NOTES_v1.3.138.md",
+        ["1.3.138-industrial", "ceremony_status"],
+    ),
+    (
+        "1.3.138",
+        "network/p2p_node.py",
+        [
+            "unsolicited_state_root_response",
+            "native_state_root_solicit_only",
+        ],
+    ),
+    (
+        "1.3.138",
+        "scripts/ceremony_status.py",
+        ["never invents", "GENESIS_CEREMONY_HASH"],
+    ),
+    (
+        "1.3.138",
+        "scripts/check_all.ps1",
+        ["ceremony_status"],
+    ),
+    (
+        "1.3.138",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_state_root_solicit_only",
+            "abs_p2p_unsolicited_state_root_rejects_total",
+        ],
+    ),
 ]
 
 
@@ -1674,8 +1706,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.137"):
-            errors.append(f"node_version expected 1.3.137-*, got {ver}")
+        if not ver.startswith("1.3.138"):
+            errors.append(f"node_version expected 1.3.138-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors
