@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.71` — in-Rust inline leaf frame (eligible DELEGATECALL) |
-| **Notes** | [RELEASE_NOTES_v1.3.71.md](../RELEASE_NOTES_v1.3.71.md) |
-| **Prior** | [v1.3.70](../RELEASE_NOTES_v1.3.70.md) arena sync; [v1.3.69](../RELEASE_NOTES_v1.3.69.md) sat session |
+| **Tag** | `v1.3.72` — P2P sync admission + outbound honesty |
+| **Notes** | [RELEASE_NOTES_v1.3.72.md](../RELEASE_NOTES_v1.3.72.md) |
+| **Prior** | [v1.3.71](../RELEASE_NOTES_v1.3.71.md) leaf frame; [v1.3.70](../RELEASE_NOTES_v1.3.70.md) arena sync |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

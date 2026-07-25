@@ -174,7 +174,10 @@ class PeerConnection:
 
     def __init__(self, reader: asyncio.StreamReader,
                  writer: asyncio.StreamWriter,
-                 peer_id: str = ""):
+                 peer_id: str = "",
+                 *,
+                 send_queue_max: int = 256,
+                 drain_timeout_sec: float = 5.0):
         self.reader = reader
         self.writer = writer
         self.peer_id = peer_id
@@ -190,11 +193,13 @@ class PeerConnection:
         self.tls_fingerprint = ""
         self.tls_identities: list = []
         self._on_send_fail: Optional[Callable[[], None]] = None
-        # v1.3.66: bounded outbound queue (messages waiting for drain)
-        self._send_q: asyncio.Queue = asyncio.Queue(maxsize=256)
+        self._on_send_drop: Optional[Callable[[], None]] = None
+        # v1.3.66/72: bounded outbound queue (config-driven size + drain timeout)
+        qmax = max(8, int(send_queue_max or 256))
+        self._send_q: asyncio.Queue = asyncio.Queue(maxsize=qmax)
         self._send_worker: Optional[asyncio.Task] = None
         self._send_drops: int = 0
-        self._drain_timeout_sec: float = 5.0
+        self._drain_timeout_sec: float = max(0.5, float(drain_timeout_sec or 5.0))
 
     def touch(self):
         self.last_seen = time.time()
@@ -256,6 +261,12 @@ class PeerConnection:
             self._send_q.put_nowait((msg_type, data, fut))
         except asyncio.QueueFull:
             self._send_drops += 1
+            cb = self._on_send_drop
+            if cb is not None:
+                try:
+                    cb()
+                except Exception:
+                    pass
             # Drop low-priority gossip under saturation
             if not priority:
                 return False
@@ -356,6 +367,11 @@ class P2PNode:
         self._peer_strikes: Dict[str, int] = {}
         self._peer_bans: Dict[str, float] = {}
         self._rl_table = None
+        self._peer_exempt_windows: Dict[str, tuple[int, float]] = {}
+        _want_native_rl = bool(
+            getattr(config, "require_native_crypto", False)
+            or getattr(config, "is_production", False)
+        )
         if native.native_available() and hasattr(native, "P2PRateLimitTable"):
             try:
                 self._rl_table = native.P2PRateLimitTable(
@@ -365,6 +381,10 @@ class P2PNode:
                     sorted(RATE_LIMIT_EXEMPT_TYPES),
                 )
             except Exception as exc:
+                if _want_native_rl:
+                    raise RuntimeError(
+                        f"P2PRateLimitTable required under require_native_crypto/prod: {exc}"
+                    ) from exc
                 logger.warning("[P2P] native P2PRateLimitTable unavailable: %s", exc)
                 self._rl_table = None
         self._handshake_rejects: int = 0
@@ -392,6 +412,7 @@ class P2PNode:
         self._sync_tasks: Dict[str, asyncio.Task] = {}
         self._connect_tasks: Dict[str, asyncio.Task] = {}
         self._outbound_drops: int = 0
+        self._sync_admission_rejects: int = 0
         self.validator_keys = None
         # Fail-closed until SyncEngine.sync_state proves peer roots match.
         self._state_consistent = False
@@ -616,9 +637,27 @@ class P2PNode:
     def _attach_peer_hooks(self, peer: PeerConnection) -> None:
         """Wire peer callbacks into node counters."""
         peer._on_send_fail = self._bump_peer_send_fail
+        peer._on_send_drop = self._bump_outbound_drop
 
     def _bump_peer_send_fail(self) -> None:
         self._peer_send_fail = int(self._peer_send_fail or 0) + 1
+
+    def _bump_outbound_drop(self) -> None:
+        """Aggregate per-peer send-queue drops (v1.3.72)."""
+        self._outbound_drops = int(self._outbound_drops or 0) + 1
+
+    def _peer_send_queue_params(self) -> tuple[int, float]:
+        qmax = int(getattr(self.config, "p2p_send_queue_max", 256) or 256)
+        dto = float(getattr(self.config, "p2p_drain_timeout_sec", 5.0) or 5.0)
+        return max(8, qmax), max(0.5, dto)
+
+    def _new_peer_connection(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> PeerConnection:
+        qmax, dto = self._peer_send_queue_params()
+        return PeerConnection(
+            reader, writer, send_queue_max=qmax, drain_timeout_sec=dto
+        )
 
     def _record_broadcast_results(self, results, *, kind: str = "broadcast") -> None:
         """Count False/Exception outcomes from gather(return_exceptions=True)."""
@@ -639,7 +678,7 @@ class P2PNode:
 
     async def _handle_incoming(self, reader: asyncio.StreamReader,
                                 writer: asyncio.StreamWriter):
-        peer = PeerConnection(reader, writer)
+        peer = self._new_peer_connection(reader, writer)
         self._attach_peer_hooks(peer)
         peer_addr = writer.get_extra_info("peername")
         if peer_addr and len(peer_addr) >= 2:
@@ -688,6 +727,10 @@ class P2PNode:
         if self._is_addr_banned(host, port):
             return False
         self._prune_stale_peers()
+        # v1.3.72: outbound max_peers (inbound already enforced at handshake)
+        if len(self.peers) >= int(getattr(self.config, "max_peers", 50) or 50):
+            logger.debug("[P2P] outbound connect skipped: max_peers=%s", self.config.max_peers)
+            return False
         # Не дублировать соединения
         if any(
             p.host == host and (p.port == port or p.listen_port == port)
@@ -701,7 +744,7 @@ class P2PNode:
                 asyncio.open_connection(host, port, ssl=client_ssl),
                 timeout=10,
             )
-            peer = PeerConnection(reader, writer)
+            peer = self._new_peer_connection(reader, writer)
             self._attach_peer_hooks(peer)
             peer.host = host
             peer.port = port
@@ -718,6 +761,11 @@ class P2PNode:
                 self._remember_addr(addr)
                 peer.close()
                 return True
+
+            # Re-check after handshake (race with inbound accepts).
+            if len(self.peers) >= int(getattr(self.config, "max_peers", 50) or 50):
+                peer.close()
+                return False
 
             self.peers[peer.peer_id] = peer
             self._remember_addr(addr)
@@ -933,8 +981,36 @@ class P2PNode:
         logger.warning("[P2P] banned %s for %ss (%s)", key, ban_sec, reason)
         return True
 
+    def _exempt_rate_ok(self, peer_id: str) -> bool:
+        """Secondary per-peer budget for RATE_LIMIT_EXEMPT_TYPES (v1.3.72).
+
+        Primary rate limit exempts sync/tx gossip so catch-up works; this ceiling
+        still bounds get_blocks/new_tx floods. 0 = disabled.
+        """
+        limit = int(getattr(self.config, "p2p_exempt_messages_per_sec", 0) or 0)
+        if limit <= 0 or not peer_id:
+            return True
+        now = time.time()
+        count, start = self._peer_exempt_windows.get(peer_id, (0, now))
+        if now - start >= 1.0:
+            count, start = 0, now
+        count += 1
+        self._peer_exempt_windows[peer_id] = (count, start)
+        if count > limit:
+            logger.warning(
+                "[P2P] exempt-type rate exceeded for %s (%s/s)",
+                peer_id,
+                limit,
+            )
+            return False
+        return True
+
     def _rate_limit_ok(self, peer_id: str, msg_type: Optional[str] = None) -> bool:
-        """Per-peer message rate limit (0 = disabled). Sync/housekeeping types exempt."""
+        """Per-peer message rate limit (0 = disabled). Sync/housekeeping types exempt
+        from primary budget; still subject to p2p_exempt_messages_per_sec (v1.3.72).
+        """
+        if msg_type in RATE_LIMIT_EXEMPT_TYPES and not self._exempt_rate_ok(peer_id):
+            return False
         if self._rl_table is not None:
             ok = bool(
                 self._rl_table.rate_ok(
@@ -1593,10 +1669,22 @@ class P2PNode:
         return self._peer_sync_locks[peer_id]
 
     def _schedule_sync(self, peer: PeerConnection) -> None:
-        """Coalesce duplicate sync tasks per peer (v1.3.66)."""
+        """Coalesce duplicate sync tasks per peer (v1.3.66) + global inflight cap (v1.3.72)."""
         key = str(peer.peer_id or self._peer_key(peer) or id(peer))
         existing = self._sync_tasks.get(key)
         if existing is not None and not existing.done():
+            return
+        # Global sync admission: avoid N-peer catch-up flooding serial apply queue.
+        max_n = max(1, int(getattr(self.config, "p2p_max_sync_inflight", 2) or 2))
+        active = sum(1 for t in self._sync_tasks.values() if t and not t.done())
+        if active >= max_n:
+            self._sync_admission_rejects = int(self._sync_admission_rejects or 0) + 1
+            logger.debug(
+                "[P2P] sync admission reject (active=%s max=%s peer=%s)",
+                active,
+                max_n,
+                key[:16],
+            )
             return
         task = asyncio.create_task(self._sync_with_peer_safe(peer))
         self._sync_tasks[key] = task
@@ -2665,5 +2753,20 @@ class P2PNode:
                 "bootstrap_loop_fail": int(self._bootstrap_loop_fail),
             },
             "rate_limit_exempt_types": len(RATE_LIMIT_EXEMPT_TYPES),
+            "outbound_drops": int(self._outbound_drops or 0),
+            "sync_admission_rejects": int(self._sync_admission_rejects or 0),
+            "sync_inflight": sum(
+                1 for t in (self._sync_tasks or {}).values() if t and not t.done()
+            ),
+            "max_sync_inflight": max(
+                1, int(getattr(self.config, "p2p_max_sync_inflight", 2) or 2)
+            ),
+            "send_queue_max": int(getattr(self.config, "p2p_send_queue_max", 256) or 256),
+            "drain_timeout_sec": float(
+                getattr(self.config, "p2p_drain_timeout_sec", 5.0) or 5.0
+            ),
+            "exempt_messages_per_sec": int(
+                getattr(self.config, "p2p_exempt_messages_per_sec", 0) or 0
+            ),
             "tls": p2p_tls_status(self.config),
         }

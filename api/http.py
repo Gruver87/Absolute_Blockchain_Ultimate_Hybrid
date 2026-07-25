@@ -6846,6 +6846,13 @@ class RESTHandler(BaseHTTPRequestHandler):
             out["import_offload_total"] = int(getattr(p2p, "_import_offload_total", 0) or 0)
             sync_tasks = getattr(p2p, "_sync_tasks", {}) or {}
             out["sync_tasks"] = sum(1 for t in sync_tasks.values() if t and not t.done())
+            out["outbound_drops"] = int(getattr(p2p, "_outbound_drops", 0) or 0)
+            out["sync_admission_rejects"] = int(
+                getattr(p2p, "_sync_admission_rejects", 0) or 0
+            )
+            out["max_sync_inflight"] = max(
+                1, int(getattr(getattr(p2p, "config", None), "p2p_max_sync_inflight", 2) or 2)
+            )
         return out
 
     def _json(self, data: Any):

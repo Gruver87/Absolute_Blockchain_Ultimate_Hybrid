@@ -373,6 +373,24 @@ class MetricsCollector:
                     f"abs_p2p_import_offload_total{{node_id=\"{node_id}\"}} "
                     f"{int(apply_isolation.get('import_offload_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_outbound_drops_total Outbound send-queue drops under backpressure",
+                "# TYPE abs_p2p_outbound_drops_total counter",
+                (
+                    f"abs_p2p_outbound_drops_total{{node_id=\"{node_id}\"}} "
+                    f"{int(apply_isolation.get('outbound_drops', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_sync_admission_rejects_total Sync tasks rejected by inflight cap",
+                "# TYPE abs_p2p_sync_admission_rejects_total counter",
+                (
+                    f"abs_p2p_sync_admission_rejects_total{{node_id=\"{node_id}\"}} "
+                    f"{int(apply_isolation.get('sync_admission_rejects', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_max_sync_inflight Configured global sync concurrency cap",
+                "# TYPE abs_p2p_max_sync_inflight gauge",
+                (
+                    f"abs_p2p_max_sync_inflight{{node_id=\"{node_id}\"}} "
+                    f"{int(apply_isolation.get('max_sync_inflight', 2) or 2)}"
+                ),
             ]
         )
         for kernel in native_crypto.get("kernels", []):

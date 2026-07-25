@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.71-industrial"
+    node_version: str = "1.3.72-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -93,6 +93,10 @@ class Config:
     peer_timeout: int = 30              # секунд до отключения неактивного пира
     p2p_max_message_bytes: int = 2 * 1024 * 1024  # max JSON line on P2P wire
     p2p_max_messages_per_sec: int = 500           # per-peer wire rate limit (0=off)
+    p2p_exempt_messages_per_sec: int = 2000       # secondary budget for sync/tx exempt types (0=off)
+    p2p_max_sync_inflight: int = 2                # global concurrent peer sync tasks
+    p2p_send_queue_max: int = 256                 # per-peer outbound message queue
+    p2p_drain_timeout_sec: float = 5.0            # writer.drain timeout per send
     p2p_ban_seconds: int = 300                    # temp ban after repeated abuse
     p2p_rate_limit_strikes: int = 5               # strikes before ban
     p2p_evict_min_score: int = 0                  # evict peers below score when >1 peer (0=off)
@@ -280,6 +284,21 @@ class Config:
         self.p2p_max_messages_per_sec = env_int(
             "P2P_MAX_MESSAGES_PER_SEC", self.p2p_max_messages_per_sec
         )
+        self.p2p_exempt_messages_per_sec = env_int(
+            "P2P_EXEMPT_MESSAGES_PER_SEC", self.p2p_exempt_messages_per_sec
+        )
+        self.p2p_max_sync_inflight = env_int(
+            "P2P_MAX_SYNC_INFLIGHT", self.p2p_max_sync_inflight
+        )
+        self.p2p_send_queue_max = env_int(
+            "P2P_SEND_QUEUE_MAX", self.p2p_send_queue_max
+        )
+        try:
+            self.p2p_drain_timeout_sec = float(
+                env_str("P2P_DRAIN_TIMEOUT_SEC", str(self.p2p_drain_timeout_sec))
+            )
+        except (TypeError, ValueError):
+            pass
         self.p2p_ban_seconds = env_int("P2P_BAN_SECONDS", self.p2p_ban_seconds)
         self.p2p_rate_limit_strikes = env_int(
             "P2P_RATE_LIMIT_STRIKES", self.p2p_rate_limit_strikes

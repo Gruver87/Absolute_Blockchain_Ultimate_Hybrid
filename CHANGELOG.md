@@ -6,6 +6,18 @@
 
 ---
 
+## [1.3.72] — 2026-07-25
+
+### P2P — sync admission + outbound honesty (close v1.3.66 debt)
+
+- Global `p2p_max_sync_inflight` cap on concurrent peer sync tasks (default 2)
+- Outbound `max_peers` enforced on `connect_peer` (was inbound-only)
+- Aggregate `_outbound_drops` + Prometheus `abs_p2p_outbound_drops_total`
+- Config-driven `p2p_send_queue_max` / `p2p_drain_timeout_sec`
+- Secondary `p2p_exempt_messages_per_sec` budget for rate-limit-exempt wire types
+- Prod/require_native: fail-closed if `P2PRateLimitTable` init fails
+- Honesty: not full P2P DoS/QoS; not public mainnet
+
 ## [1.3.71] — 2026-07-25
 
 ### EVM — in-Rust inline leaf frame (Priority 37)
