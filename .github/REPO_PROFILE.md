@@ -18,8 +18,9 @@ Or paste into **Settings → General → About**.
 | Field | Value |
 |-------|-------|
 | **Description** | Absolute Blockchain — hybrid Python/Rust L1: prod 3-node mesh, RocksDB, REST/JSON-RPC, EVM, abs_native. 48h soak PASS (Jul 2026). Evidence-first — not a launched public mainnet. |
-| **Website** | https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid#readme |
+| **Website** | https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid#30-seconds--see-everything |
 | **Social preview** | Upload `docs/assets/repo-banner.svg` (or PNG export) in **Settings → General → Social preview** |
+| **Skimmer card** | [docs/AT_A_GLANCE.md](../docs/AT_A_GLANCE.md) |
 
 ## Topics
 

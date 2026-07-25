@@ -4,49 +4,38 @@
 
 ## Перед началом
 
-1. Прочитайте [DISCLAIMER.md](DISCLAIMER.md) — проект **не является запущенным public audited mainnet**.
-2. Запуск только через `python main.py` (не `_archive/` и не старые скрипты).
+1. **30 секунд:** [docs/AT_A_GLANCE.md](docs/AT_A_GLANCE.md) — что proven / что нет.
+2. [DISCLAIMER.md](DISCLAIMER.md) — это **не** launched public audited mainnet.
+3. Запуск: `python main.py` (не `_archive/`).
+
+## 60-second setup
+
+```bash
+git clone https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid.git
+cd Absolute_Blockchain_Ultimate_Hybrid
+pip install -r requirements.txt && cp .env.example .env
+# Linux/macOS:  make build && make test-quick && python main.py
+# Windows:      .\scripts\build_native.ps1 ; .\scripts\check_all.ps1 ; python main.py
+```
+
+http://localhost:8080
 
 ## Как помочь
 
 | Действие | Зачем |
 |----------|-------|
-| ⭐ Star | Помогает другим найти репозиторий |
-| 🍴 Fork | Безопасные эксперименты в своей копии |
-| 🐛 Issues | Баги, идеи, вопросы |
-| 📝 Docs | README, ARCHITECTURE, комментарии |
-| 🔧 PR | Фичи, фиксы, тесты |
-| 📢 Share | Курсы, статьи, демо — продвигайте дальше |
+| Star / Watch Releases | Видимость репо |
+| Issues + evidence | Баги с `data/check_all.json` / soak |
+| Docs / PR | Фиксы, тесты — в **`master`** |
 
-## Настройка
-
-```bash
-git clone https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid.git
-cd Absolute_Blockchain_Ultimate_Hybrid
-git checkout master
-pip install -r requirements.txt
-cp .env.example .env
-python main.py
-```
-
-Откройте http://localhost:8080
-
-## Ветки и push
+## Ветки
 
 | Ветка | Назначение |
 |-------|------------|
-| **`master`** | Основная ветка разработки (default на GitHub) |
-| **`main`** | Зеркало `master` для совместимости; обновляется автоматически CI |
+| **`master`** | Default development |
+| **`main`** | Mirror of `master` (CI sync) |
 
-После коммита:
-
-```powershell
-.\scripts\push_origin.ps1
-```
-
-Или вручную: `git push origin master` (workflow `.github/workflows/sync-main-from-master.yml` синхронизирует `main`).
-
-PR — в **`master`**.
+PR → **`master`**. Мы **не** ведём фейковую историю «командных» PR ради hiring optics.
 
 ## Разработка
 

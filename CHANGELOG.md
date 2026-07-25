@@ -6,6 +6,14 @@
 
 ---
 
+## [Unreleased]
+
+### Docs — skimmer README UX
+
+- README: 30-second status card, 60-second start, repo layout, jump TOC (above the fold)
+- `docs/AT_A_GLANCE.md` one-screen card; CONTRIBUTING 60s setup
+- Honesty unchanged: not public mainnet; no fake PR theater / crates mega-split
+
 ## [1.3.121] — 2026-07-25
 
 ### P2P — native blocks batch hash semantic gate + Makefile UX
