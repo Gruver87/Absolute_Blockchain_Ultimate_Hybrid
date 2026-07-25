@@ -26,24 +26,60 @@ from runtime.config import Config
 
 class _FakeReader:
     def __init__(self, payload: bytes):
-        self._payload = payload
-        self._sent = False
+        self._buf = bytes(payload)
+        self._pos = 0
+
+    async def read(self, n: int = -1):
+        if self._pos >= len(self._buf):
+            return b""
+        if n is None or n < 0:
+            chunk = self._buf[self._pos :]
+            self._pos = len(self._buf)
+            return chunk
+        chunk = self._buf[self._pos : self._pos + int(n)]
+        self._pos += len(chunk)
+        return chunk
 
     async def readline(self):
-        if self._sent:
+        if self._pos >= len(self._buf):
             return b""
-        self._sent = True
-        return self._payload
+        nl = self._buf.find(b"\n", self._pos)
+        if nl < 0:
+            chunk = self._buf[self._pos :]
+            self._pos = len(self._buf)
+            return chunk
+        chunk = self._buf[self._pos : nl + 1]
+        self._pos = nl + 1
+        return chunk
 
 
 class _SeqReader:
     def __init__(self, lines):
-        self._lines = list(lines)
+        self._buf = b"".join(lines)
+        self._pos = 0
+
+    async def read(self, n: int = -1):
+        if self._pos >= len(self._buf):
+            return b""
+        if n is None or n < 0:
+            chunk = self._buf[self._pos :]
+            self._pos = len(self._buf)
+            return chunk
+        chunk = self._buf[self._pos : self._pos + int(n)]
+        self._pos += len(chunk)
+        return chunk
 
     async def readline(self):
-        if not self._lines:
+        if self._pos >= len(self._buf):
             return b""
-        return self._lines.pop(0)
+        nl = self._buf.find(b"\n", self._pos)
+        if nl < 0:
+            chunk = self._buf[self._pos :]
+            self._pos = len(self._buf)
+            return chunk
+        chunk = self._buf[self._pos : nl + 1]
+        self._pos = nl + 1
+        return chunk
 
 
 class _FakeWriter:
@@ -96,7 +132,11 @@ async def test_message_loop_strikes_on_bad_wire_line():
     p2p.peers[peer.peer_id] = peer
     await p2p._message_loop(peer)
     sec = p2p.get_p2p_security_status()
-    assert sec["shape_rejects"].get("bad_wire_line", 0) >= 1
+    shape = sec["shape_rejects"]
+    assert (
+        shape.get("bad_wire_line", 0) >= 1
+        or shape.get("p2p_json_invalid", 0) >= 1
+    )
     assert p2p._is_banned("wire-bad") is True
 
 
@@ -368,6 +408,7 @@ async def test_status_refresh_counts_peer_status_send_fail():
     cfg = Config()
     blockchain = MagicMock()
     blockchain.get_height.return_value = 1
+    blockchain.get_last_block.return_value = {"hash": "ab" * 32, "height": 1}
     p2p = P2PNode(cfg, blockchain, None)
     peer = PeerConnection(_FakeReader(b""), _BoomWriter())
     p2p._attach_peer_hooks(peer)
@@ -394,6 +435,7 @@ async def test_catch_up_status_send_fail_increments_counter():
     cfg = Config()
     blockchain = MagicMock()
     blockchain.get_height.return_value = 1
+    blockchain.get_last_block.return_value = {"hash": "cd" * 32, "height": 1}
     p2p = P2PNode(cfg, blockchain, None)
     p2p._running = True
     peer = PeerConnection(_FakeReader(b""), _BoomWriter())

@@ -487,6 +487,15 @@ python scripts/mainnet_readiness.py --ceremony-dir data/ceremony_keys --live --b
 # =============================================================================
 
 # --- Главные entry ---
+# ЕДИНАЯ проверка (рекомендуется):
+.\scripts\check_all.ps1                 # Quick
+.\scripts\check_all.ps1 -Mode Standard  # полный offline
+.\scripts\check_all.ps1 -Mode Full      # + rebuild native
+.\scripts\check_all.ps1 -Mode Live      # + живой узел
+.\scripts\check_all.ps1 -Mode Max       # Full+Live+P2P
+.\scripts\check_all.ps1 -Help
+# Отчёт: data/check_all.json
+
 .\scripts\test_full_project.ps1 -SkipNativeBuild
 .\scripts\test_full_project.ps1
 .\scripts\test_blockchain_full.ps1 -SkipNativeBuild

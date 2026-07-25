@@ -3230,15 +3230,33 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
 def run_ci_spawn() -> int:
     """Isolated two-node test on high ports (does not touch devnet :8080)."""
     tmp = tempfile.mkdtemp(prefix="abs_p2p_ci_")
+    # Ephemeral signing key so /tx/send auto_sign works without project data/wallet.json.
+    try:
+        from crypto.wallet import Wallet
+
+        _ci_wallet = Wallet.create_new()
+        ci_pk = _ci_wallet.private_key
+        ci_addr = _ci_wallet.address
+    except Exception as exc:
+        print(f"FAIL: cannot create CI wallet: {exc}")
+        return 1
+
     common = {
         "chain_id": 77777,
+        "deployment_mode": "dev",
         "mining_enabled": False,
         "require_signatures": False,
+        "require_native_crypto": False,
+        "require_wallet_file": False,
         "verify_peer_state_root": True,
         "state_root_legacy_cutoff_height": 0,
         "monitor_enabled": False,
         "bridge_enabled": False,
     }
+    data1 = os.path.join(tmp, "data1")
+    data2 = os.path.join(tmp, "data2")
+    os.makedirs(data1, exist_ok=True)
+    os.makedirs(data2, exist_ok=True)
     n1 = {
         **common,
         "node_id": "ci-node-1",
@@ -3247,9 +3265,12 @@ def run_ci_spawn() -> int:
         "rpc_port": 15045,
         "ws_port": 15066,
         "mining_enabled": True,
+        # Do not forge alone before node2 peers — avoids unreplicated tip gap
+        # that flaky catch-up cannot close under strict state_root.
+        "mesh_min_peers_before_mine": 1,
         "bootstrap_peers": [],
-        "db_path": os.path.join(tmp, "node1.db"),
-        "log_file": os.path.join(tmp, "node1.log"),
+        "db_path": os.path.join(data1, "node1.db"),
+        "log_file": os.path.join(data1, "node1.log"),
     }
     n2 = {
         **common,
@@ -3259,8 +3280,8 @@ def run_ci_spawn() -> int:
         "rpc_port": 15046,
         "ws_port": 15067,
         "bootstrap_peers": ["127.0.0.1:15000"],
-        "db_path": os.path.join(tmp, "node2.db"),
-        "log_file": os.path.join(tmp, "node2.log"),
+        "db_path": os.path.join(data2, "node2.db"),
+        "log_file": os.path.join(data2, "node2.log"),
     }
 
     cfg1 = os.path.join(tmp, "node1.json")
@@ -3273,18 +3294,36 @@ def run_ci_spawn() -> int:
     env = os.environ.copy()
     env.pop("TELEGRAM_BOT_TOKEN", None)
     env["MINING_ENABLED"] = ""
+    # Isolate from operator .env / project data wallet so CI is deterministic.
+    for key in (
+        "DEPLOYMENT_MODE",
+        "REQUIRE_NATIVE_CRYPTO",
+        "REQUIRE_WALLET_FILE",
+        "ADMIN_JWT_SECRET",
+        "DATA_DIR",
+        "PROD_SMOKE_WALLET_PATH",
+    ):
+        env.pop(key, None)
+    env["DEPLOYMENT_MODE"] = "dev"
+    env["WALLET_PRIVATE_KEY"] = ci_pk
+    env["PYTHONUNBUFFERED"] = "1"
 
     log1 = os.path.join(tmp, "node1.stderr.log")
     log2 = os.path.join(tmp, "node2.stderr.log")
     procs = []
     try:
         print(f"CI mode: spawning isolated nodes on :15080 / :15081 (tmp={tmp})")
+        print(f"CI signer: {ci_addr}")
+        env1 = env.copy()
+        env1["DATA_DIR"] = data1
+        env2 = env.copy()
+        env2["DATA_DIR"] = data2
         with open(log1, "w", encoding="utf-8") as err1:
             procs.append(
                 subprocess.Popen(
                     [sys.executable, "main.py", "--config", cfg1],
                     cwd=ROOT,
-                    env=env,
+                    env=env1,
                     stdout=subprocess.DEVNULL,
                     stderr=err1,
                 )
@@ -3299,7 +3338,7 @@ def run_ci_spawn() -> int:
                 subprocess.Popen(
                     [sys.executable, "main.py", "--config", cfg2],
                     cwd=ROOT,
-                    env=env,
+                    env=env2,
                     stdout=subprocess.DEVNULL,
                     stderr=err2,
                 )

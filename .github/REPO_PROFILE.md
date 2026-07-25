@@ -1,33 +1,51 @@
 # GitHub repository profile
 
-Copy into **Settings → General → About** (or apply via `gh repo edit`).
+Apply with:
+
+```powershell
+gh repo edit --description "Absolute Blockchain — hybrid Python/Rust L1: prod 3-node mesh, RocksDB, REST/JSON-RPC, EVM, abs_native. 48h soak PASS (Jul 2026). Evidence-first — not a launched public mainnet."
+gh repo edit --homepage "https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid#readme"
+# topics (idempotent add):
+@(
+  "absolute-blockchain","blockchain","blockchain-node","layer1","python","rust","pyo3",
+  "p2p","evm","rocksdb","docker","kubernetes","json-rpc","rest-api","pos","devnet",
+  "tokenomics","industrial","soak-test","cryptography","web3","hybrid-blockchain"
+) | ForEach-Object { gh repo edit --add-topic $_ }
+```
+
+Or paste into **Settings → General → About**.
 
 | Field | Value |
 |-------|-------|
-| **Description** | Hybrid Python/Rust L1: prod 3-node mesh, RocksDB, REST/JSON-RPC, EVM path. **48h soak PASS** (Jul 2026). Devnet-ready; mainnet-v1 prep (778888) — **not** a launched public mainnet. |
+| **Description** | Absolute Blockchain — hybrid Python/Rust L1: prod 3-node mesh, RocksDB, REST/JSON-RPC, EVM, abs_native. 48h soak PASS (Jul 2026). Evidence-first — not a launched public mainnet. |
 | **Website** | https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid#readme |
-| **Topics** | see list below |
+| **Social preview** | Upload `docs/assets/repo-banner.svg` (or PNG export) in **Settings → General → Social preview** |
 
-## Topics (paste in GitHub UI)
+## Topics
 
 ```
+absolute-blockchain
 blockchain
+blockchain-node
+layer1
 python
 rust
 pyo3
 p2p
-rest-api
-json-rpc
 evm
+rocksdb
 docker
 kubernetes
-rocksdb
+json-rpc
+rest-api
+pos
 devnet
 tokenomics
-blockchain-node
-pos
 industrial
 soak-test
+cryptography
+web3
+hybrid-blockchain
 ```
 
 ## Branches
@@ -43,7 +61,7 @@ soak-test
 |-------|-------|
 | **Tag** | `v1.3.87` — P2P unified egress prepare |
 | **Notes** | [RELEASE_NOTES_v1.3.87.md](../RELEASE_NOTES_v1.3.87.md) |
-| **Prior** | [v1.3.81](../RELEASE_NOTES_v1.3.81.md) CREATE2; [v1.3.80](../RELEASE_NOTES_v1.3.80.md) CREATE |
+| **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |
@@ -53,6 +71,7 @@ soak-test
 - Prod mesh probe / failover / signed tx / EVM mempool smoke
 - **7h soak PASS** + **48h soak PASS** (2026-07-19→21)
 - `industrial_gate --min-soak-hours 48` OK
+- Isolated P2P CI (`verify_p2p_ci --mode ci`) OK after signer + mesh_min fix
 - Audit pack exporter: `.\scripts\export_audit_pack.ps1`
 
 ### Not yet proven (do not claim in About)
@@ -67,3 +86,4 @@ soak-test
 - **Is:** working hybrid L1 R&D stack; local prod-profile 3-node evidence; CI gates; soak-proven ops
 - **Is not:** live public mainnet; audited DeFi; investment product
 - **Evidence ledger:** `docs/EVIDENCE_MATRIX.md`
+- **Banner:** `docs/assets/repo-banner.svg`

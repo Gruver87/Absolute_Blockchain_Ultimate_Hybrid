@@ -26,6 +26,25 @@
 
 ---
 
+## Единая проверка работоспособности
+
+```powershell
+cd C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate_Hybrid
+
+.\scripts\check_all.ps1                 # Quick — волны + industrial gate (~20–40 с)
+.\scripts\check_all.ps1 -Mode Standard  # полный offline (pytest/audit)
+.\scripts\check_all.ps1 -Mode Full      # Standard + rebuild abs_native
+.\scripts\check_all.ps1 -Mode Live      # Quick + живой узел (:8080)
+.\scripts\check_all.ps1 -Mode Max       # Full + Live + P2P
+.\scripts\check_all.ps1 -Help
+```
+
+Отчёт: `data/check_all.json`. Перед `-Mode Live` / `Max`: `python main.py` (или `.\scripts\start_node.ps1`).
+
+Алиасы того же полного gate: `.\scripts\test_all.ps1`, `.\scripts\check_everything.ps1`.
+
+---
+
 ## Порты (шпаргалка)
 
 | Что | Порт / URL |

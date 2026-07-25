@@ -285,17 +285,17 @@ class Blockchain:
         self.evm = None  # execution.evm_adapter.EVMAdapter
         self._state_root_baseline = 0
 
+        self._ensure_genesis()
+        h = self.get_height()
+        cutoff = int(getattr(self.config, "state_root_legacy_cutoff_height", 0) or 0)
+        self._state_root_baseline = max(cutoff, h)
+
     def _native_apply_fail_closed(self) -> bool:
         """Prod / require_native_crypto: never silently fall back after native apply failure."""
         if bool(getattr(self.config, "require_native_crypto", False)):
             return True
         mode = str(getattr(self.config, "deployment_mode", "dev") or "dev").lower()
         return mode in ("prod", "production")
-
-        self._ensure_genesis()
-        h = self.get_height()
-        cutoff = int(getattr(self.config, "state_root_legacy_cutoff_height", 0) or 0)
-        self._state_root_baseline = max(cutoff, h)
 
     def _init_state_engine(self):
         """Инициализирует StateEngine из данных genesis или текущего состояния БД."""

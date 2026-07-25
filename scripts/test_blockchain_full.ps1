@@ -45,6 +45,7 @@ param(
     [switch]$BuildRust,
     [switch]$SkipNativeBuild,
     [switch]$NoClean,
+    [switch]$BridgeCutover,
     [string]$BaseUrl = "http://127.0.0.1:8080",
     [int]$PytestTimeout = 900,
     [int]$P2PWait = 300,
@@ -217,7 +218,13 @@ Run-Step "Production stack verification" {
 }
 
 Run-Step "Monolith static gate" {
-    python scripts/monolith_gate.py --bridge-cutover --json
+    # Default: industrial + launch checklist without L1 cutover (bridge stays OFF).
+    # Pass -BridgeCutover only when ETH_RPC_URL + contracts + BRIDGE_REQUIRE_L1_EVENT are ready.
+    $mg = @("scripts/monolith_gate.py", "--json")
+    if ($BridgeCutover) {
+        $mg += "--bridge-cutover"
+    }
+    python @mg
 }
 
 if (-not $NoClean) {

@@ -321,9 +321,13 @@ class RocksChainStore:
 
     def get_last_block(self) -> Optional[Dict]:
         tip = self.get_chain_tip()
-        if tip <= 0:
+        if tip < 0:
             return None
-        return self.get_block(tip)
+        block = self.get_block(tip)
+        if block is not None:
+            return block
+        # tip meta may be 0 on an empty store — distinguish via missing height-0 block.
+        return None
 
     def _insert_proposer_audit(self, block: Dict) -> None:
         height = int(block.get("height", block.get("number", 0)) or 0)
@@ -1487,8 +1491,21 @@ class RocksChainStore:
         tip = self.get_block(cut)
         if tip:
             self._touch_live_state_root_meta(tip)
+            # Keep O(1) tip meta in sync with truncated height (v1.3.66+).
+            self._raw_put(kc.key_meta("chain_tip"), str(cut).encode("utf-8"))
+            tip_hash = tip.get("hash", tip.get("block_hash", "")) or ""
+            if tip_hash:
+                self._raw_put(kc.key_meta("chain_tip_hash"), tip_hash.encode("utf-8"))
+            else:
+                self._raw_delete(kc.key_meta("chain_tip_hash"))
         else:
-            for meta_key in ("live_state_root", "live_state_root_height", "state_root"):
+            for meta_key in (
+                "live_state_root",
+                "live_state_root_height",
+                "state_root",
+                "chain_tip",
+                "chain_tip_hash",
+            ):
                 self._raw_delete(kc.key_meta(meta_key))
 
     def _purge_height_scoped_indexes(self, cut: int) -> None:

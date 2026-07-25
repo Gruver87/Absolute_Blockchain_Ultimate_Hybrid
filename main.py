@@ -495,10 +495,10 @@ class NodeOrchestrator:
                     _dev_signer_path = os.path.join(_data_dir, "dev_signer.json")
                     _chain_h = self.blockchain.get_height() if self.blockchain else 0
                     try:
-                        _seeded_chain = (
-                            _chain_h >= 1
-                            or bool(self.db.get_meta("genesis_alloc_applied"))
-                        )
+                        # Only skip inventing a signer once the chain has real blocks
+                        # past genesis. genesis_alloc_applied alone is true on every
+                        # fresh DB after _ensure_genesis — that must not block signing.
+                        _seeded_chain = _chain_h >= 1
                         if _seeded_chain and not os.path.exists(_dev_signer_path):
                             print(
                                 f"[Node] Seeded chain (height={_chain_h}) — "
@@ -510,16 +510,28 @@ class NodeOrchestrator:
                             self.wallet = Wallet.create_new()
                             os.makedirs(_data_dir, exist_ok=True)
                             self.wallet.export(_dev_signer_path)
-                            self.db.update_balance(self.wallet.address, 10_000.0)
-                            print(
-                                f"[Node] Dev signer created + funded (10k ABS): "
-                                f"{self.wallet.address}"
-                            )
+                            # Avoid mutating genesis state_root when alloc already applied
+                            # (P2P peers would diverge). Fund via /devnet/faucet instead.
+                            if not self.db.get_meta("genesis_alloc_applied"):
+                                self.db.update_balance(self.wallet.address, 10_000.0)
+                                print(
+                                    f"[Node] Dev signer created + funded (10k ABS): "
+                                    f"{self.wallet.address}"
+                                )
+                            else:
+                                print(
+                                    f"[Node] Dev signer created (unfunded): "
+                                    f"{self.wallet.address}"
+                                )
                         if self.wallet:
                             config.signing_address = self.wallet.address
                             self._dev_signer_only = True
                             _dev_loaded = True
-                            if _chain_h <= 1 and self.db.get_balance(self.wallet.address) < 1.0:
+                            if (
+                                _chain_h <= 1
+                                and not self.db.get_meta("genesis_alloc_applied")
+                                and self.db.get_balance(self.wallet.address) < 1.0
+                            ):
                                 self.db.update_balance(self.wallet.address, 10_000.0)
                             print(
                                 f"[Node] Dev signing wallet ready: {self.wallet.address} "

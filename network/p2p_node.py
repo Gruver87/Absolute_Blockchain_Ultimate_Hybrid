@@ -346,9 +346,21 @@ class PeerConnection:
                 payload = self._prepare_outbound(msg_type, data)
                 if payload is None:
                     return False
-                self.writer.write(payload)
-                await asyncio.wait_for(self.writer.drain(), timeout=self._drain_timeout_sec)
-                return True
+                try:
+                    self.writer.write(payload)
+                    await asyncio.wait_for(self.writer.drain(), timeout=self._drain_timeout_sec)
+                    return True
+                except Exception as e:
+                    logger.warning(
+                        "[P2P] send error to %s: %s", self.peer_id or self.host, e
+                    )
+                    cb = self._on_send_fail
+                    if cb is not None:
+                        try:
+                            cb()
+                        except Exception:
+                            pass
+                    return False
             self._send_q.put_nowait((msg_type, data, fut))
         except asyncio.QueueFull:
             self._send_drops += 1
@@ -654,7 +666,10 @@ class P2PNode:
     def head(self) -> Optional[str]:
         """Current head block hash for SyncEngine."""
         last = self.blockchain.get_last_block()
-        return last["hash"] if last else None
+        if not isinstance(last, dict):
+            return None
+        h = last.get("hash")
+        return str(h) if h else None
 
     @property
     def height(self) -> int:
