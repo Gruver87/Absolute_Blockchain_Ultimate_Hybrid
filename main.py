@@ -1620,7 +1620,7 @@ class NodeOrchestrator:
             if self.sync_engine and self.p2p:
                 try:
                     if len(getattr(self.p2p, "peers", {}) or {}) > 0:
-                        self.sync_engine.fast_sync()
+                        await asyncio.to_thread(self.sync_engine.fast_sync)
                 except Exception as exc:
                     print(f"[Node] follower genesis sync: {exc}")
             await asyncio.sleep(3)

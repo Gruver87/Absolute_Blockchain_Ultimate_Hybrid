@@ -317,6 +317,7 @@ class P2PNode:
         self._catch_up_loop_fail: int = 0
         self._peer_tx_reject: int = 0
         self._import_block_fail: int = 0
+        self._import_offload_total: int = 0
         self._sync_fail: int = 0
         self._peer_sync_fail: int = 0
         self._discovery_loop_fail: int = 0
@@ -424,7 +425,7 @@ class P2PNode:
         return None
 
     def import_block(self, block_data: Dict) -> bool:
-        """For SyncEngine.fast_sync()."""
+        """For SyncEngine.fast_sync() (must stay sync — often already on a worker thread)."""
         try:
             if hasattr(self.blockchain, "import_block"):
                 ok = bool(self.blockchain.import_block(block_data))
@@ -441,6 +442,22 @@ class P2PNode:
             self._import_block_fail = int(self._import_block_fail or 0) + 1
             logger.warning("[P2P] import_block failed: %s", exc)
             return False
+
+    async def _import_block_async(self, block_data: Dict) -> bool:
+        """Offload chain apply so the asyncio loop stays responsive under EVM load."""
+        self._import_offload_total = int(self._import_offload_total or 0) + 1
+        return await asyncio.to_thread(self.import_block, block_data)
+
+    def _reorg_and_import(self, rollback_to: int, peer_block: Dict) -> bool:
+        """Sync reorg+import for worker-thread execution."""
+        if not self.blockchain.reorg_to_ancestor(int(rollback_to)):
+            return False
+        return bool(self.import_block(peer_block))
+
+    async def _reorg_and_import_async(self, rollback_to: int, peer_block: Dict) -> bool:
+        """Offload reorg+import from async reconcile paths."""
+        self._import_offload_total = int(self._import_offload_total or 0) + 1
+        return await asyncio.to_thread(self._reorg_and_import, int(rollback_to), peer_block)
 
     # ── Запуск / остановка ───────────────────────────────────────────────────
 
@@ -1216,7 +1233,7 @@ class P2PNode:
 
         for tx in block.transactions:
             self.mempool.remove(tx.hash)
-        if self.blockchain.import_block(data):
+        if await self._import_block_async(data):
             print(f"[P2P] Accepted block #{block.height} from {peer.peer_id[:8]}")
             if self.sync_engine:
                 loop = asyncio.get_running_loop()
@@ -1538,7 +1555,7 @@ class P2PNode:
             imported_any = False
             for block_data in blocks_data:
                 try:
-                    if self.import_block(block_data):
+                    if await self._import_block_async(block_data):
                         h = block_data.get("height", block_data.get("number", current))
                         current = int(h) + 1
                         imported_any = True
@@ -1550,12 +1567,18 @@ class P2PNode:
                         ancestor = None
                         if hasattr(self.blockchain, "find_ancestor_height"):
                             ancestor = self.blockchain.find_ancestor_height(parent_hash)
+                        reorg_ok = False
                         if (
                             ancestor is not None
                             and ancestor < self.blockchain.get_height()
                             and hasattr(self.blockchain, "reorg_to_ancestor")
-                            and self.blockchain.reorg_to_ancestor(ancestor)
                         ):
+                            reorg_ok = bool(
+                                await asyncio.to_thread(
+                                    self.blockchain.reorg_to_ancestor, ancestor
+                                )
+                            )
+                        if reorg_ok:
                             print(f"[P2P] Fork resolved — reorg to #{ancestor}, retry import")
                             our_height = ancestor
                             current = ancestor + 1
@@ -1651,10 +1674,8 @@ class P2PNode:
                     f"proceeding with finality guard"
                 )
 
-        if not self.blockchain.reorg_to_ancestor(rollback_to):
-            return False
-        if not self.blockchain.import_block(peer_block):
-            print("[P2P] Failed to import target head after reorg")
+        if not await self._reorg_and_import_async(rollback_to, peer_block):
+            print("[P2P] Failed to reorg/import target head")
             return False
 
         if peer:
@@ -2496,6 +2517,7 @@ class P2PNode:
                 "catch_up_loop_fail": int(self._catch_up_loop_fail),
                 "peer_tx_reject": int(self._peer_tx_reject),
                 "import_block_fail": int(self._import_block_fail),
+                "import_offload_total": int(self._import_offload_total),
                 "sync_fail": int(self._sync_fail),
                 "peer_sync_fail": int(self._peer_sync_fail),
                 "discovery_loop_fail": int(self._discovery_loop_fail),

@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+"""v1.3.51: P2P/sync import_block off the asyncio event loop."""
+
+from __future__ import annotations
+
+import asyncio
+import inspect
+import sys
+import time
+from pathlib import Path
+from unittest.mock import MagicMock
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from network.p2p_node import P2PNode
+
+
+def test_async_helpers_exist():
+    assert hasattr(P2PNode, "_import_block_async")
+    assert hasattr(P2PNode, "_reorg_and_import_async")
+    assert inspect.iscoroutinefunction(P2PNode._import_block_async)
+    assert inspect.iscoroutinefunction(P2PNode._reorg_and_import_async)
+
+
+def test_hot_paths_do_not_call_blockchain_import_synchronously():
+    src = Path("network/p2p_node.py").read_text(encoding="utf-8")
+    # Hot async handlers must use offload helpers, not bare blockchain.import_block.
+    handle = src.split("async def _handle_new_block", 1)[1].split(
+        "async def _handle_get_blocks", 1
+    )[0]
+    sync = src.split("async def _sync_with_peer", 1)[1].split(
+        "async def _reconcile_to_head_hash", 1
+    )[0]
+    reconcile = src.split("async def _reconcile_to_head_hash", 1)[1].split(
+        "async def _reconcile_fork_at_peer", 1
+    )[0]
+    assert "blockchain.import_block(" not in handle
+    assert "_import_block_async" in handle
+    assert "self.import_block(" not in sync or "_import_block_async" in sync
+    assert "blockchain.import_block(" not in sync
+    assert "_import_block_async" in sync
+    assert "blockchain.import_block(" not in reconcile
+    assert "_reorg_and_import_async" in reconcile
+    assert "asyncio.to_thread(self.sync_engine.fast_sync)" in Path(
+        "main.py"
+    ).read_text(encoding="utf-8")
+
+
+def test_import_offload_keeps_event_loop_responsive():
+    async def _run():
+        cfg = MagicMock()
+        cfg.bootstrap_peers = []
+        cfg.p2p_max_messages_per_sec = 0
+        cfg.p2p_rate_limit_strikes = 5
+        cfg.p2p_ban_seconds = 300
+        bc = MagicMock()
+        mp = MagicMock()
+
+        def slow_import(_data):
+            time.sleep(0.25)
+            return True
+
+        node = P2PNode(cfg, bc, mp, bus=None)
+        node.import_block = slow_import  # type: ignore[method-assign]
+        started = time.perf_counter()
+        ticks = 0
+
+        async def ticker():
+            nonlocal ticks
+            while time.perf_counter() - started < 0.2:
+                ticks += 1
+                await asyncio.sleep(0)
+
+        import_task = asyncio.create_task(node._import_block_async({"height": 1}))
+        tick_task = asyncio.create_task(ticker())
+        ok, _ = await asyncio.gather(import_task, tick_task)
+        assert ok is True
+        assert ticks >= 5
+        assert int(node._import_offload_total) >= 1
+
+    asyncio.run(_run())

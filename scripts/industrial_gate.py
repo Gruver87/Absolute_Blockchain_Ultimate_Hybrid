@@ -1054,8 +1054,19 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "native" / "abs_native" / "src" / "evm_pure_runner.rs"
         ).read_text(encoding="utf-8"):
             errors.append("evm_pure_runner.rs must define evm_run_nested_pure_frame")
+        # v1.3.51 — P2P import off the event loop
+        p2p_py = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+        if "async def _import_block_async" not in p2p_py:
+            errors.append("p2p_node must define _import_block_async (v1.3.51)")
+        if "async def _reorg_and_import_async" not in p2p_py:
+            errors.append("p2p_node must define _reorg_and_import_async (v1.3.51)")
+        if "await self._import_block_async" not in p2p_py:
+            errors.append("p2p_node hot paths must await _import_block_async")
+        main_py = (ROOT / "main.py").read_text(encoding="utf-8")
+        if "asyncio.to_thread(self.sync_engine.fast_sync)" not in main_py:
+            errors.append("main.py follower genesis must offload fast_sync")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..50 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..51 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

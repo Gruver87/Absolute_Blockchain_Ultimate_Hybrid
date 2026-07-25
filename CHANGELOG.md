@@ -6,6 +6,13 @@
 
 ---
 
+## [1.3.51] — 2026-07-25
+
+### Changed — P2P/sync import off the asyncio event loop
+
+- `_import_block_async` / `_reorg_and_import_async` via `asyncio.to_thread`; announce, sync batch, reconcile no longer freeze the loop on EVM apply
+- Follower genesis `fast_sync` also offloaded
+
 ## [1.3.50] — 2026-07-25
 
 ### Added — nested pure bytecode frame

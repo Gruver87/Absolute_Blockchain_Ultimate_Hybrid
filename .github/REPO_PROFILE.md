@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.50` — nested pure bytecode frame |
-| **Notes** | [RELEASE_NOTES_v1.3.50.md](../RELEASE_NOTES_v1.3.50.md) |
-| **Prior** | [v1.3.49](../RELEASE_NOTES_v1.3.49.md) CALL decode; [v1.3.48](../RELEASE_NOTES_v1.3.48.md) CALL gas |
+| **Tag** | `v1.3.51` — P2P/sync import offload |
+| **Notes** | [RELEASE_NOTES_v1.3.51.md](../RELEASE_NOTES_v1.3.51.md) |
+| **Prior** | [v1.3.50](../RELEASE_NOTES_v1.3.50.md) nested pure; [v1.3.49](../RELEASE_NOTES_v1.3.49.md) CALL decode |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |
