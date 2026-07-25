@@ -502,19 +502,40 @@ class RocksChainStore:
             self._save_account_row(row)
 
     def commit_writeback_accounts(self, accounts: Dict[str, Any]) -> int:
-        """Store-lock aware batch commit of native-applied account rows (v1.3.62).
+        """Store-lock aware batch commit of native-applied account rows (v1.3.62)."""
+        out = self.commit_writeback_bundle(accounts, None)
+        return int(out.get("accounts") or 0)
 
-        Holds ``_write_lock`` once, updates root accumulator via ``_save_account_row``,
-        and prefers ``RocksEngine.commit_account_rows`` when available.
+    def commit_writeback_bundle(
+        self,
+        accounts: Dict[str, Any] | None,
+        log_batches: List[Dict[str, Any]] | None = None,
+        *,
+        block_height: int = 0,
+        tx_hash: str = "",
+        timestamp: int = 0,
+    ) -> Dict[str, int]:
+        """One store-lock commit for accounts + EVM log batches (v1.3.63).
+
+        Prefers ``RocksEngine.commit_writeback_bundle`` (single WriteBatch) when
+        outside ``atomic()``; falls back to ``_save_account_row`` / dual log puts.
         """
         from runtime.amount import dual_write_balance, from_satoshi_float
         from storage.database import Database as SqliteDatabase
 
-        if not accounts:
-            return 0
+        accounts = dict(accounts or {})
+        log_batches = list(log_batches or [])
+        if not accounts and not log_batches:
+            return {"accounts": 0, "logs": 0}
+
         prepared: Dict[str, Dict[str, Any]] = {}
+        log_rows: List[Dict[str, Any]] = []
+        tip = int(block_height)
+        txh = str(tx_hash or "")
+        ts = int(timestamp or time.time())
+
         with self._write_lock:
-            for addr_raw, row_in in dict(accounts).items():
+            for addr_raw, row_in in accounts.items():
                 addr = SqliteDatabase._normalize_address(str(addr_raw))
                 merged = self._load_account(addr)
                 row = dict(row_in or {})
@@ -537,21 +558,49 @@ class RocksChainStore:
                 merged["address"] = addr
                 prepared[addr] = merged
 
+            log_index = 0
+            for batch in log_batches:
+                addr = SqliteDatabase._normalize_address(str(batch.get("address") or ""))
+                for entry in list(batch.get("logs") or []):
+                    topics = entry.get("topics", [])
+                    if not isinstance(topics, list):
+                        topics = []
+                    log_rows.append(
+                        {
+                            "contract_address": addr,
+                            "block_height": tip,
+                            "tx_hash": txh,
+                            "log_index": int(log_index),
+                            "topics": topics,
+                            "data": str(entry.get("data", "")),
+                            "timestamp": ts,
+                        }
+                    )
+                    log_index += 1
+
             engine = self._engine
-            # Prefer native batch put outside atomic(); keep accumulator coherent.
             if (
                 engine is not None
-                and hasattr(engine, "commit_account_rows")
+                and hasattr(engine, "commit_writeback_bundle")
                 and self._pending_batch is None
             ):
                 for row in prepared.values():
                     blob = json.dumps(row, ensure_ascii=False).encode("utf-8")
                     self._root_acc_upsert_blob(blob)
-                return int(engine.commit_account_rows(json.dumps(prepared, ensure_ascii=False)))
+                accounts_n, logs_n = engine.commit_writeback_bundle(
+                    json.dumps(prepared, ensure_ascii=False),
+                    json.dumps(log_rows, ensure_ascii=False),
+                )
+                return {"accounts": int(accounts_n), "logs": int(logs_n)}
 
             for row in prepared.values():
                 self._save_account_row(row)
-            return len(prepared)
+            for row in log_rows:
+                payload = json.dumps(row, ensure_ascii=False).encode("utf-8")
+                idx = int(row.get("log_index") or 0)
+                self._raw_put(kc.key_evm_log(tip, txh, idx), payload)
+                self._raw_put(kc.key_evm_log_tx(txh, idx), payload)
+            return {"accounts": len(prepared), "logs": len(log_rows)}
 
     def get_all_accounts(self) -> List[Dict]:
         rows = self._scan_prefix(kc.prefix_accounts())

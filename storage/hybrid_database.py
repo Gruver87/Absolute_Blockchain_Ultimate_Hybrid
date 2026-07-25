@@ -406,6 +406,26 @@ class HybridDatabase:
         """Delegate store-lock Rocks writeback commit (v1.3.62)."""
         return int(self._core.commit_writeback_accounts(accounts))
 
+    def commit_writeback_bundle(
+        self,
+        accounts: Dict[str, Any] | None,
+        log_batches: List[Dict[str, Any]] | None = None,
+        *,
+        block_height: int = 0,
+        tx_hash: str = "",
+        timestamp: int = 0,
+    ) -> Dict[str, int]:
+        """Delegate unified accounts+logs writeback commit (v1.3.63)."""
+        return dict(
+            self._core.commit_writeback_bundle(
+                accounts,
+                log_batches,
+                block_height=block_height,
+                tx_hash=tx_hash,
+                timestamp=timestamp,
+            )
+        )
+
     def save_validator(self, address: str, stake: float) -> None:
         self._core.save_validator(address, stake)
 

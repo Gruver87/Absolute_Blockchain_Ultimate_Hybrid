@@ -211,15 +211,36 @@ impl RocksEngine {
     /// Batch-put account JSON rows (caller must hold store write lock) — v1.3.62.
     /// `accounts_json`: `{ "0xaddr": { ...account fields... }, ... }`
     fn commit_account_rows(&self, accounts_json: &str) -> PyResult<usize> {
+        let (accounts, logs) = self.commit_writeback_bundle(accounts_json, "[]")?;
+        let _ = logs;
+        Ok(accounts)
+    }
+
+    /// Single WriteBatch for account rows + dual-indexed EVM log rows (v1.3.63).
+    /// `logs_json`: `[{block_height, tx_hash, log_index, contract_address, topics, data, timestamp}, ...]`
+    /// Returns `(accounts_written, logs_written)`.
+    fn commit_writeback_bundle(
+        &self,
+        accounts_json: &str,
+        logs_json: &str,
+    ) -> PyResult<(usize, usize)> {
         use serde_json::Value;
+
         let parsed: Value = serde_json::from_str(accounts_json).map_err(|e| {
             pyo3::exceptions::PyValueError::new_err(format!("accounts_json invalid: {e}"))
         })?;
         let obj = parsed.as_object().ok_or_else(|| {
             pyo3::exceptions::PyValueError::new_err("accounts_json must be an object")
         })?;
+        let logs_parsed: Value = serde_json::from_str(logs_json).map_err(|e| {
+            pyo3::exceptions::PyValueError::new_err(format!("logs_json invalid: {e}"))
+        })?;
+        let logs_arr = logs_parsed.as_array().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err("logs_json must be an array")
+        })?;
+
         let mut batch = RocksWriteBatch { ops: Vec::new() };
-        let mut count = 0usize;
+        let mut account_count = 0usize;
         for (addr_raw, row) in obj {
             let addr = addr_raw.trim().to_ascii_lowercase();
             if addr.is_empty() {
@@ -228,7 +249,6 @@ impl RocksEngine {
             let mut key = Vec::with_capacity(1 + addr.len());
             key.push(0x10);
             key.extend_from_slice(addr.as_bytes());
-            // Ensure address field is present in blob.
             let mut row_obj = match row {
                 Value::Object(map) => map.clone(),
                 _ => continue,
@@ -238,12 +258,42 @@ impl RocksEngine {
                 pyo3::exceptions::PyValueError::new_err(format!("account encode failed: {e}"))
             })?;
             batch.put(&key, &blob);
-            count += 1;
+            account_count += 1;
         }
-        if count > 0 {
+
+        let mut log_count = 0usize;
+        for entry in logs_arr {
+            let row_obj = match entry {
+                Value::Object(map) => map.clone(),
+                _ => continue,
+            };
+            let block_height = row_obj
+                .get("block_height")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let tx_hash = row_obj
+                .get("tx_hash")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let log_index = row_obj
+                .get("log_index")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let blob = serde_json::to_vec(&Value::Object(row_obj)).map_err(|e| {
+                pyo3::exceptions::PyValueError::new_err(format!("log encode failed: {e}"))
+            })?;
+            let key_h = key_evm_log_bytes(block_height, &tx_hash, log_index)?;
+            let key_tx = key_evm_log_tx_bytes(&tx_hash, log_index)?;
+            batch.put(&key_h, &blob);
+            batch.put(&key_tx, &blob);
+            log_count += 1;
+        }
+
+        if account_count > 0 || log_count > 0 {
             self.write_batch(&mut batch)?;
         }
-        Ok(count)
+        Ok((account_count, log_count))
     }
 
     fn put(&self, key: &[u8], value: &[u8]) -> PyResult<()> {
@@ -485,6 +535,41 @@ impl RocksEngine {
         }
         Ok(out)
     }
+}
+
+fn tx_hash_body_bytes(tx_hash: &str) -> PyResult<Vec<u8>> {
+    let mut h = tx_hash.trim().to_ascii_lowercase();
+    if let Some(rest) = h.strip_prefix("0x") {
+        h = rest.to_string();
+    }
+    if h.len() > 64 {
+        h = h[h.len() - 64..].to_string();
+    }
+    while h.len() < 64 {
+        h.insert(0, '0');
+    }
+    hex::decode(&h).map_err(|e| {
+        pyo3::exceptions::PyValueError::new_err(format!("invalid tx hash hex: {e}"))
+    })
+}
+
+fn key_evm_log_bytes(block_height: u64, tx_hash: &str, log_index: u64) -> PyResult<Vec<u8>> {
+    let body = tx_hash_body_bytes(tx_hash)?;
+    let mut out = Vec::with_capacity(1 + 8 + body.len() + 4);
+    out.push(0x52);
+    out.extend_from_slice(&block_height.to_be_bytes());
+    out.extend_from_slice(&body);
+    out.extend_from_slice(&(log_index as u32).to_be_bytes());
+    Ok(out)
+}
+
+fn key_evm_log_tx_bytes(tx_hash: &str, log_index: u64) -> PyResult<Vec<u8>> {
+    let body = tx_hash_body_bytes(tx_hash)?;
+    let mut out = Vec::with_capacity(1 + body.len() + 4);
+    out.push(0x53);
+    out.extend_from_slice(&body);
+    out.extend_from_slice(&(log_index as u32).to_be_bytes());
+    Ok(out)
 }
 
 fn map_db_err(err: rocksdb::Error) -> PyErr {

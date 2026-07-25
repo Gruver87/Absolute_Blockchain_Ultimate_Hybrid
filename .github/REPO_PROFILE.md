@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.62` — store-lock Rocks writeback commit |
-| **Notes** | [RELEASE_NOTES_v1.3.62.md](../RELEASE_NOTES_v1.3.62.md) |
-| **Prior** | [v1.3.61](../RELEASE_NOTES_v1.3.61.md) writeback apply; [v1.3.60](../RELEASE_NOTES_v1.3.60.md) CREATE writeback |
+| **Tag** | `v1.3.63` — unified writeback bundle (accounts + logs) |
+| **Notes** | [RELEASE_NOTES_v1.3.63.md](../RELEASE_NOTES_v1.3.63.md) |
+| **Prior** | [v1.3.62](../RELEASE_NOTES_v1.3.62.md) store-lock commit; [v1.3.61](../RELEASE_NOTES_v1.3.61.md) writeback apply |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

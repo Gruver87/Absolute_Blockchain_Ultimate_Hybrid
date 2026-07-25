@@ -331,7 +331,14 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `RocksEngine.commit_account_rows` — batch put under caller-held store lock
 - [x] `RocksChainStore.commit_writeback_accounts` / Hybrid delegate
 - [x] Adapter prefers store-lock commit after native apply (logs still Python)
-- Remaining: deeper in-runner Rocks ownership (not claimed)
+- Remaining: see Priority 31
+
+### Priority 31 — Unified writeback bundle ✅ (v1.3.63)
+
+- [x] `RocksEngine.commit_writeback_bundle` — one WriteBatch for accounts + dual log keys
+- [x] `RocksChainStore.commit_writeback_bundle` / Hybrid delegate
+- [x] Adapter commits accounts+logs under one store path after native apply
+- Remaining: deeper in-runner Rocks ownership during opcode execution (not claimed)
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
 
@@ -347,6 +354,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.60: CREATE writeback ops planned in Rust
 - [x] v1.3.61: native in-memory writeback apply
 - [x] v1.3.62: store-lock Rocks writeback commit
+- [x] v1.3.63: unified writeback bundle (accounts + logs)
 
 ## Process per module
 

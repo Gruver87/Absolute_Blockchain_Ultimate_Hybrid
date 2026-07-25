@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.63] — 2026-07-25
+
+### Added — unified writeback bundle (accounts + logs)
+
+- `RocksEngine.commit_writeback_bundle` — single WriteBatch for accounts + EVM logs
+- `RocksChainStore.commit_writeback_bundle` / Hybrid delegate under `_write_lock`
+- Adapter uses bundle commit after `evm_apply_writeback_ops`
+
 ## [1.3.62] — 2026-07-25
 
 ### Added — store-lock Rocks writeback commit

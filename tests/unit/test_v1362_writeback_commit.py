@@ -72,11 +72,11 @@ def test_store_commit_writeback_accounts(tmp_path):
 
 def test_adapter_wires_store_lock_commit():
     adapter = (ROOT / "execution" / "evm_adapter.py").read_text(encoding="utf-8")
-    assert "commit_writeback_accounts" in adapter
+    assert "commit_writeback_accounts" in adapter or "commit_writeback_bundle" in adapter
     assert "_writeback_store" in adapter
     rocks = (ROOT / "storage" / "rocks_store.py").read_text(encoding="utf-8")
     assert "def commit_writeback_accounts" in rocks
-    assert "commit_account_rows" in rocks
+    assert "def commit_writeback_bundle" in rocks or "commit_account_rows" in rocks
     hybrid = (ROOT / "storage" / "hybrid_database.py").read_text(encoding="utf-8")
     assert "def commit_writeback_accounts" in hybrid
     rust = (ROOT / "native" / "abs_native" / "src" / "storage" / "mod.rs").read_text(
