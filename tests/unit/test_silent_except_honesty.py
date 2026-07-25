@@ -183,9 +183,11 @@ def test_shared_sync_engine_and_unsolicited_state_root_honesty():
     assert "p2p.sync_engine = self.sync_engine" in main_py
     assert "shared with P2P" in main_py
     p2p_py = Path("network/p2p_node.py").read_text(encoding="utf-8")
-    assert "Unsolicited state_root match" in p2p_py
-    assert "not flipping consistent=True" in p2p_py
-    assert "State root mismatch vs" in p2p_py
+    # v1.3.138+: solicit-only supersedes the older match/mismatch log path.
+    assert "unsolicited_state_root_response" in p2p_py
+    assert "never mutate _state_consistent" in p2p_py or "not flip consistent=True" in p2p_py
+    sync_py = Path("sync/sync_engine.py").read_text(encoding="utf-8")
+    assert "State root mismatch vs" in sync_py
     http_py = Path("api/http.py").read_text(encoding="utf-8")
     assert 'after.get("state_consistent", False)' in http_py
     alerts = Path("deploy/prometheus/alerts.yml").read_text(encoding="utf-8")

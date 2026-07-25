@@ -26,11 +26,11 @@ def test_needles_v13141():
     assert "get_block(peer.height)" not in sync
     notes = (ROOT / "RELEASE_NOTES_v1.3.141.md").read_text(encoding="utf-8")
     assert "1.3.141-industrial" in notes
-    assert Config().node_version.startswith("1.3.141")
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_sync_state_wire_only" in metrics
     check = (ROOT / "scripts" / "check_all.ps1").read_text(encoding="utf-8")
-    assert "v1.3.140" in check or "v1.3.141" in check
+    assert "v1.3.140" in check or "v1.3.141" in check or "v1.3.142" in check
 
 
 def test_sync_state_no_local_invent_when_wire_lacks_same_height():

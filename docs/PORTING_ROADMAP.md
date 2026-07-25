@@ -814,6 +814,11 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `native_sync_state_wire_only` status + metrics
 - Remaining: tip proof / fork-choice / libp2p / ceremony (not claimed)
 
+### Priority 96b — Standard pytest solicit-only needle ✅ (v1.3.142)
+
+- [x] Honesty needle aligned with unsolicited state_root strike (not legacy match log)
+- Remaining: tip proof / fork-choice / libp2p / ceremony (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

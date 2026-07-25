@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.142] — 2026-07-26
+
+### Tests — Standard pytest solicit-only needle
+
+- Align unsolicited state_root honesty needle with v1.3.138 solicit-only strike
+- Unblocks full suite / `check_all -Mode Standard`
+- Honesty: not tip proof / libp2p / mainnet
+
 ## [1.3.141] — 2026-07-26
 
 ### Sync — same-height state match is wire-only
