@@ -406,6 +406,10 @@ class HybridDatabase:
         """Delegate store-lock Rocks writeback commit (v1.3.62)."""
         return int(self._core.commit_writeback_accounts(accounts))
 
+    def load_writeback_accounts(self, addresses: List[str]) -> Dict[str, Any]:
+        """Delegate Rocks batch account preload for writeback (v1.3.64)."""
+        return dict(self._core.load_writeback_accounts(addresses))
+
     def commit_writeback_bundle(
         self,
         accounts: Dict[str, Any] | None,

@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.64] — 2026-07-25
+
+### Added — Rocks batch writeback account preload
+
+- `RocksEngine.get_account_rows` — batch load account JSON rows
+- `RocksChainStore.load_writeback_accounts` / Hybrid delegate
+- Adapter preloads touched accounts via Rocks before native apply
+
 ## [1.3.63] — 2026-07-25
 
 ### Added — unified writeback bundle (accounts + logs)

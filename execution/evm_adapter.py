@@ -401,21 +401,34 @@ class EVMAdapter:
         return None
 
     def _apply_nested_writeback_ops(self, ops: List[Dict[str, Any]]) -> None:
-        """Apply writeback ops: native apply + unified store-lock bundle (v1.3.63)."""
+        """Apply writeback ops: native apply + Rocks preload/bundle (v1.3.64)."""
         if not ops:
             return
         if hasattr(native, "evm_apply_writeback_ops"):
             try:
-                accounts: Dict[str, Any] = {}
+                touch_addrs: List[str] = []
+                seen = set()
                 for op in ops:
                     for key in ("address", "from", "to"):
                         raw = op.get(key)
                         if not raw:
                             continue
                         addr = self._normalize_addr(str(raw))
-                        if addr in accounts:
+                        if addr in seen:
                             continue
-                        row = self.db.get_account(addr) if hasattr(self.db, "get_account") else None
+                        seen.add(addr)
+                        touch_addrs.append(addr)
+                store = self._writeback_store()
+                if store is not None and hasattr(store, "load_writeback_accounts"):
+                    accounts = store.load_writeback_accounts(touch_addrs)
+                else:
+                    accounts = {}
+                    for addr in touch_addrs:
+                        row = (
+                            self.db.get_account(addr)
+                            if hasattr(self.db, "get_account")
+                            else None
+                        )
                         accounts[addr] = dict(row) if row else {
                             "address": addr,
                             "balance_satoshi": 0,
@@ -435,7 +448,6 @@ class EVMAdapter:
                 applied = native.evm_apply_writeback_ops(accounts, norm_ops)
                 rows = dict(applied.get("accounts") or {})
                 log_batches = list(applied.get("log_batches") or [])
-                store = self._writeback_store()
                 if store is not None and hasattr(store, "commit_writeback_bundle"):
                     tip = int(
                         self.db.get_chain_tip() if hasattr(self.db, "get_chain_tip") else 0

@@ -1234,8 +1234,21 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "storage" / "hybrid_database.py"
         ).read_text(encoding="utf-8"):
             errors.append("hybrid_database must delegate commit_writeback_bundle")
+        # v1.3.64 — Rocks batch writeback preload
+        if "fn get_account_rows" not in storage_rs:
+            errors.append("RocksEngine must expose get_account_rows (v1.3.64)")
+        if "def load_writeback_accounts" not in rocks_py:
+            errors.append("rocks_store must define load_writeback_accounts (v1.3.64)")
+        if "load_writeback_accounts" not in (
+            ROOT / "execution" / "evm_adapter.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("evm_adapter must wire load_writeback_accounts")
+        if "def load_writeback_accounts" not in (
+            ROOT / "storage" / "hybrid_database.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("hybrid_database must delegate load_writeback_accounts")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..63 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..64 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

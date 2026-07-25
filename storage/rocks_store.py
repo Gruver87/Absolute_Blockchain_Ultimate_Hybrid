@@ -506,6 +506,52 @@ class RocksChainStore:
         out = self.commit_writeback_bundle(accounts, None)
         return int(out.get("accounts") or 0)
 
+    def load_writeback_accounts(self, addresses: List[str]) -> Dict[str, Any]:
+        """Batch-load account rows for native writeback apply (v1.3.64).
+
+        Prefers ``RocksEngine.get_account_rows``; falls back to ``_load_account``.
+        Applies satoshi dual-write backfill like ``_load_account``.
+        """
+        from runtime.amount import account_satoshi, dual_write_balance
+        from storage.database import Database as SqliteDatabase
+
+        addrs: List[str] = []
+        seen = set()
+        for raw in list(addresses or []):
+            addr = SqliteDatabase._normalize_address(str(raw))
+            if not addr or addr in seen:
+                continue
+            seen.add(addr)
+            addrs.append(addr)
+        if not addrs:
+            return {}
+
+        engine = self._engine
+        rows: Dict[str, Any] = {}
+        if engine is not None and hasattr(engine, "get_account_rows"):
+            try:
+                loaded = json.loads(engine.get_account_rows(json.dumps(addrs)))
+                if isinstance(loaded, dict):
+                    rows = {str(k): dict(v) for k, v in loaded.items() if isinstance(v, dict)}
+            except Exception:
+                rows = {}
+
+        out: Dict[str, Any] = {}
+        for addr in addrs:
+            row = dict(rows.get(addr) or self._load_account(addr))
+            row["address"] = addr
+            if row.get("balance_satoshi") is None:
+                dual_write_balance(row, row.get("balance", 0) or 0)
+            else:
+                row["balance_satoshi"] = account_satoshi(row)
+                row["balance"] = float(row.get("balance", 0) or 0)
+            if row.get("code") is None:
+                row["code"] = ""
+            if row.get("storage") is None:
+                row["storage"] = "{}"
+            out[addr] = row
+        return out
+
     def commit_writeback_bundle(
         self,
         accounts: Dict[str, Any] | None,

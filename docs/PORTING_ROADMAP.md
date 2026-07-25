@@ -338,6 +338,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `RocksEngine.commit_writeback_bundle` — one WriteBatch for accounts + dual log keys
 - [x] `RocksChainStore.commit_writeback_bundle` / Hybrid delegate
 - [x] Adapter commits accounts+logs under one store path after native apply
+- Remaining: see Priority 32
+
+### Priority 32 — Rocks batch writeback preload ✅ (v1.3.64)
+
+- [x] `RocksEngine.get_account_rows` — batch account blob load for touched addresses
+- [x] `RocksChainStore.load_writeback_accounts` / Hybrid delegate
+- [x] Adapter preloads via Rocks before `evm_apply_writeback_ops`
 - Remaining: deeper in-runner Rocks ownership during opcode execution (not claimed)
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
@@ -355,6 +362,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.61: native in-memory writeback apply
 - [x] v1.3.62: store-lock Rocks writeback commit
 - [x] v1.3.63: unified writeback bundle (accounts + logs)
+- [x] v1.3.64: Rocks batch writeback account preload
 
 ## Process per module
 

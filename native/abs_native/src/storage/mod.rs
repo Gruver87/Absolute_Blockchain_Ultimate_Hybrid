@@ -208,6 +208,45 @@ impl RocksEngine {
         }
     }
 
+    /// Batch-load account JSON rows for writeback preload (v1.3.64).
+    /// `addresses_json`: `["0xaddr", ...]` → `{ "0xaddr": { ...row... }, ... }`
+    /// Missing / corrupt blobs become empty default rows (address filled).
+    fn get_account_rows(&self, addresses_json: &str) -> PyResult<String> {
+        use serde_json::{Map, Value};
+        let parsed: Value = serde_json::from_str(addresses_json).map_err(|e| {
+            pyo3::exceptions::PyValueError::new_err(format!("addresses_json invalid: {e}"))
+        })?;
+        let arr = parsed.as_array().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err("addresses_json must be an array")
+        })?;
+        let mut out = Map::new();
+        for item in arr {
+            let addr_raw = match item.as_str() {
+                Some(s) => s,
+                None => continue,
+            };
+            let addr = addr_raw.trim().to_ascii_lowercase();
+            if addr.is_empty() || out.contains_key(&addr) {
+                continue;
+            }
+            let mut key = Vec::with_capacity(1 + addr.len());
+            key.push(0x10);
+            key.extend_from_slice(addr.as_bytes());
+            let row = match self.get_bytes(&key)? {
+                Some(blob) => match serde_json::from_slice::<Value>(&blob) {
+                    Ok(Value::Object(mut map)) => {
+                        map.insert("address".into(), Value::String(addr.clone()));
+                        Value::Object(map)
+                    }
+                    _ => empty_account_row_value(&addr),
+                },
+                None => empty_account_row_value(&addr),
+            };
+            out.insert(addr, row);
+        }
+        Ok(Value::Object(out).to_string())
+    }
+
     /// Batch-put account JSON rows (caller must hold store write lock) — v1.3.62.
     /// `accounts_json`: `{ "0xaddr": { ...account fields... }, ... }`
     fn commit_account_rows(&self, accounts_json: &str) -> PyResult<usize> {
@@ -535,6 +574,17 @@ impl RocksEngine {
         }
         Ok(out)
     }
+}
+
+fn empty_account_row_value(addr: &str) -> serde_json::Value {
+    serde_json::json!({
+        "address": addr,
+        "balance": 0.0,
+        "balance_satoshi": 0,
+        "nonce": 0,
+        "code": "",
+        "storage": "{}"
+    })
 }
 
 fn tx_hash_body_bytes(tx_hash: &str) -> PyResult<Vec<u8>> {
