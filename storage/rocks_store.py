@@ -292,7 +292,38 @@ class RocksChainStore:
         self._raw_put(kc.key_block_height(height), payload)
         if block_hash:
             self._raw_put(kc.key_block_hash_to_height(block_hash), kc.pack_u64(height))
+        # v1.3.66: O(1) tip meta (belt-and-suspenders with prefix_last)
+        self._raw_put(kc.key_meta("chain_tip"), str(height).encode("utf-8"))
+        if block_hash:
+            self._raw_put(kc.key_meta("chain_tip_hash"), block_hash.encode("utf-8"))
         self._insert_proposer_audit(block)
+
+    def get_chain_tip(self) -> int:
+        meta = self.get_meta("chain_tip")
+        if meta is not None:
+            try:
+                return int(meta)
+            except (TypeError, ValueError):
+                pass
+        engine = self._engine
+        if engine is not None and hasattr(engine, "prefix_last"):
+            try:
+                last = engine.prefix_last(kc.prefix_block_heights())
+                if last:
+                    key, _val = last
+                    return int(kc.unpack_u64(key[1:9]))
+            except Exception:
+                pass
+        rows = self._scan_prefix(kc.prefix_block_heights())
+        if not rows:
+            return 0
+        return max(kc.unpack_u64(key[1:9]) for key, _ in rows)
+
+    def get_last_block(self) -> Optional[Dict]:
+        tip = self.get_chain_tip()
+        if tip <= 0:
+            return None
+        return self.get_block(tip)
 
     def _insert_proposer_audit(self, block: Dict) -> None:
         height = int(block.get("height", block.get("number", 0)) or 0)
@@ -357,19 +388,6 @@ class RocksChainStore:
                 )
                 continue
         return blocks
-
-    def get_chain_tip(self) -> int:
-        rows = self._scan_prefix(kc.prefix_block_heights())
-        if not rows:
-            return 0
-        return max(kc.unpack_u64(key[1:9]) for key, _ in rows)
-
-    def get_last_block(self) -> Optional[Dict]:
-        rows = self._scan_prefix(kc.prefix_block_heights())
-        if not rows:
-            return None
-        tip = max(kc.unpack_u64(key[1:9]) for key, _ in rows)
-        return self.get_block(tip)
 
     # ── accounts / state ──────────────────────────────────────────────────
 

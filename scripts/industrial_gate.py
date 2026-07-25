@@ -1268,8 +1268,23 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         http_py = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
         if "_read_limited_body" not in http_py or "batch too large" not in http_py:
             errors.append("http must cap body size and JSON-RPC batch (v1.3.65)")
+        # v1.3.66 — load / backpressure
+        apply_q = (ROOT / "core" / "chain_apply_queue.py").read_text(encoding="utf-8")
+        if "expired_total" not in apply_q or "deadline_monotonic" not in apply_q:
+            errors.append("chain_apply_queue must expire stale jobs (v1.3.66)")
+        if "drop mempool txs only after successful import" not in p2p_py:
+            errors.append("p2p must remove mempool only after successful import (v1.3.66)")
+        if "_schedule_sync" not in p2p_py or "_schedule_connect" not in p2p_py:
+            errors.append("p2p must coalesce sync/connect tasks (v1.3.66)")
+        if "fn prefix_last" not in storage_rs:
+            errors.append("RocksEngine must expose prefix_last (v1.3.66)")
+        if 'key_meta("chain_tip")' not in rocks_py2:
+            errors.append("rocks_store must persist chain_tip meta (v1.3.66)")
+        metrics_py2 = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
+        if "abs_chain_apply_expired_total" not in metrics_py2:
+            errors.append("metrics must emit apply expired counter (v1.3.66)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..65 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..66 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

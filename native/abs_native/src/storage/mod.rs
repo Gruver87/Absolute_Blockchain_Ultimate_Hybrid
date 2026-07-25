@@ -411,12 +411,13 @@ impl RocksEngine {
         if !self.column_families {
             return self.prefix_scan_single(py, None, prefix, limit);
         }
-        let primary = cf_name_for_key(prefix);
         let mut merged: BTreeMap<Vec<u8>, Vec<u8>> = BTreeMap::new();
-        self.collect_prefix_into(&mut merged, primary, prefix, limit)?;
-        // Dual-read legacy default CF (skip keys already present from primary).
-        self.collect_prefix_into(&mut merged, CF_DEFAULT, prefix, limit)?;
-        let mut out = Vec::new();
+        let cf = cf_name_for_key(prefix);
+        self.collect_prefix_into(&mut merged, cf, prefix, limit)?;
+        if cf != CF_DEFAULT {
+            self.collect_prefix_into(&mut merged, CF_DEFAULT, prefix, limit)?;
+        }
+        let mut out = Vec::with_capacity(merged.len().min(limit));
         for (key, value) in merged.into_iter().take(limit) {
             out.push((
                 PyBytes::new_bound(py, &key).unbind(),
@@ -424,6 +425,21 @@ impl RocksEngine {
             ));
         }
         Ok(out)
+    }
+
+    /// Last key/value under prefix (reverse seek) — v1.3.66 tip lookup.
+    fn prefix_last<'py>(
+        &self,
+        py: Python<'py>,
+        prefix: &[u8],
+    ) -> PyResult<Option<(Py<PyBytes>, Py<PyBytes>)>> {
+        let row = self.prefix_last_bytes(prefix)?;
+        Ok(row.map(|(k, v)| {
+            (
+                PyBytes::new_bound(py, &k).unbind(),
+                PyBytes::new_bound(py, &v).unbind(),
+            )
+        }))
     }
 
     fn checkpoint(&self, dest: &str) -> PyResult<()> {
@@ -559,6 +575,39 @@ impl RocksEngine {
             out.push((key.to_vec(), value.to_vec()));
         }
         Ok(out)
+    }
+
+    fn prefix_last_bytes(&self, prefix: &[u8]) -> PyResult<Option<(Vec<u8>, Vec<u8>)>> {
+        let mut seek = prefix.to_vec();
+        seek.extend(std::iter::repeat(0xffu8).take(32));
+        if !self.column_families {
+            let iter = self
+                .db
+                .iterator(IteratorMode::From(&seek, Direction::Reverse));
+            for item in iter {
+                let (key, value) = item.map_err(map_db_err)?;
+                if !key.starts_with(prefix) {
+                    break;
+                }
+                return Ok(Some((key.to_vec(), value.to_vec())));
+            }
+            return Ok(None);
+        }
+        // Prefer primary CF, then legacy default.
+        for cf_name in [cf_name_for_key(prefix), CF_DEFAULT] {
+            let cf = self.cf_handle(cf_name)?;
+            let iter = self
+                .db
+                .iterator_cf(cf, IteratorMode::From(&seek, Direction::Reverse));
+            for item in iter {
+                let (key, value) = item.map_err(map_db_err)?;
+                if !key.starts_with(prefix) {
+                    break;
+                }
+                return Ok(Some((key.to_vec(), value.to_vec())));
+            }
+        }
+        Ok(None)
     }
 
     fn prefix_scan_single<'py>(

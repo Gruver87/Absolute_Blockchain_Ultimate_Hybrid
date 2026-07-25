@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.66] — 2026-07-25
+
+### Load — apply backpressure + tip O(1) + P2P coalesce
+
+- Apply queue expires not-yet-started jobs past deadline
+- Mempool remove only after successful block import
+- Rocks tip via chain_tip meta + native `prefix_last`
+- Coalesced sync/connect tasks; bounded peer send queue with drain timeout
+- Saturation metrics: expired/timeout/exec + sync task depth
+
 ## [1.3.65] — 2026-07-25
 
 ### Security — L1 fail-closed hardening

@@ -190,25 +190,86 @@ class PeerConnection:
         self.tls_fingerprint = ""
         self.tls_identities: list = []
         self._on_send_fail: Optional[Callable[[], None]] = None
+        # v1.3.66: bounded outbound queue (messages waiting for drain)
+        self._send_q: asyncio.Queue = asyncio.Queue(maxsize=256)
+        self._send_worker: Optional[asyncio.Task] = None
+        self._send_drops: int = 0
+        self._drain_timeout_sec: float = 5.0
 
     def touch(self):
         self.last_seen = time.time()
 
-    async def send(self, msg_type: str, data: Any = None) -> bool:
-        """Отправляет JSON-сообщение пиру. Returns False on write failure."""
+    def _ensure_send_worker(self) -> None:
+        if self._send_worker is not None and not self._send_worker.done():
+            return
         try:
-            payload = native.encode_p2p_wire_message(msg_type, data)
-            self.writer.write(payload)
-            await self.writer.drain()
-            return True
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._send_worker = loop.create_task(self._send_loop())
+
+    async def _send_loop(self) -> None:
+        while True:
+            try:
+                item = await self._send_q.get()
+            except asyncio.CancelledError:
+                break
+            if item is None:
+                break
+            msg_type, data, fut = item
+            ok = False
+            try:
+                payload = native.encode_p2p_wire_message(msg_type, data)
+                self.writer.write(payload)
+                await asyncio.wait_for(self.writer.drain(), timeout=self._drain_timeout_sec)
+                ok = True
+            except Exception as e:
+                logger.warning("[P2P] send error to %s: %s", self.peer_id or self.host, e)
+                cb = self._on_send_fail
+                if cb is not None:
+                    try:
+                        cb()
+                    except Exception:
+                        pass
+            if fut is not None and not fut.done():
+                fut.set_result(ok)
+
+    async def send(self, msg_type: str, data: Any = None) -> bool:
+        """Отправляет JSON-сообщение пиру. Returns False on write failure / queue full."""
+        self._ensure_send_worker()
+        # High-priority control plane: status/ping/handshake bypass queue when possible.
+        priority = str(msg_type or "") in {
+            MSG_STATUS,
+            MSG_PING,
+            MSG_PONG,
+            MSG_HANDSHAKE,
+            MSG_HANDSHAKE_ACK,
+        }
+        fut: asyncio.Future = asyncio.get_running_loop().create_future()
+        try:
+            if priority and self._send_q.empty():
+                # Fast path when idle
+                payload = native.encode_p2p_wire_message(msg_type, data)
+                self.writer.write(payload)
+                await asyncio.wait_for(self.writer.drain(), timeout=self._drain_timeout_sec)
+                return True
+            self._send_q.put_nowait((msg_type, data, fut))
+        except asyncio.QueueFull:
+            self._send_drops += 1
+            # Drop low-priority gossip under saturation
+            if not priority:
+                return False
+            try:
+                _ = self._send_q.get_nowait()
+                self._send_q.put_nowait((msg_type, data, fut))
+            except Exception:
+                return False
         except Exception as e:
-            logger.warning("[P2P] send error to %s: %s", self.peer_id or self.host, e)
-            cb = self._on_send_fail
-            if cb is not None:
-                try:
-                    cb()
-                except Exception:
-                    pass
+            logger.warning("[P2P] send enqueue error to %s: %s", self.peer_id or self.host, e)
+            return False
+        try:
+            return bool(await asyncio.wait_for(fut, timeout=self._drain_timeout_sec + 1.0))
+        except Exception:
             return False
 
     async def recv(self, config=None):
@@ -327,6 +388,10 @@ class P2PNode:
         self._last_tx_wire_reject: str = ""
         self._shape_reject_counts: Dict[str, int] = {}
         self._consensus = None
+        # v1.3.66: coalesce duplicate sync/connect tasks
+        self._sync_tasks: Dict[str, asyncio.Task] = {}
+        self._connect_tasks: Dict[str, asyncio.Task] = {}
+        self._outbound_drops: int = 0
         self.validator_keys = None
         # Fail-closed until SyncEngine.sync_state proves peer roots match.
         self._state_consistent = False
@@ -525,7 +590,7 @@ class P2PNode:
         for peer_addr in self.config.bootstrap_peers:
             parts = peer_addr.split(":")
             if len(parts) == 2:
-                asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
+                self._schedule_connect(parts[0], int(parts[1]))
 
         # Периодические задачи
         asyncio.create_task(self._ping_loop())
@@ -609,7 +674,7 @@ class P2PNode:
         self.peers[peer.peer_id] = peer
         print(f"[P2P] Connected: {peer}")
 
-        asyncio.create_task(self._sync_with_peer_safe(peer))
+        self._schedule_sync(peer)
         await self._message_loop(peer)
 
     # ── Исходящие соединения ─────────────────────────────────────────────────
@@ -660,7 +725,7 @@ class P2PNode:
             print(f"[P2P] Connected to {peer}")
 
             # Синхронизация если отстаём
-            asyncio.create_task(self._sync_with_peer_safe(peer))
+            self._schedule_sync(peer)
             asyncio.create_task(self._message_loop(peer))
             return True
 
@@ -1062,7 +1127,7 @@ class P2PNode:
                 parts = addr.rsplit(":", 1)
                 if len(parts) == 2:
                     try:
-                        asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
+                        self._schedule_connect(parts[0], int(parts[1]))
                     except Exception as exc:
                         self._peer_connect_task_fail += 1
                         logger.warning(
@@ -1275,12 +1340,13 @@ class P2PNode:
 
         self._feed_fork_choice(data)
         if block.height > local_h + 1:
-            asyncio.create_task(self._sync_with_peer_safe(peer))
+            self._schedule_sync(peer)
             return
 
-        for tx in block.transactions:
-            self.mempool.remove(tx.hash)
         if await self._import_block_async(data):
+            # v1.3.66: drop mempool txs only after successful import
+            for tx in block.transactions:
+                self.mempool.remove(tx.hash)
             print(f"[P2P] Accepted block #{block.height} from {peer.peer_id[:8]}")
             if self.sync_engine:
                 self._state_consistent = bool(await self._sync_state_async())
@@ -1525,6 +1591,38 @@ class P2PNode:
         if peer_id not in self._peer_sync_locks:
             self._peer_sync_locks[peer_id] = asyncio.Lock()
         return self._peer_sync_locks[peer_id]
+
+    def _schedule_sync(self, peer: PeerConnection) -> None:
+        """Coalesce duplicate sync tasks per peer (v1.3.66)."""
+        key = str(peer.peer_id or self._peer_key(peer) or id(peer))
+        existing = self._sync_tasks.get(key)
+        if existing is not None and not existing.done():
+            return
+        task = asyncio.create_task(self._sync_with_peer_safe(peer))
+        self._sync_tasks[key] = task
+
+        def _cleanup(_t, k=key):
+            cur = self._sync_tasks.get(k)
+            if cur is _t:
+                self._sync_tasks.pop(k, None)
+
+        task.add_done_callback(_cleanup)
+
+    def _schedule_connect(self, host: str, port: int) -> None:
+        """Coalesce duplicate connect tasks (v1.3.66)."""
+        key = f"{host}:{int(port)}"
+        existing = self._connect_tasks.get(key)
+        if existing is not None and not existing.done():
+            return
+        task = asyncio.create_task(self.connect_peer(host, int(port)))
+        self._connect_tasks[key] = task
+
+        def _cleanup(_t, k=key):
+            cur = self._connect_tasks.get(k)
+            if cur is _t:
+                self._connect_tasks.pop(k, None)
+
+        task.add_done_callback(_cleanup)
 
     async def _sync_with_peer_safe(self, peer: PeerConnection):
         lock = self._peer_lock(peer.peer_id or f"{peer.host}:{peer.port}")
@@ -2251,7 +2349,7 @@ class P2PNode:
                     parts = addr.rsplit(":", 1)
                     if len(parts) == 2:
                         try:
-                            asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
+                            self._schedule_connect(parts[0], int(parts[1]))
                         except Exception as exc:
                             self._peer_connect_task_fail += 1
                             logger.warning(
@@ -2353,14 +2451,14 @@ class P2PNode:
                         ) + 1
                         continue
                     if peer.height > our_height:
-                        asyncio.create_task(self._sync_with_peer_safe(peer))
+                        self._schedule_sync(peer)
                 target_peers = max(1, int(getattr(self.config, "testnet_expected_peers", 1) or 1))
                 if len(self.peers) < target_peers:
                     for addr in list(self._known_addrs):
                         parts = addr.rsplit(":", 1)
                         if len(parts) == 2:
                             try:
-                                asyncio.create_task(self.connect_peer(parts[0], int(parts[1])))
+                                self._schedule_connect(parts[0], int(parts[1]))
                             except Exception as exc:
                                 self._peer_connect_task_fail += 1
                                 logger.warning(

@@ -6823,20 +6823,29 @@ class RESTHandler(BaseHTTPRequestHandler):
             self._error(500, str(e))
 
     def _apply_isolation_metrics(self, p2p) -> dict:
-        """Snapshot for Prometheus apply-isolation gauges (v1.3.53)."""
+        """Snapshot for Prometheus apply-isolation gauges (v1.3.53+v1.3.66)."""
         aq = self.__class__.apply_queue
         out = {
             "queue_depth": 0,
             "wait_seconds_total": 0.0,
             "reject_total": 0,
+            "expired_total": 0,
+            "timeout_total": 0,
+            "exec_seconds_total": 0.0,
             "import_offload_total": 0,
+            "sync_tasks": 0,
         }
         if aq is not None:
             out["queue_depth"] = int(getattr(aq, "depth", 0) or 0)
             out["wait_seconds_total"] = float(getattr(aq, "wait_seconds_total", 0) or 0)
             out["reject_total"] = int(getattr(aq, "reject_total", 0) or 0)
+            out["expired_total"] = int(getattr(aq, "expired_total", 0) or 0)
+            out["timeout_total"] = int(getattr(aq, "timeout_total", 0) or 0)
+            out["exec_seconds_total"] = float(getattr(aq, "exec_seconds_total", 0) or 0)
         if p2p is not None:
             out["import_offload_total"] = int(getattr(p2p, "_import_offload_total", 0) or 0)
+            sync_tasks = getattr(p2p, "_sync_tasks", {}) or {}
+            out["sync_tasks"] = sum(1 for t in sync_tasks.values() if t and not t.done())
         return out
 
     def _json(self, data: Any):

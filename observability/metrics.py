@@ -343,6 +343,30 @@ class MetricsCollector:
                     f"abs_chain_apply_reject_total{{node_id=\"{node_id}\"}} "
                     f"{int(apply_isolation.get('reject_total', 0) or 0)}"
                 ),
+                "# HELP abs_chain_apply_expired_total Apply jobs expired before start",
+                "# TYPE abs_chain_apply_expired_total counter",
+                (
+                    f"abs_chain_apply_expired_total{{node_id=\"{node_id}\"}} "
+                    f"{int(apply_isolation.get('expired_total', 0) or 0)}"
+                ),
+                "# HELP abs_chain_apply_timeout_total Apply Future.result timeouts",
+                "# TYPE abs_chain_apply_timeout_total counter",
+                (
+                    f"abs_chain_apply_timeout_total{{node_id=\"{node_id}\"}} "
+                    f"{int(apply_isolation.get('timeout_total', 0) or 0)}"
+                ),
+                "# HELP abs_chain_apply_exec_seconds_total Cumulative apply execution time",
+                "# TYPE abs_chain_apply_exec_seconds_total counter",
+                (
+                    f"abs_chain_apply_exec_seconds_total{{node_id=\"{node_id}\"}} "
+                    f"{float(apply_isolation.get('exec_seconds_total', 0) or 0):.6f}"
+                ),
+                "# HELP abs_p2p_sync_tasks Active coalesced sync tasks",
+                "# TYPE abs_p2p_sync_tasks gauge",
+                (
+                    f"abs_p2p_sync_tasks{{node_id=\"{node_id}\"}} "
+                    f"{int(apply_isolation.get('sync_tasks', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_import_offload_total P2P import/reorg offload submissions",
                 "# TYPE abs_p2p_import_offload_total counter",
                 (
