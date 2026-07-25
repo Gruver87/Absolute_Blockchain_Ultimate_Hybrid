@@ -256,6 +256,62 @@ pub(crate) fn validate_attestation_shape_inner(data: &Value) -> bool {
     true
 }
 
+/// v1.3.117: identity + secp256k1 sig over canonical attestation fields (after shape).
+/// Reasons: `bad_attestation_identity` | `bad_attestation_sig`.
+pub(crate) fn verify_attestation_semantics_inner(data: &Value) -> Result<(), String> {
+    use sha2::{Digest, Sha256};
+
+    if !validate_attestation_shape_inner(data) {
+        return Err("bad_attestation_shape".to_string());
+    }
+    let obj = data
+        .as_object()
+        .ok_or_else(|| "bad_attestation_shape".to_string())?;
+    let claimed = obj
+        .get("validator")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+    if claimed.is_empty() {
+        return Err("bad_attestation_identity".to_string());
+    }
+    let sig_hex = obj
+        .get("signature")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let pk_hex = obj
+        .get("public_key")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let signature = hex::decode(sig_hex).map_err(|_| "bad_attestation_sig".to_string())?;
+    let public_key = hex::decode(pk_hex).map_err(|_| "bad_attestation_sig".to_string())?;
+    // Parity with KeyGenerator.derive_address: "0x" + sha256_hex(pubkey)[-40:]
+    let pk_digest = hex::encode(Sha256::digest(&public_key));
+    let derived = format!(
+        "0x{}",
+        &pk_digest[pk_digest.len().saturating_sub(40)..]
+    );
+    if derived.to_ascii_lowercase() != claimed {
+        return Err("bad_attestation_identity".to_string());
+    }
+    let mut payload = serde_json::Map::new();
+    for key in ["validator", "target_hash", "target_height", "slot"] {
+        if let Some(item) = obj.get(key) {
+            payload.insert(key.to_string(), item.clone());
+        } else {
+            payload.insert(key.to_string(), Value::Null);
+        }
+    }
+    let encoded = sorted_compact_json(&Value::Object(payload))
+        .map_err(|_| "bad_attestation_sig".to_string())?;
+    let msg_digest = crate::hash_string(&encoded);
+    if !crate::verify_secp256k1_sha256_inner(msg_digest.as_bytes(), &signature, &public_key) {
+        return Err("bad_attestation_sig".to_string());
+    }
+    Ok(())
+}
+
 #[pyfunction]
 fn validate_p2p_status_payload(py: Python<'_>, data_json: String) -> PyResult<Option<PyObject>> {
     let value: Value = match serde_json::from_str(&data_json) {

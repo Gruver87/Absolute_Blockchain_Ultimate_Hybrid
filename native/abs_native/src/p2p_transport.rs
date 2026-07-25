@@ -25,6 +25,7 @@
 //! v1.3.113: handshake payload shape gate on handshake_roundtrip.
 //! v1.3.115: handshake policy fuse (chain_id + TLS identity) on handshake_roundtrip.
 //! v1.3.116: message-loop event shell (`read_message_loop_events`) — ordered dispatch/strike.
+//! v1.3.117: attestation semantic gate on loop-shell (identity + secp256k1 before dispatch).
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -36,7 +37,8 @@ use crate::p2p_wire::{
     validate_get_block_inner, validate_get_blocks_inner, validate_handshake_inner,
     validate_mempool_batch_inner, validate_peers_list_inner, validate_shard_migration_inner,
     validate_state_root_request_inner, validate_state_root_response_inner, validate_status_inner,
-    validate_validator_register_inner, validate_wire_tx_inner, DEFAULT_MAX_P2P_LINE_BYTES,
+    validate_validator_register_inner, validate_wire_tx_inner, verify_attestation_semantics_inner,
+    DEFAULT_MAX_P2P_LINE_BYTES,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
@@ -173,6 +175,14 @@ fn check_attestation_payload(msg_type: &str, data: &serde_json::Value) -> Result
         return Err("bad_attestation_shape".to_string());
     }
     Ok(())
+}
+
+/// v1.3.117: attestation identity + signature (loop-shell semantic ingress).
+fn check_attestation_semantics(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+    if msg_type != "attestation" {
+        return Ok(());
+    }
+    verify_attestation_semantics_inner(data)
 }
 
 /// v1.3.106: parity with Python `new_block` announce gate (fail-closed).
@@ -1383,6 +1393,7 @@ impl P2PNativeConn {
 
     /// Ordered message-loop events (v1.3.116) — shell only, not full dispatch ownership.
     ///
+    /// v1.3.117: attestation semantic gate (identity + sig) before `dispatch`.
     /// Returns `{ok:true, events:[{action,...},...], eof:bool}` where actions are:
     /// `dispatch` | `strike` | `keepalive` | `idle` | `eof`.
     /// Valid messages before a hard reject are preserved as `dispatch` then `strike`.
@@ -1420,6 +1431,11 @@ impl P2PNativeConn {
                             break;
                         }
                         if let Err(reason) = check_ingress_shape_gates(&msg_type, &data) {
+                            terminal_strike = Some(reason);
+                            break;
+                        }
+                        // v1.3.117: semantic attestation verify before dispatch (tx stays Python).
+                        if let Err(reason) = check_attestation_semantics(&msg_type, &data) {
                             terminal_strike = Some(reason);
                             break;
                         }

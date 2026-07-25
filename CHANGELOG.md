@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.117] — 2026-07-25
+
+### P2P — native attestation semantic gate
+
+- Loop-shell verifies attestation identity + secp256k1 before dispatch
+- Strike reasons: `bad_attestation_identity` / `bad_attestation_sig`
+- Honesty: tx semantic / full message-loop / libp2p not claimed
+
 ## [1.3.116] — 2026-07-25
 
 ### P2P — native message-loop event shell

@@ -661,6 +661,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Python `_message_loop` shell path; handlers + ban policy stay Python
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
+### Priority 72 — Native attestation semantic ingress ✅ (v1.3.117)
+
+- [x] `verify_attestation_semantics_inner` on loop-shell before dispatch
+- [x] Identity + secp256k1; tx semantic / mempool stay Python
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

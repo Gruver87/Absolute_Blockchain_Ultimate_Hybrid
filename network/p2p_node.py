@@ -1176,6 +1176,7 @@ class P2PNode:
             self._native_message_loop_shell = False
         self._native_message_loop_dispatch_total: int = 0
         self._native_message_loop_strikes_total: int = 0
+        self._attestation_semantic_rejects_total: int = 0
         self._handshake_rejects: int = 0
         self._eclipse_at_risk: int = 0
         self._eclipse_ratio: float = 0.0
@@ -1412,7 +1413,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.116)"
+                    f"({label} v1.3.117)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -1995,6 +1996,13 @@ class P2PNode:
                             self._native_message_loop_strikes_total = int(
                                 self._native_message_loop_strikes_total or 0
                             ) + 1
+                            if reason in (
+                                "bad_attestation_identity",
+                                "bad_attestation_sig",
+                            ):
+                                self._attestation_semantic_rejects_total = int(
+                                    self._attestation_semantic_rejects_total or 0
+                                ) + 1
                             if reason == "mid_session_handshake":
                                 self._handshake_rejects = int(
                                     self._handshake_rejects or 0
@@ -4018,6 +4026,12 @@ class P2PNode:
             "native_handshake_policy_gate": bool(getattr(self, "_use_native_transport", False)),
             "native_message_loop_shell": bool(
                 getattr(self, "_native_message_loop_shell", False)
+            ),
+            "native_attestation_semantic_gate": bool(
+                getattr(self, "_native_message_loop_shell", False)
+            ),
+            "attestation_semantic_rejects_total": int(
+                getattr(self, "_attestation_semantic_rejects_total", 0) or 0
             ),
             "native_message_loop_dispatch_total": int(
                 getattr(self, "_native_message_loop_dispatch_total", 0) or 0

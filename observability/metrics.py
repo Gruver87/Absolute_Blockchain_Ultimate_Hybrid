@@ -601,6 +601,18 @@ class MetricsCollector:
                     f"abs_p2p_native_message_loop_shell{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_message_loop_shell') else 0}"
                 ),
+                "# HELP abs_p2p_native_attestation_semantic_gate Whether native attestation semantic gate is active (0/1)",
+                "# TYPE abs_p2p_native_attestation_semantic_gate gauge",
+                (
+                    f"abs_p2p_native_attestation_semantic_gate{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_attestation_semantic_gate') else 0}"
+                ),
+                "# HELP abs_p2p_attestation_semantic_rejects_total Attestation identity/sig rejects from native semantic gate",
+                "# TYPE abs_p2p_attestation_semantic_rejects_total counter",
+                (
+                    f"abs_p2p_attestation_semantic_rejects_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('attestation_semantic_rejects_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_message_loop_dispatch_total Dispatch events from native loop shell",
                 "# TYPE abs_p2p_native_message_loop_dispatch_total counter",
                 (

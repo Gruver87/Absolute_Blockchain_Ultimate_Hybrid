@@ -45,7 +45,7 @@ def test_needles_v13116():
     assert "read_message_loop_events" in p2p
     notes = (ROOT / "RELEASE_NOTES_v1.3.116.md").read_text(encoding="utf-8")
     assert "1.3.116-industrial" in notes
-    assert Config().node_version == "1.3.116-industrial"
+    # Live Config().node_version advances with later waves; pin notes not config.
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_message_loop_shell" in metrics
     assert "abs_p2p_native_message_loop_dispatch_total" in metrics
