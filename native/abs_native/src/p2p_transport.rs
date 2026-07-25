@@ -1,11 +1,12 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.95).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.96).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
 //! v1.3.92: `read_message` fuses framed read + wire parse.
 //! v1.3.93: `write_message` fuses wire encode + write.
 //! v1.3.94: `read_messages` batch drain (still not full message-loop).
 //! v1.3.95: `write_messages` / `write_payloads` batch send.
-//! Python remains the control plane (handshake, dispatch, gossip).
+//! v1.3.96: `handshake_roundtrip` I/O fuse (validate still Python).
+//! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
 use crate::p2p_frame::P2PLineFramer;
@@ -39,7 +40,9 @@ fn io_err(e: std::io::Error) -> String {
 fn wire_fail_reason(err: &str) -> String {
     if err == "p2p_transport_timeout"
         || err == "p2p_transport_closed"
+        || err == "p2p_handshake_eof"
         || err.starts_with("p2p_transport_")
+        || err.starts_with("p2p_handshake_")
     {
         return err.to_string();
     }
@@ -899,6 +902,71 @@ impl P2PNativeConn {
                 dict.set_item("nbytes", nbytes)?;
                 dict.set_item("written", written)?;
                 dict.set_item("count", written)?;
+                Ok(dict.into_any().unbind())
+            }
+        }
+    }
+
+    /// Handshake I/O round-trip (v1.3.96). Policy/validation remain Python.
+    ///
+    /// Initiator: write `handshake` + read expecting `handshake_ack`.
+    /// Responder: read expecting `handshake` + write `handshake_ack`.
+    ///
+    /// `{ok:true, type, data, nbytes}` | `{ok:false, reason}`.
+    #[pyo3(signature = (initiator, our_data_json, chunk_sz=65536))]
+    fn handshake_roundtrip(
+        &mut self,
+        py: Python<'_>,
+        initiator: bool,
+        our_data_json: &str,
+        chunk_sz: usize,
+    ) -> PyResult<PyObject> {
+        let our_data_json = our_data_json.to_string();
+        let max_bytes = self.max_bytes;
+        let allowed: HashSet<String> = ["handshake".into(), "handshake_ack".into()]
+            .into_iter()
+            .collect();
+        let result = py.allow_threads(|| -> Result<(String, serde_json::Value, usize), String> {
+            if initiator {
+                let payload = encode_p2p_wire_message_inner("handshake", &our_data_json)?;
+                if payload.len() > max_bytes {
+                    return Err("p2p_line_too_large".to_string());
+                }
+                self.write_inner(&payload)?;
+                match self.read_one_decoded(chunk_sz, Some(&allowed))? {
+                    None => Err("p2p_handshake_eof".to_string()),
+                    Some((msg_type, data, nbytes)) => {
+                        if msg_type != "handshake_ack" {
+                            return Err(format!("p2p_handshake_unexpected:{msg_type}"));
+                        }
+                        Ok((msg_type, data, nbytes))
+                    }
+                }
+            } else {
+                match self.read_one_decoded(chunk_sz, Some(&allowed))? {
+                    None => Err("p2p_handshake_eof".to_string()),
+                    Some((msg_type, data, nbytes)) => {
+                        if msg_type != "handshake" {
+                            return Err(format!("p2p_handshake_unexpected:{msg_type}"));
+                        }
+                        let payload =
+                            encode_p2p_wire_message_inner("handshake_ack", &our_data_json)?;
+                        if payload.len() > max_bytes {
+                            return Err("p2p_line_too_large".to_string());
+                        }
+                        self.write_inner(&payload)?;
+                        Ok((msg_type, data, nbytes))
+                    }
+                }
+            }
+        });
+        match result {
+            Ok((msg_type, data, nbytes)) => decoded_ok_dict(py, &msg_type, &data, nbytes),
+            Err(reason) => {
+                let short = wire_fail_reason(&reason);
+                let dict = PyDict::new_bound(py);
+                dict.set_item("ok", false)?;
+                dict.set_item("reason", short)?;
                 Ok(dict.into_any().unbind())
             }
         }

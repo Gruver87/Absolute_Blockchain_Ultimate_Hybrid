@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.96] — 2026-07-25
+
+### P2P — native handshake_roundtrip I/O fuse
+
+- `handshake_roundtrip` writes/reads handshake envelopes in one native call
+- `_do_handshake` wired; validate/chain_id/TLS policy stay Python
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.95] — 2026-07-25
 
 ### P2P — native write_messages / write_payloads batch

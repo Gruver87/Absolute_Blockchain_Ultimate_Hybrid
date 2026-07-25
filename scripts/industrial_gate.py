@@ -1507,8 +1507,17 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "observability" / "metrics.py"
         ).read_text(encoding="utf-8"):
             errors.append("metrics must export abs_p2p_native_write_messages (v1.3.95)")
+        # v1.3.96 — native handshake I/O fuse
+        if "handshake_roundtrip" not in transport_rs or "v1.3.96" not in transport_rs:
+            errors.append("p2p_transport must expose handshake_roundtrip (v1.3.96)")
+        if "_native_handshake" not in p2p_py or "handshake_roundtrip" not in p2p_py:
+            errors.append("p2p_node must wire native handshake (v1.3.96)")
+        if "abs_p2p_native_handshake" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("metrics must export abs_p2p_native_handshake (v1.3.96)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..95 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..96 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

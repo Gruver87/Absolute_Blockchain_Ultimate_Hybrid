@@ -445,6 +445,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.93: Native write_message pump — encode+write (Priority 48)
 - [x] v1.3.94: Native read_messages batch pump (Priority 49)
 - [x] v1.3.95: Native write_messages / write_payloads batch (Priority 50)
+- [x] v1.3.96: Native handshake_roundtrip I/O fuse (Priority 51)
 
 ### Priority 39 — P2P Rust ingress data plane ✅ (v1.3.77–v1.3.78)
 
@@ -512,6 +513,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `write_messages` + `write_payloads` on `P2PNativeConn`
 - [x] `_send_loop` batch drain via `_write_messages_batch`
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
+### Priority 51 — Native handshake_roundtrip ✅ (v1.3.96)
+
+- [x] `handshake_roundtrip` I/O fuse on native conn
+- [x] `_do_handshake` wired; validate/policy stay Python
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
 ## Process per module

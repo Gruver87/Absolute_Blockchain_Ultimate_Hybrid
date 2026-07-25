@@ -493,6 +493,12 @@ class MetricsCollector:
                     f"abs_p2p_native_write_messages{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_write_messages') else 0}"
                 ),
+                "# HELP abs_p2p_native_handshake Whether native handshake_roundtrip is active (0/1)",
+                "# TYPE abs_p2p_native_handshake gauge",
+                (
+                    f"abs_p2p_native_handshake{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_handshake') else 0}"
+                ),
                 "# HELP abs_p2p_native_accept_total Native TCP accepts",
                 "# TYPE abs_p2p_native_accept_total counter",
                 (
