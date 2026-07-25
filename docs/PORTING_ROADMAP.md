@@ -398,7 +398,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Eligible CREATE init with RETURN runtime (v1.3.82)
 - [x] Inline value → `pending_writeback_ops` → adapter satoshi journal (v1.3.83)
 - [x] Inline CREATE `save_account` journal (v1.3.84)
-- Remaining: full Rust P2P transport (not claimed)
+- EVM Priority 38 closed; P2P transport remains under Priority 39–40
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
 
@@ -434,13 +434,19 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.82: CREATE eligible init → RETURN runtime
 - [x] v1.3.83: inline value → pending_writeback_ops / satoshi journal
 - [x] v1.3.84: inline CREATE → save_account writeback journal
+- [x] v1.3.85: P2P outbound egress bandwidth (Priority 40)
 
 ### Priority 39 — P2P Rust ingress data plane ✅ (v1.3.77–v1.3.78)
 
 - [x] Unified native admit: decode → allowlist → primary/exempt rate
 - [x] Connection governor: max_peers + per-IP inbound
 - [x] Per-peer bandwidth / cost units (v1.3.78)
-- Remaining: full Rust transport (not claimed)
+
+### Priority 40 — P2P outbound egress QoS ✅ (v1.3.85)
+
+- [x] Separate egress byte window + cost weights (same as ingress)
+- [x] `admit_egress` / `p2p_egress_admit` wired into send path
+- Remaining: full Rust transport — TCP/TLS/message loop (not claimed)
 
 ## Process per module
 

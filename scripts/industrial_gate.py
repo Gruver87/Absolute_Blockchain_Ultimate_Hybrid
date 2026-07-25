@@ -1400,8 +1400,24 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("evm_pure_runner must plan inline CREATE save_account (v1.3.84)")
         if "native_inline_writeback_create" not in rust_runner:
             errors.append("evm_pure_runner must mark CREATE writeback (v1.3.84)")
+        # v1.3.85 — outbound egress bandwidth
+        rl_rs = (ROOT / "native" / "abs_native" / "src" / "p2p_rate_limit.rs").read_text(
+            encoding="utf-8"
+        )
+        if "admit_egress" not in rl_rs or "v1.3.85" not in rl_rs:
+            errors.append("p2p_rate_limit must enforce egress bandwidth (v1.3.85)")
+        if "egress_bandwidth_exceeded" not in rl_rs:
+            errors.append("p2p_rate_limit must reject egress_bandwidth_exceeded (v1.3.85)")
+        if "p2p_max_outbound_bytes_per_sec" not in cfg_py:
+            errors.append("config must define p2p_max_outbound_bytes_per_sec (v1.3.85)")
+        metrics_eg = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
+        if "abs_p2p_egress_rejects_total" not in metrics_eg:
+            errors.append("metrics must export abs_p2p_egress_rejects_total (v1.3.85)")
+        p2p_py = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+        if "_egress_ok" not in p2p_py or "admit_egress" not in p2p_py:
+            errors.append("p2p_node must gate send via egress admit (v1.3.85)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..84 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..85 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

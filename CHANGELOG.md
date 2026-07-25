@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.85] — 2026-07-25
+
+### P2P — outbound egress bandwidth (cost-weighted)
+
+- Separate egress byte window on `P2PRateLimitTable`; `admit_egress` / `p2p_egress_admit`
+- Wired into `PeerConnection` send path before write
+- Config: `p2p_max_outbound_bytes_per_sec`; metrics: `abs_p2p_egress_rejects_total`
+- Honesty: not full Rust transport; TCP/message loop still Python
+
 ## [1.3.84] — 2026-07-25
 
 ### EVM — inline CREATE → save_account writeback journal

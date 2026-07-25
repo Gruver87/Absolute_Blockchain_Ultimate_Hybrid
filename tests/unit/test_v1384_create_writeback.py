@@ -153,5 +153,5 @@ def test_needles_v1384():
     assert "push_pending_writeback_save_account" in rust
     assert "native_inline_writeback_create" in rust
     assert "v1.3.84" in rust
-    cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "1.3.84-industrial" in cfg
+    notes = (ROOT / "RELEASE_NOTES_v1.3.84.md").read_text(encoding="utf-8")
+    assert "1.3.84-industrial" in notes

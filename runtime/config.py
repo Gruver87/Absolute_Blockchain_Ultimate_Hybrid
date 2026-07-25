@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.84-industrial"
+    node_version: str = "1.3.85-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -101,6 +101,7 @@ class Config:
     p2p_rate_limit_strikes: int = 5               # strikes before ban
     p2p_max_inbound_per_ip: int = 8               # inbound connections per remote IP (0=off)
     p2p_max_bytes_per_sec: int = 4 * 1024 * 1024  # per-peer inbound bandwidth budget (0=off)
+    p2p_max_outbound_bytes_per_sec: int = 4 * 1024 * 1024  # per-peer outbound bandwidth (0=off)
     p2p_evict_min_score: int = 0                  # evict peers below score when >1 peer (0=off)
     p2p_tls_enabled: bool = False                 # TLS on P2P wire (mainnet / public mesh)
     p2p_tls_cert_path: str = ""                   # node cert (PEM)
@@ -310,6 +311,9 @@ class Config:
         )
         self.p2p_max_bytes_per_sec = env_int(
             "P2P_MAX_BYTES_PER_SEC", self.p2p_max_bytes_per_sec
+        )
+        self.p2p_max_outbound_bytes_per_sec = env_int(
+            "P2P_MAX_OUTBOUND_BYTES_PER_SEC", self.p2p_max_outbound_bytes_per_sec
         )
         self.p2p_evict_min_score = env_int(
             "P2P_EVICT_MIN_SCORE", self.p2p_evict_min_score

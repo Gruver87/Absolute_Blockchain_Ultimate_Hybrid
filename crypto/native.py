@@ -141,6 +141,8 @@ def native_crypto_status(required: bool = False) -> dict:
             "p2p_strike_should_ban",
             "p2p_ingress_admit",
             "p2p_ingress_cost_units",
+            "p2p_egress_admit",
+            "p2p_egress_cost_units",
             "validator_selection_proposer",
             "validator_selection_proposer_weighted",
             "validator_selection_committee",
@@ -2586,6 +2588,34 @@ def p2p_ingress_cost_units(msg_type: str, nbytes: int) -> int:
     if _native is not None and hasattr(_native, "p2p_ingress_cost_units"):
         return int(_native.p2p_ingress_cost_units(str(msg_type), int(nbytes)))
     raise RuntimeError("p2p_ingress_cost_units requires abs_native")
+
+
+def p2p_egress_cost_units(msg_type: str, nbytes: int) -> int:
+    """Cost-weighted units for outbound bandwidth budget (v1.3.85)."""
+    _require_native_kernel("p2p_egress_cost_units")
+    if _native is not None and hasattr(_native, "p2p_egress_cost_units"):
+        return int(_native.p2p_egress_cost_units(str(msg_type), int(nbytes)))
+    raise RuntimeError("p2p_egress_cost_units requires abs_native")
+
+
+def p2p_egress_admit(
+    peer_id: str,
+    nbytes: int,
+    now: float,
+    msg_type: str = "",
+    rl=None,
+):
+    """Outbound bandwidth admit (v1.3.85). Returns {ok} / {ok:false, reason}."""
+    _require_native_kernel("p2p_egress_admit")
+    if _native is not None and hasattr(_native, "p2p_egress_admit"):
+        return _native.p2p_egress_admit(
+            str(peer_id),
+            int(nbytes),
+            float(now),
+            str(msg_type or ""),
+            rl,
+        )
+    raise RuntimeError("p2p_egress_admit requires abs_native")
 
 
 def p2p_rate_limit_is_exempt(msg_type: str) -> bool:

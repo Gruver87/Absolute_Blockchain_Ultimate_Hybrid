@@ -194,6 +194,8 @@ class PeerConnection:
         self.tls_identities: list = []
         self._on_send_fail: Optional[Callable[[], None]] = None
         self._on_send_drop: Optional[Callable[[], None]] = None
+        self._on_egress_reject: Optional[Callable[[], None]] = None
+        self._rl_table = None  # optional native P2PRateLimitTable (egress v1.3.85)
         # v1.3.66/72: bounded outbound queue (config-driven size + drain timeout)
         qmax = max(8, int(send_queue_max or 256))
         self._send_q: asyncio.Queue = asyncio.Queue(maxsize=qmax)
@@ -203,6 +205,34 @@ class PeerConnection:
 
     def touch(self):
         self.last_seen = time.time()
+
+    def _egress_peer_key(self) -> str:
+        if self.peer_id:
+            return str(self.peer_id)
+        if self.port:
+            return f"{self.host}:{self.port}"
+        return str(self.host or "unknown")
+
+    def _egress_ok(self, msg_type: str, payload: bytes) -> bool:
+        """v1.3.85: cost-weighted outbound bandwidth gate (fail-closed drop)."""
+        table = self._rl_table
+        if table is None or not hasattr(table, "admit_egress"):
+            return True
+        reason = table.admit_egress(
+            self._egress_peer_key(),
+            len(payload),
+            time.time(),
+            str(msg_type or ""),
+        )
+        if reason:
+            cb = self._on_egress_reject
+            if cb is not None:
+                try:
+                    cb()
+                except Exception:
+                    pass
+            return False
+        return True
 
     def _ensure_send_worker(self) -> None:
         if self._send_worker is not None and not self._send_worker.done():
@@ -225,9 +255,12 @@ class PeerConnection:
             ok = False
             try:
                 payload = native.encode_p2p_wire_message(msg_type, data)
-                self.writer.write(payload)
-                await asyncio.wait_for(self.writer.drain(), timeout=self._drain_timeout_sec)
-                ok = True
+                if not self._egress_ok(msg_type, payload):
+                    ok = False
+                else:
+                    self.writer.write(payload)
+                    await asyncio.wait_for(self.writer.drain(), timeout=self._drain_timeout_sec)
+                    ok = True
             except Exception as e:
                 logger.warning("[P2P] send error to %s: %s", self.peer_id or self.host, e)
                 cb = self._on_send_fail
@@ -255,6 +288,8 @@ class PeerConnection:
             if priority and self._send_q.empty():
                 # Fast path when idle
                 payload = native.encode_p2p_wire_message(msg_type, data)
+                if not self._egress_ok(msg_type, payload):
+                    return False
                 self.writer.write(payload)
                 await asyncio.wait_for(self.writer.drain(), timeout=self._drain_timeout_sec)
                 return True
@@ -427,7 +462,9 @@ class P2PNode:
         self._rl_table = None
         self._conn_governor = None
         self._use_native_ingress = False
+        self._use_native_egress = False
         self._peer_exempt_windows: Dict[str, tuple[int, float]] = {}
+        self._egress_rejects: int = 0
         _want_native_rl = bool(
             getattr(config, "require_native_crypto", False)
             or getattr(config, "is_production", False)
@@ -441,8 +478,10 @@ class P2PNode:
                     sorted(RATE_LIMIT_EXEMPT_TYPES),
                     int(getattr(config, "p2p_exempt_messages_per_sec", 0) or 0),
                     int(getattr(config, "p2p_max_bytes_per_sec", 0) or 0),
+                    int(getattr(config, "p2p_max_outbound_bytes_per_sec", 0) or 0),
                 )
                 self._use_native_ingress = hasattr(native, "p2p_ingress_admit")
+                self._use_native_egress = hasattr(self._rl_table, "admit_egress")
             except Exception as exc:
                 if _want_native_rl:
                     raise RuntimeError(
@@ -451,6 +490,7 @@ class P2PNode:
                 logger.warning("[P2P] native P2PRateLimitTable unavailable: %s", exc)
                 self._rl_table = None
                 self._use_native_ingress = False
+                self._use_native_egress = False
         if native.native_available() and hasattr(native, "P2PConnectionGovernor"):
             try:
                 self._conn_governor = native.P2PConnectionGovernor(
@@ -711,6 +751,9 @@ class P2PNode:
         """Wire peer callbacks into node counters."""
         peer._on_send_fail = self._bump_peer_send_fail
         peer._on_send_drop = self._bump_outbound_drop
+        peer._on_egress_reject = self._bump_egress_reject
+        if self._use_native_egress:
+            peer._rl_table = self._rl_table
 
     def _bump_peer_send_fail(self) -> None:
         self._peer_send_fail = int(self._peer_send_fail or 0) + 1
@@ -718,6 +761,10 @@ class P2PNode:
     def _bump_outbound_drop(self) -> None:
         """Aggregate per-peer send-queue drops (v1.3.72)."""
         self._outbound_drops = int(self._outbound_drops or 0) + 1
+
+    def _bump_egress_reject(self) -> None:
+        """Outbound bandwidth rejects (v1.3.85)."""
+        self._egress_rejects = int(self._egress_rejects or 0) + 1
 
     def _peer_send_queue_params(self) -> tuple[int, float]:
         qmax = int(getattr(self.config, "p2p_send_queue_max", 256) or 256)
@@ -2843,13 +2890,22 @@ class P2PNode:
             "tracked_strikes": tracked,
             "native_rate_limit_table": self._rl_table is not None,
             "native_p2p_ingress": bool(self._use_native_ingress and self._rl_table is not None),
+            "native_p2p_egress": bool(self._use_native_egress and self._rl_table is not None),
             "native_conn_governor": self._conn_governor is not None,
             "max_inbound_per_ip": int(getattr(self.config, "p2p_max_inbound_per_ip", 0) or 0),
             "max_bytes_per_sec": int(getattr(self.config, "p2p_max_bytes_per_sec", 0) or 0),
+            "max_outbound_bytes_per_sec": int(
+                getattr(self.config, "p2p_max_outbound_bytes_per_sec", 0) or 0
+            ),
             "bandwidth_rejects": (
                 int(getattr(self._rl_table, "bandwidth_rejects", 0) or 0)
                 if self._rl_table is not None
                 else 0
+            ),
+            "egress_rejects": (
+                int(getattr(self._rl_table, "egress_rejects", 0) or 0)
+                if self._rl_table is not None
+                else int(self._egress_rejects or 0)
             ),
             "handshake_rejects": int(self._handshake_rejects),
             "attestation_local_fail": int(self._attestation_local_fail),

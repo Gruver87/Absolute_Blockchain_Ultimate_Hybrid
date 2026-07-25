@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.84 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.85 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -45,6 +45,7 @@ WAVE_TESTS = [
     "tests/unit/test_v1382_create_runtime.py",
     "tests/unit/test_v1383_writeback_journal.py",
     "tests/unit/test_v1384_create_writeback.py",
+    "tests/unit/test_v1385_p2p_egress.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -299,7 +300,7 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
     ),
     (
         "1.3.84",
-        "runtime/config.py",
+        "RELEASE_NOTES_v1.3.84.md",
         ["1.3.84-industrial"],
     ),
     (
@@ -310,6 +311,26 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "native_inline_writeback_create",
             "v1.3.84",
         ],
+    ),
+    (
+        "1.3.85",
+        "runtime/config.py",
+        ["1.3.85-industrial", "p2p_max_outbound_bytes_per_sec"],
+    ),
+    (
+        "1.3.85",
+        "native/abs_native/src/p2p_rate_limit.rs",
+        [
+            "admit_egress",
+            "egress_bandwidth_exceeded",
+            "p2p_egress_admit",
+            "v1.3.85",
+        ],
+    ),
+    (
+        "1.3.85",
+        "observability/metrics.py",
+        ["abs_p2p_egress_rejects_total"],
     ),
 ]
 
@@ -338,8 +359,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.84"):
-            errors.append(f"node_version expected 1.3.84-*, got {ver}")
+        if not ver.startswith("1.3.85"):
+            errors.append(f"node_version expected 1.3.85-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

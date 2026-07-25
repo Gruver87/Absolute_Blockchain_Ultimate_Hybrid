@@ -415,6 +415,18 @@ class MetricsCollector:
                     f"abs_p2p_max_bytes_per_sec{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('max_bytes_per_sec', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_egress_rejects_total Per-peer outbound bandwidth budget rejects",
+                "# TYPE abs_p2p_egress_rejects_total counter",
+                (
+                    f"abs_p2p_egress_rejects_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('egress_rejects', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_max_outbound_bytes_per_sec Configured per-peer outbound bandwidth budget",
+                "# TYPE abs_p2p_max_outbound_bytes_per_sec gauge",
+                (
+                    f"abs_p2p_max_outbound_bytes_per_sec{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('max_outbound_bytes_per_sec', 0) or 0)}"
+                ),
             ]
         )
         for kernel in native_crypto.get("kernels", []):
