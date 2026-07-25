@@ -362,7 +362,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] Mixed apply: in-memory sat session + single writeback
 - [x] `scripts/verify_industrial_waves.py` for waves 65–68(+69)
-- Remaining: recursive native frames (not claimed)
+- Remaining: see Priority 36
+
+### Priority 36 — Recursive frame arena sync ✅ (v1.3.70)
+
+- [x] Flush arena before nested CALL; re-sync after DELEGATECALL/CALLCODE merge
+- [x] Live parent storage for recursive DELEGATECALL (`_abs_live_storage`)
+- Remaining: Rust-owned multi-frame stack (not claimed)
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
 
@@ -383,6 +389,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.67: tx writeback journal + Rust storage arena
 - [x] v1.3.68: bridge semantic event bind + fail-closed debit
 - [x] v1.3.69: block-scoped sat session + verify_industrial_waves
+- [x] v1.3.70: recursive frame arena sync + live DELEGATECALL storage
 
 ## Process per module
 

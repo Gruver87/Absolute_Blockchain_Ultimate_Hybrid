@@ -1310,8 +1310,19 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("blockchain mixed apply must use block-scoped sat session (v1.3.69)")
         if not (ROOT / "scripts" / "verify_industrial_waves.py").is_file():
             errors.append("scripts/verify_industrial_waves.py missing (v1.3.69)")
+        # v1.3.70 — recursive frame arena sync
+        rust_runner = (ROOT / "native" / "abs_native" / "src" / "evm_pure_runner.rs").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "v1.3.70" not in rust_runner or "re-sync arena after DELEGATECALL" not in rust_runner:
+            errors.append("evm_pure_runner must flush/resync arena around nested CALL (v1.3.70)")
+        adapter_py = (ROOT / "execution" / "evm_adapter.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "_abs_live_storage" not in adapter_py:
+            errors.append("evm_adapter must expose _abs_live_storage for DELEGATECALL (v1.3.70)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..69 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..70 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

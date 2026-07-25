@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.69` — block-scoped sat session + verify script |
-| **Notes** | [RELEASE_NOTES_v1.3.69.md](../RELEASE_NOTES_v1.3.69.md) |
-| **Prior** | [v1.3.68](../RELEASE_NOTES_v1.3.68.md) bridge; [v1.3.67](../RELEASE_NOTES_v1.3.67.md) journal/arena |
+| **Tag** | `v1.3.70` — recursive frame arena sync + live DELEGATECALL |
+| **Notes** | [RELEASE_NOTES_v1.3.70.md](../RELEASE_NOTES_v1.3.70.md) |
+| **Prior** | [v1.3.69](../RELEASE_NOTES_v1.3.69.md) sat session; [v1.3.68](../RELEASE_NOTES_v1.3.68.md) bridge |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

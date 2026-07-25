@@ -615,12 +615,16 @@ fn execute_call_native(
     gas_limit: u64,
     gas_used: &mut u64,
     storage: Option<&Bound<'_, PyDict>>,
+    arena: &mut HashMap<U256, U256>,
     return_data: &mut Vec<u8>,
 ) -> PyResult<()> {
     let call_fn = hook_contract_call(host_context).ok_or_else(|| {
         pyo3::exceptions::PyRuntimeError::new_err("contract_call_hook_unavailable")
     })?;
     let frame = decode_call_from_stack(op, stack)?;
+    // v1.3.70: flush Rust arena → Python before nested CALL so DELEGATECALL
+    // children (and hooks) see parent SSTOREs from this frame.
+    restore_storage_dict(storage, arena)?;
     mem_extend(memory, frame.args_offset, frame.args_size);
     let call_data = evm_memory_slice_inner(memory, frame.args_offset, frame.args_size);
     let call_data_py = PyBytes::new_bound(py, &call_data);
@@ -676,6 +680,9 @@ fn execute_call_native(
         if let Ok(Some(st)) = out_dict.get_item("storage") {
             merge_storage_dict(storage, st)?;
         }
+        // v1.3.70: re-sync arena after DELEGATECALL/CALLCODE storage merge so
+        // subsequent SLOAD/SSTORE in this frame see child writes (not stale arena).
+        *arena = snapshot_storage_dict(storage)?.unwrap_or_default();
     }
     write_return_to_memory(memory, frame.ret_offset, frame.ret_size, &rd);
     let success = out_dict
@@ -1698,6 +1705,7 @@ fn run_pure_segment_inner(
                         gas_limit,
                         &mut gas_used,
                         storage,
+                        &mut arena,
                         &mut return_data,
                     )?;
                     Ok(Some(false))

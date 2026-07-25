@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.69 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.70 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -30,6 +30,7 @@ WAVE_TESTS = [
     "tests/unit/test_v1366_load_backpressure.py",
     "tests/unit/test_v1367_1368_journal_bridge.py",
     "tests/unit/test_v1369_block_session.py",
+    "tests/unit/test_v1370_recursive_native_frames.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -129,9 +130,19 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         ["block-scoped sat session", "_writeback_accounts_sat(session)"],
     ),
     (
-        "1.3.69",
+        "1.3.70",
         "runtime/config.py",
-        ["1.3.69-industrial"],
+        ["1.3.70-industrial"],
+    ),
+    (
+        "1.3.70",
+        "native/abs_native/src/evm_pure_runner.rs",
+        ["v1.3.70", "re-sync arena after DELEGATECALL"],
+    ),
+    (
+        "1.3.70",
+        "execution/evm_adapter.py",
+        ["_abs_live_storage"],
     ),
 ]
 
@@ -160,8 +171,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.69"):
-            errors.append(f"node_version expected 1.3.69-*, got {ver}")
+        if not ver.startswith("1.3.70"):
+            errors.append(f"node_version expected 1.3.70-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

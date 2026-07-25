@@ -248,16 +248,22 @@ class EVMAdapter:
         )
         parent_ro = bool(getattr(caller_ctx, "_abs_read_only", False))
         if delegate or callcode:
-            caller_view = self._account_view(caller_ctx.address)
-            if caller_view.get("corrupt"):
-                return {"success": False, "reverted": True, "return_data": b"", "error": "corrupt_storage"}
-            storage = dict(caller_view.get("storage") or {})
-            if not storage and caller_view.get("missing"):
-                storage_raw = self.db.get_account(caller_ctx.address)
-                storage_src = (storage_raw or {}).get("storage") or "{}"
-                storage = self._loads_contract_storage(storage_src)
-                if storage is None:
+            # v1.3.70: prefer in-flight parent storage (arena-flushed dict) so
+            # recursive DELEGATECALL/CALLCODE sees parent SSTOREs, not stale DB.
+            live = getattr(caller_ctx, "_abs_live_storage", None)
+            if isinstance(live, dict):
+                storage = live
+            else:
+                caller_view = self._account_view(caller_ctx.address)
+                if caller_view.get("corrupt"):
                     return {"success": False, "reverted": True, "return_data": b"", "error": "corrupt_storage"}
+                storage = dict(caller_view.get("storage") or {})
+                if not storage and caller_view.get("missing"):
+                    storage_raw = self.db.get_account(caller_ctx.address)
+                    storage_src = (storage_raw or {}).get("storage") or "{}"
+                    storage = self._loads_contract_storage(storage_src)
+                    if storage is None:
+                        return {"success": False, "reverted": True, "return_data": b"", "error": "corrupt_storage"}
             exec_addr = caller_ctx.address
             call_value = 0 if delegate else value
             caller = caller_ctx.caller if delegate else caller_ctx.address
@@ -280,6 +286,8 @@ class EVMAdapter:
             caller, exec_addr, calldata, call_value, read_only=nested_ro
         )
         sub_ctx._abs_read_only = nested_ro
+        # Same object the runner mutates — recursive DELEGATECALL reads it (v1.3.70).
+        sub_ctx._abs_live_storage = storage
         sub_ctx.contract_call = lambda t, d, v, g, delg, st, cc=False: self._contract_call_hook(
             t, d, v, g, delg, st, sub_ctx, callcode=cc
         )
@@ -385,12 +393,22 @@ class EVMAdapter:
         # Fail-closed: never persist storage/value/logs for reverted nested calls.
         if not result.get("reverted"):
             ops = list(plan.get("ops") or [])
+            native_flags = {
+                k: result[k]
+                for k in (
+                    "native_nested_pure",
+                    "native_nested_bridge",
+                    "native_nested_host",
+                )
+                if k in result
+            }
             if not ops:
                 return {
                     "success": success,
                     "reverted": False,
                     "return_data": result.get("return_data", b"") or b"",
                     "gas_used": result.get("gas_used", 0),
+                    **native_flags,
                 }
 
             self._apply_nested_writeback_ops(ops)
@@ -403,6 +421,7 @@ class EVMAdapter:
                 "gas_used": result.get("gas_used", 0),
                 "logs": result.get("logs", []),
                 "native_writeback_ops": len(ops),
+                **native_flags,
             }
 
         return {
@@ -644,6 +663,7 @@ class EVMAdapter:
             )
         evm = EVM(gas_limit=gas_limit, context=ctx)
         evm.storage = dict(storage)
+        ctx._abs_live_storage = evm.storage
         result = evm.execute_bytecode(bytecode)
         result["logs"] = evm.logs
         return result

@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.70] — 2026-07-25
+
+### EVM — recursive frame correctness (arena sync)
+
+- Flush Rust storage arena to Python before nested CALL
+- Re-sync arena after DELEGATECALL/CALLCODE storage merge
+- Adapter DELEGATECALL/CALLCODE uses in-flight `_abs_live_storage`
+- Preserve `native_nested_*` flags on nested call results
+- Honesty: not a Rust-owned multi-frame stack; Python FFI per CALL depth remains
+
 ## [1.3.69] — 2026-07-25
 
 ### Load — block-scoped sat session for mixed apply
