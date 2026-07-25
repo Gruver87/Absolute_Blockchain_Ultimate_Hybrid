@@ -282,7 +282,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `evm_run_nested_pure_frame` — child frame via pure runner (no host_bridge)
 - [x] `evm_bytecode_is_nested_pure_eligible` + adapter fast-path; fallback to Python on host/bridge
-- Remaining: recursive CALL/CREATE host-in-Rust · BALANCE/EXTCODE* without Python (optional / large)
+- Remaining: see Priority 23
+
+### Priority 23 — Nested CALL native bridge surface ✅ (v1.3.55)
+
+- [x] `evm_bytecode_is_nested_native_eligible` — bridge ops OK; recursive host still Python
+- [x] `allow_bridge=True` keeps BALANCE/EXTCODE*/BLOCKHASH in abs_native nested frame
+- Remaining: recursive CALL/CREATE/LOG host-in-Rust (optional / large)
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
 
@@ -290,7 +296,8 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.52: serial `ChainApplyQueue` (atomic forge_and_apply)
 - [x] v1.3.53: dedicated sync executor + Prometheus apply metrics + backpressure honesty
 - [x] v1.3.54: EVM/mempool high-load soak harness (`scripts/evm_mempool_load_harness.py`)
-- Remaining: nested CALL host-in-Rust (BALANCE/EXTCODE*)
+- [x] v1.3.55: nested CALL native bridge (BALANCE/EXTCODE*/BLOCKHASH via host_context)
+- Remaining: recursive CALL/CREATE/LOG host-in-Rust (optional / large)
 
 ## Process per module
 

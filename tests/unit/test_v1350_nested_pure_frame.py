@@ -71,9 +71,12 @@ def test_nested_pure_frame_stops_on_call():
 def test_wiring():
     adapter = Path("execution/evm_adapter.py").read_text(encoding="utf-8")
     assert "evm_run_nested_pure_frame" in adapter
-    assert "evm_bytecode_is_nested_pure_eligible" in adapter
-    assert "fn evm_run_nested_pure_frame" in Path(
+    assert (
+        "evm_bytecode_is_nested_pure_eligible" in adapter
+        or "evm_bytecode_is_nested_native_eligible" in adapter
+    )
+    assert "evm_run_nested_pure_frame_py" in Path(
         "native/abs_native/src/evm_pure_runner.rs"
-    ).read_text(encoding="utf-8") or "evm_run_nested_pure_frame_py" in Path(
+    ).read_text(encoding="utf-8") or "fn evm_run_nested_pure_frame" in Path(
         "native/abs_native/src/evm_pure_runner.rs"
     ).read_text(encoding="utf-8")

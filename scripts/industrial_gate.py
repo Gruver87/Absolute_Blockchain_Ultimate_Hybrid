@@ -1102,8 +1102,15 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             htxt = harness.read_text(encoding="utf-8")
             if "ChainApplyQueue" not in htxt or "submit_forge_and_apply" not in htxt:
                 errors.append("evm_mempool_load_harness must exercise ChainApplyQueue")
+        # v1.3.55 — nested native bridge surface
+        if "def evm_bytecode_is_nested_native_eligible" not in native_py:
+            errors.append("crypto/native.py must export evm_bytecode_is_nested_native_eligible")
+        if "allow_bridge=True" not in (
+            ROOT / "execution" / "evm_adapter.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("evm_adapter must call nested frame with allow_bridge=True")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..54 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..55 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

@@ -221,8 +221,9 @@ class EVMAdapter:
             )
 
         result: Optional[Dict[str, Any]] = None
-        # Priority 22 / v1.3.50: pure-opcode nested child in Rust (no CALL host).
-        if native.evm_bytecode_is_nested_pure_eligible(bytecode):
+        # v1.3.55: nested native frame allows BALANCE/EXTCODE* via bridge hooks;
+        # still fall back to Python for recursive CALL/CREATE/LOG host ops.
+        if native.evm_bytecode_is_nested_native_eligible(bytecode):
             try:
                 host_ctx = native.evm_host_context_from_evm(sub_ctx)
                 nested = native.evm_run_nested_pure_frame(
@@ -231,6 +232,7 @@ class EVMAdapter:
                     bytes(calldata or b""),
                     host_ctx,
                     storage,
+                    allow_bridge=True,
                 )
                 reason = str(nested.get("stop_reason") or "")
                 if reason in ("halt", "return", "revert", "out_of_gas"):
@@ -243,6 +245,7 @@ class EVMAdapter:
                         "gas_used": int(nested.get("gas_used", 0) or 0),
                         "logs": [],
                         "native_nested_pure": True,
+                        "native_nested_bridge": True,
                     }
             except Exception:
                 result = None

@@ -6,6 +6,13 @@
 
 ---
 
+## [1.3.55] — 2026-07-25
+
+### Added — nested CALL native bridge surface (BALANCE/EXTCODE*)
+
+- `evm_bytecode_is_nested_native_eligible` — allows bridge ops, rejects recursive CALL/CREATE/LOG
+- Nested frame `allow_bridge=True`; adapter keeps host_context bridge hooks
+
 ## [1.3.54] — 2026-07-25
 
 ### Added — EVM/mempool high-load harness

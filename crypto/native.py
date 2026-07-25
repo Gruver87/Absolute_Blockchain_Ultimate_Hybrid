@@ -99,6 +99,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "evm_plan_nested_call_gas",
             "evm_decode_nested_call_frame",
             "evm_run_nested_pure_frame",
+            "evm_bytecode_is_nested_native_eligible",
             "evm_deploy_address",
             "evm_create2_eip1014",
             "validate_imported_block_chain",
@@ -1070,12 +1071,31 @@ def evm_run_until_halt(
 
 
 def evm_bytecode_is_nested_pure_eligible(bytecode: bytes) -> bool:
-    """True when child bytecode has no host/bridge opcodes (safe for nested pure frame)."""
+    """True when child bytecode has no host/bridge opcodes (strict nested pure)."""
     pc = 0
     bc = bytes(bytecode or b"")
     while pc < len(bc):
         op = bc[pc]
         if evm_opcode_is_host(op) or evm_opcode_is_bridge(op):
+            return False
+        if 0x60 <= op <= 0x7F:
+            pc += 1 + (op - 0x5F)
+        else:
+            pc += 1
+    return True
+
+
+def evm_bytecode_is_nested_native_eligible(bytecode: bytes) -> bool:
+    """True when child has no recursive host ops (CALL/CREATE/LOG/SELFDESTRUCT).
+
+    Bridge ops (BALANCE/EXTCODE*/BLOCKHASH) are allowed when host_context carries
+    bridge_hooks or bridge_state — industrial nested CALL surface in abs_native.
+    """
+    pc = 0
+    bc = bytes(bytecode or b"")
+    while pc < len(bc):
+        op = bc[pc]
+        if evm_opcode_is_host(op):
             return False
         if 0x60 <= op <= 0x7F:
             pc += 1 + (op - 0x5F)
@@ -1090,17 +1110,23 @@ def evm_run_nested_pure_frame(
     calldata: bytes = b"",
     host_context: Optional[dict] = None,
     storage: Optional[dict] = None,
+    *,
+    allow_bridge: bool = False,
 ) -> dict:
-    """Run a nested CALL child as a pure native frame (no host_bridge).
+    """Run a nested CALL child in abs_native (no recursive CALL host).
 
     Prefers abs_native. On host/handoff stop reasons the caller must fall back
     to Python execute_bytecode. Mutates ``storage`` in place when provided.
+
+    allow_bridge=True keeps bridge_hooks/bridge_state so BALANCE/EXTCODE*/BLOCKHASH
+    run in Rust via host_context (v1.3.55).
     """
     storage_work = storage if storage is not None else {}
     ctx = dict(host_context or {})
-    # Nested pure: no Python bridge callbacks (BALANCE/EXTCODE*/LOG stay fail-closed).
-    ctx.pop("bridge_hooks", None)
-    ctx.pop("bridge_state", None)
+    if not allow_bridge:
+        # Strict pure: no Python bridge callbacks.
+        ctx.pop("bridge_hooks", None)
+        ctx.pop("bridge_state", None)
     if _native is not None and hasattr(_native, "evm_run_nested_pure_frame"):
         seg = _native.evm_run_nested_pure_frame(
             bytes(bytecode),
@@ -1112,12 +1138,12 @@ def evm_run_nested_pure_frame(
         out = _parse_native_segment(seg)
         out["storage"] = {int(k): int(v) for k, v in dict(storage_work).items()}
         out["native_nested_pure"] = True
+        out["allow_bridge"] = bool(allow_bridge)
         reason = str(out.get("stop_reason") or "")
         out["success"] = (not out.get("reverted")) and reason in ("halt", "return")
         return out
     if _REQUIRE_NATIVE:
         _require_native_kernel("evm_run_nested_pure_frame")
-    # Python reference: refuse (no silent fake nested native).
     raise RuntimeError("evm_run_nested_pure_frame requires abs_native")
 
 
