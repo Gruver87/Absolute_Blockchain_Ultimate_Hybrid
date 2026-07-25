@@ -36,6 +36,8 @@
 //! v1.3.125: request-bound blocks response semantics (waiter correlation; not full sync ownership).
 //! v1.3.126: request-bound singular block response hash correlation (not tip proof).
 //! v1.3.127: request-bound state_root_response height correlation (not root-belongs-to-head).
+//! v1.3.128: discovery dialability (private spray blocked unless allow_private).
+//! v1.3.129: handshake/status soft height↔head binding (not tip proof).
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -50,8 +52,8 @@ use crate::p2p_wire::{
     validate_validator_register_inner, validate_wire_tx_inner, verify_attestation_semantics_inner,
     verify_block_announce_semantics_inner, verify_blocks_batch_semantics_inner,
     verify_mempool_batch_signatures_inner, verify_state_root_response_semantics_inner,
-    verify_status_head_hash_semantics_inner, verify_wire_tx_signature_inner,
-    DEFAULT_MAX_P2P_LINE_BYTES,
+    verify_handshake_head_semantics_inner, verify_status_height_head_binding_inner,
+    verify_wire_tx_signature_inner, DEFAULT_MAX_P2P_LINE_BYTES,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
@@ -281,7 +283,7 @@ fn check_state_root_response_semantics(
     verify_state_root_response_semantics_inner(data)
 }
 
-/// v1.3.124: status — non-empty head_hash must be 32-byte hex digest.
+/// v1.3.124/129: status — soft height↔head binding (height>0 requires digest head).
 fn check_status_head_hash_semantics(
     msg_type: &str,
     data: &serde_json::Value,
@@ -289,7 +291,7 @@ fn check_status_head_hash_semantics(
     if msg_type != "status" {
         return Ok(());
     }
-    verify_status_head_hash_semantics_inner(data)
+    verify_status_height_head_binding_inner(data)
 }
 
 /// v1.3.106: parity with Python `new_block` announce gate (fail-closed).
@@ -463,12 +465,12 @@ fn check_shard_migration_payload(msg_type: &str, data: &serde_json::Value) -> Re
     Ok(())
 }
 
-/// v1.3.113: parity with Python handshake shape gate (fail-closed).
+/// v1.3.113/129: handshake shape + head digest / soft height binding (fail-closed).
 fn check_handshake_payload(data: &serde_json::Value) -> Result<(), String> {
     if validate_handshake_inner(data).is_none() {
         return Err("bad_handshake_payload".to_string());
     }
-    Ok(())
+    verify_handshake_head_semantics_inner(data)
 }
 
 /// v1.3.115: chain_id + TLS identity policy after shape gate (fingerprint allowlist stays Python).
@@ -2632,7 +2634,7 @@ mod tests {
         assert!(check_handshake_payload(&serde_json::json!({
             "chain_id": 1,
             "height": 0,
-            "head_hash": "aa",
+            "head_hash": "",
             "node_id": "n1",
             "p2p_port": 5000
         }))
@@ -2644,7 +2646,7 @@ mod tests {
         let good = serde_json::json!({
             "chain_id": 778888,
             "height": 0,
-            "head_hash": "aa",
+            "head_hash": "",
             "node_id": "node-a",
             "p2p_port": 5000
         });

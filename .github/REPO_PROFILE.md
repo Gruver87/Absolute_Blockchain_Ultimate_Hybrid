@@ -60,8 +60,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.127` — request-bound state_root_response height gate |
-| **Notes** | [RELEASE_NOTES_v1.3.127.md](../RELEASE_NOTES_v1.3.127.md) |
+| **Tag** | `v1.3.128` — discovery dialability + soft height↔head binding |
+| **Notes** | [RELEASE_NOTES_v1.3.128.md](../RELEASE_NOTES_v1.3.128.md) |
 | **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

@@ -1939,8 +1939,33 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_state_root_response_request_gate (v1.3.127)"
             )
+        # v1.3.128 — discovery dialability + soft height↔head binding
+        if "p2p_peer_addr_is_dialable_inner" not in (
+            ROOT / "native" / "abs_native" / "src" / "p2p_ingress.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "p2p_ingress must expose p2p_peer_addr_is_dialable_inner (v1.3.128)"
+            )
+        if "verify_handshake_head_semantics_inner" not in (
+            ROOT / "native" / "abs_native" / "src" / "p2p_wire.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "p2p_wire must expose verify_handshake_head_semantics_inner (v1.3.128)"
+            )
+        if "p2p_peer_addr_is_dialable" not in p2p_py:
+            errors.append("p2p_node must call p2p_peer_addr_is_dialable (v1.3.128)")
+        if "verify_p2p_status_height_head_binding" not in p2p_py:
+            errors.append(
+                "p2p_node must call verify_p2p_status_height_head_binding (v1.3.128)"
+            )
+        if "abs_p2p_native_discovery_dialability_gate" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_discovery_dialability_gate (v1.3.128)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..127 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..128 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

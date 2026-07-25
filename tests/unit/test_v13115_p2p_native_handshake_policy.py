@@ -24,7 +24,7 @@ GOOD_HS = json.dumps(
     {
         "chain_id": 778888,
         "height": 0,
-        "head_hash": "aa",
+        "head_hash": "",
         "node_id": "n1",
         "p2p_port": 5000,
     },
@@ -34,7 +34,7 @@ BAD_CHAIN_HS = json.dumps(
     {
         "chain_id": 1,
         "height": 0,
-        "head_hash": "aa",
+        "head_hash": "",
         "node_id": "n1",
         "p2p_port": 5000,
     },

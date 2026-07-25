@@ -445,7 +445,7 @@ async def test_catch_up_status_send_fail_increments_counter():
     p2p.peers[peer.peer_id] = peer
 
     # Run one iteration of catch-up body
-    our_status = {"height": 1, "head_hash": ""}
+    our_status = {"height": 1, "head_hash": "aa" * 32}
     ok_send = await peer.send("status", our_status)
     assert ok_send is False
     if not ok_send:

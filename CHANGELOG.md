@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.128] — 2026-07-25
+
+### P2P — discovery dialability + soft height↔head binding
+
+- MSG_PEERS/GET_PEERS filter non-dialable literal private IPs (unless allow_private)
+- Handshake/status: height>0 requires 32-byte hex head_hash (soft binding, not tip proof)
+- Honesty: not DHT / libp2p / tip proof / mainnet
+
 ## [1.3.127] — 2026-07-25
 
 ### P2P — request-bound state_root_response height gate

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.127 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.128 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -88,6 +88,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13125_p2p_blocks_response_semantic_gate.py",
     "tests/unit/test_v13126_p2p_block_response_semantic_gate.py",
     "tests/unit/test_v13127_p2p_state_root_response_request_gate.py",
+    "tests/unit/test_v13128_p2p_discovery_and_head_binding.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1355,6 +1356,49 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_state_root_response_request_rejects_total",
         ],
     ),
+    (
+        "1.3.128",
+        "RELEASE_NOTES_v1.3.128.md",
+        ["1.3.128-industrial", "dialable"],
+    ),
+    (
+        "1.3.128",
+        "native/abs_native/src/p2p_ingress.rs",
+        ["p2p_peer_addr_is_dialable_inner"],
+    ),
+    (
+        "1.3.128",
+        "native/abs_native/src/p2p_wire.rs",
+        [
+            "verify_status_height_head_binding_inner",
+            "verify_handshake_head_semantics_inner",
+            "bad_status_height_head",
+        ],
+    ),
+    (
+        "1.3.128",
+        "network/p2p_node.py",
+        [
+            "p2p_peer_addr_is_dialable",
+            "p2p_discovery_allow_private",
+            "verify_p2p_handshake_head_semantics",
+            "verify_p2p_status_height_head_binding",
+        ],
+    ),
+    (
+        "1.3.128",
+        "runtime/config.py",
+        ["p2p_discovery_allow_private"],
+    ),
+    (
+        "1.3.128",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_discovery_dialability_gate",
+            "abs_p2p_native_handshake_head_semantic_gate",
+            "abs_p2p_native_status_height_head_gate",
+        ],
+    ),
 ]
 
 
@@ -1382,8 +1426,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.127"):
-            errors.append(f"node_version expected 1.3.127-*, got {ver}")
+        if not ver.startswith("1.3.128"):
+            errors.append(f"node_version expected 1.3.128-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

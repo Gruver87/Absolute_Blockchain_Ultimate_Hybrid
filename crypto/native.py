@@ -148,6 +148,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "p2p_frame_feed_once",
             "p2p_subnet_key",
             "p2p_ip_is_public",
+            "p2p_peer_addr_is_dialable",
             "p2p_rate_limit_is_exempt",
             "p2p_rate_limit_tick",
             "p2p_strike_should_ban",
@@ -182,6 +183,8 @@ def native_crypto_status(required: bool = False) -> dict:
             "verify_p2p_blocks_response_semantics",
             "verify_p2p_block_response_semantics",
             "verify_p2p_state_root_response_request_semantics",
+            "verify_p2p_status_height_head_binding",
+            "verify_p2p_handshake_head_semantics",
             "validate_p2p_cross_shard_tx",
             "validate_p2p_cross_shard_ack",
             "validate_p2p_shard_migration",
@@ -2592,6 +2595,21 @@ def p2p_ip_is_public(ip: str) -> bool:
     raise RuntimeError("p2p_ip_is_public requires abs_native")
 
 
+def p2p_peer_addr_is_dialable(addr: str, *, allow_private: bool = False) -> bool:
+    """v1.3.128: discovery dial target policy (host:port).
+
+    Fail-closed without native when private dials are disallowed.
+    """
+    if _native is not None and hasattr(_native, "p2p_peer_addr_is_dialable"):
+        return bool(
+            _native.p2p_peer_addr_is_dialable(str(addr or ""), bool(allow_private))
+        )
+    if allow_private:
+        s = str(addr or "").strip()
+        return bool(s) and ":" in s
+    return False
+
+
 def P2PNativeListener(*args, **kwargs):
     """Native plain-TCP listener (v1.3.90)."""
     _require_native_kernel("P2PNativeListener")
@@ -3206,6 +3224,32 @@ def verify_p2p_state_root_response_request_semantics(
         )
         return str(result) if result else None
     return "state_root_response_request_native_required"
+
+
+def verify_p2p_status_height_head_binding(data: Any) -> Optional[str]:
+    """v1.3.129: soft status height↔head binding (height>0 requires digest head)."""
+    payload = (
+        json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+        if not isinstance(data, str)
+        else data
+    )
+    if _native is not None and hasattr(_native, "verify_p2p_status_height_head_binding"):
+        result = _native.verify_p2p_status_height_head_binding(payload)
+        return str(result) if result else None
+    return "status_height_head_native_required"
+
+
+def verify_p2p_handshake_head_semantics(data: Any) -> Optional[str]:
+    """v1.3.129: handshake head digest + soft height binding."""
+    payload = (
+        json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+        if not isinstance(data, str)
+        else data
+    )
+    if _native is not None and hasattr(_native, "verify_p2p_handshake_head_semantics"):
+        result = _native.verify_p2p_handshake_head_semantics(payload)
+        return str(result) if result else None
+    return "handshake_head_native_required"
 
 
 def validate_p2p_cross_shard_tx(data: Any) -> Optional[dict]:

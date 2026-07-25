@@ -1201,6 +1201,9 @@ class P2PNode:
         self._blocks_response_semantic_rejects_total: int = 0
         self._block_response_semantic_rejects_total: int = 0
         self._state_root_response_request_rejects_total: int = 0
+        self._discovery_dial_rejects_total: int = 0
+        self._handshake_head_rejects_total: int = 0
+        self._status_height_head_rejects_total: int = 0
         self._handshake_rejects: int = 0
         self._eclipse_at_risk: int = 0
         self._eclipse_ratio: float = 0.0
@@ -1437,7 +1440,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.127)"
+                    f"({label} v1.3.128)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -1862,6 +1865,8 @@ class P2PNode:
                 self._handshake_rejects += 1
                 if reason in (
                     "bad_handshake_payload",
+                    "bad_handshake_head_digest",
+                    "bad_handshake_height_head",
                     "chain_id_mismatch",
                     "tls_missing",
                     "tls_identity_mismatch",
@@ -1898,6 +1903,16 @@ class P2PNode:
             return False
         if hs.get("accepted") is False:
             self._handshake_rejects += 1
+            return False
+
+        # v1.3.129: head digest + soft height binding (native path also fused).
+        hs_reason = native.verify_p2p_handshake_head_semantics(ack)
+        if hs_reason:
+            self._handshake_rejects += 1
+            self._handshake_head_rejects_total = int(
+                self._handshake_head_rejects_total or 0
+            ) + 1
+            self._strike_peer_sync(peer, str(hs_reason))
             return False
 
         # Проверяем совместимость (native path already fused chain_id + TLS identity).
@@ -2475,10 +2490,19 @@ class P2PNode:
             await self._handle_mempool_batch(peer, data)
 
         elif msg_type == MSG_GET_PEERS:
-            peer_list = [
-                f"{p.host}:{p.listen_port or p.port}" for p in self.peers.values()
-                if p.peer_id != peer.peer_id and (p.listen_port or p.port)
-            ]
+            allow_private = bool(
+                getattr(self.config, "p2p_discovery_allow_private", False)
+            )
+            peer_list = []
+            for p in self.peers.values():
+                if p.peer_id == peer.peer_id:
+                    continue
+                port = p.listen_port or p.port
+                if not port:
+                    continue
+                addr = f"{p.host}:{port}"
+                if native.p2p_peer_addr_is_dialable(addr, allow_private=allow_private):
+                    peer_list.append(addr)
             await peer.send(MSG_PEERS, peer_list)
 
         elif msg_type == MSG_PEERS:
@@ -2486,7 +2510,17 @@ class P2PNode:
             if peers is None:
                 self._strike_peer_sync(peer, "bad_peers_list")
                 return
+            allow_private = bool(
+                getattr(self.config, "p2p_discovery_allow_private", False)
+            )
             for addr in peers[:10]:  # не больше 10 за раз
+                if not native.p2p_peer_addr_is_dialable(
+                    addr, allow_private=allow_private
+                ):
+                    self._discovery_dial_rejects_total = int(
+                        self._discovery_dial_rejects_total or 0
+                    ) + 1
+                    continue
                 self._remember_addr(addr)
                 parts = addr.rsplit(":", 1)
                 if len(parts) == 2:
@@ -2501,6 +2535,15 @@ class P2PNode:
         elif msg_type == MSG_STATUS:
             status = native.validate_p2p_status_payload(data)
             if status:
+                bind_reason = native.verify_p2p_status_height_head_binding(
+                    data if isinstance(data, dict) else status
+                )
+                if bind_reason:
+                    self._status_height_head_rejects_total = int(
+                        self._status_height_head_rejects_total or 0
+                    ) + 1
+                    self._strike_peer_sync(peer, str(bind_reason))
+                    return
                 incoming_h = int(status.get("height", 0) or 0)
                 if incoming_h:
                     peer.height = max(int(peer.height or 0), incoming_h)
@@ -4185,6 +4228,9 @@ class P2PNode:
             "native_blocks_response_semantic_gate": True,
             "native_block_response_semantic_gate": True,
             "native_state_root_response_request_gate": True,
+            "native_discovery_dialability_gate": True,
+            "native_handshake_head_semantic_gate": True,
+            "native_status_height_head_gate": True,
             "attestation_semantic_rejects_total": int(
                 getattr(self, "_attestation_semantic_rejects_total", 0) or 0
             ),
@@ -4208,6 +4254,18 @@ class P2PNode:
             ),
             "state_root_response_request_rejects_total": int(
                 getattr(self, "_state_root_response_request_rejects_total", 0) or 0
+            ),
+            "discovery_dial_rejects_total": int(
+                getattr(self, "_discovery_dial_rejects_total", 0) or 0
+            ),
+            "handshake_head_rejects_total": int(
+                getattr(self, "_handshake_head_rejects_total", 0) or 0
+            ),
+            "status_height_head_rejects_total": int(
+                getattr(self, "_status_height_head_rejects_total", 0) or 0
+            ),
+            "p2p_discovery_allow_private": bool(
+                getattr(self.config, "p2p_discovery_allow_private", False)
             ),
             "native_message_loop_dispatch_total": int(
                 getattr(self, "_native_message_loop_dispatch_total", 0) or 0

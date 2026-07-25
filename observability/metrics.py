@@ -715,6 +715,42 @@ class MetricsCollector:
                     f"abs_p2p_state_root_response_request_rejects_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('state_root_response_request_rejects_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_discovery_dialability_gate Whether discovery dialability gate is active (0/1)",
+                "# TYPE abs_p2p_native_discovery_dialability_gate gauge",
+                (
+                    f"abs_p2p_native_discovery_dialability_gate{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_discovery_dialability_gate') else 0}"
+                ),
+                "# HELP abs_p2p_discovery_dial_rejects_total discovery dial targets rejected by policy",
+                "# TYPE abs_p2p_discovery_dial_rejects_total counter",
+                (
+                    f"abs_p2p_discovery_dial_rejects_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('discovery_dial_rejects_total', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_native_handshake_head_semantic_gate Whether handshake head soft-binding gate is active (0/1)",
+                "# TYPE abs_p2p_native_handshake_head_semantic_gate gauge",
+                (
+                    f"abs_p2p_native_handshake_head_semantic_gate{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_handshake_head_semantic_gate') else 0}"
+                ),
+                "# HELP abs_p2p_handshake_head_rejects_total handshake head soft-binding rejects",
+                "# TYPE abs_p2p_handshake_head_rejects_total counter",
+                (
+                    f"abs_p2p_handshake_head_rejects_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('handshake_head_rejects_total', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_native_status_height_head_gate Whether status height↔head soft-binding gate is active (0/1)",
+                "# TYPE abs_p2p_native_status_height_head_gate gauge",
+                (
+                    f"abs_p2p_native_status_height_head_gate{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_status_height_head_gate') else 0}"
+                ),
+                "# HELP abs_p2p_status_height_head_rejects_total status height↔head soft-binding rejects",
+                "# TYPE abs_p2p_status_height_head_rejects_total counter",
+                (
+                    f"abs_p2p_status_height_head_rejects_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('status_height_head_rejects_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_message_loop_dispatch_total Dispatch events from native loop shell",
                 "# TYPE abs_p2p_native_message_loop_dispatch_total counter",
                 (

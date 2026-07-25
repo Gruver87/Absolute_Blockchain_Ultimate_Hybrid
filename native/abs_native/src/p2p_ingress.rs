@@ -417,6 +417,79 @@ fn p2p_ip_is_public(ip: &str) -> bool {
     p2p_ip_is_public_inner(ip)
 }
 
+/// Split `host:port` / `[v6]:port` for discovery dialability checks.
+fn split_peer_host_port(addr: &str) -> Option<(String, u16)> {
+    let s = addr.trim();
+    if s.is_empty() || s.len() > 253 {
+        return None;
+    }
+    if s.starts_with('[') {
+        let end = s.find(']')?;
+        let host = s[1..end].trim().to_string();
+        let rest = s[end + 1..].trim();
+        let port_s = rest.strip_prefix(':')?;
+        let port: u16 = port_s.parse().ok()?;
+        if host.is_empty() || port == 0 {
+            return None;
+        }
+        return Some((host, port));
+    }
+    let (host, port_s) = s.rsplit_once(':')?;
+    let host = host.trim().to_string();
+    let port: u16 = port_s.parse().ok()?;
+    if host.is_empty() || port == 0 {
+        return None;
+    }
+    Some((host, port))
+}
+
+fn is_hostname_label_ok(host: &str) -> bool {
+    if host.is_empty() || host.len() > 253 {
+        return false;
+    }
+    if host.contains('/') || host.contains(' ') || host.contains('\\') {
+        return false;
+    }
+    if host.starts_with('.') || host.ends_with('.') {
+        return false;
+    }
+    true
+}
+
+/// v1.3.128: discovery dial target policy.
+/// - Literal public IP: always OK
+/// - Literal private/loopback/link-local: OK only if `allow_private`
+/// - Non-IP hostname (docker DNS): OK (not an RFC1918 spray vector)
+/// Does not prove peer honesty / anti-Sybil / DHT.
+pub fn p2p_peer_addr_is_dialable_inner(addr: &str, allow_private: bool) -> bool {
+    let Some((host, _port)) = split_peer_host_port(addr) else {
+        return false;
+    };
+    let host = host.trim().trim_matches(|c| c == '[' || c == ']');
+    match host.parse::<IpAddr>() {
+        Ok(IpAddr::V4(v4)) => {
+            if allow_private {
+                !(v4.is_unspecified() || v4.is_broadcast())
+            } else {
+                p2p_ip_is_public_inner(host)
+            }
+        }
+        Ok(IpAddr::V6(v6)) => {
+            if allow_private {
+                !v6.is_unspecified()
+            } else {
+                p2p_ip_is_public_inner(host)
+            }
+        }
+        Err(_) => is_hostname_label_ok(host),
+    }
+}
+
+#[pyfunction]
+fn p2p_peer_addr_is_dialable(addr: &str, allow_private: bool) -> bool {
+    p2p_peer_addr_is_dialable_inner(addr, allow_private)
+}
+
 /// v1.3.87: outbound prepare — encode + allowlist + size + egress admit (mirror of ingress).
 /// Returns `{ok:true, payload: bytes}` or `{ok:false, reason}`.
 #[pyfunction]
@@ -465,5 +538,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(p2p_egress_prepare, m)?)?;
     m.add_function(wrap_pyfunction!(p2p_subnet_key, m)?)?;
     m.add_function(wrap_pyfunction!(p2p_ip_is_public, m)?)?;
+    m.add_function(wrap_pyfunction!(p2p_peer_addr_is_dialable, m)?)?;
     Ok(())
 }

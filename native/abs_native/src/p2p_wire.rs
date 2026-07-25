@@ -490,6 +490,50 @@ pub(crate) fn verify_status_head_hash_semantics_inner(data: &Value) -> Result<()
     Ok(())
 }
 
+/// v1.3.129: soft height↔head binding for status (not tip existence proof).
+/// If height > 0, head_hash must be a non-empty 32-byte digest.
+pub(crate) fn verify_status_height_head_binding_inner(data: &Value) -> Result<(), String> {
+    if data.is_null() || !data.is_object() {
+        return Ok(());
+    }
+    let Some((height, head_hash)) = validate_status_inner(data) else {
+        return Err("bad_status_payload".to_string());
+    };
+    if height <= 0 {
+        return verify_status_head_hash_semantics_inner(data);
+    }
+    if head_hash.is_empty() {
+        return Err("bad_status_height_head".to_string());
+    }
+    verify_status_head_hash_semantics_inner(data)
+}
+
+/// v1.3.129: handshake head_hash digest + soft height binding (rejection ack exempt).
+pub(crate) fn verify_handshake_head_semantics_inner(data: &Value) -> Result<(), String> {
+    let Some((_chain_id, height, head_hash, _node_id, _p2p_port, accepted)) =
+        validate_handshake_inner(data)
+    else {
+        return Err("bad_handshake_payload".to_string());
+    };
+    if !accepted {
+        return Ok(());
+    }
+    if height <= 0 {
+        // Genesis may omit head; if present it must be a digest (no garbage).
+        if !head_hash.is_empty() && !is_digest32_hex(&head_hash) {
+            return Err("bad_handshake_head_digest".to_string());
+        }
+        return Ok(());
+    }
+    if head_hash.is_empty() {
+        return Err("bad_handshake_height_head".to_string());
+    }
+    if !is_digest32_hex(&head_hash) {
+        return Err("bad_handshake_head_digest".to_string());
+    }
+    Ok(())
+}
+
 #[pyfunction]
 fn validate_p2p_block_announce(py: Python<'_>, data_json: String) -> PyResult<Option<PyObject>> {
     let value: Value = match serde_json::from_str(&data_json) {
@@ -1153,6 +1197,30 @@ fn verify_p2p_state_root_response_request_semantics(
 }
 
 #[pyfunction]
+fn verify_p2p_status_height_head_binding(data_json: String) -> PyResult<Option<String>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(Some("bad_status_payload".to_string())),
+    };
+    match verify_status_height_head_binding_inner(&value) {
+        Ok(()) => Ok(None),
+        Err(reason) => Ok(Some(reason)),
+    }
+}
+
+#[pyfunction]
+fn verify_p2p_handshake_head_semantics(data_json: String) -> PyResult<Option<String>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(Some("bad_handshake_payload".to_string())),
+    };
+    match verify_handshake_head_semantics_inner(&value) {
+        Ok(()) => Ok(None),
+        Err(reason) => Ok(Some(reason)),
+    }
+}
+
+#[pyfunction]
 fn validate_p2p_validator_register(
     py: Python<'_>,
     data_json: String,
@@ -1460,6 +1528,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(verify_p2p_blocks_response_semantics, m)?)?;
     m.add_function(wrap_pyfunction!(verify_p2p_block_response_semantics, m)?)?;
     m.add_function(wrap_pyfunction!(verify_p2p_state_root_response_request_semantics, m)?)?;
+    m.add_function(wrap_pyfunction!(verify_p2p_status_height_head_binding, m)?)?;
+    m.add_function(wrap_pyfunction!(verify_p2p_handshake_head_semantics, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_cross_shard_tx, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_cross_shard_ack, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_shard_migration, m)?)?;

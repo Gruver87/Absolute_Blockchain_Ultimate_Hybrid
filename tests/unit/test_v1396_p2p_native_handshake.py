@@ -56,7 +56,7 @@ def test_native_handshake_roundtrip():
         "chain_id": 778888,
         "version": "1.3.96-industrial",
         "height": 1,
-        "head_hash": "abc",
+        "head_hash": "aa" * 32,
         "node_id": "ci-node-2",
         "p2p_port": port,
     }
@@ -64,7 +64,7 @@ def test_native_handshake_roundtrip():
         "chain_id": 778888,
         "version": "1.3.96-industrial",
         "height": 2,
-        "head_hash": "def",
+        "head_hash": "bb" * 32,
         "node_id": "ci-node-1",
         "p2p_port": 15080,
     }

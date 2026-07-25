@@ -13,7 +13,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from crypto import native
-from runtime.config import Config
 
 
 def _resp(height: int) -> dict:
@@ -35,7 +34,7 @@ def test_needles_v13127():
     assert '"kind": "state_root"' in p2p
     notes = (ROOT / "RELEASE_NOTES_v1.3.127.md").read_text(encoding="utf-8")
     assert "1.3.127-industrial" in notes
-    assert Config().node_version == "1.3.127-industrial"
+    # Live Config().node_version advances with later waves; pin notes not config.
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_state_root_response_request_gate" in metrics
     assert "abs_p2p_state_root_response_request_rejects_total" in metrics

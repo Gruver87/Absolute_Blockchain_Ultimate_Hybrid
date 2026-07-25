@@ -729,6 +729,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Height must match probe; digests remain gated
 - Remaining: root-belongs-to-head / tip proof / full sync ownership / libp2p (not claimed)
 
+### Priority 83 — Discovery dialability + soft height↔head binding ✅ (v1.3.128)
+
+- [x] `p2p_peer_addr_is_dialable` on MSG_PEERS / GET_PEERS (`p2p_discovery_allow_private`)
+- [x] Handshake + status soft height↔head (height>0 ⇒ digest head)
+- Remaining: tip proof / DHT / libp2p / anti-Sybil / full sync ownership (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
