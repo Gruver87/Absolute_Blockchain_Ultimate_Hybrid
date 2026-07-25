@@ -1,4 +1,4 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.102).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.103).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
 //! v1.3.92: `read_message` fuses framed read + wire parse.
@@ -12,6 +12,7 @@
 //! v1.3.100: housekeeping payload gate on read (parity with Python).
 //! v1.3.101: clamp helpers for configurable batch/chunk sizes.
 //! v1.3.102: configurable socket I/O timeout (set_timeout_ms + clamp).
+//! v1.3.103: mid-session handshake reject once session_established.
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -61,6 +62,7 @@ fn wire_fail_reason(err: &str) -> String {
         || err == "p2p_transport_closed"
         || err == "p2p_handshake_eof"
         || err == "p2p_auto_pong_flood"
+        || err == "mid_session_handshake"
         || err.starts_with("p2p_transport_")
         || err.starts_with("p2p_handshake_")
     {
@@ -112,6 +114,14 @@ fn check_housekeeping(msg_type: &str, data: &serde_json::Value) -> Result<(), St
     } else {
         Err(format!("bad_{msg_type}_payload"))
     }
+}
+
+/// v1.3.103: reject handshake frames after the session is established.
+fn check_mid_session_handshake(session_established: bool, msg_type: &str) -> Result<(), String> {
+    if session_established && (msg_type == "handshake" || msg_type == "handshake_ack") {
+        return Err("mid_session_handshake".to_string());
+    }
+    Ok(())
 }
 
 fn decoded_ok_dict(
@@ -493,6 +503,8 @@ pub struct P2PNativeConn {
     /// v1.3.99: ping replies + inbound pongs consumed under `auto_pong`.
     auto_keeps: u64,
     io_timeout_ms: u64,
+    /// v1.3.103: after successful Python handshake policy, reject mid-session HS.
+    session_established: bool,
     closed: bool,
     tls: bool,
 }
@@ -514,6 +526,7 @@ impl P2PNativeConn {
             auto_pongs: 0,
             auto_keeps: 0,
             io_timeout_ms: 0,
+            session_established: false,
             closed: false,
             tls,
         }
@@ -825,6 +838,7 @@ impl P2PNativeConn {
     /// v1.3.98: `auto_pong` replies to ping in-band and skips returning it.
     /// v1.3.99: also consumes inbound pong; empty keepalive → synthetic pong.
     /// v1.3.100: housekeeping payload gate before auto-keepalive / return.
+    /// v1.3.103: mid-session handshake reject when `session_established`.
     #[pyo3(signature = (chunk_sz=65536, allowed_types=None, auto_pong=false))]
     fn read_message(
         &mut self,
@@ -841,6 +855,7 @@ impl P2PNativeConn {
                 match self.read_one_decoded(chunk_sz, allowed_set.as_ref())? {
                     None => return Ok(None),
                     Some((msg_type, data, nbytes)) => {
+                        check_mid_session_handshake(self.session_established, &msg_type)?;
                         // Early reject get_* always; ping/pong gated inside auto_pong path.
                         if msg_type == "get_mempool" || msg_type == "get_peers" {
                             check_housekeeping(&msg_type, &data)?;
@@ -900,6 +915,7 @@ impl P2PNativeConn {
     /// v1.3.98: `auto_pong` replies to ping in-band and omits them from `messages`.
     /// v1.3.99: also consumes inbound pong; reports `keepalive_touches`.
     /// v1.3.100: housekeeping payload gate before auto-keepalive / return.
+    /// v1.3.103: mid-session handshake reject when `session_established`.
     ///
     /// `{ok:true, messages:[{type,data,nbytes},...], eof:bool, auto_pongs, keepalive_touches}` |
     /// `{ok:false, reason, messages:[...], eof:false, ...}`.
@@ -928,6 +944,12 @@ impl P2PNativeConn {
                         break;
                     }
                     Ok(Some((msg_type, data, nbytes))) => {
+                        if let Err(reason) =
+                            check_mid_session_handshake(self.session_established, &msg_type)
+                        {
+                            err = Some(reason);
+                            break;
+                        }
                         if msg_type == "get_mempool" || msg_type == "get_peers" {
                             if let Err(reason) = check_housekeeping(&msg_type, &data) {
                                 err = Some(reason);
@@ -1244,6 +1266,16 @@ impl P2PNativeConn {
     #[getter]
     fn io_timeout_ms(&self) -> u64 {
         self.io_timeout_ms
+    }
+
+    /// v1.3.103: mark post-handshake session so mid-session HS frames are rejected.
+    fn set_session_established(&mut self, established: bool) {
+        self.session_established = established;
+    }
+
+    #[getter]
+    fn session_established(&self) -> bool {
+        self.session_established
     }
 
     fn shutdown(&mut self) {
@@ -1575,5 +1607,19 @@ mod tests {
             "status",
             &serde_json::json!({"height": 1})
         ));
+    }
+
+    #[test]
+    fn mid_session_handshake_gate() {
+        assert!(check_mid_session_handshake(false, "handshake").is_ok());
+        assert!(check_mid_session_handshake(true, "status").is_ok());
+        assert_eq!(
+            check_mid_session_handshake(true, "handshake").unwrap_err(),
+            "mid_session_handshake"
+        );
+        assert_eq!(
+            check_mid_session_handshake(true, "handshake_ack").unwrap_err(),
+            "mid_session_handshake"
+        );
     }
 }

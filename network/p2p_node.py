@@ -1307,7 +1307,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.102)"
+                    f"({label} v1.3.103)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -1820,6 +1820,14 @@ class P2PNode:
             "height": our_height,
             "head_hash": self.head() or "",
         })
+        # v1.3.103: native mid-session handshake gate
+        if peer._native_conn is not None and hasattr(
+            peer._native_conn, "set_session_established"
+        ):
+            try:
+                peer._native_conn.set_session_established(True)
+            except Exception as exc:
+                logger.debug("[P2P] set_session_established failed: %s", exc)
         return True
 
     # ── Цикл сообщений ───────────────────────────────────────────────────────
@@ -1838,6 +1846,13 @@ class P2PNode:
                 if msg is None:
                     break
                 if isinstance(msg, WireReject):
+                    reason = str(msg.reason or "")
+                    if reason == "mid_session_handshake":
+                        self._handshake_rejects = int(self._handshake_rejects or 0) + 1
+                        logger.warning(
+                            "[P2P] mid-session handshake (native) from %s",
+                            peer.peer_id or self._peer_key(peer),
+                        )
                     if self._strike_peer_sync(peer, msg.reason):
                         break
                     continue
@@ -3791,6 +3806,7 @@ class P2PNode:
             "native_write_messages": bool(getattr(self, "_native_write_messages", False)),
             "native_handshake": bool(getattr(self, "_native_handshake", False)),
             "native_peer_identities": bool(getattr(self, "_native_peer_identities", False)),
+            "native_mid_session_gate": bool(getattr(self, "_use_native_transport", False)),
             "native_auto_pong": bool(getattr(self, "_native_auto_pong", False)),
             "native_keepalive": bool(getattr(self, "_native_auto_pong", False)),
             "native_housekeeping_gate": bool(getattr(self, "_use_native_transport", False)),

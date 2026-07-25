@@ -499,6 +499,12 @@ class MetricsCollector:
                     f"abs_p2p_native_handshake{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_handshake') else 0}"
                 ),
+                "# HELP abs_p2p_native_mid_session_gate Whether native mid-session handshake gate is active (0/1)",
+                "# TYPE abs_p2p_native_mid_session_gate gauge",
+                (
+                    f"abs_p2p_native_mid_session_gate{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_mid_session_gate') else 0}"
+                ),
                 "# HELP abs_p2p_native_peer_identities Whether native CN/SAN identity extract is active (0/1)",
                 "# TYPE abs_p2p_native_peer_identities gauge",
                 (

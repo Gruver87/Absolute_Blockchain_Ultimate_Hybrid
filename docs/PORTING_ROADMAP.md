@@ -452,6 +452,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.100: Native housekeeping payload gate (Priority 55)
 - [x] v1.3.101: Native batch/chunk config knobs (Priority 56)
 - [x] v1.3.102: Native I/O timeout config (Priority 57)
+- [x] v1.3.103: Native mid-session handshake gate (Priority 58)
 
 ### Priority 39 — P2P Rust ingress data plane ✅ (v1.3.77–v1.3.78)
 
@@ -561,6 +562,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `p2p_native_io_timeout_ms` → `set_timeout_ms` on accept/connect
 - [x] Async recv `wait_for` aligned; `p2p_native_clamp_timeout_ms`
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
+### Priority 58 — Native mid-session handshake gate ✅ (v1.3.103)
+
+- [x] `session_established` + reject `handshake`/`handshake_ack` on native read
+- [x] Wired after `_do_handshake`; WireReject → strike / handshake_rejects
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
 ## Process per module

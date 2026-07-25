@@ -35,7 +35,7 @@ def test_needles_v13102():
     assert "_native_recv_wait_sec" in p2p
     notes = (ROOT / "RELEASE_NOTES_v1.3.102.md").read_text(encoding="utf-8")
     assert "1.3.102-industrial" in notes
-    assert Config().node_version == "1.3.102-industrial"
+    # Live Config().node_version advances with later waves; pin notes not config.
     assert "abs_p2p_native_io_timeout_ms" in (
         ROOT / "observability" / "metrics.py"
     ).read_text(encoding="utf-8")

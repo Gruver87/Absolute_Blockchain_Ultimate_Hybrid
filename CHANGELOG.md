@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.103] — 2026-07-25
+
+### P2P — native mid-session handshake gate
+
+- `session_established` rejects mid-session `handshake`/`handshake_ack` on native read
+- Python marks session after successful `_do_handshake`; WireReject bumps rejects
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.102] — 2026-07-25
 
 ### P2P — native I/O timeout config
