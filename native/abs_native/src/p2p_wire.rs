@@ -632,7 +632,7 @@ const MAX_P2P_PEER_ADDR_LEN: usize = 253;
 const MAX_P2P_BLOCKS_BATCH: usize = 500;
 const MAX_STAKE: f64 = 1e18;
 
-fn validate_validator_register_inner(data: &Value) -> Option<(String, f64, String)> {
+pub(crate) fn validate_validator_register_inner(data: &Value) -> Option<(String, f64, String)> {
     let obj = data.as_object()?;
     let address = obj
         .get("address")
@@ -664,7 +664,7 @@ fn validate_validator_register_inner(data: &Value) -> Option<(String, f64, Strin
     Some((address, stake, node_id))
 }
 
-fn validate_peers_list_inner(data: &Value) -> Option<Vec<String>> {
+pub(crate) fn validate_peers_list_inner(data: &Value) -> Option<Vec<String>> {
     let arr = data.as_array()?;
     if arr.len() > MAX_P2P_PEERS_LIST {
         return None;

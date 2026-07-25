@@ -192,7 +192,7 @@ try {
         $fullParams = @{
             PytestTimeout  = [int]$PytestTimeout
             P2PWait        = [int]$P2PWait
-            EvidenceGitTag = "v1.3.109"
+            EvidenceGitTag = "v1.3.110"
         }
         if (-not $needNative) {
             $fullParams["SkipNativeBuild"] = $true

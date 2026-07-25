@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.110] — 2026-07-25
+
+### P2P — native peer discovery shape gates
+
+- Fail-closed `peers` / `validator_register` on native read
+- Strike reasons: `bad_peers_list` / `bad_validator_register`
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.109] — 2026-07-25
 
 ### P2P — native singular block payload gate

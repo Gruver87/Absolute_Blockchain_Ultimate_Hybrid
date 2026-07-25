@@ -1645,8 +1645,19 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "observability" / "metrics.py"
         ).read_text(encoding="utf-8"):
             errors.append("metrics must export abs_p2p_native_block_payload_gate (v1.3.109)")
+        # v1.3.110 — peer discovery shape gates
+        if "check_peers_list_payload" not in transport_rs or "v1.3.110" not in transport_rs:
+            errors.append("p2p_transport must expose peers list gate (v1.3.110)")
+        if "check_validator_register_payload" not in transport_rs:
+            errors.append("p2p_transport must expose validator_register gate (v1.3.110)")
+        if "native_peer_discovery_gate" not in p2p_py:
+            errors.append("p2p_node must expose native_peer_discovery_gate (v1.3.110)")
+        if "abs_p2p_native_peer_discovery_gate" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("metrics must export abs_p2p_native_peer_discovery_gate (v1.3.110)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..109 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..110 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:
