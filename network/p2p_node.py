@@ -182,6 +182,20 @@ def _clamp_native_chunk(n: Any, default: int = 65536) -> int:
     return max(1024, min(1024 * 1024, raw if raw > 0 else default))
 
 
+def _clamp_native_timeout_ms(n: Any, default: int = 30000) -> int:
+    """v1.3.102: clamp native socket I/O timeout (1000..600000 ms)."""
+    try:
+        raw = int(n if n is not None else default)
+    except (TypeError, ValueError):
+        raw = int(default)
+    if hasattr(native, "p2p_native_clamp_timeout_ms"):
+        try:
+            return int(native.p2p_native_clamp_timeout_ms(max(0, raw)))
+        except Exception:
+            pass
+    return max(1000, min(600_000, raw if raw > 0 else default))
+
+
 def _peer_health_score(
     *,
     height_gap: int,
@@ -242,6 +256,7 @@ class PeerConnection:
         self._native_read_batch: int = 8
         self._native_write_batch: int = 8
         self._native_auto_pong: bool = True
+        self._native_io_timeout_ms: int = 30000
         self._use_egress_prepare = False  # v1.3.87 unified prepare
         self._egress_max_bytes = DEFAULT_MAX_P2P_LINE_BYTES
         # v1.3.66/72: bounded outbound queue (config-driven size + drain timeout)
@@ -251,6 +266,11 @@ class PeerConnection:
         self._send_drops: int = 0
         self._drain_timeout_sec: float = max(0.5, float(drain_timeout_sec or 5.0))
         self._read_chunk: int = 65536
+
+    def _native_recv_wait_sec(self) -> float:
+        """Async wait bound matching socket I/O timeout (+1s cushion)."""
+        ms = int(getattr(self, "_native_io_timeout_ms", 30000) or 30000)
+        return max(2.0, (ms / 1000.0) + 1.0)
 
     def touch(self):
         self.last_seen = time.time()
@@ -708,7 +728,7 @@ class PeerConnection:
                             list(ALLOWED_WIRE_TYPES),
                             bool(getattr(self, "_native_auto_pong", True)),
                         ),
-                        timeout=30,
+                        timeout=self._native_recv_wait_sec(),
                     )
                     if not isinstance(out, dict) or not out.get("ok"):
                         reason = "bad_wire_line"
@@ -755,7 +775,7 @@ class PeerConnection:
                             list(ALLOWED_WIRE_TYPES),
                             bool(getattr(self, "_native_auto_pong", True)),
                         ),
-                        timeout=30,
+                        timeout=self._native_recv_wait_sec(),
                     )
                     if not isinstance(out, dict) or not out.get("ok"):
                         reason = "bad_wire_line"
@@ -1024,6 +1044,9 @@ class P2PNode:
         self._native_read_chunk = _clamp_native_chunk(
             getattr(config, "p2p_native_read_chunk", 65536), 65536
         )
+        self._native_io_timeout_ms = _clamp_native_timeout_ms(
+            getattr(config, "p2p_native_io_timeout_ms", 30000), 30000
+        )
         if self._use_native_transport:
             try:
                 import abs_native as _abs_nat
@@ -1284,7 +1307,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.101)"
+                    f"({label} v1.3.102)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -1355,6 +1378,7 @@ class P2PNode:
 
     async def _handle_native_incoming(self, native_conn) -> None:
         """Inbound peer path for native TCP conn (mirrors _handle_incoming)."""
+        self._apply_native_io_timeout(native_conn)
         qmax, dto = self._peer_send_queue_params()
         peer = PeerConnection(
             None, None, send_queue_max=qmax, drain_timeout_sec=dto, native_conn=native_conn
@@ -1425,9 +1449,22 @@ class P2PNode:
         peer._native_read_batch = int(getattr(self, "_native_read_batch", 8) or 8)
         peer._native_write_batch = int(getattr(self, "_native_write_batch", 8) or 8)
         peer._read_chunk = int(getattr(self, "_native_read_chunk", 65536) or 65536)
+        peer._native_io_timeout_ms = int(
+            getattr(self, "_native_io_timeout_ms", 30000) or 30000
+        )
         if self._use_native_egress:
             peer._rl_table = self._rl_table
             peer._use_egress_prepare = hasattr(native, "p2p_egress_prepare")
+
+    def _apply_native_io_timeout(self, native_conn) -> None:
+        """v1.3.102: apply configured SO_RCV/SNDTIMEO on a native conn."""
+        if native_conn is None or not hasattr(native_conn, "set_timeout_ms"):
+            return
+        ms = int(getattr(self, "_native_io_timeout_ms", 30000) or 30000)
+        try:
+            native_conn.set_timeout_ms(ms)
+        except Exception as exc:
+            logger.debug("[P2P] native set_timeout_ms failed: %s", exc)
 
     def _bump_peer_send_fail(self) -> None:
         self._peer_send_fail = int(self._peer_send_fail or 0) + 1
@@ -1566,18 +1603,21 @@ class P2PNode:
                         ),
                         "ca_path": str(getattr(self.config, "p2p_tls_ca_path", "") or ""),
                     }
+                io_ms = int(getattr(self, "_native_io_timeout_ms", 30000) or 30000)
+                connect_ms = min(io_ms, 15_000)
                 nconn = await asyncio.wait_for(
                     asyncio.to_thread(
                         lambda: native.p2p_native_connect(
                             host,
                             int(port),
                             int(max_bytes),
-                            10_000,
+                            int(connect_ms),
                             **tls_args,
                         )
                     ),
-                    timeout=15,
+                    timeout=max(1.0, connect_ms / 1000.0) + 5.0,
                 )
+                self._apply_native_io_timeout(nconn)
                 qmax, dto = self._peer_send_queue_params()
                 peer = PeerConnection(
                     None,
@@ -3757,6 +3797,9 @@ class P2PNode:
             "native_read_batch": int(getattr(self, "_native_read_batch", 8) or 8),
             "native_write_batch": int(getattr(self, "_native_write_batch", 8) or 8),
             "native_read_chunk": int(getattr(self, "_native_read_chunk", 65536) or 65536),
+            "native_io_timeout_ms": int(
+                getattr(self, "_native_io_timeout_ms", 30000) or 30000
+            ),
             "native_accept_total": int(self._native_accept_total or 0),
             "native_accept_errors": int(self._native_accept_errors or 0),
             "native_connect_total": int(self._native_connect_total or 0),

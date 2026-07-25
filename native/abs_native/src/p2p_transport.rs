@@ -1,4 +1,4 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.101).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.102).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
 //! v1.3.92: `read_message` fuses framed read + wire parse.
@@ -11,6 +11,7 @@
 //! v1.3.99: consume inbound pong + keepalive_touches (still not full dispatch).
 //! v1.3.100: housekeeping payload gate on read (parity with Python).
 //! v1.3.101: clamp helpers for configurable batch/chunk sizes.
+//! v1.3.102: configurable socket I/O timeout (set_timeout_ms + clamp).
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -45,6 +46,10 @@ pub const NATIVE_BATCH_DEFAULT: usize = 8;
 pub const NATIVE_CHUNK_MIN: usize = 1024;
 pub const NATIVE_CHUNK_MAX: usize = 1024 * 1024;
 pub const NATIVE_CHUNK_DEFAULT: usize = 65536;
+/// Socket I/O timeout bounds (milliseconds) — v1.3.102.
+pub const NATIVE_IO_TIMEOUT_MIN_MS: u64 = 1_000;
+pub const NATIVE_IO_TIMEOUT_MAX_MS: u64 = 600_000;
+pub const NATIVE_IO_TIMEOUT_DEFAULT_MS: u64 = 30_000;
 
 fn io_err(e: std::io::Error) -> String {
     format!("p2p_transport_io:{e}")
@@ -487,6 +492,7 @@ pub struct P2PNativeConn {
     auto_pongs: u64,
     /// v1.3.99: ping replies + inbound pongs consumed under `auto_pong`.
     auto_keeps: u64,
+    io_timeout_ms: u64,
     closed: bool,
     tls: bool,
 }
@@ -507,14 +513,18 @@ impl P2PNativeConn {
             lines_read: 0,
             auto_pongs: 0,
             auto_keeps: 0,
+            io_timeout_ms: 0,
             closed: false,
             tls,
         }
     }
 
     fn from_plain(stream: TcpStream, max_bytes: usize, timeout_ms: u64) -> Result<Self, String> {
-        set_timeouts(&stream, timeout_ms)?;
-        Ok(Self::from_stream(ConnStream::Plain(stream), max_bytes, false))
+        let ms = timeout_ms.max(1);
+        set_timeouts(&stream, ms)?;
+        let mut conn = Self::from_stream(ConnStream::Plain(stream), max_bytes, false);
+        conn.io_timeout_ms = ms;
+        Ok(conn)
     }
 
     /// If `auto_pong`: reply to ping / silently consume pong; Ok(true) = consumed.
@@ -705,11 +715,13 @@ impl P2PNativeConn {
                     .complete_io(&mut tls.sock)
                     .map_err(|e| format!("p2p_transport_tls:{e}"))?;
             }
-            Ok(P2PNativeConn::from_stream(
+            let mut native = P2PNativeConn::from_stream(
                 ConnStream::TlsClient(tls),
                 max_bytes,
                 true,
-            ))
+            );
+            native.io_timeout_ms = timeout_ms.max(1);
+            Ok(native)
         })
         .map_err(pyo3::exceptions::PyOSError::new_err)
     }
@@ -1223,7 +1235,15 @@ impl P2PNativeConn {
     }
 
     fn set_timeout_ms(&mut self, timeout_ms: u64) -> PyResult<()> {
-        set_timeouts(self.stream.tcp_ref(), timeout_ms).map_err(pyo3::exceptions::PyOSError::new_err)
+        let ms = timeout_ms.max(1);
+        set_timeouts(self.stream.tcp_ref(), ms).map_err(pyo3::exceptions::PyOSError::new_err)?;
+        self.io_timeout_ms = ms;
+        Ok(())
+    }
+
+    #[getter]
+    fn io_timeout_ms(&self) -> u64 {
+        self.io_timeout_ms
     }
 
     fn shutdown(&mut self) {
@@ -1373,7 +1393,8 @@ impl P2PNativeListener {
         match result {
             Ok((tcp, _addr)) => {
                 let built = py.allow_threads(|| -> Result<P2PNativeConn, String> {
-                    set_timeouts(&tcp, 30_000)?;
+                    let ms = NATIVE_IO_TIMEOUT_DEFAULT_MS;
+                    set_timeouts(&tcp, ms)?;
                     if let Some(cfg) = &self.tls_config {
                         let conn =
                             ServerConnection::new(cfg.clone()).map_err(|e| format!("p2p_transport_tls:{e}"))?;
@@ -1383,13 +1404,15 @@ impl P2PNativeListener {
                                 .complete_io(&mut tls.sock)
                                 .map_err(|e| format!("p2p_transport_tls:{e}"))?;
                         }
-                        Ok(P2PNativeConn::from_stream(
+                        let mut native = P2PNativeConn::from_stream(
                             ConnStream::TlsServer(tls),
                             self.max_bytes,
                             true,
-                        ))
+                        );
+                        native.io_timeout_ms = ms;
+                        Ok(native)
                     } else {
-                        P2PNativeConn::from_plain(tcp, self.max_bytes, 30_000)
+                        P2PNativeConn::from_plain(tcp, self.max_bytes, ms)
                     }
                 });
                 match built {
@@ -1454,6 +1477,12 @@ fn p2p_native_clamp_chunk(n: usize) -> usize {
     n.clamp(NATIVE_CHUNK_MIN, NATIVE_CHUNK_MAX)
 }
 
+/// Clamp native socket I/O timeout in milliseconds (v1.3.102).
+#[pyfunction]
+fn p2p_native_clamp_timeout_ms(n: u64) -> u64 {
+    n.clamp(NATIVE_IO_TIMEOUT_MIN_MS, NATIVE_IO_TIMEOUT_MAX_MS)
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<P2PNativeConn>()?;
     m.add_class::<P2PNativeListener>()?;
@@ -1461,10 +1490,13 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("NATIVE_BATCH_MAX", NATIVE_BATCH_MAX)?;
     m.add("NATIVE_CHUNK_DEFAULT", NATIVE_CHUNK_DEFAULT)?;
     m.add("NATIVE_CHUNK_MAX", NATIVE_CHUNK_MAX)?;
+    m.add("NATIVE_IO_TIMEOUT_DEFAULT_MS", NATIVE_IO_TIMEOUT_DEFAULT_MS)?;
+    m.add("NATIVE_IO_TIMEOUT_MAX_MS", NATIVE_IO_TIMEOUT_MAX_MS)?;
     m.add_function(wrap_pyfunction!(p2p_native_transport_available, m)?)?;
     m.add_function(wrap_pyfunction!(p2p_native_tls_available, m)?)?;
     m.add_function(wrap_pyfunction!(p2p_native_clamp_batch, m)?)?;
     m.add_function(wrap_pyfunction!(p2p_native_clamp_chunk, m)?)?;
+    m.add_function(wrap_pyfunction!(p2p_native_clamp_timeout_ms, m)?)?;
     Ok(())
 }
 

@@ -1563,8 +1563,17 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "observability" / "metrics.py"
         ).read_text(encoding="utf-8"):
             errors.append("metrics must export abs_p2p_native_read_batch (v1.3.101)")
+        # v1.3.102 — I/O timeout
+        if "p2p_native_clamp_timeout_ms" not in transport_rs or "v1.3.102" not in transport_rs:
+            errors.append("p2p_transport must expose clamp_timeout_ms (v1.3.102)")
+        if "p2p_native_io_timeout_ms" not in cfg_py or "_apply_native_io_timeout" not in p2p_py:
+            errors.append("config/p2p_node must wire native I/O timeout (v1.3.102)")
+        if "abs_p2p_native_io_timeout_ms" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("metrics must export abs_p2p_native_io_timeout_ms (v1.3.102)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..101 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..102 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

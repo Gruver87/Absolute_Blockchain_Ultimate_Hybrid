@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.101-industrial"
+    node_version: str = "1.3.102-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -111,6 +111,7 @@ class Config:
     p2p_native_read_batch: int = 8                # v1.3.101: read_messages max_n (1..64)
     p2p_native_write_batch: int = 8               # v1.3.101: send-queue write batch (1..64)
     p2p_native_read_chunk: int = 65536            # v1.3.101: native read chunk bytes
+    p2p_native_io_timeout_ms: int = 30000         # v1.3.102: socket SO_RCV/SNDTIMEO after connect
     p2p_tls_enabled: bool = False                 # TLS on P2P wire (mainnet / public mesh)
     p2p_tls_cert_path: str = ""                   # node cert (PEM)
     p2p_tls_key_path: str = ""                    # node private key (PEM)
@@ -352,6 +353,9 @@ class Config:
         )
         self.p2p_native_read_chunk = env_int(
             "P2P_NATIVE_READ_CHUNK", self.p2p_native_read_chunk
+        )
+        self.p2p_native_io_timeout_ms = env_int(
+            "P2P_NATIVE_IO_TIMEOUT_MS", self.p2p_native_io_timeout_ms
         )
         self.p2p_tls_enabled = env_bool("P2P_TLS_ENABLED", self.p2p_tls_enabled)
         self.p2p_tls_cert_path = env_str("P2P_TLS_CERT_PATH", self.p2p_tls_cert_path)

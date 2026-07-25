@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.102] — 2026-07-25
+
+### P2P — native I/O timeout config
+
+- Config `p2p_native_io_timeout_ms` applied via `set_timeout_ms` on accept/connect
+- Aligns asyncio native-read `wait_for` with socket timeout
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.101] — 2026-07-25
 
 ### P2P — native batch/chunk config knobs

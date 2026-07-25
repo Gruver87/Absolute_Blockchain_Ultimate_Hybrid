@@ -143,6 +143,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "p2p_native_tls_available",
             "p2p_native_clamp_batch",
             "p2p_native_clamp_chunk",
+            "p2p_native_clamp_timeout_ms",
             "p2p_native_connect",
             "p2p_frame_feed_once",
             "p2p_subnet_key",
@@ -2652,6 +2653,13 @@ def p2p_native_clamp_chunk(n: int) -> int:
     if _native is not None and hasattr(_native, "p2p_native_clamp_chunk"):
         return int(_native.p2p_native_clamp_chunk(int(n)))
     return max(1024, min(1024 * 1024, int(n)))
+
+
+def p2p_native_clamp_timeout_ms(n: int) -> int:
+    """Clamp native socket I/O timeout to 1000..600000 ms (v1.3.102)."""
+    if _native is not None and hasattr(_native, "p2p_native_clamp_timeout_ms"):
+        return int(_native.p2p_native_clamp_timeout_ms(int(n)))
+    return max(1000, min(600_000, int(n)))
 
 
 def P2PLineFramer(*args, **kwargs):

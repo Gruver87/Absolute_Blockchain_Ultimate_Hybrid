@@ -34,7 +34,7 @@ def test_needles_v13101():
     assert "native_read_batch" in p2p
     notes = (ROOT / "RELEASE_NOTES_v1.3.101.md").read_text(encoding="utf-8")
     assert "1.3.101-industrial" in notes
-    assert Config().node_version == "1.3.101-industrial"
+    # Live Config().node_version advances with later waves; pin notes not config.
     assert "abs_p2p_native_read_batch" in (
         ROOT / "observability" / "metrics.py"
     ).read_text(encoding="utf-8")
