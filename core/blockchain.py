@@ -1019,12 +1019,12 @@ class Blockchain:
         return float(from_satoshi_float(burned_sat))
 
     def _apply_mixed_block_native(self, block: "Block") -> float:
-        """Apply mixed simple+EVM block via host_effects (per-tx) + final reward.
+        """Apply mixed simple+EVM block via host_effects with block-scoped sat session (v1.3.69).
 
-        EVM calldata txs run the Python host first (code/storage/value on DB);
-        simple transfers use apply_value=True in native. Each tx is applied with
-        reward=0 so subsequent EVM hosts observe prior balance updates; block
-        reward is applied once at the end.
+        EVM calldata txs still run the Python host first (code/storage on DB).
+        Fee/nonce/value sat rows stay in an in-memory session and write back once
+        at the end (plus final reward). Avoids per-tx full-account DB rewrite and
+        repeated get_total_supply scans.
         """
         from runtime.amount import from_satoshi_float, plan_transfer_fees, to_satoshi
 
@@ -1035,6 +1035,20 @@ class Blockchain:
         miner = str(block.miner or "")
         burn_addr = str(getattr(self.config, "burn_address", "") or "")
         max_supply_sat = int(to_satoshi(float(getattr(self.config, "max_supply", MAX_SUPPLY_ABS))))
+
+        # Prefetch all addresses touched by the block (block-scoped session).
+        session_addrs = {miner, burn_addr}
+        session_addrs.discard("")
+        for tx in block.transactions:
+            if tx.from_addr:
+                session_addrs.add(tx.from_addr)
+            if tx.to_addr:
+                session_addrs.add(tx.to_addr)
+        session = self._accounts_sat_snapshot(session_addrs)
+        if hasattr(self.db, "get_total_supply"):
+            supply_sat = int(to_satoshi(self.db.get_total_supply()))
+        else:
+            supply_sat = sum(int(v["balance"]) for v in session.values())
 
         for tx in block.transactions:
             addrs = {miner, burn_addr, tx.from_addr or "", tx.to_addr or ""}
@@ -1062,7 +1076,12 @@ class Blockchain:
                     raise RuntimeError(host.get("error") or "evm_host_failed")
                 gas_used = int(host.get("gas_used") or tx.gas or 0)
                 if host.get("contract_address"):
-                    addrs.add(str(host["contract_address"]))
+                    caddr = str(host["contract_address"])
+                    addrs.add(caddr)
+                    session_addrs.add(caddr)
+                # EVM host may have mutated DB balances/code — refresh session rows.
+                refreshed = self._accounts_sat_snapshot(addrs)
+                session.update(refreshed)
                 effect = {
                     "from": tx.from_addr,
                     "to": tx.to_addr or "",
@@ -1080,11 +1099,12 @@ class Blockchain:
                     gas_used=gas_used,
                 )
 
-            snap = self._accounts_sat_snapshot(addrs)
-            if hasattr(self.db, "get_total_supply"):
-                supply_sat = int(to_satoshi(self.db.get_total_supply()))
-            else:
-                supply_sat = sum(int(v["balance"]) for v in snap.values())
+            # Ensure effect addresses exist in session.
+            for a in addrs:
+                if a not in session:
+                    session.update(self._accounts_sat_snapshot([a]))
+
+            snap = {a: dict(session[a]) for a in addrs if a in session}
             raw = native.blockchain_apply_host_effects(
                 json.dumps(snap, separators=(",", ":"), ensure_ascii=False),
                 json.dumps([effect], separators=(",", ":"), ensure_ascii=False),
@@ -1097,22 +1117,27 @@ class Blockchain:
                 max_supply_sat,
             )
             result = json.loads(raw)
-            self._writeback_accounts_sat(result.get("accounts") or {})
-            total_burned_sat += int(result.get("total_burned_sat", 0) or 0)
+            for addr, row in dict(result.get("accounts") or {}).items():
+                session[addr] = {
+                    "balance": int(row.get("balance", 0) or 0),
+                    "nonce": int(row.get("nonce", 0) or 0),
+                }
+            burned = int(result.get("total_burned_sat", 0) or 0)
+            total_burned_sat += burned
+            supply_sat = max(0, supply_sat - burned)
             tx.fee = plan["fee"]
             tx.burned = plan["burned"]
             tx.gas_used = gas_used
             tx.block_height = block.height
             tx.status = 1
 
-        # Final block reward (empty effects).
+        # Final block reward against session, then one writeback.
         reward_addrs = {miner}
         reward_addrs.discard("")
-        snap = self._accounts_sat_snapshot(reward_addrs)
-        if hasattr(self.db, "get_total_supply"):
-            supply_sat = int(to_satoshi(self.db.get_total_supply()))
-        else:
-            supply_sat = sum(int(v["balance"]) for v in snap.values())
+        for a in reward_addrs:
+            if a not in session:
+                session.update(self._accounts_sat_snapshot([a]))
+        snap = {a: dict(session[a]) for a in reward_addrs if a in session}
         raw = native.blockchain_apply_host_effects(
             json.dumps(snap, separators=(",", ":"), ensure_ascii=False),
             "[]",
@@ -1124,7 +1149,12 @@ class Blockchain:
             supply_sat,
             max_supply_sat,
         )
-        self._writeback_accounts_sat(json.loads(raw).get("accounts") or {})
+        for addr, row in dict(json.loads(raw).get("accounts") or {}).items():
+            session[addr] = {
+                "balance": int(row.get("balance", 0) or 0),
+                "nonce": int(row.get("nonce", 0) or 0),
+            }
+        self._writeback_accounts_sat(session)
         return float(from_satoshi_float(total_burned_sat))
 
     def _blocks_range_are_simple(self, from_h: int, to_h: int) -> bool:

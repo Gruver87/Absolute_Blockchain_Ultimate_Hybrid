@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.69] — 2026-07-25
+
+### Load — block-scoped sat session for mixed apply
+
+- Mixed native block apply keeps in-memory sat session across txs
+- Single account writeback at end (plus tracked supply, no per-tx supply scan)
+- `scripts/verify_industrial_waves.py` — full checklist for waves 1.3.65–1.3.69
+
 ## [1.3.68] — 2026-07-25
 
 ### Bridge — semantic event bind + fail-closed debit

@@ -1305,8 +1305,13 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         cfg_py = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
         if "bridge_require_l1_event=true" not in cfg_py and "BRIDGE_REQUIRE_L1_EVENT=true" not in cfg_py:
             errors.append("prod config must require bridge_require_l1_event (v1.3.68)")
+        # v1.3.69 — block-scoped sat session
+        if "block-scoped sat session" not in bc_py:
+            errors.append("blockchain mixed apply must use block-scoped sat session (v1.3.69)")
+        if not (ROOT / "scripts" / "verify_industrial_waves.py").is_file():
+            errors.append("scripts/verify_industrial_waves.py missing (v1.3.69)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..68 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..69 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

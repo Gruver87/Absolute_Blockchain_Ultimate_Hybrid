@@ -356,7 +356,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 ### Priority 34 — Rust frame storage arena ✅ (v1.3.67)
 
 - [x] SLOAD/SSTORE against Rust HashMap arena; flush to Python dict on exit
-- Remaining: recursive native frames / block-scoped session (not claimed)
+- Remaining: recursive native frames / block-scoped session (see Priority 35)
+
+### Priority 35 — Block-scoped sat session ✅ (v1.3.69)
+
+- [x] Mixed apply: in-memory sat session + single writeback
+- [x] `scripts/verify_industrial_waves.py` for waves 65–68(+69)
+- Remaining: recursive native frames (not claimed)
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
 
@@ -376,6 +382,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.66: load backpressure + tip O(1)
 - [x] v1.3.67: tx writeback journal + Rust storage arena
 - [x] v1.3.68: bridge semantic event bind + fail-closed debit
+- [x] v1.3.69: block-scoped sat session + verify_industrial_waves
 
 ## Process per module
 

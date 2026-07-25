@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.68` — bridge semantic bind + fail-closed debit |
-| **Notes** | [RELEASE_NOTES_v1.3.68.md](../RELEASE_NOTES_v1.3.68.md) · [v1.3.67](../RELEASE_NOTES_v1.3.67.md) journal/arena |
-| **Prior** | [v1.3.66](../RELEASE_NOTES_v1.3.66.md) load; [v1.3.65](../RELEASE_NOTES_v1.3.65.md) L1 fail-closed |
+| **Tag** | `v1.3.69` — block-scoped sat session + verify script |
+| **Notes** | [RELEASE_NOTES_v1.3.69.md](../RELEASE_NOTES_v1.3.69.md) |
+| **Prior** | [v1.3.68](../RELEASE_NOTES_v1.3.68.md) bridge; [v1.3.67](../RELEASE_NOTES_v1.3.67.md) journal/arena |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |
