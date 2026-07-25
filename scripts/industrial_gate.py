@@ -1012,8 +1012,18 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("blockchain.py must wire mixed simple+EVM native apply (v1.3.46)")
         if "expected_nonce" not in bc_py:
             errors.append("validate_transaction must accept expected_nonce for block assembly")
+        # v1.3.47 — nested CALL effects planner
+        if "def evm_plan_nested_call_effects" not in native_py:
+            errors.append("crypto/native.py must export evm_plan_nested_call_effects (v1.3.47)")
+        adapter_py = (ROOT / "execution" / "evm_adapter.py").read_text(encoding="utf-8")
+        if "evm_plan_nested_call_effects" not in adapter_py:
+            errors.append("evm_adapter must wire evm_plan_nested_call_effects")
+        if "fn evm_plan_nested_call_effects" not in (
+            ROOT / "native" / "abs_native" / "src" / "lib.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append("lib.rs must define evm_plan_nested_call_effects")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..46 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..47 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

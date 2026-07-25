@@ -171,6 +171,16 @@ class EVMAdapter:
         except ValueError:
             return {"success": False, "reverted": True, "return_data": b""}
 
+        kind = (
+            "staticcall"
+            if static
+            else "delegatecall"
+            if delegate
+            else "callcode"
+            if callcode
+            else "call"
+        )
+        parent_ro = bool(getattr(caller_ctx, "_abs_read_only", False))
         if delegate or callcode:
             storage_raw = self.db.get_account(caller_ctx.address)
             storage_src = (storage_raw or {}).get("storage") or "{}"
@@ -187,7 +197,10 @@ class EVMAdapter:
         if storage is None:
             return {"success": False, "reverted": True, "return_data": b"", "error": "corrupt_storage"}
 
-        nested_ro = bool(static) or bool(getattr(caller_ctx, "_abs_read_only", False))
+        plan_pre = native.evm_plan_nested_call_effects(
+            kind, parent_ro, caller_ctx.address, target, int(call_value or 0), True
+        )
+        nested_ro = bool(plan_pre.get("nested_read_only"))
         sub_ctx = self._make_context(
             caller, exec_addr, calldata, call_value, read_only=nested_ro
         )
@@ -195,7 +208,7 @@ class EVMAdapter:
         sub_ctx.contract_call = lambda t, d, v, g, delg, st, cc=False: self._contract_call_hook(
             t, d, v, g, delg, st, sub_ctx, callcode=cc
         )
-        if nested_ro:
+        if nested_ro or plan_pre.get("reject_create"):
             sub_ctx.contract_create = lambda code, val, ctx, salt=None: {
                 "success": False,
                 "reverted": True,
@@ -210,36 +223,53 @@ class EVMAdapter:
         evm.storage = dict(storage)
         result = evm.execute_bytecode(bytecode)
 
-        if static or nested_ro:
+        success = not result.get("reverted")
+        plan = native.evm_plan_nested_call_effects(
+            kind,
+            parent_ro,
+            caller_ctx.address,
+            target,
+            int(call_value or 0),
+            success,
+        )
+
+        if not (
+            plan.get("persist_storage")
+            or plan.get("persist_value")
+            or plan.get("persist_logs")
+        ):
             return {
-                "success": not result.get("reverted"),
+                "success": success,
                 "reverted": result.get("reverted", False),
                 "return_data": result.get("return_data", b"") or b"",
                 "gas_used": result.get("gas_used", 0),
             }
 
-        if delegate or callcode:
-            if not result.get("reverted"):
-                new_storage = {str(k): v for k, v in result.get("storage", {}).items()}
-                self.db.update_account_storage(caller_ctx.address, new_storage)
-                if callcode and call_value > 0:
-                    wei_to_abs = call_value / 10**18
-                    self.db.update_balance(caller_ctx.address, -wei_to_abs)
-                    self.db.update_balance(target, wei_to_abs)
-                sub_logs = result.get("logs") or []
-                if sub_logs:
-                    self._persist_logs(caller_ctx.address, sub_logs)
-        else:
-            if not result.get("reverted"):
-                new_storage = {str(k): v for k, v in result.get("storage", {}).items()}
-                self.db.update_account_storage(target, new_storage)
-                if call_value > 0:
-                    wei_to_abs = call_value / 10**18
-                    self.db.update_balance(caller, -wei_to_abs)
-                    self.db.update_balance(target, wei_to_abs)
+        if plan.get("persist_storage"):
+            new_storage = {str(k): v for k, v in result.get("storage", {}).items()}
+            owner = (
+                caller_ctx.address
+                if plan.get("storage_owner") == "caller"
+                else target
+            )
+            self.db.update_account_storage(owner, new_storage)
+
+        if plan.get("persist_value") and int(plan.get("effective_value_wei") or 0) > 0:
+            wei_to_abs = int(plan["effective_value_wei"]) / 10**18
+            from_addr = (
+                caller_ctx.address if plan.get("value_from") == "caller" else caller
+            )
+            to_addr = target if plan.get("value_to") == "target" else target
+            self.db.update_balance(from_addr, -wei_to_abs)
+            self.db.update_balance(to_addr, wei_to_abs)
+
+        if plan.get("persist_logs"):
+            sub_logs = result.get("logs") or []
+            if sub_logs:
+                self._persist_logs(caller_ctx.address, sub_logs)
 
         return {
-            "success": not result.get("reverted"),
+            "success": success,
             "reverted": result.get("reverted", False),
             "return_data": result.get("return_data", b"") or b"",
             "storage": result.get("storage", {}),

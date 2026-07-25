@@ -95,6 +95,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "evm_run_until_halt",
             "evm_host_snapshot_storage",
             "evm_host_restore_storage",
+            "evm_plan_nested_call_effects",
             "evm_deploy_address",
             "evm_create2_eip1014",
             "validate_imported_block_chain",
@@ -1079,6 +1080,84 @@ def evm_host_restore_storage(storage: dict, snapshot: dict) -> None:
         _native.evm_host_restore_storage(storage, snapshot)
         return
     raise RuntimeError("evm_host_restore_storage requires abs_native")
+
+
+def _evm_plan_nested_call_effects_py(
+    kind: str,
+    parent_read_only: bool,
+    caller: str,
+    target: str,
+    value_wei: int,
+    success: bool,
+) -> dict:
+    """Python reference for nested CALL persist/value/read-only policy."""
+    kind_n = str(kind or "").strip().lower()
+    if kind_n not in ("call", "callcode", "delegatecall", "staticcall"):
+        raise ValueError("kind must be call|callcode|delegatecall|staticcall")
+    value_wei = max(0, int(value_wei or 0))
+    nested_read_only = bool(parent_read_only) or kind_n == "staticcall"
+    persist_storage = False
+    persist_value = False
+    persist_logs = False
+    storage_owner = "caller" if kind_n in ("delegatecall", "callcode") else "target"
+    exec_address = "caller" if kind_n in ("delegatecall", "callcode") else "target"
+    value_from = ""
+    value_to = ""
+    effective_value_wei = 0
+    if success and not nested_read_only:
+        persist_storage = True
+        if kind_n in ("delegatecall", "callcode"):
+            persist_logs = True
+        if kind_n in ("call", "callcode") and value_wei > 0:
+            persist_value = True
+            value_from = "caller"
+            value_to = "target"
+            effective_value_wei = value_wei
+    return {
+        "kind": kind_n,
+        "caller": str(caller or ""),
+        "target": str(target or ""),
+        "nested_read_only": nested_read_only,
+        "persist_storage": persist_storage,
+        "persist_value": persist_value,
+        "persist_logs": persist_logs,
+        "storage_owner": storage_owner,
+        "exec_address": exec_address,
+        "value_from": value_from,
+        "value_to": value_to,
+        "effective_value_wei": effective_value_wei,
+        "reject_create": nested_read_only,
+        "success": bool(success),
+        "native_plan": False,
+    }
+
+
+def evm_plan_nested_call_effects(
+    kind: str,
+    parent_read_only: bool,
+    caller: str,
+    target: str,
+    value_wei: int,
+    success: bool,
+) -> dict:
+    """Plan nested CALL effects (read-only / persist / value). Prefers abs_native."""
+    if _native is not None and hasattr(_native, "evm_plan_nested_call_effects"):
+        raw = _native.evm_plan_nested_call_effects(
+            str(kind),
+            bool(parent_read_only),
+            str(caller or ""),
+            str(target or ""),
+            int(value_wei or 0),
+            bool(success),
+        )
+        out = json.loads(raw) if isinstance(raw, str) else dict(raw)
+        out["native_plan"] = True
+        return out
+    if _REQUIRE_NATIVE:
+        _require_native_kernel("evm_plan_nested_call_effects")
+    return _evm_plan_nested_call_effects_py(
+        kind, parent_read_only, caller, target, value_wei, success
+    )
 
 
 def evm_memory_copy(memory: bytearray, dest: int, src: bytes, src_offset: int, size: int) -> None:

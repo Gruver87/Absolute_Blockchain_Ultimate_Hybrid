@@ -258,7 +258,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `_block_transactions_are_mixed` + `_apply_mixed_block_native`
 - [x] Per-tx host_effects (reward=0) then final native reward; EVM host between
 - [x] `create_block` nonce cursor honored via `validate_transaction(expected_nonce=…)`
-- Remaining: deeper CALL host inside Rust
+- Remaining: see Priority 19
+
+### Priority 19 — Nested CALL effects planner ✅ (v1.3.47)
+
+- [x] `evm_plan_nested_call_effects` — read-only / persist / value policy kernel
+- [x] `EVMAdapter._contract_call_hook` driven by planner; Python fallback retained
+- Remaining: nested bytecode execution inside Rust (optional)
 
 ## Process per module
 

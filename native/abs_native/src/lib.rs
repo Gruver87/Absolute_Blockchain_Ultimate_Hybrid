@@ -1196,6 +1196,91 @@ fn evm_call_gas_cap(remaining: u64, requested: u64) -> PyResult<u64> {
     }
 }
 
+/// Pure nested-CALL effects planner (policy only — Python still runs bytecode / DB).
+/// kind: call | callcode | delegatecall | staticcall
+#[pyfunction]
+fn evm_plan_nested_call_effects(
+    kind: String,
+    parent_read_only: bool,
+    caller: String,
+    target: String,
+    value_wei: i64,
+    success: bool,
+) -> PyResult<String> {
+    let kind = kind.trim().to_ascii_lowercase();
+    let kind = match kind.as_str() {
+        "call" | "callcode" | "delegatecall" | "staticcall" => kind,
+        _ => {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "kind must be call|callcode|delegatecall|staticcall",
+            ))
+        }
+    };
+    let value_wei = value_wei.max(0);
+    let nested_read_only = parent_read_only || kind == "staticcall";
+    let mut persist_storage = false;
+    let mut persist_value = false;
+    let mut persist_logs = false;
+    let mut storage_owner = "target";
+    let mut exec_address = "target";
+    let mut value_from = "";
+    let mut value_to = "";
+    let mut effective_value_wei: i64 = 0;
+    let reject_create = nested_read_only;
+
+    if kind == "delegatecall" || kind == "callcode" {
+        storage_owner = "caller";
+        exec_address = "caller";
+    }
+
+    if success && !nested_read_only {
+        persist_storage = true;
+        if kind == "delegatecall" || kind == "callcode" {
+            persist_logs = true;
+        }
+        if kind == "call" && value_wei > 0 {
+            persist_value = true;
+            value_from = "caller";
+            value_to = "target";
+            effective_value_wei = value_wei;
+        } else if kind == "callcode" && value_wei > 0 {
+            persist_value = true;
+            value_from = "caller";
+            value_to = "target";
+            effective_value_wei = value_wei;
+        }
+        // delegatecall / staticcall: no value transfer
+    }
+
+    let mut out = Map::new();
+    out.insert("kind".into(), Value::String(kind));
+    out.insert("caller".into(), Value::String(caller));
+    out.insert("target".into(), Value::String(target));
+    out.insert("nested_read_only".into(), Value::Bool(nested_read_only));
+    out.insert("persist_storage".into(), Value::Bool(persist_storage));
+    out.insert("persist_value".into(), Value::Bool(persist_value));
+    out.insert("persist_logs".into(), Value::Bool(persist_logs));
+    out.insert(
+        "storage_owner".into(),
+        Value::String(storage_owner.to_string()),
+    );
+    out.insert(
+        "exec_address".into(),
+        Value::String(exec_address.to_string()),
+    );
+    out.insert("value_from".into(), Value::String(value_from.to_string()));
+    out.insert("value_to".into(), Value::String(value_to.to_string()));
+    out.insert(
+        "effective_value_wei".into(),
+        Value::Number(effective_value_wei.into()),
+    );
+    out.insert("reject_create".into(), Value::Bool(reject_create));
+    out.insert("success".into(), Value::Bool(success));
+    out.insert("native_plan".into(), Value::Bool(true));
+    serde_json::to_string(&Value::Object(out))
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
+}
+
 pub(crate) fn evm_memory_slice_inner(memory: &[u8], offset: usize, size: usize) -> Vec<u8> {
     let mut out = vec![0u8; size];
     if offset < memory.len() {
@@ -1667,6 +1752,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_is_jumpdest, m)?)?;
     m.add_function(wrap_pyfunction!(evm_word_to_address, m)?)?;
     m.add_function(wrap_pyfunction!(evm_call_gas_cap, m)?)?;
+    m.add_function(wrap_pyfunction!(evm_plan_nested_call_effects, m)?)?;
     m.add_function(wrap_pyfunction!(evm_memory_slice, m)?)?;
     m.add_function(wrap_pyfunction!(evm_stack_dup, m)?)?;
     m.add_function(wrap_pyfunction!(evm_stack_swap, m)?)?;

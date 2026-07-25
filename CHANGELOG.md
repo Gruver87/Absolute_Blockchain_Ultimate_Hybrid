@@ -6,6 +6,12 @@
 
 ---
 
+## [1.3.47] — 2026-07-25
+
+### Added — nested CALL effects planner
+
+- Rust `evm_plan_nested_call_effects`; adapter CALL writeback driven by native policy
+
 ## [1.3.46] — 2026-07-25
 
 ### Added — mixed simple+EVM native apply

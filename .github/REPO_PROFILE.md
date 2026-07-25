@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.46` — mixed simple+EVM native apply |
-| **Notes** | [RELEASE_NOTES_v1.3.46.md](../RELEASE_NOTES_v1.3.46.md) |
-| **Prior** | [v1.3.45](../RELEASE_NOTES_v1.3.45.md) apply honesty; [v1.3.44](../RELEASE_NOTES_v1.3.44.md) EVM host-in-apply |
+| **Tag** | `v1.3.47` — nested CALL effects planner |
+| **Notes** | [RELEASE_NOTES_v1.3.47.md](../RELEASE_NOTES_v1.3.47.md) |
+| **Prior** | [v1.3.46](../RELEASE_NOTES_v1.3.46.md) mixed apply; [v1.3.45](../RELEASE_NOTES_v1.3.45.md) apply honesty |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |
