@@ -1,4 +1,4 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.112).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.113).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
 //! v1.3.92: `read_message` fuses framed read + wire parse.
@@ -22,6 +22,7 @@
 //! v1.3.110: peers / validator_register shape gates on read.
 //! v1.3.111: state_root_request / state_root_response shape gates on read.
 //! v1.3.112: cross_shard_tx / cross_shard_ack / shard_migration shape gates.
+//! v1.3.113: handshake payload shape gate on handshake_roundtrip.
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -30,10 +31,10 @@ use crate::p2p_wire::{
     clamp_max_bytes, encode_p2p_wire_message_inner, parse_p2p_wire_line_inner,
     validate_attestation_shape_inner, validate_block_announce_inner, validate_blocks_batch_inner,
     validate_cross_shard_ack_inner, validate_cross_shard_tx_inner, validate_get_block_by_hash_inner,
-    validate_get_block_inner, validate_get_blocks_inner, validate_mempool_batch_inner,
-    validate_peers_list_inner, validate_shard_migration_inner, validate_state_root_request_inner,
-    validate_state_root_response_inner, validate_status_inner, validate_validator_register_inner,
-    validate_wire_tx_inner, DEFAULT_MAX_P2P_LINE_BYTES,
+    validate_get_block_inner, validate_get_blocks_inner, validate_handshake_inner,
+    validate_mempool_batch_inner, validate_peers_list_inner, validate_shard_migration_inner,
+    validate_state_root_request_inner, validate_state_root_response_inner, validate_status_inner,
+    validate_validator_register_inner, validate_wire_tx_inner, DEFAULT_MAX_P2P_LINE_BYTES,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
@@ -335,6 +336,14 @@ fn check_shard_migration_payload(msg_type: &str, data: &serde_json::Value) -> Re
     }
     if validate_shard_migration_inner(data).is_none() {
         return Err("bad_shard_migration".to_string());
+    }
+    Ok(())
+}
+
+/// v1.3.113: parity with Python handshake shape gate (fail-closed).
+fn check_handshake_payload(data: &serde_json::Value) -> Result<(), String> {
+    if validate_handshake_inner(data).is_none() {
+        return Err("bad_handshake_payload".to_string());
     }
     Ok(())
 }
@@ -1456,6 +1465,9 @@ impl P2PNativeConn {
     /// Initiator: write `handshake` + read expecting `handshake_ack`.
     /// Responder: read expecting `handshake` + write `handshake_ack`.
     ///
+    /// v1.3.113: inbound handshake/ack shape gate (`bad_handshake_payload`).
+    /// Chain-id / TLS identity / policy still Python.
+    ///
     /// `{ok:true, type, data, nbytes}` | `{ok:false, reason}`.
     #[pyo3(signature = (initiator, our_data_json, chunk_sz=65536))]
     fn handshake_roundtrip(
@@ -1483,6 +1495,7 @@ impl P2PNativeConn {
                         if msg_type != "handshake_ack" {
                             return Err(format!("p2p_handshake_unexpected:{msg_type}"));
                         }
+                        check_handshake_payload(&data)?;
                         Ok((msg_type, data, nbytes))
                     }
                 }
@@ -1493,6 +1506,7 @@ impl P2PNativeConn {
                         if msg_type != "handshake" {
                             return Err(format!("p2p_handshake_unexpected:{msg_type}"));
                         }
+                        check_handshake_payload(&data)?;
                         let payload =
                             encode_p2p_wire_message_inner("handshake_ack", &our_data_json)?;
                         if payload.len() > max_bytes {
@@ -2175,5 +2189,31 @@ mod tests {
         )
         .is_ok());
         assert!(check_cross_shard_tx_payload("peers", &serde_json::json!({})).is_ok());
+    }
+
+    #[test]
+    fn handshake_payload_gate_parity() {
+        assert_eq!(
+            check_handshake_payload(&serde_json::json!(null)).unwrap_err(),
+            "bad_handshake_payload"
+        );
+        assert_eq!(
+            check_handshake_payload(&serde_json::json!({})).unwrap_err(),
+            "bad_handshake_payload"
+        );
+        assert_eq!(
+            check_handshake_payload(&serde_json::json!({"chain_id": -1})).unwrap_err(),
+            "bad_handshake_payload"
+        );
+        // Explicit rejection ack is shape-ok (accepted=false).
+        assert!(check_handshake_payload(&serde_json::json!({"accepted": false})).is_ok());
+        assert!(check_handshake_payload(&serde_json::json!({
+            "chain_id": 1,
+            "height": 0,
+            "head_hash": "aa",
+            "node_id": "n1",
+            "p2p_port": 5000
+        }))
+        .is_ok());
     }
 }

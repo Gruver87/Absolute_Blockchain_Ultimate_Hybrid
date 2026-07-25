@@ -583,6 +583,12 @@ class MetricsCollector:
                     f"abs_p2p_native_cross_shard_gate{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_cross_shard_gate') else 0}"
                 ),
+                "# HELP abs_p2p_native_handshake_payload_gate Whether native handshake payload gate is active (0/1)",
+                "# TYPE abs_p2p_native_handshake_payload_gate gauge",
+                (
+                    f"abs_p2p_native_handshake_payload_gate{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_handshake_payload_gate') else 0}"
+                ),
                 "# HELP abs_p2p_native_read_batch Configured native read_messages batch size",
                 "# TYPE abs_p2p_native_read_batch gauge",
                 (

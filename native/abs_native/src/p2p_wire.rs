@@ -413,7 +413,7 @@ const MAX_P2P_VERSION_LEN: usize = 64;
 const MAX_P2P_SYNC_SPAN: i64 = 10_000;
 const MAX_P2P_PORT: i64 = 65_535;
 
-fn validate_handshake_inner(data: &Value) -> Option<(i64, i64, String, String, i64, bool)> {
+pub(crate) fn validate_handshake_inner(data: &Value) -> Option<(i64, i64, String, String, i64, bool)> {
     let obj = data.as_object()?;
     // Explicit rejection ack (e.g. max_peers) — shape-ok but not a peer identity.
     if matches!(obj.get("accepted"), Some(Value::Bool(false))) {

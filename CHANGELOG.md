@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.113] — 2026-07-25
+
+### P2P — native handshake payload gate
+
+- Fail-closed handshake/ack shape check on `handshake_roundtrip` (`bad_handshake_payload`)
+- Chain-id / TLS / policy remain Python
+- Honesty: still not full message-loop / libp2p
+
 ## [1.3.112] — 2026-07-25
 
 ### P2P — native cross-shard shape gates

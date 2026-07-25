@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.112 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.113 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -73,6 +73,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13110_p2p_native_peer_discovery_gate.py",
     "tests/unit/test_v13111_p2p_native_state_root_gate.py",
     "tests/unit/test_v13112_p2p_native_cross_shard_gate.py",
+    "tests/unit/test_v13113_p2p_native_handshake_payload_gate.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -918,6 +919,26 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "observability/metrics.py",
         ["abs_p2p_native_cross_shard_gate"],
     ),
+    (
+        "1.3.113",
+        "RELEASE_NOTES_v1.3.113.md",
+        ["1.3.113-industrial", "handshake"],
+    ),
+    (
+        "1.3.113",
+        "native/abs_native/src/p2p_transport.rs",
+        ["check_handshake_payload", "bad_handshake_payload", "v1.3.113"],
+    ),
+    (
+        "1.3.113",
+        "network/p2p_node.py",
+        ["native_handshake_payload_gate"],
+    ),
+    (
+        "1.3.113",
+        "observability/metrics.py",
+        ["abs_p2p_native_handshake_payload_gate"],
+    ),
 ]
 
 
@@ -945,8 +966,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.112"):
-            errors.append(f"node_version expected 1.3.112-*, got {ver}")
+        if not ver.startswith("1.3.113"):
+            errors.append(f"node_version expected 1.3.113-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors
