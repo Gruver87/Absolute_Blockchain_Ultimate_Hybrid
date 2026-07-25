@@ -6,6 +6,17 @@
 
 ---
 
+## [1.3.65] — 2026-07-25
+
+### Security — L1 fail-closed hardening
+
+- Attestation pubkey bound to claimed validator address
+- Prod/staging blocks unauthenticated P2P `validator_register`
+- Native block apply fail-closed under `require_native_crypto` / prod
+- `amount._native_required` honors `ABS_REQUIRE_NATIVE_CRYPTO`
+- Corrupt Rocks account JSON raises `AccountCorruptError`
+- HTTP/JSON-RPC body size + batch caps
+
 ## [1.3.64] — 2026-07-25
 
 ### Added — Rocks batch writeback account preload

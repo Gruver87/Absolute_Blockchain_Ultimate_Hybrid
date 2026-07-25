@@ -31,6 +31,33 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 
 logger = logging.getLogger("API")
 
+# v1.3.65 defaults (overridden by Config when present)
+_DEFAULT_HTTP_MAX_BODY = 1_048_576
+_DEFAULT_JSONRPC_MAX_BATCH = 32
+
+
+def _http_max_body_bytes(cfg) -> int:
+    return int(getattr(cfg, "http_max_body_bytes", _DEFAULT_HTTP_MAX_BODY) or _DEFAULT_HTTP_MAX_BODY)
+
+
+def _jsonrpc_max_batch(cfg) -> int:
+    return int(getattr(cfg, "jsonrpc_max_batch", _DEFAULT_JSONRPC_MAX_BATCH) or _DEFAULT_JSONRPC_MAX_BATCH)
+
+
+def _read_limited_body(handler: BaseHTTPRequestHandler, max_bytes: int) -> tuple[bytes | None, str | None]:
+    """Read request body with hard size cap. Returns (body, error_message)."""
+    try:
+        length = int(handler.headers.get("Content-Length", 0) or 0)
+    except (TypeError, ValueError):
+        return None, "invalid Content-Length"
+    if length < 0:
+        return None, "invalid Content-Length"
+    if length > int(max_bytes):
+        return None, f"body too large (max {int(max_bytes)} bytes)"
+    if length == 0:
+        return b"", None
+    return handler.rfile.read(length), None
+
 # --- Rate Limiter (middleware/rate_limit.py) ---
 try:
     from middleware.rate_limit import create_rate_limiter
@@ -583,18 +610,41 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
                 }).encode())
                 return
 
-        length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(length)
+        cfg = self.__class__.config
+        raw_bytes, body_err = _read_limited_body(self, _http_max_body_bytes(cfg))
+        if body_err:
+            code = 413 if "too large" in body_err else 400
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            _send_acao_header(self, self._cors_origin(self.headers.get("Origin", "")))
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "jsonrpc": "2.0",
+                "error": {"code": -32600, "message": body_err},
+                "id": None,
+            }).encode())
+            return
         try:
-            req = json.loads(body)
+            req = json.loads(raw_bytes or b"")
             if _INPUT_VALIDATORS_AVAILABLE:
                 req = sanitize_input(req)
         except json.JSONDecodeError:
             self._send_json({"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": None})
             return
 
-        # Batch requests
+        # Batch requests (v1.3.65: hard-capped)
         if isinstance(req, list):
+            max_batch = _jsonrpc_max_batch(cfg)
+            if len(req) > max_batch:
+                self._send_json({
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32600,
+                        "message": f"batch too large (max {max_batch})",
+                    },
+                    "id": None,
+                })
+                return
             responses = [self._dispatch(r) for r in req]
             self._send_json(responses)
         else:
@@ -4423,8 +4473,11 @@ class RESTHandler(BaseHTTPRequestHandler):
             return
 
         self._track_request()
-        length = int(self.headers.get("Content-Length", 0))
-        raw_bytes = self.rfile.read(length) if length else b""
+        raw_bytes, body_err = _read_limited_body(self, _http_max_body_bytes(cfg))
+        if body_err:
+            code = 413 if "too large" in body_err else 400
+            self._error(code, body_err)
+            return
         if _is_prod_blocked_path(path, cfg):
             self._error(403, "dev/testnet endpoint disabled in production")
             return

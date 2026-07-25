@@ -49,8 +49,12 @@ class ValidatorKeys:
         return attestation
     
     def verify_attestation(self, attestation: dict) -> bool:
-        """Verify attestation signature"""
+        """Verify attestation signature and bind pubkey → claimed validator (v1.3.65)."""
         if "signature" not in attestation or "public_key" not in attestation:
+            return False
+
+        claimed = str(attestation.get("validator") or "").strip().lower()
+        if not claimed:
             return False
 
         try:
@@ -59,9 +63,17 @@ class ValidatorKeys:
         except (TypeError, ValueError):
             return False
 
+        from crypto.keys import KeyGenerator
         from crypto import native
 
-        return native.verify_attestation_secp256k1(attestation, signature, public_key)
+        try:
+            derived = KeyGenerator.derive_address(public_key).strip().lower()
+        except Exception:
+            return False
+        if derived != claimed:
+            return False
+
+        return bool(native.verify_attestation_secp256k1(attestation, signature, public_key))
     
     def get_public_key(self) -> str:
         return self.wallet.public_key if self.wallet else ""

@@ -32,6 +32,10 @@ def _rocks_available() -> bool:
         return False
 
 
+class AccountCorruptError(RuntimeError):
+    """Account blob present in Rocks but JSON decode failed (v1.3.65)."""
+
+
 class RocksChainStore:
     """Production chain/state store backed by RocksDB (native PyO3)."""
 
@@ -384,14 +388,10 @@ class RocksChainStore:
             }
         row = self._loads_json_or_none(raw, context=f"account {address}")
         if row is None:
-            return {
-                "address": SqliteDatabase._normalize_address(address),
-                "balance": 0.0,
-                "balance_satoshi": 0,
-                "nonce": 0,
-                "code": None,
-                "storage": None,
-            }
+            # v1.3.65: corrupt blob must not become a zero-balance account.
+            raise AccountCorruptError(
+                f"corrupt_account_blob:{SqliteDatabase._normalize_address(address)}"
+            )
         # Backfill satoshi for legacy float-only rows (in-memory; persisted on next write)
         if row.get("balance_satoshi") is None:
             dual_write_balance(row, row.get("balance", 0) or 0)

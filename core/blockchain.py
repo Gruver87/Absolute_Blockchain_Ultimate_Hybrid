@@ -285,6 +285,13 @@ class Blockchain:
         self.evm = None  # execution.evm_adapter.EVMAdapter
         self._state_root_baseline = 0
 
+    def _native_apply_fail_closed(self) -> bool:
+        """Prod / require_native_crypto: never silently fall back after native apply failure."""
+        if bool(getattr(self.config, "require_native_crypto", False)):
+            return True
+        mode = str(getattr(self.config, "deployment_mode", "dev") or "dev").lower()
+        return mode in ("prod", "production")
+
         self._ensure_genesis()
         h = self.get_height()
         cutoff = int(getattr(self.config, "state_root_legacy_cutoff_height", 0) or 0)
@@ -563,6 +570,8 @@ class Blockchain:
                             block_burned = self._apply_simple_block_native(block)
                             native_applied = True
                         except Exception as native_exc:
+                            if self._native_apply_fail_closed():
+                                raise
                             _logger.debug(
                                 "[Blockchain] native simple apply fallback #%s: %s",
                                 block.height,
@@ -578,6 +587,8 @@ class Blockchain:
                             block_burned = self._apply_evm_host_block_native(block)
                             native_applied = True
                         except Exception as native_exc:
+                            if self._native_apply_fail_closed():
+                                raise
                             _logger.debug(
                                 "[Blockchain] native host-effects apply fallback #%s: %s",
                                 block.height,
@@ -593,6 +604,8 @@ class Blockchain:
                             block_burned = self._apply_mixed_block_native(block)
                             native_applied = True
                         except Exception as native_exc:
+                            if self._native_apply_fail_closed():
+                                raise
                             _logger.debug(
                                 "[Blockchain] native mixed apply fallback #%s: %s",
                                 block.height,
@@ -1595,6 +1608,8 @@ class Blockchain:
                             self._replay_simple_range_native(ancestor_height, alloc)
                             native_replayed = True
                         except Exception as native_exc:
+                            if self._native_apply_fail_closed():
+                                raise
                             _logger.debug(
                                 "[Blockchain] native reorg replay fallback: %s", native_exc
                             )

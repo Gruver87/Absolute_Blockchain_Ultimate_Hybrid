@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.64-industrial"
+    node_version: str = "1.3.65-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -158,6 +158,8 @@ class Config:
     sqlite_synchronous: str = "NORMAL"      # prod: FULL
     metrics_enabled: bool = True
     require_native_crypto: bool = False     # prod: require abs_native PyO3 kernels
+    http_max_body_bytes: int = 1_048_576    # v1.3.65: REST/RPC body cap (1 MiB)
+    jsonrpc_max_batch: int = 32             # v1.3.65: max JSON-RPC batch elements
 
     # ── Scale / HA (Phase 5) ────────────────────────────────────────────────
     redis_url: str = ""                     # redis://localhost:6379/0

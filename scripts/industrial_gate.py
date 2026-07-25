@@ -1247,8 +1247,29 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "storage" / "hybrid_database.py"
         ).read_text(encoding="utf-8"):
             errors.append("hybrid_database must delegate load_writeback_accounts")
+        # v1.3.65 — L1 fail-closed hardening
+        vk_py = (ROOT / "crypto" / "validator_keys.py").read_text(encoding="utf-8")
+        if "derive_address" not in vk_py:
+            errors.append("validator_keys.verify_attestation must bind pubkey→validator (v1.3.65)")
+        p2p_py = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+        if "validator_register_disabled" not in p2p_py:
+            errors.append("p2p must disable unauthenticated validator_register in prod (v1.3.65)")
+        if "attestation_verifier_unavailable" not in p2p_py:
+            errors.append("p2p must fail-closed when attestation verifier missing (v1.3.65)")
+        bc_py = (ROOT / "core" / "blockchain.py").read_text(encoding="utf-8")
+        if "_native_apply_fail_closed" not in bc_py:
+            errors.append("blockchain must fail-closed native apply in prod (v1.3.65)")
+        amount_py = (ROOT / "runtime" / "amount.py").read_text(encoding="utf-8")
+        if "ABS_REQUIRE_NATIVE_CRYPTO" not in amount_py:
+            errors.append("amount._native_required must honor ABS_REQUIRE_NATIVE_CRYPTO (v1.3.65)")
+        rocks_py2 = (ROOT / "storage" / "rocks_store.py").read_text(encoding="utf-8")
+        if "AccountCorruptError" not in rocks_py2:
+            errors.append("rocks_store must raise AccountCorruptError on corrupt account (v1.3.65)")
+        http_py = (ROOT / "api" / "http.py").read_text(encoding="utf-8")
+        if "_read_limited_body" not in http_py or "batch too large" not in http_py:
+            errors.append("http must cap body size and JSON-RPC batch (v1.3.65)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..64 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..65 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

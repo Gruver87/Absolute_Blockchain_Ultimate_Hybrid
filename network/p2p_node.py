@@ -1139,7 +1139,20 @@ class P2PNode:
                 self._remove_peer(peer.peer_id, peer)
 
     async def _handle_validator_register(self, peer: PeerConnection, data: Dict):
-        """Register peer validator in local consensus when announced."""
+        """Register peer validator in local consensus when announced.
+
+        v1.3.65: unauthenticated P2P registration is blocked in prod /
+        require_native_crypto — stake identity must come from local/manifest path.
+        """
+        mode = str(getattr(self.config, "deployment_mode", "dev") or "dev").lower()
+        require_native = bool(getattr(self.config, "require_native_crypto", False))
+        if mode in ("prod", "production", "staging") or require_native:
+            logger.warning(
+                "[P2P] rejecting unauthenticated validator_register from %s (prod fail-closed)",
+                (peer.peer_id or "?")[:12],
+            )
+            self._strike_peer_sync(peer, "validator_register_disabled")
+            return
         parsed = native.validate_p2p_validator_register(data)
         if not parsed:
             self._strike_peer_sync(peer, "bad_validator_register")
@@ -1187,14 +1200,21 @@ class P2PNode:
             self._strike_peer_sync(peer, "bad_attestation_shape")
             return
         vkeys = self.validator_keys
-        if vkeys and hasattr(vkeys, "verify_attestation"):
-            if not vkeys.verify_attestation(data):
-                logger.warning(
-                    "[P2P] Invalid attestation sig from %s",
-                    (peer.peer_id or "?")[:12],
-                )
-                self._strike_peer_sync(peer, "bad_attestation_sig")
-                return
+        # v1.3.65: never accept attestations without a verifier (fail-closed).
+        if not vkeys or not hasattr(vkeys, "verify_attestation"):
+            logger.warning(
+                "[P2P] attestation rejected — verifier unavailable from %s",
+                (peer.peer_id or "?")[:12],
+            )
+            self._strike_peer_sync(peer, "attestation_verifier_unavailable")
+            return
+        if not vkeys.verify_attestation(data):
+            logger.warning(
+                "[P2P] Invalid attestation sig/identity from %s",
+                (peer.peer_id or "?")[:12],
+            )
+            self._strike_peer_sync(peer, "bad_attestation_sig")
+            return
         validator = data.get("validator", "")
         block_hash = data.get("target_hash", "")
         if not validator or not block_hash:

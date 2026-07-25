@@ -22,12 +22,11 @@ _native_fallback_warned = False
 
 
 def _native_required() -> bool:
-    return os.environ.get("REQUIRE_NATIVE_CRYPTO", "").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-        "on",
-    )
+    """Fail-closed when prod-canonical ABS_REQUIRE_NATIVE_CRYPTO is set (v1.3.65)."""
+    for key in ("ABS_REQUIRE_NATIVE_CRYPTO", "REQUIRE_NATIVE_CRYPTO"):
+        if os.environ.get(key, "").strip().lower() in ("1", "true", "yes", "on"):
+            return True
+    return False
 
 
 def _native_fallback(op: str, exc: BaseException) -> None:

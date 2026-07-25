@@ -238,7 +238,11 @@ impl RocksEngine {
                         map.insert("address".into(), Value::String(addr.clone()));
                         Value::Object(map)
                     }
-                    _ => empty_account_row_value(&addr),
+                    _ => {
+                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                            "corrupt_account_blob:{addr}"
+                        )));
+                    }
                 },
                 None => empty_account_row_value(&addr),
             };
