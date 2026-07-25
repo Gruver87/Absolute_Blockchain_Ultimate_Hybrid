@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.87 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.88 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -48,6 +48,7 @@ WAVE_TESTS = [
     "tests/unit/test_v1385_p2p_egress.py",
     "tests/unit/test_v1386_p2p_framer.py",
     "tests/unit/test_v1387_p2p_egress_prepare.py",
+    "tests/unit/test_v1388_native_fuzz.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -351,7 +352,7 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
     ),
     (
         "1.3.87",
-        "runtime/config.py",
+        "RELEASE_NOTES_v1.3.87.md",
         ["1.3.87-industrial"],
     ),
     (
@@ -363,6 +364,26 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "1.3.87",
         "network/p2p_node.py",
         ["_prepare_outbound", "p2p_egress_prepare"],
+    ),
+    (
+        "1.3.88",
+        "runtime/config.py",
+        ["1.3.88-industrial"],
+    ),
+    (
+        "1.3.88",
+        "native/abs_native/src/fuzz_api.rs",
+        ["fuzz_p2p_frame_feed", "fuzz_p2p_wire_parse", "fuzz_p2p_rate_limit_sequence"],
+    ),
+    (
+        "1.3.88",
+        "scripts/fuzz_native.ps1",
+        ["fuzz_p2p_", "cargo fuzz"],
+    ),
+    (
+        "1.3.88",
+        ".github/workflows/fuzz-native.yml",
+        ["cargo fuzz run", "fuzz_p2p_"],
     ),
 ]
 
@@ -391,8 +412,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.87"):
-            errors.append(f"node_version expected 1.3.87-*, got {ver}")
+        if not ver.startswith("1.3.88"):
+            errors.append(f"node_version expected 1.3.88-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

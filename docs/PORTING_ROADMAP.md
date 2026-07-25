@@ -437,6 +437,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.85: P2P outbound egress bandwidth (Priority 40)
 - [x] v1.3.86: P2P NDJSON line framer (Priority 41)
 - [x] v1.3.87: P2P unified egress prepare (Priority 42)
+- [x] v1.3.88: P2P kernel fuzz_api + cargo-fuzz / smoke (Priority 43)
 
 ### Priority 39 — P2P Rust ingress data plane ✅ (v1.3.77–v1.3.78)
 
@@ -460,6 +461,11 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `p2p_egress_prepare`: encode + allowlist + size + egress admit
 - [x] `PeerConnection._prepare_outbound` on send path
 - Remaining: full Rust transport — TCP/TLS/message loop (not claimed)
+
+### Priority 43 — P2P kernel fuzzing ✅ (v1.3.88)
+
+- [x] `fuzz_api` + smoke (`cargo test`) + cargo-fuzz targets + CI
+- Honesty: fuzz ≠ full audit; remaining: full Rust transport (not claimed)
 
 ## Process per module
 

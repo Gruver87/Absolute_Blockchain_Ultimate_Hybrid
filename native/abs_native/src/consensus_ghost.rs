@@ -165,9 +165,7 @@ fn select_head_inner(
                 if let Some(ref best) = best_child {
                     let child_num = tree.get(child).map(|n| n.number).unwrap_or(0);
                     let best_num = tree.get(best).map(|n| n.number).unwrap_or(0);
-                    if child_num > best_num {
-                        best_child = Some(child.clone());
-                    } else if child_num == best_num && child < best {
+                    if child_num > best_num || (child_num == best_num && child < best) {
                         best_child = Some(child.clone());
                     }
                 } else {
@@ -299,7 +297,7 @@ mod tests {
             match &prev {
                 Some(p) => node.insert("parent".into(), Value::String(p.clone())),
                 None => node.insert("parent".into(), Value::Null),
-            }
+            };
             node.insert("number".into(), Value::Number(i.into()));
             node.insert("children".into(), Value::Array(vec![]));
             if let Some(p) = &prev {

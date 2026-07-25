@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.88] — 2026-07-25
+
+### Native — P2P kernel fuzz / smoke
+
+- `fuzz_api`: frame feed, wire parse/roundtrip, rate+egress admit sequences
+- `cdylib`+`rlib`, cargo-fuzz targets, `scripts/fuzz_native.ps1`, CI workflow
+- Honesty: fuzz ≠ full audit; TCP/message loop still Python; not public mainnet
+
 ## [1.3.87] — 2026-07-25
 
 ### P2P — unified native egress prepare

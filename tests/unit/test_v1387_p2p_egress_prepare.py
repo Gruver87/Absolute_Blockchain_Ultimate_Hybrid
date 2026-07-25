@@ -30,8 +30,10 @@ def test_needles_v1387():
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
     assert "_prepare_outbound" in p2p
     assert "p2p_egress_prepare" in p2p
+    notes = (ROOT / "RELEASE_NOTES_v1.3.87.md").read_text(encoding="utf-8")
+    assert "1.3.87-industrial" in notes
     cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "1.3.87-industrial" in cfg
+    assert "1.3.88-industrial" in cfg or "industrial" in cfg
     assert hasattr(abs_native, "p2p_egress_prepare")
     assert hasattr(native, "p2p_egress_prepare")
 

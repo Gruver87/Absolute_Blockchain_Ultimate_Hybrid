@@ -9,7 +9,7 @@
 # ABSOLUTE BLOCKCHAIN ULTIMATE HYBRID — ПОЛНЫЙ СПРАВОЧНИК КОМАНД
 # =============================================================================
 # Автор:     Uladzimir Dabranski (Gruver87) · D.U.P.
-# Версия:    1.3.87-industrial Hybrid  |  API Wave 61
+# Версия:    1.3.88-industrial Hybrid  |  API Wave 61
 # Обновлено: 2026-07-25
 # Проект:    C:\Users\vovun\Desktop\Absolute_Blockchain_Ultimate_Hybrid
 # GitHub:    https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid
@@ -96,7 +96,7 @@
 #
 # Проверка волны API:
 #   (Invoke-RestMethod http://localhost:8080/status).api_wave          # → 61
-#   (Invoke-RestMethod http://localhost:8080/status).node_version      # → 1.3.87-industrial
+#   (Invoke-RestMethod http://localhost:8080/status).node_version      # → 1.3.88-industrial
 #
 
 
@@ -609,6 +609,7 @@ python scripts/verify_p2p_tls_mesh.py
 #   v1.3.85 outbound egress bandwidth
 #   v1.3.86 NDJSON line framer
 #   v1.3.87 unified egress prepare
+#   v1.3.88 P2P kernel fuzz_api / cargo-fuzz smoke
 # Config: p2p_max_bytes_per_sec · p2p_max_outbound_bytes_per_sec · p2p_max_inbound_per_ip
 
 
@@ -884,7 +885,7 @@ CHAIN_ID_SOLO=1337
 BLOCK_TIME_SEC=12
 MAX_SUPPLY_ABS=221000000
 BURN_PERCENT=2
-NODE_VERSION=1.3.87-industrial
+NODE_VERSION=1.3.88-industrial
 API_WAVE=61
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -920,11 +921,11 @@ python scripts/check_secrets.py
 #   docs/EVIDENCE_MATRIX.md         — proven vs not
 #   docs/MAINNET_GAP_ANALYSIS.md    — честный gap list
 #   docs/PORTING_ROADMAP.md         — industrial priorities
-#   RELEASE_NOTES_v1.3.87.md        — последний релиз
+#   RELEASE_NOTES_v1.3.88.md        — последний релиз
 #   CHANGELOG.md
 
 # О проекте (актуально 2026-07-25):
-#   Версия:      1.3.87-industrial
+#   Версия:      1.3.88-industrial
 #   API Wave:    61
 #   Entry:       python main.py
 #   Hybrid:      abs_native (crypto, EVM kernels, P2P wire/rate/frame)
@@ -983,7 +984,7 @@ python scripts/export_audit_pack.py
 
 
 # =============================================================================
-# ЧАСТЬ 28: INDUSTRIAL WAVES MAP (v1.3.65 → v1.3.87)
+# ЧАСТЬ 28: INDUSTRIAL WAVES MAP (v1.3.65 → v1.3.88)
 # =============================================================================
 # Полный roadmap: docs/PORTING_ROADMAP.md
 # Verify: python scripts/verify_industrial_waves.py
@@ -1022,7 +1023,7 @@ python scripts/export_audit_pack.py
 
 
 # =============================================================================
-# КОНЕЦ СПРАВОЧНИКА — Absolute Blockchain Ultimate Hybrid v1.3.87
+# КОНЕЦ СПРАВОЧНИКА — Absolute Blockchain Ultimate Hybrid v1.3.88
 # =============================================================================
 # Следующее обновление файла: после следующего industrial tag (v1.3.88+)
 # Бэкап этой версии: Absolute_Blockchain_All_Commands_FIXED.bak_20260725.txt

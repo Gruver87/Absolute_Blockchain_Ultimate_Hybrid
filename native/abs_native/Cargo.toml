@@ -5,12 +5,17 @@ edition = "2021"
 
 [lib]
 name = "abs_native"
-crate-type = ["cdylib"]
+# rlib: cargo test / cargo-fuzz; cdylib: maturin wheel
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["extension-module"]
+extension-module = ["pyo3/extension-module"]
 
 [dependencies]
 hex = "0.4"
 k256 = { version = "0.13", features = ["ecdsa"] }
-pyo3 = { version = "0.22", features = ["extension-module", "abi3-py310"] }
+pyo3 = { version = "0.22", features = ["abi3-py310"] }
 rocksdb = "0.22"
 serde_json = "1"
 sha2 = "0.10"
@@ -19,6 +24,9 @@ primitive-types = "0.12"
 num-bigint = "0.4"
 num-traits = "0.2"
 rust_decimal = { version = "1", default-features = false, features = ["std"] }
+
+[dev-dependencies]
+rand = "0.8"
 
 [profile.release]
 opt-level = 3

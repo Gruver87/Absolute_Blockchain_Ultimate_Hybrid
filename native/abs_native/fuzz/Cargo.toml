@@ -1,0 +1,33 @@
+[package]
+name = "abs_native-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+abs_native = { path = "..", default-features = false }
+
+[[bin]]
+name = "p2p_frame"
+path = "fuzz_targets/p2p_frame.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "p2p_wire"
+path = "fuzz_targets/p2p_wire.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "p2p_rate_limit"
+path = "fuzz_targets/p2p_rate_limit.rs"
+test = false
+doc = false
+bench = false

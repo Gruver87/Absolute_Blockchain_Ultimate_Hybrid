@@ -11,10 +11,16 @@ mod consensus_select;
 mod eth_tx;
 mod evm_pure_runner;
 mod evm_writeback;
+mod fuzz_api;
 mod p2p_frame;
 mod p2p_ingress;
 mod p2p_rate_limit;
 mod p2p_wire;
+
+pub use fuzz_api::{
+    fuzz_p2p_frame_feed, fuzz_p2p_rate_limit_sequence, fuzz_p2p_wire_parse,
+    fuzz_p2p_wire_parse_allowlist, fuzz_p2p_wire_roundtrip,
+};
 mod rlp;
 mod rocks_keycodec;
 mod state_trie;
@@ -1246,12 +1252,7 @@ fn evm_plan_nested_call_effects(
         if kind == "delegatecall" || kind == "callcode" {
             persist_logs = true;
         }
-        if kind == "call" && value_wei > 0 {
-            persist_value = true;
-            value_from = "caller";
-            value_to = "target";
-            effective_value_wei = value_wei;
-        } else if kind == "callcode" && value_wei > 0 {
+        if (kind == "call" || kind == "callcode") && value_wei > 0 {
             persist_value = true;
             value_from = "caller";
             value_to = "target";

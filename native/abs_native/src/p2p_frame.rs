@@ -17,6 +17,21 @@ pub struct P2PLineFramer {
 }
 
 impl P2PLineFramer {
+    /// Pure-Rust constructor for fuzz / unit tests (same clamp as PyO3 `new`).
+    pub fn rust_new(max_bytes: usize) -> Self {
+        Self {
+            buf: Vec::new(),
+            max_bytes: clamp_max_bytes(max_bytes),
+            skip_until_newline: false,
+            oversize_rejects: 0,
+        }
+    }
+
+    /// Pure-Rust feed for fuzz harnesses.
+    pub fn rust_feed(&mut self, chunk: &[u8]) -> Result<Vec<Vec<u8>>, String> {
+        self.feed_inner(chunk)
+    }
+
     fn feed_inner(&mut self, chunk: &[u8]) -> Result<Vec<Vec<u8>>, String> {
         let mut out: Vec<Vec<u8>> = Vec::new();
         let mut i = 0usize;

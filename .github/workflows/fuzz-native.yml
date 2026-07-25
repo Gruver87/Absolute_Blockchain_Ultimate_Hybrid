@@ -1,0 +1,91 @@
+name: Native P2P Fuzz (abs_native)
+
+# Short libFuzzer runs + Windows-friendly smoke via cargo test.
+# Honesty: green here ≠ full audit / public mainnet / full Rust P2P transport.
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "native/abs_native/**"
+      - ".github/workflows/fuzz-native.yml"
+      - "scripts/fuzz_native.ps1"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "native/abs_native/**"
+      - ".github/workflows/fuzz-native.yml"
+      - "scripts/fuzz_native.ps1"
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: "Max seconds per fuzz target"
+        required: false
+        default: "120"
+
+jobs:
+  smoke:
+    name: P2P fuzz smoke (cargo test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install native build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang libclang-dev cmake pkg-config \
+            libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
+
+      - name: Set up Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Fuzz smoke (frame / wire / rate_limit)
+        run: |
+          cargo test --manifest-path native/abs_native/Cargo.toml fuzz_p2p_ -- --nocapture
+
+  fuzz:
+    name: cargo-fuzz short run
+    runs-on: ubuntu-latest
+    needs: smoke
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install native build deps + clang (libFuzzer)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang libclang-dev cmake pkg-config \
+            libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
+
+      - name: Set up Rust nightly (cargo-fuzz)
+        run: |
+          rustup toolchain install nightly --profile minimal
+          rustup default nightly
+          cargo install cargo-fuzz --locked
+
+      - name: Fuzz p2p_frame / p2p_wire / p2p_rate_limit
+        working-directory: native/abs_native
+        env:
+          SECONDS: ${{ github.event.inputs.seconds || '60' }}
+        run: |
+          set -euo pipefail
+          for t in p2p_frame p2p_wire p2p_rate_limit; do
+            echo "=== cargo fuzz run $t (${SECONDS}s) ==="
+            cargo fuzz run "$t" -- -max_total_time="$SECONDS"
+          done

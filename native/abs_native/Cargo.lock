@@ -12,6 +12,7 @@ dependencies = [
  "num-traits",
  "primitive-types",
  "pyo3",
+ "rand",
  "rocksdb",
  "rust_decimal",
  "serde_json",

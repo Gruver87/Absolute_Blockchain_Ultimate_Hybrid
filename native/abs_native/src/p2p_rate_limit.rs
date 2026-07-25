@@ -53,6 +53,39 @@ pub(crate) fn ingress_cost_units(msg_type: &str, nbytes: u64) -> u64 {
 }
 
 impl P2PRateLimitTable {
+    /// Pure-Rust constructor for fuzz / unit tests (default exempt set).
+    pub fn rust_new(
+        limit: u64,
+        max_strikes: u64,
+        ban_seconds: u64,
+        exempt_types: Option<Vec<String>>,
+        exempt_limit: u64,
+        byte_limit: u64,
+        egress_byte_limit: u64,
+    ) -> Self {
+        let exempt = match exempt_types {
+            Some(list) if !list.is_empty() => list.into_iter().collect(),
+            _ => DEFAULT_EXEMPT.iter().map(|s| (*s).to_string()).collect(),
+        };
+        Self {
+            windows: HashMap::new(),
+            exempt_windows: HashMap::new(),
+            byte_windows: HashMap::new(),
+            egress_byte_windows: HashMap::new(),
+            strikes: HashMap::new(),
+            bans: HashMap::new(),
+            limit,
+            exempt_limit,
+            byte_limit,
+            egress_byte_limit,
+            max_strikes: max_strikes.max(1),
+            ban_seconds: ban_seconds.max(30),
+            exempt,
+            bandwidth_rejects: 0,
+            egress_rejects: 0,
+        }
+    }
+
     fn tick_window(
         map: &mut HashMap<String, (u64, f64)>,
         peer_id: &str,
@@ -168,27 +201,15 @@ impl P2PRateLimitTable {
         byte_limit: u64,
         egress_byte_limit: u64,
     ) -> Self {
-        let exempt = match exempt_types {
-            Some(list) if !list.is_empty() => list.into_iter().collect(),
-            _ => DEFAULT_EXEMPT.iter().map(|s| (*s).to_string()).collect(),
-        };
-        Self {
-            windows: HashMap::new(),
-            exempt_windows: HashMap::new(),
-            byte_windows: HashMap::new(),
-            egress_byte_windows: HashMap::new(),
-            strikes: HashMap::new(),
-            bans: HashMap::new(),
+        Self::rust_new(
             limit,
+            max_strikes,
+            ban_seconds,
+            exempt_types,
             exempt_limit,
             byte_limit,
             egress_byte_limit,
-            max_strikes: max_strikes.max(1),
-            ban_seconds: ban_seconds.max(30),
-            exempt,
-            bandwidth_rejects: 0,
-            egress_rejects: 0,
-        }
+        )
     }
 
     /// True if message type is rate-limit exempt.
@@ -389,7 +410,7 @@ impl P2PRateLimitTable {
 /// Pure helper: whether msg_type is in the default exempt set.
 #[pyfunction]
 fn p2p_rate_limit_is_exempt(msg_type: String) -> bool {
-    DEFAULT_EXEMPT.iter().any(|s| *s == msg_type.as_str())
+    DEFAULT_EXEMPT.contains(&msg_type.as_str())
 }
 
 /// Cost-weighted units for bandwidth budget (v1.3.78).

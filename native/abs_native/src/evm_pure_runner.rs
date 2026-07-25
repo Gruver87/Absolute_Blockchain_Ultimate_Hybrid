@@ -970,7 +970,7 @@ fn inline_storage_dict<'py>(
     let dict = storages.downcast::<PyDict>().ok()?;
     let addr = word_to_address(who);
     let value = dict.get_item(addr.as_str()).ok()??;
-    value.downcast::<PyDict>().ok().map(|d| d.clone())
+    value.downcast::<PyDict>().ok().cloned()
 }
 
 fn store_inline_storage(

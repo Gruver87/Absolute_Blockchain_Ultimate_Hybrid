@@ -579,32 +579,30 @@ impl RocksEngine {
 
     fn prefix_last_bytes(&self, prefix: &[u8]) -> PyResult<Option<(Vec<u8>, Vec<u8>)>> {
         let mut seek = prefix.to_vec();
-        seek.extend(std::iter::repeat(0xffu8).take(32));
+        seek.extend(std::iter::repeat_n(0xffu8, 32));
         if !self.column_families {
-            let iter = self
+            let mut iter = self
                 .db
                 .iterator(IteratorMode::From(&seek, Direction::Reverse));
-            for item in iter {
+            if let Some(item) = iter.next() {
                 let (key, value) = item.map_err(map_db_err)?;
-                if !key.starts_with(prefix) {
-                    break;
+                if key.starts_with(prefix) {
+                    return Ok(Some((key.to_vec(), value.to_vec())));
                 }
-                return Ok(Some((key.to_vec(), value.to_vec())));
             }
             return Ok(None);
         }
         // Prefer primary CF, then legacy default.
         for cf_name in [cf_name_for_key(prefix), CF_DEFAULT] {
             let cf = self.cf_handle(cf_name)?;
-            let iter = self
+            let mut iter = self
                 .db
                 .iterator_cf(cf, IteratorMode::From(&seek, Direction::Reverse));
-            for item in iter {
+            if let Some(item) = iter.next() {
                 let (key, value) = item.map_err(map_db_err)?;
-                if !key.starts_with(prefix) {
-                    break;
+                if key.starts_with(prefix) {
+                    return Ok(Some((key.to_vec(), value.to_vec())));
                 }
-                return Ok(Some((key.to_vec(), value.to_vec())));
             }
         }
         Ok(None)

@@ -1,0 +1,6 @@
+# Local fuzz artifacts (do not commit)
+target/
+corpus/
+artifacts/
+coverage/
+fuzz-*.log
