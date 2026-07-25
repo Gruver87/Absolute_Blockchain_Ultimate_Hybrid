@@ -265,48 +265,57 @@ class EVMAdapter:
             success,
         )
 
-        if not (
-            plan.get("persist_storage")
-            or plan.get("persist_value")
-            or plan.get("persist_logs")
-        ):
+        # Fail-closed: never persist storage/value/logs for reverted nested calls.
+        if not result.get("reverted"):
+            if not (
+                plan.get("persist_storage")
+                or plan.get("persist_value")
+                or plan.get("persist_logs")
+            ):
+                return {
+                    "success": success,
+                    "reverted": False,
+                    "return_data": result.get("return_data", b"") or b"",
+                    "gas_used": result.get("gas_used", 0),
+                }
+
+            if plan.get("persist_storage"):
+                new_storage = {str(k): v for k, v in result.get("storage", {}).items()}
+                owner = (
+                    caller_ctx.address
+                    if plan.get("storage_owner") == "caller"
+                    else target
+                )
+                self.db.update_account_storage(owner, new_storage)
+
+            if plan.get("persist_value") and int(plan.get("effective_value_wei") or 0) > 0:
+                wei_to_abs = int(plan["effective_value_wei"]) / 10**18
+                from_addr = (
+                    caller_ctx.address if plan.get("value_from") == "caller" else caller
+                )
+                to_addr = target if plan.get("value_to") == "target" else target
+                self.db.update_balance(from_addr, -wei_to_abs)
+                self.db.update_balance(to_addr, wei_to_abs)
+
+            if plan.get("persist_logs"):
+                sub_logs = result.get("logs") or []
+                if sub_logs:
+                    self._persist_logs(caller_ctx.address, sub_logs)
+
             return {
                 "success": success,
-                "reverted": result.get("reverted", False),
+                "reverted": False,
                 "return_data": result.get("return_data", b"") or b"",
+                "storage": result.get("storage", {}),
                 "gas_used": result.get("gas_used", 0),
+                "logs": result.get("logs", []),
             }
 
-        if plan.get("persist_storage"):
-            new_storage = {str(k): v for k, v in result.get("storage", {}).items()}
-            owner = (
-                caller_ctx.address
-                if plan.get("storage_owner") == "caller"
-                else target
-            )
-            self.db.update_account_storage(owner, new_storage)
-
-        if plan.get("persist_value") and int(plan.get("effective_value_wei") or 0) > 0:
-            wei_to_abs = int(plan["effective_value_wei"]) / 10**18
-            from_addr = (
-                caller_ctx.address if plan.get("value_from") == "caller" else caller
-            )
-            to_addr = target if plan.get("value_to") == "target" else target
-            self.db.update_balance(from_addr, -wei_to_abs)
-            self.db.update_balance(to_addr, wei_to_abs)
-
-        if plan.get("persist_logs"):
-            sub_logs = result.get("logs") or []
-            if sub_logs:
-                self._persist_logs(caller_ctx.address, sub_logs)
-
         return {
-            "success": success,
-            "reverted": result.get("reverted", False),
+            "success": False,
+            "reverted": True,
             "return_data": result.get("return_data", b"") or b"",
-            "storage": result.get("storage", {}),
             "gas_used": result.get("gas_used", 0),
-            "logs": result.get("logs", []),
         }
 
     def _contract_create_hook(self, init_code: bytes, value: int,
