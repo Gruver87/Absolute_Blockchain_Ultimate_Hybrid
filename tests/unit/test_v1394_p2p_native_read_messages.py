@@ -33,10 +33,10 @@ def test_needles_v1394():
     assert "read_messages" in p2p
     assert "_native_read_messages" in p2p
     cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "1.3.94-industrial" in cfg
+    assert "p2p_native_transport" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.94.md").read_text(encoding="utf-8")
     assert "1.3.94-industrial" in notes
-    assert Config().node_version == "1.3.94-industrial"
+    assert "1.3.94" in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert hasattr(abs_native.P2PNativeConn, "read_messages")
 
 

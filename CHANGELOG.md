@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.95] — 2026-07-25
+
+### P2P — native write_messages / write_payloads batch
+
+- Batch encode+write and batch write of prepared payloads
+- Send-loop drains queue into one native hop when possible
+- Honesty: still not full message-loop / libp2p; egress admit stays Python
+
 ## [1.3.94] — 2026-07-25
 
 ### P2P — native read_messages batch pump

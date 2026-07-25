@@ -212,6 +212,7 @@ class PeerConnection:
         self._pending_lines: list = []
         self._pending_msgs: list = []  # v1.3.94 decoded batch from read_messages
         self._native_read_batch: int = 8
+        self._native_write_batch: int = 8
         self._use_egress_prepare = False  # v1.3.87 unified prepare
         self._egress_max_bytes = DEFAULT_MAX_P2P_LINE_BYTES
         # v1.3.66/72: bounded outbound queue (config-driven size + drain timeout)
@@ -290,6 +291,97 @@ class PeerConnection:
             return False
         await self._write_payload(payload)
         return True
+
+    async def _write_messages_batch(self, batch: list) -> list:
+        """v1.3.95: send multiple queued envelopes in one native hop when possible.
+
+        `batch` is a list of (msg_type, data, fut). Returns list of bool results.
+        """
+        if not batch:
+            return []
+        if len(batch) == 1:
+            msg_type, data, _fut = batch[0]
+            return [await self._write_message(msg_type, data)]
+
+        use_native = self._native_conn is not None
+        # Egress-prepare path: admit/encode on main thread, then write_payloads.
+        if (
+            use_native
+            and hasattr(self._native_conn, "write_payloads")
+            and (
+                (self._use_egress_prepare and hasattr(native, "p2p_egress_prepare"))
+                or (
+                    self._rl_table is not None
+                    and hasattr(self._rl_table, "admit_egress")
+                )
+            )
+        ):
+            payloads: list = []
+            results = [False] * len(batch)
+            for i, (msg_type, data, _fut) in enumerate(batch):
+                payload = self._prepare_outbound(msg_type, data)
+                if payload is None:
+                    results[i] = False
+                else:
+                    payloads.append((i, payload))
+            if payloads:
+                out = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self._native_conn.write_payloads,
+                        [p for _i, p in payloads],
+                    ),
+                    timeout=self._drain_timeout_sec,
+                )
+                ok = isinstance(out, dict) and bool(out.get("ok"))
+                written = int(out.get("written") or out.get("count") or 0) if isinstance(out, dict) else 0
+                if ok:
+                    for i, _p in payloads:
+                        results[i] = True
+                else:
+                    for n, (i, _p) in enumerate(payloads):
+                        results[i] = n < written
+                    logger.warning(
+                        "[P2P] write_payloads reject to %s (%s)",
+                        self.peer_id or self.host,
+                        (out or {}).get("reason") if isinstance(out, dict) else "write_failed",
+                    )
+            return results
+
+        # Pure encode+write batch (no egress table).
+        if use_native and hasattr(self._native_conn, "write_messages"):
+            import json
+
+            items = []
+            for msg_type, data, _fut in batch:
+                data_json = (
+                    "null"
+                    if data is None
+                    else json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+                )
+                items.append((str(msg_type or ""), data_json))
+            out = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self._native_conn.write_messages,
+                    items,
+                    list(ALLOWED_WIRE_TYPES),
+                ),
+                timeout=self._drain_timeout_sec,
+            )
+            if isinstance(out, dict) and out.get("ok"):
+                return [True] * len(batch)
+            written = int(out.get("written") or 0) if isinstance(out, dict) else 0
+            logger.warning(
+                "[P2P] write_messages reject to %s (%s)",
+                self.peer_id or self.host,
+                (out or {}).get("reason") if isinstance(out, dict) else "write_failed",
+            )
+            return [i < written for i in range(len(batch))]
+
+        # Fallback: one-by-one.
+        results = []
+        for msg_type, data, _fut in batch:
+            results.append(await self._write_message(msg_type, data))
+        return results
 
     def _egress_peer_key(self) -> str:
         if self.peer_id:
@@ -387,10 +479,21 @@ class PeerConnection:
                 break
             if item is None:
                 break
-            msg_type, data, fut = item
-            ok = False
+            batch = [item]
+            # v1.3.95: drain additional pending items for one native write hop.
+            max_batch = max(1, int(getattr(self, "_native_write_batch", 8) or 8))
+            while len(batch) < max_batch:
+                try:
+                    nxt = self._send_q.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+                if nxt is None:
+                    # Re-queue sentinel by finishing after this batch.
+                    self._send_q.put_nowait(None)
+                    break
+                batch.append(nxt)
             try:
-                ok = await self._write_message(msg_type, data)
+                results = await self._write_messages_batch(batch)
             except Exception as e:
                 logger.warning("[P2P] send error to %s: %s", self.peer_id or self.host, e)
                 cb = self._on_send_fail
@@ -399,8 +502,10 @@ class PeerConnection:
                         cb()
                     except Exception:
                         pass
-            if fut is not None and not fut.done():
-                fut.set_result(ok)
+                results = [False] * len(batch)
+            for (_msg_type, _data, fut), ok in zip(batch, results):
+                if fut is not None and not fut.done():
+                    fut.set_result(bool(ok))
 
     async def send(self, msg_type: str, data: Any = None) -> bool:
         """Отправляет JSON-сообщение пиру. Returns False on write failure / queue full."""
@@ -870,6 +975,7 @@ class P2PNode:
         self._native_read_message = False
         self._native_write_message = False
         self._native_read_messages = False
+        self._native_write_messages = False
         if self._use_native_transport:
             try:
                 import abs_native as _abs_nat
@@ -878,10 +984,14 @@ class P2PNode:
                 self._native_read_message = hasattr(_cls, "read_message")
                 self._native_write_message = hasattr(_cls, "write_message")
                 self._native_read_messages = hasattr(_cls, "read_messages")
+                self._native_write_messages = hasattr(_cls, "write_messages") and hasattr(
+                    _cls, "write_payloads"
+                )
             except Exception:
                 self._native_read_message = False
                 self._native_write_message = False
                 self._native_read_messages = False
+                self._native_write_messages = False
         self._handshake_rejects: int = 0
         self._eclipse_at_risk: int = 0
         self._eclipse_ratio: float = 0.0
@@ -1118,7 +1228,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.94)"
+                    f"({label} v1.3.95)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -3522,6 +3632,7 @@ class P2PNode:
             "native_read_message": bool(getattr(self, "_native_read_message", False)),
             "native_write_message": bool(getattr(self, "_native_write_message", False)),
             "native_read_messages": bool(getattr(self, "_native_read_messages", False)),
+            "native_write_messages": bool(getattr(self, "_native_write_messages", False)),
             "native_accept_total": int(self._native_accept_total or 0),
             "native_accept_errors": int(self._native_accept_errors or 0),
             "native_connect_total": int(self._native_connect_total or 0),

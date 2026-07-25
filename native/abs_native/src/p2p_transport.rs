@@ -1,9 +1,10 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.94).
+//! Native P2P TCP(+TLS) transport (v1.3.90–v1.3.95).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
 //! v1.3.92: `read_message` fuses framed read + wire parse.
 //! v1.3.93: `write_message` fuses wire encode + write.
 //! v1.3.94: `read_messages` batch drain (still not full message-loop).
+//! v1.3.95: `write_messages` / `write_payloads` batch send.
 //! Python remains the control plane (handshake, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -771,6 +772,133 @@ impl P2PNativeConn {
                 let dict = PyDict::new_bound(py);
                 dict.set_item("ok", false)?;
                 dict.set_item("reason", short)?;
+                Ok(dict.into_any().unbind())
+            }
+        }
+    }
+
+    /// Batch wire encode + write (v1.3.95).
+    ///
+    /// `items` is a list of `(msg_type, data_json)` tuples.
+    /// `{ok:true, nbytes, count}` | `{ok:false, reason, written, count}`.
+    #[pyo3(signature = (items, allowed_types=None))]
+    fn write_messages(
+        &mut self,
+        py: Python<'_>,
+        items: Vec<(String, String)>,
+        allowed_types: Option<Vec<String>>,
+    ) -> PyResult<PyObject> {
+        if items.is_empty() {
+            let dict = PyDict::new_bound(py);
+            dict.set_item("ok", true)?;
+            dict.set_item("nbytes", 0usize)?;
+            dict.set_item("count", 0usize)?;
+            return Ok(dict.into_any().unbind());
+        }
+        if items.len() > 64 {
+            let dict = PyDict::new_bound(py);
+            dict.set_item("ok", false)?;
+            dict.set_item("reason", "p2p_batch_too_large")?;
+            dict.set_item("written", 0usize)?;
+            dict.set_item("count", 0usize)?;
+            return Ok(dict.into_any().unbind());
+        }
+        let allowed_set: Option<HashSet<String>> =
+            allowed_types.map(|items| items.into_iter().collect());
+        let max_bytes = self.max_bytes;
+        let result = py.allow_threads(|| -> Result<(usize, usize), (String, usize, usize)> {
+            let mut total = 0usize;
+            let mut written = 0usize;
+            for (msg_type, data_json) in &items {
+                if let Some(ref allowed) = allowed_set {
+                    if !allowed.is_empty() && !allowed.contains(msg_type) {
+                        return Err((
+                            format!("p2p_type_not_allowed:{msg_type}"),
+                            total,
+                            written,
+                        ));
+                    }
+                }
+                let payload = encode_p2p_wire_message_inner(msg_type, data_json)
+                    .map_err(|e| (e, total, written))?;
+                if payload.len() > max_bytes {
+                    return Err(("p2p_line_too_large".to_string(), total, written));
+                }
+                self.write_inner(&payload)
+                    .map_err(|e| (e, total, written))?;
+                total = total.saturating_add(payload.len());
+                written = written.saturating_add(1);
+            }
+            Ok((total, written))
+        });
+        match result {
+            Ok((nbytes, count)) => {
+                let dict = PyDict::new_bound(py);
+                dict.set_item("ok", true)?;
+                dict.set_item("nbytes", nbytes)?;
+                dict.set_item("count", count)?;
+                Ok(dict.into_any().unbind())
+            }
+            Err((reason, nbytes, written)) => {
+                let short = wire_fail_reason(&reason);
+                let dict = PyDict::new_bound(py);
+                dict.set_item("ok", false)?;
+                dict.set_item("reason", short)?;
+                dict.set_item("nbytes", nbytes)?;
+                dict.set_item("written", written)?;
+                dict.set_item("count", written)?;
+                Ok(dict.into_any().unbind())
+            }
+        }
+    }
+
+    /// Batch write of already-encoded payloads (v1.3.95).
+    ///
+    /// For egress-prepare path: Python admits/encodes, then one native write hop.
+    /// `{ok:true, nbytes, count}` | `{ok:false, reason, written, count}`.
+    fn write_payloads(&mut self, py: Python<'_>, payloads: Vec<Vec<u8>>) -> PyResult<PyObject> {
+        if payloads.is_empty() {
+            let dict = PyDict::new_bound(py);
+            dict.set_item("ok", true)?;
+            dict.set_item("nbytes", 0usize)?;
+            dict.set_item("count", 0usize)?;
+            return Ok(dict.into_any().unbind());
+        }
+        if payloads.len() > 64 {
+            let dict = PyDict::new_bound(py);
+            dict.set_item("ok", false)?;
+            dict.set_item("reason", "p2p_batch_too_large")?;
+            dict.set_item("written", 0usize)?;
+            dict.set_item("count", 0usize)?;
+            return Ok(dict.into_any().unbind());
+        }
+        let result = py.allow_threads(|| -> Result<(usize, usize), (String, usize, usize)> {
+            let mut total = 0usize;
+            let mut written = 0usize;
+            for payload in &payloads {
+                self.write_inner(payload)
+                    .map_err(|e| (e, total, written))?;
+                total = total.saturating_add(payload.len());
+                written = written.saturating_add(1);
+            }
+            Ok((total, written))
+        });
+        match result {
+            Ok((nbytes, count)) => {
+                let dict = PyDict::new_bound(py);
+                dict.set_item("ok", true)?;
+                dict.set_item("nbytes", nbytes)?;
+                dict.set_item("count", count)?;
+                Ok(dict.into_any().unbind())
+            }
+            Err((reason, nbytes, written)) => {
+                let short = wire_fail_reason(&reason);
+                let dict = PyDict::new_bound(py);
+                dict.set_item("ok", false)?;
+                dict.set_item("reason", short)?;
+                dict.set_item("nbytes", nbytes)?;
+                dict.set_item("written", written)?;
+                dict.set_item("count", written)?;
                 Ok(dict.into_any().unbind())
             }
         }
