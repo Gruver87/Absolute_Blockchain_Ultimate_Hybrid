@@ -180,6 +180,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "validate_p2p_get_block_by_hash",
             "validate_p2p_blocks_batch",
             "verify_p2p_blocks_response_semantics",
+            "verify_p2p_block_response_semantics",
             "validate_p2p_cross_shard_tx",
             "validate_p2p_cross_shard_ack",
             "validate_p2p_shard_migration",
@@ -3154,6 +3155,32 @@ def verify_p2p_blocks_response_semantics(
         )
         return str(result) if result else None
     return "blocks_response_native_required"
+
+
+def verify_p2p_block_response_semantics(
+    data: Any,
+    expected_hash: str,
+    *,
+    allow_null: bool = True,
+) -> Optional[str]:
+    """v1.3.126: request-bound singular block response (hash must match request).
+
+    Null/None = not-found OK when allow_null. Fail-closed without native.
+    """
+    if data is None:
+        payload = "null"
+    elif isinstance(data, str):
+        payload = data
+    else:
+        payload = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+    if _native is not None and hasattr(_native, "verify_p2p_block_response_semantics"):
+        result = _native.verify_p2p_block_response_semantics(
+            payload,
+            str(expected_hash or ""),
+            bool(allow_null),
+        )
+        return str(result) if result else None
+    return "block_response_native_required"
 
 
 def validate_p2p_cross_shard_tx(data: Any) -> Optional[dict]:

@@ -1069,6 +1069,58 @@ fn verify_p2p_blocks_response_semantics(
     }
 }
 
+fn normalize_hash_cmp(s: &str) -> String {
+    let t = s.trim();
+    let t = t
+        .strip_prefix("0x")
+        .or_else(|| t.strip_prefix("0X"))
+        .unwrap_or(t);
+    t.to_ascii_lowercase()
+}
+
+/// v1.3.126: request-bound singular `block` response — claimed hash must match request.
+/// Null = not-found OK when allow_null. Tip proof / fork-choice stay Python.
+pub(crate) fn verify_block_response_semantics_inner(
+    data: &Value,
+    expected_hash: &str,
+    allow_null: bool,
+) -> Result<(), String> {
+    if data.is_null() {
+        if allow_null {
+            return Ok(());
+        }
+        return Err("empty_block_response".to_string());
+    }
+    let exp = expected_hash.trim();
+    if exp.is_empty() {
+        return Err("bad_block_response_expected".to_string());
+    }
+    verify_block_announce_semantics_inner(data)?;
+    let Some((_, claimed)) = validate_block_announce_inner(data) else {
+        return Err("bad_block_announce".to_string());
+    };
+    if normalize_hash_cmp(&claimed) != normalize_hash_cmp(exp) {
+        return Err("bad_block_response_hash".to_string());
+    }
+    Ok(())
+}
+
+#[pyfunction]
+fn verify_p2p_block_response_semantics(
+    data_json: String,
+    expected_hash: String,
+    allow_null: bool,
+) -> PyResult<Option<String>> {
+    let value: Value = match serde_json::from_str(&data_json) {
+        Ok(v) => v,
+        Err(_) => return Ok(Some("bad_block_announce".to_string())),
+    };
+    match verify_block_response_semantics_inner(&value, &expected_hash, allow_null) {
+        Ok(()) => Ok(None),
+        Err(reason) => Ok(Some(reason)),
+    }
+}
+
 #[pyfunction]
 fn validate_p2p_validator_register(
     py: Python<'_>,
@@ -1375,6 +1427,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_p2p_get_block_by_hash, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_blocks_batch, m)?)?;
     m.add_function(wrap_pyfunction!(verify_p2p_blocks_response_semantics, m)?)?;
+    m.add_function(wrap_pyfunction!(verify_p2p_block_response_semantics, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_cross_shard_tx, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_cross_shard_ack, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_shard_migration, m)?)?;

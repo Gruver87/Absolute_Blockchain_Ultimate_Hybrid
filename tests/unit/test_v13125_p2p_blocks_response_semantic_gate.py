@@ -60,7 +60,7 @@ def test_needles_v13125():
     assert "p2p_native_message_loop_shell" in http
     notes = (ROOT / "RELEASE_NOTES_v1.3.125.md").read_text(encoding="utf-8")
     assert "1.3.125-industrial" in notes
-    assert Config().node_version == "1.3.125-industrial"
+    # Live Config().node_version advances with later waves; pin notes not config.
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_blocks_response_semantic_gate" in metrics
     assert "abs_p2p_blocks_response_semantic_rejects_total" in metrics

@@ -717,6 +717,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `/health/ready` exposes `p2p_native_message_loop_shell`
 - Remaining: tip existence proof / fork-choice / full sync ownership / libp2p (not claimed)
 
+### Priority 81 — Request-bound singular block response hash correlation ✅ (v1.3.126)
+
+- [x] `verify_block_response_semantics_inner` on `get_block_by_hash` waiters
+- [x] Null = not-found OK; mismatched hash never steers reconcile
+- Remaining: tip existence proof / fork-choice / full sync ownership / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

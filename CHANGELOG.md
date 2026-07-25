@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.126] — 2026-07-25
+
+### P2P — request-bound singular block response hash gate
+
+- Sync waiters for `get_block_by_hash` require matching claimed hash (or null not-found)
+- Mismatched well-formed blocks never fulfill fork-reconcile waiters
+- Honesty: not tip proof / fork-choice / full sync ownership / libp2p / mainnet
+
 ## [1.3.125] — 2026-07-25
 
 ### P2P — request-bound blocks response + prod native shell fail-closed
