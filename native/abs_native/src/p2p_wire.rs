@@ -10,7 +10,7 @@ pub(crate) const MIN_P2P_LINE_BYTES: usize = 4096;
 pub(crate) const MAX_P2P_LINE_BYTES: usize = 16 * 1024 * 1024;
 pub(crate) const MAX_P2P_TYPE_LEN: usize = 64;
 
-fn clamp_max_bytes(max_bytes: usize) -> usize {
+pub(crate) fn clamp_max_bytes(max_bytes: usize) -> usize {
     max_bytes.clamp(MIN_P2P_LINE_BYTES, MAX_P2P_LINE_BYTES)
 }
 

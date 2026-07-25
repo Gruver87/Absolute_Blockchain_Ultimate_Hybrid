@@ -196,12 +196,15 @@ class PeerConnection:
         self._on_send_drop: Optional[Callable[[], None]] = None
         self._on_egress_reject: Optional[Callable[[], None]] = None
         self._rl_table = None  # optional native P2PRateLimitTable (egress v1.3.85)
+        self._line_framer = None  # optional native P2PLineFramer (v1.3.86)
+        self._pending_lines: list = []
         # v1.3.66/72: bounded outbound queue (config-driven size + drain timeout)
         qmax = max(8, int(send_queue_max or 256))
         self._send_q: asyncio.Queue = asyncio.Queue(maxsize=qmax)
         self._send_worker: Optional[asyncio.Task] = None
         self._send_drops: int = 0
         self._drain_timeout_sec: float = max(0.5, float(drain_timeout_sec or 5.0))
+        self._read_chunk: int = 65536
 
     def touch(self):
         self.last_seen = time.time()
@@ -318,6 +321,45 @@ class PeerConnection:
         except Exception:
             return False
 
+    async def _read_wire_line(self, limit: int):
+        """Read one NDJSON line via native framer when available (v1.3.86).
+
+        Falls back to asyncio readline. Returns bytes | None (EOF).
+        Raises ValueError with reason p2p_line_too_large on oversize.
+        """
+        if self._pending_lines:
+            return self._pending_lines.pop(0)
+
+        if self._line_framer is None and hasattr(native, "P2PLineFramer"):
+            try:
+                self._line_framer = native.P2PLineFramer(int(limit))
+            except Exception:
+                self._line_framer = None
+
+        framer = self._line_framer
+        if framer is None:
+            return await asyncio.wait_for(self.reader.readline(), timeout=30)
+
+        chunk_sz = max(1024, int(self._read_chunk or 65536))
+        while True:
+            chunk = await asyncio.wait_for(self.reader.read(chunk_sz), timeout=30)
+            if not chunk:
+                # EOF with incomplete pending → treat as closed (no silent partial envelope).
+                if int(getattr(framer, "pending_len", 0) or 0) > 0:
+                    framer.clear()
+                    raise ValueError("p2p_line_incomplete")
+                return None
+            fed = framer.feed(chunk)
+            if not isinstance(fed, dict) or not fed.get("ok"):
+                reason = "p2p_line_too_large"
+                if isinstance(fed, dict):
+                    reason = str(fed.get("reason") or reason)
+                raise ValueError(reason)
+            lines = list(fed.get("lines") or [])
+            if lines:
+                self._pending_lines.extend(lines[1:])
+                return lines[0]
+
     async def recv(self, config=None, *, rl_table=None, peer_key: str = "", use_ingress: bool = False):
         """Читает одно JSON-сообщение от пира.
 
@@ -329,7 +371,7 @@ class PeerConnection:
         """
         limit = _max_p2p_line_bytes(config)
         try:
-            line = await asyncio.wait_for(self.reader.readline(), timeout=30)
+            line = await self._read_wire_line(limit)
             if not line:
                 return None
             if (
@@ -416,6 +458,18 @@ class PeerConnection:
             return parsed
         except asyncio.TimeoutError:
             return {"type": MSG_IDLE, "data": None}
+        except ValueError as exc:
+            reason = str(exc) or "bad_wire_line"
+            if "p2p_line_too_large" in reason:
+                reason = "p2p_line_too_large"
+            elif "p2p_line_incomplete" in reason:
+                reason = "p2p_line_incomplete"
+            logger.warning(
+                "[P2P] wire reject from %s (%s)",
+                self.peer_id or self.host,
+                reason,
+            )
+            return WireReject(reason)
         except Exception as exc:
             logger.warning(
                 "[P2P] recv error from %s: %s",
@@ -2891,6 +2945,7 @@ class P2PNode:
             "native_rate_limit_table": self._rl_table is not None,
             "native_p2p_ingress": bool(self._use_native_ingress and self._rl_table is not None),
             "native_p2p_egress": bool(self._use_native_egress and self._rl_table is not None),
+            "native_p2p_framer": bool(hasattr(native, "P2PLineFramer")),
             "native_conn_governor": self._conn_governor is not None,
             "max_inbound_per_ip": int(getattr(self.config, "p2p_max_inbound_per_ip", 0) or 0),
             "max_bytes_per_sec": int(getattr(self.config, "p2p_max_bytes_per_sec", 0) or 0),

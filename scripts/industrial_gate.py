@@ -1416,8 +1416,20 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         p2p_py = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
         if "_egress_ok" not in p2p_py or "admit_egress" not in p2p_py:
             errors.append("p2p_node must gate send via egress admit (v1.3.85)")
+        # v1.3.86 — NDJSON line framer
+        frame_rs = (ROOT / "native" / "abs_native" / "src" / "p2p_frame.rs").read_text(
+            encoding="utf-8"
+        )
+        if "P2PLineFramer" not in frame_rs or "v1.3.86" not in frame_rs:
+            errors.append("p2p_frame must expose P2PLineFramer (v1.3.86)")
+        if "mod p2p_frame" not in (
+            ROOT / "native" / "abs_native" / "src" / "lib.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append("abs_native lib.rs must register p2p_frame (v1.3.86)")
+        if "_read_wire_line" not in p2p_py or "P2PLineFramer" not in p2p_py:
+            errors.append("p2p_node must wire native line framer (v1.3.86)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..85 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..86 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

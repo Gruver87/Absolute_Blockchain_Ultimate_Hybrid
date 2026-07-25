@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.86] — 2026-07-25
+
+### P2P — native NDJSON line framer
+
+- `P2PLineFramer`: buffered chunk → complete `\n` lines; fail-closed oversize before newline
+- Wired into `PeerConnection._read_wire_line` (chunked `read` + framer)
+- Honesty: not full Rust transport; TCP/message loop still Python
+
 ## [1.3.85] — 2026-07-25
 
 ### P2P — outbound egress bandwidth (cost-weighted)

@@ -136,6 +136,8 @@ def native_crypto_status(required: bool = False) -> dict:
             "rocks_key_block_height",
             "P2PRateLimitTable",
             "P2PConnectionGovernor",
+            "P2PLineFramer",
+            "p2p_frame_feed_once",
             "p2p_rate_limit_is_exempt",
             "p2p_rate_limit_tick",
             "p2p_strike_should_ban",
@@ -2558,6 +2560,22 @@ def P2PConnectionGovernor(*args, **kwargs):
     if _native is not None and hasattr(_native, "P2PConnectionGovernor"):
         return _native.P2PConnectionGovernor(*args, **kwargs)
     raise RuntimeError("P2PConnectionGovernor requires abs_native")
+
+
+def P2PLineFramer(*args, **kwargs):
+    """Native NDJSON line framer (v1.3.86)."""
+    _require_native_kernel("P2PLineFramer")
+    if _native is not None and hasattr(_native, "P2PLineFramer"):
+        return _native.P2PLineFramer(*args, **kwargs)
+    raise RuntimeError("P2PLineFramer requires abs_native")
+
+
+def p2p_frame_feed_once(chunk: bytes, max_bytes: int = 2 * 1024 * 1024):
+    """One-shot framer feed for tests (v1.3.86)."""
+    _require_native_kernel("p2p_frame_feed_once")
+    if _native is not None and hasattr(_native, "p2p_frame_feed_once"):
+        return _native.p2p_frame_feed_once(bytes(chunk), int(max_bytes))
+    raise RuntimeError("p2p_frame_feed_once requires abs_native")
 
 
 def p2p_ingress_admit(

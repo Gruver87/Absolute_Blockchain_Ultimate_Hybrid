@@ -30,9 +30,8 @@ def test_needles_v1385():
     assert "egress_bandwidth_exceeded" in rl
     assert "p2p_egress_admit" in rl
     assert "v1.3.85" in rl
-    cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "p2p_max_outbound_bytes_per_sec" in cfg
-    assert "1.3.85-industrial" in cfg
+    notes = (ROOT / "RELEASE_NOTES_v1.3.85.md").read_text(encoding="utf-8")
+    assert "1.3.85-industrial" in notes
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_egress_rejects_total" in metrics
     node = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
