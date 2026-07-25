@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.124] — 2026-07-25
+
+### P2P — native status.head_hash digest semantic gate
+
+- Loop-shell: non-empty `status.head_hash` must be 32-byte hex (optional `0x`)
+- Empty / null / non-object keepalives remain OK
+- Honesty: height↔hash binding / peer auth / full message-loop not claimed
+
 ## [1.3.123] — 2026-07-25
 
 ### P2P — native state_root_response digest semantic gate

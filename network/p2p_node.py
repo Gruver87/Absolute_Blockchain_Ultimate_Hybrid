@@ -1184,6 +1184,7 @@ class P2PNode:
         self._tx_semantic_rejects_total: int = 0
         self._block_semantic_rejects_total: int = 0
         self._state_root_semantic_rejects_total: int = 0
+        self._status_semantic_rejects_total: int = 0
         self._handshake_rejects: int = 0
         self._eclipse_at_risk: int = 0
         self._eclipse_ratio: float = 0.0
@@ -1420,7 +1421,7 @@ class P2PNode:
                 label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"({label} v1.3.123)"
+                    f"({label} v1.3.124)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -2026,6 +2027,10 @@ class P2PNode:
                             if reason == "bad_state_root_digest":
                                 self._state_root_semantic_rejects_total = int(
                                     self._state_root_semantic_rejects_total or 0
+                                ) + 1
+                            if reason == "bad_status_head_digest":
+                                self._status_semantic_rejects_total = int(
+                                    self._status_semantic_rejects_total or 0
                                 ) + 1
                             if reason == "mid_session_handshake":
                                 self._handshake_rejects = int(
@@ -4072,6 +4077,9 @@ class P2PNode:
             "native_state_root_response_semantic_gate": bool(
                 getattr(self, "_native_message_loop_shell", False)
             ),
+            "native_status_head_hash_semantic_gate": bool(
+                getattr(self, "_native_message_loop_shell", False)
+            ),
             "attestation_semantic_rejects_total": int(
                 getattr(self, "_attestation_semantic_rejects_total", 0) or 0
             ),
@@ -4083,6 +4091,9 @@ class P2PNode:
             ),
             "state_root_semantic_rejects_total": int(
                 getattr(self, "_state_root_semantic_rejects_total", 0) or 0
+            ),
+            "status_semantic_rejects_total": int(
+                getattr(self, "_status_semantic_rejects_total", 0) or 0
             ),
             "native_message_loop_dispatch_total": int(
                 getattr(self, "_native_message_loop_dispatch_total", 0) or 0

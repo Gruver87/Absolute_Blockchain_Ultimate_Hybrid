@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""v1.3.123: native state_root_response digest semantic gate on message-loop shell."""
+"""v1.3.124: native status.head_hash digest semantic gate on message-loop shell."""
 
 from __future__ import annotations
 
@@ -21,7 +21,6 @@ from network.p2p_node import P2PNode
 from runtime.config import Config
 
 DIGEST = "ab" * 32
-DIGEST2 = "cd" * 32
 
 
 def _wire(msg_type: str, data) -> bytes:
@@ -35,30 +34,26 @@ def _wire(msg_type: str, data) -> bytes:
     ).encode("utf-8")
 
 
-def _ok_payload() -> dict:
-    return {"height": 3, "state_root": DIGEST, "head_hash": DIGEST2}
-
-
-def test_needles_v13123():
+def test_needles_v13124():
     transport = (ROOT / "native" / "abs_native" / "src" / "p2p_transport.rs").read_text(
         encoding="utf-8"
     )
     wire = (ROOT / "native" / "abs_native" / "src" / "p2p_wire.rs").read_text(
         encoding="utf-8"
     )
-    assert "check_state_root_response_semantics" in transport
-    assert "verify_state_root_response_semantics_inner" in wire
-    assert "bad_state_root_digest" in wire
-    assert "v1.3.123" in transport
+    assert "check_status_head_hash_semantics" in transport
+    assert "verify_status_head_hash_semantics_inner" in wire
+    assert "bad_status_head_digest" in wire
+    assert "v1.3.124" in transport
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
-    assert "native_state_root_response_semantic_gate" in p2p
-    assert "state_root_semantic_rejects_total" in p2p
-    notes = (ROOT / "RELEASE_NOTES_v1.3.123.md").read_text(encoding="utf-8")
-    assert "1.3.123-industrial" in notes
-    # Live Config().node_version advances with later waves; pin notes not config.
+    assert "native_status_head_hash_semantic_gate" in p2p
+    assert "status_semantic_rejects_total" in p2p
+    notes = (ROOT / "RELEASE_NOTES_v1.3.124.md").read_text(encoding="utf-8")
+    assert "1.3.124-industrial" in notes
+    assert Config().node_version == "1.3.124-industrial"
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
-    assert "abs_p2p_native_state_root_response_semantic_gate" in metrics
-    assert "abs_p2p_state_root_semantic_rejects_total" in metrics
+    assert "abs_p2p_native_status_head_hash_semantic_gate" in metrics
+    assert "abs_p2p_status_semantic_rejects_total" in metrics
 
 
 def _loop_once(payload: bytes) -> dict:
@@ -76,12 +71,7 @@ def _loop_once(payload: bytes) -> dict:
             if out.get("ok") and out.get("conn") is not None:
                 c = out["conn"]
                 got["out"] = c.read_message_loop_events(
-                    8,
-                    65536,
-                    ["state_root_response", "status"],
-                    False,
-                    None,
-                    False,
+                    8, 65536, ["status", "ping"], False, None, False
                 )
                 c.close()
                 return
@@ -100,27 +90,32 @@ def _loop_once(payload: bytes) -> dict:
     not getattr(native, "native_available", lambda: False)(),
     reason="abs_native required",
 )
-def test_native_loop_dispatches_valid_digests():
-    out = _loop_once(_wire("state_root_response", _ok_payload()))
+def test_native_loop_dispatches_valid_head_hash():
+    out = _loop_once(_wire("status", {"height": 1, "head_hash": DIGEST}))
     assert out.get("ok") is True
     events = list(out.get("events") or [])
-    assert any(
-        e.get("action") == "dispatch" and e.get("type") == "state_root_response"
-        for e in events
-    )
+    assert any(e.get("action") == "dispatch" and e.get("type") == "status" for e in events)
 
 
 @pytest.mark.skipif(
     not getattr(native, "native_available", lambda: False)(),
     reason="abs_native required",
 )
-def test_native_loop_strikes_non_hex_root():
-    bad = _ok_payload()
-    bad["state_root"] = "zz" * 32
-    out = _loop_once(_wire("state_root_response", bad))
+def test_native_loop_dispatches_0x_prefixed():
+    out = _loop_once(_wire("status", {"height": 1, "head_hash": "0x" + DIGEST}))
+    events = list(out.get("events") or [])
+    assert any(e.get("action") == "dispatch" and e.get("type") == "status" for e in events)
+
+
+@pytest.mark.skipif(
+    not getattr(native, "native_available", lambda: False)(),
+    reason="abs_native required",
+)
+def test_native_loop_strikes_non_hex():
+    out = _loop_once(_wire("status", {"height": 1, "head_hash": "zz" * 32}))
     events = list(out.get("events") or [])
     assert any(
-        e.get("action") == "strike" and e.get("reason") == "bad_state_root_digest"
+        e.get("action") == "strike" and e.get("reason") == "bad_status_head_digest"
         for e in events
     )
 
@@ -130,12 +125,10 @@ def test_native_loop_strikes_non_hex_root():
     reason="abs_native required",
 )
 def test_native_loop_strikes_wrong_length():
-    bad = _ok_payload()
-    bad["state_root"] = "ab" * 16  # 32 hex = 16 bytes
-    out = _loop_once(_wire("state_root_response", bad))
+    out = _loop_once(_wire("status", {"height": 1, "head_hash": "ab" * 16}))
     events = list(out.get("events") or [])
     assert any(
-        e.get("action") == "strike" and e.get("reason") == "bad_state_root_digest"
+        e.get("action") == "strike" and e.get("reason") == "bad_status_head_digest"
         for e in events
     )
 
@@ -144,31 +137,16 @@ def test_native_loop_strikes_wrong_length():
     not getattr(native, "native_available", lambda: False)(),
     reason="abs_native required",
 )
-def test_native_loop_strikes_bad_head_hash():
-    bad = _ok_payload()
-    bad["head_hash"] = "not-a-digest"
-    out = _loop_once(_wire("state_root_response", bad))
-    events = list(out.get("events") or [])
-    assert any(
-        e.get("action") == "strike" and e.get("reason") == "bad_state_root_digest"
-        for e in events
-    )
+def test_native_loop_empty_and_null_ok():
+    for data in (None, {}, {"height": 0, "head_hash": ""}):
+        out = _loop_once(_wire("status", data))
+        events = list(out.get("events") or [])
+        assert any(
+            e.get("action") == "dispatch" and e.get("type") == "status" for e in events
+        ), data
 
 
-@pytest.mark.skipif(
-    not getattr(native, "native_available", lambda: False)(),
-    reason="abs_native required",
-)
-def test_native_loop_shape_still_strikes_null():
-    out = _loop_once(_wire("state_root_response", None))
-    events = list(out.get("events") or [])
-    assert any(
-        e.get("action") == "strike" and e.get("reason") == "bad_state_root_response"
-        for e in events
-    )
-
-
-def test_status_exposes_state_root_response_semantic_gate():
+def test_status_exposes_status_head_hash_semantic_gate():
     cfg = Config()
     cfg.p2p_native_transport = True
     cfg.p2p_tls_enabled = False
@@ -178,5 +156,5 @@ def test_status_exposes_state_root_response_semantic_gate():
     node = P2PNode(cfg, MagicMock(), MagicMock())
     node._native_message_loop_shell = True
     st = node.get_p2p_security_status()
-    assert st.get("native_state_root_response_semantic_gate") is True
-    assert "state_root_semantic_rejects_total" in st
+    assert st.get("native_status_head_hash_semantic_gate") is True
+    assert "status_semantic_rejects_total" in st

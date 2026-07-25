@@ -456,6 +456,24 @@ pub(crate) fn verify_state_root_response_semantics_inner(data: &Value) -> Result
     Ok(())
 }
 
+/// v1.3.124: non-empty status.head_hash must be a 32-byte hex digest.
+/// Empty / null / non-object keepalives stay OK (genesis may advertise "").
+pub(crate) fn verify_status_head_hash_semantics_inner(data: &Value) -> Result<(), String> {
+    if data.is_null() || !data.is_object() {
+        return Ok(());
+    }
+    let Some((_height, head_hash)) = validate_status_inner(data) else {
+        return Err("bad_status_payload".to_string());
+    };
+    if head_hash.is_empty() {
+        return Ok(());
+    }
+    if !is_digest32_hex(&head_hash) {
+        return Err("bad_status_head_digest".to_string());
+    }
+    Ok(())
+}
+
 #[pyfunction]
 fn validate_p2p_block_announce(py: Python<'_>, data_json: String) -> PyResult<Option<PyObject>> {
     let value: Value = match serde_json::from_str(&data_json) {

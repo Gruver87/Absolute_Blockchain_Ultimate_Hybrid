@@ -32,6 +32,7 @@
 //! v1.3.121: blocks batch canonical-hash semantic gate on loop-shell (per-block; import stays Python).
 //! v1.3.122: singular `block` response canonical-hash semantic gate (null = not-found OK).
 //! v1.3.123: state_root_response digest-semantic gate (32-byte hex; correlation stays Python).
+//! v1.3.124: status.head_hash digest-semantic gate (empty OK; non-empty must be 32-byte hex).
 //! Python remains the control plane (handshake policy, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
@@ -46,7 +47,8 @@ use crate::p2p_wire::{
     validate_validator_register_inner, validate_wire_tx_inner, verify_attestation_semantics_inner,
     verify_block_announce_semantics_inner, verify_blocks_batch_semantics_inner,
     verify_mempool_batch_signatures_inner, verify_state_root_response_semantics_inner,
-    verify_wire_tx_signature_inner, DEFAULT_MAX_P2P_LINE_BYTES,
+    verify_status_head_hash_semantics_inner, verify_wire_tx_signature_inner,
+    DEFAULT_MAX_P2P_LINE_BYTES,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
@@ -274,6 +276,17 @@ fn check_state_root_response_semantics(
         return Ok(());
     }
     verify_state_root_response_semantics_inner(data)
+}
+
+/// v1.3.124: status — non-empty head_hash must be 32-byte hex digest.
+fn check_status_head_hash_semantics(
+    msg_type: &str,
+    data: &serde_json::Value,
+) -> Result<(), String> {
+    if msg_type != "status" {
+        return Ok(());
+    }
+    verify_status_head_hash_semantics_inner(data)
 }
 
 /// v1.3.106: parity with Python `new_block` announce gate (fail-closed).
@@ -1579,6 +1592,11 @@ impl P2PNativeConn {
                         if let Err(reason) =
                             check_state_root_response_semantics(&msg_type, &data)
                         {
+                            terminal_strike = Some(reason);
+                            break;
+                        }
+                        // v1.3.124: status.head_hash digest semantic.
+                        if let Err(reason) = check_status_head_hash_semantics(&msg_type, &data) {
                             terminal_strike = Some(reason);
                             break;
                         }

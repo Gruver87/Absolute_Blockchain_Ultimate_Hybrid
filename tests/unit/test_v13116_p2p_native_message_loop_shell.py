@@ -83,7 +83,7 @@ def test_native_loop_events_dispatch_then_strike():
     conn = native.p2p_native_connect(host, port, 1024 * 1024, 8000)
     good = _wire(
         "status",
-        {"height": 1, "head_hash": "aa", "peer_count": 0},
+        {"height": 1, "head_hash": "aa" * 32, "peer_count": 0},
     )
     bad = _wire("handshake", {"chain_id": 1, "height": 0, "node_id": "x"})
     conn.write(good + bad)

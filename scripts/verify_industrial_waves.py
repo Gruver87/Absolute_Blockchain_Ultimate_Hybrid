@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.123 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.124 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -84,6 +84,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13121_p2p_native_blocks_batch_semantic_gate.py",
     "tests/unit/test_v13122_p2p_native_block_payload_semantic_gate.py",
     "tests/unit/test_v13123_p2p_native_state_root_response_semantic_gate.py",
+    "tests/unit/test_v13124_p2p_native_status_semantic_gate.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1209,6 +1210,34 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_state_root_semantic_rejects_total",
         ],
     ),
+    (
+        "1.3.124",
+        "RELEASE_NOTES_v1.3.124.md",
+        ["1.3.124-industrial", "status"],
+    ),
+    (
+        "1.3.124",
+        "native/abs_native/src/p2p_wire.rs",
+        ["verify_status_head_hash_semantics_inner", "bad_status_head_digest"],
+    ),
+    (
+        "1.3.124",
+        "native/abs_native/src/p2p_transport.rs",
+        ["check_status_head_hash_semantics", "v1.3.124"],
+    ),
+    (
+        "1.3.124",
+        "network/p2p_node.py",
+        ["native_status_head_hash_semantic_gate", "status_semantic_rejects_total"],
+    ),
+    (
+        "1.3.124",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_status_head_hash_semantic_gate",
+            "abs_p2p_status_semantic_rejects_total",
+        ],
+    ),
 ]
 
 
@@ -1236,8 +1265,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.123"):
-            errors.append(f"node_version expected 1.3.123-*, got {ver}")
+        if not ver.startswith("1.3.124"):
+            errors.append(f"node_version expected 1.3.124-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

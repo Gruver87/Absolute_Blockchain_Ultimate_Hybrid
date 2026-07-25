@@ -704,6 +704,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Correlation / root-belongs-to-head / sync ownership stay Python
 - Remaining: full message-loop ownership / libp2p (not claimed)
 
+### Priority 79 — Native status.head_hash digest semantic ingress ✅ (v1.3.124)
+
+- [x] `verify_status_head_hash_semantics_inner` on loop-shell (empty OK; non-empty 32-byte hex)
+- [x] Height↔hash binding / peer auth stay Python
+- Remaining: full message-loop ownership / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
