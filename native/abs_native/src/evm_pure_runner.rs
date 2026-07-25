@@ -96,6 +96,13 @@ fn opcode_stops_segment(
     false
 }
 
+fn bridge_state_has_codes(host_context: Option<&Bound<'_, PyDict>>) -> bool {
+    let Some(state) = bridge_state_dict(host_context) else {
+        return false;
+    };
+    matches!(state.get_item("codes"), Ok(Some(_)))
+}
+
 fn host_opcode_available(
     op: u8,
     host_context: Option<&Bound<'_, PyDict>>,
@@ -106,7 +113,9 @@ fn host_opcode_available(
     }
     match op {
         0xF1 | 0xF2 | 0xF4 | 0xFA => hook_contract_call(host_context).is_some(),
-        0xF0 | 0xF5 => hook_contract_create(host_context).is_some(),
+        0xF0 | 0xF5 => {
+            hook_contract_create(host_context).is_some() || bridge_state_has_codes(host_context)
+        }
         0xFF => hook_selfdestruct(host_context).is_some(),
         _ => false,
     }
@@ -1283,9 +1292,6 @@ fn execute_create_native(
     gas_limit: u64,
     gas_used: &mut u64,
 ) -> PyResult<()> {
-    let create_fn = hook_contract_create(host_context).ok_or_else(|| {
-        pyo3::exceptions::PyRuntimeError::new_err("contract_create_hook_unavailable")
-    })?;
     let salt = if op == 0xF5 {
         Some(stack_pop(stack)?)
     } else {
@@ -1296,6 +1302,25 @@ fn execute_create_native(
     let value = stack_pop(stack)?;
     mem_extend(memory, offset, size);
     let init_code = evm_memory_slice_inner(memory, offset, size);
+
+    // v1.3.80: empty/STOP init CREATE owned in Rust when bridge_state.codes present.
+    if try_inline_simple_create(
+        py,
+        host_context,
+        op,
+        salt,
+        &init_code,
+        value,
+        stack,
+        gas_limit,
+        gas_used,
+    )? {
+        return Ok(());
+    }
+
+    let create_fn = hook_contract_create(host_context).ok_or_else(|| {
+        pyo3::exceptions::PyRuntimeError::new_err("contract_create_hook_unavailable")
+    })?;
     let init_py = PyBytes::new_bound(py, &init_code);
     let value_obj = py_u256_int(py, value)?;
     let out = if let Some(salt_word) = salt {
@@ -1330,6 +1355,114 @@ fn execute_create_native(
         .unwrap_or_default();
     stack_push(stack, addr_string_to_u256(&addr));
     Ok(())
+}
+
+/// Empty or STOP-only init → empty deployed runtime (v1.3.80).
+fn init_is_inline_create_eligible(init: &[u8]) -> bool {
+    init.is_empty() || init == [0x00]
+}
+
+/// v1.3.80 Priority 38: CREATE with empty/STOP init via bridge_state (no Python hook).
+/// CREATE2 and non-trivial init fall through. Value uses fail-closed balances.
+fn try_inline_simple_create(
+    py: Python<'_>,
+    host_context: Option<&Bound<'_, PyDict>>,
+    op: u8,
+    salt: Option<U256>,
+    init_code: &[u8],
+    value: U256,
+    stack: &mut Vec<U256>,
+    gas_limit: u64,
+    gas_used: &mut u64,
+) -> PyResult<bool> {
+    if op != 0xF0 || salt.is_some() {
+        return Ok(false);
+    }
+    if !init_is_inline_create_eligible(init_code) {
+        return Ok(false);
+    }
+    let Some(state) = bridge_state_dict(host_context) else {
+        return Ok(false);
+    };
+    let Ok(Some(codes_any)) = state.get_item("codes") else {
+        return Ok(false);
+    };
+    let Ok(codes) = codes_any.downcast::<PyDict>() else {
+        return Ok(false);
+    };
+
+    let static_ctx = parse_static_context(host_context)?;
+    let deployer = word_to_address(static_ctx.address);
+    let block_n = if static_ctx.block_number > U256::from(u64::MAX) {
+        u64::MAX
+    } else {
+        static_ctx.block_number.low_u64()
+    };
+    let addr = crate::evm_deploy_address_create_inner(&deployer, block_n, init_code.len());
+    let addr_word = addr_string_to_u256(&addr);
+
+    // Collision: non-empty existing code → failed CREATE (push 0).
+    if let Some(existing) = codes.get_item(addr.as_str())? {
+        let occupied = if let Ok(b) = existing.extract::<Vec<u8>>() {
+            !b.is_empty()
+        } else if let Ok(s) = existing.extract::<String>() {
+            !s.is_empty()
+        } else {
+            true
+        };
+        if occupied {
+            stack_push(stack, U256::zero());
+            return Ok(true);
+        }
+    }
+
+    let mut balance_snap: Option<HashMap<String, U256>> = None;
+    if !value.is_zero() {
+        match try_inline_value_transfer(host_context, static_ctx.address, addr_word, value)? {
+            InlineValueTransfer::Unavailable => return Ok(false),
+            InlineValueTransfer::Insufficient => {
+                stack_push(stack, U256::zero());
+                return Ok(true);
+            }
+            InlineValueTransfer::Transferred { snap } => {
+                balance_snap = Some(snap);
+            }
+        }
+    }
+
+    // Charge init execution: STOP=0 gas beyond CREATE base already applied; empty=0.
+    let init_gas: u64 = if init_code.is_empty() {
+        0
+    } else {
+        // Single STOP
+        0
+    };
+    if let Err(_reason) = consume_gas(gas_used, gas_limit, init_gas) {
+        if let Some(ref snap) = balance_snap {
+            restore_inline_balances(host_context, snap)?;
+        }
+        stack_push(stack, U256::zero());
+        return Ok(true);
+    }
+
+    // Persist empty runtime code + empty storage under bridge_state.
+    codes.set_item(addr.as_str(), "")?;
+    if let Ok(Some(storages_any)) = state.get_item("storages") {
+        if let Ok(storages) = storages_any.downcast::<PyDict>() {
+            storages.set_item(addr.as_str(), PyDict::new_bound(py))?;
+        }
+    } else {
+        let storages = PyDict::new_bound(py);
+        storages.set_item(addr.as_str(), PyDict::new_bound(py))?;
+        state.set_item("storages", storages)?;
+    }
+
+    let _ = balance_snap; // success keeps transfer
+    stack_push(stack, addr_word);
+    // Markers on bridge_state (host_context top-level set_item is not always visible).
+    state.set_item("native_inline_simple_create", true)?;
+    state.set_item("native_inline_create_address", addr.as_str())?;
+    Ok(true)
 }
 
 fn execute_selfdestruct_native(
@@ -2281,7 +2414,10 @@ fn run_pure_segment_inner(
                     )?;
                     Ok(Some(false))
                 }
-                op if matches!(op, 0xF0 | 0xF5) && hook_contract_create(host_context).is_some() => {
+                op if matches!(op, 0xF0 | 0xF5)
+                    && (hook_contract_create(host_context).is_some()
+                        || bridge_state_has_codes(host_context)) =>
+                {
                     execute_create_native(
                         py,
                         host_context,

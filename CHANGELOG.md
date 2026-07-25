@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.80] — 2026-07-25
+
+### EVM — inline simple CREATE (empty / STOP init)
+
+- CREATE (`0xF0`) with empty or STOP-only init runs in Rust when `bridge_state.codes` present
+- Address via `evm_deploy_address_create`; empty runtime registered under codes/storages
+- Value transfer fail-closed via balances; insufficient → push 0 without hook
+- CREATE2 / non-trivial init still fall through to Python create hook
+- Honesty: DB satoshi journal ownership / full CREATE2 runtime still not claimed
+
 ## [1.3.79] — 2026-07-25
 
 ### EVM — CALLCODE value ownership (fail-closed balances)

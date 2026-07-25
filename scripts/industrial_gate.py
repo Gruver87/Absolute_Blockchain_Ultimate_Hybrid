@@ -1374,8 +1374,11 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         # v1.3.79 — CALLCODE value
         if "native_inline_callcode_value" not in rust_runner or "v1.3.79" not in rust_runner:
             errors.append("evm_pure_runner must inline CALLCODE value (v1.3.79)")
+        # v1.3.80 — simple CREATE
+        if "try_inline_simple_create" not in rust_runner or "v1.3.80" not in rust_runner:
+            errors.append("evm_pure_runner must inline simple CREATE (v1.3.80)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..79 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..80 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

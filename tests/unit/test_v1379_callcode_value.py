@@ -155,5 +155,5 @@ def test_needles_v1379():
     )
     assert "native_inline_callcode_value" in rust
     assert "v1.3.79" in rust
-    cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "1.3.79-industrial" in cfg
+    notes = (ROOT / "RELEASE_NOTES_v1.3.79.md").read_text(encoding="utf-8")
+    assert "1.3.79-industrial" in notes

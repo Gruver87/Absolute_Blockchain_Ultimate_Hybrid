@@ -630,7 +630,7 @@ pub(crate) fn verify_secp256k1_sha256_inner(
     verifying_key.verify_prehash(&digest, &signature).is_ok()
 }
 
-fn evm_deploy_address_create_inner(
+pub(crate) fn evm_deploy_address_create_inner(
     deployer: &str,
     block_number: u64,
     init_code_len: usize,
