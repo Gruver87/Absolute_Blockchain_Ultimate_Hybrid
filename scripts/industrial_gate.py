@@ -1121,8 +1121,26 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "native" / "abs_native" / "src" / "evm_pure_runner.rs"
         ).read_text(encoding="utf-8"):
             errors.append("evm_pure_runner.rs must define evm_run_nested_host_frame")
+        # v1.3.57 — host opcode bodies in Rust (LOG/CALL/CREATE via thin hooks)
+        runner_rs = (
+            ROOT / "native" / "abs_native" / "src" / "evm_pure_runner.rs"
+        ).read_text(encoding="utf-8")
+        for needle in (
+            "fn execute_log_native",
+            "fn execute_call_native",
+            "fn execute_create_native",
+        ):
+            if needle not in runner_rs:
+                errors.append(f"evm_pure_runner.rs missing {needle} (v1.3.57)")
+        if 'hooks["contract_call"]' not in native_py:
+            errors.append("evm_host_context_from_evm must wire contract_call hook (v1.3.57)")
+        if 'hooks["contract_create"]' not in native_py:
+            errors.append("evm_host_context_from_evm must wire contract_create hook (v1.3.57)")
+        interp = (ROOT / "evm_interpreter.py").read_text(encoding="utf-8")
+        if 'seg.get("logs")' not in interp:
+            errors.append("evm_interpreter must merge native segment logs (v1.3.57)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..56 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..57 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

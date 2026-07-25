@@ -28,16 +28,33 @@ fn opcode_stops_segment(
     host_context: Option<&Bound<'_, PyDict>>,
     host_bridge: Option<&Bound<'_, PyAny>>,
 ) -> bool {
+    // v1.3.57: LOG0–LOG4 always handled in Rust (no Python apply_host_op).
     if (0xA0..=0xA4).contains(&op) {
-        return !log_runtime_available(host_context, host_bridge);
+        return false;
     }
     if evm_opcode_is_host(op) {
-        return !bridge_supports_runtime(host_bridge);
+        return !host_opcode_available(op, host_context, host_bridge);
     }
     if evm_opcode_is_bridge(op) {
         return !bridge_opcode_available(host_context, host_bridge);
     }
     false
+}
+
+fn host_opcode_available(
+    op: u8,
+    host_context: Option<&Bound<'_, PyDict>>,
+    host_bridge: Option<&Bound<'_, PyAny>>,
+) -> bool {
+    if bridge_supports_runtime(host_bridge) {
+        return true;
+    }
+    match op {
+        0xF1 | 0xF2 | 0xF4 | 0xFA => hook_contract_call(host_context).is_some(),
+        0xF0 | 0xF5 => hook_contract_create(host_context).is_some(),
+        0xFF => hook_selfdestruct(host_context).is_some(),
+        _ => false,
+    }
 }
 
 fn bridge_supports_inline(host_context: Option<&Bound<'_, PyDict>>) -> bool {
@@ -423,25 +440,51 @@ fn hook_emit_log<'py>(host_context: Option<&Bound<'py, PyDict>>) -> Option<Bound
     }
 }
 
-fn log_runtime_available(
-    host_context: Option<&Bound<'_, PyDict>>,
-    host_bridge: Option<&Bound<'_, PyAny>>,
-) -> bool {
-    hook_emit_log(host_context).is_some() || bridge_supports_runtime(host_bridge)
+fn hook_contract_call<'py>(host_context: Option<&Bound<'py, PyDict>>) -> Option<Bound<'py, PyAny>> {
+    let hooks = bridge_hooks_dict(host_context)?;
+    match hooks.get_item("contract_call") {
+        Ok(Some(value)) => Some(value),
+        _ => None,
+    }
+}
+
+fn hook_contract_create<'py>(host_context: Option<&Bound<'py, PyDict>>) -> Option<Bound<'py, PyAny>> {
+    let hooks = bridge_hooks_dict(host_context)?;
+    match hooks.get_item("contract_create") {
+        Ok(Some(value)) => Some(value),
+        _ => None,
+    }
+}
+
+fn hook_selfdestruct<'py>(host_context: Option<&Bound<'py, PyDict>>) -> Option<Bound<'py, PyAny>> {
+    let hooks = bridge_hooks_dict(host_context)?;
+    match hooks.get_item("selfdestruct") {
+        Ok(Some(value)) => Some(value),
+        _ => None,
+    }
 }
 
 fn log_opcode_gas(n_topics: usize, data_size: usize) -> u64 {
     375 + (n_topics as u64 * 375) + data_size as u64
 }
 
-fn execute_log_hook(
+type HostLogEntry = (Vec<String>, Vec<u8>);
+
+fn py_u256_int(py: Python<'_>, word: U256) -> PyResult<Bound<'_, PyAny>> {
+    let builtins = py.import_bound("builtins")?;
+    let int_cls = builtins.getattr("int")?;
+    int_cls.call_method1("from_bytes", (u256_to_be32(word).as_slice(), "big"))
+}
+
+fn execute_log_native(
     py: Python<'_>,
-    emit_log: &Bound<'_, PyAny>,
+    host_context: Option<&Bound<'_, PyDict>>,
     op: u8,
     stack: &mut Vec<U256>,
     memory: &mut Vec<u8>,
     gas_used: &mut u64,
     gas_limit: u64,
+    host_logs: &mut Vec<HostLogEntry>,
 ) -> PyResult<()> {
     let n_topics = (op - 0xA0) as usize;
     let mut topics = Vec::with_capacity(n_topics);
@@ -457,15 +500,286 @@ fn execute_log_hook(
     }
     mem_extend(memory, offset, size);
     let data = evm_memory_slice_inner(memory, offset, size);
-    let topics_list = PyList::empty_bound(py);
-    let builtins = py.import_bound("builtins")?;
-    let int_cls = builtins.getattr("int")?;
-    for topic in topics {
-        let bytes = u256_to_be32(topic);
-        let obj = int_cls.call_method1("from_bytes", (bytes.as_slice(), "big"))?;
-        topics_list.append(obj)?;
+    let topic_hex: Vec<String> = topics.iter().map(|t| format!("0x{:x}", t)).collect();
+    host_logs.push((topic_hex, data.clone()));
+
+    if let Some(emit_log) = hook_emit_log(host_context) {
+        let topics_list = PyList::empty_bound(py);
+        for topic in topics {
+            topics_list.append(py_u256_int(py, topic)?)?;
+        }
+        emit_log.call1((n_topics, topics_list, data))?;
     }
-    emit_log.call1((n_topics, topics_list, data))?;
+    Ok(())
+}
+
+fn plan_nested_call_gas(remaining: u64, requested: u64, value_wei: i64, kind: &str) -> u64 {
+    let base_cap = if requested == 0 {
+        remaining.saturating_mul(63) / 64
+    } else {
+        (remaining.saturating_mul(63) / 64).min(requested)
+    };
+    let stipend_applied = value_wei > 0 && (kind == "call" || kind == "callcode");
+    if stipend_applied {
+        remaining.min(base_cap.saturating_add(2300))
+    } else {
+        base_cap
+    }
+}
+
+struct DecodedCall {
+    kind: &'static str,
+    gas: U256,
+    to_word: U256,
+    value: U256,
+    args_offset: usize,
+    args_size: usize,
+    ret_offset: usize,
+    ret_size: usize,
+    delegate: bool,
+    static_call: bool,
+    callcode: bool,
+}
+
+fn decode_call_from_stack(op: u8, stack: &mut Vec<U256>) -> PyResult<DecodedCall> {
+    let (kind, consume, has_value, delegate, static_call, callcode) = match op {
+        0xF1 => ("call", 7usize, true, false, false, false),
+        0xF2 => ("callcode", 7, true, false, false, true),
+        0xF4 => ("delegatecall", 6, false, true, false, false),
+        0xFA => ("staticcall", 6, false, false, true, false),
+        _ => {
+            return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                "unsupported_call_opcode",
+            ))
+        }
+    };
+    if stack.len() < consume {
+        return Err(pyo3::exceptions::PyRuntimeError::new_err("stack_underflow"));
+    }
+    let gas = stack_pop(stack)?;
+    let to_word = stack_pop(stack)?;
+    let value = if has_value {
+        stack_pop(stack)?
+    } else {
+        U256::zero()
+    };
+    let args_offset = stack_pop(stack)?.as_usize();
+    let args_size = stack_pop(stack)?.as_usize();
+    let ret_offset = stack_pop(stack)?.as_usize();
+    let ret_size = stack_pop(stack)?.as_usize();
+    Ok(DecodedCall {
+        kind,
+        gas,
+        to_word,
+        value,
+        args_offset,
+        args_size,
+        ret_offset,
+        ret_size,
+        delegate,
+        static_call,
+        callcode,
+    })
+}
+
+fn write_return_to_memory(memory: &mut Vec<u8>, ret_offset: usize, ret_size: usize, data: &[u8]) {
+    if ret_size == 0 {
+        return;
+    }
+    mem_extend(memory, ret_offset, ret_size);
+    let copy_n = ret_size.min(data.len());
+    memory[ret_offset..ret_offset + copy_n].copy_from_slice(&data[..copy_n]);
+    if copy_n < ret_size {
+        for b in &mut memory[ret_offset + copy_n..ret_offset + ret_size] {
+            *b = 0;
+        }
+    }
+}
+
+fn merge_storage_dict(
+    storage: Option<&Bound<'_, PyDict>>,
+    py_storage: Bound<'_, PyAny>,
+) -> PyResult<()> {
+    let Some(dst) = storage else {
+        return Ok(());
+    };
+    let src = match py_storage.downcast::<PyDict>() {
+        Ok(d) => d,
+        Err(_) => return Ok(()),
+    };
+    dst.clear();
+    for (k, v) in src.iter() {
+        dst.set_item(k, v)?;
+    }
+    Ok(())
+}
+
+fn addr_string_to_u256(addr: &str) -> U256 {
+    let raw = addr.trim().trim_start_matches("0x").trim_start_matches("0X");
+    if raw.is_empty() {
+        return U256::zero();
+    }
+    U256::from_str_radix(raw, 16).unwrap_or(U256::zero())
+}
+
+fn execute_call_native(
+    py: Python<'_>,
+    host_context: Option<&Bound<'_, PyDict>>,
+    op: u8,
+    stack: &mut Vec<U256>,
+    memory: &mut Vec<u8>,
+    gas_limit: u64,
+    gas_used: &mut u64,
+    storage: Option<&Bound<'_, PyDict>>,
+    return_data: &mut Vec<u8>,
+) -> PyResult<()> {
+    let call_fn = hook_contract_call(host_context).ok_or_else(|| {
+        pyo3::exceptions::PyRuntimeError::new_err("contract_call_hook_unavailable")
+    })?;
+    let frame = decode_call_from_stack(op, stack)?;
+    mem_extend(memory, frame.args_offset, frame.args_size);
+    let call_data = evm_memory_slice_inner(memory, frame.args_offset, frame.args_size);
+    let to_addr = word_to_address(frame.to_word);
+    let remaining = gas_limit.saturating_sub(*gas_used);
+    let requested = if frame.gas > U256::from(u64::MAX) {
+        u64::MAX
+    } else {
+        frame.gas.low_u64()
+    };
+    let value_i64 = if frame.value > U256::from(i64::MAX as u64) {
+        i64::MAX
+    } else {
+        frame.value.low_u64() as i64
+    };
+    let call_gas = plan_nested_call_gas(remaining, requested, value_i64, frame.kind);
+    let value_obj = py_u256_int(py, frame.value)?;
+    let out = if frame.callcode {
+        call_fn.call1((
+            to_addr,
+            call_data,
+            value_obj,
+            call_gas,
+            frame.delegate,
+            frame.static_call,
+            true,
+        ))?
+    } else {
+        call_fn.call1((
+            to_addr,
+            call_data,
+            value_obj,
+            call_gas,
+            frame.delegate,
+            frame.static_call,
+        ))?
+    };
+    let out_dict = out.downcast::<PyDict>()?;
+    let sub_gas = out_dict
+        .get_item("gas_used")?
+        .map(|v| v.extract::<u64>().unwrap_or(0))
+        .unwrap_or(0)
+        .min(call_gas);
+    if let Err(reason) = consume_gas(gas_used, gas_limit, sub_gas) {
+        return Err(pyo3::exceptions::PyRuntimeError::new_err(reason));
+    }
+    let rd = out_dict
+        .get_item("return_data")?
+        .map(|v| v.extract::<Vec<u8>>().unwrap_or_default())
+        .unwrap_or_default();
+    *return_data = rd.clone();
+    if frame.delegate || frame.callcode {
+        if let Ok(Some(st)) = out_dict.get_item("storage") {
+            merge_storage_dict(storage, st)?;
+        }
+    }
+    write_return_to_memory(memory, frame.ret_offset, frame.ret_size, &rd);
+    let success = out_dict
+        .get_item("success")?
+        .map(|v| v.is_truthy().unwrap_or(false))
+        .unwrap_or(false);
+    let reverted = out_dict
+        .get_item("reverted")?
+        .map(|v| v.is_truthy().unwrap_or(false))
+        .unwrap_or(false);
+    stack_push(
+        stack,
+        if success && !reverted {
+            U256::one()
+        } else {
+            U256::zero()
+        },
+    );
+    Ok(())
+}
+
+fn execute_create_native(
+    py: Python<'_>,
+    host_context: Option<&Bound<'_, PyDict>>,
+    op: u8,
+    stack: &mut Vec<U256>,
+    memory: &mut Vec<u8>,
+    gas_limit: u64,
+    gas_used: &mut u64,
+) -> PyResult<()> {
+    let create_fn = hook_contract_create(host_context).ok_or_else(|| {
+        pyo3::exceptions::PyRuntimeError::new_err("contract_create_hook_unavailable")
+    })?;
+    let salt = if op == 0xF5 {
+        Some(stack_pop(stack)?)
+    } else {
+        None
+    };
+    let size = stack_pop(stack)?.as_usize();
+    let offset = stack_pop(stack)?.as_usize();
+    let value = stack_pop(stack)?;
+    mem_extend(memory, offset, size);
+    let init_code = evm_memory_slice_inner(memory, offset, size);
+    let value_obj = py_u256_int(py, value)?;
+    let out = if let Some(salt_word) = salt {
+        let salt_obj = py_u256_int(py, salt_word)?;
+        create_fn.call1((init_code, value_obj, salt_obj))?
+    } else {
+        create_fn.call1((init_code, value_obj))?
+    };
+    let out_dict = out.downcast::<PyDict>()?;
+    let sub_gas = out_dict
+        .get_item("gas_used")?
+        .map(|v| v.extract::<u64>().unwrap_or(0))
+        .unwrap_or(0);
+    if let Err(reason) = consume_gas(gas_used, gas_limit, sub_gas) {
+        return Err(pyo3::exceptions::PyRuntimeError::new_err(reason));
+    }
+    let success = out_dict
+        .get_item("success")?
+        .map(|v| v.is_truthy().unwrap_or(false))
+        .unwrap_or(false);
+    let reverted = out_dict
+        .get_item("reverted")?
+        .map(|v| v.is_truthy().unwrap_or(false))
+        .unwrap_or(false);
+    if !success || reverted {
+        stack_push(stack, U256::zero());
+        return Ok(());
+    }
+    let addr = out_dict
+        .get_item("address")?
+        .map(|v| v.extract::<String>().unwrap_or_default())
+        .unwrap_or_default();
+    stack_push(stack, addr_string_to_u256(&addr));
+    Ok(())
+}
+
+fn execute_selfdestruct_native(
+    host_context: Option<&Bound<'_, PyDict>>,
+    stack: &mut Vec<U256>,
+    running: &mut bool,
+) -> PyResult<()> {
+    let beneficiary = stack_pop(stack)?;
+    if let Some(func) = hook_selfdestruct(host_context) {
+        let addr = word_to_address(beneficiary);
+        func.call1((addr,))?;
+    }
+    *running = false;
     Ok(())
 }
 
@@ -798,6 +1112,7 @@ fn result_dict(
     steps: usize,
     stack: Bound<'_, PyList>,
     memory: Bound<'_, PyByteArray>,
+    host_logs: &[HostLogEntry],
 ) -> PyResult<PyObject> {
     let dict = PyDict::new_bound(py);
     dict.set_item("pc", pc)?;
@@ -811,6 +1126,14 @@ fn result_dict(
     dict.set_item("steps", steps)?;
     dict.set_item("stack", stack)?;
     dict.set_item("memory", memory)?;
+    let logs = PyList::empty_bound(py);
+    for (topics, data) in host_logs {
+        let entry = PyDict::new_bound(py);
+        entry.set_item("topics", topics.clone())?;
+        entry.set_item("data", hex::encode(data))?;
+        logs.append(entry)?;
+    }
+    dict.set_item("logs", logs)?;
     Ok(dict.into())
 }
 
@@ -846,6 +1169,7 @@ fn run_pure_segment_inner(
             0,
             stack,
             memory_py.clone(),
+            &[],
         );
     }
 
@@ -858,6 +1182,7 @@ fn run_pure_segment_inner(
     let mut return_data = return_data_in.to_vec();
     let mut steps = 0usize;
     let mut handoff = false;
+    let mut host_logs: Vec<HostLogEntry> = Vec::new();
     let static_ctx = parse_static_context(host_context)?;
     let mut transient: HashMap<U256, U256> = HashMap::new();
     let storage_snap = if host_frame_snapshot {
@@ -902,6 +1227,7 @@ fn run_pure_segment_inner(
                     steps,
                     stack,
                     memory_out,
+                    &host_logs,
                 );
             }
         }
@@ -1357,39 +1683,50 @@ fn run_pure_segment_inner(
                     Ok(Some(false))
                 }
                 op if (0xA0..=0xA4).contains(&op) => {
-                    if let Some(emit_log) = hook_emit_log(host_context) {
-                        execute_log_hook(
-                            py,
-                            &emit_log,
-                            op,
-                            &mut stack,
-                            &mut memory,
-                            &mut gas_used,
-                            gas_limit,
-                        )?;
-                        Ok(Some(false))
-                    } else if bridge_supports_runtime(host_bridge) {
-                        let bridge = host_bridge.ok_or_else(|| {
-                            pyo3::exceptions::PyRuntimeError::new_err("host_bridge_unavailable")
-                        })?;
-                        apply_runtime_host_op(
-                            py,
-                            bridge,
-                            op,
-                            &mut stack,
-                            &mut memory,
-                            gas_limit,
-                            &mut gas_used,
-                            storage,
-                            &mut return_data,
-                            &mut running,
-                            &mut reverted,
-                        )?;
-                        Ok(Some(false))
-                    } else {
-                        handoff = true;
-                        Ok(None)
-                    }
+                    // v1.3.57: LOG body fully in Rust (optional emit_log side-effect only).
+                    execute_log_native(
+                        py,
+                        host_context,
+                        op,
+                        &mut stack,
+                        &mut memory,
+                        &mut gas_used,
+                        gas_limit,
+                        &mut host_logs,
+                    )?;
+                    Ok(Some(false))
+                }
+                op if matches!(op, 0xF1 | 0xF2 | 0xF4 | 0xFA)
+                    && hook_contract_call(host_context).is_some() =>
+                {
+                    execute_call_native(
+                        py,
+                        host_context,
+                        op,
+                        &mut stack,
+                        &mut memory,
+                        gas_limit,
+                        &mut gas_used,
+                        storage,
+                        &mut return_data,
+                    )?;
+                    Ok(Some(false))
+                }
+                op if matches!(op, 0xF0 | 0xF5) && hook_contract_create(host_context).is_some() => {
+                    execute_create_native(
+                        py,
+                        host_context,
+                        op,
+                        &mut stack,
+                        &mut memory,
+                        gas_limit,
+                        &mut gas_used,
+                    )?;
+                    Ok(Some(false))
+                }
+                0xFF if hook_selfdestruct(host_context).is_some() => {
+                    execute_selfdestruct_native(host_context, &mut stack, &mut running)?;
+                    Ok(Some(false))
                 }
                 op if evm_opcode_is_host(op) => {
                     let bridge = host_bridge.ok_or_else(|| {
@@ -1447,6 +1784,7 @@ fn run_pure_segment_inner(
                     steps,
                     stack,
                     memory_out,
+                    &host_logs,
                 );
             }
         }
@@ -1495,6 +1833,7 @@ fn run_pure_segment_inner(
         steps,
         stack,
         memory_out,
+        &host_logs,
     )
 }
 
@@ -1619,7 +1958,8 @@ pub fn evm_run_nested_pure_frame_py(
     )
 }
 
-/// Nested CALL child with runtime host_bridge (CALL/CREATE/LOG via Python callbacks).
+/// Nested CALL child with runtime host_bridge and/or thin host hooks
+/// (CALL/CREATE/LOG bodies in Rust; state via Python callbacks).
 /// Same dispatch loop as `evm_run_until_halt`, started at pc=0 for a fresh child frame.
 #[pyfunction]
 #[pyo3(name = "evm_run_nested_host_frame")]

@@ -970,6 +970,15 @@ def evm_host_context_from_evm(ctx) -> dict:
         hooks["block_hash"] = ctx.block_hash_of
     if ctx.emit_log:
         hooks["emit_log"] = ctx.emit_log
+    if ctx.contract_call:
+        hooks["contract_call"] = ctx.contract_call
+    if ctx.contract_create:
+        def _contract_create(init_code, value, salt=None):
+            return ctx.contract_create(init_code, value, ctx, salt)
+
+        hooks["contract_create"] = _contract_create
+    if ctx.selfdestruct:
+        hooks["selfdestruct"] = ctx.selfdestruct
     if hooks:
         host["bridge_hooks"] = hooks
     return host
@@ -990,6 +999,23 @@ def evm_opcode_is_bridge(op: int) -> bool:
 
 
 def _parse_native_segment(seg) -> dict:
+    logs = []
+    raw_logs = seg.get("logs") if hasattr(seg, "get") else None
+    if raw_logs is None and isinstance(seg, dict):
+        raw_logs = seg.get("logs")
+    try:
+        for entry in list(raw_logs or []):
+            if isinstance(entry, dict):
+                logs.append({
+                    "topics": list(entry.get("topics") or []),
+                    "data": str(entry.get("data") or ""),
+                })
+            else:
+                topics = list(entry.get("topics") or []) if hasattr(entry, "get") else []
+                data = str(entry.get("data") or "") if hasattr(entry, "get") else ""
+                logs.append({"topics": topics, "data": data})
+    except Exception:
+        logs = []
     return {
         "pc": int(seg["pc"]),
         "gas_used": int(seg["gas_used"]),
@@ -1002,6 +1028,7 @@ def _parse_native_segment(seg) -> dict:
         "steps": int(seg["steps"]),
         "stack": [int(x) for x in seg["stack"]],
         "memory": bytearray(seg["memory"]),
+        "logs": logs,
     }
 
 

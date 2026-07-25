@@ -294,7 +294,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `evm_run_nested_host_frame` — child frame via full runner + `host_bridge`
 - [x] Adapter wires recursive CALL/CREATE/LOG through Rust + `EvmRuntimeBridge`
-- Remaining: host op bodies still Python callbacks (not pure-Rust semantics)
+- Remaining: see Priority 25
+
+### Priority 25 — Host opcode bodies in Rust ✅ (v1.3.57)
+
+- [x] LOG0–LOG4 gas/stack/memory + segment `logs[]` entirely in Rust
+- [x] CALL/CREATE/SELFDESTRUCT bodies in Rust via thin `bridge_hooks`
+- Remaining: DB/state still behind Python hooks (not in-process Rocks in runner)
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
 
@@ -304,6 +310,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.54: EVM/mempool high-load soak harness (`scripts/evm_mempool_load_harness.py`)
 - [x] v1.3.55: nested CALL native bridge (BALANCE/EXTCODE*/BLOCKHASH via host_context)
 - [x] v1.3.56: nested host frame (CALL/CREATE/LOG orchestration in Rust + bridge)
+- [x] v1.3.57: host opcode bodies in Rust (thin hooks for state)
 
 ## Process per module
 

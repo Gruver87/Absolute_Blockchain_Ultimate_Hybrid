@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.57] — 2026-07-25
+
+### Added — LOG/CALL/CREATE host bodies in Rust
+
+- `execute_log_native` / `execute_call_native` / `execute_create_native` in abs_native
+- Thin `bridge_hooks` for `contract_call` / `contract_create` / `selfdestruct`
+- Segment `logs[]` merged into interpreter; no Python opcode loop for these hosts when hooks present
+
 ## [1.3.56] — 2026-07-25
 
 ### Added — nested CALL/CREATE/LOG host frame (Rust runner + bridge)

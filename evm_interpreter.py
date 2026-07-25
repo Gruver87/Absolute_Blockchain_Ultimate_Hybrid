@@ -218,6 +218,12 @@ class EVM:
         self.return_data = bytes(seg["return_data"])
         self.stack = [int(x) for x in seg["stack"]]
         self.memory = bytearray(seg["memory"])
+        # v1.3.57: LOG body collected in Rust — merge into interpreter logs.
+        for entry in list(seg.get("logs") or []):
+            self.logs.append({
+                "topics": list(entry.get("topics") or []),
+                "data": str(entry.get("data") or ""),
+            })
         return str(seg["stop_reason"])
 
     def _handle_native_segment(self, seg: Dict[str, Any]) -> str:

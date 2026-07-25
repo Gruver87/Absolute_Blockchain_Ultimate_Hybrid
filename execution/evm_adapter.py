@@ -284,7 +284,7 @@ class EVMAdapter:
                         "return_data": evm.return_data,
                         "storage": nested.get("storage", dict(evm.storage)),
                         "gas_used": int(evm.gas_used),
-                        "logs": list(evm.logs),
+                        "logs": list(nested.get("logs") or evm.logs),
                         "native_nested_host": True,
                     }
             except Exception:
