@@ -45,10 +45,12 @@ def test_needles_v1391():
     assert "p2p_native_tls_available" in transport or "ServerConfig" in transport
     assert "CaOnlyServerVerifier" in transport or "WebPkiClientVerifier" in transport
     cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "1.3.91-industrial" in cfg
+    # Live config advances; pin lives in RELEASE_NOTES / CHANGELOG.
+    assert "p2p_native_transport" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.91.md").read_text(encoding="utf-8")
     assert "1.3.91-industrial" in notes
-    assert Config().node_version == "1.3.91-industrial"
+    # Live config advances with later waves; pin checked in RELEASE_NOTES.
+    assert "1.3.91" in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert hasattr(abs_native, "p2p_native_tls_available")
     assert hasattr(native, "p2p_native_tls_available")
     assert native.p2p_native_tls_available() is True

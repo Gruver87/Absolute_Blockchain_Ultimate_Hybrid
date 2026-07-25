@@ -1,13 +1,15 @@
-//! Native P2P TCP(+TLS) transport (v1.3.90 / v1.3.91).
+//! Native P2P TCP(+TLS) transport (v1.3.90 / v1.3.91 / v1.3.92).
 //!
 //! Blocking TcpListener / TcpStream + optional rustls mTLS + NDJSON framer.
+//! v1.3.92: `read_message` fuses framed read + wire parse (still not full message-loop).
 //! Python remains the control plane (handshake, dispatch, gossip).
 //! Honesty: not libp2p / multiplex; not full async message-loop ownership.
 
 use crate::p2p_frame::P2PLineFramer;
-use crate::p2p_wire::{clamp_max_bytes, DEFAULT_MAX_P2P_LINE_BYTES};
+use crate::p2p_wire::{clamp_max_bytes, parse_p2p_wire_line_inner, DEFAULT_MAX_P2P_LINE_BYTES};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
+use std::collections::HashSet;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
 use rustls::server::WebPkiClientVerifier;
@@ -25,6 +27,26 @@ use std::time::Duration;
 
 fn io_err(e: std::io::Error) -> String {
     format!("p2p_transport_io:{e}")
+}
+
+/// Short reject reason for `read_message` (transport + wire parse).
+fn wire_fail_reason(err: &str) -> String {
+    if err == "p2p_transport_timeout"
+        || err == "p2p_transport_closed"
+        || err.starts_with("p2p_transport_")
+    {
+        return err.to_string();
+    }
+    if err.starts_with("p2p_line_too_large") {
+        return "p2p_line_too_large".to_string();
+    }
+    if err.starts_with("p2p_type_not_allowed") {
+        return err.to_string();
+    }
+    if err.starts_with("p2p_") {
+        return err.split(':').next().unwrap_or(err).to_string();
+    }
+    "bad_wire_line".to_string()
 }
 
 fn tls_err(e: impl std::fmt::Display) -> String {
@@ -546,6 +568,64 @@ impl P2PNativeConn {
         }
     }
 
+    /// Framed read + wire parse in one native call (v1.3.92).
+    ///
+    /// `{ok:true, type, data, nbytes, eof:false}` | `{ok:true, eof:true}` |
+    /// `{ok:false, reason, eof:false}`.
+    /// Rate-limit / dispatch remain Python (or separate `admit_rate`).
+    #[pyo3(signature = (chunk_sz=65536, allowed_types=None))]
+    fn read_message(
+        &mut self,
+        py: Python<'_>,
+        chunk_sz: usize,
+        allowed_types: Option<Vec<String>>,
+    ) -> PyResult<PyObject> {
+        let allowed_set = allowed_types.map(|items| items.into_iter().collect::<HashSet<_>>());
+        let max_bytes = self.max_bytes;
+        let result = py.allow_threads(|| -> Result<Option<(String, serde_json::Value, usize)>, String> {
+            match self.read_line_inner(chunk_sz) {
+                Ok(None) => Ok(None),
+                Ok(Some(line)) => {
+                    let nbytes = line.len();
+                    let (msg_type, data) =
+                        parse_p2p_wire_line_inner(&line, max_bytes, allowed_set.as_ref())?;
+                    Ok(Some((msg_type, data, nbytes)))
+                }
+                Err(reason) => Err(reason),
+            }
+        });
+        match result {
+            Ok(None) => {
+                let dict = PyDict::new_bound(py);
+                dict.set_item("ok", true)?;
+                dict.set_item("eof", true)?;
+                Ok(dict.into_any().unbind())
+            }
+            Ok(Some((msg_type, data, nbytes))) => {
+                let dict = PyDict::new_bound(py);
+                dict.set_item("ok", true)?;
+                dict.set_item("eof", false)?;
+                dict.set_item("type", &msg_type)?;
+                dict.set_item("nbytes", nbytes)?;
+                let data_json = serde_json::to_string(&data)
+                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+                let data_obj = pyo3::types::PyModule::import_bound(py, "json")?
+                    .getattr("loads")?
+                    .call1((data_json,))?;
+                dict.set_item("data", data_obj)?;
+                Ok(dict.into_any().unbind())
+            }
+            Err(reason) => {
+                let short = wire_fail_reason(&reason);
+                let dict = PyDict::new_bound(py);
+                dict.set_item("ok", false)?;
+                dict.set_item("reason", short)?;
+                dict.set_item("eof", false)?;
+                Ok(dict.into_any().unbind())
+            }
+        }
+    }
+
     fn write(&mut self, py: Python<'_>, data: &[u8]) -> PyResult<usize> {
         let data = data.to_vec();
         py.allow_threads(|| self.write_inner(&data))
@@ -803,6 +883,33 @@ mod tests {
         let line = conn.read_line_inner(4096).unwrap().unwrap();
         assert!(line.starts_with(b"{\"type\":\"ping\""));
         conn.write_inner(b"{\"type\":\"pong\",\"data\":null}\n").unwrap();
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn read_message_parses_envelope() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let handle = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .write_all(b"{\"type\":\"status\",\"data\":{\"height\":7}}\n")
+                .unwrap();
+        });
+        let client = TcpStream::connect(addr).unwrap();
+        let mut conn = P2PNativeConn::from_plain(client, 1024 * 1024, 5_000).unwrap();
+        let allowed = Some(
+            ["status".to_string()].into_iter().collect::<HashSet<_>>(),
+        );
+        let (msg_type, data, nbytes) = {
+            let line = conn.read_line_inner(4096).unwrap().unwrap();
+            let nbytes = line.len();
+            let (t, d) = parse_p2p_wire_line_inner(&line, conn.max_bytes, allowed.as_ref()).unwrap();
+            (t, d, nbytes)
+        };
+        assert_eq!(msg_type, "status");
+        assert_eq!(data["height"], 7);
+        assert!(nbytes > 10);
         handle.join().unwrap();
     }
 }

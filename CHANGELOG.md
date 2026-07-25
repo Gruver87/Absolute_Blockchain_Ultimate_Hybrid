@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.92] — 2026-07-25
+
+### P2P — native read_message pump (frame + wire parse)
+
+- `P2PNativeConn.read_message` fuses framed read + wire parse in one call
+- `PeerConnection.recv` uses it on native transport; rate admit remains Python when ingress on
+- Honesty: still not full message-loop / libp2p; default still asyncio
+
 ## [1.3.91] — 2026-07-25
 
 ### P2P — native rustls TLS on transport slice

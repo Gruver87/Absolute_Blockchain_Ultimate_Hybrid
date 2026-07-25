@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.91 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.92 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -52,6 +52,7 @@ WAVE_TESTS = [
     "tests/unit/test_v1389_p2p_sybil_eclipse.py",
     "tests/unit/test_v1390_p2p_native_transport.py",
     "tests/unit/test_v1391_p2p_native_tls.py",
+    "tests/unit/test_v1392_p2p_native_read_message.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -425,7 +426,7 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
     ),
     (
         "1.3.91",
-        "runtime/config.py",
+        "RELEASE_NOTES_v1.3.91.md",
         ["1.3.91-industrial"],
     ),
     (
@@ -437,6 +438,26 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "1.3.91",
         "network/p2p_node.py",
         ["_native_tls", "native-tls"],
+    ),
+    (
+        "1.3.92",
+        "runtime/config.py",
+        ["1.3.92-industrial"],
+    ),
+    (
+        "1.3.92",
+        "native/abs_native/src/p2p_transport.rs",
+        ["read_message", "v1.3.92"],
+    ),
+    (
+        "1.3.92",
+        "network/p2p_node.py",
+        ["_native_read_message", "read_message"],
+    ),
+    (
+        "1.3.92",
+        "observability/metrics.py",
+        ["abs_p2p_native_read_message"],
     ),
 ]
 
@@ -465,8 +486,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.91"):
-            errors.append(f"node_version expected 1.3.91-*, got {ver}")
+        if not ver.startswith("1.3.92"):
+            errors.append(f"node_version expected 1.3.92-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

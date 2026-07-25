@@ -6,7 +6,7 @@
 
 | | |
 |---|---|
-| **Версия** | `1.3.91-industrial` |
+| **Версия** | `1.3.92-industrial` |
 | **API Wave** | `61` |
 | **Обновлено** | 2026-07-25 |
 | **Entry** | `python main.py` / `.\scripts\start_node.ps1` |
@@ -143,7 +143,7 @@ python scripts/check_secrets.py
 Последние P2P/EVM срезы: **v1.3.77–86** (ingress, bandwidth, egress, NDJSON framer; CREATE/writeback journal).  
 Полная таблица — **Часть 28** в [`ALL_COMMANDS.txt`](ALL_COMMANDS.txt) и [`PORTING_ROADMAP.md`](PORTING_ROADMAP.md).
 
-**Не claimed:** full Rust P2P transport (TCP/TLS/message loop), public mainnet, external audit complete.
+**Не claimed:** full Rust P2P message-loop / libp2p (TCP+TLS+read_message native), public mainnet, external audit complete.
 
 ---
 
