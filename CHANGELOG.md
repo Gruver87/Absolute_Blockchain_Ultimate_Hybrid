@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.74] — 2026-07-25
+
+### EVM — value=0 CALL/STATICCALL inline leaf (Priority 38)
+
+- Eligible value=0 CALL/STATICCALL runs inside parent Rust host frame (no Python hook)
+- Callee storage from `bridge_state.storages` (persisted on success); empty if absent
+- Non-zero value CALL still falls through to Python (no silent debit)
+- Honesty: not multi-depth host stack; CREATE/value-transfer still via adapter
+
 ## [1.3.73] — 2026-07-25
 
 ### Load — apply-queue priority lanes

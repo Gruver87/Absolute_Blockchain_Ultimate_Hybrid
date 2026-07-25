@@ -676,6 +676,24 @@ fn execute_call_native(
         return Ok(());
     }
 
+    // v1.3.74 Priority 38: value=0 CALL/STATICCALL leaf with own storage
+    // (bridge_state.storages / empty), no value transfer / writeback via Python.
+    if try_inline_leaf_value0_call(
+        py,
+        host_context,
+        host_bridge,
+        &frame,
+        &call_data,
+        call_gas,
+        gas_limit,
+        gas_used,
+        stack,
+        memory,
+        return_data,
+    )? {
+        return Ok(());
+    }
+
     let call_fn = hook_contract_call(host_context).ok_or_else(|| {
         pyo3::exceptions::PyRuntimeError::new_err("contract_call_hook_unavailable")
     })?;
@@ -845,6 +863,156 @@ fn try_inline_leaf_delegate_call(
     );
     // Mark for observability (tests assert via storage side-effects / hook counter).
     let _ = child_dict.set_item("native_inline_leaf_frame", true);
+    Ok(true)
+}
+
+fn inline_storage_dict<'py>(
+    host_context: Option<&Bound<'py, PyDict>>,
+    who: U256,
+) -> Option<Bound<'py, PyDict>> {
+    let state = bridge_state_dict(host_context)?;
+    let storages = state.get_item("storages").ok()??;
+    let dict = storages.downcast::<PyDict>().ok()?;
+    let addr = word_to_address(who);
+    let value = dict.get_item(addr.as_str()).ok()??;
+    value.downcast::<PyDict>().ok().map(|d| d.clone())
+}
+
+fn store_inline_storage(
+    host_context: Option<&Bound<'_, PyDict>>,
+    who: U256,
+    child_storage: &Bound<'_, PyDict>,
+) -> PyResult<()> {
+    let Some(ctx) = host_context else {
+        return Ok(());
+    };
+    let Ok(Some(state_any)) = ctx.get_item("bridge_state") else {
+        return Ok(());
+    };
+    let Ok(state) = state_any.downcast::<PyDict>() else {
+        return Ok(());
+    };
+    let storages = match state.get_item("storages")? {
+        Some(s) => match s.downcast::<PyDict>() {
+            Ok(d) => d.clone(),
+            Err(_) => {
+                let d = PyDict::new_bound(ctx.py());
+                state.set_item("storages", &d)?;
+                d
+            }
+        },
+        None => {
+            let d = PyDict::new_bound(ctx.py());
+            state.set_item("storages", &d)?;
+            d
+        }
+    };
+    let addr = word_to_address(who);
+    // Persist a copy so later CALLs see mutations.
+    let snap = child_storage.copy()?;
+    storages.set_item(addr.as_str(), snap)?;
+    Ok(())
+}
+
+/// v1.3.74 Priority 38: value=0 CALL/STATICCALL leaf with callee storage
+/// (not parent). No value transfer; writeback via bridge_state.storages when present.
+fn try_inline_leaf_value0_call(
+    py: Python<'_>,
+    host_context: Option<&Bound<'_, PyDict>>,
+    host_bridge: Option<&Bound<'_, PyAny>>,
+    frame: &DecodedCall,
+    call_data: &[u8],
+    call_gas: u64,
+    gas_limit: u64,
+    gas_used: &mut u64,
+    stack: &mut Vec<U256>,
+    memory: &mut Vec<u8>,
+    return_data: &mut Vec<u8>,
+) -> PyResult<bool> {
+    // CALL / STATICCALL only; DELEGATECALL/CALLCODE use the other inline path.
+    if frame.delegate || frame.callcode {
+        return Ok(false);
+    }
+    if !frame.value.is_zero() {
+        return Ok(false);
+    }
+    let code = match resolve_full_code(host_context, host_bridge, frame.to_word) {
+        Ok(c) if !c.is_empty() => c,
+        _ => return Ok(false),
+    };
+    if !bytecode_is_nested_native_eligible(&code) {
+        return Ok(false);
+    }
+    // Callee storage: prefer bridge_state.storages[addr], else empty (ephemeral).
+    let child_storage = if let Some(existing) = inline_storage_dict(host_context, frame.to_word) {
+        existing
+    } else {
+        PyDict::new_bound(py)
+    };
+    let child_storage_ref = Some(&child_storage);
+    let jumpdest = crate::evm_build_jumpdest_table_inner(&code);
+    let stack_py = PyList::empty_bound(py);
+    let memory_py = PyByteArray::new_bound(py, &[]);
+    let child = run_pure_segment_inner(
+        py,
+        &code,
+        0,
+        call_gas,
+        0,
+        &stack_py,
+        &memory_py,
+        &jumpdest,
+        call_data,
+        &[],
+        host_context,
+        child_storage_ref,
+        None,
+        MAX_FULL_STEPS,
+        true,
+    )?;
+    let child_dict = child.downcast_bound::<PyDict>(py)?;
+    let reason = child_dict
+        .get_item("stop_reason")?
+        .map(|v| v.extract::<String>().unwrap_or_default())
+        .unwrap_or_default();
+    if !matches!(
+        reason.as_str(),
+        "halt" | "return" | "revert" | "out_of_gas"
+    ) {
+        return Ok(false);
+    }
+    let sub_gas = child_dict
+        .get_item("gas_used")?
+        .map(|v| v.extract::<u64>().unwrap_or(0))
+        .unwrap_or(0)
+        .min(call_gas);
+    if let Err(reason) = consume_gas(gas_used, gas_limit, sub_gas) {
+        return Err(pyo3::exceptions::PyRuntimeError::new_err(reason));
+    }
+    let rd = child_dict
+        .get_item("return_data")?
+        .map(|v| v.extract::<Vec<u8>>().unwrap_or_default())
+        .unwrap_or_default();
+    *return_data = rd.clone();
+    let reverted = child_dict
+        .get_item("reverted")?
+        .map(|v| v.is_truthy().unwrap_or(false))
+        .unwrap_or(false)
+        || reason == "out_of_gas";
+    let success = !reverted && matches!(reason.as_str(), "halt" | "return");
+    if success {
+        store_inline_storage(host_context, frame.to_word, &child_storage)?;
+    }
+    write_return_to_memory(memory, frame.ret_offset, frame.ret_size, &rd);
+    stack_push(
+        stack,
+        if success {
+            U256::one()
+        } else {
+            U256::zero()
+        },
+    );
+    let _ = child_dict.set_item("native_inline_value0_call", true);
     Ok(true)
 }
 

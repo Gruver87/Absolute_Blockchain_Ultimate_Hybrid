@@ -1335,8 +1335,11 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         # v1.3.73 — apply priority lanes
         if "PriorityQueue" not in apply_q or "_APPLY_PRIORITY" not in apply_q:
             errors.append("chain_apply_queue must use PriorityQueue lanes (v1.3.73)")
+        # v1.3.74 — value=0 CALL inline
+        if "try_inline_leaf_value0_call" not in rust_runner or "v1.3.74" not in rust_runner:
+            errors.append("evm_pure_runner must inline value=0 CALL leaf (v1.3.74)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..73 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..74 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

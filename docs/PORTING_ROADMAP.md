@@ -385,11 +385,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 ### Priority 37c — Apply-queue priority lanes ✅ (v1.3.73)
 
 - [x] PriorityQueue: REORG > FORGE > ADD > IMPORT
-- Remaining: Priority 38 multi-depth / value CALL (EVM)
+- Remaining: see Priority 38
 
-### Priority 38 — Multi-depth / value CALL (next EVM)
+### Priority 38 — value=0 CALL inline leaf ✅ (v1.3.74 first slice)
 
-- Remaining: multi-depth Rust host stack / value CALL ownership (not claimed)
+- [x] Eligible value=0 CALL/STATICCALL in-Rust with callee `bridge_state.storages`
+- Remaining: multi-depth CALL-containing frames / value-transfer ownership (not claimed)
 
 ### Isolation wave — apply under load ✅ (v1.3.51–v1.3.53)
 
@@ -414,6 +415,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.71: in-Rust inline leaf frame (eligible DELEGATECALL/CALLCODE)
 - [x] v1.3.72: P2P sync admission + outbound honesty
 - [x] v1.3.73: apply-queue priority lanes (reorg>forge>add>import)
+- [x] v1.3.74: value=0 CALL/STATICCALL inline leaf (Priority 38)
 
 ## Process per module
 

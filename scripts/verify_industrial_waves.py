@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.73 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.74 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -34,6 +34,7 @@ WAVE_TESTS = [
     "tests/unit/test_v1371_inline_leaf_frame.py",
     "tests/unit/test_v1372_p2p_admission.py",
     "tests/unit/test_v1373_apply_priority.py",
+    "tests/unit/test_v1374_value0_call.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -164,11 +165,6 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
     ),
     (
         "1.3.73",
-        "runtime/config.py",
-        ["1.3.73-industrial"],
-    ),
-    (
-        "1.3.73",
         "core/chain_apply_queue.py",
         ["PriorityQueue", "_APPLY_PRIORITY", "v1.3.73"],
     ),
@@ -176,6 +172,16 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "1.3.73",
         "observability/metrics.py",
         ["abs_chain_apply_error_total", "abs_chain_apply_priority_lanes"],
+    ),
+    (
+        "1.3.74",
+        "runtime/config.py",
+        ["1.3.74-industrial"],
+    ),
+    (
+        "1.3.74",
+        "native/abs_native/src/evm_pure_runner.rs",
+        ["try_inline_leaf_value0_call", "v1.3.74"],
     ),
 ]
 
@@ -204,8 +210,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.73"):
-            errors.append(f"node_version expected 1.3.73-*, got {ver}")
+        if not ver.startswith("1.3.74"):
+            errors.append(f"node_version expected 1.3.74-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors
