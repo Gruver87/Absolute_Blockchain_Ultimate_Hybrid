@@ -276,7 +276,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 
 - [x] `evm_decode_nested_call_frame` — pure CALL stack-frame decode (kind + fields)
 - [x] `evm_host_bridge.apply_host_op` CALL branch uses decoder then `_execute_call`
-- Remaining: nested bytecode execution inside Rust (optional / large)
+- Remaining: see Priority 22
+
+### Priority 22 — Nested pure bytecode frame ✅ (v1.3.50 first slice)
+
+- [x] `evm_run_nested_pure_frame` — child frame via pure runner (no host_bridge)
+- [x] `evm_bytecode_is_nested_pure_eligible` + adapter fast-path; fallback to Python on host/bridge
+- Remaining: recursive CALL/CREATE host-in-Rust · BALANCE/EXTCODE* without Python (optional / large)
 
 ## Process per module
 

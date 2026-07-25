@@ -219,9 +219,38 @@ class EVMAdapter:
             sub_ctx.contract_create = lambda code, val, ctx, salt=None: self._contract_create_hook(
                 code, val, ctx, salt
             )
-        evm = EVM(gas_limit=gas or self.config.evm_gas_limit, context=sub_ctx)
-        evm.storage = dict(storage)
-        result = evm.execute_bytecode(bytecode)
+
+        result: Optional[Dict[str, Any]] = None
+        # Priority 22 / v1.3.50: pure-opcode nested child in Rust (no CALL host).
+        if native.evm_bytecode_is_nested_pure_eligible(bytecode):
+            try:
+                host_ctx = native.evm_host_context_from_evm(sub_ctx)
+                nested = native.evm_run_nested_pure_frame(
+                    bytecode,
+                    int(gas or self.config.evm_gas_limit),
+                    bytes(calldata or b""),
+                    host_ctx,
+                    storage,
+                )
+                reason = str(nested.get("stop_reason") or "")
+                if reason in ("halt", "return", "revert", "out_of_gas"):
+                    reverted = bool(nested.get("reverted")) or reason == "out_of_gas"
+                    result = {
+                        "success": (not reverted) and reason in ("halt", "return"),
+                        "reverted": reverted,
+                        "return_data": nested.get("return_data", b"") or b"",
+                        "storage": nested.get("storage", dict(storage)),
+                        "gas_used": int(nested.get("gas_used", 0) or 0),
+                        "logs": [],
+                        "native_nested_pure": True,
+                    }
+            except Exception:
+                result = None
+
+        if result is None:
+            evm = EVM(gas_limit=gas or self.config.evm_gas_limit, context=sub_ctx)
+            evm.storage = dict(storage)
+            result = evm.execute_bytecode(bytecode)
 
         success = not result.get("reverted")
         plan = native.evm_plan_nested_call_effects(

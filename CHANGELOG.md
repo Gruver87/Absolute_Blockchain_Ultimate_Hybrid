@@ -6,6 +6,12 @@
 
 ---
 
+## [1.3.50] — 2026-07-25
+
+### Added — nested pure bytecode frame
+
+- Rust `evm_run_nested_pure_frame`; adapter fast-path for host/bridge-free child CALL bytecode
+
 ## [1.3.49] — 2026-07-25
 
 ### Added — nested CALL frame decode planner

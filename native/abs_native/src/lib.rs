@@ -1145,7 +1145,7 @@ fn evm_read_push(bytecode: &[u8], pc: usize, n: usize) -> PyResult<[u8; 32]> {
     Ok(evm_read_push_inner(bytecode, pc, n))
 }
 
-fn evm_build_jumpdest_table_inner(bytecode: &[u8]) -> Vec<u8> {
+pub(crate) fn evm_build_jumpdest_table_inner(bytecode: &[u8]) -> Vec<u8> {
     let mut table = vec![0u8; bytecode.len().div_ceil(8)];
     let mut pc = 0usize;
     while pc < bytecode.len() {
@@ -1899,6 +1899,10 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evm_pure_runner::evm_run_until_halt_py, m)?)?;
     m.add_function(wrap_pyfunction!(
         evm_pure_runner::evm_run_pure_until_host_py,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        evm_pure_runner::evm_run_nested_pure_frame_py,
         m
     )?)?;
     m.add_function(wrap_pyfunction!(

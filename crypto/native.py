@@ -98,6 +98,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "evm_plan_nested_call_effects",
             "evm_plan_nested_call_gas",
             "evm_decode_nested_call_frame",
+            "evm_run_nested_pure_frame",
             "evm_deploy_address",
             "evm_create2_eip1014",
             "validate_imported_block_chain",
@@ -1066,6 +1067,58 @@ def evm_run_until_halt(
         )
         return _parse_native_segment(seg)
     raise RuntimeError("evm_run_until_halt requires abs_native")
+
+
+def evm_bytecode_is_nested_pure_eligible(bytecode: bytes) -> bool:
+    """True when child bytecode has no host/bridge opcodes (safe for nested pure frame)."""
+    pc = 0
+    bc = bytes(bytecode or b"")
+    while pc < len(bc):
+        op = bc[pc]
+        if evm_opcode_is_host(op) or evm_opcode_is_bridge(op):
+            return False
+        if 0x60 <= op <= 0x7F:
+            pc += 1 + (op - 0x5F)
+        else:
+            pc += 1
+    return True
+
+
+def evm_run_nested_pure_frame(
+    bytecode: bytes,
+    gas_limit: int,
+    calldata: bytes = b"",
+    host_context: Optional[dict] = None,
+    storage: Optional[dict] = None,
+) -> dict:
+    """Run a nested CALL child as a pure native frame (no host_bridge).
+
+    Prefers abs_native. On host/handoff stop reasons the caller must fall back
+    to Python execute_bytecode. Mutates ``storage`` in place when provided.
+    """
+    storage_work = storage if storage is not None else {}
+    ctx = dict(host_context or {})
+    # Nested pure: no Python bridge callbacks (BALANCE/EXTCODE*/LOG stay fail-closed).
+    ctx.pop("bridge_hooks", None)
+    ctx.pop("bridge_state", None)
+    if _native is not None and hasattr(_native, "evm_run_nested_pure_frame"):
+        seg = _native.evm_run_nested_pure_frame(
+            bytes(bytecode),
+            int(gas_limit),
+            bytes(calldata or b""),
+            ctx,
+            storage_work,
+        )
+        out = _parse_native_segment(seg)
+        out["storage"] = {int(k): int(v) for k, v in dict(storage_work).items()}
+        out["native_nested_pure"] = True
+        reason = str(out.get("stop_reason") or "")
+        out["success"] = (not out.get("reverted")) and reason in ("halt", "return")
+        return out
+    if _REQUIRE_NATIVE:
+        _require_native_kernel("evm_run_nested_pure_frame")
+    # Python reference: refuse (no silent fake nested native).
+    raise RuntimeError("evm_run_nested_pure_frame requires abs_native")
 
 
 def evm_host_snapshot_storage(storage: dict) -> dict:
