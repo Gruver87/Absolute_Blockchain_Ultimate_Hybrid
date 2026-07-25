@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.80 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.81 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -41,6 +41,7 @@ WAVE_TESTS = [
     "tests/unit/test_v1378_p2p_bandwidth.py",
     "tests/unit/test_v1379_callcode_value.py",
     "tests/unit/test_v1380_simple_create.py",
+    "tests/unit/test_v1381_create2.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -245,13 +246,23 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
     ),
     (
         "1.3.80",
-        "runtime/config.py",
-        ["1.3.80-industrial"],
+        "RELEASE_NOTES_v1.3.80.md",
+        ["1.3.80-industrial", "CREATE"],
     ),
     (
         "1.3.80",
         "native/abs_native/src/evm_pure_runner.rs",
         ["try_inline_simple_create", "native_inline_simple_create", "v1.3.80"],
+    ),
+    (
+        "1.3.81",
+        "runtime/config.py",
+        ["1.3.81-industrial"],
+    ),
+    (
+        "1.3.81",
+        "native/abs_native/src/evm_pure_runner.rs",
+        ["native_inline_create2", "create2_eip1014_enabled", "v1.3.81"],
     ),
 ]
 
@@ -280,8 +291,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.80"):
-            errors.append(f"node_version expected 1.3.80-*, got {ver}")
+        if not ver.startswith("1.3.81"):
+            errors.append(f"node_version expected 1.3.81-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

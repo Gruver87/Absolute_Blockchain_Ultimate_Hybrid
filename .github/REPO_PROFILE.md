@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.80` — simple CREATE (empty/STOP init) |
-| **Notes** | [RELEASE_NOTES_v1.3.80.md](../RELEASE_NOTES_v1.3.80.md) |
-| **Prior** | [v1.3.79](../RELEASE_NOTES_v1.3.79.md) CALLCODE value; [v1.3.78](../RELEASE_NOTES_v1.3.78.md) bandwidth |
+| **Tag** | `v1.3.81` — CREATE2 empty/STOP (EIP-1014) |
+| **Notes** | [RELEASE_NOTES_v1.3.81.md](../RELEASE_NOTES_v1.3.81.md) |
+| **Prior** | [v1.3.80](../RELEASE_NOTES_v1.3.80.md) CREATE; [v1.3.79](../RELEASE_NOTES_v1.3.79.md) CALLCODE value |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

@@ -1303,7 +1303,7 @@ fn execute_create_native(
     mem_extend(memory, offset, size);
     let init_code = evm_memory_slice_inner(memory, offset, size);
 
-    // v1.3.80: empty/STOP init CREATE owned in Rust when bridge_state.codes present.
+    // v1.3.80/81: empty/STOP init CREATE/CREATE2 owned in Rust when bridge_state.codes present.
     if try_inline_simple_create(
         py,
         host_context,
@@ -1362,8 +1362,61 @@ fn init_is_inline_create_eligible(init: &[u8]) -> bool {
     init.is_empty() || init == [0x00]
 }
 
-/// v1.3.80 Priority 38: CREATE with empty/STOP init via bridge_state (no Python hook).
-/// CREATE2 and non-trivial init fall through. Value uses fail-closed balances.
+/// Prefer EIP-1014 CREATE2 unless bridge_state/host explicitly disables it.
+fn create2_eip1014_enabled(host_context: Option<&Bound<'_, PyDict>>) -> bool {
+    if let Some(state) = bridge_state_dict(host_context) {
+        if let Ok(Some(v)) = state.get_item("create2_eip1014") {
+            return v.is_truthy().unwrap_or(true);
+        }
+    }
+    if let Some(ctx) = host_context {
+        if let Ok(Some(v)) = ctx.get_item("evm_create2_eip1014") {
+            return v.is_truthy().unwrap_or(true);
+        }
+    }
+    true
+}
+
+fn resolve_inline_create_address(
+    host_context: Option<&Bound<'_, PyDict>>,
+    deployer: &str,
+    block_n: u64,
+    init_code: &[u8],
+    salt: Option<U256>,
+) -> PyResult<Option<String>> {
+    match salt {
+        None => Ok(Some(crate::evm_deploy_address_create_inner(
+            deployer,
+            block_n,
+            init_code.len(),
+        ))),
+        Some(salt_word) => {
+            if create2_eip1014_enabled(host_context) {
+                let deployer20 = match crate::parse_address_20(deployer) {
+                    Ok(a) => a,
+                    Err(_) => return Ok(None),
+                };
+                let salt32 = crate::u256_to_be32(salt_word);
+                let init_hash = crate::keccak256_digest_bytes(init_code);
+                let addr20 =
+                    crate::evm_create2_address_eip1014_inner(&deployer20, &salt32, &init_hash);
+                Ok(Some(format!("0x{}", hex::encode(addr20))))
+            } else {
+                // Match Python: salt_text = str(int(salt))
+                let salt_text = salt_word.to_string();
+                Ok(Some(crate::evm_deploy_address_create2_legacy_inner(
+                    deployer,
+                    &salt_text,
+                    init_code,
+                )))
+            }
+        }
+    }
+}
+
+/// v1.3.80/81 Priority 38: CREATE/CREATE2 with empty/STOP init via bridge_state.
+/// Non-trivial init falls through. Value uses fail-closed balances.
+/// CREATE2 defaults to EIP-1014 (`create2_eip1014=false` → legacy Absolute seed).
 fn try_inline_simple_create(
     py: Python<'_>,
     host_context: Option<&Bound<'_, PyDict>>,
@@ -1375,7 +1428,13 @@ fn try_inline_simple_create(
     gas_limit: u64,
     gas_used: &mut u64,
 ) -> PyResult<bool> {
-    if op != 0xF0 || salt.is_some() {
+    if !matches!(op, 0xF0 | 0xF5) {
+        return Ok(false);
+    }
+    if op == 0xF0 && salt.is_some() {
+        return Ok(false);
+    }
+    if op == 0xF5 && salt.is_none() {
         return Ok(false);
     }
     if !init_is_inline_create_eligible(init_code) {
@@ -1398,7 +1457,11 @@ fn try_inline_simple_create(
     } else {
         static_ctx.block_number.low_u64()
     };
-    let addr = crate::evm_deploy_address_create_inner(&deployer, block_n, init_code.len());
+    let Some(addr) =
+        resolve_inline_create_address(host_context, &deployer, block_n, init_code, salt)?
+    else {
+        return Ok(false);
+    };
     let addr_word = addr_string_to_u256(&addr);
 
     // Collision: non-empty existing code → failed CREATE (push 0).
@@ -1430,13 +1493,8 @@ fn try_inline_simple_create(
         }
     }
 
-    // Charge init execution: STOP=0 gas beyond CREATE base already applied; empty=0.
-    let init_gas: u64 = if init_code.is_empty() {
-        0
-    } else {
-        // Single STOP
-        0
-    };
+    // Charge init execution: STOP/empty = 0 beyond CREATE base already applied.
+    let init_gas: u64 = 0;
     if let Err(_reason) = consume_gas(gas_used, gas_limit, init_gas) {
         if let Some(ref snap) = balance_snap {
             restore_inline_balances(host_context, snap)?;
@@ -1459,9 +1517,16 @@ fn try_inline_simple_create(
 
     let _ = balance_snap; // success keeps transfer
     stack_push(stack, addr_word);
-    // Markers on bridge_state (host_context top-level set_item is not always visible).
     state.set_item("native_inline_simple_create", true)?;
     state.set_item("native_inline_create_address", addr.as_str())?;
+    if op == 0xF5 {
+        // v1.3.81
+        state.set_item("native_inline_create2", true)?;
+        state.set_item(
+            "native_inline_create2_eip1014",
+            create2_eip1014_enabled(host_context),
+        )?;
+    }
     Ok(true)
 }
 

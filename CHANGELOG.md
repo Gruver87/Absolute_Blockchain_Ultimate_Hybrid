@@ -6,6 +6,16 @@
 
 ---
 
+## [1.3.81] — 2026-07-25
+
+### EVM — inline CREATE2 (empty / STOP init)
+
+- CREATE2 (`0xF5`) with empty/STOP init runs in Rust when `bridge_state.codes` present
+- Address: EIP-1014 by default; `create2_eip1014=false` → Absolute legacy seed
+- Value fail-closed via balances; non-trivial init still Python hook
+- Markers: `native_inline_create2`, `native_inline_create2_eip1014`
+- Honesty: DB satoshi journal ownership still not claimed
+
 ## [1.3.80] — 2026-07-25
 
 ### EVM — inline simple CREATE (empty / STOP init)

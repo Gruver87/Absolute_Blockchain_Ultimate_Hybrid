@@ -639,12 +639,16 @@ pub(crate) fn evm_deploy_address_create_inner(
     format!("0x{}", &hash_string(&seed)[..40])
 }
 
-fn evm_deploy_address_create2_legacy_inner(deployer: &str, salt: &str, init_code: &[u8]) -> String {
+pub(crate) fn evm_deploy_address_create2_legacy_inner(
+    deployer: &str,
+    salt: &str,
+    init_code: &[u8],
+) -> String {
     let seed = format!("create2:{deployer}:{salt}:{}", hex::encode(init_code));
     format!("0x{}", &hash_string(&seed)[..40])
 }
 
-fn parse_address_20(deployer: &str) -> PyResult<[u8; 20]> {
+pub(crate) fn parse_address_20(deployer: &str) -> PyResult<[u8; 20]> {
     let raw = deployer
         .trim()
         .trim_start_matches("0x")
@@ -672,7 +676,7 @@ fn parse_bytes32(value: &[u8]) -> PyResult<[u8; 32]> {
     Ok(out)
 }
 
-fn evm_create2_address_eip1014_inner(
+pub(crate) fn evm_create2_address_eip1014_inner(
     deployer: &[u8; 20],
     salt: &[u8; 32],
     init_code_hash: &[u8; 32],
