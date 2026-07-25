@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.91] — 2026-07-25
+
+### P2P — native rustls TLS on transport slice
+
+- rustls mTLS for `P2PNativeListener` / `P2PNativeConn` (CERT_REQUIRED, no hostname check)
+- Native + TLS allowed when material valid; peer cert SHA-256 fingerprint exposed
+- Honesty: not libp2p; identity bind still Python; default still asyncio
+
 ## [1.3.90] — 2026-07-25
 
 ### P2P — native plain-TCP transport slice

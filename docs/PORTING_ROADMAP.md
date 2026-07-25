@@ -440,6 +440,7 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.88: P2P kernel fuzz_api + cargo-fuzz / smoke (Priority 43)
 - [x] v1.3.89: P2P Sybil/Eclipse subnet + reserved slots (Priority 44)
 - [x] v1.3.90: Native plain-TCP transport slice (Priority 45)
+- [x] v1.3.91: Native rustls TLS on transport (Priority 46)
 
 ### Priority 39 — P2P Rust ingress data plane ✅ (v1.3.77–v1.3.78)
 
@@ -478,7 +479,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 ### Priority 45 — Native plain-TCP transport slice ✅ (v1.3.90)
 
 - [x] `P2PNativeListener` + `P2PNativeConn` framed I/O; opt-in wire-up
-- Remaining: TLS in Rust, full message loop ownership, libp2p (not claimed)
+- Remaining: TLS in Rust (see Priority 46), full message loop ownership, libp2p (not claimed)
+
+### Priority 46 — Native rustls TLS ✅ (v1.3.91)
+
+- [x] rustls mTLS on native accept/connect; peer fingerprint; Python TLS+native co-enable
+- Remaining: full message-loop ownership / libp2p (not claimed)
 
 ## Process per module
 

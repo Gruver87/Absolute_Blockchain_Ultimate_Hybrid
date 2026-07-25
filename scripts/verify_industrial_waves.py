@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.90 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.91 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -51,6 +51,7 @@ WAVE_TESTS = [
     "tests/unit/test_v1388_native_fuzz.py",
     "tests/unit/test_v1389_p2p_sybil_eclipse.py",
     "tests/unit/test_v1390_p2p_native_transport.py",
+    "tests/unit/test_v1391_p2p_native_tls.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -409,8 +410,8 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
     ),
     (
         "1.3.90",
-        "runtime/config.py",
-        ["1.3.90-industrial", "p2p_native_transport"],
+        "RELEASE_NOTES_v1.3.90.md",
+        ["1.3.90-industrial"],
     ),
     (
         "1.3.90",
@@ -421,6 +422,21 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "1.3.90",
         "network/p2p_node.py",
         ["_native_accept_loop", "_handle_native_incoming"],
+    ),
+    (
+        "1.3.91",
+        "runtime/config.py",
+        ["1.3.91-industrial"],
+    ),
+    (
+        "1.3.91",
+        "native/abs_native/src/p2p_transport.rs",
+        ["rustls", "p2p_native_tls_available", "WebPkiClientVerifier"],
+    ),
+    (
+        "1.3.91",
+        "network/p2p_node.py",
+        ["_native_tls", "native-tls"],
     ),
 ]
 
@@ -449,8 +465,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.90"):
-            errors.append(f"node_version expected 1.3.90-*, got {ver}")
+        if not ver.startswith("1.3.91"):
+            errors.append(f"node_version expected 1.3.91-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

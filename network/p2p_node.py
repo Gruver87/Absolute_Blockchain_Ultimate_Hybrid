@@ -668,6 +668,7 @@ class P2PNode:
         self._conn_governor = None
         self._native_listener = None  # v1.3.90 P2PNativeListener
         self._use_native_transport = False
+        self._native_tls = False
         self._native_accept_total = 0
         self._native_accept_errors = 0
         self._native_connect_total = 0
@@ -682,17 +683,30 @@ class P2PNode:
             except Exception as exc:
                 logger.warning("[P2P] native P2PConnectionGovernor unavailable: %s", exc)
                 self._conn_governor = None
-        # v1.3.90: plain-TCP native transport (incompatible with P2P TLS)
+        # v1.3.90/91: native TCP(+TLS) transport
         want_native_tx = bool(getattr(config, "p2p_native_transport", False))
         if want_native_tx:
-            if p2p_tls_enabled(config):
-                logger.warning(
-                    "[P2P] p2p_native_transport ignored: incompatible with P2P TLS"
-                )
-            elif native.native_available() and hasattr(native, "P2PNativeListener"):
-                self._use_native_transport = True
+            if native.native_available() and hasattr(native, "P2PNativeListener"):
+                if p2p_tls_enabled(config):
+                    errs, _warn = validate_p2p_tls_config(config)
+                    if errs:
+                        logger.warning(
+                            "[P2P] p2p_native_transport+TLS misconfigured: %s",
+                            "; ".join(errs),
+                        )
+                    elif not getattr(native, "p2p_native_tls_available", lambda: False)():
+                        logger.warning(
+                            "[P2P] native TLS unavailable; falling back to asyncio TLS"
+                        )
+                    else:
+                        self._use_native_transport = True
+                else:
+                    self._use_native_transport = True
             else:
                 logger.warning("[P2P] p2p_native_transport requested but abs_native missing")
+        self._native_tls = bool(
+            self._use_native_transport and p2p_tls_enabled(config)
+        )
         self._handshake_rejects: int = 0
         self._eclipse_at_risk: int = 0
         self._eclipse_ratio: float = 0.0
@@ -896,20 +910,40 @@ class P2PNode:
         # Запускаем TCP-сервер (asyncio TLS path OR native plain-TCP transport)
         try:
             if self._use_native_transport:
-                if p2p_tls_enabled(self.config):
-                    print("[P2P] native transport refused: TLS enabled")
-                    self._running = False
-                    return
+                if self._native_tls:
+                    tls_errors, tls_warn = validate_p2p_tls_config(self.config)
+                    for warn in tls_warn:
+                        logger.warning("[P2P] TLS: %s", warn)
+                    if tls_errors:
+                        print(f"[P2P] native TLS misconfigured: {tls_errors}")
+                        self._running = False
+                        return
                 max_bytes = _max_p2p_line_bytes(self.config)
+                tls_kwargs = {}
+                if self._native_tls:
+                    tls_kwargs = {
+                        "cert_path": str(
+                            getattr(self.config, "p2p_tls_cert_path", "") or ""
+                        ),
+                        "key_path": str(
+                            getattr(self.config, "p2p_tls_key_path", "") or ""
+                        ),
+                        "ca_path": str(getattr(self.config, "p2p_tls_ca_path", "") or ""),
+                        "require_client_cert": bool(
+                            getattr(self.config, "p2p_tls_require_client_cert", True)
+                        ),
+                    }
                 self._native_listener = native.P2PNativeListener(
                     str(self.config.p2p_host or "0.0.0.0"),
                     int(self.config.p2p_port),
                     int(max_bytes),
                     500,
+                    **tls_kwargs,
                 )
+                label = "native-tls" if self._native_tls else "native-tcp"
                 print(
                     f"[P2P] Listening on {self.config.p2p_host}:{self.config.p2p_port} "
-                    f"(native-tcp v1.3.90)"
+                    f"({label} v1.3.91)"
                 )
             else:
                 if p2p_tls_enabled(self.config):
@@ -1176,15 +1210,28 @@ class P2PNode:
         try:
             if self._use_native_transport and hasattr(native, "p2p_native_connect"):
                 max_bytes = _max_p2p_line_bytes(self.config)
+                tls_args = {}
+                if self._native_tls:
+                    tls_args = {
+                        "cert_path": str(
+                            getattr(self.config, "p2p_tls_cert_path", "") or ""
+                        ),
+                        "key_path": str(
+                            getattr(self.config, "p2p_tls_key_path", "") or ""
+                        ),
+                        "ca_path": str(getattr(self.config, "p2p_tls_ca_path", "") or ""),
+                    }
                 nconn = await asyncio.wait_for(
                     asyncio.to_thread(
-                        native.p2p_native_connect,
-                        host,
-                        int(port),
-                        int(max_bytes),
-                        10_000,
+                        lambda: native.p2p_native_connect(
+                            host,
+                            int(port),
+                            int(max_bytes),
+                            10_000,
+                            **tls_args,
+                        )
                     ),
-                    timeout=12,
+                    timeout=15,
                 )
                 qmax, dto = self._peer_send_queue_params()
                 peer = PeerConnection(
@@ -3296,6 +3343,7 @@ class P2PNode:
             "native_p2p_framer": bool(hasattr(native, "P2PLineFramer")),
             "native_conn_governor": self._conn_governor is not None,
             "native_p2p_transport": bool(self._use_native_transport),
+            "native_p2p_tls": bool(getattr(self, "_native_tls", False)),
             "native_accept_total": int(self._native_accept_total or 0),
             "native_accept_errors": int(self._native_accept_errors or 0),
             "native_connect_total": int(self._native_connect_total or 0),

@@ -59,8 +59,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.90` — native plain-TCP P2P transport slice |
-| **Notes** | [RELEASE_NOTES_v1.3.90.md](../RELEASE_NOTES_v1.3.90.md) |
+| **Tag** | `v1.3.91` — native rustls P2P TLS |
+| **Notes** | [RELEASE_NOTES_v1.3.91.md](../RELEASE_NOTES_v1.3.91.md) |
 | **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

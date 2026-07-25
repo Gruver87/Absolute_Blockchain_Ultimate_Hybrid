@@ -140,6 +140,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "P2PNativeConn",
             "P2PNativeListener",
             "p2p_native_transport_available",
+            "p2p_native_tls_available",
             "p2p_native_connect",
             "p2p_frame_feed_once",
             "p2p_subnet_key",
@@ -2606,12 +2607,21 @@ def p2p_native_connect(
     port: int,
     max_bytes: int = 2 * 1024 * 1024,
     timeout_ms: int = 10_000,
+    cert_path: str | None = None,
+    key_path: str | None = None,
+    ca_path: str | None = None,
 ):
-    """Outbound plain-TCP framed connect (v1.3.90)."""
+    """Outbound TCP(+TLS) framed connect (v1.3.90/91)."""
     _require_native_kernel("P2PNativeConn")
     if _native is not None and hasattr(_native, "P2PNativeConn"):
         return _native.P2PNativeConn.connect(
-            str(host), int(port), int(max_bytes), int(timeout_ms)
+            str(host),
+            int(port),
+            int(max_bytes),
+            int(timeout_ms),
+            None if not cert_path else str(cert_path),
+            None if not key_path else str(key_path),
+            None if not ca_path else str(ca_path),
         )
     raise RuntimeError("P2PNativeConn requires abs_native")
 
@@ -2619,6 +2629,12 @@ def p2p_native_connect(
 def p2p_native_transport_available() -> bool:
     if _native is not None and hasattr(_native, "p2p_native_transport_available"):
         return bool(_native.p2p_native_transport_available())
+    return False
+
+
+def p2p_native_tls_available() -> bool:
+    if _native is not None and hasattr(_native, "p2p_native_tls_available"):
+        return bool(_native.p2p_native_tls_available())
     return False
 
 

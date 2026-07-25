@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.90-industrial"
+    node_version: str = "1.3.91-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -106,7 +106,7 @@ class Config:
     p2p_max_outbound_bytes_per_sec: int = 4 * 1024 * 1024  # per-peer outbound bandwidth (0=off)
     p2p_evict_min_score: int = 0                  # evict peers below score when >1 peer (0=off)
     p2p_eclipse_warn_ratio: float = 0.34          # densest public subnet / public peers (0=off)
-    p2p_native_transport: bool = False            # v1.3.90: Rust TCP+framer (plain only; not TLS)
+    p2p_native_transport: bool = False            # v1.3.90+: Rust TCP+framer (+TLS in v1.3.91)
     p2p_tls_enabled: bool = False                 # TLS on P2P wire (mainnet / public mesh)
     p2p_tls_cert_path: str = ""                   # node cert (PEM)
     p2p_tls_key_path: str = ""                    # node private key (PEM)

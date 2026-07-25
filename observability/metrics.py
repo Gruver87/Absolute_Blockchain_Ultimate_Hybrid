@@ -457,11 +457,17 @@ class MetricsCollector:
                     f"abs_p2p_eclipse_prune_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('eclipse_prune_total', 0) or 0)}"
                 ),
-                "# HELP abs_p2p_native_transport Whether Rust plain-TCP transport is active (0/1)",
+                "# HELP abs_p2p_native_transport Whether Rust TCP transport is active (0/1)",
                 "# TYPE abs_p2p_native_transport gauge",
                 (
                     f"abs_p2p_native_transport{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_p2p_transport') else 0}"
+                ),
+                "# HELP abs_p2p_native_tls Whether native transport uses rustls (0/1)",
+                "# TYPE abs_p2p_native_tls gauge",
+                (
+                    f"abs_p2p_native_tls{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_p2p_tls') else 0}"
                 ),
                 "# HELP abs_p2p_native_accept_total Native TCP accepts",
                 "# TYPE abs_p2p_native_accept_total counter",
