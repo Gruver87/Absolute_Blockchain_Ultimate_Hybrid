@@ -41,9 +41,9 @@ soak-test
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.53` — apply isolation metrics |
-| **Notes** | [RELEASE_NOTES_v1.3.53.md](../RELEASE_NOTES_v1.3.53.md) |
-| **Prior** | [v1.3.52](../RELEASE_NOTES_v1.3.52.md) apply queue; [v1.3.51](../RELEASE_NOTES_v1.3.51.md) P2P offload |
+| **Tag** | `v1.3.54` — EVM/mempool load harness |
+| **Notes** | [RELEASE_NOTES_v1.3.54.md](../RELEASE_NOTES_v1.3.54.md) |
+| **Prior** | [v1.3.53](../RELEASE_NOTES_v1.3.53.md) metrics; [v1.3.52](../RELEASE_NOTES_v1.3.52.md) apply queue |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
 | **API wave** | 61 |

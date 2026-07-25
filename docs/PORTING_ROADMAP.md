@@ -289,7 +289,8 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] v1.3.51: P2P/sync `import_block` off asyncio loop
 - [x] v1.3.52: serial `ChainApplyQueue` (atomic forge_and_apply)
 - [x] v1.3.53: dedicated sync executor + Prometheus apply metrics + backpressure honesty
-- Remaining: EVM/mempool high-load soak harness · nested CALL host-in-Rust
+- [x] v1.3.54: EVM/mempool high-load soak harness (`scripts/evm_mempool_load_harness.py`)
+- Remaining: nested CALL host-in-Rust (BALANCE/EXTCODE*)
 
 ## Process per module
 

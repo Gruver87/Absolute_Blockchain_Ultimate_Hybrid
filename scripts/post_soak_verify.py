@@ -83,6 +83,7 @@ POST_SOAK_TESTS = [
     "tests/unit/test_v1351_p2p_import_offload.py",
     "tests/unit/test_v1352_chain_apply_queue.py",
     "tests/unit/test_v1353_apply_isolation_metrics.py",
+    "tests/unit/test_v1354_evm_mempool_load.py",
     "tests/unit/test_sqlite_reorg_parity.py",
     "tests/unit/test_bridge_health.py",
     "tests/unit/test_rpc_methods.py",

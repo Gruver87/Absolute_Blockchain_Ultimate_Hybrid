@@ -1094,8 +1094,16 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             ROOT / "api" / "http.py"
         ).read_text(encoding="utf-8"):
             errors.append("api/http.py must expose apply isolation metrics")
+        # v1.3.54 — EVM/mempool load harness
+        harness = ROOT / "scripts" / "evm_mempool_load_harness.py"
+        if not harness.is_file():
+            errors.append("scripts/evm_mempool_load_harness.py missing (v1.3.54)")
+        else:
+            htxt = harness.read_text(encoding="utf-8")
+            if "ChainApplyQueue" not in htxt or "submit_forge_and_apply" not in htxt:
+                errors.append("evm_mempool_load_harness must exercise ChainApplyQueue")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..53 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..54 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

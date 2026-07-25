@@ -6,6 +6,12 @@
 
 ---
 
+## [1.3.54] — 2026-07-25
+
+### Added — EVM/mempool high-load harness
+
+- `scripts/evm_mempool_load_harness.py` — concurrent mempool enqueue + ChainApplyQueue forge (simple+EVM), not `/health/live`
+
 ## [1.3.53] — 2026-07-25
 
 ### Added — apply isolation metrics + dedicated sync executor
