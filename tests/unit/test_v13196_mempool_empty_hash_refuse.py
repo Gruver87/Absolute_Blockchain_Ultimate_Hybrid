@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""v1.3.195: P2P refuses empty to address before validate_transaction."""
+"""v1.3.196: P2P refuses empty wire hash before validate_transaction."""
 
 from __future__ import annotations
 
@@ -22,8 +22,9 @@ def _node() -> P2PNode:
     cfg.require_native_crypto = False
     cfg.deployment_mode = "dev"
     cfg.bootstrap_peers = []
-    cfg.p2p_mempool_empty_to_refuse = True
+    cfg.p2p_mempool_empty_hash_refuse = True
     cfg.p2p_mempool_empty_from_refuse = False
+    cfg.p2p_mempool_empty_to_refuse = False
     cfg.p2p_mempool_empty_sig_refuse = False
     cfg.p2p_mempool_empty_pubkey_refuse = False
     cfg.p2p_mempool_max_sig_refuse = False
@@ -47,10 +48,10 @@ def _node() -> P2PNode:
     return P2PNode(cfg, chain, mp)
 
 
-def _wire(*, to_addr: str, fee: float = 1.0, tx_hash: str = "ab" * 32) -> dict:
+def _wire(*, tx_hash: str, fee: float = 1.0) -> dict:
     return {
         "from": "0x" + "11" * 20,
-        "to": to_addr,
+        "to": "0x" + "22" * 20,
         "value": 1,
         "nonce": 0,
         "gas": 21_000,
@@ -73,48 +74,49 @@ def _build(node: P2PNode, payload: dict):
         native.validate_p2p_wire_tx = orig  # type: ignore
 
 
-def test_needles_v13195():
+def test_needles_v13196():
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
-    assert "to_empty" in p2p
-    assert "p2p_mempool_empty_to_refuse" in p2p
-    assert "native_mempool_empty_to_refuse" in p2p
-    assert "_mempool_empty_to_refuse_total" in p2p
+    assert "hash_empty" in p2p
+    assert "p2p_mempool_empty_hash_refuse" in p2p
+    assert "native_mempool_empty_hash_refuse" in p2p
+    assert "_mempool_empty_hash_refuse_total" in p2p
     cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "p2p_mempool_empty_to_refuse" in cfg
-    assert "P2P_MEMPOOL_EMPTY_TO_REFUSE" in cfg
-    notes = (ROOT / "RELEASE_NOTES_v1.3.195.md").read_text(encoding="utf-8")
-    assert "1.3.195-industrial" in notes
-    assert Config().node_version.startswith("1.3.")
+    assert "p2p_mempool_empty_hash_refuse" in cfg
+    assert "P2P_MEMPOOL_EMPTY_HASH_REFUSE" in cfg
+    notes = (ROOT / "RELEASE_NOTES_v1.3.196.md").read_text(encoding="utf-8")
+    assert "1.3.196-industrial" in notes
+    assert Config().node_version.startswith("1.3.196")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
-    assert "abs_p2p_native_mempool_empty_to_refuse" in metrics
-    assert "abs_p2p_mempool_empty_to_refuse_total" in metrics
+    assert "abs_p2p_native_mempool_empty_hash_refuse" in metrics
+    assert "abs_p2p_mempool_empty_hash_refuse_total" in metrics
 
 
-def test_refuse_empty_to_before_validate():
+def test_refuse_empty_hash_before_validate():
     node = _node()
-    out = _build(node, _wire(to_addr=""))
+    out = _build(node, _wire(tx_hash=""))
     assert out is None
-    assert node._last_tx_wire_reject == "to_empty"
-    assert node._mempool_empty_to_refuse_total >= 1
+    assert node._last_tx_wire_reject == "hash_empty"
+    assert node._mempool_empty_hash_refuse_total >= 1
     node.blockchain.validate_transaction.assert_not_called()
+    node.mempool.has_transaction.assert_not_called()
 
 
-def test_refuse_whitespace_to_before_validate():
+def test_refuse_whitespace_hash_before_validate():
     node = _node()
-    out = _build(node, _wire(to_addr="   ", tx_hash="cd" * 32))
+    out = _build(node, _wire(tx_hash="   "))
     assert out is None
-    assert node._last_tx_wire_reject == "to_empty"
+    assert node._last_tx_wire_reject == "hash_empty"
 
 
-def test_ok_to_reaches_validate():
+def test_ok_hash_reaches_validate():
     node = _node()
-    out = _build(node, _wire(to_addr="0x" + "22" * 20))
+    out = _build(node, _wire(tx_hash="ab" * 32))
     assert out is not None
     node.blockchain.validate_transaction.assert_called()
-    assert node._mempool_empty_to_refuse_total == 0
+    assert node._mempool_empty_hash_refuse_total == 0
 
 
 def test_security_status_gauge():
     node = _node()
     st = node.get_p2p_security_status()
-    assert st.get("native_mempool_empty_to_refuse") is True
+    assert st.get("native_mempool_empty_hash_refuse") is True

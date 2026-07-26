@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.196] — 2026-07-26
+
+### Mempool — empty-hash refuse
+
+- P2P refuses empty/whitespace wire `hash` before `validate_transaction` (`hash_empty`)
+- Soft DoS honesty — empty hash skipped `duplicate_tx`; this closes that gap
+- Honesty: not tip proof / Long-Range / libp2p / public mainnet / hash↔body bind
+
 ## [1.3.195] — 2026-07-26
 
 ### Mempool — empty-to refuse
