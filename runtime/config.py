@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.204-industrial"
+    node_version: str = "1.3.205-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -133,6 +133,7 @@ class Config:
     p2p_mempool_negative_gas_refuse: bool = True    # v1.3.187: refuse gas<0 before validate_transaction
     p2p_mempool_unparseable_gas_refuse: bool = True # v1.3.203: refuse unparseable gas before validate_transaction
     p2p_mempool_unparseable_value_refuse: bool = True # v1.3.204: refuse unparseable value before validate_transaction
+    p2p_mempool_unparseable_nonce_refuse: bool = True # v1.3.205: refuse unparseable nonce before validate_transaction
     p2p_mempool_empty_from_refuse: bool = True      # v1.3.188: refuse empty from before validate_transaction
     p2p_mempool_max_from_refuse: bool = True        # v1.3.198: refuse oversized from before validate_transaction
     p2p_mempool_max_addr_chars: int = 128           # v1.3.198: max wire from/to chars (align MAX_P2P_ADDR_LEN)
@@ -506,6 +507,10 @@ class Config:
         self.p2p_mempool_unparseable_value_refuse = env_bool(
             "P2P_MEMPOOL_UNPARSEABLE_VALUE_REFUSE",
             self.p2p_mempool_unparseable_value_refuse,
+        )
+        self.p2p_mempool_unparseable_nonce_refuse = env_bool(
+            "P2P_MEMPOOL_UNPARSEABLE_NONCE_REFUSE",
+            self.p2p_mempool_unparseable_nonce_refuse,
         )
         self.p2p_mempool_empty_from_refuse = env_bool(
             "P2P_MEMPOOL_EMPTY_FROM_REFUSE",

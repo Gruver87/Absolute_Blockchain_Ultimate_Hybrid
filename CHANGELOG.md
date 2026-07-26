@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.205] — 2026-07-26
+
+### Mempool — unparseable-nonce refuse
+
+- P2P refuses junk / Inf `nonce` before `validate_transaction` (`nonce_unparseable`)
+- Soft DoS honesty — no OverflowError into ingest; complements nonce_negative / nonce_too_high
+- Honesty: not tip proof / Long-Range / libp2p / public mainnet / account-nonce sequencing
+
 ## [1.3.204] — 2026-07-26
 
 ### Mempool — unparseable-value refuse

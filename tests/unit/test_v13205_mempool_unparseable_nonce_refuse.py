@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""v1.3.204: P2P refuses unparseable value before validate_transaction."""
+"""v1.3.205: P2P refuses unparseable nonce before validate_transaction."""
 
 from __future__ import annotations
 
@@ -22,7 +22,8 @@ def _node() -> P2PNode:
     cfg.require_native_crypto = False
     cfg.deployment_mode = "dev"
     cfg.bootstrap_peers = []
-    cfg.p2p_mempool_unparseable_value_refuse = True
+    cfg.p2p_mempool_unparseable_nonce_refuse = True
+    cfg.p2p_mempool_unparseable_value_refuse = False
     cfg.p2p_mempool_unparseable_gas_refuse = False
     cfg.p2p_mempool_negative_value_refuse = False
     cfg.p2p_mempool_nonfinite_value_refuse = False
@@ -56,12 +57,12 @@ def _node() -> P2PNode:
     return P2PNode(cfg, chain, mp)
 
 
-def _wire(*, value, fee: float = 1.0, tx_hash: str = "ab" * 32) -> dict:
+def _wire(*, nonce, fee: float = 1.0, tx_hash: str = "ab" * 32) -> dict:
     return {
         "from": "0x" + "11" * 20,
         "to": "0x" + "22" * 20,
-        "value": value,
-        "nonce": 0,
+        "value": 1.0,
+        "nonce": nonce,
         "gas": 21_000,
         "fee": fee,
         "signature": "sig",
@@ -82,48 +83,55 @@ def _build(node: P2PNode, payload: dict):
         native.validate_p2p_wire_tx = orig  # type: ignore
 
 
-def test_needles_v13204():
+def test_needles_v13205():
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
-    assert "value_unparseable" in p2p
-    assert "p2p_mempool_unparseable_value_refuse" in p2p
-    assert "native_mempool_unparseable_value_refuse" in p2p
-    assert "_mempool_value_unparseable_refuse_total" in p2p
+    assert "nonce_unparseable" in p2p
+    assert "p2p_mempool_unparseable_nonce_refuse" in p2p
+    assert "native_mempool_unparseable_nonce_refuse" in p2p
+    assert "_mempool_nonce_unparseable_refuse_total" in p2p
     cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "p2p_mempool_unparseable_value_refuse" in cfg
-    assert "P2P_MEMPOOL_UNPARSEABLE_VALUE_REFUSE" in cfg
-    notes = (ROOT / "RELEASE_NOTES_v1.3.204.md").read_text(encoding="utf-8")
-    assert "1.3.204-industrial" in notes
-    assert Config().node_version.startswith("1.3.")
+    assert "p2p_mempool_unparseable_nonce_refuse" in cfg
+    assert "P2P_MEMPOOL_UNPARSEABLE_NONCE_REFUSE" in cfg
+    notes = (ROOT / "RELEASE_NOTES_v1.3.205.md").read_text(encoding="utf-8")
+    assert "1.3.205-industrial" in notes
+    assert Config().node_version.startswith("1.3.205")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
-    assert "abs_p2p_native_mempool_unparseable_value_refuse" in metrics
-    assert "abs_p2p_mempool_value_unparseable_refuse_total" in metrics
+    assert "abs_p2p_native_mempool_unparseable_nonce_refuse" in metrics
+    assert "abs_p2p_mempool_nonce_unparseable_refuse_total" in metrics
 
 
-def test_refuse_junk_value_before_validate():
+def test_refuse_junk_nonce_before_validate():
     node = _node()
-    out = _build(node, _wire(value="not-a-number"))
+    out = _build(node, _wire(nonce="not-a-number"))
     assert out is None
-    assert node._last_tx_wire_reject == "value_unparseable"
-    assert node._mempool_value_unparseable_refuse_total >= 1
+    assert node._last_tx_wire_reject == "nonce_unparseable"
+    assert node._mempool_nonce_unparseable_refuse_total >= 1
     node.blockchain.validate_transaction.assert_not_called()
 
 
-def test_refuse_object_value_before_validate():
+def test_refuse_object_nonce_before_validate():
     node = _node()
-    out = _build(node, _wire(value={"x": 1}, tx_hash="cd" * 32))
+    out = _build(node, _wire(nonce={"x": 1}, tx_hash="cd" * 32))
     assert out is None
-    assert node._last_tx_wire_reject == "value_unparseable"
+    assert node._last_tx_wire_reject == "nonce_unparseable"
 
 
-def test_ok_numeric_value_reaches_validate():
+def test_refuse_inf_nonce_before_validate():
     node = _node()
-    out = _build(node, _wire(value=1.25, tx_hash="ef" * 32))
+    out = _build(node, _wire(nonce=float("inf"), tx_hash="11" * 32))
+    assert out is None
+    assert node._last_tx_wire_reject == "nonce_unparseable"
+
+
+def test_ok_numeric_nonce_reaches_validate():
+    node = _node()
+    out = _build(node, _wire(nonce=7, tx_hash="ef" * 32))
     assert out is not None
     node.blockchain.validate_transaction.assert_called()
-    assert node._mempool_value_unparseable_refuse_total == 0
+    assert node._mempool_nonce_unparseable_refuse_total == 0
 
 
 def test_security_status_gauge():
     node = _node()
     st = node.get_p2p_security_status()
-    assert st.get("native_mempool_unparseable_value_refuse") is True
+    assert st.get("native_mempool_unparseable_nonce_refuse") is True
