@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.194 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.195 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -155,6 +155,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13192_mempool_max_pubkey_refuse.py",
     "tests/unit/test_v13193_mempool_nonfinite_value_refuse.py",
     "tests/unit/test_v13194_mempool_nonfinite_fee_refuse.py",
+    "tests/unit/test_v13195_mempool_empty_to_refuse.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -3117,6 +3118,33 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_mempool_nonfinite_fee_refuse_total",
         ],
     ),
+    (
+        "1.3.195",
+        "RELEASE_NOTES_v1.3.195.md",
+        ["1.3.195-industrial", "to_empty"],
+    ),
+    (
+        "1.3.195",
+        "network/p2p_node.py",
+        [
+            "to_empty",
+            "p2p_mempool_empty_to_refuse",
+            "native_mempool_empty_to_refuse",
+        ],
+    ),
+    (
+        "1.3.195",
+        "runtime/config.py",
+        ["p2p_mempool_empty_to_refuse"],
+    ),
+    (
+        "1.3.195",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_mempool_empty_to_refuse",
+            "abs_p2p_mempool_empty_to_refuse_total",
+        ],
+    ),
 ]
 
 
@@ -3144,8 +3172,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.194"):
-            errors.append(f"node_version expected 1.3.194-*, got {ver}")
+        if not ver.startswith("1.3.195"):
+            errors.append(f"node_version expected 1.3.195-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

@@ -1283,6 +1283,7 @@ class P2PNode:
         self._mempool_fee_negative_refuse_total: int = 0
         self._mempool_gas_negative_refuse_total: int = 0
         self._mempool_empty_from_refuse_total: int = 0
+        self._mempool_empty_to_refuse_total: int = 0
         self._mempool_empty_sig_refuse_total: int = 0
         self._mempool_empty_pubkey_refuse_total: int = 0
         self._mempool_sig_size_refuse_total: int = 0
@@ -3448,6 +3449,7 @@ class P2PNode:
         v1.3.186: also refuse fee < 0 before validate_transaction.
         v1.3.187: also refuse gas < 0 before validate_transaction.
         v1.3.188: also refuse empty from address before validate_transaction.
+        v1.3.195: also refuse empty to address before validate_transaction.
         v1.3.189: also refuse empty signature before validate_transaction.
         v1.3.190: also refuse empty public_key before validate_transaction.
         v1.3.191: also refuse oversized signature before validate_transaction.
@@ -3479,6 +3481,16 @@ class P2PNode:
                 self._last_tx_wire_reject = "from_empty"
                 self._mempool_empty_from_refuse_total = int(
                     getattr(self, "_mempool_empty_from_refuse_total", 0) or 0
+                ) + 1
+                return None
+
+        # v1.3.195: cheap empty-to refuse before validate_transaction (state).
+        # Soft DoS honesty — mirrors from_empty; not contract-create / checksum.
+        if bool(getattr(self.config, "p2p_mempool_empty_to_refuse", True)):
+            if not str(to_addr or "").strip():
+                self._last_tx_wire_reject = "to_empty"
+                self._mempool_empty_to_refuse_total = int(
+                    getattr(self, "_mempool_empty_to_refuse_total", 0) or 0
                 ) + 1
                 return None
 
@@ -6448,6 +6460,9 @@ class P2PNode:
             "native_mempool_empty_from_refuse": bool(
                 getattr(self.config, "p2p_mempool_empty_from_refuse", True)
             ),
+            "native_mempool_empty_to_refuse": bool(
+                getattr(self.config, "p2p_mempool_empty_to_refuse", True)
+            ),
             "native_mempool_empty_sig_refuse": bool(
                 getattr(self.config, "p2p_mempool_empty_sig_refuse", True)
             ),
@@ -6658,6 +6673,9 @@ class P2PNode:
             ),
             "mempool_empty_from_refuse_total": int(
                 getattr(self, "_mempool_empty_from_refuse_total", 0) or 0
+            ),
+            "mempool_empty_to_refuse_total": int(
+                getattr(self, "_mempool_empty_to_refuse_total", 0) or 0
             ),
             "mempool_empty_sig_refuse_total": int(
                 getattr(self, "_mempool_empty_sig_refuse_total", 0) or 0

@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.195] — 2026-07-26
+
+### Mempool — empty-to refuse
+
+- P2P refuses empty/whitespace `to` before `validate_transaction` (`to_empty`)
+- Soft DoS honesty — mirrors `from_empty`; cheaper than `missing_address`
+- Honesty: not tip proof / Long-Range / libp2p / public mainnet / contract-create
+
 ## [1.3.194] — 2026-07-26
 
 ### Mempool — non-finite fee refuse
