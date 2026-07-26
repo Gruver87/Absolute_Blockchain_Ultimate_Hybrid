@@ -819,6 +819,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Honesty needle aligned with unsolicited state_root strike (not legacy match log)
 - Remaining: tip proof / fork-choice / libp2p / ceremony (not claimed)
 
+### Priority 97 — Mempool cheap-refuse + new_tx primary rate ✅ (v1.3.143)
+
+- [x] Remove `new_tx` from RATE_LIMIT_EXEMPT (Python + Rust DEFAULT_EXEMPT)
+- [x] Dup-hash refuse before validate; sig-before-DB; `chain_prevalidated` on P2P add
+- Remaining: anti-Sybil QoS / fee-market / Long-Range checkpoint / full Rocks rewrite / tip proof / libp2p (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

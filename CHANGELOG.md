@@ -6,6 +6,15 @@
 
 ---
 
+## [1.3.143] — 2026-07-26
+
+### Mempool — cheap refuse + new_tx primary rate
+
+- `MSG_NEW_TX` removed from rate-limit exempt (gossip on primary budget)
+- Dup-hash refuse before `validate_transaction`; sig-before-DB order
+- P2P ingest skips second chain validate via `chain_prevalidated`
+- Honesty: not anti-Sybil / fee-market / Long-Range / full Rocks rewrite
+
 ## [1.3.142] — 2026-07-26
 
 ### Tests — Standard pytest solicit-only needle

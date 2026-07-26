@@ -64,11 +64,23 @@ def test_ingress_admit_rejects_oversized():
 def test_ingress_exempt_secondary_budget():
     table = native.P2PRateLimitTable(500, 5, 300, sorted(RATE_LIMIT_EXEMPT_TYPES), 2)
     now = time.time()
-    line = (json.dumps({"type": MSG_NEW_TX, "data": {}}) + "\n").encode()
+    # Sync/housekeeping types remain on the secondary exempt budget (not new_tx).
+    line = (json.dumps({"type": MSG_PING, "data": None}) + "\n").encode()
     assert native.p2p_ingress_admit(line, "p1", now, 2**20, None, table)["ok"]
     assert native.p2p_ingress_admit(line, "p1", now, 2**20, None, table)["ok"]
     denied = native.p2p_ingress_admit(line, "p1", now, 2**20, None, table)
     assert denied["ok"] is False and denied["reason"] == "exempt_rate_exceeded"
+
+
+def test_ingress_new_tx_uses_primary_rate():
+    """v1.3.143: new_tx is not exempt — floods hit primary rate_limit_exceeded."""
+    table = native.P2PRateLimitTable(2, 5, 300, sorted(RATE_LIMIT_EXEMPT_TYPES), 100)
+    now = time.time()
+    line = (json.dumps({"type": MSG_NEW_TX, "data": {}}) + "\n").encode()
+    assert native.p2p_ingress_admit(line, "p1", now, 2**20, None, table)["ok"]
+    assert native.p2p_ingress_admit(line, "p1", now, 2**20, None, table)["ok"]
+    denied = native.p2p_ingress_admit(line, "p1", now, 2**20, None, table)
+    assert denied["ok"] is False and denied["reason"] == "rate_limit_exceeded"
 
 
 def test_connection_governor_per_ip():

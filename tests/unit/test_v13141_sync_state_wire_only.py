@@ -30,7 +30,7 @@ def test_needles_v13141():
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_sync_state_wire_only" in metrics
     check = (ROOT / "scripts" / "check_all.ps1").read_text(encoding="utf-8")
-    assert "v1.3.140" in check or "v1.3.141" in check or "v1.3.142" in check
+    assert "v1.3.140" in check or "v1.3.141" in check or "v1.3.142" in check or "v1.3.143" in check
 
 
 def test_sync_state_no_local_invent_when_wire_lacks_same_height():

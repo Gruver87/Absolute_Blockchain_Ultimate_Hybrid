@@ -119,6 +119,8 @@ ALLOWED_WIRE_TYPES = frozenset({
 })
 
 # Housekeeping + consensus/sync wire types are not counted toward per-peer rate limits.
+# v1.3.143: MSG_NEW_TX is NOT exempt — gossip hits the primary rate budget so tx spam
+# cannot hide behind the sync/exempt ceiling. Soft DoS honesty only — not anti-Sybil.
 RATE_LIMIT_EXEMPT_TYPES = frozenset({
     MSG_PING,
     MSG_PONG,
@@ -132,7 +134,6 @@ RATE_LIMIT_EXEMPT_TYPES = frozenset({
     MSG_GET_BLOCKS,
     MSG_BLOCK,
     MSG_BLOCKS,
-    MSG_NEW_TX,
     MSG_GET_MEMPOOL,
     MSG_MEMPOOL,
 })
@@ -1234,6 +1235,7 @@ class P2PNode:
         self._maintenance_loop_fail: int = 0
         self._catch_up_loop_fail: int = 0
         self._peer_tx_reject: int = 0
+        self._mempool_dup_refuse_total: int = 0
         self._import_block_fail: int = 0
         self._import_offload_total: int = 0
         self.apply_queue = None  # set by AbsoluteNode — serial mine+import
@@ -3042,7 +3044,11 @@ class P2PNode:
             )
 
     def _build_mempool_tx_from_wire(self, data: Dict):
-        """Build a mempool entry from wire-format tx; None if invalid."""
+        """Build a mempool entry from wire-format tx; None if invalid.
+
+        v1.3.143: after native shape, skip known hashes before validate_transaction
+        (cheap refuse). Soft DoS honesty only — not anti-Sybil / tip proof.
+        """
         self._last_tx_wire_reject = ""
         if not native.validate_p2p_wire_tx(data):
             self._last_tx_wire_reject = "bad_wire_tx"
@@ -3058,7 +3064,19 @@ class P2PNode:
         signature = data.get("signature", "")
         public_key = data.get("public_key", "")
         calldata = data.get("data", data.get("input", ""))
-        tx_hash = data.get("hash", data.get("tx_hash", ""))
+        tx_hash = str(data.get("hash", data.get("tx_hash", "")) or "").strip()
+
+        # Cheap duplicate refuse before DB/nonce/sig path.
+        if tx_hash and self.mempool is not None:
+            try:
+                if self.mempool.has_transaction(tx_hash):
+                    self._last_tx_wire_reject = "duplicate_tx"
+                    self._mempool_dup_refuse_total = int(
+                        getattr(self, "_mempool_dup_refuse_total", 0) or 0
+                    ) + 1
+                    return None
+            except Exception:
+                pass
 
         tx = Transaction(
             from_addr=from_addr,
@@ -3115,7 +3133,10 @@ class P2PNode:
                 self._strike_peer_sync(peer, "bad_peer_tx")
             return False
         mp_tx, tx_hash = built
-        if not self.mempool.add(mp_tx):
+        # Already passed validate_transaction (sig + state); skip duplicate work in add().
+        if not self.mempool.add(
+            mp_tx, signature_preverified=True, chain_prevalidated=True
+        ):
             self._peer_tx_reject = int(self._peer_tx_reject or 0) + 1
             logger.warning(
                 "[P2P] Tx mempool drop (%s peer=%s hash=%s)",
@@ -3181,7 +3202,9 @@ class P2PNode:
             )
         if not mp_txs:
             return
-        added, batch_rejected, accepted_hashes = self.mempool.add_batch(mp_txs)
+        added, batch_rejected, accepted_hashes = self.mempool.add_batch(
+            mp_txs, chain_prevalidated=True
+        )
         if batch_rejected:
             self._peer_tx_reject = int(self._peer_tx_reject or 0) + int(batch_rejected)
         stage_recv = "mempool_sync"
@@ -4689,6 +4712,9 @@ class P2PNode:
             ),
             "native_sync_heads_no_invent": True,
             "native_sync_state_wire_only": True,
+            "native_mempool_new_tx_rate_primary": True,
+            "native_mempool_cheap_refuse": True,
+            "native_tx_sig_before_state": True,
             "native_bootstrap_resilient": True,
             "native_bootstrap_pin_gate": True,
             "native_discovery_dialability_gate": True,
@@ -4763,6 +4789,9 @@ class P2PNode:
             "heads_skipped_no_head": int(
                 getattr(getattr(self, "sync_engine", None), "_heads_skipped_no_head", 0)
                 or 0
+            ),
+            "mempool_dup_refuse_total": int(
+                getattr(self, "_mempool_dup_refuse_total", 0) or 0
             ),
             "bootstrap_redial_total": int(
                 getattr(self, "_bootstrap_redial_total", 0) or 0

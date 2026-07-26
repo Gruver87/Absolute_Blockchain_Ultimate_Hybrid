@@ -865,6 +865,30 @@ class MetricsCollector:
                     f"abs_p2p_native_sync_state_wire_only{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_sync_state_wire_only') else 0}"
                 ),
+                "# HELP abs_p2p_native_mempool_cheap_refuse Whether P2P mempool refuses known hashes before validate (0/1)",
+                "# TYPE abs_p2p_native_mempool_cheap_refuse gauge",
+                (
+                    f"abs_p2p_native_mempool_cheap_refuse{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_mempool_cheap_refuse') else 0}"
+                ),
+                "# HELP abs_p2p_native_mempool_new_tx_rate_primary Whether new_tx uses primary rate budget (0/1)",
+                "# TYPE abs_p2p_native_mempool_new_tx_rate_primary gauge",
+                (
+                    f"abs_p2p_native_mempool_new_tx_rate_primary{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_mempool_new_tx_rate_primary') else 0}"
+                ),
+                "# HELP abs_p2p_native_tx_sig_before_state Whether validate_transaction verifies sig before DB (0/1)",
+                "# TYPE abs_p2p_native_tx_sig_before_state gauge",
+                (
+                    f"abs_p2p_native_tx_sig_before_state{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_tx_sig_before_state') else 0}"
+                ),
+                "# HELP abs_p2p_mempool_dup_refuse_total Known-hash mempool refuses before validate_transaction",
+                "# TYPE abs_p2p_mempool_dup_refuse_total counter",
+                (
+                    f"abs_p2p_mempool_dup_refuse_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('mempool_dup_refuse_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_heads_skipped_no_head Peers skipped in request_heads due to empty peer.head",
                 "# TYPE abs_p2p_heads_skipped_no_head gauge",
                 (

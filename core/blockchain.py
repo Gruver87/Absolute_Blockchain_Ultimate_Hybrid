@@ -1397,13 +1397,25 @@ class Blockchain:
     def validate_transaction(
         self, tx: Transaction, *, expected_nonce: Optional[int] = None
     ) -> Dict:
-        """Проверяет транзакцию перед добавлением в мемпул / сборкой блока."""
+        """Проверяет транзакцию перед добавлением в мемпул / сборкой блока.
+
+        v1.3.143: when signatures are required (or present), verify ECDSA before
+        nonce/balance DB lookups so junk-sig floods fail cheap. Soft DoS honesty
+        only — not fee-market / anti-Sybil.
+        """
         if not tx.from_addr or not tx.to_addr:
             return {"valid": False, "error": "missing_address"}
         if tx.value < 0:
             return {"valid": False, "error": "negative_value"}
         if tx.gas < self.config.base_gas_price:
             return {"valid": False, "error": "gas_too_low"}
+
+        # Cheap crypto refuse before state lookups when we will need a signature.
+        require_sigs = bool(getattr(self.config, "require_signatures", False))
+        if require_sigs or bool(tx.signature):
+            sig_check = self._verify_tx_signature(tx)
+            if not sig_check["valid"]:
+                return sig_check
 
         tip_nonce = self.db.get_nonce(tx.from_addr)
         want_nonce = tip_nonce if expected_nonce is None else int(expected_nonce)
@@ -1434,9 +1446,11 @@ class Blockchain:
             if not allowed:
                 return {"valid": False, "error": reason}
 
-        sig_check = self._verify_tx_signature(tx)
-        if not sig_check["valid"]:
-            return sig_check
+        # Dev path with no signature: still run explicit check when not required.
+        if not require_sigs and not tx.signature:
+            sig_check = self._verify_tx_signature(tx)
+            if not sig_check["valid"]:
+                return sig_check
 
         deploy_check = self._validate_evm_deploy_bytecode(tx)
         if not deploy_check["valid"]:

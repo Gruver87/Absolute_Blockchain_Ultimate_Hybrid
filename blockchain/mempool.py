@@ -147,8 +147,17 @@ class Mempool:
                 blockchain.config, "require_signatures", False
             )
 
-    def add(self, tx: MempoolTransaction, signature_preverified: bool = False) -> bool:
-        """Добавить транзакцию с полной валидацией."""
+    def add(
+        self,
+        tx: MempoolTransaction,
+        signature_preverified: bool = False,
+        chain_prevalidated: bool = False,
+    ) -> bool:
+        """Добавить транзакцию с полной валидацией.
+
+        v1.3.143: chain_prevalidated skips a second blockchain.validate_transaction
+        when the P2P path already validated (sig-before-DB). Soft DoS honesty only.
+        """
         with self.lock:
             if tx.tx_hash in self.transactions:
                 return False
@@ -167,7 +176,7 @@ class Mempool:
                 self._rejected_count += 1
                 return False
 
-            if self.blockchain:
+            if self.blockchain and not chain_prevalidated:
                 from core.blockchain import Transaction
                 chain_tx = Transaction(
                     from_addr=tx.from_addr,
@@ -220,8 +229,17 @@ class Mempool:
 
         return results
 
-    def add_batch(self, txs: List[MempoolTransaction]) -> Tuple[int, int, List[str]]:
-        """Add many txs with one native signature batch verify pass."""
+    def add_batch(
+        self,
+        txs: List[MempoolTransaction],
+        *,
+        chain_prevalidated: bool = False,
+    ) -> Tuple[int, int, List[str]]:
+        """Add many txs with one native signature batch verify pass.
+
+        v1.3.143: chain_prevalidated skips second validate_transaction when the
+        caller already validated each tx (P2P wire build path).
+        """
         if not txs:
             return 0, 0, []
 
@@ -235,7 +253,11 @@ class Mempool:
                     self._rejected_count += 1
                 rejected += 1
                 continue
-            if self.add(tx, signature_preverified=True):
+            if self.add(
+                tx,
+                signature_preverified=True,
+                chain_prevalidated=chain_prevalidated,
+            ):
                 added += 1
                 accepted_hashes.append(tx.tx_hash)
             else:

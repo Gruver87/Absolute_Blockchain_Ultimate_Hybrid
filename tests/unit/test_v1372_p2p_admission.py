@@ -74,7 +74,7 @@ def test_sync_admission_caps_inflight():
 
 
 def test_exempt_secondary_budget():
-    from network.p2p_node import P2PNode, MSG_NEW_TX
+    from network.p2p_node import P2PNode, MSG_NEW_TX, MSG_STATUS
     from runtime.config import Config
 
     cfg = Config()
@@ -85,7 +85,25 @@ def test_exempt_secondary_budget():
     node = P2PNode(cfg, MagicMock(), MagicMock())
     # Force Python path (no native table) for deterministic window math
     node._rl_table = None
-    assert node._rate_limit_ok("p1", MSG_NEW_TX) is True
+    # Sync/housekeeping still on secondary exempt budget (v1.3.143: not new_tx).
+    assert node._rate_limit_ok("p1", MSG_STATUS) is True
+    assert node._rate_limit_ok("p1", MSG_STATUS) is True
+    assert node._rate_limit_ok("p1", MSG_STATUS) is True
+    assert node._rate_limit_ok("p1", MSG_STATUS) is False
+
+
+def test_new_tx_uses_primary_rate_budget():
+    """v1.3.143: gossip new_tx is not exempt — hits primary rate limit."""
+    from network.p2p_node import P2PNode, MSG_NEW_TX
+    from runtime.config import Config
+
+    cfg = Config()
+    cfg.p2p_exempt_messages_per_sec = 100
+    cfg.p2p_max_messages_per_sec = 2
+    cfg.require_native_crypto = False
+    cfg.deployment_mode = "dev"
+    node = P2PNode(cfg, MagicMock(), MagicMock())
+    node._rl_table = None
     assert node._rate_limit_ok("p1", MSG_NEW_TX) is True
     assert node._rate_limit_ok("p1", MSG_NEW_TX) is True
     assert node._rate_limit_ok("p1", MSG_NEW_TX) is False

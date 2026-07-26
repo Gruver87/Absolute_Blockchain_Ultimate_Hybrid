@@ -43,12 +43,16 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "get_blocks",
         "block",
         "blocks",
-        "new_tx",
         "status",
+        "get_mempool",
+        "mempool",
     }
     missing_exempt = required_exempt - RATE_LIMIT_EXEMPT_TYPES
     if missing_exempt:
         errors.append(f"P2P rate-limit exempt set missing sync types: {sorted(missing_exempt)}")
+    # v1.3.143: gossip new_tx must use primary rate budget (not sync exempt).
+    if "new_tx" in RATE_LIMIT_EXEMPT_TYPES:
+        errors.append("P2P RATE_LIMIT_EXEMPT_TYPES must not include new_tx (v1.3.143)")
 
     cfg = Config()
     if int(getattr(cfg, "p2p_max_message_bytes", 0) or 0) < DEFAULT_MAX_P2P_LINE_BYTES // 2:
@@ -2173,8 +2177,24 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_sync_state_wire_only (v1.3.141)"
             )
+        # v1.3.143 — mempool cheap-refuse + new_tx primary rate
+        p2p_py = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+        if "native_mempool_cheap_refuse" not in p2p_py:
+            errors.append("p2p must expose native_mempool_cheap_refuse (v1.3.143)")
+        if "MSG_NEW_TX," in p2p_py.split("RATE_LIMIT_EXEMPT_TYPES")[1].split("})")[0]:
+            errors.append("RATE_LIMIT_EXEMPT_TYPES must not list MSG_NEW_TX (v1.3.143)")
+        if "nonce/balance DB lookups" not in (
+            ROOT / "core" / "blockchain.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("validate_transaction must verify sig before DB (v1.3.143)")
+        if "abs_p2p_native_mempool_cheap_refuse" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_mempool_cheap_refuse (v1.3.143)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..141 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..143 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

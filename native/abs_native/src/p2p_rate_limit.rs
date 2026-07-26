@@ -18,7 +18,7 @@ const DEFAULT_EXEMPT: &[&str] = &[
     "get_blocks",
     "block",
     "blocks",
-    "new_tx",
+    // v1.3.143: gossip new_tx removed from exempt — uses primary rate budget.
     "get_mempool",
     "mempool",
 ];
