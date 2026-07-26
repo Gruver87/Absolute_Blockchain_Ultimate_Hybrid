@@ -73,7 +73,7 @@ def test_needles_v13156():
     assert "P2P_NEW_BLOCK_ANNOUNCE_BODY_BIND" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.156.md").read_text(encoding="utf-8")
     assert "1.3.156-industrial" in notes
-    assert Config().node_version.startswith("1.3.156")
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_new_block_announce_body_bind" in metrics
     assert "abs_p2p_native_new_block_defer_tip" in metrics

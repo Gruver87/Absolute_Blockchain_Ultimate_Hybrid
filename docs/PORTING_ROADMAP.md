@@ -905,6 +905,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_new_block_announce_body_bind` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony (not claimed)
 
+### Priority 111 — Catch-up contiguous peer-head parent bind ✅ (v1.3.157)
+
+- [x] When peer is exactly `local+1`, probed head `parent_hash` must match local tip
+- [x] Refuse `catch_up_peer_head_parent_mismatch`
+- [x] Config `p2p_catch_up_peer_head_parent_bind` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

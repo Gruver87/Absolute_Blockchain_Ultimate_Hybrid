@@ -3500,6 +3500,7 @@ class P2PNode:
             "catch_up_peer_head_probe_failed",
             "catch_up_peer_head_hash_mismatch",
             "catch_up_peer_head_height_mismatch",
+            "catch_up_peer_head_parent_mismatch",
         ):
             self._catch_up_peer_head_probe_refuse_total = int(
                 getattr(self, "_catch_up_peer_head_probe_refuse_total", 0) or 0
@@ -3538,8 +3539,8 @@ class P2PNode:
     ) -> str:
         """v1.3.154: before get_blocks, solicit peer.head via get_block_by_hash.
 
-        Soft wire bind — peer must return a block whose hash matches claimed
-        head and height matches claimed peer.height. Not tip proof / Long-Range.
+        v1.3.157: when peer is exactly local+1, parent_hash must match local tip
+        (contiguous soft extension — not tip proof / Long-Range).
         """
         if not bool(getattr(self.config, "p2p_catch_up_peer_head_probe", True)):
             return ""
@@ -3567,6 +3568,21 @@ class P2PNode:
             bh = -1
         if bh >= 0 and bh != peer_h:
             return "catch_up_peer_head_height_mismatch"
+        # v1.3.157: contiguous (+1) extension must cite our tip as parent.
+        if bool(getattr(self.config, "p2p_catch_up_peer_head_parent_bind", True)):
+            if peer_h == local_h + 1:
+                parent = str(peer_block.get("parent_hash") or "").strip()
+                local_tip = ""
+                try:
+                    local_tip = str(self.head() or "").strip()
+                except Exception:
+                    local_tip = ""
+                if (
+                    parent
+                    and local_tip
+                    and parent.lower() != local_tip.lower()
+                ):
+                    return "catch_up_peer_head_parent_mismatch"
         return ""
 
     def _schedule_sync(self, peer: PeerConnection) -> None:
@@ -5119,6 +5135,9 @@ class P2PNode:
             ),
             "native_catch_up_peer_head_probe": bool(
                 getattr(self.config, "p2p_catch_up_peer_head_probe", True)
+            ),
+            "native_catch_up_peer_head_parent_bind": bool(
+                getattr(self.config, "p2p_catch_up_peer_head_parent_bind", True)
             ),
             "native_catch_up_head_height_bind": True,
             "native_sync_heads_no_invent": True,

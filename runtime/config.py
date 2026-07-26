@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.156-industrial"
+    node_version: str = "1.3.157-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -112,6 +112,7 @@ class Config:
     p2p_catch_up_require_head: bool = True        # v1.3.139: refuse height-only catch-up without peer.head
     p2p_catch_up_tip_probe: bool = True           # v1.3.146: solicit local-tip state_root before ahead catch-up
     p2p_catch_up_peer_head_probe: bool = True     # v1.3.154: solicit peer.head via get_block_by_hash before catch-up
+    p2p_catch_up_peer_head_parent_bind: bool = True  # v1.3.157: +1 peer.head parent_hash must match local tip
     p2p_peers_solicit_only: bool = True           # v1.3.152: refuse unsolicited MSG_PEERS (no dial from push)
     p2p_new_block_head_height_bind: bool = True   # v1.3.153: known announce hash ⇒ height must match local header
     p2p_status_head_height_bind: bool = True      # v1.3.155: known status/handshake head ⇒ height must match local header
@@ -367,6 +368,10 @@ class Config:
         )
         self.p2p_catch_up_peer_head_probe = env_bool(
             "P2P_CATCH_UP_PEER_HEAD_PROBE", self.p2p_catch_up_peer_head_probe
+        )
+        self.p2p_catch_up_peer_head_parent_bind = env_bool(
+            "P2P_CATCH_UP_PEER_HEAD_PARENT_BIND",
+            self.p2p_catch_up_peer_head_parent_bind,
         )
         self.p2p_peers_solicit_only = env_bool(
             "P2P_PEERS_SOLICIT_ONLY", self.p2p_peers_solicit_only

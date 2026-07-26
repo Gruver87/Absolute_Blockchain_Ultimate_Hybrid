@@ -955,6 +955,12 @@ class MetricsCollector:
                     f"abs_p2p_catch_up_peer_head_probe_refuse_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('catch_up_peer_head_probe_refuse_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_catch_up_peer_head_parent_bind Whether +1 catch-up peer.head parent must match local tip (0/1)",
+                "# TYPE abs_p2p_native_catch_up_peer_head_parent_bind gauge",
+                (
+                    f"abs_p2p_native_catch_up_peer_head_parent_bind{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_catch_up_peer_head_parent_bind') else 0}"
+                ),
                 "# HELP abs_p2p_native_sync_heads_no_invent Whether SyncEngine refuses inventing peer.head from local blocks (0/1)",
                 "# TYPE abs_p2p_native_sync_heads_no_invent gauge",
                 (
