@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.198 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.199 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -159,6 +159,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13196_mempool_empty_hash_refuse.py",
     "tests/unit/test_v13197_mempool_max_hash_refuse.py",
     "tests/unit/test_v13198_mempool_max_from_refuse.py",
+    "tests/unit/test_v13199_mempool_max_to_refuse.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -3229,6 +3230,33 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_mempool_from_size_refuse_total",
         ],
     ),
+    (
+        "1.3.199",
+        "RELEASE_NOTES_v1.3.199.md",
+        ["1.3.199-industrial", "to_too_large"],
+    ),
+    (
+        "1.3.199",
+        "network/p2p_node.py",
+        [
+            "to_too_large",
+            "p2p_mempool_max_to_refuse",
+            "native_mempool_max_to_refuse",
+        ],
+    ),
+    (
+        "1.3.199",
+        "runtime/config.py",
+        ["p2p_mempool_max_to_refuse"],
+    ),
+    (
+        "1.3.199",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_mempool_max_to_refuse",
+            "abs_p2p_mempool_to_size_refuse_total",
+        ],
+    ),
 ]
 
 
@@ -3256,8 +3284,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.198"):
-            errors.append(f"node_version expected 1.3.198-*, got {ver}")
+        if not ver.startswith("1.3.199"):
+            errors.append(f"node_version expected 1.3.199-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

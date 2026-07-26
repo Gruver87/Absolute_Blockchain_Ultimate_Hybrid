@@ -1194,6 +1194,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_mempool_max_from_refuse` / `p2p_mempool_max_addr_chars` (default on / 128)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 153 — Mempool max-to refuse before validate ✅ (v1.3.199)
+
+- [x] P2P wire txs with oversized `to` / `to_addr` refused before `validate_transaction`
+- [x] Refuse `to_too_large` (cheap DoS path; shares max_addr_chars / MAX_P2P_ADDR_LEN)
+- [x] Config `p2p_mempool_max_to_refuse` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

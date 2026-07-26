@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.199] — 2026-07-26
+
+### Mempool — max-to refuse
+
+- P2P refuses oversized wire `to` before `validate_transaction` (`to_too_large`)
+- Soft DoS honesty — mirrors `from_too_large`; shares `max_addr_chars` / `MAX_P2P_ADDR_LEN`
+- Honesty: not tip proof / Long-Range / libp2p / public mainnet / checksum
+
 ## [1.3.198] — 2026-07-26
 
 ### Mempool — max-from refuse

@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.198-industrial"
+    node_version: str = "1.3.199-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -129,6 +129,7 @@ class Config:
     p2p_mempool_max_from_refuse: bool = True        # v1.3.198: refuse oversized from before validate_transaction
     p2p_mempool_max_addr_chars: int = 128           # v1.3.198: max wire from/to chars (align MAX_P2P_ADDR_LEN)
     p2p_mempool_empty_to_refuse: bool = True        # v1.3.195: refuse empty to before validate_transaction
+    p2p_mempool_max_to_refuse: bool = True          # v1.3.199: refuse oversized to before validate_transaction
     p2p_mempool_empty_hash_refuse: bool = True      # v1.3.196: refuse empty hash before validate_transaction
     p2p_mempool_max_hash_refuse: bool = True        # v1.3.197: refuse oversized hash before validate_transaction
     p2p_mempool_max_hash_chars: int = 128           # v1.3.197: max wire hash chars (align MAX_P2P_HASH_LEN)
@@ -477,6 +478,10 @@ class Config:
         self.p2p_mempool_empty_to_refuse = env_bool(
             "P2P_MEMPOOL_EMPTY_TO_REFUSE",
             self.p2p_mempool_empty_to_refuse,
+        )
+        self.p2p_mempool_max_to_refuse = env_bool(
+            "P2P_MEMPOOL_MAX_TO_REFUSE",
+            self.p2p_mempool_max_to_refuse,
         )
         self.p2p_mempool_empty_hash_refuse = env_bool(
             "P2P_MEMPOOL_EMPTY_HASH_REFUSE",
