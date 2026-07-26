@@ -1276,6 +1276,7 @@ class P2PNode:
         self._peer_tx_reject: int = 0
         self._mempool_dup_refuse_total: int = 0
         self._mempool_fee_refuse_total: int = 0
+        self._mempool_fee_high_refuse_total: int = 0
         self._mempool_gas_refuse_total: int = 0
         self._mempool_calldata_refuse_total: int = 0
         self._mempool_value_refuse_total: int = 0
@@ -3447,6 +3448,7 @@ class P2PNode:
         v1.3.143: after native shape, skip known hashes before validate_transaction
         (cheap refuse). Soft DoS honesty only — not anti-Sybil / tip proof.
         v1.3.177: also refuse fee < mempool.min_fee before validate_transaction.
+        v1.3.201: also refuse fee > max_fee before validate_transaction.
         v1.3.179: also refuse gas > evm_gas_limit before validate_transaction.
         v1.3.183: also refuse oversized calldata before validate_transaction.
         v1.3.184: also refuse value < 0 before validate_transaction.
@@ -3764,6 +3766,26 @@ class P2PNode:
                     self._last_tx_wire_reject = "fee_non_finite"
                     self._mempool_nonfinite_fee_refuse_total = int(
                         getattr(self, "_mempool_nonfinite_fee_refuse_total", 0) or 0
+                    ) + 1
+                    return None
+            except (TypeError, ValueError):
+                pass
+
+        # v1.3.201: cheap max-fee refuse before validate_transaction.
+        # Soft DoS honesty — complements fee_too_low; not fee-market / Rust fee PQ.
+        if bool(getattr(self.config, "p2p_mempool_max_fee_refuse", True)):
+            try:
+                max_fee = float(
+                    getattr(self.config, "p2p_mempool_max_fee", 1_000_000_000.0)
+                    or 1_000_000_000.0
+                )
+            except (TypeError, ValueError):
+                max_fee = 1_000_000_000.0
+            try:
+                if max_fee > 0 and float(fee) > max_fee:
+                    self._last_tx_wire_reject = "fee_too_high"
+                    self._mempool_fee_high_refuse_total = int(
+                        getattr(self, "_mempool_fee_high_refuse_total", 0) or 0
                     ) + 1
                     return None
             except (TypeError, ValueError):
@@ -6527,6 +6549,9 @@ class P2PNode:
             "native_mempool_min_fee_refuse": bool(
                 getattr(self.config, "p2p_mempool_min_fee_refuse", True)
             ),
+            "native_mempool_max_fee_refuse": bool(
+                getattr(self.config, "p2p_mempool_max_fee_refuse", True)
+            ),
             "native_mempool_max_gas_refuse": bool(
                 getattr(self.config, "p2p_mempool_max_gas_refuse", True)
             ),
@@ -6755,6 +6780,9 @@ class P2PNode:
             ),
             "mempool_fee_refuse_total": int(
                 getattr(self, "_mempool_fee_refuse_total", 0) or 0
+            ),
+            "mempool_fee_high_refuse_total": int(
+                getattr(self, "_mempool_fee_high_refuse_total", 0) or 0
             ),
             "mempool_gas_refuse_total": int(
                 getattr(self, "_mempool_gas_refuse_total", 0) or 0

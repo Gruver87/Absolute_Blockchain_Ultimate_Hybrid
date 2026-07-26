@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.200-industrial"
+    node_version: str = "1.3.201-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -118,6 +118,8 @@ class Config:
     p2p_catch_up_height_continuity_bind: bool = True  # v1.3.176: catch-up import height must equal expected current
     p2p_peers_solicit_only: bool = True           # v1.3.152: refuse unsolicited MSG_PEERS (no dial from push)
     p2p_mempool_min_fee_refuse: bool = True       # v1.3.177: refuse fee<min_fee before validate_transaction
+    p2p_mempool_max_fee_refuse: bool = True       # v1.3.201: refuse fee>max_fee before validate_transaction
+    p2p_mempool_max_fee: float = 1_000_000_000.0 # v1.3.201: max wire fee (ABS; soft DoS ceiling)
     p2p_mempool_max_gas_refuse: bool = True       # v1.3.179: refuse gas>evm_gas_limit before validate_transaction
     p2p_mempool_max_calldata_refuse: bool = True  # v1.3.183: refuse oversized calldata before validate_transaction
     p2p_mempool_max_calldata_bytes: int = 131072  # v1.3.183: max wire calldata bytes (128 KiB)
@@ -439,6 +441,16 @@ class Config:
         self.p2p_mempool_min_fee_refuse = env_bool(
             "P2P_MEMPOOL_MIN_FEE_REFUSE", self.p2p_mempool_min_fee_refuse
         )
+        self.p2p_mempool_max_fee_refuse = env_bool(
+            "P2P_MEMPOOL_MAX_FEE_REFUSE",
+            self.p2p_mempool_max_fee_refuse,
+        )
+        _max_fee_raw = env_str("P2P_MEMPOOL_MAX_FEE")
+        if _max_fee_raw:
+            try:
+                self.p2p_mempool_max_fee = float(_max_fee_raw)
+            except ValueError:
+                pass
         self.p2p_mempool_max_gas_refuse = env_bool(
             "P2P_MEMPOOL_MAX_GAS_REFUSE", self.p2p_mempool_max_gas_refuse
         )

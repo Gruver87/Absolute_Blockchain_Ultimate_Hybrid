@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.201] — 2026-07-26
+
+### Mempool — max-fee refuse
+
+- P2P refuses oversized wire `fee` before `validate_transaction` (`fee_too_high`)
+- Soft DoS honesty — default 1e9 ABS; complements `fee_too_low`
+- Honesty: not tip proof / Long-Range / libp2p / public mainnet / fee-market
+
 ## [1.3.200] — 2026-07-26
 
 ### Mempool — max-nonce refuse
