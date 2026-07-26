@@ -1248,6 +1248,7 @@ class P2PNode:
         self._catch_up_tip_probe_refuse_total: int = 0
         self._catch_up_peer_head_probe_refuse_total: int = 0
         self._catch_up_tip_head_mismatch_total: int = 0
+        self._catch_up_contiguous_parent_mismatch_total: int = 0
         self._fork_peer_head_probe_refuse_total: int = 0
         self._reconcile_head_hash_mismatch_total: int = 0
         self._ghost_head_probe_refuse_total: int = 0
@@ -3783,6 +3784,46 @@ class P2PNode:
             self._catch_up_tip_head_mismatch_total = int(
                 getattr(self, "_catch_up_tip_head_mismatch_total", 0) or 0
             ) + 1
+        elif r == "catch_up_contiguous_parent_mismatch":
+            self._catch_up_contiguous_parent_mismatch_total = int(
+                getattr(
+                    self, "_catch_up_contiguous_parent_mismatch_total", 0
+                )
+                or 0
+            ) + 1
+
+    def _catch_up_contiguous_parent_refuse_reason(
+        self, block_data: Dict
+    ) -> str:
+        """v1.3.175: catch-up import at tip+1 must cite local tip as parent.
+
+        Soft contiguous extension during get_blocks — not tip proof / Long-Range.
+        Empty parent / empty tip soft-skips.
+        """
+        if not bool(
+            getattr(self.config, "p2p_catch_up_contiguous_parent_bind", True)
+        ):
+            return ""
+        if not isinstance(block_data, dict):
+            return ""
+        try:
+            body_h = int(
+                block_data.get("height", block_data.get("number", -1)) or -1
+            )
+            tip_h = int(self.blockchain.get_height() or 0)
+        except (TypeError, ValueError):
+            return ""
+        if body_h < 0 or tip_h < 0 or body_h != tip_h + 1:
+            return ""
+        parent = str(block_data.get("parent_hash") or "").strip()
+        local_tip = ""
+        try:
+            local_tip = str(self.head() or "").strip()
+        except Exception:
+            local_tip = ""
+        if parent and local_tip and parent.lower() != local_tip.lower():
+            return "catch_up_contiguous_parent_mismatch"
+        return ""
 
     def _catch_up_tip_head_refuse_reason(self, peer: PeerConnection) -> str:
         """v1.3.172: after catch-up to peer.height, local tip must match peer.head.
@@ -4399,6 +4440,19 @@ class P2PNode:
             imported_any = False
             for block_data in blocks_data:
                 try:
+                    # v1.3.175: contiguous (+1) get_blocks body must cite tip as parent.
+                    contig_reason = self._catch_up_contiguous_parent_refuse_reason(
+                        block_data if isinstance(block_data, dict) else {}
+                    )
+                    if contig_reason:
+                        self._bump_catch_up_refuse(contig_reason)
+                        logger.info(
+                            "[P2P] catch-up contiguous-parent refuse at import "
+                            "peer=%s reason=%s",
+                            (peer.peer_id or "")[:12],
+                            contig_reason,
+                        )
+                        break
                     # v1.3.172: block at claimed peer.height must cite peer.head.
                     try:
                         cand_h = int(
@@ -5898,6 +5952,9 @@ class P2PNode:
             "native_catch_up_tip_head_bind": bool(
                 getattr(self.config, "p2p_catch_up_tip_head_bind", True)
             ),
+            "native_catch_up_contiguous_parent_bind": bool(
+                getattr(self.config, "p2p_catch_up_contiguous_parent_bind", True)
+            ),
             "native_fork_peer_head_probe": bool(
                 getattr(self.config, "p2p_fork_peer_head_probe", True)
             ),
@@ -6043,6 +6100,12 @@ class P2PNode:
             ),
             "catch_up_tip_head_mismatch_total": int(
                 getattr(self, "_catch_up_tip_head_mismatch_total", 0) or 0
+            ),
+            "catch_up_contiguous_parent_mismatch_total": int(
+                getattr(
+                    self, "_catch_up_contiguous_parent_mismatch_total", 0
+                )
+                or 0
             ),
             "fork_peer_head_probe_refuse_total": int(
                 getattr(self, "_fork_peer_head_probe_refuse_total", 0) or 0
