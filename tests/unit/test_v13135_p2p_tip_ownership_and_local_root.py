@@ -120,8 +120,10 @@ async def test_status_capped_skips_fantasy_head():
         },
     )
     assert peer.height == 110
-    assert peer.head == DIGEST  # fantasy head refused
+    assert peer.head == ""  # v1.3.159: fantasy head cleared on height-cap
     assert node._status_height_cap_total >= 1
+    st = node.get_p2p_security_status()
+    assert st.get("native_height_cap_clear_head") is True
 
 
 @pytest.mark.asyncio

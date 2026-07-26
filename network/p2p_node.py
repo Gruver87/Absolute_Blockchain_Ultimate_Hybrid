@@ -2055,7 +2055,11 @@ class P2PNode:
                 )
                 return False
         peer.height = owned_h
-        peer.head = hs_head or peer.head
+        # v1.3.159: capped height clears fantasy head (do not keep prior peer.head).
+        if capped and bool(getattr(self.config, "p2p_height_cap_clear_head", True)):
+            peer.head = ""
+        else:
+            peer.head = hs_head or peer.head
         peer.listen_port = int(hs.get("p2p_port", 0) or peer.port or 0)
         if peer.host and peer.listen_port:
             self._remember_addr(f"{peer.host}:{peer.listen_port}")
@@ -2780,7 +2784,12 @@ class P2PNode:
                             return
                     peer.height = max(int(peer.height or 0), capped_h)
                     # v1.3.135: capped height ⇒ refuse fantasy head install.
-                    if incoming_head and not was_capped:
+                    # v1.3.159: also clear any prior fantasy peer.head (handshake parity).
+                    if was_capped and bool(
+                        getattr(self.config, "p2p_height_cap_clear_head", True)
+                    ):
+                        peer.head = ""
+                    elif incoming_head and not was_capped:
                         peer.head = str(incoming_head)
                 else:
                     incoming_head = status.get("head_hash") or ""
@@ -3036,6 +3045,9 @@ class P2PNode:
                 self._new_block_height_cap_total or 0
             ) + 1
             peer.height = max(int(peer.height or 0), owned_h)
+            # v1.3.159: clear fantasy head with capped height (handshake parity).
+            if bool(getattr(self.config, "p2p_height_cap_clear_head", True)):
+                peer.head = ""
             return
 
         # v1.3.153: if announce hash is already known locally, height must match
@@ -5108,6 +5120,9 @@ class P2PNode:
             "native_mempool_solicit_armed_shell": True,
             "native_peer_score_quality": True,
             "native_new_block_height_cap": True,
+            "native_height_cap_clear_head": bool(
+                getattr(self.config, "p2p_height_cap_clear_head", True)
+            ),
             "native_new_block_head_height_bind": bool(
                 getattr(self.config, "p2p_new_block_head_height_bind", True)
             ),

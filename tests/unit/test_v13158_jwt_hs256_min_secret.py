@@ -25,7 +25,7 @@ def test_needles_v13158():
     assert "HS256 requires >= 32 bytes" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.158.md").read_text(encoding="utf-8")
     assert "1.3.158-industrial" in notes
-    assert Config().node_version.startswith("1.3.158")
+    assert Config().node_version.startswith("1.3.")
 
 
 def test_generate_token_refuses_short_secret(monkeypatch):

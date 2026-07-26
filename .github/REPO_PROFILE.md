@@ -60,8 +60,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.158` — JWT HS256 min 32-byte secret |
-| **Notes** | [RELEASE_NOTES_v1.3.158.md](../RELEASE_NOTES_v1.3.158.md) |
+| **Tag** | `v1.3.159` — height-cap clears fantasy peer.head |
+| **Notes** | [RELEASE_NOTES_v1.3.159.md](../RELEASE_NOTES_v1.3.159.md) |
 | **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

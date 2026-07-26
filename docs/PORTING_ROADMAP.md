@@ -918,6 +918,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Prod `Config.validate` JWT weak check uses `min_len=32`
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 113 — Height-cap clears fantasy peer.head ✅ (v1.3.159)
+
+- [x] STATUS / NEW_BLOCK / handshake: capped height ⇒ clear `peer.head`
+- [x] Config `p2p_height_cap_clear_head` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

@@ -2448,8 +2448,29 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "config must enforce JWT HS256 >= 32 bytes (v1.3.158)"
             )
+        # v1.3.159 — height-cap clears fantasy peer.head
+        if "p2p_height_cap_clear_head" not in p2p_py:
+            errors.append(
+                "p2p must clear fantasy head on height-cap (v1.3.159)"
+            )
+        if "native_height_cap_clear_head" not in p2p_py:
+            errors.append(
+                "p2p must expose native_height_cap_clear_head (v1.3.159)"
+            )
+        if "p2p_height_cap_clear_head" not in (
+            ROOT / "runtime" / "config.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "config must expose p2p_height_cap_clear_head (v1.3.159)"
+            )
+        if "abs_p2p_native_height_cap_clear_head" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_height_cap_clear_head (v1.3.159)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..158 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..159 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

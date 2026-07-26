@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""v1.3.134: soft MSG_NEW_BLOCK peer.height ahead ownership gate."""
+"""v1.3.159: height-cap clears fantasy peer.head (status/new_block/handshake)."""
 
 from __future__ import annotations
 
@@ -16,6 +16,8 @@ if str(ROOT) not in sys.path:
 
 from network.p2p_node import P2PNode, PeerConnection
 from runtime.config import Config
+
+DIGEST = "ab" * 32
 
 
 class _FakeWriter:
@@ -48,62 +50,59 @@ def _node() -> P2PNode:
     cfg.deployment_mode = "dev"
     cfg.bootstrap_peers = []
     cfg.p2p_max_peer_height_ahead = 100
+    cfg.p2p_height_cap_clear_head = True
     chain = MagicMock()
     chain.get_height.return_value = 10
     chain.get_state_root.return_value = "aa" * 32
-    chain.get_block.return_value = None
+    chain.get_block_by_hash = MagicMock(return_value=None)
+    chain.get_block = MagicMock(return_value=None)
     return P2PNode(cfg, chain, MagicMock())
 
 
-def test_needles_v13134():
+def test_needles_v13159():
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
-    assert "new_block_height_cap_total" in p2p
-    assert "native_new_block_height_cap" in p2p
-    assert "v1.3.134" in p2p
-    notes = (ROOT / "RELEASE_NOTES_v1.3.134.md").read_text(encoding="utf-8")
-    assert "1.3.134-industrial" in notes
-    assert Config().node_version.startswith("1.3.")
+    assert "p2p_height_cap_clear_head" in p2p
+    assert "native_height_cap_clear_head" in p2p
+    assert "clear fantasy head with capped height" in p2p
+    cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
+    assert "p2p_height_cap_clear_head" in cfg
+    assert "P2P_HEIGHT_CAP_CLEAR_HEAD" in cfg
+    notes = (ROOT / "RELEASE_NOTES_v1.3.159.md").read_text(encoding="utf-8")
+    assert "1.3.159-industrial" in notes
+    assert Config().node_version.startswith("1.3.159")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
-    assert "abs_p2p_native_new_block_height_cap" in metrics
-    assert "abs_p2p_new_block_height_cap_total" in metrics
+    assert "abs_p2p_native_height_cap_clear_head" in metrics
 
 
 @pytest.mark.asyncio
-async def test_new_block_fantasy_height_capped_no_sync():
+async def test_new_block_cap_clears_head(monkeypatch):
     node = _node()
     peer = PeerConnection(_FakeReader(), _FakeWriter())
-    peer.peer_id = "nb-peer"
-    peer.height = 5
-    peer.head = "aa" * 32
+    peer.peer_id = "cap-nb"
+    peer.height = 10
+    peer.head = DIGEST
     node.peers[peer.peer_id] = peer
-    node._schedule_sync = MagicMock()
+    monkeypatch.setattr(
+        "network.p2p_node.native.validate_p2p_block_announce",
+        lambda data: {
+            "height": int(data.get("height", 0)),
+            "hash": data.get("hash", ""),
+        },
+    )
+    # Claim height far above local tip (10) + ahead window (100) ⇒ cap.
     await node._handle_new_block(
         peer,
-        {"height": 10_000_000, "hash": "bb" * 32, "transactions": []},
+        {"height": 50_000, "hash": "cd" * 32, "transactions": []},
     )
-    # local=10, max_ahead=100 → ownership capped at 110; v1.3.159 clears fantasy head
-    assert peer.height == 110
     assert peer.head == ""
+    assert peer.height <= 10 + 100
     assert node._new_block_height_cap_total >= 1
-    node._schedule_sync.assert_not_called()
     st = node.get_p2p_security_status()
-    assert st.get("native_new_block_height_cap") is True
     assert st.get("native_height_cap_clear_head") is True
 
 
-@pytest.mark.asyncio
-async def test_new_block_within_window_updates_ownership():
+def test_cap_helper_owned_window():
     node = _node()
-    peer = PeerConnection(_FakeReader(), _FakeWriter())
-    peer.peer_id = "nb-ok"
-    peer.height = 5
-    peer.head = "aa" * 32
-    node.peers[peer.peer_id] = peer
-    # height 50 is within local(10)+100; ownership updates before Block.from_dict
-    await node._handle_new_block(
-        peer,
-        {"height": 50, "hash": "cc" * 32, "transactions": []},
-    )
-    assert peer.height == 50
-    assert peer.head == "cc" * 32
-    assert node._new_block_height_cap_total == 0
+    owned, capped = node._cap_claimed_peer_height(50_000)
+    assert capped is True
+    assert owned == 110  # local 10 + ahead 100

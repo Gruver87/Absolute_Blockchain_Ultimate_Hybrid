@@ -775,6 +775,12 @@ class MetricsCollector:
                     f"abs_p2p_new_block_height_cap_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('new_block_height_cap_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_height_cap_clear_head Whether height-cap clears fantasy peer.head (0/1)",
+                "# TYPE abs_p2p_native_height_cap_clear_head gauge",
+                (
+                    f"abs_p2p_native_height_cap_clear_head{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_height_cap_clear_head') else 0}"
+                ),
                 "# HELP abs_p2p_native_new_block_head_height_bind Whether known announce hash height bind is active (0/1)",
                 "# TYPE abs_p2p_native_new_block_head_height_bind gauge",
                 (
