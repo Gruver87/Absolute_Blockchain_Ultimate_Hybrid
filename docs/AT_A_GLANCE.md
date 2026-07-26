@@ -14,12 +14,21 @@ Public audited mainnet · listed ABS token · investment product · bridge ON on
 
 | | |
 |---|---|
-| Tag | **v1.3.146** |
+| Tag | **[v1.3.191](../RELEASE_NOTES_v1.3.191.md)** |
 | CI | Ubuntu `test.yml` + docker + security + fuzz |
 | 48h soak | **PASS** |
-| Self-check | `make test-quick` / `.\scripts\check_all.ps1` |
+| Self-check | `.\scripts\operator_verify.ps1 -SkipNativeBuild` · `make test-quick` |
 | Run | `python main.py` → `:8080` |
 | Prod mesh | `778888` profile → `:18180–18182` |
+
+## Proven vs not (honest)
+
+| Proven | Not claimed |
+|--------|-------------|
+| 3-node prod-profile mesh | Public mainnet |
+| 48h soak PASS | External L1 / contract audit |
+| Failover + signed tx + EVM on mesh | Tip proof / Long-Range / libp2p |
+| Bridge **OFF** on live mesh | Listed ABS / investment product |
 
 ## Where code lives
 
@@ -35,3 +44,4 @@ Public audited mainnet · listed ABS token · investment product · bridge ON on
 - Gaps to mainnet: [MAINNET_GAP_ANALYSIS](MAINNET_GAP_ANALYSIS.md)
 - Commands: [COMMANDS_REFERENCE](COMMANDS_REFERENCE.md)
 - Contribute: [CONTRIBUTING](../CONTRIBUTING.md)
+- GitHub About paste: [REPO_PROFILE](../.github/REPO_PROFILE.md)

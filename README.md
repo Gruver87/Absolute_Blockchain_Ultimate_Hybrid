@@ -4,6 +4,8 @@
 
 **Hybrid Python + Rust L1 node** — prod-profile mesh, RocksDB, REST/JSON-RPC, `abs_native`, EVM, Docker/K8s. Evidence-first. **Not** a launched public mainnet.
 
+**Skimmer (30s):** [AT_A_GLANCE](docs/AT_A_GLANCE.md) · **Prove:** `.\scripts\operator_verify.ps1 -SkipNativeBuild` · **Gaps:** [MAINNET_GAP_ANALYSIS](docs/MAINNET_GAP_ANALYSIS.md)
+
 [![Stars](https://img.shields.io/github/stars/Gruver87/Absolute_Blockchain_Ultimate_Hybrid?style=social)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/stargazers)
 [![Release](https://img.shields.io/github/v/release/Gruver87/Absolute_Blockchain_Ultimate_Hybrid?include_prereleases&sort=semver)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
