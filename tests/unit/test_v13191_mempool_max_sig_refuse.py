@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""v1.3.190: P2P refuses empty public_key before validate_transaction."""
+"""v1.3.191: P2P refuses oversized signature before validate_transaction."""
 
 from __future__ import annotations
 
@@ -16,15 +16,17 @@ from network.p2p_node import P2PNode
 from runtime.config import Config
 
 
-def _node() -> P2PNode:
+def _node(*, max_sig: int = 32) -> P2PNode:
     cfg = Config()
     cfg.p2p_native_transport = False
     cfg.require_native_crypto = False
     cfg.deployment_mode = "dev"
     cfg.bootstrap_peers = []
-    cfg.p2p_mempool_empty_pubkey_refuse = True
+    cfg.p2p_mempool_max_sig_refuse = True
+    cfg.p2p_mempool_max_sig_bytes = max_sig
     cfg.p2p_mempool_empty_from_refuse = False
     cfg.p2p_mempool_empty_sig_refuse = False
+    cfg.p2p_mempool_empty_pubkey_refuse = False
     cfg.p2p_mempool_min_fee_refuse = False
     cfg.p2p_mempool_max_gas_refuse = False
     cfg.p2p_mempool_max_calldata_refuse = False
@@ -42,7 +44,7 @@ def _node() -> P2PNode:
     return P2PNode(cfg, chain, mp)
 
 
-def _wire(*, public_key: str, fee: float = 1.0, tx_hash: str = "ab" * 32) -> dict:
+def _wire(*, signature: str, fee: float = 1.0, tx_hash: str = "ab" * 32) -> dict:
     return {
         "from": "0x" + "11" * 20,
         "to": "0x" + "22" * 20,
@@ -50,8 +52,8 @@ def _wire(*, public_key: str, fee: float = 1.0, tx_hash: str = "ab" * 32) -> dic
         "nonce": 0,
         "gas": 21_000,
         "fee": fee,
-        "signature": "sig",
-        "public_key": public_key,
+        "signature": signature,
+        "public_key": "pk",
         "hash": tx_hash,
         "data": "",
     }
@@ -68,48 +70,42 @@ def _build(node: P2PNode, payload: dict):
         native.validate_p2p_wire_tx = orig  # type: ignore
 
 
-def test_needles_v13190():
+def test_needles_v13191():
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
-    assert "pubkey_empty" in p2p
-    assert "p2p_mempool_empty_pubkey_refuse" in p2p
-    assert "native_mempool_empty_pubkey_refuse" in p2p
-    assert "_mempool_empty_pubkey_refuse_total" in p2p
+    assert "signature_too_large" in p2p
+    assert "p2p_mempool_max_sig_refuse" in p2p
+    assert "native_mempool_max_sig_refuse" in p2p
+    assert "_mempool_sig_size_refuse_total" in p2p
     cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "p2p_mempool_empty_pubkey_refuse" in cfg
-    assert "P2P_MEMPOOL_EMPTY_PUBKEY_REFUSE" in cfg
-    notes = (ROOT / "RELEASE_NOTES_v1.3.190.md").read_text(encoding="utf-8")
-    assert "1.3.190-industrial" in notes
-    assert Config().node_version.startswith("1.3.")
+    assert "p2p_mempool_max_sig_refuse" in cfg
+    assert "P2P_MEMPOOL_MAX_SIG_REFUSE" in cfg
+    assert "p2p_mempool_max_sig_bytes" in cfg
+    notes = (ROOT / "RELEASE_NOTES_v1.3.191.md").read_text(encoding="utf-8")
+    assert "1.3.191-industrial" in notes
+    assert Config().node_version.startswith("1.3.191")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
-    assert "abs_p2p_native_mempool_empty_pubkey_refuse" in metrics
-    assert "abs_p2p_mempool_empty_pubkey_refuse_total" in metrics
+    assert "abs_p2p_native_mempool_max_sig_refuse" in metrics
+    assert "abs_p2p_mempool_sig_size_refuse_total" in metrics
 
 
-def test_refuse_empty_pubkey_before_validate():
-    node = _node()
-    out = _build(node, _wire(public_key=""))
+def test_refuse_oversized_sig_before_validate():
+    node = _node(max_sig=16)
+    out = _build(node, _wire(signature="x" * 64))
     assert out is None
-    assert node._last_tx_wire_reject == "pubkey_empty"
-    assert node._mempool_empty_pubkey_refuse_total >= 1
+    assert node._last_tx_wire_reject == "signature_too_large"
+    assert node._mempool_sig_size_refuse_total >= 1
     node.blockchain.validate_transaction.assert_not_called()
 
 
-def test_refuse_whitespace_pubkey_before_validate():
-    node = _node()
-    out = _build(node, _wire(public_key="   ", tx_hash="cd" * 32))
-    assert out is None
-    assert node._last_tx_wire_reject == "pubkey_empty"
-
-
-def test_ok_pubkey_reaches_validate():
-    node = _node()
-    out = _build(node, _wire(public_key="pk"))
+def test_ok_small_sig_reaches_validate():
+    node = _node(max_sig=64)
+    out = _build(node, _wire(signature="sig"))
     assert out is not None
     node.blockchain.validate_transaction.assert_called()
-    assert node._mempool_empty_pubkey_refuse_total == 0
+    assert node._mempool_sig_size_refuse_total == 0
 
 
 def test_security_status_gauge():
     node = _node()
     st = node.get_p2p_security_status()
-    assert st.get("native_mempool_empty_pubkey_refuse") is True
+    assert st.get("native_mempool_max_sig_refuse") is True
