@@ -1255,6 +1255,18 @@ class MetricsCollector:
                     f"abs_p2p_mempool_value_refuse_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('mempool_value_refuse_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_mempool_max_value_refuse Whether P2P refuses value>max_value before validate (0/1)",
+                "# TYPE abs_p2p_native_mempool_max_value_refuse gauge",
+                (
+                    f"abs_p2p_native_mempool_max_value_refuse{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_mempool_max_value_refuse') else 0}"
+                ),
+                "# HELP abs_p2p_mempool_value_high_refuse_total High-value mempool refuses before validate_transaction",
+                "# TYPE abs_p2p_mempool_value_high_refuse_total counter",
+                (
+                    f"abs_p2p_mempool_value_high_refuse_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('mempool_value_high_refuse_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_mempool_negative_nonce_refuse Whether P2P refuses nonce<0 before validate (0/1)",
                 "# TYPE abs_p2p_native_mempool_negative_nonce_refuse gauge",
                 (

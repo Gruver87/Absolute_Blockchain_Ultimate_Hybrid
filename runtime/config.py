@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.201-industrial"
+    node_version: str = "1.3.202-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -124,6 +124,8 @@ class Config:
     p2p_mempool_max_calldata_refuse: bool = True  # v1.3.183: refuse oversized calldata before validate_transaction
     p2p_mempool_max_calldata_bytes: int = 131072  # v1.3.183: max wire calldata bytes (128 KiB)
     p2p_mempool_negative_value_refuse: bool = True  # v1.3.184: refuse value<0 before validate_transaction
+    p2p_mempool_max_value_refuse: bool = True       # v1.3.202: refuse value>max_value before validate_transaction
+    p2p_mempool_max_value: float = 221_000_000.0   # v1.3.202: max wire value (ABS; soft DoS; aligns max_supply)
     p2p_mempool_negative_nonce_refuse: bool = True  # v1.3.185: refuse nonce<0 before validate_transaction
     p2p_mempool_max_nonce_refuse: bool = True       # v1.3.200: refuse oversized nonce before validate_transaction
     p2p_mempool_max_nonce: int = 1_000_000_000_000 # v1.3.200: max wire nonce (align MAX_P2P_HEIGHT style)
@@ -465,6 +467,16 @@ class Config:
             "P2P_MEMPOOL_NEGATIVE_VALUE_REFUSE",
             self.p2p_mempool_negative_value_refuse,
         )
+        self.p2p_mempool_max_value_refuse = env_bool(
+            "P2P_MEMPOOL_MAX_VALUE_REFUSE",
+            self.p2p_mempool_max_value_refuse,
+        )
+        _max_value_raw = env_str("P2P_MEMPOOL_MAX_VALUE")
+        if _max_value_raw:
+            try:
+                self.p2p_mempool_max_value = float(_max_value_raw)
+            except ValueError:
+                pass
         self.p2p_mempool_negative_nonce_refuse = env_bool(
             "P2P_MEMPOOL_NEGATIVE_NONCE_REFUSE",
             self.p2p_mempool_negative_nonce_refuse,

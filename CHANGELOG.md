@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.202] — 2026-07-26
+
+### Mempool — max-value refuse
+
+- P2P refuses oversized wire `value` before `validate_transaction` (`value_too_high`)
+- Soft DoS honesty — default 221M ABS (aligns `max_supply`); fantasy amounts fail before DB
+- Honesty: not tip proof / Long-Range / libp2p / public mainnet / full tokenomics
+
 ## [1.3.201] — 2026-07-26
 
 ### Mempool — max-fee refuse
