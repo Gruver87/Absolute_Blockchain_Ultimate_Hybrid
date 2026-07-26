@@ -1231,6 +1231,18 @@ class MetricsCollector:
                     f"abs_p2p_get_blocks_future_refuse_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('get_blocks_future_refuse_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_get_block_future_refuse Whether GET_BLOCK refuses height>local tip (0/1)",
+                "# TYPE abs_p2p_native_get_block_future_refuse gauge",
+                (
+                    f"abs_p2p_native_get_block_future_refuse{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_get_block_future_refuse') else 0}"
+                ),
+                "# HELP abs_p2p_get_block_future_refuse_total GET_BLOCK null replies for height>local tip",
+                "# TYPE abs_p2p_get_block_future_refuse_total counter",
+                (
+                    f"abs_p2p_get_block_future_refuse_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('get_block_future_refuse_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_mempool_serve_tip_align Whether GET_MEMPOOL requires near tip alignment (0/1)",
                 "# TYPE abs_p2p_native_mempool_serve_tip_align gauge",
                 (

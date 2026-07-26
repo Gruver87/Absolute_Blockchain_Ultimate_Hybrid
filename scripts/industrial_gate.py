@@ -2898,8 +2898,29 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_get_blocks_future_refuse (v1.3.180)"
             )
+        # v1.3.181 — GET_BLOCK future-height refuse
+        if "get_block_future_height" not in p2p_py:
+            errors.append(
+                "p2p must refuse GET_BLOCK when height>local tip (v1.3.181)"
+            )
+        if "_get_block_future_refuse_reason" not in p2p_py:
+            errors.append(
+                "p2p must expose _get_block_future_refuse_reason (v1.3.181)"
+            )
+        if "p2p_get_block_future_refuse" not in (
+            ROOT / "runtime" / "config.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "config must expose p2p_get_block_future_refuse (v1.3.181)"
+            )
+        if "abs_p2p_native_get_block_future_refuse" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_get_block_future_refuse (v1.3.181)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..180 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..181 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.180-industrial"
+    node_version: str = "1.3.181-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -120,6 +120,7 @@ class Config:
     p2p_mempool_min_fee_refuse: bool = True       # v1.3.177: refuse fee<min_fee before validate_transaction
     p2p_mempool_max_gas_refuse: bool = True       # v1.3.179: refuse gas>evm_gas_limit before validate_transaction
     p2p_get_blocks_future_refuse: bool = True     # v1.3.180: refuse GET_BLOCKS when from_height > local tip
+    p2p_get_block_future_refuse: bool = True      # v1.3.181: refuse GET_BLOCK when height > local tip
     p2p_mempool_serve_tip_align: bool = True      # v1.3.178: refuse GET_MEMPOOL dump when peer tip far from local
     p2p_mempool_serve_max_height_delta: int = 2   # v1.3.178: |peer.height-local| max for mempool serve
     p2p_new_block_head_height_bind: bool = True   # v1.3.153: known announce hash ⇒ height must match local header
@@ -418,6 +419,9 @@ class Config:
         )
         self.p2p_get_blocks_future_refuse = env_bool(
             "P2P_GET_BLOCKS_FUTURE_REFUSE", self.p2p_get_blocks_future_refuse
+        )
+        self.p2p_get_block_future_refuse = env_bool(
+            "P2P_GET_BLOCK_FUTURE_REFUSE", self.p2p_get_block_future_refuse
         )
         self.p2p_mempool_serve_tip_align = env_bool(
             "P2P_MEMPOOL_SERVE_TIP_ALIGN", self.p2p_mempool_serve_tip_align

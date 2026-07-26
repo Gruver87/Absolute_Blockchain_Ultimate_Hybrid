@@ -1277,6 +1277,7 @@ class P2PNode:
         self._mempool_fee_refuse_total: int = 0
         self._mempool_gas_refuse_total: int = 0
         self._get_blocks_future_refuse_total: int = 0
+        self._get_block_future_refuse_total: int = 0
         self._get_mempool_tip_misaligned_total: int = 0
         self._import_block_fail: int = 0
         self._import_offload_total: int = 0
@@ -2709,6 +2710,21 @@ class P2PNode:
             if height is None:
                 self._strike_peer_sync(peer, "bad_get_block")
                 return
+            # v1.3.181: do not DB-fetch fantasy heights above local tip.
+            refuse = self._get_block_future_refuse_reason(int(height))
+            if refuse:
+                self._get_block_future_refuse_total = int(
+                    getattr(self, "_get_block_future_refuse_total", 0) or 0
+                ) + 1
+                logger.info(
+                    "[P2P] get_block future refuse %s peer=%s height=%s local=%s",
+                    refuse,
+                    (peer.peer_id or "")[:12],
+                    height,
+                    self.blockchain.get_height() if self.blockchain else 0,
+                )
+                await peer.send(MSG_BLOCK, None)
+                return
             block = self.blockchain.get_block(int(height))
             await peer.send(MSG_BLOCK, block)
 
@@ -3319,6 +3335,25 @@ class P2PNode:
             return ""
         if start > local_h:
             return "get_blocks_future_height"
+        return ""
+
+    def _get_block_future_refuse_reason(self, height: int) -> str:
+        """v1.3.181: GET_BLOCK height must not exceed local tip.
+
+        Soft bandwidth/DoS honesty — fantasy future single fetches get null.
+        Not tip proof / Long-Range.
+        """
+        if not bool(getattr(self.config, "p2p_get_block_future_refuse", True)):
+            return ""
+        try:
+            h = int(height)
+            local_h = int(self.blockchain.get_height() or 0)
+        except (TypeError, ValueError):
+            return ""
+        if h < 0:
+            return ""
+        if h > local_h:
+            return "get_block_future_height"
         return ""
 
     def _record_tx_propagation(
@@ -6165,6 +6200,9 @@ class P2PNode:
             "native_get_blocks_future_refuse": bool(
                 getattr(self.config, "p2p_get_blocks_future_refuse", True)
             ),
+            "native_get_block_future_refuse": bool(
+                getattr(self.config, "p2p_get_block_future_refuse", True)
+            ),
             "native_mempool_serve_tip_align": bool(
                 getattr(self.config, "p2p_mempool_serve_tip_align", True)
             ),
@@ -6333,6 +6371,9 @@ class P2PNode:
             ),
             "get_blocks_future_refuse_total": int(
                 getattr(self, "_get_blocks_future_refuse_total", 0) or 0
+            ),
+            "get_block_future_refuse_total": int(
+                getattr(self, "_get_block_future_refuse_total", 0) or 0
             ),
             "get_mempool_tip_misaligned_total": int(
                 getattr(self, "_get_mempool_tip_misaligned_total", 0) or 0
