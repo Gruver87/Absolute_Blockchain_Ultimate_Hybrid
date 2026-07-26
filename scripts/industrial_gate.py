@@ -2650,8 +2650,25 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_fork_peer_head_parent_bind (v1.3.168)"
             )
+        # v1.3.169 — GHOST head parent bind
+        if "ghost_head_parent_mismatch" not in p2p_py:
+            errors.append(
+                "p2p must refuse GHOST reorg on parent mismatch (v1.3.169)"
+            )
+        if "p2p_ghost_head_parent_bind" not in (
+            ROOT / "runtime" / "config.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "config must expose p2p_ghost_head_parent_bind (v1.3.169)"
+            )
+        if "abs_p2p_native_ghost_head_parent_bind" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_ghost_head_parent_bind (v1.3.169)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..168 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..169 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

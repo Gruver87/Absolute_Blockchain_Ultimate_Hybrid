@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.168-industrial"
+    node_version: str = "1.3.169-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -123,6 +123,7 @@ class Config:
     p2p_fork_peer_head_parent_bind: bool = True   # v1.3.168: same-height fork peer.head parent must match tip parent
     p2p_reconcile_head_hash_bind: bool = True     # v1.3.163: fetched reconcile block hash must match target_head
     p2p_ghost_head_probe: bool = True             # v1.3.164: solicit ghost canonical head via get_block_by_hash before reorg
+    p2p_ghost_head_parent_bind: bool = True       # v1.3.169: GHOST head parent must match tip-height parent
     p2p_reconcile_contiguous_parent_bind: bool = True  # v1.3.165: +1 reconcile parent_hash must match local tip
     p2p_new_block_announce_body_bind: bool = True # v1.3.156: announce hash/height must match Block.from_dict body
     p2p_new_block_contiguous_parent_bind: bool = True  # v1.3.160: +1 new_block parent_hash must match local tip
@@ -415,6 +416,9 @@ class Config:
         )
         self.p2p_ghost_head_probe = env_bool(
             "P2P_GHOST_HEAD_PROBE", self.p2p_ghost_head_probe
+        )
+        self.p2p_ghost_head_parent_bind = env_bool(
+            "P2P_GHOST_HEAD_PARENT_BIND", self.p2p_ghost_head_parent_bind
         )
         self.p2p_reconcile_contiguous_parent_bind = env_bool(
             "P2P_RECONCILE_CONTIGUOUS_PARENT_BIND",

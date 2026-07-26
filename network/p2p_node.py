@@ -3879,6 +3879,9 @@ class P2PNode:
 
         Soft wire bind — some peer must return a block whose hash matches
         ghost_head and height matches local tip. Not tip proof / Long-Range.
+
+        v1.3.169: probed head parent_hash must match expected tip-height parent
+        (same-height GHOST sibling soft bind).
         """
         if not bool(getattr(self.config, "p2p_ghost_head_probe", True)):
             return ""
@@ -3921,6 +3924,23 @@ class P2PNode:
             bh = -1
         if bh >= 0 and bh != local_h:
             return "ghost_head_height_mismatch"
+        # v1.3.169: same-height GHOST sibling must share tip-height parent.
+        if bool(getattr(self.config, "p2p_ghost_head_parent_bind", True)):
+            parent = str(peer_block.get("parent_hash") or "").strip()
+            local_parent = ""
+            try:
+                local_parent = str(
+                    self._expected_parent_for_height(local_h) or ""
+                ).strip()
+            except Exception:
+                local_parent = ""
+            if (
+                parent
+                and local_parent
+                and local_parent != ("0" * 64)
+                and parent.lower() != local_parent.lower()
+            ):
+                return "ghost_head_parent_mismatch"
         return ""
 
     def _bump_ghost_probe_refuse(self, reason: str) -> None:
@@ -3930,6 +3950,7 @@ class P2PNode:
             "ghost_head_probe_failed",
             "ghost_head_hash_mismatch",
             "ghost_head_height_mismatch",
+            "ghost_head_parent_mismatch",
         ):
             self._ghost_head_probe_refuse_total = int(
                 getattr(self, "_ghost_head_probe_refuse_total", 0) or 0
@@ -5572,6 +5593,9 @@ class P2PNode:
             ),
             "native_ghost_head_probe": bool(
                 getattr(self.config, "p2p_ghost_head_probe", True)
+            ),
+            "native_ghost_head_parent_bind": bool(
+                getattr(self.config, "p2p_ghost_head_parent_bind", True)
             ),
             "native_reconcile_contiguous_parent_bind": bool(
                 getattr(self.config, "p2p_reconcile_contiguous_parent_bind", True)
