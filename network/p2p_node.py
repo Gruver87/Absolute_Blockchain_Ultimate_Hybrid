@@ -1249,6 +1249,7 @@ class P2PNode:
         self._catch_up_peer_head_probe_refuse_total: int = 0
         self._catch_up_tip_head_mismatch_total: int = 0
         self._catch_up_contiguous_parent_mismatch_total: int = 0
+        self._catch_up_height_continuity_mismatch_total: int = 0
         self._fork_peer_head_probe_refuse_total: int = 0
         self._reconcile_head_hash_mismatch_total: int = 0
         self._ghost_head_probe_refuse_total: int = 0
@@ -3791,6 +3792,40 @@ class P2PNode:
                 )
                 or 0
             ) + 1
+        elif r == "catch_up_height_continuity_mismatch":
+            self._catch_up_height_continuity_mismatch_total = int(
+                getattr(
+                    self, "_catch_up_height_continuity_mismatch_total", 0
+                )
+                or 0
+            ) + 1
+
+    def _catch_up_height_continuity_refuse_reason(
+        self, block_data: Dict, expected_h: int
+    ) -> str:
+        """v1.3.176: catch-up import height must equal expected sync cursor.
+
+        Soft refuse-before-mutate — out-of-order / skip-ahead bodies must not
+        force expensive import/reorg. Not tip proof / Long-Range.
+        """
+        if not bool(
+            getattr(self.config, "p2p_catch_up_height_continuity_bind", True)
+        ):
+            return ""
+        if not isinstance(block_data, dict):
+            return ""
+        try:
+            body_h = int(
+                block_data.get("height", block_data.get("number", -1)) or -1
+            )
+            want = int(expected_h)
+        except (TypeError, ValueError):
+            return ""
+        if body_h < 0 or want < 0:
+            return ""
+        if body_h != want:
+            return "catch_up_height_continuity_mismatch"
+        return ""
 
     def _catch_up_contiguous_parent_refuse_reason(
         self, block_data: Dict
@@ -4440,6 +4475,20 @@ class P2PNode:
             imported_any = False
             for block_data in blocks_data:
                 try:
+                    # v1.3.176: body height must equal expected sync cursor.
+                    cont_reason = self._catch_up_height_continuity_refuse_reason(
+                        block_data if isinstance(block_data, dict) else {},
+                        int(current),
+                    )
+                    if cont_reason:
+                        self._bump_catch_up_refuse(cont_reason)
+                        logger.info(
+                            "[P2P] catch-up height-continuity refuse at import "
+                            "peer=%s want=%s",
+                            (peer.peer_id or "")[:12],
+                            current,
+                        )
+                        break
                     # v1.3.175: contiguous (+1) get_blocks body must cite tip as parent.
                     contig_reason = self._catch_up_contiguous_parent_refuse_reason(
                         block_data if isinstance(block_data, dict) else {}
@@ -5955,6 +6004,11 @@ class P2PNode:
             "native_catch_up_contiguous_parent_bind": bool(
                 getattr(self.config, "p2p_catch_up_contiguous_parent_bind", True)
             ),
+            "native_catch_up_height_continuity_bind": bool(
+                getattr(
+                    self.config, "p2p_catch_up_height_continuity_bind", True
+                )
+            ),
             "native_fork_peer_head_probe": bool(
                 getattr(self.config, "p2p_fork_peer_head_probe", True)
             ),
@@ -6104,6 +6158,12 @@ class P2PNode:
             "catch_up_contiguous_parent_mismatch_total": int(
                 getattr(
                     self, "_catch_up_contiguous_parent_mismatch_total", 0
+                )
+                or 0
+            ),
+            "catch_up_height_continuity_mismatch_total": int(
+                getattr(
+                    self, "_catch_up_height_continuity_mismatch_total", 0
                 )
                 or 0
             ),

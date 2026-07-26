@@ -1033,6 +1033,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_catch_up_contiguous_parent_bind` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 130 — Catch-up height continuity bind ✅ (v1.3.176)
+
+- [x] Catch-up import body height must equal expected sync cursor
+- [x] Refuse `catch_up_height_continuity_mismatch` (refuse-before-mutate under DoS)
+- [x] Config `p2p_catch_up_height_continuity_bind` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

@@ -1063,6 +1063,18 @@ class MetricsCollector:
                     f"abs_p2p_catch_up_contiguous_parent_mismatch_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('catch_up_contiguous_parent_mismatch_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_catch_up_height_continuity_bind Whether catch-up import height must equal sync cursor (0/1)",
+                "# TYPE abs_p2p_native_catch_up_height_continuity_bind gauge",
+                (
+                    f"abs_p2p_native_catch_up_height_continuity_bind{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_catch_up_height_continuity_bind') else 0}"
+                ),
+                "# HELP abs_p2p_catch_up_height_continuity_mismatch_total Catch-up import refused when body height != expected cursor",
+                "# TYPE abs_p2p_catch_up_height_continuity_mismatch_total counter",
+                (
+                    f"abs_p2p_catch_up_height_continuity_mismatch_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('catch_up_height_continuity_mismatch_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_fork_peer_head_probe Whether same-height fork solicits peer.head first (0/1)",
                 "# TYPE abs_p2p_native_fork_peer_head_probe gauge",
                 (

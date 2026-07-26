@@ -60,8 +60,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.175` — catch-up contiguous parent bind |
-| **Notes** | [RELEASE_NOTES_v1.3.175.md](../RELEASE_NOTES_v1.3.175.md) |
+| **Tag** | `v1.3.176` — catch-up height continuity bind |
+| **Notes** | [RELEASE_NOTES_v1.3.176.md](../RELEASE_NOTES_v1.3.176.md) |
 | **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
