@@ -6,6 +6,7 @@
 mod account_row;
 mod account_view;
 mod amount;
+mod block_row;
 mod consensus_ffg;
 mod consensus_ghost;
 mod consensus_select;
@@ -1976,6 +1977,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     storage::register(m)?;
     account_row::register(m)?;
     tx_row::register(m)?;
+    block_row::register(m)?;
     account_view::register(m)?;
     evm_writeback::register(m)?;
     state_trie::register(m)?;

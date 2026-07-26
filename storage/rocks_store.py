@@ -192,6 +192,47 @@ class RocksChainStore:
             pass
         return json.dumps(row, ensure_ascii=False).encode("utf-8")
 
+    def _loads_block_blob_or_none(self, raw: bytes | None, *, context: str) -> Optional[Dict]:
+        """Dual-decode block row: ABLK binary (v1.3.149) or legacy JSON."""
+        if raw is None:
+            return None
+        if len(raw) >= 4 and raw[:4] == b"ABLK":
+            try:
+                import abs_native as _abs
+
+                if hasattr(_abs, "unpack_block_row"):
+                    data = json.loads(_abs.unpack_block_row(raw))
+                    return data if isinstance(data, dict) else None
+            except Exception as exc:
+                self._json_decode_failures += 1
+                logger.warning(
+                    "[RocksStore] corrupt %s ABLK (decode_failures=%s): %s",
+                    context,
+                    self._json_decode_failures,
+                    exc,
+                )
+                return None
+            self._json_decode_failures += 1
+            logger.warning(
+                "[RocksStore] corrupt %s ABLK (no native unpack)",
+                context,
+            )
+            return None
+        return self._loads_json_or_none(raw, context=context)
+
+    def _pack_block_blob(self, block: Dict[str, Any]) -> bytes:
+        """Pack block row as ABLK when native codec is present; else legacy JSON."""
+        try:
+            import abs_native as _abs
+
+            if hasattr(_abs, "pack_block_row"):
+                return bytes(
+                    _abs.pack_block_row(json.dumps(block, ensure_ascii=False))
+                )
+        except Exception:
+            pass
+        return json.dumps(block, ensure_ascii=False).encode("utf-8")
+
     def _ensure_schema(self) -> None:
         existing = self._raw_get(kc.key_meta("schema_version"))
         target = self._schema_version.encode("utf-8")
@@ -368,7 +409,8 @@ class RocksChainStore:
     def _insert_block(self, block: Dict) -> None:
         height = int(block.get("height", block.get("number", 0)) or 0)
         block_hash = block.get("hash", block.get("block_hash", "")) or ""
-        payload = json.dumps(block, ensure_ascii=False).encode("utf-8")
+        # v1.3.149: typed ABLK value when native pack_block_row is available.
+        payload = self._pack_block_blob(block)
         self._raw_put(kc.key_block_height(height), payload)
         if block_hash:
             self._raw_put(kc.key_block_hash_to_height(block_hash), kc.pack_u64(height))
@@ -448,7 +490,7 @@ class RocksChainStore:
 
     def get_block(self, height: int) -> Optional[Dict]:
         raw = self._raw_get(kc.key_block_height(int(height)))
-        return self._loads_json_or_none(raw, context=f"block height={height}")
+        return self._loads_block_blob_or_none(raw, context=f"block height={height}")
 
     def get_block_by_hash(self, block_hash: str) -> Optional[Dict]:
         raw_h = self._raw_get(kc.key_block_hash_to_height(block_hash))
@@ -460,17 +502,15 @@ class RocksChainStore:
         rows = self._scan_prefix(kc.prefix_block_heights())
         blocks: List[Dict] = []
         for _key, value in sorted(rows, key=lambda kv: kc.unpack_u64(kv[0][1:9]), reverse=True)[:limit]:
-            try:
-                blocks.append(json.loads(value.decode("utf-8")))
-            except Exception as exc:
-                self._json_decode_failures += 1
+            block = self._loads_block_blob_or_none(value, context="latest_block")
+            if block is None:
                 logger.warning(
                     "[RocksStore] corrupt latest_block row skipped "
-                    "(decode_failures=%s): %s",
+                    "(decode_failures=%s)",
                     self._json_decode_failures,
-                    exc,
                 )
                 continue
+            blocks.append(block)
         return blocks
 
     # ── accounts / state ──────────────────────────────────────────────────
@@ -1506,20 +1546,18 @@ class RocksChainStore:
             h = kc.unpack_u64(key[1:9])
             if h <= cut:
                 continue
-            try:
-                block = json.loads(value.decode("utf-8"))
+            block = self._loads_block_blob_or_none(value, context="reorg block")
+            if block is None:
+                logger.warning(
+                    "reorg_truncate_above: corrupt block JSON at height>%s "
+                    "(decode_failures=%s)",
+                    cut,
+                    self._json_decode_failures,
+                )
+            else:
                 block_hash = block.get("hash", block.get("block_hash", "")) or ""
                 if block_hash:
                     self._raw_delete(kc.key_block_hash_to_height(block_hash))
-            except Exception as exc:
-                self._json_decode_failures += 1
-                logger.warning(
-                    "reorg_truncate_above: corrupt block JSON at height>%s "
-                    "(decode_failures=%s): %s",
-                    cut,
-                    self._json_decode_failures,
-                    exc,
-                )
             self._raw_delete(key)
         for key, _value in list(self._scan_prefix(kc.P_BLOCK_TX)):
             if len(key) >= 9 and kc.unpack_u64(key[1:9]) > cut:

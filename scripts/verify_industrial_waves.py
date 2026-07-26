@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.148 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.149 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -109,6 +109,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13146_catch_up_tip_probe.py",
     "tests/unit/test_v13147_account_row_codec.py",
     "tests/unit/test_v13148_tx_row_codec.py",
+    "tests/unit/test_v13149_block_row_codec.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1890,6 +1891,21 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "storage/rocks_store.py",
         ["_pack_tx_blob", "_loads_tx_blob_or_none", "ATXV"],
     ),
+    (
+        "1.3.149",
+        "RELEASE_NOTES_v1.3.149.md",
+        ["1.3.149-industrial", "ABLK"],
+    ),
+    (
+        "1.3.149",
+        "native/abs_native/src/block_row.rs",
+        ["pack_block_row_value", "block_blob_to_value", "ABLK"],
+    ),
+    (
+        "1.3.149",
+        "storage/rocks_store.py",
+        ["_pack_block_blob", "_loads_block_blob_or_none", "ABLK"],
+    ),
 ]
 
 
@@ -1917,8 +1933,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.148"):
-            errors.append(f"node_version expected 1.3.148-*, got {ver}")
+        if not ver.startswith("1.3.149"):
+            errors.append(f"node_version expected 1.3.149-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

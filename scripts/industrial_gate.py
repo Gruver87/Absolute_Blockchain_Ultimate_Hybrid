@@ -642,7 +642,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("rocks_store get_transaction must use fail-closed JSON decode")
         if 'return self._loads_json_or_none(raw, context=f"receipt' not in rocks_py:
             errors.append("rocks_store get_tx_receipt must use fail-closed JSON decode")
-        if 'return self._loads_json_or_none(raw, context=f"block' not in rocks_py:
+        if (
+            'return self._loads_json_or_none(raw, context=f"block' not in rocks_py
+            and 'return self._loads_block_blob_or_none(raw, context=f"block' not in rocks_py
+        ):
             errors.append("rocks_store get_block must use fail-closed JSON decode")
         if 'context=f"slash_validator' not in rocks_py:
             errors.append("rocks_store slash_validator must use fail-closed JSON decode")
@@ -2264,8 +2267,20 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("rocks_store must pack ATXV tx rows (v1.3.148)")
         if "_loads_tx_blob_or_none" not in rocks_py:
             errors.append("rocks_store must dual-read tx blobs (v1.3.148)")
+        # v1.3.149 — typed Rocks block-row ABLK codec
+        block_row_rs = (
+            ROOT / "native" / "abs_native" / "src" / "block_row.rs"
+        ).read_text(encoding="utf-8")
+        if "pack_block_row_value" not in block_row_rs:
+            errors.append("native must expose pack_block_row_value (v1.3.149)")
+        if "block_blob_to_value" not in block_row_rs:
+            errors.append("native must dual-decode block blobs (v1.3.149)")
+        if "_pack_block_blob" not in rocks_py:
+            errors.append("rocks_store must pack ABLK block rows (v1.3.149)")
+        if "_loads_block_blob_or_none" not in rocks_py:
+            errors.append("rocks_store must dual-read block blobs (v1.3.149)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..148 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..149 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

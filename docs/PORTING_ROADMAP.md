@@ -855,6 +855,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `_insert_transaction` / get / scan / reorg dual-decode
 - Remaining: block blob (`ABLK`) / receipts / full Rocks rewrite / tip proof / libp2p / ceremony (not claimed)
 
+### Priority 103 — Typed Rocks block-row codec ✅ (v1.3.149)
+
+- [x] Native `ABLK` pack/unpack + dual-read (typed header + JSON txs/extras)
+- [x] `_insert_block` / get / latest / reorg dual-decode
+- Remaining: receipts (`ATXR`) / full nested-tx binary / full Rocks rewrite / tip proof / libp2p / ceremony (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
