@@ -60,8 +60,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.170` — NEW_BLOCK same-height parent bind |
-| **Notes** | [RELEASE_NOTES_v1.3.170.md](../RELEASE_NOTES_v1.3.170.md) |
+| **Tag** | `v1.3.171` — reconcile same-height parent bind |
+| **Notes** | [RELEASE_NOTES_v1.3.171.md](../RELEASE_NOTES_v1.3.171.md) |
 | **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

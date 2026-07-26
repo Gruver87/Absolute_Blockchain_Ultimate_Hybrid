@@ -1087,6 +1087,18 @@ class MetricsCollector:
                     f"abs_p2p_reconcile_contiguous_parent_mismatch_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('reconcile_contiguous_parent_mismatch_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_reconcile_same_height_parent_bind Whether same-height reconcile requires parent==tip parent (0/1)",
+                "# TYPE abs_p2p_native_reconcile_same_height_parent_bind gauge",
+                (
+                    f"abs_p2p_native_reconcile_same_height_parent_bind{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_reconcile_same_height_parent_bind') else 0}"
+                ),
+                "# HELP abs_p2p_reconcile_same_height_parent_mismatch_total Reconcile refused when same-height head parent != tip parent",
+                "# TYPE abs_p2p_reconcile_same_height_parent_mismatch_total counter",
+                (
+                    f"abs_p2p_reconcile_same_height_parent_mismatch_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('reconcile_same_height_parent_mismatch_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_sync_heads_no_invent Whether SyncEngine refuses inventing peer.head from local blocks (0/1)",
                 "# TYPE abs_p2p_native_sync_heads_no_invent gauge",
                 (
