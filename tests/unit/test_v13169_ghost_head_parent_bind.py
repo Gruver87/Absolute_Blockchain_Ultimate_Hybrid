@@ -74,7 +74,7 @@ def test_needles_v13169():
     assert "P2P_GHOST_HEAD_PARENT_BIND" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.169.md").read_text(encoding="utf-8")
     assert "1.3.169-industrial" in notes
-    assert Config().node_version.startswith("1.3.169")
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_ghost_head_parent_bind" in metrics
 

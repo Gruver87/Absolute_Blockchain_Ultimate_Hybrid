@@ -1230,6 +1230,7 @@ class P2PNode:
         self._new_block_head_height_mismatch_total: int = 0
         self._new_block_announce_body_refuse_total: int = 0
         self._new_block_contiguous_parent_mismatch_total: int = 0
+        self._new_block_same_height_parent_mismatch_total: int = 0
         self._status_head_height_mismatch_total: int = 0
         self._status_head_without_height_total: int = 0
         self._handshake_head_without_height_total: int = 0
@@ -3174,6 +3175,20 @@ class P2PNode:
             self._strike_peer_sync(peer, parent_reason)
             return
 
+        # v1.3.170: same-height sibling announce must share tip-height parent.
+        same_h_reason = self._new_block_same_height_parent_refuse_reason(
+            block, local_h
+        )
+        if same_h_reason:
+            self._new_block_same_height_parent_mismatch_total = int(
+                getattr(
+                    self, "_new_block_same_height_parent_mismatch_total", 0
+                )
+                or 0
+            ) + 1
+            self._strike_peer_sync(peer, same_h_reason)
+            return
+
         peer.height = max(int(peer.height or 0), block_h)
         if block_hash:
             peer.head = block_hash
@@ -3562,6 +3577,53 @@ class P2PNode:
             local_tip = ""
         if parent and local_tip and parent.lower() != local_tip.lower():
             return "new_block_contiguous_parent_mismatch"
+        return ""
+
+    def _new_block_same_height_parent_refuse_reason(
+        self, block: Any, local_h: int
+    ) -> str:
+        """v1.3.170: when announce is same height as tip, parent must match tip parent.
+
+        Soft tip-sibling ownership — not tip proof / Long-Range.
+        """
+        if not bool(
+            getattr(self.config, "p2p_new_block_same_height_parent_bind", True)
+        ):
+            return ""
+        try:
+            body_h = int(getattr(block, "height", -1) or -1)
+            tip_h = int(local_h)
+        except (TypeError, ValueError):
+            return ""
+        if body_h < 0 or tip_h < 0 or body_h != tip_h:
+            return ""
+        block_hash = str(getattr(block, "hash", "") or "").strip()
+        local_tip = ""
+        try:
+            local_tip = str(self.head() or "").strip()
+        except Exception:
+            local_tip = ""
+        if (
+            block_hash
+            and local_tip
+            and block_hash.lower() == local_tip.lower()
+        ):
+            return ""
+        parent = str(getattr(block, "parent_hash", "") or "").strip()
+        local_parent = ""
+        try:
+            local_parent = str(
+                self._expected_parent_for_height(tip_h) or ""
+            ).strip()
+        except Exception:
+            local_parent = ""
+        if (
+            parent
+            and local_parent
+            and local_parent != ("0" * 64)
+            and parent.lower() != local_parent.lower()
+        ):
+            return "new_block_same_height_parent_mismatch"
         return ""
 
     def _status_head_height_refuse_reason(
@@ -5548,6 +5610,9 @@ class P2PNode:
             "native_new_block_contiguous_parent_bind": bool(
                 getattr(self.config, "p2p_new_block_contiguous_parent_bind", True)
             ),
+            "native_new_block_same_height_parent_bind": bool(
+                getattr(self.config, "p2p_new_block_same_height_parent_bind", True)
+            ),
             "native_new_block_defer_tip": True,
             "native_status_head_height_bind": bool(
                 getattr(self.config, "p2p_status_head_height_bind", True)
@@ -5664,6 +5729,12 @@ class P2PNode:
             ),
             "new_block_contiguous_parent_mismatch_total": int(
                 getattr(self, "_new_block_contiguous_parent_mismatch_total", 0) or 0
+            ),
+            "new_block_same_height_parent_mismatch_total": int(
+                getattr(
+                    self, "_new_block_same_height_parent_mismatch_total", 0
+                )
+                or 0
             ),
             "status_head_height_mismatch_total": int(
                 getattr(self, "_status_head_height_mismatch_total", 0) or 0

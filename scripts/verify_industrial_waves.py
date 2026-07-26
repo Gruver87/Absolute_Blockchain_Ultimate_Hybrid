@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.169 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.170 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -130,6 +130,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13167_attestation_target_head_bind.py",
     "tests/unit/test_v13168_fork_peer_head_parent_bind.py",
     "tests/unit/test_v13169_ghost_head_parent_bind.py",
+    "tests/unit/test_v13170_new_block_same_height_parent_bind.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -2417,6 +2418,33 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "observability/metrics.py",
         ["abs_p2p_native_ghost_head_parent_bind"],
     ),
+    (
+        "1.3.170",
+        "RELEASE_NOTES_v1.3.170.md",
+        ["1.3.170-industrial", "new_block_same_height_parent_mismatch"],
+    ),
+    (
+        "1.3.170",
+        "network/p2p_node.py",
+        [
+            "new_block_same_height_parent_mismatch",
+            "_new_block_same_height_parent_refuse_reason",
+            "native_new_block_same_height_parent_bind",
+        ],
+    ),
+    (
+        "1.3.170",
+        "runtime/config.py",
+        ["p2p_new_block_same_height_parent_bind"],
+    ),
+    (
+        "1.3.170",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_new_block_same_height_parent_bind",
+            "abs_p2p_new_block_same_height_parent_mismatch_total",
+        ],
+    ),
 ]
 
 
@@ -2444,8 +2472,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.169"):
-            errors.append(f"node_version expected 1.3.169-*, got {ver}")
+        if not ver.startswith("1.3.170"):
+            errors.append(f"node_version expected 1.3.170-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors
