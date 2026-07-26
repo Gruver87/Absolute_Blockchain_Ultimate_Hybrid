@@ -2236,8 +2236,21 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_catch_up_tip_probe (v1.3.146)"
             )
+        # v1.3.147 — typed Rocks account-row ABAR codec
+        account_row_rs = (
+            ROOT / "native" / "abs_native" / "src" / "account_row.rs"
+        ).read_text(encoding="utf-8")
+        if "pack_account_row_value" not in account_row_rs:
+            errors.append("native must expose pack_account_row_value (v1.3.147)")
+        if "account_blob_to_value" not in account_row_rs:
+            errors.append("native must dual-decode account blobs (v1.3.147)")
+        rocks_py = (ROOT / "storage" / "rocks_store.py").read_text(encoding="utf-8")
+        if "_pack_account_blob" not in rocks_py:
+            errors.append("rocks_store must pack ABAR account rows (v1.3.147)")
+        if "_loads_account_blob_or_none" not in rocks_py:
+            errors.append("rocks_store must dual-read account blobs (v1.3.147)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..146 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..147 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

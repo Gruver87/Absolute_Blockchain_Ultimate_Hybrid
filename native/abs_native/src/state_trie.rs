@@ -37,8 +37,8 @@ impl StateRootAccumulator {
     }
 
     fn upsert_account_blob(&mut self, blob: &[u8]) -> PyResult<()> {
-        let account: Value = serde_json::from_slice(blob)
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        let account = crate::account_row::account_blob_to_value(blob)
+            .map_err(pyo3::exceptions::PyValueError::new_err)?;
         self.upsert_account_value(account)
     }
 
@@ -68,8 +68,8 @@ where
 {
     let mut rows = BTreeMap::new();
     for blob in blobs {
-        let account: Value = serde_json::from_slice(blob.as_ref())
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        let account = crate::account_row::account_blob_to_value(blob.as_ref())
+            .map_err(pyo3::exceptions::PyValueError::new_err)?;
         let row = account_payload_row(&account)?;
         let addr = value_to_string(row.get("a"), "");
         if addr.is_empty() {

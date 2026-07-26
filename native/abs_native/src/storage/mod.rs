@@ -233,7 +233,7 @@ impl RocksEngine {
             key.push(0x10);
             key.extend_from_slice(addr.as_bytes());
             let row = match self.get_bytes(&key)? {
-                Some(blob) => match serde_json::from_slice::<Value>(&blob) {
+                Some(blob) => match crate::account_row::account_blob_to_value(&blob) {
                     Ok(Value::Object(mut map)) => {
                         map.insert("address".into(), Value::String(addr.clone()));
                         Value::Object(map)
@@ -297,9 +297,11 @@ impl RocksEngine {
                 _ => continue,
             };
             row_obj.insert("address".into(), Value::String(addr.clone()));
-            let blob = serde_json::to_vec(&Value::Object(row_obj)).map_err(|e| {
-                pyo3::exceptions::PyValueError::new_err(format!("account encode failed: {e}"))
-            })?;
+            // v1.3.147: pack typed ABAR value (reads still accept legacy JSON).
+            let blob = crate::account_row::pack_account_row_value(&Value::Object(row_obj))
+                .map_err(|e| {
+                    pyo3::exceptions::PyValueError::new_err(format!("account encode failed: {e}"))
+                })?;
             batch.put(&key, &blob);
             account_count += 1;
         }

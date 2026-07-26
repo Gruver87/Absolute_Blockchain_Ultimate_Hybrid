@@ -6,7 +6,7 @@
 
 | | |
 |---|---|
-| **Версия** | `1.3.146-industrial` |
+| **Версия** | `1.3.147-industrial` |
 | **API Wave** | `61` |
 | **Обновлено** | 2026-07-26 |
 | **Entry** | `python main.py` / `.\scripts\start_node.ps1` / `make build` |

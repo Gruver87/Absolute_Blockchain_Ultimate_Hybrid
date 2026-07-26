@@ -843,6 +843,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Solicit local-tip `state_root` before ahead `get_blocks` (`p2p_catch_up_tip_probe`)
 - Remaining: tip proof / Long-Range checkpoint / libp2p / ceremony (not claimed)
 
+### Priority 101 — Typed Rocks account-row codec ✅ (v1.3.147)
+
+- [x] Native `ABAR` pack/unpack + dual-read (binary or legacy JSON)
+- [x] Writeback / state-root / account_view / RocksStore hot path
+- Remaining: block/tx blob migration / full Rocks rewrite / tip proof / libp2p / ceremony (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

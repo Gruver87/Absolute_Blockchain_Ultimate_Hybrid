@@ -112,6 +112,47 @@ class RocksChainStore:
             return None
         return data if isinstance(data, dict) else None
 
+    def _loads_account_blob_or_none(self, raw: bytes | None, *, context: str) -> Optional[Dict]:
+        """Dual-decode account row: ABAR binary (v1.3.147) or legacy JSON."""
+        if raw is None:
+            return None
+        if len(raw) >= 4 and raw[:4] == b"ABAR":
+            try:
+                import abs_native as _abs
+
+                if hasattr(_abs, "unpack_account_row"):
+                    data = json.loads(_abs.unpack_account_row(raw))
+                    return data if isinstance(data, dict) else None
+            except Exception as exc:
+                self._json_decode_failures += 1
+                logger.warning(
+                    "[RocksStore] corrupt %s ABAR (decode_failures=%s): %s",
+                    context,
+                    self._json_decode_failures,
+                    exc,
+                )
+                return None
+            self._json_decode_failures += 1
+            logger.warning(
+                "[RocksStore] corrupt %s ABAR (no native unpack)",
+                context,
+            )
+            return None
+        return self._loads_json_or_none(raw, context=context)
+
+    def _pack_account_blob(self, row: Dict[str, Any]) -> bytes:
+        """Pack account row as ABAR when native codec is present; else legacy JSON."""
+        try:
+            import abs_native as _abs
+
+            if hasattr(_abs, "pack_account_row"):
+                return bytes(
+                    _abs.pack_account_row(json.dumps(row, ensure_ascii=False))
+                )
+        except Exception:
+            pass
+        return json.dumps(row, ensure_ascii=False).encode("utf-8")
+
     def _ensure_schema(self) -> None:
         existing = self._raw_get(kc.key_meta("schema_version"))
         target = self._schema_version.encode("utf-8")
@@ -408,7 +449,7 @@ class RocksChainStore:
                 "code": None,
                 "storage": None,
             }
-        row = self._loads_json_or_none(raw, context=f"account {address}")
+        row = self._loads_account_blob_or_none(raw, context=f"account {address}")
         if row is None:
             # v1.3.65: corrupt blob must not become a zero-balance account.
             raise AccountCorruptError(
@@ -433,7 +474,8 @@ class RocksChainStore:
             row["balance"] = from_satoshi_float(sat)
         else:
             dual_write_balance(row, row.get("balance", 0) or 0)
-        self._raw_put(kc.key_account(addr), json.dumps(row, ensure_ascii=False).encode("utf-8"))
+        # v1.3.147: typed ABAR value when native pack_account_row is available.
+        self._raw_put(kc.key_account(addr), self._pack_account_blob(row))
 
     def get_balance(self, address: str) -> float:
         from runtime.amount import account_balance_abs
@@ -653,7 +695,7 @@ class RocksChainStore:
                 and self._pending_batch is None
             ):
                 for row in prepared.values():
-                    blob = json.dumps(row, ensure_ascii=False).encode("utf-8")
+                    blob = self._pack_account_blob(row)
                     self._root_acc_upsert_blob(blob)
                 accounts_n, logs_n = engine.commit_writeback_bundle(
                     json.dumps(prepared, ensure_ascii=False),
@@ -674,17 +716,18 @@ class RocksChainStore:
         rows = self._scan_prefix(kc.prefix_accounts())
         out: List[Dict] = []
         for _key, value in rows:
-            try:
-                out.append(json.loads(value.decode("utf-8")))
-            except Exception as exc:
-                self._json_decode_failures += 1
+            before = self._json_decode_failures
+            row = self._loads_account_blob_or_none(value, context="account scan")
+            if row is None:
+                if self._json_decode_failures == before:
+                    self._json_decode_failures += 1
                 logger.warning(
                     "[RocksStore] corrupt account row skipped "
-                    "(decode_failures=%s): %s",
+                    "(decode_failures=%s)",
                     self._json_decode_failures,
-                    exc,
                 )
                 continue
+            out.append(row)
         return sorted(out, key=lambda r: str(r.get("address", "")))
 
     def get_live_state_root_meta(self) -> tuple[str, int]:

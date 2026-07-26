@@ -235,11 +235,16 @@ pub fn account_storage_map_from_raw_py(
         if bytes.is_empty() {
             return Ok(Some(PyDict::new_bound(py).into()));
         }
-        let parsed: Value = match serde_json::from_slice(&bytes) {
+        let parsed: Value = match crate::account_row::account_blob_to_value(&bytes) {
             Ok(v) => v,
             Err(_) => return Ok(None),
         };
-        return match storage_map_from_value(&parsed) {
+        // Prefer explicit storage field; ABAR unpack already puts storage string.
+        let storage_src = parsed
+            .get("storage")
+            .cloned()
+            .unwrap_or(parsed);
+        return match storage_map_from_value(&storage_src) {
             Some(entries) => {
                 let out = PyDict::new_bound(py);
                 for (k, v) in entries {
@@ -260,7 +265,7 @@ pub fn account_view_from_blob_py(py: Python<'_>, blob: &[u8]) -> PyResult<PyObje
     if blob.is_empty() {
         return empty_view(py, "");
     }
-    let parsed: Value = match serde_json::from_slice(blob) {
+    let parsed: Value = match crate::account_row::account_blob_to_value(blob) {
         Ok(v) => v,
         Err(_) => {
             let dict = PyDict::new_bound(py);
@@ -301,7 +306,7 @@ pub fn decode_account_view_bytes(py: Python<'_>, blob: &[u8], address: &str) -> 
     if blob.is_empty() {
         return empty_view(py, address);
     }
-    let parsed: Value = match serde_json::from_slice(blob) {
+    let parsed: Value = match crate::account_row::account_blob_to_value(blob) {
         Ok(v) => v,
         Err(_) => {
             let dict = PyDict::new_bound(py);

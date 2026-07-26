@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.146 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.147 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -107,6 +107,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13144_mempool_solicit_armed_shell.py",
     "tests/unit/test_v13145_peer_score_quality.py",
     "tests/unit/test_v13146_catch_up_tip_probe.py",
+    "tests/unit/test_v13147_account_row_codec.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1858,6 +1859,21 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_catch_up_tip_probe_refuse_total",
         ],
     ),
+    (
+        "1.3.147",
+        "RELEASE_NOTES_v1.3.147.md",
+        ["1.3.147-industrial", "ABAR"],
+    ),
+    (
+        "1.3.147",
+        "native/abs_native/src/account_row.rs",
+        ["pack_account_row_value", "account_blob_to_value", "ABAR"],
+    ),
+    (
+        "1.3.147",
+        "storage/rocks_store.py",
+        ["_pack_account_blob", "_loads_account_blob_or_none", "ABAR"],
+    ),
 ]
 
 
@@ -1885,8 +1901,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.146"):
-            errors.append(f"node_version expected 1.3.146-*, got {ver}")
+        if not ver.startswith("1.3.147"):
+            errors.append(f"node_version expected 1.3.147-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors
