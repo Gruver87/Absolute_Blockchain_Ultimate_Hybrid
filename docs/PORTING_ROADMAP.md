@@ -1047,6 +1047,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_mempool_min_fee_refuse` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 132 — GET_MEMPOOL tip-align serve gate ✅ (v1.3.178)
+
+- [x] Inbound `GET_MEMPOOL` dump refused when peer tip far from local (`±max_delta`, default 2)
+- [x] Refuse `get_mempool_tip_misaligned` (empty response; no 200-tx serialization)
+- [x] Config `p2p_mempool_serve_tip_align` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

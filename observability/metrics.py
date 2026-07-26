@@ -1207,6 +1207,18 @@ class MetricsCollector:
                     f"abs_p2p_mempool_fee_refuse_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('mempool_fee_refuse_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_mempool_serve_tip_align Whether GET_MEMPOOL requires near tip alignment (0/1)",
+                "# TYPE abs_p2p_native_mempool_serve_tip_align gauge",
+                (
+                    f"abs_p2p_native_mempool_serve_tip_align{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_mempool_serve_tip_align') else 0}"
+                ),
+                "# HELP abs_p2p_get_mempool_tip_misaligned_total GET_MEMPOOL dumps refused for far peer tip",
+                "# TYPE abs_p2p_get_mempool_tip_misaligned_total counter",
+                (
+                    f"abs_p2p_get_mempool_tip_misaligned_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('get_mempool_tip_misaligned_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_heads_skipped_no_head Peers skipped in request_heads due to empty peer.head",
                 "# TYPE abs_p2p_heads_skipped_no_head gauge",
                 (

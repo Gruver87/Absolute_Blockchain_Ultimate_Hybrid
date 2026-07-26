@@ -2835,8 +2835,29 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_mempool_min_fee_refuse (v1.3.177)"
             )
+        # v1.3.178 — GET_MEMPOOL tip-align serve gate
+        if "get_mempool_tip_misaligned" not in p2p_py:
+            errors.append(
+                "p2p must refuse GET_MEMPOOL dump for far peer tip (v1.3.178)"
+            )
+        if "_get_mempool_tip_align_refuse_reason" not in p2p_py:
+            errors.append(
+                "p2p must expose _get_mempool_tip_align_refuse_reason (v1.3.178)"
+            )
+        if "p2p_mempool_serve_tip_align" not in (
+            ROOT / "runtime" / "config.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "config must expose p2p_mempool_serve_tip_align (v1.3.178)"
+            )
+        if "abs_p2p_native_mempool_serve_tip_align" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_mempool_serve_tip_align (v1.3.178)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..177 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..178 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.177 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.178 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -138,6 +138,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13175_catch_up_contiguous_parent_bind.py",
     "tests/unit/test_v13176_catch_up_height_continuity_bind.py",
     "tests/unit/test_v13177_mempool_min_fee_refuse.py",
+    "tests/unit/test_v13178_mempool_serve_tip_align.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -2641,6 +2642,33 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_mempool_fee_refuse_total",
         ],
     ),
+    (
+        "1.3.178",
+        "RELEASE_NOTES_v1.3.178.md",
+        ["1.3.178-industrial", "get_mempool_tip_misaligned"],
+    ),
+    (
+        "1.3.178",
+        "network/p2p_node.py",
+        [
+            "get_mempool_tip_misaligned",
+            "_get_mempool_tip_align_refuse_reason",
+            "native_mempool_serve_tip_align",
+        ],
+    ),
+    (
+        "1.3.178",
+        "runtime/config.py",
+        ["p2p_mempool_serve_tip_align"],
+    ),
+    (
+        "1.3.178",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_mempool_serve_tip_align",
+            "abs_p2p_get_mempool_tip_misaligned_total",
+        ],
+    ),
 ]
 
 
@@ -2668,8 +2696,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.177"):
-            errors.append(f"node_version expected 1.3.177-*, got {ver}")
+        if not ver.startswith("1.3.178"):
+            errors.append(f"node_version expected 1.3.178-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

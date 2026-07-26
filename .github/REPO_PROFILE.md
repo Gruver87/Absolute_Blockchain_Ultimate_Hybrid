@@ -60,8 +60,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.177` — mempool min-fee refuse before validate |
-| **Notes** | [RELEASE_NOTES_v1.3.177.md](../RELEASE_NOTES_v1.3.177.md) |
+| **Tag** | `v1.3.178` — GET_MEMPOOL tip-align serve gate |
+| **Notes** | [RELEASE_NOTES_v1.3.178.md](../RELEASE_NOTES_v1.3.178.md) |
 | **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

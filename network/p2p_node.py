@@ -1275,6 +1275,7 @@ class P2PNode:
         self._peer_tx_reject: int = 0
         self._mempool_dup_refuse_total: int = 0
         self._mempool_fee_refuse_total: int = 0
+        self._get_mempool_tip_misaligned_total: int = 0
         self._import_block_fail: int = 0
         self._import_offload_total: int = 0
         self.apply_queue = None  # set by AbsoluteNode — serial mine+import
@@ -3470,9 +3471,47 @@ class P2PNode:
 
     async def _handle_get_mempool(self, peer: PeerConnection):
         from blockchain.mempool_wire import mempool_tx_to_wire
+
+        # v1.3.178: do not serialize a mempool dump for far tip peers.
+        refuse = self._get_mempool_tip_align_refuse_reason(peer)
+        if refuse:
+            self._get_mempool_tip_misaligned_total = int(
+                getattr(self, "_get_mempool_tip_misaligned_total", 0) or 0
+            ) + 1
+            logger.info(
+                "[P2P] get_mempool tip-align refuse %s peer=%s peer_h=%s local_h=%s",
+                refuse,
+                (peer.peer_id or "")[:12],
+                getattr(peer, "height", 0),
+                self.blockchain.get_height() if self.blockchain else 0,
+            )
+            await peer.send(MSG_MEMPOOL, {"transactions": [], "count": 0})
+            return
         pending = self.mempool.get(limit=200)
         wire = [mempool_tx_to_wire(t) for t in pending]
         await peer.send(MSG_MEMPOOL, {"transactions": wire, "count": len(wire)})
+
+    def _get_mempool_tip_align_refuse_reason(self, peer: PeerConnection) -> str:
+        """v1.3.178: serve mempool dump only when peer tip is near local tip.
+
+        Soft bandwidth/DoS honesty — same ±2 window as outbound mempool pull.
+        Not tip proof / Long-Range / Rust fee scheduler.
+        """
+        if not bool(getattr(self.config, "p2p_mempool_serve_tip_align", True)):
+            return ""
+        try:
+            local_h = int(self.blockchain.get_height() or 0)
+            peer_h = int(getattr(peer, "height", 0) or 0)
+            max_delta = int(
+                getattr(self.config, "p2p_mempool_serve_max_height_delta", 2) or 2
+            )
+        except (TypeError, ValueError):
+            return ""
+        if max_delta < 0:
+            max_delta = 0
+        if abs(peer_h - local_h) > max_delta:
+            return "get_mempool_tip_misaligned"
+        return ""
 
     async def _handle_mempool_batch(self, peer: PeerConnection, data: Dict):
         if native.validate_p2p_mempool_batch(data) is None:
@@ -6067,6 +6106,9 @@ class P2PNode:
             "native_mempool_min_fee_refuse": bool(
                 getattr(self.config, "p2p_mempool_min_fee_refuse", True)
             ),
+            "native_mempool_serve_tip_align": bool(
+                getattr(self.config, "p2p_mempool_serve_tip_align", True)
+            ),
             "native_tx_sig_before_state": True,
             "native_bootstrap_resilient": True,
             "native_bootstrap_pin_gate": True,
@@ -6226,6 +6268,9 @@ class P2PNode:
             ),
             "mempool_fee_refuse_total": int(
                 getattr(self, "_mempool_fee_refuse_total", 0) or 0
+            ),
+            "get_mempool_tip_misaligned_total": int(
+                getattr(self, "_get_mempool_tip_misaligned_total", 0) or 0
             ),
             "bootstrap_redial_total": int(
                 getattr(self, "_bootstrap_redial_total", 0) or 0
