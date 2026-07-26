@@ -153,6 +153,45 @@ class RocksChainStore:
             pass
         return json.dumps(row, ensure_ascii=False).encode("utf-8")
 
+    def _loads_tx_blob_or_none(self, raw: bytes | None, *, context: str) -> Optional[Dict]:
+        """Dual-decode tx row: ATXV binary (v1.3.148) or legacy JSON."""
+        if raw is None:
+            return None
+        if len(raw) >= 4 and raw[:4] == b"ATXV":
+            try:
+                import abs_native as _abs
+
+                if hasattr(_abs, "unpack_tx_row"):
+                    data = json.loads(_abs.unpack_tx_row(raw))
+                    return data if isinstance(data, dict) else None
+            except Exception as exc:
+                self._json_decode_failures += 1
+                logger.warning(
+                    "[RocksStore] corrupt %s ATXV (decode_failures=%s): %s",
+                    context,
+                    self._json_decode_failures,
+                    exc,
+                )
+                return None
+            self._json_decode_failures += 1
+            logger.warning(
+                "[RocksStore] corrupt %s ATXV (no native unpack)",
+                context,
+            )
+            return None
+        return self._loads_json_or_none(raw, context=context)
+
+    def _pack_tx_blob(self, row: Dict[str, Any]) -> bytes:
+        """Pack tx row as ATXV when native codec is present; else legacy JSON."""
+        try:
+            import abs_native as _abs
+
+            if hasattr(_abs, "pack_tx_row"):
+                return bytes(_abs.pack_tx_row(json.dumps(row, ensure_ascii=False)))
+        except Exception:
+            pass
+        return json.dumps(row, ensure_ascii=False).encode("utf-8")
+
     def _ensure_schema(self) -> None:
         existing = self._raw_get(kc.key_meta("schema_version"))
         target = self._schema_version.encode("utf-8")
@@ -864,7 +903,8 @@ class RocksChainStore:
             "status": SqliteDatabase._normalize_tx_status(tx.get("status")),
             "timestamp": int(tx.get("timestamp", time.time()) or 0),
         }
-        payload = json.dumps(row, ensure_ascii=False).encode("utf-8")
+        # v1.3.148: typed ATXV value when native pack_tx_row is available.
+        payload = self._pack_tx_blob(row)
         self._raw_put(kc.key_tx(tx_hash), payload)
         if row["block_height"]:
             self._raw_put(kc.key_block_tx(row["block_height"], tx_hash), b"\x01")
@@ -929,17 +969,17 @@ class RocksChainStore:
                 seen.add(tx_hash)
                 raw = self._raw_get(kc.key_tx(tx_hash))
                 if raw:
-                    try:
-                        rows.append(json.loads(raw.decode("utf-8")))
-                    except Exception as exc:
-                        self._json_decode_failures += 1
+                    row = self._loads_tx_blob_or_none(
+                        raw, context=f"address_tx {tx_hash[:16]}"
+                    )
+                    if row is None:
                         logger.warning(
                             "[RocksStore] corrupt address_tx row skipped "
-                            "(decode_failures=%s): %s",
+                            "(decode_failures=%s)",
                             self._json_decode_failures,
-                            exc,
                         )
                         continue
+                    rows.append(row)
         rows.sort(
             key=lambda r: (int(r.get("block_height", 0)), int(r.get("timestamp", 0))),
             reverse=True,
@@ -980,7 +1020,7 @@ class RocksChainStore:
 
     def get_transaction(self, tx_hash: str) -> Optional[Dict]:
         raw = self._raw_get(kc.key_tx(tx_hash))
-        return self._loads_json_or_none(raw, context=f"tx {tx_hash[:16]}")
+        return self._loads_tx_blob_or_none(raw, context=f"tx {tx_hash[:16]}")
 
     def get_transactions_in_block(self, height: int) -> List[Dict]:
         prefix = kc.P_BLOCK_TX + kc.pack_u64(int(height))
@@ -991,17 +1031,15 @@ class RocksChainStore:
             tx_key = kc.P_TX + tx_hash_bytes
             raw = self._raw_get(tx_key)
             if raw:
-                try:
-                    out.append(json.loads(raw.decode("utf-8")))
-                except Exception as exc:
-                    self._json_decode_failures += 1
+                row = self._loads_tx_blob_or_none(raw, context="block_tx")
+                if row is None:
                     logger.warning(
                         "[RocksStore] corrupt block_tx row skipped "
-                        "(decode_failures=%s): %s",
+                        "(decode_failures=%s)",
                         self._json_decode_failures,
-                        exc,
                     )
                     continue
+                out.append(row)
         return out
 
     def get_recent_transactions(self, limit: int = 30) -> List[Dict]:
@@ -1013,17 +1051,17 @@ class RocksChainStore:
                 continue
             raw = self._raw_get(kc.key_tx(tx_hash))
             if raw:
-                try:
-                    out.append(json.loads(raw.decode("utf-8")))
-                except Exception as exc:
-                    self._json_decode_failures += 1
+                row = self._loads_tx_blob_or_none(
+                    raw, context=f"recent_tx {tx_hash[:16]}"
+                )
+                if row is None:
                     logger.warning(
                         "[RocksStore] corrupt recent_tx row skipped "
-                        "(decode_failures=%s): %s",
+                        "(decode_failures=%s)",
                         self._json_decode_failures,
-                        exc,
                     )
                     continue
+                out.append(row)
             if len(out) >= limit:
                 break
         return out
@@ -1098,16 +1136,14 @@ class RocksChainStore:
     def _iter_transaction_rows(self) -> List[Dict]:
         rows: List[Dict] = []
         for _key, value in self._scan_prefix(kc.P_TX):
-            try:
-                rows.append(json.loads(value.decode("utf-8")))
-            except Exception as exc:
-                self._json_decode_failures += 1
+            row = self._loads_tx_blob_or_none(value, context="TX row")
+            if row is None:
                 logger.warning(
-                    "[RocksStore] corrupt TX row skipped (decode_failures=%s): %s",
+                    "[RocksStore] corrupt TX row skipped (decode_failures=%s)",
                     self._json_decode_failures,
-                    exc,
                 )
                 continue
+            rows.append(row)
         return rows
 
     def count_transactions_by_address(
@@ -1489,16 +1525,13 @@ class RocksChainStore:
             if len(key) >= 9 and kc.unpack_u64(key[1:9]) > cut:
                 self._raw_delete(key)
         for key, value in list(self._scan_prefix(kc.P_TX)):
-            try:
-                row = json.loads(value.decode("utf-8"))
-            except Exception as exc:
-                self._json_decode_failures += 1
+            row = self._loads_tx_blob_or_none(value, context="reorg tx")
+            if row is None:
                 logger.warning(
                     "reorg_truncate_above: corrupt tx JSON above height>%s "
-                    "(decode_failures=%s): %s",
+                    "(decode_failures=%s)",
                     cut,
                     self._json_decode_failures,
-                    exc,
                 )
                 self._raw_delete(key)
                 continue

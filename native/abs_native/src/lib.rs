@@ -27,6 +27,7 @@ mod rlp;
 mod rocks_keycodec;
 mod state_trie;
 mod storage;
+mod tx_row;
 
 use k256::ecdsa::signature::hazmat::PrehashVerifier;
 use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
@@ -1974,6 +1975,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_hash_chain, m)?)?;
     storage::register(m)?;
     account_row::register(m)?;
+    tx_row::register(m)?;
     account_view::register(m)?;
     evm_writeback::register(m)?;
     state_trie::register(m)?;

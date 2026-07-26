@@ -849,6 +849,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Writeback / state-root / account_view / RocksStore hot path
 - Remaining: block/tx blob migration / full Rocks rewrite / tip proof / libp2p / ceremony (not claimed)
 
+### Priority 102 — Typed Rocks tx-row codec ✅ (v1.3.148)
+
+- [x] Native `ATXV` pack/unpack + dual-read (binary or legacy JSON)
+- [x] `_insert_transaction` / get / scan / reorg dual-decode
+- Remaining: block blob (`ABLK`) / receipts / full Rocks rewrite / tip proof / libp2p / ceremony (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

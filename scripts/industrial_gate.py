@@ -635,7 +635,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         rocks_py = (ROOT / "storage" / "rocks_store.py").read_text(encoding="utf-8")
         if "_loads_json_or_none" not in rocks_py:
             errors.append("rocks_store must use _loads_json_or_none for point-get honesty")
-        if 'return self._loads_json_or_none(raw, context=f"tx' not in rocks_py:
+        if (
+            'return self._loads_json_or_none(raw, context=f"tx' not in rocks_py
+            and 'return self._loads_tx_blob_or_none(raw, context=f"tx' not in rocks_py
+        ):
             errors.append("rocks_store get_transaction must use fail-closed JSON decode")
         if 'return self._loads_json_or_none(raw, context=f"receipt' not in rocks_py:
             errors.append("rocks_store get_tx_receipt must use fail-closed JSON decode")
@@ -2249,8 +2252,20 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("rocks_store must pack ABAR account rows (v1.3.147)")
         if "_loads_account_blob_or_none" not in rocks_py:
             errors.append("rocks_store must dual-read account blobs (v1.3.147)")
+        # v1.3.148 — typed Rocks tx-row ATXV codec
+        tx_row_rs = (ROOT / "native" / "abs_native" / "src" / "tx_row.rs").read_text(
+            encoding="utf-8"
+        )
+        if "pack_tx_row_value" not in tx_row_rs:
+            errors.append("native must expose pack_tx_row_value (v1.3.148)")
+        if "tx_blob_to_value" not in tx_row_rs:
+            errors.append("native must dual-decode tx blobs (v1.3.148)")
+        if "_pack_tx_blob" not in rocks_py:
+            errors.append("rocks_store must pack ATXV tx rows (v1.3.148)")
+        if "_loads_tx_blob_or_none" not in rocks_py:
+            errors.append("rocks_store must dual-read tx blobs (v1.3.148)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..147 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..148 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:
