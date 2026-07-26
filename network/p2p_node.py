@@ -1276,6 +1276,7 @@ class P2PNode:
         self._mempool_dup_refuse_total: int = 0
         self._mempool_fee_refuse_total: int = 0
         self._mempool_gas_refuse_total: int = 0
+        self._mempool_calldata_refuse_total: int = 0
         self._get_blocks_future_refuse_total: int = 0
         self._get_block_future_refuse_total: int = 0
         self._get_blocks_past_tip_clamp_total: int = 0
@@ -3429,6 +3430,7 @@ class P2PNode:
         (cheap refuse). Soft DoS honesty only — not anti-Sybil / tip proof.
         v1.3.177: also refuse fee < mempool.min_fee before validate_transaction.
         v1.3.179: also refuse gas > evm_gas_limit before validate_transaction.
+        v1.3.183: also refuse oversized calldata before validate_transaction.
         """
         self._last_tx_wire_reject = ""
         if not native.validate_p2p_wire_tx(data):
@@ -3500,6 +3502,23 @@ class P2PNode:
                 ) + 1
                 return None
 
+        # v1.3.183: cheap calldata size refuse before validate_transaction.
+        # Soft DoS honesty — not full tx-size RLP budget / Rust mempool.
+        if bool(getattr(self.config, "p2p_mempool_max_calldata_refuse", True)):
+            try:
+                max_cd = int(
+                    getattr(self.config, "p2p_mempool_max_calldata_bytes", 131072)
+                    or 131072
+                )
+            except (TypeError, ValueError):
+                max_cd = 131072
+            if max_cd > 0 and self._wire_calldata_byte_len(calldata) > max_cd:
+                self._last_tx_wire_reject = "calldata_too_large"
+                self._mempool_calldata_refuse_total = int(
+                    getattr(self, "_mempool_calldata_refuse_total", 0) or 0
+                ) + 1
+                return None
+
         tx = Transaction(
             from_addr=from_addr,
             to_addr=to_addr,
@@ -3529,6 +3548,19 @@ class P2PNode:
             gas=gas,
         )
         return mp_tx, tx.hash
+
+    @staticmethod
+    def _wire_calldata_byte_len(calldata) -> int:
+        """Approximate on-wire calldata size in bytes (hex or raw string)."""
+        if calldata is None:
+            return 0
+        if isinstance(calldata, (bytes, bytearray)):
+            return len(calldata)
+        s = str(calldata)
+        if s.startswith(("0x", "0X")):
+            hexpart = s[2:]
+            return (len(hexpart) + 1) // 2
+        return len(s.encode("utf-8", errors="replace"))
 
     async def _ingest_peer_tx(
         self,
@@ -6234,6 +6266,9 @@ class P2PNode:
             "native_mempool_max_gas_refuse": bool(
                 getattr(self.config, "p2p_mempool_max_gas_refuse", True)
             ),
+            "native_mempool_max_calldata_refuse": bool(
+                getattr(self.config, "p2p_mempool_max_calldata_refuse", True)
+            ),
             "native_get_blocks_future_refuse": bool(
                 getattr(self.config, "p2p_get_blocks_future_refuse", True)
             ),
@@ -6408,6 +6443,9 @@ class P2PNode:
             ),
             "mempool_gas_refuse_total": int(
                 getattr(self, "_mempool_gas_refuse_total", 0) or 0
+            ),
+            "mempool_calldata_refuse_total": int(
+                getattr(self, "_mempool_calldata_refuse_total", 0) or 0
             ),
             "get_blocks_future_refuse_total": int(
                 getattr(self, "_get_blocks_future_refuse_total", 0) or 0

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.182 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.183 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -143,6 +143,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13180_get_blocks_future_refuse.py",
     "tests/unit/test_v13181_get_block_future_refuse.py",
     "tests/unit/test_v13182_get_blocks_past_tip_clamp.py",
+    "tests/unit/test_v13183_mempool_max_calldata_refuse.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -2781,6 +2782,33 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_get_blocks_past_tip_clamp_total",
         ],
     ),
+    (
+        "1.3.183",
+        "RELEASE_NOTES_v1.3.183.md",
+        ["1.3.183-industrial", "calldata_too_large"],
+    ),
+    (
+        "1.3.183",
+        "network/p2p_node.py",
+        [
+            "calldata_too_large",
+            "_wire_calldata_byte_len",
+            "native_mempool_max_calldata_refuse",
+        ],
+    ),
+    (
+        "1.3.183",
+        "runtime/config.py",
+        ["p2p_mempool_max_calldata_refuse", "p2p_mempool_max_calldata_bytes"],
+    ),
+    (
+        "1.3.183",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_mempool_max_calldata_refuse",
+            "abs_p2p_mempool_calldata_refuse_total",
+        ],
+    ),
 ]
 
 
@@ -2808,8 +2836,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.182"):
-            errors.append(f"node_version expected 1.3.182-*, got {ver}")
+        if not ver.startswith("1.3.183"):
+            errors.append(f"node_version expected 1.3.183-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

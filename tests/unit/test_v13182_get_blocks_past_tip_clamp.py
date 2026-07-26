@@ -73,7 +73,7 @@ def test_needles_v13182():
     assert "P2P_GET_BLOCKS_PAST_TIP_CLAMP" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.182.md").read_text(encoding="utf-8")
     assert "1.3.182-industrial" in notes
-    assert Config().node_version.startswith("1.3.182")
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_get_blocks_past_tip_clamp" in metrics
     assert "abs_p2p_get_blocks_past_tip_clamp_total" in metrics
