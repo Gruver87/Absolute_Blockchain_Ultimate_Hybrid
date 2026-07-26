@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.186-industrial"
+    node_version: str = "1.3.187-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -124,6 +124,7 @@ class Config:
     p2p_mempool_negative_value_refuse: bool = True  # v1.3.184: refuse value<0 before validate_transaction
     p2p_mempool_negative_nonce_refuse: bool = True  # v1.3.185: refuse nonce<0 before validate_transaction
     p2p_mempool_negative_fee_refuse: bool = True    # v1.3.186: refuse fee<0 before validate_transaction
+    p2p_mempool_negative_gas_refuse: bool = True    # v1.3.187: refuse gas<0 before validate_transaction
     p2p_get_blocks_future_refuse: bool = True     # v1.3.180: refuse GET_BLOCKS when from_height > local tip
     p2p_get_block_future_refuse: bool = True      # v1.3.181: refuse GET_BLOCK when height > local tip
     p2p_get_blocks_past_tip_clamp: bool = True    # v1.3.182: clamp GET_BLOCKS end to local tip (no DB past tip)
@@ -441,6 +442,10 @@ class Config:
         self.p2p_mempool_negative_fee_refuse = env_bool(
             "P2P_MEMPOOL_NEGATIVE_FEE_REFUSE",
             self.p2p_mempool_negative_fee_refuse,
+        )
+        self.p2p_mempool_negative_gas_refuse = env_bool(
+            "P2P_MEMPOOL_NEGATIVE_GAS_REFUSE",
+            self.p2p_mempool_negative_gas_refuse,
         )
         self.p2p_get_blocks_future_refuse = env_bool(
             "P2P_GET_BLOCKS_FUTURE_REFUSE", self.p2p_get_blocks_future_refuse

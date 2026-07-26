@@ -60,8 +60,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.186` — mempool negative-fee refuse |
-| **Notes** | [RELEASE_NOTES_v1.3.186.md](../RELEASE_NOTES_v1.3.186.md) |
+| **Tag** | `v1.3.187` — mempool negative-gas refuse |
+| **Notes** | [RELEASE_NOTES_v1.3.187.md](../RELEASE_NOTES_v1.3.187.md) |
 | **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

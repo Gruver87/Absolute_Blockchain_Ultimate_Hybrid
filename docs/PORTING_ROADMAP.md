@@ -1110,6 +1110,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_mempool_negative_fee_refuse` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 141 — Mempool negative-gas refuse before validate ✅ (v1.3.187)
+
+- [x] P2P wire txs with `gas < 0` refused before `validate_transaction`
+- [x] Refuse `gas_negative` (cheap DoS path; complements gas_too_high)
+- [x] Config `p2p_mempool_negative_gas_refuse` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
