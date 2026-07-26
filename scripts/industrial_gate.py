@@ -2208,8 +2208,19 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_mempool_solicit_armed_shell (v1.3.144)"
             )
+        # v1.3.145 — peer score quality (strikes + import fails)
+        if "native_peer_score_quality" not in p2p_py:
+            errors.append("p2p must expose native_peer_score_quality (v1.3.145)")
+        if "_note_peer_import_fail" not in p2p_py:
+            errors.append("p2p must attribute import fails to peers (v1.3.145)")
+        if "abs_p2p_native_peer_score_quality" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_peer_score_quality (v1.3.145)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..144 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..145 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

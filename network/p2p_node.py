@@ -203,13 +203,22 @@ def _peer_health_score(
     height_gap: int,
     last_seen_age: float,
     health_timeout: float,
+    strikes: int = 0,
+    import_fails: int = 0,
 ) -> int:
+    """Soft peer quality score for eviction / eclipse prune (0..100).
+
+    v1.3.145: strikes + import_fails penalize score so prune prefers abusive peers,
+    not only height/liveness. Soft honesty only — not tip proof / hard isolation.
+    """
     score = 100
     score -= min(45, int(height_gap) * 15)
     if last_seen_age >= health_timeout:
         score -= 50
     elif last_seen_age >= health_timeout / 2:
         score -= 20
+    score -= min(48, max(0, int(strikes)) * 12)
+    score -= min(40, max(0, int(import_fails)) * 10)
     return max(0, min(100, score))
 
 
@@ -247,6 +256,8 @@ class PeerConnection:
         self.connected_at = time.time()
         self.last_seen = time.time()
         self.is_synced = False
+        # v1.3.145: session quality counters for peer score / eclipse prune
+        self.quality_import_fails: int = 0
         self.tls_fingerprint = ""
         self.tls_identities: list = []
         self._on_send_fail: Optional[Callable[[], None]] = None
@@ -2265,6 +2276,46 @@ class P2PNode:
         logger.warning("[P2P] banned %s for %ss (%s)", key, ban_sec, reason)
         return True
 
+    def _peer_strike_count(self, peer: PeerConnection) -> int:
+        key = self._peer_key(peer)
+        if not key:
+            return 0
+        strikes = int(self._peer_strikes.get(key, 0) or 0)
+        if self._rl_table is not None:
+            try:
+                strikes = max(strikes, int(self._rl_table.strike_count(str(key))))
+            except Exception:
+                pass
+        return strikes
+
+    def _note_peer_import_fail(self, peer: Optional[PeerConnection]) -> None:
+        """v1.3.145: attribute failed imports to the sourcing peer for score honesty."""
+        if peer is None:
+            return
+        peer.quality_import_fails = int(
+            getattr(peer, "quality_import_fails", 0) or 0
+        ) + 1
+
+    def _score_peer(
+        self,
+        peer: PeerConnection,
+        *,
+        local_height: int,
+        health_timeout: float,
+        now: Optional[float] = None,
+    ) -> int:
+        """Compose soft peer score including strike/import quality (v1.3.145)."""
+        ts = float(now if now is not None else time.time())
+        gap = abs(int(getattr(peer, "height", 0) or 0) - int(local_height or 0))
+        age = max(0.0, ts - float(getattr(peer, "last_seen", ts) or ts))
+        return _peer_health_score(
+            height_gap=gap,
+            last_seen_age=age,
+            health_timeout=health_timeout,
+            strikes=self._peer_strike_count(peer),
+            import_fails=int(getattr(peer, "quality_import_fails", 0) or 0),
+        )
+
     def _exempt_rate_ok(self, peer_id: str) -> bool:
         """Secondary per-peer budget for RATE_LIMIT_EXEMPT_TYPES (v1.3.72).
 
@@ -3009,6 +3060,9 @@ class P2PNode:
                         exc,
                     )
             await self._broadcast_block(data, exclude_peer=peer.peer_id)
+        else:
+            # v1.3.145: failed import feeds peer quality score (eclipse/evict).
+            self._note_peer_import_fail(peer)
 
     async def _handle_get_blocks(self, peer: PeerConnection, data: Dict):
         """Отправляем диапазон блоков пиру."""
@@ -3466,6 +3520,8 @@ class P2PNode:
                         fail_h = int(
                             block_data.get("height", block_data.get("number", current)) or current
                         )
+                        # v1.3.145: attribute failed sync import to sourcing peer.
+                        self._note_peer_import_fail(peer)
                         parent_hash = block_data.get("parent_hash", "")
                         ancestor = None
                         if hasattr(self.blockchain, "find_ancestor_height"):
@@ -3696,12 +3752,11 @@ class P2PNode:
                 removed += 1
                 continue
             if evict_below > 0 and len(self.peers) > 1:
-                gap = abs(int(peer.height or 0) - local_height)
-                age = max(0.0, now - peer.last_seen)
-                score = _peer_health_score(
-                    height_gap=gap,
-                    last_seen_age=age,
+                score = self._score_peer(
+                    peer,
+                    local_height=local_height,
                     health_timeout=health_timeout,
+                    now=now,
                 )
                 if score < evict_below:
                     self._remove_peer(pid, peer)
@@ -4486,9 +4541,9 @@ class P2PNode:
                 continue
             gap = abs(int(peer.height or 0) - local_height)
             age = max(0.0, time.time() - peer.last_seen)
-            score = _peer_health_score(
-                height_gap=gap,
-                last_seen_age=age,
+            score = self._score_peer(
+                peer,
+                local_height=local_height,
                 health_timeout=health_timeout,
             )
             candidates.append((score, pid, peer))
@@ -4569,14 +4624,13 @@ class P2PNode:
         for p in self.peers.values():
             gap = abs(int(p.height or 0) - int(local_height or 0))
             last_seen_age = max(0.0, now - p.last_seen)
-            score = _peer_health_score(
-                height_gap=gap,
-                last_seen_age=last_seen_age,
+            score = self._score_peer(
+                p,
+                local_height=int(local_height or 0),
                 health_timeout=health_timeout,
+                now=now,
             )
-            strikes = int(self._peer_strikes.get(self._peer_key(p), 0) or 0)
-            if self._rl_table is not None:
-                strikes = int(self._rl_table.strike_count(self._peer_key(p)))
+            strikes = self._peer_strike_count(p)
             peer_head = str(p.head or "")
             transport_healthy = gap <= 2 and last_seen_age < health_timeout
             # Same-height divergent head is not chain-compatible.
@@ -4599,6 +4653,7 @@ class P2PNode:
                 "healthy": transport_healthy and chain_compatible,
                 "score": score,
                 "strikes": strikes,
+                "import_fails": int(getattr(p, "quality_import_fails", 0) or 0),
                 "banned": self._is_banned(self._peer_key(p)),
             })
         expected = int(getattr(self.config, "testnet_expected_peers", 0) or 0)
@@ -4733,6 +4788,7 @@ class P2PNode:
             "native_state_root_local_consistency": True,
             "native_mempool_solicit_only": True,
             "native_mempool_solicit_armed_shell": True,
+            "native_peer_score_quality": True,
             "native_new_block_height_cap": True,
             "native_handshake_height_cap": True,
             "native_status_capped_head_refuse": True,

@@ -831,6 +831,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `_mempool_solicit_armed_for` wires pull waiters only
 - Remaining: anti-Sybil / tip proof / Long-Range / libp2p / ceremony (not claimed)
 
+### Priority 99 — Peer score quality (strikes + import fails) ✅ (v1.3.145)
+
+- [x] `_peer_health_score` penalties for strikes / import_fails
+- [x] Failed imports attributed to sourcing peer; eclipse/evict use `_score_peer`
+- Remaining: tip proof / hard isolation / Long-Range / libp2p / ceremony (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

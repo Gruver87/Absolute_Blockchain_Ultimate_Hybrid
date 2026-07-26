@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.144 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.145 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -105,6 +105,7 @@ WAVE_TESTS = [
     "tests/unit/test_silent_except_honesty.py",
     "tests/unit/test_v13143_mempool_cheap_refuse.py",
     "tests/unit/test_v13144_mempool_solicit_armed_shell.py",
+    "tests/unit/test_v13145_peer_score_quality.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1809,6 +1810,26 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "observability/metrics.py",
         ["abs_p2p_native_mempool_solicit_armed_shell"],
     ),
+    (
+        "1.3.145",
+        "RELEASE_NOTES_v1.3.145.md",
+        ["1.3.145-industrial", "score"],
+    ),
+    (
+        "1.3.145",
+        "network/p2p_node.py",
+        [
+            "native_peer_score_quality",
+            "_score_peer",
+            "_note_peer_import_fail",
+            "quality_import_fails",
+        ],
+    ),
+    (
+        "1.3.145",
+        "observability/metrics.py",
+        ["abs_p2p_native_peer_score_quality"],
+    ),
 ]
 
 
@@ -1836,8 +1857,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.144"):
-            errors.append(f"node_version expected 1.3.144-*, got {ver}")
+        if not ver.startswith("1.3.145"):
+            errors.append(f"node_version expected 1.3.145-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

@@ -745,6 +745,12 @@ class MetricsCollector:
                     f"abs_p2p_native_mempool_solicit_armed_shell{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_mempool_solicit_armed_shell') else 0}"
                 ),
+                "# HELP abs_p2p_native_peer_score_quality Whether peer score includes strikes/import fails (0/1)",
+                "# TYPE abs_p2p_native_peer_score_quality gauge",
+                (
+                    f"abs_p2p_native_peer_score_quality{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_peer_score_quality') else 0}"
+                ),
                 "# HELP abs_p2p_unsolicited_mempool_rejects_total Unsolicited mempool batch rejects",
                 "# TYPE abs_p2p_unsolicited_mempool_rejects_total counter",
                 (

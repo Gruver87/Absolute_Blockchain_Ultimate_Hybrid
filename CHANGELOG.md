@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.145] — 2026-07-26
+
+### P2P — peer score quality (strikes + import fails)
+
+- Soft health score penalizes strikes and failed imports for eclipse prune / evict
+- Failed gossip/sync imports attributed to sourcing peer
+- Honesty: not tip proof / hard isolation / Long-Range / libp2p / mainnet
+
 ## [1.3.144] — 2026-07-26
 
 ### P2P — solicit-armed mempool shell (skip unsolicited ECDSA)

@@ -566,6 +566,13 @@ def test_peer_health_score_helper():
     assert _peer_health_score(height_gap=0, last_seen_age=0, health_timeout=60) == 100
     assert _peer_health_score(height_gap=3, last_seen_age=0, health_timeout=60) == 55
     assert _peer_health_score(height_gap=0, last_seen_age=70, health_timeout=60) == 50
+    # v1.3.145: strikes / import fails penalize soft score
+    assert (
+        _peer_health_score(
+            height_gap=0, last_seen_age=0, health_timeout=60, strikes=2, import_fails=1
+        )
+        == 100 - 24 - 10
+    )
 
 
 def test_p2p_maintenance_loop_prunes_stale_peers():
