@@ -1131,6 +1131,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_mempool_empty_sig_refuse` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 144 — Mempool empty-pubkey refuse before validate ✅ (v1.3.190)
+
+- [x] P2P wire txs with empty/whitespace `public_key` refused before `validate_transaction`
+- [x] Refuse `pubkey_empty` (cheap DoS path; not key-format validation)
+- [x] Config `p2p_mempool_empty_pubkey_refuse` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

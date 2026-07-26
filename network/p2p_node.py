@@ -1283,6 +1283,7 @@ class P2PNode:
         self._mempool_gas_negative_refuse_total: int = 0
         self._mempool_empty_from_refuse_total: int = 0
         self._mempool_empty_sig_refuse_total: int = 0
+        self._mempool_empty_pubkey_refuse_total: int = 0
         self._get_blocks_future_refuse_total: int = 0
         self._get_block_future_refuse_total: int = 0
         self._get_blocks_past_tip_clamp_total: int = 0
@@ -3443,6 +3444,7 @@ class P2PNode:
         v1.3.187: also refuse gas < 0 before validate_transaction.
         v1.3.188: also refuse empty from address before validate_transaction.
         v1.3.189: also refuse empty signature before validate_transaction.
+        v1.3.190: also refuse empty public_key before validate_transaction.
         """
         self._last_tx_wire_reject = ""
         if not native.validate_p2p_wire_tx(data):
@@ -3478,6 +3480,16 @@ class P2PNode:
                 self._last_tx_wire_reject = "signature_empty"
                 self._mempool_empty_sig_refuse_total = int(
                     getattr(self, "_mempool_empty_sig_refuse_total", 0) or 0
+                ) + 1
+                return None
+
+        # v1.3.190: cheap empty-pubkey refuse before validate_transaction (ECDSA).
+        # Soft DoS honesty — not key format / tip proof.
+        if bool(getattr(self.config, "p2p_mempool_empty_pubkey_refuse", True)):
+            if not str(public_key or "").strip():
+                self._last_tx_wire_reject = "pubkey_empty"
+                self._mempool_empty_pubkey_refuse_total = int(
+                    getattr(self, "_mempool_empty_pubkey_refuse_total", 0) or 0
                 ) + 1
                 return None
 
@@ -6372,6 +6384,9 @@ class P2PNode:
             "native_mempool_empty_sig_refuse": bool(
                 getattr(self.config, "p2p_mempool_empty_sig_refuse", True)
             ),
+            "native_mempool_empty_pubkey_refuse": bool(
+                getattr(self.config, "p2p_mempool_empty_pubkey_refuse", True)
+            ),
             "native_get_blocks_future_refuse": bool(
                 getattr(self.config, "p2p_get_blocks_future_refuse", True)
             ),
@@ -6567,6 +6582,9 @@ class P2PNode:
             ),
             "mempool_empty_sig_refuse_total": int(
                 getattr(self, "_mempool_empty_sig_refuse_total", 0) or 0
+            ),
+            "mempool_empty_pubkey_refuse_total": int(
+                getattr(self, "_mempool_empty_pubkey_refuse_total", 0) or 0
             ),
             "get_blocks_future_refuse_total": int(
                 getattr(self, "_get_blocks_future_refuse_total", 0) or 0
