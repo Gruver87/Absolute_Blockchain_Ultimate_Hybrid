@@ -1234,6 +1234,8 @@ class P2PNode:
         self._unsolicited_block_rejects_total: int = 0
         self._unsolicited_state_root_rejects_total: int = 0
         self._catch_up_no_head_refuse_total: int = 0
+        self._catch_up_head_height_mismatch_total: int = 0
+        self._catch_up_tip_probe_refuse_total: int = 0
         self._bootstrap_redial_total: int = 0
         self._bootstrap_pin_rejects_total: int = 0
         self._handshake_rejects: int = 0
@@ -3313,7 +3315,8 @@ class P2PNode:
     def _catch_up_ahead_refuse_reason(self, peer: PeerConnection) -> str:
         """v1.3.139: refuse height-only catch-up without a concrete peer.head.
 
-        Soft scheduling gate — not tip existence proof.
+        v1.3.146: if peer.head is already known locally, claimed height must match
+        that header (soft ownership — not tip existence proof).
         """
         if not bool(getattr(self.config, "p2p_catch_up_require_head", True)):
             return ""
@@ -3324,17 +3327,76 @@ class P2PNode:
             return ""
         if peer_h <= our_h:
             return ""
-        if str(getattr(peer, "head", "") or "").strip():
+        head = str(getattr(peer, "head", "") or "").strip()
+        if not head:
+            return "catch_up_no_head"
+        # Known local header for claimed head ⇒ height must agree.
+        blk = None
+        try:
+            blk = self.get_block(head)
+        except Exception:
+            blk = None
+        if isinstance(blk, dict):
+            try:
+                local_h = int(blk.get("height", blk.get("number", -1)) or -1)
+            except (TypeError, ValueError):
+                local_h = -1
+            if local_h >= 0 and local_h != peer_h:
+                return "catch_up_head_height_mismatch"
+        return ""
+
+    def _bump_catch_up_refuse(self, reason: str) -> None:
+        """Telemetry for catch-up refuse reasons (v1.3.139 / v1.3.146)."""
+        r = str(reason or "")
+        if r == "catch_up_no_head":
+            self._catch_up_no_head_refuse_total = int(
+                self._catch_up_no_head_refuse_total or 0
+            ) + 1
+        elif r == "catch_up_head_height_mismatch":
+            self._catch_up_head_height_mismatch_total = int(
+                getattr(self, "_catch_up_head_height_mismatch_total", 0) or 0
+            ) + 1
+        elif r in (
+            "catch_up_tip_probe_failed",
+            "catch_up_tip_height_mismatch",
+        ):
+            self._catch_up_tip_probe_refuse_total = int(
+                getattr(self, "_catch_up_tip_probe_refuse_total", 0) or 0
+            ) + 1
+
+    async def _catch_up_local_tip_probe_refuse_reason(
+        self, peer: PeerConnection
+    ) -> str:
+        """v1.3.146: before get_blocks, solicit state_root at local tip.
+
+        Soft wire bind — peer must answer for our known tip. Not tip proof /
+        root-belongs-to-head crypto / Long-Range checkpoint.
+        """
+        if not bool(getattr(self.config, "p2p_catch_up_tip_probe", True)):
             return ""
-        return "catch_up_no_head"
+        try:
+            local_h = int(self.blockchain.get_height() or 0)
+            peer_h = int(getattr(peer, "height", 0) or 0)
+        except (TypeError, ValueError):
+            return ""
+        if peer_h <= local_h or local_h <= 0:
+            return ""
+        resp = await self.request_peer_state_root(peer, local_h)
+        if not resp:
+            return "catch_up_tip_probe_failed"
+        try:
+            rh = int(resp.get("height") or 0)
+        except (TypeError, ValueError):
+            rh = 0
+        if rh and rh != local_h:
+            return "catch_up_tip_height_mismatch"
+        return ""
 
     def _schedule_sync(self, peer: PeerConnection) -> None:
         """Coalesce duplicate sync tasks per peer (v1.3.66) + global inflight cap (v1.3.72)."""
         refuse = self._catch_up_ahead_refuse_reason(peer)
         if refuse:
-            self._catch_up_no_head_refuse_total = int(
-                self._catch_up_no_head_refuse_total or 0
-            ) + 1
+            self._bump_catch_up_refuse(refuse)
             logger.debug(
                 "[P2P] catch-up refuse %s peer=%s height=%s",
                 refuse,
@@ -3463,16 +3525,27 @@ class P2PNode:
             return
 
         # v1.3.139: height-only ahead without peer.head — refuse get_blocks catch-up.
+        # v1.3.146: also head↔height local bind.
         refuse = self._catch_up_ahead_refuse_reason(peer)
         if refuse:
-            self._catch_up_no_head_refuse_total = int(
-                self._catch_up_no_head_refuse_total or 0
-            ) + 1
+            self._bump_catch_up_refuse(refuse)
             logger.info(
-                "[P2P] catch-up refuse %s peer=%s claimed_height=%s (no head)",
+                "[P2P] catch-up refuse %s peer=%s claimed_height=%s",
                 refuse,
                 (peer.peer_id or "")[:12],
                 peer.height,
+            )
+            return
+
+        # v1.3.146: solicit local-tip state_root before downloading ahead blocks.
+        tip_refuse = await self._catch_up_local_tip_probe_refuse_reason(peer)
+        if tip_refuse:
+            self._bump_catch_up_refuse(tip_refuse)
+            logger.info(
+                "[P2P] catch-up tip-probe refuse %s peer=%s local_height=%s",
+                tip_refuse,
+                (peer.peer_id or "")[:12],
+                self.blockchain.get_height() if self.blockchain else 0,
             )
             return
 
@@ -4799,6 +4872,10 @@ class P2PNode:
             "native_catch_up_require_head": bool(
                 getattr(self.config, "p2p_catch_up_require_head", True)
             ),
+            "native_catch_up_tip_probe": bool(
+                getattr(self.config, "p2p_catch_up_tip_probe", True)
+            ),
+            "native_catch_up_head_height_bind": True,
             "native_sync_heads_no_invent": True,
             "native_sync_state_wire_only": True,
             "native_mempool_new_tx_rate_primary": True,
@@ -4874,6 +4951,12 @@ class P2PNode:
             ),
             "catch_up_no_head_refuse_total": int(
                 getattr(self, "_catch_up_no_head_refuse_total", 0) or 0
+            ),
+            "catch_up_head_height_mismatch_total": int(
+                getattr(self, "_catch_up_head_height_mismatch_total", 0) or 0
+            ),
+            "catch_up_tip_probe_refuse_total": int(
+                getattr(self, "_catch_up_tip_probe_refuse_total", 0) or 0
             ),
             "heads_skipped_no_head": int(
                 getattr(getattr(self, "sync_engine", None), "_heads_skipped_no_head", 0)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.145 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.146 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -106,6 +106,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13143_mempool_cheap_refuse.py",
     "tests/unit/test_v13144_mempool_solicit_armed_shell.py",
     "tests/unit/test_v13145_peer_score_quality.py",
+    "tests/unit/test_v13146_catch_up_tip_probe.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1830,6 +1831,33 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "observability/metrics.py",
         ["abs_p2p_native_peer_score_quality"],
     ),
+    (
+        "1.3.146",
+        "RELEASE_NOTES_v1.3.146.md",
+        ["1.3.146-industrial", "tip"],
+    ),
+    (
+        "1.3.146",
+        "network/p2p_node.py",
+        [
+            "catch_up_head_height_mismatch",
+            "_catch_up_local_tip_probe_refuse_reason",
+            "native_catch_up_tip_probe",
+        ],
+    ),
+    (
+        "1.3.146",
+        "runtime/config.py",
+        ["p2p_catch_up_tip_probe"],
+    ),
+    (
+        "1.3.146",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_catch_up_tip_probe",
+            "abs_p2p_catch_up_tip_probe_refuse_total",
+        ],
+    ),
 ]
 
 
@@ -1857,8 +1885,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.145"):
-            errors.append(f"node_version expected 1.3.145-*, got {ver}")
+        if not ver.startswith("1.3.146"):
+            errors.append(f"node_version expected 1.3.146-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

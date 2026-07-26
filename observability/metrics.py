@@ -865,6 +865,30 @@ class MetricsCollector:
                     f"abs_p2p_catch_up_no_head_refuse_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('catch_up_no_head_refuse_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_catch_up_tip_probe Whether catch-up solicits local-tip state_root first (0/1)",
+                "# TYPE abs_p2p_native_catch_up_tip_probe gauge",
+                (
+                    f"abs_p2p_native_catch_up_tip_probe{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_catch_up_tip_probe') else 0}"
+                ),
+                "# HELP abs_p2p_native_catch_up_head_height_bind Whether known peer.head must match claimed height (0/1)",
+                "# TYPE abs_p2p_native_catch_up_head_height_bind gauge",
+                (
+                    f"abs_p2p_native_catch_up_head_height_bind{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_catch_up_head_height_bind') else 0}"
+                ),
+                "# HELP abs_p2p_catch_up_head_height_mismatch_total Catch-up refused when local head height disagrees",
+                "# TYPE abs_p2p_catch_up_head_height_mismatch_total counter",
+                (
+                    f"abs_p2p_catch_up_head_height_mismatch_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('catch_up_head_height_mismatch_total', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_catch_up_tip_probe_refuse_total Catch-up refused after local-tip state_root probe fail",
+                "# TYPE abs_p2p_catch_up_tip_probe_refuse_total counter",
+                (
+                    f"abs_p2p_catch_up_tip_probe_refuse_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('catch_up_tip_probe_refuse_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_sync_heads_no_invent Whether SyncEngine refuses inventing peer.head from local blocks (0/1)",
                 "# TYPE abs_p2p_native_sync_heads_no_invent gauge",
                 (

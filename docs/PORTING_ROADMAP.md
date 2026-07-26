@@ -837,6 +837,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Failed imports attributed to sourcing peer; eclipse/evict use `_score_peer`
 - Remaining: tip proof / hard isolation / Long-Range / libp2p / ceremony (not claimed)
 
+### Priority 100 — Catch-up tip probe + head↔height bind ✅ (v1.3.146)
+
+- [x] Known local `peer.head` ⇒ claimed height must match
+- [x] Solicit local-tip `state_root` before ahead `get_blocks` (`p2p_catch_up_tip_probe`)
+- Remaining: tip proof / Long-Range checkpoint / libp2p / ceremony (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

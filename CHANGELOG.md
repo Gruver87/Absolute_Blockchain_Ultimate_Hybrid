@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.146] — 2026-07-26
+
+### P2P — catch-up tip probe + head↔height bind
+
+- Known local `peer.head` must match claimed height before ahead catch-up
+- Solicit local-tip `state_root` before `get_blocks` download (`p2p_catch_up_tip_probe`)
+- Honesty: not tip proof / Long-Range / libp2p / mainnet
+
 ## [1.3.145] — 2026-07-26
 
 ### P2P — peer score quality (strikes + import fails)
