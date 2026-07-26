@@ -1245,6 +1245,7 @@ class P2PNode:
         self._catch_up_peer_head_probe_refuse_total: int = 0
         self._fork_peer_head_probe_refuse_total: int = 0
         self._reconcile_head_hash_mismatch_total: int = 0
+        self._ghost_head_probe_refuse_total: int = 0
         self._bootstrap_redial_total: int = 0
         self._bootstrap_pin_rejects_total: int = 0
         self._handshake_rejects: int = 0
@@ -3131,7 +3132,7 @@ class P2PNode:
             ghost_head = self._ghost_canonical_head()
             local_head = self.head() or ""
             if ghost_head and ghost_head.lower() != local_head.lower():
-                if await self._reconcile_to_head_hash(ghost_head, peer_hint=peer):
+                if await self._reconcile_ghost_head(ghost_head, peer_hint=peer):
                     return
             print(
                 f"[P2P] Fork block #{block.height} from {peer.peer_id[:8]} — reconciling"
@@ -3739,6 +3740,88 @@ class P2PNode:
             return "reconcile_head_hash_mismatch"
         return ""
 
+    async def _ghost_head_probe_refuse_reason(
+        self,
+        ghost_head: str,
+        peer_hint: Optional[PeerConnection] = None,
+    ) -> str:
+        """v1.3.164: before GHOST reorg, solicit canonical head on wire.
+
+        Soft wire bind — some peer must return a block whose hash matches
+        ghost_head and height matches local tip. Not tip proof / Long-Range.
+        """
+        if not bool(getattr(self.config, "p2p_ghost_head_probe", True)):
+            return ""
+        head = str(ghost_head or "").strip()
+        if not head:
+            return "ghost_no_head"
+        local_head = ""
+        try:
+            local_head = str(self.head() or "").strip()
+        except Exception:
+            local_head = ""
+        if local_head and head.lower() == local_head.lower():
+            return ""
+        try:
+            local_h = int(self.blockchain.get_height() or 0)
+        except (TypeError, ValueError):
+            local_h = 0
+
+        peer = self._peer_with_head(head) or peer_hint
+        peer_block = None
+        if peer:
+            peer_block = await self._request_block_by_hash(peer, head)
+        if not peer_block:
+            for candidate in list(self.peers.values()):
+                if peer is not None and candidate is peer:
+                    continue
+                peer_block = await self._request_block_by_hash(candidate, head)
+                if peer_block:
+                    break
+        if not peer_block:
+            return "ghost_head_probe_failed"
+        got_hash = str(
+            peer_block.get("hash") or peer_block.get("block_hash") or ""
+        ).strip()
+        if got_hash and got_hash.lower() != head.lower():
+            return "ghost_head_hash_mismatch"
+        try:
+            bh = int(peer_block.get("height", peer_block.get("number", -1)) or -1)
+        except (TypeError, ValueError):
+            bh = -1
+        if bh >= 0 and bh != local_h:
+            return "ghost_head_height_mismatch"
+        return ""
+
+    def _bump_ghost_probe_refuse(self, reason: str) -> None:
+        r = str(reason or "")
+        if r in (
+            "ghost_no_head",
+            "ghost_head_probe_failed",
+            "ghost_head_hash_mismatch",
+            "ghost_head_height_mismatch",
+        ):
+            self._ghost_head_probe_refuse_total = int(
+                getattr(self, "_ghost_head_probe_refuse_total", 0) or 0
+            ) + 1
+
+    async def _reconcile_ghost_head(
+        self,
+        ghost_head: str,
+        peer_hint: Optional[PeerConnection] = None,
+    ) -> bool:
+        """Probe ghost_head on wire, then reorg via _reconcile_to_head_hash."""
+        refuse = await self._ghost_head_probe_refuse_reason(ghost_head, peer_hint)
+        if refuse:
+            self._bump_ghost_probe_refuse(refuse)
+            logger.info(
+                "[P2P] ghost head probe refuse %s head=%s",
+                refuse,
+                str(ghost_head or "")[:16],
+            )
+            return False
+        return await self._reconcile_to_head_hash(ghost_head, peer_hint=peer_hint)
+
     def _schedule_sync(self, peer: PeerConnection) -> None:
         """Coalesce duplicate sync tasks per peer (v1.3.66) + global inflight cap (v1.3.72)."""
         refuse = self._catch_up_ahead_refuse_reason(peer)
@@ -4099,7 +4182,7 @@ class P2PNode:
         ghost_head = self._ghost_canonical_head()
         local_head = self.head() or ""
         if ghost_head and ghost_head.lower() != local_head.lower():
-            if await self._reconcile_to_head_hash(ghost_head, peer_hint=peer):
+            if await self._reconcile_ghost_head(ghost_head, peer_hint=peer):
                 return True
 
         peer_head = peer.head or ""
@@ -4138,7 +4221,7 @@ class P2PNode:
                     local_head = self.head() or ""
                     ghost_head = self._ghost_canonical_head()
                     if ghost_head and ghost_head.lower() != local_head.lower():
-                        entry["ok"] = await self._reconcile_to_head_hash(
+                        entry["ok"] = await self._reconcile_ghost_head(
                             ghost_head, peer_hint=peer
                         )
                         entry["action"] = "ghost_reorg"
@@ -5335,6 +5418,9 @@ class P2PNode:
             "native_reconcile_head_hash_bind": bool(
                 getattr(self.config, "p2p_reconcile_head_hash_bind", True)
             ),
+            "native_ghost_head_probe": bool(
+                getattr(self.config, "p2p_ghost_head_probe", True)
+            ),
             "native_catch_up_head_height_bind": True,
             "native_sync_heads_no_invent": True,
             "native_sync_state_wire_only": True,
@@ -5444,6 +5530,9 @@ class P2PNode:
             ),
             "reconcile_head_hash_mismatch_total": int(
                 getattr(self, "_reconcile_head_hash_mismatch_total", 0) or 0
+            ),
+            "ghost_head_probe_refuse_total": int(
+                getattr(self, "_ghost_head_probe_refuse_total", 0) or 0
             ),
             "heads_skipped_no_head": int(
                 getattr(getattr(self, "sync_engine", None), "_heads_skipped_no_head", 0)

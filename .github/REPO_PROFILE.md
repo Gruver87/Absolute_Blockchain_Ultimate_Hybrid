@@ -60,8 +60,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.163` — reconcile fetched head hash bind |
-| **Notes** | [RELEASE_NOTES_v1.3.163.md](../RELEASE_NOTES_v1.3.163.md) |
+| **Tag** | `v1.3.164` — GHOST head wire probe |
+| **Notes** | [RELEASE_NOTES_v1.3.164.md](../RELEASE_NOTES_v1.3.164.md) |
 | **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

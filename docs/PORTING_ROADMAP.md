@@ -951,6 +951,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_reconcile_head_hash_bind` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 118 — GHOST head wire probe ✅ (v1.3.164)
+
+- [x] Before GHOST reorg, solicit canonical head via `get_block_by_hash`
+- [x] Refuse `ghost_no_head` / `ghost_head_probe_failed` / hash / height mismatch
+- [x] Config `p2p_ghost_head_probe` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
