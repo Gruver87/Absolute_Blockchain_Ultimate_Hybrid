@@ -16,7 +16,7 @@ from runtime.config import Config
 def test_needles_v13150():
     notes = (ROOT / "RELEASE_NOTES_v1.3.150.md").read_text(encoding="utf-8")
     assert "1.3.150-industrial" in notes
-    assert Config().node_version.startswith("1.3.150")
+    assert Config().node_version.startswith("1.3.")
     p2p_test = (ROOT / "tests" / "unit" / "test_p2p_industrial.py").read_text(
         encoding="utf-8"
     )

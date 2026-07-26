@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.150 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.151 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -111,6 +111,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13148_tx_row_codec.py",
     "tests/unit/test_v13149_block_row_codec.py",
     "tests/unit/test_v13150_standard_honesty_needles.py",
+    "tests/unit/test_v13151_receipt_row_codec.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1922,6 +1923,21 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "tests/unit/test_supply_broadcast_honesty.py",
         ["_loads_tx_blob_or_none", "_loads_block_blob_or_none"],
     ),
+    (
+        "1.3.151",
+        "RELEASE_NOTES_v1.3.151.md",
+        ["1.3.151-industrial", "ATXR"],
+    ),
+    (
+        "1.3.151",
+        "native/abs_native/src/receipt_row.rs",
+        ["pack_receipt_row_value", "receipt_blob_to_value", "ATXR"],
+    ),
+    (
+        "1.3.151",
+        "storage/rocks_store.py",
+        ["_pack_receipt_blob", "_loads_receipt_blob_or_none", "ATXR"],
+    ),
 ]
 
 
@@ -1949,8 +1965,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.150"):
-            errors.append(f"node_version expected 1.3.150-*, got {ver}")
+        if not ver.startswith("1.3.151"):
+            errors.append(f"node_version expected 1.3.151-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

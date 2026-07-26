@@ -640,7 +640,11 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             and 'return self._loads_tx_blob_or_none(raw, context=f"tx' not in rocks_py
         ):
             errors.append("rocks_store get_transaction must use fail-closed JSON decode")
-        if 'return self._loads_json_or_none(raw, context=f"receipt' not in rocks_py:
+        if (
+            'return self._loads_json_or_none(raw, context=f"receipt' not in rocks_py
+            and 'return self._loads_receipt_blob_or_none(raw, context=f"receipt'
+            not in rocks_py
+        ):
             errors.append("rocks_store get_tx_receipt must use fail-closed JSON decode")
         if (
             'return self._loads_json_or_none(raw, context=f"block' not in rocks_py
@@ -2294,8 +2298,20 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "supply honesty test must accept tx dual-read helper (v1.3.150)"
             )
+        # v1.3.151 — typed Rocks receipt-row ATXR codec
+        receipt_row_rs = (
+            ROOT / "native" / "abs_native" / "src" / "receipt_row.rs"
+        ).read_text(encoding="utf-8")
+        if "pack_receipt_row_value" not in receipt_row_rs:
+            errors.append("native must expose pack_receipt_row_value (v1.3.151)")
+        if "receipt_blob_to_value" not in receipt_row_rs:
+            errors.append("native must dual-decode receipt blobs (v1.3.151)")
+        if "_pack_receipt_blob" not in rocks_py:
+            errors.append("rocks_store must pack ATXR receipt rows (v1.3.151)")
+        if "_loads_receipt_blob_or_none" not in rocks_py:
+            errors.append("rocks_store must dual-read receipt blobs (v1.3.151)")
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..150 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..151 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

@@ -867,6 +867,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Align Rocks point-get needles with ATXV/ABLK dual-read helpers
 - Remaining: receipts / tip proof / libp2p / ceremony (not claimed)
 
+### Priority 105 — Typed Rocks receipt-row codec ✅ (v1.3.151)
+
+- [x] Native `ATXR` pack/unpack + dual-read (binary or legacy JSON)
+- [x] `_insert_tx_receipt` / get / reorg dual-decode
+- Remaining: tip proof / Long-Range / libp2p / ceremony / full Rocks rewrite (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

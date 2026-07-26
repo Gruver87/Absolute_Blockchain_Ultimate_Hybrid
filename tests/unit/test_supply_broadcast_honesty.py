@@ -44,18 +44,22 @@ def test_broadcast_results_recorded():
 def test_rocks_point_gets_use_loads_helper():
     rocks = Path("storage/rocks_store.py").read_text(encoding="utf-8")
     assert "def _loads_json_or_none" in rocks
-    # v1.3.148/149: tx/block dual-read helpers; still fail-closed for point gets.
+    # v1.3.148/149/151: tx/block/receipt dual-read helpers; still fail-closed.
     assert (
         'return self._loads_json_or_none(raw, context=f"tx' in rocks
         or 'return self._loads_tx_blob_or_none(raw, context=f"tx' in rocks
     )
-    assert 'return self._loads_json_or_none(raw, context=f"receipt' in rocks
+    assert (
+        'return self._loads_json_or_none(raw, context=f"receipt' in rocks
+        or 'return self._loads_receipt_blob_or_none(raw, context=f"receipt' in rocks
+    )
     assert (
         'return self._loads_json_or_none(raw, context=f"block' in rocks
         or 'return self._loads_block_blob_or_none(raw, context=f"block' in rocks
     )
     assert "_loads_tx_blob_or_none" in rocks
     assert "_loads_block_blob_or_none" in rocks
+    assert "_loads_receipt_blob_or_none" in rocks
 
 def test_prod_block_sign_hard_fail():
     main_py = Path("main.py").read_text(encoding="utf-8")

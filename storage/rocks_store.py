@@ -233,6 +233,47 @@ class RocksChainStore:
             pass
         return json.dumps(block, ensure_ascii=False).encode("utf-8")
 
+    def _loads_receipt_blob_or_none(self, raw: bytes | None, *, context: str) -> Optional[Dict]:
+        """Dual-decode receipt row: ATXR binary (v1.3.151) or legacy JSON."""
+        if raw is None:
+            return None
+        if len(raw) >= 4 and raw[:4] == b"ATXR":
+            try:
+                import abs_native as _abs
+
+                if hasattr(_abs, "unpack_receipt_row"):
+                    data = json.loads(_abs.unpack_receipt_row(raw))
+                    return data if isinstance(data, dict) else None
+            except Exception as exc:
+                self._json_decode_failures += 1
+                logger.warning(
+                    "[RocksStore] corrupt %s ATXR (decode_failures=%s): %s",
+                    context,
+                    self._json_decode_failures,
+                    exc,
+                )
+                return None
+            self._json_decode_failures += 1
+            logger.warning(
+                "[RocksStore] corrupt %s ATXR (no native unpack)",
+                context,
+            )
+            return None
+        return self._loads_json_or_none(raw, context=context)
+
+    def _pack_receipt_blob(self, receipt: Dict[str, Any]) -> bytes:
+        """Pack receipt row as ATXR when native codec is present; else legacy JSON."""
+        try:
+            import abs_native as _abs
+
+            if hasattr(_abs, "pack_receipt_row"):
+                return bytes(
+                    _abs.pack_receipt_row(json.dumps(receipt, ensure_ascii=False))
+                )
+        except Exception:
+            pass
+        return json.dumps(receipt, ensure_ascii=False).encode("utf-8")
+
     def _ensure_schema(self) -> None:
         existing = self._raw_get(kc.key_meta("schema_version"))
         target = self._schema_version.encode("utf-8")
@@ -1044,9 +1085,10 @@ class RocksChainStore:
             "status": SqliteDatabase._normalize_tx_status(tx.get("status")),
             "created_at": int(time.time()),
         }
+        # v1.3.151: typed ATXR value when native pack_receipt_row is available.
         self._raw_put(
             kc.P_TX_RECEIPT + kc.key_tx(tx_hash)[1:],
-            json.dumps(receipt).encode("utf-8"),
+            self._pack_receipt_blob(receipt),
         )
 
     def save_transaction(self, tx: Dict) -> bool:
@@ -1108,7 +1150,7 @@ class RocksChainStore:
 
     def get_tx_receipt(self, tx_hash: str) -> Optional[Dict]:
         raw = self._raw_get(kc.P_TX_RECEIPT + kc.key_tx(tx_hash)[1:])
-        return self._loads_json_or_none(raw, context=f"receipt {tx_hash[:16]}")
+        return self._loads_receipt_blob_or_none(raw, context=f"receipt {tx_hash[:16]}")
 
     def _format_receipt_row(self, row: Dict) -> Dict:
         return {
@@ -1577,16 +1619,13 @@ class RocksChainStore:
                 self._delete_tx_indexes(row)
                 self._raw_delete(key)
         for key, value in list(self._scan_prefix(kc.P_TX_RECEIPT)):
-            try:
-                row = json.loads(value.decode("utf-8"))
-            except Exception as exc:
-                self._json_decode_failures += 1
+            row = self._loads_receipt_blob_or_none(value, context="reorg receipt")
+            if row is None:
                 logger.warning(
                     "reorg_truncate_above: corrupt receipt JSON above height>%s "
-                    "(decode_failures=%s): %s",
+                    "(decode_failures=%s)",
                     cut,
                     self._json_decode_failures,
-                    exc,
                 )
                 self._raw_delete(key)
                 continue

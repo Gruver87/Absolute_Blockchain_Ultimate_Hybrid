@@ -24,6 +24,7 @@ pub use fuzz_api::{
     fuzz_p2p_frame_feed, fuzz_p2p_governor_sequence, fuzz_p2p_rate_limit_sequence,
     fuzz_p2p_wire_parse, fuzz_p2p_wire_parse_allowlist, fuzz_p2p_wire_roundtrip,
 };
+mod receipt_row;
 mod rlp;
 mod rocks_keycodec;
 mod state_trie;
@@ -1978,6 +1979,7 @@ fn abs_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     account_row::register(m)?;
     tx_row::register(m)?;
     block_row::register(m)?;
+    receipt_row::register(m)?;
     account_view::register(m)?;
     evm_writeback::register(m)?;
     state_trie::register(m)?;
