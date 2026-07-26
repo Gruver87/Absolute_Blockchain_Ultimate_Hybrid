@@ -873,6 +873,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `_insert_tx_receipt` / get / reorg dual-decode
 - Remaining: tip proof / Long-Range / libp2p / ceremony / full Rocks rewrite (not claimed)
 
+### Priority 106 — Solicit-only discovery peers ✅ (v1.3.152)
+
+- [x] Refuse unsolicited `MSG_PEERS` (`unsolicited_peers`) — no dial/remember
+- [x] `_discovery_loop` pull-armed via `_wait_peer_response` + `_ingest_discovered_peers`
+- Remaining: tip proof / Long-Range / libp2p / ceremony (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

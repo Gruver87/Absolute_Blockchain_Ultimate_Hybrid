@@ -1233,6 +1233,7 @@ class P2PNode:
         self._attestation_local_head_rejects_total: int = 0
         self._unsolicited_block_rejects_total: int = 0
         self._unsolicited_state_root_rejects_total: int = 0
+        self._unsolicited_peers_rejects_total: int = 0
         self._catch_up_no_head_refuse_total: int = 0
         self._catch_up_head_height_mismatch_total: int = 0
         self._catch_up_tip_probe_refuse_total: int = 0
@@ -2618,6 +2619,23 @@ class P2PNode:
                         self._strike_peer_sync(peer, "unsolicited_block")
                         fut.set_result(None)
                     return
+                if msg_type == MSG_PEERS:
+                    # v1.3.152: solicit-only — only active get_peers waiters.
+                    if (
+                        isinstance(request_ctx, dict)
+                        and request_ctx.get("kind") == "peers"
+                    ):
+                        fut.set_result(msg)
+                    else:
+                        if bool(getattr(self.config, "p2p_peers_solicit_only", True)):
+                            self._unsolicited_peers_rejects_total = int(
+                                self._unsolicited_peers_rejects_total or 0
+                            ) + 1
+                            self._strike_peer_sync(peer, "unsolicited_peers")
+                            fut.set_result(None)
+                        else:
+                            fut.set_result(msg)
+                    return
                 fut.set_result(msg)
                 return
 
@@ -2697,31 +2715,14 @@ class P2PNode:
             await peer.send(MSG_PEERS, peer_list)
 
         elif msg_type == MSG_PEERS:
-            peers = native.validate_p2p_peers_list(data)
-            if peers is None:
-                self._strike_peer_sync(peer, "bad_peers_list")
+            # v1.3.152: pull-only — unsolicited peer lists never dial.
+            if bool(getattr(self.config, "p2p_peers_solicit_only", True)):
+                self._unsolicited_peers_rejects_total = int(
+                    self._unsolicited_peers_rejects_total or 0
+                ) + 1
+                self._strike_peer_sync(peer, "unsolicited_peers")
                 return
-            allow_private = bool(
-                getattr(self.config, "p2p_discovery_allow_private", False)
-            )
-            for addr in peers[:10]:  # не больше 10 за раз
-                if not native.p2p_peer_addr_is_dialable(
-                    addr, allow_private=allow_private
-                ):
-                    self._discovery_dial_rejects_total = int(
-                        self._discovery_dial_rejects_total or 0
-                    ) + 1
-                    continue
-                self._remember_addr(addr)
-                parts = addr.rsplit(":", 1)
-                if len(parts) == 2:
-                    try:
-                        self._schedule_connect(parts[0], int(parts[1]))
-                    except Exception as exc:
-                        self._peer_connect_task_fail += 1
-                        logger.warning(
-                            "[P2P] connect_peer task failed for %s: %s", addr, exc
-                        )
+            self._ingest_discovered_peers(peer, data)
 
         elif msg_type == MSG_STATUS:
             status = native.validate_p2p_status_payload(data)
@@ -4322,13 +4323,53 @@ class P2PNode:
                                 "[P2P] reconnect task failed for %s: %s", addr, exc
                             )
 
+    def _ingest_discovered_peers(self, peer: PeerConnection, data) -> int:
+        """Remember + dial dialable addrs from a solicited MSG_PEERS payload."""
+        peers = native.validate_p2p_peers_list(data)
+        if peers is None:
+            self._strike_peer_sync(peer, "bad_peers_list")
+            return 0
+        allow_private = bool(
+            getattr(self.config, "p2p_discovery_allow_private", False)
+        )
+        ingested = 0
+        for addr in peers[:10]:  # не больше 10 за раз
+            if not native.p2p_peer_addr_is_dialable(
+                addr, allow_private=allow_private
+            ):
+                self._discovery_dial_rejects_total = int(
+                    self._discovery_dial_rejects_total or 0
+                ) + 1
+                continue
+            self._remember_addr(addr)
+            parts = addr.rsplit(":", 1)
+            if len(parts) == 2:
+                try:
+                    self._schedule_connect(parts[0], int(parts[1]))
+                    ingested += 1
+                except Exception as exc:
+                    self._peer_connect_task_fail += 1
+                    logger.warning(
+                        "[P2P] connect_peer task failed for %s: %s", addr, exc
+                    )
+        return ingested
+
     async def _discovery_loop(self):
         """Периодически запрашиваем список пиров у уже подключённых."""
         while self._running:
             await asyncio.sleep(60)
             try:
                 for peer in list(self.peers.values()):
-                    await peer.send(MSG_GET_PEERS)
+                    # v1.3.152: solicit-armed get_peers — unsolicited MSG_PEERS refuse.
+                    msg = await self._wait_peer_response(
+                        peer,
+                        (MSG_PEERS,),
+                        timeout=12,
+                        presend=lambda p=peer: p.send(MSG_GET_PEERS, {}),
+                        request_ctx={"kind": "peers"},
+                    )
+                    if msg and msg.get("type") == MSG_PEERS:
+                        self._ingest_discovered_peers(peer, msg.get("data"))
                 # Переподключаемся к известным адресам если пиров мало
                 target_peers = max(
                     1, int(getattr(self.config, "testnet_expected_peers", 1) or 1)
@@ -4869,6 +4910,9 @@ class P2PNode:
             "native_attestation_local_head": True,
             "native_block_solicit_only": True,
             "native_state_root_solicit_only": True,
+            "native_peers_solicit_only": bool(
+                getattr(self.config, "p2p_peers_solicit_only", True)
+            ),
             "native_catch_up_require_head": bool(
                 getattr(self.config, "p2p_catch_up_require_head", True)
             ),
@@ -4948,6 +4992,9 @@ class P2PNode:
             ),
             "unsolicited_state_root_rejects_total": int(
                 getattr(self, "_unsolicited_state_root_rejects_total", 0) or 0
+            ),
+            "unsolicited_peers_rejects_total": int(
+                getattr(self, "_unsolicited_peers_rejects_total", 0) or 0
             ),
             "catch_up_no_head_refuse_total": int(
                 getattr(self, "_catch_up_no_head_refuse_total", 0) or 0

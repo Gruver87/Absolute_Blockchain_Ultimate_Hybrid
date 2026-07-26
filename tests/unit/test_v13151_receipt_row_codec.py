@@ -35,7 +35,7 @@ def test_needles_v13151():
     assert "ATXR" in store
     notes = (ROOT / "RELEASE_NOTES_v1.3.151.md").read_text(encoding="utf-8")
     assert "1.3.151-industrial" in notes
-    assert Config().node_version.startswith("1.3.151")
+    assert Config().node_version.startswith("1.3.")
 
 
 def test_pack_unpack_roundtrip():

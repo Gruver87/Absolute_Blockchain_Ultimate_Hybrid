@@ -2310,8 +2310,25 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("rocks_store must pack ATXR receipt rows (v1.3.151)")
         if "_loads_receipt_blob_or_none" not in rocks_py:
             errors.append("rocks_store must dual-read receipt blobs (v1.3.151)")
+        # v1.3.152 — solicit-only MSG_PEERS discovery
+        if "unsolicited_peers" not in p2p_py:
+            errors.append("p2p must refuse unsolicited MSG_PEERS (v1.3.152)")
+        if "_ingest_discovered_peers" not in p2p_py:
+            errors.append("p2p must ingest solicited peers via helper (v1.3.152)")
+        if "native_peers_solicit_only" not in p2p_py:
+            errors.append("p2p must expose native_peers_solicit_only (v1.3.152)")
+        if "p2p_peers_solicit_only" not in (
+            ROOT / "runtime" / "config.py"
+        ).read_text(encoding="utf-8"):
+            errors.append("config must expose p2p_peers_solicit_only (v1.3.152)")
+        if "abs_p2p_native_peers_solicit_only" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_peers_solicit_only (v1.3.152)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..151 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..152 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:
