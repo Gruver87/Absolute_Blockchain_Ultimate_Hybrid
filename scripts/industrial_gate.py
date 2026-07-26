@@ -2469,8 +2469,29 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_height_cap_clear_head (v1.3.159)"
             )
+        # v1.3.160 — NEW_BLOCK contiguous parent bind
+        if "new_block_contiguous_parent_mismatch" not in p2p_py:
+            errors.append(
+                "p2p must refuse +1 new_block on parent mismatch (v1.3.160)"
+            )
+        if "_new_block_contiguous_parent_refuse_reason" not in p2p_py:
+            errors.append(
+                "p2p must expose _new_block_contiguous_parent_refuse_reason (v1.3.160)"
+            )
+        if "p2p_new_block_contiguous_parent_bind" not in (
+            ROOT / "runtime" / "config.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "config must expose p2p_new_block_contiguous_parent_bind (v1.3.160)"
+            )
+        if "abs_p2p_native_new_block_contiguous_parent_bind" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_new_block_contiguous_parent_bind (v1.3.160)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..159 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..160 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

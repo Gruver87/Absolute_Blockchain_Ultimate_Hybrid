@@ -924,6 +924,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_height_cap_clear_head` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 114 — NEW_BLOCK contiguous parent bind ✅ (v1.3.160)
+
+- [x] When announce is exactly `local+1`, `parent_hash` must match local tip
+- [x] Refuse `new_block_contiguous_parent_mismatch` before tip mutate
+- [x] Config `p2p_new_block_contiguous_parent_bind` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

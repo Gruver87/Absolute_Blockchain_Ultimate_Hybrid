@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.159 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.160 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -120,6 +120,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13157_catch_up_peer_head_parent_bind.py",
     "tests/unit/test_v13158_jwt_hs256_min_secret.py",
     "tests/unit/test_v13159_height_cap_clear_head.py",
+    "tests/unit/test_v13160_new_block_contiguous_parent_bind.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -2144,6 +2145,33 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "observability/metrics.py",
         ["abs_p2p_native_height_cap_clear_head"],
     ),
+    (
+        "1.3.160",
+        "RELEASE_NOTES_v1.3.160.md",
+        ["1.3.160-industrial", "new_block_contiguous_parent_mismatch"],
+    ),
+    (
+        "1.3.160",
+        "network/p2p_node.py",
+        [
+            "new_block_contiguous_parent_mismatch",
+            "_new_block_contiguous_parent_refuse_reason",
+            "native_new_block_contiguous_parent_bind",
+        ],
+    ),
+    (
+        "1.3.160",
+        "runtime/config.py",
+        ["p2p_new_block_contiguous_parent_bind"],
+    ),
+    (
+        "1.3.160",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_new_block_contiguous_parent_bind",
+            "abs_p2p_new_block_contiguous_parent_mismatch_total",
+        ],
+    ),
 ]
 
 
@@ -2171,8 +2199,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.159"):
-            errors.append(f"node_version expected 1.3.159-*, got {ver}")
+        if not ver.startswith("1.3.160"):
+            errors.append(f"node_version expected 1.3.160-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

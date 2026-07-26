@@ -1229,6 +1229,7 @@ class P2PNode:
         self._new_block_height_cap_total: int = 0
         self._new_block_head_height_mismatch_total: int = 0
         self._new_block_announce_body_refuse_total: int = 0
+        self._new_block_contiguous_parent_mismatch_total: int = 0
         self._status_head_height_mismatch_total: int = 0
         self._handshake_height_cap_total: int = 0
         self._state_root_local_rejects_total: int = 0
@@ -3078,10 +3079,19 @@ class P2PNode:
             self._strike_peer_sync(peer, body_reason)
             return
 
+        # v1.3.160: contiguous (+1) announce must cite local tip as parent.
+        local_h = int(self.blockchain.get_height() or 0)
+        parent_reason = self._new_block_contiguous_parent_refuse_reason(block, local_h)
+        if parent_reason:
+            self._new_block_contiguous_parent_mismatch_total = int(
+                getattr(self, "_new_block_contiguous_parent_mismatch_total", 0) or 0
+            ) + 1
+            self._strike_peer_sync(peer, parent_reason)
+            return
+
         peer.height = max(int(peer.height or 0), block_h)
         if block_hash:
             peer.head = block_hash
-        local_h = self.blockchain.get_height()
         existing = self.blockchain.get_block(block.height)
         if existing:
             if existing.get("hash") == block.hash:
@@ -3439,6 +3449,34 @@ class P2PNode:
             claimed_h = -1
         if body_h >= 0 and claimed_h >= 0 and body_h != claimed_h:
             return "new_block_announce_height_mismatch"
+        return ""
+
+    def _new_block_contiguous_parent_refuse_reason(
+        self, block: Any, local_h: int
+    ) -> str:
+        """v1.3.160: when announce is exactly local+1, parent_hash must match tip.
+
+        Soft contiguous extension — not tip proof / Long-Range.
+        """
+        if not bool(
+            getattr(self.config, "p2p_new_block_contiguous_parent_bind", True)
+        ):
+            return ""
+        try:
+            body_h = int(getattr(block, "height", -1) or -1)
+            tip_h = int(local_h)
+        except (TypeError, ValueError):
+            return ""
+        if body_h < 0 or tip_h < 0 or body_h != tip_h + 1:
+            return ""
+        parent = str(getattr(block, "parent_hash", "") or "").strip()
+        local_tip = ""
+        try:
+            local_tip = str(self.head() or "").strip()
+        except Exception:
+            local_tip = ""
+        if parent and local_tip and parent.lower() != local_tip.lower():
+            return "new_block_contiguous_parent_mismatch"
         return ""
 
     def _status_head_height_refuse_reason(
@@ -5129,6 +5167,9 @@ class P2PNode:
             "native_new_block_announce_body_bind": bool(
                 getattr(self.config, "p2p_new_block_announce_body_bind", True)
             ),
+            "native_new_block_contiguous_parent_bind": bool(
+                getattr(self.config, "p2p_new_block_contiguous_parent_bind", True)
+            ),
             "native_new_block_defer_tip": True,
             "native_status_head_height_bind": bool(
                 getattr(self.config, "p2p_status_head_height_bind", True)
@@ -5215,6 +5256,9 @@ class P2PNode:
             ),
             "new_block_announce_body_refuse_total": int(
                 getattr(self, "_new_block_announce_body_refuse_total", 0) or 0
+            ),
+            "new_block_contiguous_parent_mismatch_total": int(
+                getattr(self, "_new_block_contiguous_parent_mismatch_total", 0) or 0
             ),
             "status_head_height_mismatch_total": int(
                 getattr(self, "_status_head_height_mismatch_total", 0) or 0
