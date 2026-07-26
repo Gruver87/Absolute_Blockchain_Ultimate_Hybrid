@@ -1124,6 +1124,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_mempool_empty_from_refuse` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 143 — Mempool empty-signature refuse before validate ✅ (v1.3.189)
+
+- [x] P2P wire txs with empty/whitespace `signature` refused before `validate_transaction`
+- [x] Refuse `signature_empty` (cheap DoS path; not full ECDSA verify)
+- [x] Config `p2p_mempool_empty_sig_refuse` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

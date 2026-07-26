@@ -73,8 +73,8 @@ def test_dup_hash_refuses_before_validate():
         "nonce": 0,
         "gas": 21000,
         "hash": "ab" * 32,
-        "signature": "",
-        "public_key": "",
+        "signature": "sig",
+        "public_key": "pk",
     }
     # Shape may fail without full wire fields — stub native validate if needed.
     if not native.validate_p2p_wire_tx(data):
