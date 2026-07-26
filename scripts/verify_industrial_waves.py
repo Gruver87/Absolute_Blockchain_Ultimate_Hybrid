@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.143 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.144 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -104,6 +104,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13141_sync_state_wire_only.py",
     "tests/unit/test_silent_except_honesty.py",
     "tests/unit/test_v13143_mempool_cheap_refuse.py",
+    "tests/unit/test_v13144_mempool_solicit_armed_shell.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -1788,6 +1789,26 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_mempool_dup_refuse_total",
         ],
     ),
+    (
+        "1.3.144",
+        "RELEASE_NOTES_v1.3.144.md",
+        ["1.3.144-industrial", "solicit"],
+    ),
+    (
+        "1.3.144",
+        "native/abs_native/src/p2p_transport.rs",
+        ["mempool_solicit_armed", "unsolicited_mempool"],
+    ),
+    (
+        "1.3.144",
+        "network/p2p_node.py",
+        ["_mempool_solicit_armed_for", "native_mempool_solicit_armed_shell"],
+    ),
+    (
+        "1.3.144",
+        "observability/metrics.py",
+        ["abs_p2p_native_mempool_solicit_armed_shell"],
+    ),
 ]
 
 
@@ -1815,8 +1836,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.143"):
-            errors.append(f"node_version expected 1.3.143-*, got {ver}")
+        if not ver.startswith("1.3.144"):
+            errors.append(f"node_version expected 1.3.144-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

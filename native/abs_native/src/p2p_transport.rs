@@ -106,6 +106,7 @@ fn wire_fail_reason(err: &str) -> String {
         || err == "missing_tx_signature"
         || err == "missing_tx_public_key"
         || err == "bad_tx_signature"
+        || err == "unsolicited_mempool" // v1.3.144 solicit-armed shell refuse
         || err.starts_with("p2p_transport_")
         || err.starts_with("p2p_handshake_")
     {
@@ -223,14 +224,20 @@ fn check_wire_tx_semantics(
 }
 
 /// v1.3.119: mempool batch per-tx signature semantic gate (local chain_id).
+/// v1.3.144: when `mempool_solicit_armed` is false, skip ECDSA and refuse as
+/// unsolicited — shape gates already ran. Soft DoS honesty only.
 fn check_mempool_batch_semantics(
     msg_type: &str,
     data: &serde_json::Value,
     expected_chain_id: Option<i64>,
     require_signature: bool,
+    mempool_solicit_armed: bool,
 ) -> Result<(), String> {
     if msg_type != "mempool" {
         return Ok(());
+    }
+    if !mempool_solicit_armed {
+        return Err("unsolicited_mempool".to_string());
     }
     let Some(chain_id) = expected_chain_id else {
         return Ok(());
@@ -1516,7 +1523,8 @@ impl P2PNativeConn {
         allowed_types=None,
         auto_pong=false,
         expected_chain_id=None,
-        require_tx_signatures=false
+        require_tx_signatures=false,
+        mempool_solicit_armed=false
     ))]
     fn read_message_loop_events(
         &mut self,
@@ -1527,6 +1535,7 @@ impl P2PNativeConn {
         auto_pong: bool,
         expected_chain_id: Option<i64>,
         require_tx_signatures: bool,
+        mempool_solicit_armed: bool,
     ) -> PyResult<PyObject> {
         let max_n = max_n.clamp(NATIVE_BATCH_MIN, NATIVE_BATCH_MAX);
         let allowed_set = allowed_types.map(|items| items.into_iter().collect::<HashSet<_>>());
@@ -1570,12 +1579,13 @@ impl P2PNativeConn {
                             terminal_strike = Some(reason);
                             break;
                         }
-                        // v1.3.119: mempool batch per-tx signature semantic.
+                        // v1.3.119 / v1.3.144: mempool batch sigs only when solicit-armed.
                         if let Err(reason) = check_mempool_batch_semantics(
                             &msg_type,
                             &data,
                             expected_chain_id,
                             require_tx_signatures,
+                            mempool_solicit_armed,
                         ) {
                             terminal_strike = Some(reason);
                             break;

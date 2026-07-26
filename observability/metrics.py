@@ -739,6 +739,12 @@ class MetricsCollector:
                     f"abs_p2p_native_mempool_solicit_only{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_mempool_solicit_only') else 0}"
                 ),
+                "# HELP abs_p2p_native_mempool_solicit_armed_shell Whether native shell skips ECDSA on unsolicited mempool (0/1)",
+                "# TYPE abs_p2p_native_mempool_solicit_armed_shell gauge",
+                (
+                    f"abs_p2p_native_mempool_solicit_armed_shell{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_mempool_solicit_armed_shell') else 0}"
+                ),
                 "# HELP abs_p2p_unsolicited_mempool_rejects_total Unsolicited mempool batch rejects",
                 "# TYPE abs_p2p_unsolicited_mempool_rejects_total counter",
                 (

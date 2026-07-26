@@ -60,8 +60,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.143` — Mempool cheap-refuse + new_tx primary rate |
-| **Notes** | [RELEASE_NOTES_v1.3.143.md](../RELEASE_NOTES_v1.3.143.md) |
+| **Tag** | `v1.3.144` — Mempool solicit-armed native shell |
+| **Notes** | [RELEASE_NOTES_v1.3.144.md](../RELEASE_NOTES_v1.3.144.md) |
 | **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

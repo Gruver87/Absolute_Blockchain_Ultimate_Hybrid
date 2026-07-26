@@ -825,6 +825,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Dup-hash refuse before validate; sig-before-DB; `chain_prevalidated` on P2P add
 - Remaining: anti-Sybil QoS / fee-market / Long-Range checkpoint / full Rocks rewrite / tip proof / libp2p (not claimed)
 
+### Priority 98 — Native solicit-armed mempool shell ✅ (v1.3.144)
+
+- [x] `mempool_solicit_armed` on `read_message_loop_events` — unarmed skips batch ECDSA
+- [x] `_mempool_solicit_armed_for` wires pull waiters only
+- Remaining: anti-Sybil / tip proof / Long-Range / libp2p / ceremony (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.144] — 2026-07-26
+
+### P2P — solicit-armed mempool shell (skip unsolicited ECDSA)
+
+- Native `read_message_loop_events` refuses unarmed `MSG_MEMPOOL` before batch sig verify
+- Python arms only during mempool pull waiter (`kind=mempool`)
+- Honesty: not anti-Sybil / tip proof / libp2p / mainnet
+
 ## [1.3.143] — 2026-07-26
 
 ### Mempool — cheap refuse + new_tx primary rate

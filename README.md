@@ -12,13 +12,13 @@
 [![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 [![Native fuzz](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/fuzz-native.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/fuzz-native.yml)
 [![48h soak](https://img.shields.io/badge/48h%20soak-PASS-brightgreen)](docs/EVIDENCE_MATRIX.md)
-[![v1.3.143](https://img.shields.io/badge/tag-v1.3.143-blue)](RELEASE_NOTES_v1.3.143.md)
+[![v1.3.144](https://img.shields.io/badge/tag-v1.3.144-blue)](RELEASE_NOTES_v1.3.144.md)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://www.python.org/)
 [![Rust](https://img.shields.io/badge/Rust-abs__native-orange)](native/abs_native)
 
 | | |
 |---|---|
-| **Release** | [v1.3.143](RELEASE_NOTES_v1.3.143.md) · [CHANGELOG](CHANGELOG.md) · [Releases](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases) |
+| **Release** | [v1.3.144](RELEASE_NOTES_v1.3.144.md) · [CHANGELOG](CHANGELOG.md) · [Releases](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases) |
 | **Prove it** | `make test-quick` · `.\scripts\check_all.ps1` · CI badges above |
 | **Run** | `python main.py` → http://localhost:8080 |
 | **Chains** | `77777` lab · `778888` prod-profile (**not** public mainnet) |
@@ -208,7 +208,7 @@ Code: `runtime/tokenomics.py` · `GET /tokenomics` — **not** a listed token.
 |------|------|
 | Jul 12 | Failover, signed tx, EVM, **7h soak PASS** |
 | Jul 19–21 | **48h soak PASS** |
-| Jul 21–26 | Industrial **v1.3.65–v1.3.143** + professional repo surface (Dependabot/SBOM/SUPPORT) |
+| Jul 21–26 | Industrial **v1.3.65–v1.3.144** + professional repo surface (Dependabot/SBOM/SUPPORT) |
 
 Ledger: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md)
 
@@ -229,4 +229,4 @@ MIT — [LICENSE](LICENSE)
 ---
 
 *Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87) · Default branch: `master`*  
-*Last update: 2026-07-26 — **v1.3.143** Mempool cheap-refuse + new_tx primary rate. Not a launched public mainnet.*
+*Last update: 2026-07-26 — **v1.3.144** Mempool solicit-armed native shell. Not a launched public mainnet.*

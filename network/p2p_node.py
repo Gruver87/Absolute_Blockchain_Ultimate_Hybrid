@@ -711,11 +711,15 @@ class PeerConnection:
         rl_table=None,
         peer_key: str = "",
         use_ingress: bool = False,
+        mempool_solicit_armed: bool = False,
     ) -> list:
         """v1.3.116: drain native ordered loop-shell events (dispatch/strike/…).
 
         Returns a list of event dicts. Empty list means idle/timeout with no work.
         Application dispatch and strike policy remain in P2PNode._message_loop.
+
+        v1.3.144: mempool_solicit_armed — when False, native shell refuses MSG_MEMPOOL
+        before batch ECDSA (unsolicited_mempool). Soft DoS honesty only.
         """
         if self._pending_loop_events:
             return [self._pending_loop_events.pop(0)]
@@ -734,6 +738,7 @@ class PeerConnection:
                 bool(getattr(self, "_native_auto_pong", True)),
                 int(chain_id) if chain_id else None,
                 bool(require_sigs),
+                bool(mempool_solicit_armed),
             ),
             timeout=self._native_recv_wait_sec(),
         )
@@ -2056,6 +2061,7 @@ class P2PNode:
                             rl_table=self._rl_table if use_ingress else None,
                             peer_key=self._peer_key(peer),
                             use_ingress=use_ingress,
+                            mempool_solicit_armed=self._mempool_solicit_armed_for(peer),
                         )
                     except asyncio.TimeoutError:
                         continue
@@ -2090,6 +2096,11 @@ class P2PNode:
                                 # Covers new_tx + mempool batch signature semantic rejects.
                                 self._tx_semantic_rejects_total = int(
                                     self._tx_semantic_rejects_total or 0
+                                ) + 1
+                            if reason == "unsolicited_mempool":
+                                # v1.3.144: native shell cheap refuse (no batch ECDSA).
+                                self._unsolicited_mempool_rejects_total = int(
+                                    self._unsolicited_mempool_rejects_total or 0
                                 ) + 1
                             if reason == "bad_block_hash":
                                 self._block_semantic_rejects_total = int(
@@ -3328,6 +3339,27 @@ class P2PNode:
                 self._sync_fail = int(self._sync_fail or 0) + 1
                 print(f"[P2P] Sync error via {peer.peer_id[:8]}: {e}")
                 logger.exception("[P2P] sync failed")
+
+    def _mempool_solicit_armed_for(self, peer: PeerConnection) -> bool:
+        """v1.3.144: True only while a mempool pull waiter is armed for this peer.
+
+        Soft DoS honesty — not anti-Sybil / tip proof. Native shell skips batch
+        ECDSA for unsolicited MSG_MEMPOOL when False.
+        """
+        pid = getattr(peer, "peer_id", "") or ""
+        if not pid:
+            return False
+        waiter = self._sync_waiters.get(pid)
+        if not waiter or len(waiter) < 3:
+            return False
+        expected_types, _fut, request_ctx = waiter[0], waiter[1], waiter[2]
+        try:
+            types_ok = MSG_MEMPOOL in tuple(expected_types or ())
+        except TypeError:
+            types_ok = False
+        if not types_ok:
+            return False
+        return isinstance(request_ctx, dict) and request_ctx.get("kind") == "mempool"
 
     async def _wait_peer_response(
         self,
@@ -4700,6 +4732,7 @@ class P2PNode:
             "native_state_root_response_head_gate": True,
             "native_state_root_local_consistency": True,
             "native_mempool_solicit_only": True,
+            "native_mempool_solicit_armed_shell": True,
             "native_new_block_height_cap": True,
             "native_handshake_height_cap": True,
             "native_status_capped_head_refuse": True,

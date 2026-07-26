@@ -2193,8 +2193,23 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_mempool_cheap_refuse (v1.3.143)"
             )
+        # v1.3.144 — native solicit-armed mempool shell
+        if "mempool_solicit_armed" not in (
+            ROOT / "native" / "abs_native" / "src" / "p2p_transport.rs"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "p2p_transport must expose mempool_solicit_armed (v1.3.144)"
+            )
+        if "_mempool_solicit_armed_for" not in p2p_py:
+            errors.append("p2p must expose _mempool_solicit_armed_for (v1.3.144)")
+        if "abs_p2p_native_mempool_solicit_armed_shell" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_mempool_solicit_armed_shell (v1.3.144)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..143 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..144 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

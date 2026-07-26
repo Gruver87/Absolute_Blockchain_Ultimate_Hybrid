@@ -59,7 +59,13 @@ def test_needles_v13119():
     assert "abs_p2p_native_mempool_semantic_gate" in metrics
 
 
-def _loop_once(payload: bytes, *, chain_id: int, require_sigs: bool) -> dict:
+def _loop_once(
+    payload: bytes,
+    *,
+    chain_id: int,
+    require_sigs: bool,
+    mempool_solicit_armed: bool = True,
+) -> dict:
     listener = native.P2PNativeListener("127.0.0.1", 0, 1024 * 1024, 5000)
     addr = listener.local_addr
     host, port_s = addr.rsplit(":", 1)
@@ -73,8 +79,15 @@ def _loop_once(payload: bytes, *, chain_id: int, require_sigs: bool) -> dict:
             out = listener.accept()
             if out.get("ok") and out.get("conn") is not None:
                 c = out["conn"]
+                # v1.3.144 default armed=False; semantic tests arm solicit.
                 got["out"] = c.read_message_loop_events(
-                    8, 65536, ["mempool", "status"], False, chain_id, require_sigs
+                    8,
+                    65536,
+                    ["mempool", "status"],
+                    False,
+                    chain_id,
+                    require_sigs,
+                    mempool_solicit_armed,
                 )
                 c.close()
                 return
