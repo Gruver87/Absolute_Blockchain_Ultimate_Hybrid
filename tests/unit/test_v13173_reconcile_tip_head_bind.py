@@ -77,7 +77,7 @@ def test_needles_v13173():
     assert "P2P_RECONCILE_TIP_HEAD_BIND" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.173.md").read_text(encoding="utf-8")
     assert "1.3.173-industrial" in notes
-    assert Config().node_version.startswith("1.3.173")
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_reconcile_tip_head_bind" in metrics
     assert "abs_p2p_reconcile_tip_head_mismatch_total" in metrics

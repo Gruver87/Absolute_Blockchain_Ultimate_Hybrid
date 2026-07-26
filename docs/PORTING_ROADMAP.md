@@ -1019,6 +1019,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_reconcile_tip_head_bind` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 128 — NEW_BLOCK tip-head bind ✅ (v1.3.174)
+
+- [x] After gossip import at announce height, local tip hash must match announce hash
+- [x] Refuse `new_block_tip_head_mismatch` (no attest / no rebroadcast)
+- [x] Config `p2p_new_block_tip_head_bind` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

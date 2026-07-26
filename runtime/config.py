@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.173-industrial"
+    node_version: str = "1.3.174-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -131,6 +131,7 @@ class Config:
     p2p_new_block_announce_body_bind: bool = True # v1.3.156: announce hash/height must match Block.from_dict body
     p2p_new_block_contiguous_parent_bind: bool = True  # v1.3.160: +1 new_block parent_hash must match local tip
     p2p_new_block_same_height_parent_bind: bool = True  # v1.3.170: same-height new_block parent must match tip parent
+    p2p_new_block_tip_head_bind: bool = True      # v1.3.174: after new_block import, tip hash must match announce
     p2p_height_cap_clear_head: bool = True        # v1.3.159: height-cap clears fantasy peer.head (status/new_block/handshake)
     p2p_native_transport: bool = False            # v1.3.90+; prod forces True (v1.3.114)
     p2p_native_auto_pong: bool = True             # v1.3.98/99: ping reply + pong consume on read path
@@ -448,6 +449,9 @@ class Config:
         self.p2p_new_block_same_height_parent_bind = env_bool(
             "P2P_NEW_BLOCK_SAME_HEIGHT_PARENT_BIND",
             self.p2p_new_block_same_height_parent_bind,
+        )
+        self.p2p_new_block_tip_head_bind = env_bool(
+            "P2P_NEW_BLOCK_TIP_HEAD_BIND", self.p2p_new_block_tip_head_bind
         )
         self.p2p_height_cap_clear_head = env_bool(
             "P2P_HEIGHT_CAP_CLEAR_HEAD", self.p2p_height_cap_clear_head

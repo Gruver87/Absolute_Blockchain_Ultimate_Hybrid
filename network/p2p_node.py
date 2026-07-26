@@ -1231,6 +1231,7 @@ class P2PNode:
         self._new_block_announce_body_refuse_total: int = 0
         self._new_block_contiguous_parent_mismatch_total: int = 0
         self._new_block_same_height_parent_mismatch_total: int = 0
+        self._new_block_tip_head_mismatch_total: int = 0
         self._status_head_height_mismatch_total: int = 0
         self._status_head_without_height_total: int = 0
         self._handshake_head_without_height_total: int = 0
@@ -3218,6 +3219,26 @@ class P2PNode:
             return
 
         if await self._import_block_async(data):
+            # v1.3.174: successful import must leave tip digest == announce hash.
+            want_hash = str(
+                getattr(block, "hash", "") or block_hash or ""
+            ).strip()
+            tip_reason = self._new_block_tip_head_refuse_reason(
+                want_hash, int(getattr(block, "height", block_h) or block_h)
+            )
+            if tip_reason:
+                self._new_block_tip_head_mismatch_total = int(
+                    getattr(self, "_new_block_tip_head_mismatch_total", 0) or 0
+                ) + 1
+                logger.info(
+                    "[P2P] new_block tip-head refuse %s peer=%s want=%s tip=%s",
+                    tip_reason,
+                    (peer.peer_id or "")[:12],
+                    want_hash[:16],
+                    (self.head() or "")[:16],
+                )
+                self._strike_peer_sync(peer, tip_reason)
+                return
             # v1.3.66: drop mempool txs only after successful import
             for tx in block.transactions:
                 self.mempool.remove(tx.hash)
@@ -3627,6 +3648,36 @@ class P2PNode:
             and parent.lower() != local_parent.lower()
         ):
             return "new_block_same_height_parent_mismatch"
+        return ""
+
+    def _new_block_tip_head_refuse_reason(
+        self, target_hash: str, announced_height: int
+    ) -> str:
+        """v1.3.174: after new_block import, tip must match announce hash.
+
+        Soft tip digest ownership at gossip accept — not tip proof / Long-Range.
+        Only binds when tip height == announced height (exact completion).
+        Empty local tip soft-skips.
+        """
+        if not bool(getattr(self.config, "p2p_new_block_tip_head_bind", True)):
+            return ""
+        want = str(target_hash or "").strip()
+        if not want:
+            return ""
+        try:
+            tip_h = int(self.blockchain.get_height() or 0)
+            body_h = int(announced_height or -1)
+        except (TypeError, ValueError):
+            return ""
+        if tip_h <= 0 or body_h < 0 or tip_h != body_h:
+            return ""
+        local_tip = ""
+        try:
+            local_tip = str(self.head() or "").strip()
+        except Exception:
+            local_tip = ""
+        if local_tip and local_tip.lower() != want.lower():
+            return "new_block_tip_head_mismatch"
         return ""
 
     def _status_head_height_refuse_reason(
@@ -5807,6 +5858,9 @@ class P2PNode:
             "native_new_block_same_height_parent_bind": bool(
                 getattr(self.config, "p2p_new_block_same_height_parent_bind", True)
             ),
+            "native_new_block_tip_head_bind": bool(
+                getattr(self.config, "p2p_new_block_tip_head_bind", True)
+            ),
             "native_new_block_defer_tip": True,
             "native_status_head_height_bind": bool(
                 getattr(self.config, "p2p_status_head_height_bind", True)
@@ -5938,6 +5992,9 @@ class P2PNode:
                     self, "_new_block_same_height_parent_mismatch_total", 0
                 )
                 or 0
+            ),
+            "new_block_tip_head_mismatch_total": int(
+                getattr(self, "_new_block_tip_head_mismatch_total", 0) or 0
             ),
             "status_head_height_mismatch_total": int(
                 getattr(self, "_status_head_height_mismatch_total", 0) or 0
