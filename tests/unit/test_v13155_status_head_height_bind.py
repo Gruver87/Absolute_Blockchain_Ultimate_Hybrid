@@ -67,7 +67,7 @@ def test_needles_v13155():
     assert "P2P_STATUS_HEAD_HEIGHT_BIND" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.155.md").read_text(encoding="utf-8")
     assert "1.3.155-industrial" in notes
-    assert Config().node_version.startswith("1.3.155")
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_status_head_height_bind" in metrics
     assert "abs_p2p_status_head_height_mismatch_total" in metrics

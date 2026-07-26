@@ -1228,6 +1228,7 @@ class P2PNode:
         self._status_height_cap_total: int = 0
         self._new_block_height_cap_total: int = 0
         self._new_block_head_height_mismatch_total: int = 0
+        self._new_block_announce_body_refuse_total: int = 0
         self._status_head_height_mismatch_total: int = 0
         self._handshake_height_cap_total: int = 0
         self._state_root_local_rejects_total: int = 0
@@ -3047,10 +3048,7 @@ class P2PNode:
             self._strike_peer_sync(peer, bind_reason)
             return
 
-        peer.height = max(int(peer.height or 0), block_h)
-        if block_hash:
-            peer.head = block_hash
-
+        # v1.3.156: parse + announce↔body bind BEFORE tip mutate (soft ownership).
         from core.blockchain import Block
         try:
             block = Block.from_dict(data)
@@ -3058,6 +3056,19 @@ class P2PNode:
             logger.warning("[P2P] Invalid block from %s: %s", peer.peer_id or peer, e)
             self._strike_peer_sync(peer, "bad_block_from_dict")
             return
+        body_reason = self._new_block_announce_body_refuse_reason(
+            block_hash, block_h, block
+        )
+        if body_reason:
+            self._new_block_announce_body_refuse_total = int(
+                getattr(self, "_new_block_announce_body_refuse_total", 0) or 0
+            ) + 1
+            self._strike_peer_sync(peer, body_reason)
+            return
+
+        peer.height = max(int(peer.height or 0), block_h)
+        if block_hash:
+            peer.head = block_hash
         local_h = self.blockchain.get_height()
         existing = self.blockchain.get_block(block.height)
         if existing:
@@ -3390,6 +3401,32 @@ class P2PNode:
             return ""
         if self._local_known_head_height_mismatch(block_hash, block_h):
             return "new_block_head_height_mismatch"
+        return ""
+
+    def _new_block_announce_body_refuse_reason(
+        self, announce_hash: str, announce_h: int, block: Any
+    ) -> str:
+        """v1.3.156: announce hash/height must match parsed Block body.
+
+        Soft ownership — not tip proof / Long-Range. Tip mutate is deferred until
+        after this check succeeds.
+        """
+        if not bool(getattr(self.config, "p2p_new_block_announce_body_bind", True)):
+            return ""
+        claimed_hash = str(announce_hash or "").strip()
+        body_hash = str(getattr(block, "hash", "") or "").strip()
+        if claimed_hash and body_hash and claimed_hash.lower() != body_hash.lower():
+            return "new_block_announce_hash_mismatch"
+        try:
+            body_h = int(getattr(block, "height", -1) or -1)
+        except (TypeError, ValueError):
+            body_h = -1
+        try:
+            claimed_h = int(announce_h)
+        except (TypeError, ValueError):
+            claimed_h = -1
+        if body_h >= 0 and claimed_h >= 0 and body_h != claimed_h:
+            return "new_block_announce_height_mismatch"
         return ""
 
     def _status_head_height_refuse_reason(
@@ -5058,6 +5095,10 @@ class P2PNode:
             "native_new_block_head_height_bind": bool(
                 getattr(self.config, "p2p_new_block_head_height_bind", True)
             ),
+            "native_new_block_announce_body_bind": bool(
+                getattr(self.config, "p2p_new_block_announce_body_bind", True)
+            ),
+            "native_new_block_defer_tip": True,
             "native_status_head_height_bind": bool(
                 getattr(self.config, "p2p_status_head_height_bind", True)
             ),
@@ -5137,6 +5178,9 @@ class P2PNode:
             ),
             "new_block_head_height_mismatch_total": int(
                 getattr(self, "_new_block_head_height_mismatch_total", 0) or 0
+            ),
+            "new_block_announce_body_refuse_total": int(
+                getattr(self, "_new_block_announce_body_refuse_total", 0) or 0
             ),
             "status_head_height_mismatch_total": int(
                 getattr(self, "_status_head_height_mismatch_total", 0) or 0

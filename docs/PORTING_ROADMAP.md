@@ -898,6 +898,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_status_head_height_bind` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony (not claimed)
 
+### Priority 110 — NEW_BLOCK defer tip + announce↔body bind ✅ (v1.3.156)
+
+- [x] Parse `Block.from_dict` before mutating peer tip
+- [x] Refuse `new_block_announce_hash_mismatch` / `new_block_announce_height_mismatch`
+- [x] Config `p2p_new_block_announce_body_bind` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
