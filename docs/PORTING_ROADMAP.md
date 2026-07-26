@@ -1054,6 +1054,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_mempool_serve_tip_align` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 133 — Mempool max-gas refuse before validate ✅ (v1.3.179)
+
+- [x] P2P wire txs with `gas > evm_gas_limit` refused before `validate_transaction`
+- [x] Refuse `gas_too_high` (cheap DoS path; not Rust gas priority queue)
+- [x] Config `p2p_mempool_max_gas_refuse` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

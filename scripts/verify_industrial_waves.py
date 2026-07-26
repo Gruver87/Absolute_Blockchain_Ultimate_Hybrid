@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.178 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.179 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -139,6 +139,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13176_catch_up_height_continuity_bind.py",
     "tests/unit/test_v13177_mempool_min_fee_refuse.py",
     "tests/unit/test_v13178_mempool_serve_tip_align.py",
+    "tests/unit/test_v13179_mempool_max_gas_refuse.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -2669,6 +2670,33 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_get_mempool_tip_misaligned_total",
         ],
     ),
+    (
+        "1.3.179",
+        "RELEASE_NOTES_v1.3.179.md",
+        ["1.3.179-industrial", "gas_too_high"],
+    ),
+    (
+        "1.3.179",
+        "network/p2p_node.py",
+        [
+            "gas_too_high",
+            "p2p_mempool_max_gas_refuse",
+            "native_mempool_max_gas_refuse",
+        ],
+    ),
+    (
+        "1.3.179",
+        "runtime/config.py",
+        ["p2p_mempool_max_gas_refuse"],
+    ),
+    (
+        "1.3.179",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_mempool_max_gas_refuse",
+            "abs_p2p_mempool_gas_refuse_total",
+        ],
+    ),
 ]
 
 
@@ -2696,8 +2724,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.178"):
-            errors.append(f"node_version expected 1.3.178-*, got {ver}")
+        if not ver.startswith("1.3.179"):
+            errors.append(f"node_version expected 1.3.179-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

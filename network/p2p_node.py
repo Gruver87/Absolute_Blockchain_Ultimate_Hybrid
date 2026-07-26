@@ -1275,6 +1275,7 @@ class P2PNode:
         self._peer_tx_reject: int = 0
         self._mempool_dup_refuse_total: int = 0
         self._mempool_fee_refuse_total: int = 0
+        self._mempool_gas_refuse_total: int = 0
         self._get_mempool_tip_misaligned_total: int = 0
         self._import_block_fail: int = 0
         self._import_offload_total: int = 0
@@ -3320,6 +3321,7 @@ class P2PNode:
         v1.3.143: after native shape, skip known hashes before validate_transaction
         (cheap refuse). Soft DoS honesty only — not anti-Sybil / tip proof.
         v1.3.177: also refuse fee < mempool.min_fee before validate_transaction.
+        v1.3.179: also refuse gas > evm_gas_limit before validate_transaction.
         """
         self._last_tx_wire_reject = ""
         if not native.validate_p2p_wire_tx(data):
@@ -3372,6 +3374,22 @@ class P2PNode:
                 self._last_tx_wire_reject = "fee_too_low"
                 self._mempool_fee_refuse_total = int(
                     getattr(self, "_mempool_fee_refuse_total", 0) or 0
+                ) + 1
+                return None
+
+        # v1.3.179: cheap gas ceiling refuse before validate_transaction.
+        # Soft DoS honesty — not Rust gas priority queue / EIP-1559 lanes.
+        if bool(getattr(self.config, "p2p_mempool_max_gas_refuse", True)):
+            try:
+                max_gas = int(
+                    getattr(self.config, "evm_gas_limit", 8_000_000) or 8_000_000
+                )
+            except (TypeError, ValueError):
+                max_gas = 8_000_000
+            if max_gas > 0 and gas > max_gas:
+                self._last_tx_wire_reject = "gas_too_high"
+                self._mempool_gas_refuse_total = int(
+                    getattr(self, "_mempool_gas_refuse_total", 0) or 0
                 ) + 1
                 return None
 
@@ -6106,6 +6124,9 @@ class P2PNode:
             "native_mempool_min_fee_refuse": bool(
                 getattr(self.config, "p2p_mempool_min_fee_refuse", True)
             ),
+            "native_mempool_max_gas_refuse": bool(
+                getattr(self.config, "p2p_mempool_max_gas_refuse", True)
+            ),
             "native_mempool_serve_tip_align": bool(
                 getattr(self.config, "p2p_mempool_serve_tip_align", True)
             ),
@@ -6268,6 +6289,9 @@ class P2PNode:
             ),
             "mempool_fee_refuse_total": int(
                 getattr(self, "_mempool_fee_refuse_total", 0) or 0
+            ),
+            "mempool_gas_refuse_total": int(
+                getattr(self, "_mempool_gas_refuse_total", 0) or 0
             ),
             "get_mempool_tip_misaligned_total": int(
                 getattr(self, "_get_mempool_tip_misaligned_total", 0) or 0

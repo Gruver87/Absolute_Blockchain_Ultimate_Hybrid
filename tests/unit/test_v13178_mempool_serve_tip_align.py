@@ -68,7 +68,7 @@ def test_needles_v13178():
     assert "P2P_MEMPOOL_SERVE_TIP_ALIGN" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.178.md").read_text(encoding="utf-8")
     assert "1.3.178-industrial" in notes
-    assert Config().node_version.startswith("1.3.178")
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_mempool_serve_tip_align" in metrics
     assert "abs_p2p_get_mempool_tip_misaligned_total" in metrics
