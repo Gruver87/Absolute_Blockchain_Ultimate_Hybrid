@@ -1279,6 +1279,18 @@ class MetricsCollector:
                     f"abs_p2p_mempool_gas_negative_refuse_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('mempool_gas_negative_refuse_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_mempool_empty_from_refuse Whether P2P refuses empty from before validate (0/1)",
+                "# TYPE abs_p2p_native_mempool_empty_from_refuse gauge",
+                (
+                    f"abs_p2p_native_mempool_empty_from_refuse{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_mempool_empty_from_refuse') else 0}"
+                ),
+                "# HELP abs_p2p_mempool_empty_from_refuse_total Empty-from mempool refuses before validate_transaction",
+                "# TYPE abs_p2p_mempool_empty_from_refuse_total counter",
+                (
+                    f"abs_p2p_mempool_empty_from_refuse_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('mempool_empty_from_refuse_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_get_blocks_future_refuse Whether GET_BLOCKS refuses from_height>local tip (0/1)",
                 "# TYPE abs_p2p_native_get_blocks_future_refuse gauge",
                 (

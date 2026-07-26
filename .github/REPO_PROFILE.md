@@ -60,8 +60,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.187` — mempool negative-gas refuse |
-| **Notes** | [RELEASE_NOTES_v1.3.187.md](../RELEASE_NOTES_v1.3.187.md) |
+| **Tag** | `v1.3.188` — mempool empty-from refuse |
+| **Notes** | [RELEASE_NOTES_v1.3.188.md](../RELEASE_NOTES_v1.3.188.md) |
 | **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
