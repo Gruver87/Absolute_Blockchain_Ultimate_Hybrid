@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.160-industrial"
+    node_version: str = "1.3.161-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -116,6 +116,7 @@ class Config:
     p2p_peers_solicit_only: bool = True           # v1.3.152: refuse unsolicited MSG_PEERS (no dial from push)
     p2p_new_block_head_height_bind: bool = True   # v1.3.153: known announce hash ⇒ height must match local header
     p2p_status_head_height_bind: bool = True      # v1.3.155: known status/handshake head ⇒ height must match local header
+    p2p_status_head_requires_height: bool = True  # v1.3.161: refuse head-only STATUS when local tip > 0
     p2p_new_block_announce_body_bind: bool = True # v1.3.156: announce hash/height must match Block.from_dict body
     p2p_new_block_contiguous_parent_bind: bool = True  # v1.3.160: +1 new_block parent_hash must match local tip
     p2p_height_cap_clear_head: bool = True        # v1.3.159: height-cap clears fantasy peer.head (status/new_block/handshake)
@@ -383,6 +384,9 @@ class Config:
         )
         self.p2p_status_head_height_bind = env_bool(
             "P2P_STATUS_HEAD_HEIGHT_BIND", self.p2p_status_head_height_bind
+        )
+        self.p2p_status_head_requires_height = env_bool(
+            "P2P_STATUS_HEAD_REQUIRES_HEIGHT", self.p2p_status_head_requires_height
         )
         self.p2p_new_block_announce_body_bind = env_bool(
             "P2P_NEW_BLOCK_ANNOUNCE_BODY_BIND", self.p2p_new_block_announce_body_bind

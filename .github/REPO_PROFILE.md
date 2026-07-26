@@ -60,8 +60,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.160` — NEW_BLOCK contiguous parent bind |
-| **Notes** | [RELEASE_NOTES_v1.3.160.md](../RELEASE_NOTES_v1.3.160.md) |
+| **Tag** | `v1.3.161` — STATUS head requires positive height |
+| **Notes** | [RELEASE_NOTES_v1.3.161.md](../RELEASE_NOTES_v1.3.161.md) |
 | **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

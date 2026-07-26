@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.160 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.161 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -121,6 +121,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13158_jwt_hs256_min_secret.py",
     "tests/unit/test_v13159_height_cap_clear_head.py",
     "tests/unit/test_v13160_new_block_contiguous_parent_bind.py",
+    "tests/unit/test_v13161_status_head_requires_height.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -2172,6 +2173,32 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_new_block_contiguous_parent_mismatch_total",
         ],
     ),
+    (
+        "1.3.161",
+        "RELEASE_NOTES_v1.3.161.md",
+        ["1.3.161-industrial", "status_head_without_height"],
+    ),
+    (
+        "1.3.161",
+        "network/p2p_node.py",
+        [
+            "status_head_without_height",
+            "native_status_head_requires_height",
+        ],
+    ),
+    (
+        "1.3.161",
+        "runtime/config.py",
+        ["p2p_status_head_requires_height"],
+    ),
+    (
+        "1.3.161",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_status_head_requires_height",
+            "abs_p2p_status_head_without_height_total",
+        ],
+    ),
 ]
 
 
@@ -2199,8 +2226,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.160"):
-            errors.append(f"node_version expected 1.3.160-*, got {ver}")
+        if not ver.startswith("1.3.161"):
+            errors.append(f"node_version expected 1.3.161-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

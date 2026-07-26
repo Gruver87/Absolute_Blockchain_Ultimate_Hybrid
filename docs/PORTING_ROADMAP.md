@@ -931,6 +931,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_new_block_contiguous_parent_bind` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 115 — STATUS head requires positive height ✅ (v1.3.161)
+
+- [x] Head-only STATUS (`height<=0`) refused when local tip `> 0` (`status_head_without_height`)
+- [x] Config `p2p_status_head_requires_height` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

@@ -805,6 +805,18 @@ class MetricsCollector:
                     f"abs_p2p_status_head_height_mismatch_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('status_head_height_mismatch_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_status_head_requires_height Whether head-only STATUS is refused when local tip > 0 (0/1)",
+                "# TYPE abs_p2p_native_status_head_requires_height gauge",
+                (
+                    f"abs_p2p_native_status_head_requires_height{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_status_head_requires_height') else 0}"
+                ),
+                "# HELP abs_p2p_status_head_without_height_total STATUS head-only (height<=0) refused while local tip > 0",
+                "# TYPE abs_p2p_status_head_without_height_total counter",
+                (
+                    f"abs_p2p_status_head_without_height_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('status_head_without_height_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_new_block_announce_body_bind Whether new_block announce↔body bind is active (0/1)",
                 "# TYPE abs_p2p_native_new_block_announce_body_bind gauge",
                 (

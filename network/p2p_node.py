@@ -1231,6 +1231,7 @@ class P2PNode:
         self._new_block_announce_body_refuse_total: int = 0
         self._new_block_contiguous_parent_mismatch_total: int = 0
         self._status_head_height_mismatch_total: int = 0
+        self._status_head_without_height_total: int = 0
         self._handshake_height_cap_total: int = 0
         self._state_root_local_rejects_total: int = 0
         self._attestation_slot_ahead_rejects_total: int = 0
@@ -2761,6 +2762,7 @@ class P2PNode:
                     self._strike_peer_sync(peer, str(bind_reason))
                     return
                 incoming_h = int(status.get("height", 0) or 0)
+                our_h = int(self.blockchain.get_height() or 0)
                 if incoming_h:
                     # v1.3.131: cap fantasy height inflation above local tip.
                     capped_h, was_capped = self._cap_claimed_peer_height(incoming_h)
@@ -2795,8 +2797,34 @@ class P2PNode:
                 else:
                     incoming_head = status.get("head_hash") or ""
                     if incoming_head:
+                        # v1.3.161: head-only STATUS (height<=0) refused when local tip > 0.
+                        if bool(
+                            getattr(
+                                self.config, "p2p_status_head_requires_height", True
+                            )
+                        ) and our_h > 0:
+                            self._status_head_without_height_total = int(
+                                getattr(
+                                    self, "_status_head_without_height_total", 0
+                                )
+                                or 0
+                            ) + 1
+                            self._strike_peer_sync(peer, "status_head_without_height")
+                            return
+                        # Known local head ⇒ claimed height 0 must match (usually refuse).
+                        bind_local = self._status_head_height_refuse_reason(
+                            str(incoming_head), 0
+                        )
+                        if bind_local:
+                            self._status_head_height_mismatch_total = int(
+                                getattr(
+                                    self, "_status_head_height_mismatch_total", 0
+                                )
+                                or 0
+                            ) + 1
+                            self._strike_peer_sync(peer, bind_local)
+                            return
                         peer.head = str(incoming_head)
-                our_h = int(self.blockchain.get_height() or 0)
                 if incoming_h and incoming_h != our_h:
                     await peer.send(MSG_STATUS, {
                         "height": our_h,
@@ -5174,6 +5202,9 @@ class P2PNode:
             "native_status_head_height_bind": bool(
                 getattr(self.config, "p2p_status_head_height_bind", True)
             ),
+            "native_status_head_requires_height": bool(
+                getattr(self.config, "p2p_status_head_requires_height", True)
+            ),
             "native_handshake_height_cap": True,
             "native_status_capped_head_refuse": True,
             "native_attestation_slot_ahead": True,
@@ -5262,6 +5293,9 @@ class P2PNode:
             ),
             "status_head_height_mismatch_total": int(
                 getattr(self, "_status_head_height_mismatch_total", 0) or 0
+            ),
+            "status_head_without_height_total": int(
+                getattr(self, "_status_head_without_height_total", 0) or 0
             ),
             "handshake_height_cap_total": int(
                 getattr(self, "_handshake_height_cap_total", 0) or 0
