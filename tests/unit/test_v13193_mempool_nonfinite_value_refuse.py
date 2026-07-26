@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""v1.3.192: P2P refuses oversized public_key before validate_transaction."""
+"""v1.3.193: P2P refuses NaN/Inf value before validate_transaction."""
 
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -16,22 +17,22 @@ from network.p2p_node import P2PNode
 from runtime.config import Config
 
 
-def _node(*, max_pk: int = 32) -> P2PNode:
+def _node() -> P2PNode:
     cfg = Config()
     cfg.p2p_native_transport = False
     cfg.require_native_crypto = False
     cfg.deployment_mode = "dev"
     cfg.bootstrap_peers = []
-    cfg.p2p_mempool_max_pubkey_refuse = True
-    cfg.p2p_mempool_max_pubkey_bytes = max_pk
+    cfg.p2p_mempool_nonfinite_value_refuse = True
+    cfg.p2p_mempool_negative_value_refuse = False
     cfg.p2p_mempool_empty_from_refuse = False
     cfg.p2p_mempool_empty_sig_refuse = False
     cfg.p2p_mempool_empty_pubkey_refuse = False
     cfg.p2p_mempool_max_sig_refuse = False
+    cfg.p2p_mempool_max_pubkey_refuse = False
     cfg.p2p_mempool_min_fee_refuse = False
     cfg.p2p_mempool_max_gas_refuse = False
     cfg.p2p_mempool_max_calldata_refuse = False
-    cfg.p2p_mempool_negative_value_refuse = False
     cfg.p2p_mempool_negative_nonce_refuse = False
     cfg.p2p_mempool_negative_fee_refuse = False
     cfg.p2p_mempool_negative_gas_refuse = False
@@ -45,16 +46,16 @@ def _node(*, max_pk: int = 32) -> P2PNode:
     return P2PNode(cfg, chain, mp)
 
 
-def _wire(*, public_key: str, fee: float = 1.0, tx_hash: str = "ab" * 32) -> dict:
+def _wire(*, value, fee: float = 1.0, tx_hash: str = "ab" * 32) -> dict:
     return {
         "from": "0x" + "11" * 20,
         "to": "0x" + "22" * 20,
-        "value": 1,
+        "value": value,
         "nonce": 0,
         "gas": 21_000,
         "fee": fee,
         "signature": "sig",
-        "public_key": public_key,
+        "public_key": "pk",
         "hash": tx_hash,
         "data": "",
     }
@@ -71,42 +72,49 @@ def _build(node: P2PNode, payload: dict):
         native.validate_p2p_wire_tx = orig  # type: ignore
 
 
-def test_needles_v13192():
+def test_needles_v13193():
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
-    assert "pubkey_too_large" in p2p
-    assert "p2p_mempool_max_pubkey_refuse" in p2p
-    assert "native_mempool_max_pubkey_refuse" in p2p
-    assert "_mempool_pubkey_size_refuse_total" in p2p
+    assert "value_non_finite" in p2p
+    assert "p2p_mempool_nonfinite_value_refuse" in p2p
+    assert "native_mempool_nonfinite_value_refuse" in p2p
+    assert "_mempool_nonfinite_value_refuse_total" in p2p
     cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "p2p_mempool_max_pubkey_refuse" in cfg
-    assert "P2P_MEMPOOL_MAX_PUBKEY_REFUSE" in cfg
-    assert "p2p_mempool_max_pubkey_bytes" in cfg
-    notes = (ROOT / "RELEASE_NOTES_v1.3.192.md").read_text(encoding="utf-8")
-    assert "1.3.192-industrial" in notes
-    assert Config().node_version.startswith("1.3.")
+    assert "p2p_mempool_nonfinite_value_refuse" in cfg
+    assert "P2P_MEMPOOL_NONFINITE_VALUE_REFUSE" in cfg
+    notes = (ROOT / "RELEASE_NOTES_v1.3.193.md").read_text(encoding="utf-8")
+    assert "1.3.193-industrial" in notes
+    assert Config().node_version.startswith("1.3.193")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
-    assert "abs_p2p_native_mempool_max_pubkey_refuse" in metrics
-    assert "abs_p2p_mempool_pubkey_size_refuse_total" in metrics
+    assert "abs_p2p_native_mempool_nonfinite_value_refuse" in metrics
+    assert "abs_p2p_mempool_nonfinite_value_refuse_total" in metrics
 
 
-def test_refuse_oversized_pubkey_before_validate():
-    node = _node(max_pk=16)
-    out = _build(node, _wire(public_key="k" * 64))
+def test_refuse_nan_before_validate():
+    node = _node()
+    out = _build(node, _wire(value=float("nan")))
     assert out is None
-    assert node._last_tx_wire_reject == "pubkey_too_large"
-    assert node._mempool_pubkey_size_refuse_total >= 1
+    assert node._last_tx_wire_reject == "value_non_finite"
+    assert node._mempool_nonfinite_value_refuse_total >= 1
     node.blockchain.validate_transaction.assert_not_called()
 
 
-def test_ok_small_pubkey_reaches_validate():
-    node = _node(max_pk=64)
-    out = _build(node, _wire(public_key="pk"))
+def test_refuse_inf_before_validate():
+    node = _node()
+    out = _build(node, _wire(value=float("inf"), tx_hash="cd" * 32))
+    assert out is None
+    assert node._last_tx_wire_reject == "value_non_finite"
+
+
+def test_ok_finite_reaches_validate():
+    node = _node()
+    out = _build(node, _wire(value=1.25, tx_hash="ef" * 32))
     assert out is not None
+    assert math.isfinite(1.25)
     node.blockchain.validate_transaction.assert_called()
-    assert node._mempool_pubkey_size_refuse_total == 0
+    assert node._mempool_nonfinite_value_refuse_total == 0
 
 
 def test_security_status_gauge():
     node = _node()
     st = node.get_p2p_security_status()
-    assert st.get("native_mempool_max_pubkey_refuse") is True
+    assert st.get("native_mempool_nonfinite_value_refuse") is True

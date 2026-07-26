@@ -14,7 +14,7 @@ Public audited mainnet · listed ABS token · investment product · bridge ON on
 
 | | |
 |---|---|
-| Tag | **[v1.3.192](../RELEASE_NOTES_v1.3.192.md)** |
+| Tag | **[v1.3.193](../RELEASE_NOTES_v1.3.193.md)** |
 | CI | Ubuntu `test.yml` + docker + security + fuzz |
 | 48h soak | **PASS** |
 | Self-check | `.\scripts\operator_verify.ps1 -SkipNativeBuild` · `make test-quick` |

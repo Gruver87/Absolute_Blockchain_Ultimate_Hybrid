@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.193] — 2026-07-26
+
+### Mempool — non-finite value refuse
+
+- P2P refuses NaN/Inf `value` before `validate_transaction` (`value_non_finite`)
+- Soft DoS honesty — complements `value_negative` (NaN/Inf slip past `< 0`)
+- Honesty: not tip proof / Long-Range / libp2p / public mainnet
+
 ## [1.3.146] — 2026-07-26
 
 ### P2P — catch-up tip probe + head↔height bind

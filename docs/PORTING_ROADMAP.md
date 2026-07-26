@@ -1152,6 +1152,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_mempool_max_pubkey_refuse` / `p2p_mempool_max_pubkey_bytes` (default on / 2048)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 147 — Mempool non-finite value refuse before validate ✅ (v1.3.193)
+
+- [x] P2P wire txs with NaN/Inf `value` refused before `validate_transaction`
+- [x] Refuse `value_non_finite` (cheap DoS path; complements value_negative)
+- [x] Config `p2p_mempool_nonfinite_value_refuse` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
