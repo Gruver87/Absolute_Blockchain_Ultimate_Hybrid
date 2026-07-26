@@ -25,7 +25,7 @@
     <rect x="100" y="320" width="210" height="48" rx="10" fill="#134e4a" stroke="#2dd4bf" stroke-width="1.5"/>
     <text x="120" y="350">48h soak PASS</text>
     <rect x="330" y="320" width="200" height="48" rx="10" fill="#0c4a6e" stroke="#38bdf8" stroke-width="1.5"/>
-    <text x="350" y="350">v1.3.203 industrial</text>
+    <text x="350" y="350">v1.3.204 industrial</text>
     <rect x="550" y="320" width="220" height="48" rx="10" fill="#1e293b" stroke="#64748b" stroke-width="1.5"/>
     <text x="570" y="350">1100+ pytest collected</text>
   </g>

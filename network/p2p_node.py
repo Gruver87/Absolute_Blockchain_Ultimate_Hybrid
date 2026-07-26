@@ -1286,6 +1286,7 @@ class P2PNode:
         self._mempool_fee_negative_refuse_total: int = 0
         self._mempool_gas_negative_refuse_total: int = 0
         self._mempool_gas_unparseable_refuse_total: int = 0
+        self._mempool_value_unparseable_refuse_total: int = 0
         self._mempool_empty_from_refuse_total: int = 0
         self._mempool_from_size_refuse_total: int = 0
         self._mempool_empty_to_refuse_total: int = 0
@@ -3460,6 +3461,7 @@ class P2PNode:
         v1.3.186: also refuse fee < 0 before validate_transaction.
         v1.3.187: also refuse gas < 0 before validate_transaction.
         v1.3.203: also refuse unparseable gas before validate_transaction.
+        v1.3.204: also refuse unparseable value before validate_transaction.
         v1.3.188: also refuse empty from address before validate_transaction.
         v1.3.198: also refuse oversized from address before validate_transaction.
         v1.3.195: also refuse empty to address before validate_transaction.
@@ -3482,7 +3484,17 @@ class P2PNode:
 
         from_addr = data.get("from_addr", data.get("from", ""))
         to_addr = data.get("to_addr", data.get("to", ""))
-        value = float(data.get("value", data.get("amount", 0)))
+        # v1.3.204: junk value must refuse, not raise into the ingest path.
+        try:
+            value = float(data.get("value", data.get("amount", 0)))
+        except (TypeError, ValueError):
+            if bool(getattr(self.config, "p2p_mempool_unparseable_value_refuse", True)):
+                self._last_tx_wire_reject = "value_unparseable"
+                self._mempool_value_unparseable_refuse_total = int(
+                    getattr(self, "_mempool_value_unparseable_refuse_total", 0) or 0
+                ) + 1
+                return None
+            value = 0.0
         nonce = int(data.get("nonce", 0))
         # v1.3.203: Inf/junk gas must refuse, not raise into the ingest path.
         try:
@@ -6613,6 +6625,9 @@ class P2PNode:
             "native_mempool_unparseable_gas_refuse": bool(
                 getattr(self.config, "p2p_mempool_unparseable_gas_refuse", True)
             ),
+            "native_mempool_unparseable_value_refuse": bool(
+                getattr(self.config, "p2p_mempool_unparseable_value_refuse", True)
+            ),
             "native_mempool_empty_from_refuse": bool(
                 getattr(self.config, "p2p_mempool_empty_from_refuse", True)
             ),
@@ -6850,6 +6865,9 @@ class P2PNode:
             ),
             "mempool_gas_unparseable_refuse_total": int(
                 getattr(self, "_mempool_gas_unparseable_refuse_total", 0) or 0
+            ),
+            "mempool_value_unparseable_refuse_total": int(
+                getattr(self, "_mempool_value_unparseable_refuse_total", 0) or 0
             ),
             "mempool_empty_from_refuse_total": int(
                 getattr(self, "_mempool_empty_from_refuse_total", 0) or 0

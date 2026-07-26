@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.203 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.204 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -164,6 +164,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13201_mempool_max_fee_refuse.py",
     "tests/unit/test_v13202_mempool_max_value_refuse.py",
     "tests/unit/test_v13203_mempool_unparseable_gas_refuse.py",
+    "tests/unit/test_v13204_mempool_unparseable_value_refuse.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -3369,6 +3370,33 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_mempool_gas_unparseable_refuse_total",
         ],
     ),
+    (
+        "1.3.204",
+        "RELEASE_NOTES_v1.3.204.md",
+        ["1.3.204-industrial", "value_unparseable"],
+    ),
+    (
+        "1.3.204",
+        "network/p2p_node.py",
+        [
+            "value_unparseable",
+            "p2p_mempool_unparseable_value_refuse",
+            "native_mempool_unparseable_value_refuse",
+        ],
+    ),
+    (
+        "1.3.204",
+        "runtime/config.py",
+        ["p2p_mempool_unparseable_value_refuse"],
+    ),
+    (
+        "1.3.204",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_mempool_unparseable_value_refuse",
+            "abs_p2p_mempool_value_unparseable_refuse_total",
+        ],
+    ),
 ]
 
 
@@ -3396,8 +3424,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.203"):
-            errors.append(f"node_version expected 1.3.203-*, got {ver}")
+        if not ver.startswith("1.3.204"):
+            errors.append(f"node_version expected 1.3.204-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

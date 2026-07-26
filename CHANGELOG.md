@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.204] — 2026-07-26
+
+### Mempool — unparseable-value refuse
+
+- P2P refuses junk `value` / `amount` before `validate_transaction` (`value_unparseable`)
+- Soft DoS honesty — no TypeError into ingest; complements value_negative / value_non_finite
+- Honesty: not tip proof / Long-Range / libp2p / public mainnet / amount-cap economics
+
 ## [1.3.203] — 2026-07-26
 
 ### Mempool — unparseable-gas refuse
