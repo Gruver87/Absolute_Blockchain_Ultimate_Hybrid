@@ -60,8 +60,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.191` — mempool max-signature refuse |
-| **Notes** | [RELEASE_NOTES_v1.3.191.md](../RELEASE_NOTES_v1.3.191.md) |
+| **Tag** | `v1.3.192` — mempool max-pubkey refuse |
+| **Notes** | [RELEASE_NOTES_v1.3.192.md](../RELEASE_NOTES_v1.3.192.md) |
 | **Self-check** | `.\scripts\operator_verify.ps1 -SkipNativeBuild` · `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

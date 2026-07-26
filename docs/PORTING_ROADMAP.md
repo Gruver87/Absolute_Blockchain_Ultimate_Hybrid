@@ -1145,6 +1145,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_mempool_max_sig_refuse` / `p2p_mempool_max_sig_bytes` (default on / 2048)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 146 — Mempool max-pubkey refuse before validate ✅ (v1.3.192)
+
+- [x] P2P wire txs with oversized `public_key` refused before `validate_transaction`
+- [x] Refuse `pubkey_too_large` (cheap DoS path; default 2048 bytes)
+- [x] Config `p2p_mempool_max_pubkey_refuse` / `p2p_mempool_max_pubkey_bytes` (default on / 2048)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

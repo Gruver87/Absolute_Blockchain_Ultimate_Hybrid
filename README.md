@@ -14,13 +14,13 @@
 [![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 [![Native fuzz](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/fuzz-native.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/fuzz-native.yml)
 [![48h soak](https://img.shields.io/badge/48h%20soak-PASS-brightgreen)](docs/EVIDENCE_MATRIX.md)
-[![v1.3.191](https://img.shields.io/badge/tag-v1.3.191-blue)](RELEASE_NOTES_v1.3.191.md)
+[![v1.3.192](https://img.shields.io/badge/tag-v1.3.192-blue)](RELEASE_NOTES_v1.3.192.md)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://www.python.org/)
 [![Rust](https://img.shields.io/badge/Rust-abs__native-orange)](native/abs_native)
 
 | | |
 |---|---|
-| **Release** | [v1.3.191](RELEASE_NOTES_v1.3.191.md) · [CHANGELOG](CHANGELOG.md) · [Releases](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases) |
+| **Release** | [v1.3.192](RELEASE_NOTES_v1.3.192.md) · [CHANGELOG](CHANGELOG.md) · [Releases](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases) |
 | **Prove it** | `.\scripts\operator_verify.ps1 -SkipNativeBuild` · `.\scripts\check_all.ps1` · CI badges above |
 | **Run** | `python main.py` → http://localhost:8080 |
 | **Chains** | `77777` lab · `778888` prod-profile (**not** public mainnet) |
