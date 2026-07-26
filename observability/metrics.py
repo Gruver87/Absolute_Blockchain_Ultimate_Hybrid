@@ -991,6 +991,18 @@ class MetricsCollector:
                     f"abs_p2p_native_catch_up_peer_head_parent_bind{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_catch_up_peer_head_parent_bind') else 0}"
                 ),
+                "# HELP abs_p2p_native_fork_peer_head_probe Whether same-height fork solicits peer.head first (0/1)",
+                "# TYPE abs_p2p_native_fork_peer_head_probe gauge",
+                (
+                    f"abs_p2p_native_fork_peer_head_probe{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_fork_peer_head_probe') else 0}"
+                ),
+                "# HELP abs_p2p_fork_peer_head_probe_refuse_total Same-height fork refused after peer.head wire probe fail",
+                "# TYPE abs_p2p_fork_peer_head_probe_refuse_total counter",
+                (
+                    f"abs_p2p_fork_peer_head_probe_refuse_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('fork_peer_head_probe_refuse_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_sync_heads_no_invent Whether SyncEngine refuses inventing peer.head from local blocks (0/1)",
                 "# TYPE abs_p2p_native_sync_heads_no_invent gauge",
                 (

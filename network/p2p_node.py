@@ -1243,6 +1243,7 @@ class P2PNode:
         self._catch_up_head_height_mismatch_total: int = 0
         self._catch_up_tip_probe_refuse_total: int = 0
         self._catch_up_peer_head_probe_refuse_total: int = 0
+        self._fork_peer_head_probe_refuse_total: int = 0
         self._bootstrap_redial_total: int = 0
         self._bootstrap_pin_rejects_total: int = 0
         self._handshake_rejects: int = 0
@@ -3663,6 +3664,61 @@ class P2PNode:
                     return "catch_up_peer_head_parent_mismatch"
         return ""
 
+    async def _fork_peer_head_probe_refuse_reason(
+        self, peer: PeerConnection
+    ) -> str:
+        """v1.3.162: before same-height fork reorg, solicit peer.head on wire.
+
+        Soft wire bind — peer must return a block whose hash matches claimed head
+        and height matches claimed peer.height. Not tip proof / Long-Range.
+        """
+        if not bool(getattr(self.config, "p2p_fork_peer_head_probe", True)):
+            return ""
+        try:
+            local_h = int(self.blockchain.get_height() or 0)
+            peer_h = int(getattr(peer, "height", 0) or 0)
+        except (TypeError, ValueError):
+            return ""
+        if peer_h != local_h:
+            return ""
+        head = str(getattr(peer, "head", "") or "").strip()
+        if not head:
+            return "fork_no_head"
+        local_head = ""
+        try:
+            local_head = str(self.head() or "").strip()
+        except Exception:
+            local_head = ""
+        if local_head and head.lower() == local_head.lower():
+            return ""
+        peer_block = await self._request_block_by_hash(peer, head)
+        if not peer_block:
+            return "fork_peer_head_probe_failed"
+        got_hash = str(
+            peer_block.get("hash") or peer_block.get("block_hash") or ""
+        ).strip()
+        if got_hash and got_hash.lower() != head.lower():
+            return "fork_peer_head_hash_mismatch"
+        try:
+            bh = int(peer_block.get("height", peer_block.get("number", -1)) or -1)
+        except (TypeError, ValueError):
+            bh = -1
+        if bh >= 0 and bh != peer_h:
+            return "fork_peer_head_height_mismatch"
+        return ""
+
+    def _bump_fork_probe_refuse(self, reason: str) -> None:
+        r = str(reason or "")
+        if r in (
+            "fork_no_head",
+            "fork_peer_head_probe_failed",
+            "fork_peer_head_hash_mismatch",
+            "fork_peer_head_height_mismatch",
+        ):
+            self._fork_peer_head_probe_refuse_total = int(
+                getattr(self, "_fork_peer_head_probe_refuse_total", 0) or 0
+            ) + 1
+
     def _schedule_sync(self, peer: PeerConnection) -> None:
         """Coalesce duplicate sync tasks per peer (v1.3.66) + global inflight cap (v1.3.72)."""
         refuse = self._catch_up_ahead_refuse_reason(peer)
@@ -4014,6 +4070,18 @@ class P2PNode:
         peer_head = peer.head or ""
         if not peer_head or peer_head == local_head:
             return True
+
+        # v1.3.162: wire-probe peer.head before same-height reorg.
+        probe_refuse = await self._fork_peer_head_probe_refuse_reason(peer)
+        if probe_refuse:
+            self._bump_fork_probe_refuse(probe_refuse)
+            logger.info(
+                "[P2P] fork peer-head probe refuse %s peer=%s head=%s",
+                probe_refuse,
+                (peer.peer_id or "")[:12],
+                peer_head[:16],
+            )
+            return False
 
         print(
             f"[P2P] Fork at #{peer.height}: "
@@ -5226,6 +5294,9 @@ class P2PNode:
             "native_catch_up_peer_head_parent_bind": bool(
                 getattr(self.config, "p2p_catch_up_peer_head_parent_bind", True)
             ),
+            "native_fork_peer_head_probe": bool(
+                getattr(self.config, "p2p_fork_peer_head_probe", True)
+            ),
             "native_catch_up_head_height_bind": True,
             "native_sync_heads_no_invent": True,
             "native_sync_state_wire_only": True,
@@ -5329,6 +5400,9 @@ class P2PNode:
             ),
             "catch_up_peer_head_probe_refuse_total": int(
                 getattr(self, "_catch_up_peer_head_probe_refuse_total", 0) or 0
+            ),
+            "fork_peer_head_probe_refuse_total": int(
+                getattr(self, "_fork_peer_head_probe_refuse_total", 0) or 0
             ),
             "heads_skipped_no_head": int(
                 getattr(getattr(self, "sync_engine", None), "_heads_skipped_no_head", 0)

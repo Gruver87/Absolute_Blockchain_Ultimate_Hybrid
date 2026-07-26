@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.161 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.162 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -122,6 +122,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13159_height_cap_clear_head.py",
     "tests/unit/test_v13160_new_block_contiguous_parent_bind.py",
     "tests/unit/test_v13161_status_head_requires_height.py",
+    "tests/unit/test_v13162_fork_peer_head_probe.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -2199,6 +2200,33 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_status_head_without_height_total",
         ],
     ),
+    (
+        "1.3.162",
+        "RELEASE_NOTES_v1.3.162.md",
+        ["1.3.162-industrial", "fork_peer_head_probe_failed"],
+    ),
+    (
+        "1.3.162",
+        "network/p2p_node.py",
+        [
+            "fork_peer_head_probe_failed",
+            "_fork_peer_head_probe_refuse_reason",
+            "native_fork_peer_head_probe",
+        ],
+    ),
+    (
+        "1.3.162",
+        "runtime/config.py",
+        ["p2p_fork_peer_head_probe"],
+    ),
+    (
+        "1.3.162",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_fork_peer_head_probe",
+            "abs_p2p_fork_peer_head_probe_refuse_total",
+        ],
+    ),
 ]
 
 
@@ -2226,8 +2254,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.161"):
-            errors.append(f"node_version expected 1.3.161-*, got {ver}")
+        if not ver.startswith("1.3.162"):
+            errors.append(f"node_version expected 1.3.162-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

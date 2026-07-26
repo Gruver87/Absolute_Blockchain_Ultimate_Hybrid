@@ -937,6 +937,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_status_head_requires_height` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 116 — Fork peer-head wire probe ✅ (v1.3.162)
+
+- [x] Before same-height fork reorg, solicit `peer.head` via `get_block_by_hash`
+- [x] Refuse `fork_no_head` / `fork_peer_head_probe_failed` / hash / height mismatch
+- [x] Config `p2p_fork_peer_head_probe` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
