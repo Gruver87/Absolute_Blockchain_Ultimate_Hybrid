@@ -287,24 +287,30 @@ def test_p2p_rate_limit_exempts_sync_types():
         MSG_NEW_TX,
         MSG_STATUS,
         P2PNode,
+        RATE_LIMIT_EXEMPT_TYPES,
     )
     from runtime.config import Config
 
     cfg = Config()
     cfg.p2p_max_messages_per_sec = 2
     p2p = P2PNode(cfg, None, None)
+    # v1.3.143: MSG_NEW_TX is on the primary rate budget (not exempt).
+    assert MSG_NEW_TX not in RATE_LIMIT_EXEMPT_TYPES
     sync_types = (
         MSG_NEW_BLOCK,
         MSG_GET_BLOCK,
         MSG_GET_BLOCKS,
         MSG_BLOCK,
         MSG_BLOCKS,
-        MSG_NEW_TX,
         MSG_STATUS,
     )
     for _ in range(20):
         for msg_type in sync_types:
             assert p2p._rate_limit_ok("peer-sync", msg_type) is True
+    # Primary budget still applies to new_tx gossip.
+    assert p2p._rate_limit_ok("peer-tx", MSG_NEW_TX) is True
+    assert p2p._rate_limit_ok("peer-tx", MSG_NEW_TX) is True
+    assert p2p._rate_limit_ok("peer-tx", MSG_NEW_TX) is False
 
 
 def test_verify_spawn_mesh3_recovery_wires_callbacks(monkeypatch):

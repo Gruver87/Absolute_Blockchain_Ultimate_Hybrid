@@ -2279,8 +2279,23 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("rocks_store must pack ABLK block rows (v1.3.149)")
         if "_loads_block_blob_or_none" not in rocks_py:
             errors.append("rocks_store must dual-read block blobs (v1.3.149)")
+        # v1.3.150 — Standard needles aligned with new_tx rate + dual-read helpers
+        p2p_test = (
+            ROOT / "tests" / "unit" / "test_p2p_industrial.py"
+        ).read_text(encoding="utf-8")
+        if "MSG_NEW_TX not in RATE_LIMIT_EXEMPT_TYPES" not in p2p_test:
+            errors.append(
+                "p2p industrial test must assert new_tx not exempt (v1.3.150)"
+            )
+        supply_test = (
+            ROOT / "tests" / "unit" / "test_supply_broadcast_honesty.py"
+        ).read_text(encoding="utf-8")
+        if "_loads_tx_blob_or_none" not in supply_test:
+            errors.append(
+                "supply honesty test must accept tx dual-read helper (v1.3.150)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..149 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..150 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

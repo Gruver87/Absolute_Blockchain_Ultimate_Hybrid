@@ -35,7 +35,7 @@ def test_needles_v13149():
     assert "ABLK" in store
     notes = (ROOT / "RELEASE_NOTES_v1.3.149.md").read_text(encoding="utf-8")
     assert "1.3.149-industrial" in notes
-    assert Config().node_version.startswith("1.3.149")
+    assert Config().node_version.startswith("1.3.")
 
 
 def test_pack_unpack_roundtrip():

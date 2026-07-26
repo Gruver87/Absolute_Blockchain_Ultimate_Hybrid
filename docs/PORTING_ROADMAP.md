@@ -861,6 +861,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] `_insert_block` / get / latest / reorg dual-decode
 - Remaining: receipts (`ATXR`) / full nested-tx binary / full Rocks rewrite / tip proof / libp2p / ceremony (not claimed)
 
+### Priority 104 — Standard pytest honesty needles ✅ (v1.3.150)
+
+- [x] Align `new_tx` rate-limit test with v1.3.143 (not exempt)
+- [x] Align Rocks point-get needles with ATXV/ABLK dual-read helpers
+- Remaining: receipts / tip proof / libp2p / ceremony (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
