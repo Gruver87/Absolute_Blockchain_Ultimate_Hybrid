@@ -12,3 +12,6 @@ contact_links:
   - name: Security / secrets policy
     url: https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/SECURITY.md
     about: Never paste private keys, .env contents, or wallet files into issues.
+  - name: Private vulnerability report
+    url: https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/security/advisories/new
+    about: Report security issues privately (not in public issues).

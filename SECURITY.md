@@ -12,8 +12,12 @@ This project is a **production-hardened R&D / devnet** stack. It is **not** a la
 ## Reporting a vulnerability
 
 1. **Do not** open a public issue with exploit details that could harm operators.
-2. Prefer a private GitHub Security Advisory (if enabled) or contact the repository owner **Gruver87** via GitHub.
+2. Prefer private reporting:
+   - [Open a private vulnerability report](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/security/advisories/new)
+   - Or contact the repository owner **Gruver87** via GitHub
 3. Include: affected version/tag, reproduction steps, impact, and whether a fix is proposed.
+
+CI “Security checks” = dependency / supply-chain gates — **not** an independent external audit.
 
 ## Secrets — what must never enter Git
 

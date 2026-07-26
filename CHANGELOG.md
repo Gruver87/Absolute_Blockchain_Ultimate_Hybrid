@@ -6,6 +6,15 @@
 
 ---
 
+## [Unreleased]
+
+### Docs / GitHub UX
+
+- README first screen: fewer badges, quickstart above status table, Security checks wording
+- Evergreen banner + social preview (no per-release version chip)
+- SECURITY.md + issue chooser: private vulnerability report link
+- About description shortened (durable one-liner)
+
 ## [1.3.205] — 2026-07-26
 
 ### Mempool — unparseable-nonce refuse

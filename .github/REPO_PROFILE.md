@@ -3,13 +3,13 @@
 Apply with:
 
 ```powershell
-gh repo edit --description "Absolute Blockchain — hybrid Python/Rust L1: prod 3-node mesh, RocksDB, REST/JSON-RPC, EVM, abs_native. 48h soak PASS (Jul 2026). Evidence-first — not a launched public mainnet."
-gh repo edit --homepage "https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid#readme"
+gh repo edit --description "Hybrid Python/Rust L1 node for local mesh and evidence-first R&D — not a public mainnet."
+gh repo edit --homepage "https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid#start-in-60-seconds"
 # topics (idempotent add):
 @(
   "absolute-blockchain","blockchain","blockchain-node","layer1","python","rust","pyo3",
-  "p2p","evm","rocksdb","docker","kubernetes","json-rpc","rest-api","pos","devnet",
-  "tokenomics","industrial","soak-test","cryptography","web3","hybrid-blockchain"
+  "p2p","evm","rocksdb","docker","kubernetes","json-rpc","rest-api","devnet",
+  "soak-test","cryptography","web3","hybrid-blockchain","blockchain-development"
 ) | ForEach-Object { gh repo edit --add-topic $_ }
 ```
 
@@ -17,11 +17,11 @@ Or paste into **Settings → General → About**.
 
 | Field | Value |
 |-------|-------|
-| **Description** | Absolute Blockchain — hybrid Python/Rust L1: prod 3-node mesh, RocksDB, REST/JSON-RPC, EVM, abs_native. 48h soak PASS (Jul 2026). Evidence-first — not a launched public mainnet. |
-| **Website** | https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid#30-seconds--see-everything |
-| **Social preview** | ✅ Upload `docs/assets/repo-social-preview.png` in **Settings → General → Social preview** (done) |
+| **Description** | Hybrid Python/Rust L1 node for local mesh and evidence-first R&D — not a public mainnet. |
+| **Website** | https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid#start-in-60-seconds |
+| **Social preview** | Upload evergreen `docs/assets/repo-social-preview.png` in **Settings → General → Social preview** |
 | **Skimmer card** | [docs/AT_A_GLANCE.md](../docs/AT_A_GLANCE.md) |
-| **Issue chooser** | Bug · Feature · Ops/verify · contact links to Evidence / SECURITY |
+| **Issue chooser** | Bug · Feature · Ops/verify · private vulnerability report · Evidence / SECURITY |
 
 ## Topics
 
@@ -41,14 +41,14 @@ kubernetes
 json-rpc
 rest-api
 devnet
-industrial
 soak-test
 cryptography
 web3
 hybrid-blockchain
+blockchain-development
 ```
 
-> Cap = 20 topics. Prefer `web3` / `hybrid-blockchain` over vague `pos` / `tokenomics` (avoids investment-product misread).
+> Cap = 20 topics. Prefer searchable stack terms over maturity labels like `industrial`.
 ## Branches
 
 | Branch | Role |
@@ -63,8 +63,7 @@ hybrid-blockchain
 | **Tag** | `v1.3.205` — mempool unparseable-nonce refuse |
 | **Notes** | [RELEASE_NOTES_v1.3.205.md](../RELEASE_NOTES_v1.3.205.md) |
 | **Self-check** | `.\scripts\operator_verify.ps1 -SkipNativeBuild` · `.\scripts\check_all.ps1` |
-| **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
-| **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |
+| **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` (displayed as **Security checks**) |
 | **API wave** | 61 |
 
 ### Verified locally (Jul 2026)
@@ -87,4 +86,4 @@ hybrid-blockchain
 - **Is:** working hybrid L1 R&D stack; local prod-profile 3-node evidence; CI gates; soak-proven ops
 - **Is not:** live public mainnet; audited DeFi; investment product
 - **Evidence ledger:** `docs/EVIDENCE_MATRIX.md`
-- **Banner:** `docs/assets/repo-banner.svg`
+- **Banner:** evergreen `docs/assets/repo-banner.svg` (no version chip)

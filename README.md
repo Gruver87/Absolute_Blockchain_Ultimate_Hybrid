@@ -2,48 +2,13 @@
 
 ![Absolute Blockchain Ultimate Hybrid — Python + Rust L1](docs/assets/repo-banner.svg)
 
-**Hybrid Python + Rust L1 node** — prod-profile mesh, RocksDB, REST/JSON-RPC, `abs_native`, EVM, Docker/K8s. Evidence-first. **Not** a launched public mainnet.
+**Hybrid Python + Rust L1 node** for local prod-profile mesh and evidence-first R&D. **Not** a launched public mainnet.
 
-**Skimmer (30s):** [AT_A_GLANCE](docs/AT_A_GLANCE.md) · **Prove:** `.\scripts\operator_verify.ps1 -SkipNativeBuild` · **Gaps:** [MAINNET_GAP_ANALYSIS](docs/MAINNET_GAP_ANALYSIS.md)
-
-[![Stars](https://img.shields.io/github/stars/Gruver87/Absolute_Blockchain_Ultimate_Hybrid?style=social)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/stargazers)
 [![Release](https://img.shields.io/github/v/release/Gruver87/Absolute_Blockchain_Ultimate_Hybrid?include_prereleases&sort=semver)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Tests CI](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/test.yml)
 [![Docker CI](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/docker-prod-image.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/docker-prod-image.yml)
-[![Security audit](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
-[![Native fuzz](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/fuzz-native.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/fuzz-native.yml)
-[![48h soak](https://img.shields.io/badge/48h%20soak-PASS-brightgreen)](docs/EVIDENCE_MATRIX.md)
-[![v1.3.205](https://img.shields.io/badge/tag-v1.3.205-blue)](RELEASE_NOTES_v1.3.205.md)
-[![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://www.python.org/)
-[![Rust](https://img.shields.io/badge/Rust-abs__native-orange)](native/abs_native)
-
-| | |
-|---|---|
-| **Release** | [v1.3.205](RELEASE_NOTES_v1.3.205.md) · [CHANGELOG](CHANGELOG.md) · [Releases](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases) |
-| **Prove it** | `.\scripts\operator_verify.ps1 -SkipNativeBuild` · `.\scripts\check_all.ps1` · CI badges above |
-| **Run** | `python main.py` → http://localhost:8080 |
-| **Chains** | `77777` lab · `778888` prod-profile (**not** public mainnet) |
-| **Evidence** | [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) · gaps: [MAINNET_GAP_ANALYSIS](docs/MAINNET_GAP_ANALYSIS.md) |
-
----
-
-## 30 seconds — see everything
-
-| | Status | Proof |
-|---|--------|-------|
-| Docker / local mesh | **Proven** | CI · `docker_prod_3node` |
-| 3-node prod-profile (`778888`) | **Proven** | `:18180–18182` |
-| Failover + signed tx + EVM on mesh | **Proven** | Jul 2026 suite |
-| **48h soak** | **PASS** | `logs/soak_report_48h.json` |
-| Public mainnet / listed ABS / external audit | **No** | [gaps](docs/MAINNET_GAP_ANALYSIS.md) |
-| Bridge on live mesh | **OFF** | by design until L1 cutover |
-
-> Not an investment product. ABS = in-repo tokenomics (221M), not a listed asset. No real funds without independent audit.
-
-**Jump:** [Start](#start-in-60-seconds) · [Layout](#repo-layout-skimmers) · [Architecture](#architecture) · [Ops](#operator-cheatsheet) · [Docs](#docs-map) · [Professional posture](docs/REPO_PROFESSIONAL.md) · [Contribute](CONTRIBUTING.md) · [Support](SUPPORT.md)
-
----
+[![Security checks](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
 
 ## Start in 60 seconds
 
@@ -59,6 +24,25 @@ pip install -r requirements.txt && cp .env.example .env
 | **Windows** | `.\scripts\build_native.ps1` | `.\scripts\operator_verify.ps1 -SkipNativeBuild` | `python main.py` |
 
 Explorer: http://localhost:8080 · Mesh: `make mesh-up` or `.\scripts\docker_prod_3node.ps1`
+
+**Skimmer:** [AT_A_GLANCE](docs/AT_A_GLANCE.md) · **Gaps:** [MAINNET_GAP_ANALYSIS](docs/MAINNET_GAP_ANALYSIS.md) · **Release:** [CHANGELOG](CHANGELOG.md)
+
+---
+
+## Proven vs not
+
+| | Status | Proof |
+|---|--------|-------|
+| Docker / local mesh | **Proven** | CI · `docker_prod_3node` |
+| 3-node prod-profile (`778888`) | **Proven** | `:18180–18182` |
+| Failover + signed tx + EVM on mesh | **Proven** | Jul 2026 suite |
+| **48h soak** | **PASS** | `logs/soak_report_48h.json` |
+| Public mainnet / listed ABS / external audit | **No** | [gaps](docs/MAINNET_GAP_ANALYSIS.md) |
+| Bridge on live mesh | **OFF** | by design until L1 cutover |
+
+> Not an investment product. ABS = in-repo tokenomics (221M), not a listed asset. No real funds without independent audit.
+
+**Jump:** [Layout](#repo-layout-skimmers) · [Architecture](#architecture) · [Ops](#operator-cheatsheet) · [Docs](#docs-map) · [Contribute](CONTRIBUTING.md) · [Support](SUPPORT.md)
 
 ---
 
