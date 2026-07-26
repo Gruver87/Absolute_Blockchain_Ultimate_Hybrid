@@ -1274,6 +1274,7 @@ class P2PNode:
         self._catch_up_loop_fail: int = 0
         self._peer_tx_reject: int = 0
         self._mempool_dup_refuse_total: int = 0
+        self._mempool_fee_refuse_total: int = 0
         self._import_block_fail: int = 0
         self._import_offload_total: int = 0
         self.apply_queue = None  # set by AbsoluteNode — serial mine+import
@@ -3317,6 +3318,7 @@ class P2PNode:
 
         v1.3.143: after native shape, skip known hashes before validate_transaction
         (cheap refuse). Soft DoS honesty only — not anti-Sybil / tip proof.
+        v1.3.177: also refuse fee < mempool.min_fee before validate_transaction.
         """
         self._last_tx_wire_reject = ""
         if not native.validate_p2p_wire_tx(data):
@@ -3347,6 +3349,31 @@ class P2PNode:
             except Exception:
                 pass
 
+        # v1.3.177: cheap min-fee refuse before validate_transaction (ECDSA/state).
+        # Soft DoS honesty — not Rust gas priority queue / EIP-1559 lanes.
+        try:
+            fee = float(
+                data.get(
+                    "fee",
+                    gas * getattr(self.config, "gas_price_wei", 0.001),
+                )
+            )
+        except (TypeError, ValueError):
+            fee = 0.0
+        if bool(getattr(self.config, "p2p_mempool_min_fee_refuse", True)):
+            min_fee = 0.0
+            if self.mempool is not None:
+                try:
+                    min_fee = float(getattr(self.mempool, "min_fee", 0) or 0)
+                except (TypeError, ValueError):
+                    min_fee = 0.0
+            if min_fee > 0 and fee < min_fee:
+                self._last_tx_wire_reject = "fee_too_low"
+                self._mempool_fee_refuse_total = int(
+                    getattr(self, "_mempool_fee_refuse_total", 0) or 0
+                ) + 1
+                return None
+
         tx = Transaction(
             from_addr=from_addr,
             to_addr=to_addr,
@@ -3363,7 +3390,6 @@ class P2PNode:
             self._last_tx_wire_reject = str(validation.get("error") or "invalid")
             return None
 
-        fee = float(data.get("fee", gas * getattr(self.config, "gas_price_wei", 0.001)))
         mp_tx = MempoolTransaction(
             tx_hash=tx.hash,
             from_addr=from_addr,
@@ -6038,6 +6064,9 @@ class P2PNode:
             "native_sync_state_wire_only": True,
             "native_mempool_new_tx_rate_primary": True,
             "native_mempool_cheap_refuse": True,
+            "native_mempool_min_fee_refuse": bool(
+                getattr(self.config, "p2p_mempool_min_fee_refuse", True)
+            ),
             "native_tx_sig_before_state": True,
             "native_bootstrap_resilient": True,
             "native_bootstrap_pin_gate": True,
@@ -6194,6 +6223,9 @@ class P2PNode:
             ),
             "mempool_dup_refuse_total": int(
                 getattr(self, "_mempool_dup_refuse_total", 0) or 0
+            ),
+            "mempool_fee_refuse_total": int(
+                getattr(self, "_mempool_fee_refuse_total", 0) or 0
             ),
             "bootstrap_redial_total": int(
                 getattr(self, "_bootstrap_redial_total", 0) or 0

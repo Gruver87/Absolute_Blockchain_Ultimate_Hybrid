@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.176-industrial"
+    node_version: str = "1.3.177-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -117,6 +117,7 @@ class Config:
     p2p_catch_up_contiguous_parent_bind: bool = True  # v1.3.175: +1 catch-up import parent must match tip
     p2p_catch_up_height_continuity_bind: bool = True  # v1.3.176: catch-up import height must equal expected current
     p2p_peers_solicit_only: bool = True           # v1.3.152: refuse unsolicited MSG_PEERS (no dial from push)
+    p2p_mempool_min_fee_refuse: bool = True       # v1.3.177: refuse fee<min_fee before validate_transaction
     p2p_new_block_head_height_bind: bool = True   # v1.3.153: known announce hash ⇒ height must match local header
     p2p_status_head_height_bind: bool = True      # v1.3.155: known status/handshake head ⇒ height must match local header
     p2p_status_head_requires_height: bool = True  # v1.3.161: refuse head-only STATUS when local tip > 0
@@ -404,6 +405,9 @@ class Config:
         )
         self.p2p_peers_solicit_only = env_bool(
             "P2P_PEERS_SOLICIT_ONLY", self.p2p_peers_solicit_only
+        )
+        self.p2p_mempool_min_fee_refuse = env_bool(
+            "P2P_MEMPOOL_MIN_FEE_REFUSE", self.p2p_mempool_min_fee_refuse
         )
         self.p2p_new_block_head_height_bind = env_bool(
             "P2P_NEW_BLOCK_HEAD_HEIGHT_BIND", self.p2p_new_block_head_height_bind

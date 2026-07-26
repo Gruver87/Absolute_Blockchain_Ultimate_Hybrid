@@ -2814,8 +2814,29 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_catch_up_height_continuity_bind (v1.3.176)"
             )
+        # v1.3.177 — mempool min-fee refuse before validate
+        if "fee_too_low" not in p2p_py or "p2p_mempool_min_fee_refuse" not in p2p_py:
+            errors.append(
+                "p2p must refuse fee<min_fee before validate_transaction (v1.3.177)"
+            )
+        if "native_mempool_min_fee_refuse" not in p2p_py:
+            errors.append(
+                "p2p must expose native_mempool_min_fee_refuse (v1.3.177)"
+            )
+        if "p2p_mempool_min_fee_refuse" not in (
+            ROOT / "runtime" / "config.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "config must expose p2p_mempool_min_fee_refuse (v1.3.177)"
+            )
+        if "abs_p2p_native_mempool_min_fee_refuse" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_mempool_min_fee_refuse (v1.3.177)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..176 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..177 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:
