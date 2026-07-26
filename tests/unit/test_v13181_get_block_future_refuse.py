@@ -39,7 +39,7 @@ def test_needles_v13181():
     assert "P2P_GET_BLOCK_FUTURE_REFUSE" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.181.md").read_text(encoding="utf-8")
     assert "1.3.181-industrial" in notes
-    assert Config().node_version.startswith("1.3.181")
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_get_block_future_refuse" in metrics
     assert "abs_p2p_get_block_future_refuse_total" in metrics

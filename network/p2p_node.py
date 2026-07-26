@@ -1278,6 +1278,7 @@ class P2PNode:
         self._mempool_gas_refuse_total: int = 0
         self._get_blocks_future_refuse_total: int = 0
         self._get_block_future_refuse_total: int = 0
+        self._get_blocks_past_tip_clamp_total: int = 0
         self._get_mempool_tip_misaligned_total: int = 0
         self._import_block_fail: int = 0
         self._import_offload_total: int = 0
@@ -3311,6 +3312,20 @@ class P2PNode:
             )
             await peer.send(MSG_BLOCKS, [])
             return
+        # v1.3.182: clamp inclusive end to local tip — no DB fetch above tip.
+        end, clamp_reason = self._get_blocks_past_tip_clamp_end(start, end)
+        if clamp_reason:
+            self._get_blocks_past_tip_clamp_total = int(
+                getattr(self, "_get_blocks_past_tip_clamp_total", 0) or 0
+            ) + 1
+            logger.info(
+                "[P2P] get_blocks past-tip clamp %s peer=%s from=%s end=%s local=%s",
+                clamp_reason,
+                (peer.peer_id or "")[:12],
+                start,
+                end,
+                self.blockchain.get_height() if self.blockchain else 0,
+            )
         blocks = []
         for h in range(start, min(end + 1, start + self.config.sync_batch_size)):
             blk = self.blockchain.get_block(h)
@@ -3355,6 +3370,28 @@ class P2PNode:
         if h > local_h:
             return "get_block_future_height"
         return ""
+
+    def _get_blocks_past_tip_clamp_end(self, from_height: int, to_height: int):
+        """v1.3.182: clamp GET_BLOCKS inclusive end to local tip.
+
+        Soft bandwidth/DoS honesty — no DB lookups for heights above tip
+        inside an otherwise valid from_height window. Not tip proof.
+        Returns (inclusive_end, reason_or_empty).
+        """
+        try:
+            start = int(from_height)
+            end = int(to_height)
+            local_h = int(self.blockchain.get_height() or 0)
+        except (TypeError, ValueError):
+            try:
+                return int(to_height), ""
+            except (TypeError, ValueError):
+                return 0, ""
+        if not bool(getattr(self.config, "p2p_get_blocks_past_tip_clamp", True)):
+            return end, ""
+        if end > local_h and start <= local_h:
+            return local_h, "get_blocks_past_tip_clamp"
+        return end, ""
 
     def _record_tx_propagation(
         self,
@@ -6203,6 +6240,9 @@ class P2PNode:
             "native_get_block_future_refuse": bool(
                 getattr(self.config, "p2p_get_block_future_refuse", True)
             ),
+            "native_get_blocks_past_tip_clamp": bool(
+                getattr(self.config, "p2p_get_blocks_past_tip_clamp", True)
+            ),
             "native_mempool_serve_tip_align": bool(
                 getattr(self.config, "p2p_mempool_serve_tip_align", True)
             ),
@@ -6374,6 +6414,9 @@ class P2PNode:
             ),
             "get_block_future_refuse_total": int(
                 getattr(self, "_get_block_future_refuse_total", 0) or 0
+            ),
+            "get_blocks_past_tip_clamp_total": int(
+                getattr(self, "_get_blocks_past_tip_clamp_total", 0) or 0
             ),
             "get_mempool_tip_misaligned_total": int(
                 getattr(self, "_get_mempool_tip_misaligned_total", 0) or 0

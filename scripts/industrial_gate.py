@@ -2919,8 +2919,29 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_get_block_future_refuse (v1.3.181)"
             )
+        # v1.3.182 — GET_BLOCKS past-tip end clamp
+        if "get_blocks_past_tip_clamp" not in p2p_py:
+            errors.append(
+                "p2p must clamp GET_BLOCKS end to local tip (v1.3.182)"
+            )
+        if "_get_blocks_past_tip_clamp_end" not in p2p_py:
+            errors.append(
+                "p2p must expose _get_blocks_past_tip_clamp_end (v1.3.182)"
+            )
+        if "p2p_get_blocks_past_tip_clamp" not in (
+            ROOT / "runtime" / "config.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "config must expose p2p_get_blocks_past_tip_clamp (v1.3.182)"
+            )
+        if "abs_p2p_native_get_blocks_past_tip_clamp" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_get_blocks_past_tip_clamp (v1.3.182)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..181 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..182 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

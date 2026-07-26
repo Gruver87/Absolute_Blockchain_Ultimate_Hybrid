@@ -1243,6 +1243,18 @@ class MetricsCollector:
                     f"abs_p2p_get_block_future_refuse_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('get_block_future_refuse_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_get_blocks_past_tip_clamp Whether GET_BLOCKS clamps end to local tip (0/1)",
+                "# TYPE abs_p2p_native_get_blocks_past_tip_clamp gauge",
+                (
+                    f"abs_p2p_native_get_blocks_past_tip_clamp{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_get_blocks_past_tip_clamp') else 0}"
+                ),
+                "# HELP abs_p2p_get_blocks_past_tip_clamp_total GET_BLOCKS ranges clamped to local tip",
+                "# TYPE abs_p2p_get_blocks_past_tip_clamp_total counter",
+                (
+                    f"abs_p2p_get_blocks_past_tip_clamp_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('get_blocks_past_tip_clamp_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_mempool_serve_tip_align Whether GET_MEMPOOL requires near tip alignment (0/1)",
                 "# TYPE abs_p2p_native_mempool_serve_tip_align gauge",
                 (

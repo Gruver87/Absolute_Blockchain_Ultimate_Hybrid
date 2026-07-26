@@ -60,8 +60,8 @@ hybrid-blockchain
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.181` — GET_BLOCK future-height refuse |
-| **Notes** | [RELEASE_NOTES_v1.3.181.md](../RELEASE_NOTES_v1.3.181.md) |
+| **Tag** | `v1.3.182` — GET_BLOCKS past-tip end clamp |
+| **Notes** | [RELEASE_NOTES_v1.3.182.md](../RELEASE_NOTES_v1.3.182.md) |
 | **Self-check** | `.\scripts\check_all.ps1` |
 | **Tests** | 1100+ collected (`pytest tests/ --collect-only`) |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` |

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.181 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.182 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -142,6 +142,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13179_mempool_max_gas_refuse.py",
     "tests/unit/test_v13180_get_blocks_future_refuse.py",
     "tests/unit/test_v13181_get_block_future_refuse.py",
+    "tests/unit/test_v13182_get_blocks_past_tip_clamp.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -2753,6 +2754,33 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_get_block_future_refuse_total",
         ],
     ),
+    (
+        "1.3.182",
+        "RELEASE_NOTES_v1.3.182.md",
+        ["1.3.182-industrial", "get_blocks_past_tip_clamp"],
+    ),
+    (
+        "1.3.182",
+        "network/p2p_node.py",
+        [
+            "get_blocks_past_tip_clamp",
+            "_get_blocks_past_tip_clamp_end",
+            "native_get_blocks_past_tip_clamp",
+        ],
+    ),
+    (
+        "1.3.182",
+        "runtime/config.py",
+        ["p2p_get_blocks_past_tip_clamp"],
+    ),
+    (
+        "1.3.182",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_get_blocks_past_tip_clamp",
+            "abs_p2p_get_blocks_past_tip_clamp_total",
+        ],
+    ),
 ]
 
 
@@ -2780,8 +2808,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.181"):
-            errors.append(f"node_version expected 1.3.181-*, got {ver}")
+        if not ver.startswith("1.3.182"):
+            errors.append(f"node_version expected 1.3.182-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

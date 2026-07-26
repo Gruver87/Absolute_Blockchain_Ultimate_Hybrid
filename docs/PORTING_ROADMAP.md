@@ -1075,6 +1075,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_get_block_future_refuse` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 136 — GET_BLOCKS past-tip end clamp ✅ (v1.3.182)
+
+- [x] Inbound `GET_BLOCKS` with `to_height > local tip` clamps inclusive end to tip
+- [x] Clamp reason `get_blocks_past_tip_clamp` (no DB fetch above tip)
+- [x] Config `p2p_get_blocks_past_tip_clamp` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
