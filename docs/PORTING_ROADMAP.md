@@ -1061,6 +1061,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_mempool_max_gas_refuse` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 134 — GET_BLOCKS future-height refuse ✅ (v1.3.180)
+
+- [x] Inbound `GET_BLOCKS` with `from_height > local tip` gets empty reply
+- [x] Refuse `get_blocks_future_height` (no fantasy-future empty loop)
+- [x] Config `p2p_get_blocks_future_refuse` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

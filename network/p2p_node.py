@@ -1276,6 +1276,7 @@ class P2PNode:
         self._mempool_dup_refuse_total: int = 0
         self._mempool_fee_refuse_total: int = 0
         self._mempool_gas_refuse_total: int = 0
+        self._get_blocks_future_refuse_total: int = 0
         self._get_mempool_tip_misaligned_total: int = 0
         self._import_block_fail: int = 0
         self._import_offload_total: int = 0
@@ -3279,12 +3280,46 @@ class P2PNode:
             return
         start = int(rng.get("from_height", 0))
         end = int(rng.get("to_height", start + self.config.sync_batch_size))
+        # v1.3.180: do not serve ranges that start above local tip.
+        refuse = self._get_blocks_future_refuse_reason(start)
+        if refuse:
+            self._get_blocks_future_refuse_total = int(
+                getattr(self, "_get_blocks_future_refuse_total", 0) or 0
+            ) + 1
+            logger.info(
+                "[P2P] get_blocks future refuse %s peer=%s from=%s local=%s",
+                refuse,
+                (peer.peer_id or "")[:12],
+                start,
+                self.blockchain.get_height() if self.blockchain else 0,
+            )
+            await peer.send(MSG_BLOCKS, [])
+            return
         blocks = []
         for h in range(start, min(end + 1, start + self.config.sync_batch_size)):
             blk = self.blockchain.get_block(h)
             if blk:
                 blocks.append(blk)
         await peer.send(MSG_BLOCKS, blocks)
+
+    def _get_blocks_future_refuse_reason(self, from_height: int) -> str:
+        """v1.3.180: GET_BLOCKS from_height must not exceed local tip.
+
+        Soft bandwidth/DoS honesty — fantasy future ranges get empty reply.
+        Not tip proof / Long-Range.
+        """
+        if not bool(getattr(self.config, "p2p_get_blocks_future_refuse", True)):
+            return ""
+        try:
+            start = int(from_height)
+            local_h = int(self.blockchain.get_height() or 0)
+        except (TypeError, ValueError):
+            return ""
+        if start < 0:
+            return ""
+        if start > local_h:
+            return "get_blocks_future_height"
+        return ""
 
     def _record_tx_propagation(
         self,
@@ -6127,6 +6162,9 @@ class P2PNode:
             "native_mempool_max_gas_refuse": bool(
                 getattr(self.config, "p2p_mempool_max_gas_refuse", True)
             ),
+            "native_get_blocks_future_refuse": bool(
+                getattr(self.config, "p2p_get_blocks_future_refuse", True)
+            ),
             "native_mempool_serve_tip_align": bool(
                 getattr(self.config, "p2p_mempool_serve_tip_align", True)
             ),
@@ -6292,6 +6330,9 @@ class P2PNode:
             ),
             "mempool_gas_refuse_total": int(
                 getattr(self, "_mempool_gas_refuse_total", 0) or 0
+            ),
+            "get_blocks_future_refuse_total": int(
+                getattr(self, "_get_blocks_future_refuse_total", 0) or 0
             ),
             "get_mempool_tip_misaligned_total": int(
                 getattr(self, "_get_mempool_tip_misaligned_total", 0) or 0

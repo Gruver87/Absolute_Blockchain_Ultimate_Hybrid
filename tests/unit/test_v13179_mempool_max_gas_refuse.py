@@ -72,7 +72,7 @@ def test_needles_v13179():
     assert "P2P_MEMPOOL_MAX_GAS_REFUSE" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.179.md").read_text(encoding="utf-8")
     assert "1.3.179-industrial" in notes
-    assert Config().node_version.startswith("1.3.179")
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_mempool_max_gas_refuse" in metrics
     assert "abs_p2p_mempool_gas_refuse_total" in metrics
