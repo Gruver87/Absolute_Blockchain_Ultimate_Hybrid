@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.165-industrial"
+    node_version: str = "1.3.166-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -117,6 +117,7 @@ class Config:
     p2p_new_block_head_height_bind: bool = True   # v1.3.153: known announce hash ⇒ height must match local header
     p2p_status_head_height_bind: bool = True      # v1.3.155: known status/handshake head ⇒ height must match local header
     p2p_status_head_requires_height: bool = True  # v1.3.161: refuse head-only STATUS when local tip > 0
+    p2p_handshake_head_requires_height: bool = True  # v1.3.166: refuse head-only handshake when local tip > 0
     p2p_fork_peer_head_probe: bool = True         # v1.3.162: solicit peer.head via get_block_by_hash before same-height fork reorg
     p2p_reconcile_head_hash_bind: bool = True     # v1.3.163: fetched reconcile block hash must match target_head
     p2p_ghost_head_probe: bool = True             # v1.3.164: solicit ghost canonical head via get_block_by_hash before reorg
@@ -391,6 +392,10 @@ class Config:
         )
         self.p2p_status_head_requires_height = env_bool(
             "P2P_STATUS_HEAD_REQUIRES_HEIGHT", self.p2p_status_head_requires_height
+        )
+        self.p2p_handshake_head_requires_height = env_bool(
+            "P2P_HANDSHAKE_HEAD_REQUIRES_HEIGHT",
+            self.p2p_handshake_head_requires_height,
         )
         self.p2p_fork_peer_head_probe = env_bool(
             "P2P_FORK_PEER_HEAD_PROBE", self.p2p_fork_peer_head_probe

@@ -965,6 +965,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_reconcile_contiguous_parent_bind` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 120 — Handshake head requires positive height ✅ (v1.3.166)
+
+- [x] Head-only handshake (`height<=0`) refused when local tip `> 0` (`handshake_head_without_height`)
+- [x] Config `p2p_handshake_head_requires_height` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

@@ -1232,6 +1232,7 @@ class P2PNode:
         self._new_block_contiguous_parent_mismatch_total: int = 0
         self._status_head_height_mismatch_total: int = 0
         self._status_head_without_height_total: int = 0
+        self._handshake_head_without_height_total: int = 0
         self._handshake_height_cap_total: int = 0
         self._state_root_local_rejects_total: int = 0
         self._attestation_slot_ahead_rejects_total: int = 0
@@ -2045,6 +2046,20 @@ class P2PNode:
                 self._handshake_height_cap_total or 0
             ) + 1
             hs_head = ""  # do not install fantasy head with capped height
+        # v1.3.166: head-only handshake (height<=0) refused when local tip > 0.
+        head_only_reason = self._handshake_head_without_height_refuse_reason(
+            hs_head, owned_h, int(our_height or 0)
+        )
+        if head_only_reason:
+            self._handshake_head_without_height_total = int(
+                getattr(self, "_handshake_head_without_height_total", 0) or 0
+            ) + 1
+            self._handshake_rejects += 1
+            self._strike_peer_sync(peer, head_only_reason)
+            print(
+                f"[P2P] Rejected {peer.host}:{peer.port}: {head_only_reason}"
+            )
+            return False
         # v1.3.155: known local head ⇒ claimed height must match (soft ownership).
         if hs_head:
             bind_reason = self._status_head_height_refuse_reason(
@@ -3525,6 +3540,29 @@ class P2PNode:
             return ""
         if self._local_known_head_height_mismatch(block_hash, block_h):
             return str(reason or "status_head_height_mismatch")
+        return ""
+
+    def _handshake_head_without_height_refuse_reason(
+        self, hs_head: str, owned_h: int, local_h: int
+    ) -> str:
+        """v1.3.166: head-only handshake refused when local tip > 0.
+
+        Soft ownership parity with STATUS v1.3.161 — not tip proof / Long-Range.
+        """
+        if not bool(
+            getattr(self.config, "p2p_handshake_head_requires_height", True)
+        ):
+            return ""
+        head = str(hs_head or "").strip()
+        if not head:
+            return ""
+        try:
+            height = int(owned_h)
+            tip = int(local_h)
+        except (TypeError, ValueError):
+            return ""
+        if height <= 0 and tip > 0:
+            return "handshake_head_without_height"
         return ""
 
     def _catch_up_ahead_refuse_reason(self, peer: PeerConnection) -> str:
@@ -5437,6 +5475,9 @@ class P2PNode:
             "native_status_head_requires_height": bool(
                 getattr(self.config, "p2p_status_head_requires_height", True)
             ),
+            "native_handshake_head_requires_height": bool(
+                getattr(self.config, "p2p_handshake_head_requires_height", True)
+            ),
             "native_handshake_height_cap": True,
             "native_status_capped_head_refuse": True,
             "native_attestation_slot_ahead": True,
@@ -5540,6 +5581,9 @@ class P2PNode:
             ),
             "status_head_without_height_total": int(
                 getattr(self, "_status_head_without_height_total", 0) or 0
+            ),
+            "handshake_head_without_height_total": int(
+                getattr(self, "_handshake_head_without_height_total", 0) or 0
             ),
             "handshake_height_cap_total": int(
                 getattr(self, "_handshake_height_cap_total", 0) or 0

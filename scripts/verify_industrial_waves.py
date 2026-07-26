@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.165 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.166 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -126,6 +126,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13163_reconcile_head_hash_bind.py",
     "tests/unit/test_v13164_ghost_head_probe.py",
     "tests/unit/test_v13165_reconcile_contiguous_parent_bind.py",
+    "tests/unit/test_v13166_handshake_head_requires_height.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -2311,6 +2312,33 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_reconcile_contiguous_parent_mismatch_total",
         ],
     ),
+    (
+        "1.3.166",
+        "RELEASE_NOTES_v1.3.166.md",
+        ["1.3.166-industrial", "handshake_head_without_height"],
+    ),
+    (
+        "1.3.166",
+        "network/p2p_node.py",
+        [
+            "handshake_head_without_height",
+            "_handshake_head_without_height_refuse_reason",
+            "native_handshake_head_requires_height",
+        ],
+    ),
+    (
+        "1.3.166",
+        "runtime/config.py",
+        ["p2p_handshake_head_requires_height"],
+    ),
+    (
+        "1.3.166",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_handshake_head_requires_height",
+            "abs_p2p_handshake_head_without_height_total",
+        ],
+    ),
 ]
 
 
@@ -2338,8 +2366,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.165"):
-            errors.append(f"node_version expected 1.3.165-*, got {ver}")
+        if not ver.startswith("1.3.166"):
+            errors.append(f"node_version expected 1.3.166-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

@@ -74,7 +74,7 @@ def test_needles_v13165():
     assert "P2P_RECONCILE_CONTIGUOUS_PARENT_BIND" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.165.md").read_text(encoding="utf-8")
     assert "1.3.165-industrial" in notes
-    assert Config().node_version.startswith("1.3.165")
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_reconcile_contiguous_parent_bind" in metrics
     assert "abs_p2p_reconcile_contiguous_parent_mismatch_total" in metrics
