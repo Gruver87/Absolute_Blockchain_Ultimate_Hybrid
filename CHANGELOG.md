@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.200] — 2026-07-26
+
+### Mempool — max-nonce refuse
+
+- P2P refuses oversized wire `nonce` before `validate_transaction` (`nonce_too_high`)
+- Soft DoS honesty — default 1e12 (MAX_P2P_HEIGHT-style); fantasy nonces fail before DB
+- Honesty: not tip proof / Long-Range / libp2p / public mainnet / nonce-window
+
 ## [1.3.199] — 2026-07-26
 
 ### Mempool — max-to refuse

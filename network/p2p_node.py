@@ -1280,6 +1280,7 @@ class P2PNode:
         self._mempool_calldata_refuse_total: int = 0
         self._mempool_value_refuse_total: int = 0
         self._mempool_nonce_refuse_total: int = 0
+        self._mempool_nonce_high_refuse_total: int = 0
         self._mempool_fee_negative_refuse_total: int = 0
         self._mempool_gas_negative_refuse_total: int = 0
         self._mempool_empty_from_refuse_total: int = 0
@@ -3450,6 +3451,7 @@ class P2PNode:
         v1.3.183: also refuse oversized calldata before validate_transaction.
         v1.3.184: also refuse value < 0 before validate_transaction.
         v1.3.185: also refuse nonce < 0 before validate_transaction.
+        v1.3.200: also refuse oversized nonce before validate_transaction.
         v1.3.186: also refuse fee < 0 before validate_transaction.
         v1.3.187: also refuse gas < 0 before validate_transaction.
         v1.3.188: also refuse empty from address before validate_transaction.
@@ -3716,6 +3718,26 @@ class P2PNode:
                     self._last_tx_wire_reject = "nonce_negative"
                     self._mempool_nonce_refuse_total = int(
                         getattr(self, "_mempool_nonce_refuse_total", 0) or 0
+                    ) + 1
+                    return None
+            except (TypeError, ValueError):
+                pass
+
+        # v1.3.200: cheap max-nonce refuse before validate_transaction.
+        # Soft DoS honesty — fantasy nonces skip cheap before DB; not nonce-window.
+        if bool(getattr(self.config, "p2p_mempool_max_nonce_refuse", True)):
+            try:
+                max_nonce = int(
+                    getattr(self.config, "p2p_mempool_max_nonce", 1_000_000_000_000)
+                    or 1_000_000_000_000
+                )
+            except (TypeError, ValueError):
+                max_nonce = 1_000_000_000_000
+            try:
+                if max_nonce > 0 and int(nonce) > max_nonce:
+                    self._last_tx_wire_reject = "nonce_too_high"
+                    self._mempool_nonce_high_refuse_total = int(
+                        getattr(self, "_mempool_nonce_high_refuse_total", 0) or 0
                     ) + 1
                     return None
             except (TypeError, ValueError):
@@ -6517,6 +6539,9 @@ class P2PNode:
             "native_mempool_negative_nonce_refuse": bool(
                 getattr(self.config, "p2p_mempool_negative_nonce_refuse", True)
             ),
+            "native_mempool_max_nonce_refuse": bool(
+                getattr(self.config, "p2p_mempool_max_nonce_refuse", True)
+            ),
             "native_mempool_negative_fee_refuse": bool(
                 getattr(self.config, "p2p_mempool_negative_fee_refuse", True)
             ),
@@ -6742,6 +6767,9 @@ class P2PNode:
             ),
             "mempool_nonce_refuse_total": int(
                 getattr(self, "_mempool_nonce_refuse_total", 0) or 0
+            ),
+            "mempool_nonce_high_refuse_total": int(
+                getattr(self, "_mempool_nonce_high_refuse_total", 0) or 0
             ),
             "mempool_fee_negative_refuse_total": int(
                 getattr(self, "_mempool_fee_negative_refuse_total", 0) or 0

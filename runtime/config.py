@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.199-industrial"
+    node_version: str = "1.3.200-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -123,6 +123,8 @@ class Config:
     p2p_mempool_max_calldata_bytes: int = 131072  # v1.3.183: max wire calldata bytes (128 KiB)
     p2p_mempool_negative_value_refuse: bool = True  # v1.3.184: refuse value<0 before validate_transaction
     p2p_mempool_negative_nonce_refuse: bool = True  # v1.3.185: refuse nonce<0 before validate_transaction
+    p2p_mempool_max_nonce_refuse: bool = True       # v1.3.200: refuse oversized nonce before validate_transaction
+    p2p_mempool_max_nonce: int = 1_000_000_000_000 # v1.3.200: max wire nonce (align MAX_P2P_HEIGHT style)
     p2p_mempool_negative_fee_refuse: bool = True    # v1.3.186: refuse fee<0 before validate_transaction
     p2p_mempool_negative_gas_refuse: bool = True    # v1.3.187: refuse gas<0 before validate_transaction
     p2p_mempool_empty_from_refuse: bool = True      # v1.3.188: refuse empty from before validate_transaction
@@ -454,6 +456,14 @@ class Config:
         self.p2p_mempool_negative_nonce_refuse = env_bool(
             "P2P_MEMPOOL_NEGATIVE_NONCE_REFUSE",
             self.p2p_mempool_negative_nonce_refuse,
+        )
+        self.p2p_mempool_max_nonce_refuse = env_bool(
+            "P2P_MEMPOOL_MAX_NONCE_REFUSE",
+            self.p2p_mempool_max_nonce_refuse,
+        )
+        self.p2p_mempool_max_nonce = env_int(
+            "P2P_MEMPOOL_MAX_NONCE",
+            self.p2p_mempool_max_nonce,
         )
         self.p2p_mempool_negative_fee_refuse = env_bool(
             "P2P_MEMPOOL_NEGATIVE_FEE_REFUSE",
