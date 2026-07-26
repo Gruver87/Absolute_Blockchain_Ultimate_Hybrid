@@ -1277,6 +1277,7 @@ class P2PNode:
         self._mempool_fee_refuse_total: int = 0
         self._mempool_gas_refuse_total: int = 0
         self._mempool_calldata_refuse_total: int = 0
+        self._mempool_value_refuse_total: int = 0
         self._get_blocks_future_refuse_total: int = 0
         self._get_block_future_refuse_total: int = 0
         self._get_blocks_past_tip_clamp_total: int = 0
@@ -3431,6 +3432,7 @@ class P2PNode:
         v1.3.177: also refuse fee < mempool.min_fee before validate_transaction.
         v1.3.179: also refuse gas > evm_gas_limit before validate_transaction.
         v1.3.183: also refuse oversized calldata before validate_transaction.
+        v1.3.184: also refuse value < 0 before validate_transaction.
         """
         self._last_tx_wire_reject = ""
         if not native.validate_p2p_wire_tx(data):
@@ -3518,6 +3520,19 @@ class P2PNode:
                     getattr(self, "_mempool_calldata_refuse_total", 0) or 0
                 ) + 1
                 return None
+
+        # v1.3.184: cheap negative-value refuse before validate_transaction.
+        # Soft DoS honesty — not amount-cap economics / full tokenomics port.
+        if bool(getattr(self.config, "p2p_mempool_negative_value_refuse", True)):
+            try:
+                if float(value) < 0.0:
+                    self._last_tx_wire_reject = "value_negative"
+                    self._mempool_value_refuse_total = int(
+                        getattr(self, "_mempool_value_refuse_total", 0) or 0
+                    ) + 1
+                    return None
+            except (TypeError, ValueError):
+                pass
 
         tx = Transaction(
             from_addr=from_addr,
@@ -6269,6 +6284,9 @@ class P2PNode:
             "native_mempool_max_calldata_refuse": bool(
                 getattr(self.config, "p2p_mempool_max_calldata_refuse", True)
             ),
+            "native_mempool_negative_value_refuse": bool(
+                getattr(self.config, "p2p_mempool_negative_value_refuse", True)
+            ),
             "native_get_blocks_future_refuse": bool(
                 getattr(self.config, "p2p_get_blocks_future_refuse", True)
             ),
@@ -6446,6 +6464,9 @@ class P2PNode:
             ),
             "mempool_calldata_refuse_total": int(
                 getattr(self, "_mempool_calldata_refuse_total", 0) or 0
+            ),
+            "mempool_value_refuse_total": int(
+                getattr(self, "_mempool_value_refuse_total", 0) or 0
             ),
             "get_blocks_future_refuse_total": int(
                 getattr(self, "_get_blocks_future_refuse_total", 0) or 0

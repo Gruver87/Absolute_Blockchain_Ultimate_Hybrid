@@ -2961,8 +2961,29 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_mempool_max_calldata_refuse (v1.3.183)"
             )
+        # v1.3.184 — mempool negative-value refuse before validate
+        if "value_negative" not in p2p_py:
+            errors.append(
+                "p2p must refuse value<0 before validate (v1.3.184)"
+            )
+        if "p2p_mempool_negative_value_refuse" not in p2p_py:
+            errors.append(
+                "p2p must gate on p2p_mempool_negative_value_refuse (v1.3.184)"
+            )
+        if "p2p_mempool_negative_value_refuse" not in (
+            ROOT / "runtime" / "config.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "config must expose p2p_mempool_negative_value_refuse (v1.3.184)"
+            )
+        if "abs_p2p_native_mempool_negative_value_refuse" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_mempool_negative_value_refuse (v1.3.184)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..183 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..184 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

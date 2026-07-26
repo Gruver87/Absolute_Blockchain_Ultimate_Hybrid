@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""v1.3.183: P2P refuses oversized calldata before validate_transaction."""
+"""v1.3.184: P2P refuses value<0 before validate_transaction."""
 
 from __future__ import annotations
 
@@ -16,16 +16,16 @@ from network.p2p_node import P2PNode
 from runtime.config import Config
 
 
-def _node(*, max_cd: int = 64) -> P2PNode:
+def _node() -> P2PNode:
     cfg = Config()
     cfg.p2p_native_transport = False
     cfg.require_native_crypto = False
     cfg.deployment_mode = "dev"
     cfg.bootstrap_peers = []
-    cfg.p2p_mempool_max_calldata_refuse = True
-    cfg.p2p_mempool_max_calldata_bytes = max_cd
+    cfg.p2p_mempool_negative_value_refuse = True
     cfg.p2p_mempool_min_fee_refuse = False
     cfg.p2p_mempool_max_gas_refuse = False
+    cfg.p2p_mempool_max_calldata_refuse = False
     chain = MagicMock()
     chain.get_height.return_value = 1
     chain.get_state_root.return_value = "ee" * 32
@@ -36,18 +36,18 @@ def _node(*, max_cd: int = 64) -> P2PNode:
     return P2PNode(cfg, chain, mp)
 
 
-def _wire(*, data: str, fee: float = 1.0, tx_hash: str = "ab" * 32) -> dict:
+def _wire(*, value, fee: float = 1.0, tx_hash: str = "ab" * 32) -> dict:
     return {
         "from": "0x" + "11" * 20,
         "to": "0x" + "22" * 20,
-        "value": 1,
+        "value": value,
         "nonce": 0,
         "gas": 21_000,
         "fee": fee,
         "signature": "sig",
         "public_key": "pk",
         "hash": tx_hash,
-        "data": data,
+        "data": "",
     }
 
 
@@ -62,43 +62,41 @@ def _build(node: P2PNode, payload: dict):
         native.validate_p2p_wire_tx = orig  # type: ignore
 
 
-def test_needles_v13183():
+def test_needles_v13184():
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
-    assert "calldata_too_large" in p2p
-    assert "_wire_calldata_byte_len" in p2p
-    assert "native_mempool_max_calldata_refuse" in p2p
-    assert "_mempool_calldata_refuse_total" in p2p
+    assert "value_negative" in p2p
+    assert "p2p_mempool_negative_value_refuse" in p2p
+    assert "native_mempool_negative_value_refuse" in p2p
+    assert "_mempool_value_refuse_total" in p2p
     cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "p2p_mempool_max_calldata_refuse" in cfg
-    assert "P2P_MEMPOOL_MAX_CALLDATA_REFUSE" in cfg
-    assert "p2p_mempool_max_calldata_bytes" in cfg
-    notes = (ROOT / "RELEASE_NOTES_v1.3.183.md").read_text(encoding="utf-8")
-    assert "1.3.183-industrial" in notes
-    assert Config().node_version.startswith("1.3.")
+    assert "p2p_mempool_negative_value_refuse" in cfg
+    assert "P2P_MEMPOOL_NEGATIVE_VALUE_REFUSE" in cfg
+    notes = (ROOT / "RELEASE_NOTES_v1.3.184.md").read_text(encoding="utf-8")
+    assert "1.3.184-industrial" in notes
+    assert Config().node_version.startswith("1.3.184")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
-    assert "abs_p2p_native_mempool_max_calldata_refuse" in metrics
-    assert "abs_p2p_mempool_calldata_refuse_total" in metrics
+    assert "abs_p2p_native_mempool_negative_value_refuse" in metrics
+    assert "abs_p2p_mempool_value_refuse_total" in metrics
 
 
-def test_refuse_oversized_hex_before_validate():
-    node = _node(max_cd=16)
-    # 0x + 40 hex chars => 20 bytes > 16
-    out = _build(node, _wire(data="0x" + "ab" * 20))
+def test_refuse_negative_value_before_validate():
+    node = _node()
+    out = _build(node, _wire(value=-1))
     assert out is None
-    assert node._last_tx_wire_reject == "calldata_too_large"
-    assert node._mempool_calldata_refuse_total >= 1
+    assert node._last_tx_wire_reject == "value_negative"
+    assert node._mempool_value_refuse_total >= 1
     node.blockchain.validate_transaction.assert_not_called()
 
 
-def test_ok_small_calldata_reaches_validate():
-    node = _node(max_cd=64)
-    out = _build(node, _wire(data="0x" + "cd" * 8))
-    assert out is not None
-    node.blockchain.validate_transaction.assert_called()
-    assert node._mempool_calldata_refuse_total == 0
+def test_ok_zero_and_positive_reach_validate():
+    node = _node()
+    assert _build(node, _wire(value=0, tx_hash="cd" * 32)) is not None
+    assert _build(node, _wire(value=1.5, tx_hash="ef" * 32)) is not None
+    assert node.blockchain.validate_transaction.call_count == 2
+    assert node._mempool_value_refuse_total == 0
 
 
 def test_security_status_gauge():
     node = _node()
     st = node.get_p2p_security_status()
-    assert st.get("native_mempool_max_calldata_refuse") is True
+    assert st.get("native_mempool_negative_value_refuse") is True
