@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.203] — 2026-07-26
+
+### Mempool — unparseable-gas refuse
+
+- P2P refuses Inf/junk `gas` before `validate_transaction` (`gas_unparseable`)
+- Soft DoS honesty — no OverflowError into ingest; complements gas_negative / gas_too_high
+- Honesty: not tip proof / Long-Range / libp2p / public mainnet / Rust gas PQ
+
 ## [1.3.202] — 2026-07-26
 
 ### Mempool — max-value refuse

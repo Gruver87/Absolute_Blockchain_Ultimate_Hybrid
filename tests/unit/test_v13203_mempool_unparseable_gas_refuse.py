@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""v1.3.202: P2P refuses oversized value before validate_transaction."""
+"""v1.3.203: P2P refuses unparseable gas before validate_transaction."""
 
 from __future__ import annotations
 
@@ -22,8 +22,10 @@ def _node() -> P2PNode:
     cfg.require_native_crypto = False
     cfg.deployment_mode = "dev"
     cfg.bootstrap_peers = []
-    cfg.p2p_mempool_max_value_refuse = True
-    cfg.p2p_mempool_max_value = 221_000_000.0
+    cfg.p2p_mempool_unparseable_gas_refuse = True
+    cfg.p2p_mempool_negative_gas_refuse = False
+    cfg.p2p_mempool_max_gas_refuse = False
+    cfg.p2p_mempool_max_value_refuse = False
     cfg.p2p_mempool_negative_value_refuse = False
     cfg.p2p_mempool_nonfinite_value_refuse = False
     cfg.p2p_mempool_max_fee_refuse = False
@@ -40,11 +42,9 @@ def _node() -> P2PNode:
     cfg.p2p_mempool_empty_pubkey_refuse = False
     cfg.p2p_mempool_max_sig_refuse = False
     cfg.p2p_mempool_max_pubkey_refuse = False
-    cfg.p2p_mempool_max_gas_refuse = False
     cfg.p2p_mempool_max_calldata_refuse = False
     cfg.p2p_mempool_negative_nonce_refuse = False
     cfg.p2p_mempool_max_nonce_refuse = False
-    cfg.p2p_mempool_negative_gas_refuse = False
     chain = MagicMock()
     chain.get_height.return_value = 1
     chain.get_state_root.return_value = "ee" * 32
@@ -55,13 +55,13 @@ def _node() -> P2PNode:
     return P2PNode(cfg, chain, mp)
 
 
-def _wire(*, value: float, fee: float = 1.0, tx_hash: str = "ab" * 32) -> dict:
+def _wire(*, gas, fee: float = 1.0, tx_hash: str = "ab" * 32) -> dict:
     return {
         "from": "0x" + "11" * 20,
         "to": "0x" + "22" * 20,
-        "value": value,
+        "value": 1,
         "nonce": 0,
-        "gas": 21_000,
+        "gas": gas,
         "fee": fee,
         "signature": "sig",
         "public_key": "pk",
@@ -81,42 +81,48 @@ def _build(node: P2PNode, payload: dict):
         native.validate_p2p_wire_tx = orig  # type: ignore
 
 
-def test_needles_v13202():
+def test_needles_v13203():
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
-    assert "value_too_high" in p2p
-    assert "p2p_mempool_max_value_refuse" in p2p
-    assert "native_mempool_max_value_refuse" in p2p
-    assert "_mempool_value_high_refuse_total" in p2p
+    assert "gas_unparseable" in p2p
+    assert "p2p_mempool_unparseable_gas_refuse" in p2p
+    assert "native_mempool_unparseable_gas_refuse" in p2p
+    assert "_mempool_gas_unparseable_refuse_total" in p2p
     cfg = (ROOT / "runtime" / "config.py").read_text(encoding="utf-8")
-    assert "p2p_mempool_max_value_refuse" in cfg
-    assert "p2p_mempool_max_value" in cfg
-    assert "P2P_MEMPOOL_MAX_VALUE_REFUSE" in cfg
-    notes = (ROOT / "RELEASE_NOTES_v1.3.202.md").read_text(encoding="utf-8")
-    assert "1.3.202-industrial" in notes
-    assert Config().node_version.startswith("1.3.")
+    assert "p2p_mempool_unparseable_gas_refuse" in cfg
+    assert "P2P_MEMPOOL_UNPARSEABLE_GAS_REFUSE" in cfg
+    notes = (ROOT / "RELEASE_NOTES_v1.3.203.md").read_text(encoding="utf-8")
+    assert "1.3.203-industrial" in notes
+    assert Config().node_version.startswith("1.3.203")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
-    assert "abs_p2p_native_mempool_max_value_refuse" in metrics
-    assert "abs_p2p_mempool_value_high_refuse_total" in metrics
+    assert "abs_p2p_native_mempool_unparseable_gas_refuse" in metrics
+    assert "abs_p2p_mempool_gas_unparseable_refuse_total" in metrics
 
 
-def test_refuse_oversized_value_before_validate():
+def test_refuse_inf_gas_before_validate():
     node = _node()
-    out = _build(node, _wire(value=221_000_000.1))
+    out = _build(node, _wire(gas=float("inf")))
     assert out is None
-    assert node._last_tx_wire_reject == "value_too_high"
-    assert node._mempool_value_high_refuse_total >= 1
+    assert node._last_tx_wire_reject == "gas_unparseable"
+    assert node._mempool_gas_unparseable_refuse_total >= 1
     node.blockchain.validate_transaction.assert_not_called()
 
 
-def test_ok_max_value_reaches_validate():
+def test_refuse_junk_gas_before_validate():
     node = _node()
-    out = _build(node, _wire(value=221_000_000.0, tx_hash="cd" * 32))
+    out = _build(node, _wire(gas="not-a-number", tx_hash="cd" * 32))
+    assert out is None
+    assert node._last_tx_wire_reject == "gas_unparseable"
+
+
+def test_ok_int_gas_reaches_validate():
+    node = _node()
+    out = _build(node, _wire(gas=21_000, tx_hash="ef" * 32))
     assert out is not None
     node.blockchain.validate_transaction.assert_called()
-    assert node._mempool_value_high_refuse_total == 0
+    assert node._mempool_gas_unparseable_refuse_total == 0
 
 
 def test_security_status_gauge():
     node = _node()
     st = node.get_p2p_security_status()
-    assert st.get("native_mempool_max_value_refuse") is True
+    assert st.get("native_mempool_unparseable_gas_refuse") is True

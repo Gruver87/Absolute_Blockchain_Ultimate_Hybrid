@@ -1222,6 +1222,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_mempool_max_value_refuse` / `p2p_mempool_max_value` (default on / 221M)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 157 — Mempool unparseable-gas refuse before validate ✅ (v1.3.203)
+
+- [x] P2P wire txs with Inf/junk `gas` refused before `validate_transaction`
+- [x] Refuse `gas_unparseable` (cheap DoS path; no OverflowError into ingest)
+- [x] Config `p2p_mempool_unparseable_gas_refuse` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
