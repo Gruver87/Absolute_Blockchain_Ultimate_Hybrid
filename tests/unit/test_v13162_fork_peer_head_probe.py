@@ -71,7 +71,7 @@ def test_needles_v13162():
     assert "P2P_FORK_PEER_HEAD_PROBE" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.162.md").read_text(encoding="utf-8")
     assert "1.3.162-industrial" in notes
-    assert Config().node_version.startswith("1.3.162")
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_fork_peer_head_probe" in metrics
     assert "abs_p2p_fork_peer_head_probe_refuse_total" in metrics

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.162 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.163 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -123,6 +123,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13160_new_block_contiguous_parent_bind.py",
     "tests/unit/test_v13161_status_head_requires_height.py",
     "tests/unit/test_v13162_fork_peer_head_probe.py",
+    "tests/unit/test_v13163_reconcile_head_hash_bind.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -2227,6 +2228,33 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_fork_peer_head_probe_refuse_total",
         ],
     ),
+    (
+        "1.3.163",
+        "RELEASE_NOTES_v1.3.163.md",
+        ["1.3.163-industrial", "reconcile_head_hash_mismatch"],
+    ),
+    (
+        "1.3.163",
+        "network/p2p_node.py",
+        [
+            "reconcile_head_hash_mismatch",
+            "_reconcile_fetched_head_refuse_reason",
+            "native_reconcile_head_hash_bind",
+        ],
+    ),
+    (
+        "1.3.163",
+        "runtime/config.py",
+        ["p2p_reconcile_head_hash_bind"],
+    ),
+    (
+        "1.3.163",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_reconcile_head_hash_bind",
+            "abs_p2p_reconcile_head_hash_mismatch_total",
+        ],
+    ),
 ]
 
 
@@ -2254,8 +2282,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.162"):
-            errors.append(f"node_version expected 1.3.162-*, got {ver}")
+        if not ver.startswith("1.3.163"):
+            errors.append(f"node_version expected 1.3.163-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

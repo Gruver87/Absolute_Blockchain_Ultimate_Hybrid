@@ -1244,6 +1244,7 @@ class P2PNode:
         self._catch_up_tip_probe_refuse_total: int = 0
         self._catch_up_peer_head_probe_refuse_total: int = 0
         self._fork_peer_head_probe_refuse_total: int = 0
+        self._reconcile_head_hash_mismatch_total: int = 0
         self._bootstrap_redial_total: int = 0
         self._bootstrap_pin_rejects_total: int = 0
         self._handshake_rejects: int = 0
@@ -3719,6 +3720,25 @@ class P2PNode:
                 getattr(self, "_fork_peer_head_probe_refuse_total", 0) or 0
             ) + 1
 
+    def _reconcile_fetched_head_refuse_reason(
+        self, target_head: str, peer_block: Dict
+    ) -> str:
+        """v1.3.163: fetched reconcile block hash must match target_head.
+
+        Soft ownership — not tip proof / Long-Range.
+        """
+        if not bool(getattr(self.config, "p2p_reconcile_head_hash_bind", True)):
+            return ""
+        want = str(target_head or "").strip()
+        if not want or not isinstance(peer_block, dict):
+            return ""
+        got = str(
+            peer_block.get("hash") or peer_block.get("block_hash") or ""
+        ).strip()
+        if got and got.lower() != want.lower():
+            return "reconcile_head_hash_mismatch"
+        return ""
+
     def _schedule_sync(self, peer: PeerConnection) -> None:
         """Coalesce duplicate sync tasks per peer (v1.3.66) + global inflight cap (v1.3.72)."""
         refuse = self._catch_up_ahead_refuse_reason(peer)
@@ -4025,6 +4045,21 @@ class P2PNode:
                     break
         if not peer_block:
             print(f"[P2P] Could not fetch head block {target_head[:12]} for reconcile")
+            return False
+
+        # v1.3.163: fetched body hash must match target_head before reorg.
+        bind_reason = self._reconcile_fetched_head_refuse_reason(
+            target_head, peer_block
+        )
+        if bind_reason:
+            self._reconcile_head_hash_mismatch_total = int(
+                getattr(self, "_reconcile_head_hash_mismatch_total", 0) or 0
+            ) + 1
+            logger.info(
+                "[P2P] reconcile refuse %s target=%s",
+                bind_reason,
+                target_head[:16],
+            )
             return False
 
         block_h = int(peer_block.get("height", peer_block.get("number", 0)))
@@ -5297,6 +5332,9 @@ class P2PNode:
             "native_fork_peer_head_probe": bool(
                 getattr(self.config, "p2p_fork_peer_head_probe", True)
             ),
+            "native_reconcile_head_hash_bind": bool(
+                getattr(self.config, "p2p_reconcile_head_hash_bind", True)
+            ),
             "native_catch_up_head_height_bind": True,
             "native_sync_heads_no_invent": True,
             "native_sync_state_wire_only": True,
@@ -5403,6 +5441,9 @@ class P2PNode:
             ),
             "fork_peer_head_probe_refuse_total": int(
                 getattr(self, "_fork_peer_head_probe_refuse_total", 0) or 0
+            ),
+            "reconcile_head_hash_mismatch_total": int(
+                getattr(self, "_reconcile_head_hash_mismatch_total", 0) or 0
             ),
             "heads_skipped_no_head": int(
                 getattr(getattr(self, "sync_engine", None), "_heads_skipped_no_head", 0)

@@ -944,6 +944,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_fork_peer_head_probe` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 117 — Reconcile fetched head hash bind ✅ (v1.3.163)
+
+- [x] After fetch for `target_head`, refuse reorg if body hash ≠ target (`reconcile_head_hash_mismatch`)
+- [x] Covers GHOST + fork paths via `_reconcile_to_head_hash`
+- [x] Config `p2p_reconcile_head_hash_bind` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

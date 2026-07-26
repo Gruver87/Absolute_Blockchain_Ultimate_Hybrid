@@ -1003,6 +1003,18 @@ class MetricsCollector:
                     f"abs_p2p_fork_peer_head_probe_refuse_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('fork_peer_head_probe_refuse_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_reconcile_head_hash_bind Whether reconcile refuses fetched head hash mismatch (0/1)",
+                "# TYPE abs_p2p_native_reconcile_head_hash_bind gauge",
+                (
+                    f"abs_p2p_native_reconcile_head_hash_bind{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_reconcile_head_hash_bind') else 0}"
+                ),
+                "# HELP abs_p2p_reconcile_head_hash_mismatch_total Reconcile refused when fetched block hash != target_head",
+                "# TYPE abs_p2p_reconcile_head_hash_mismatch_total counter",
+                (
+                    f"abs_p2p_reconcile_head_hash_mismatch_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('reconcile_head_hash_mismatch_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_sync_heads_no_invent Whether SyncEngine refuses inventing peer.head from local blocks (0/1)",
                 "# TYPE abs_p2p_native_sync_heads_no_invent gauge",
                 (
