@@ -1027,6 +1027,18 @@ class MetricsCollector:
                     f"abs_p2p_native_catch_up_peer_head_parent_bind{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_catch_up_peer_head_parent_bind') else 0}"
                 ),
+                "# HELP abs_p2p_native_catch_up_tip_head_bind Whether catch-up completion requires tip==peer.head (0/1)",
+                "# TYPE abs_p2p_native_catch_up_tip_head_bind gauge",
+                (
+                    f"abs_p2p_native_catch_up_tip_head_bind{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_catch_up_tip_head_bind') else 0}"
+                ),
+                "# HELP abs_p2p_catch_up_tip_head_mismatch_total Catch-up height-complete refused when tip hash != peer.head",
+                "# TYPE abs_p2p_catch_up_tip_head_mismatch_total counter",
+                (
+                    f"abs_p2p_catch_up_tip_head_mismatch_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('catch_up_tip_head_mismatch_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_fork_peer_head_probe Whether same-height fork solicits peer.head first (0/1)",
                 "# TYPE abs_p2p_native_fork_peer_head_probe gauge",
                 (

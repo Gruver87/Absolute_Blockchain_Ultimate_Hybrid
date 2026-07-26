@@ -1005,6 +1005,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_reconcile_same_height_parent_bind` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 126 — Catch-up tip-head bind ✅ (v1.3.172)
+
+- [x] After catch-up to `peer.height`, local tip hash must match `peer.head`
+- [x] Refuse `catch_up_tip_head_mismatch` (import-loop + post-loop)
+- [x] Config `p2p_catch_up_tip_head_bind` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

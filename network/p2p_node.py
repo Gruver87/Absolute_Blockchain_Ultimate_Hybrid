@@ -1246,6 +1246,7 @@ class P2PNode:
         self._catch_up_head_height_mismatch_total: int = 0
         self._catch_up_tip_probe_refuse_total: int = 0
         self._catch_up_peer_head_probe_refuse_total: int = 0
+        self._catch_up_tip_head_mismatch_total: int = 0
         self._fork_peer_head_probe_refuse_total: int = 0
         self._reconcile_head_hash_mismatch_total: int = 0
         self._ghost_head_probe_refuse_total: int = 0
@@ -3726,6 +3727,38 @@ class P2PNode:
             self._catch_up_peer_head_probe_refuse_total = int(
                 getattr(self, "_catch_up_peer_head_probe_refuse_total", 0) or 0
             ) + 1
+        elif r == "catch_up_tip_head_mismatch":
+            self._catch_up_tip_head_mismatch_total = int(
+                getattr(self, "_catch_up_tip_head_mismatch_total", 0) or 0
+            ) + 1
+
+    def _catch_up_tip_head_refuse_reason(self, peer: PeerConnection) -> str:
+        """v1.3.172: after catch-up to peer.height, local tip must match peer.head.
+
+        Soft ownership — height-complete without tip digest is greenwash.
+        Not tip proof / Long-Range. Only binds when tip == peer.height
+        (exact completion) to avoid racing tip advance false refuses.
+        """
+        if not bool(getattr(self.config, "p2p_catch_up_tip_head_bind", True)):
+            return ""
+        peer_head = str(getattr(peer, "head", "") or "").strip()
+        if not peer_head:
+            return ""
+        try:
+            tip_h = int(self.blockchain.get_height() or 0)
+            peer_h = int(getattr(peer, "height", 0) or 0)
+        except (TypeError, ValueError):
+            return ""
+        if tip_h <= 0 or peer_h <= 0 or tip_h != peer_h:
+            return ""
+        local_tip = ""
+        try:
+            local_tip = str(self.head() or "").strip()
+        except Exception:
+            local_tip = ""
+        if local_tip and local_tip.lower() != peer_head.lower():
+            return "catch_up_tip_head_mismatch"
+        return ""
 
     async def _catch_up_local_tip_probe_refuse_reason(
         self, peer: PeerConnection
@@ -4294,6 +4327,49 @@ class P2PNode:
             imported_any = False
             for block_data in blocks_data:
                 try:
+                    # v1.3.172: block at claimed peer.height must cite peer.head.
+                    try:
+                        cand_h = int(
+                            block_data.get(
+                                "height", block_data.get("number", -1)
+                            )
+                            or -1
+                        )
+                        peer_h = int(getattr(peer, "height", 0) or 0)
+                    except (TypeError, ValueError):
+                        cand_h, peer_h = -1, -1
+                    if (
+                        cand_h >= 0
+                        and peer_h >= 0
+                        and cand_h == peer_h
+                        and bool(
+                            getattr(
+                                self.config, "p2p_catch_up_tip_head_bind", True
+                            )
+                        )
+                    ):
+                        want = str(getattr(peer, "head", "") or "").strip()
+                        got = str(
+                            block_data.get("hash")
+                            or block_data.get("block_hash")
+                            or ""
+                        ).strip()
+                        if (
+                            want
+                            and got
+                            and want.lower() != got.lower()
+                        ):
+                            self._bump_catch_up_refuse(
+                                "catch_up_tip_head_mismatch"
+                            )
+                            logger.info(
+                                "[P2P] catch-up tip-head refuse at import "
+                                "peer=%s want=%s got=%s",
+                                (peer.peer_id or "")[:12],
+                                want[:16],
+                                got[:16],
+                            )
+                            break
                     if await self._import_block_async(block_data):
                         h = block_data.get("height", block_data.get("number", current))
                         current = int(h) + 1
@@ -4344,6 +4420,19 @@ class P2PNode:
         tip = self.blockchain.get_height()
         target = int(peer.height or 0)
         reached_target = tip >= target
+        # v1.3.172: height-complete still requires tip digest == peer.head.
+        if reached_target:
+            tip_head_refuse = self._catch_up_tip_head_refuse_reason(peer)
+            if tip_head_refuse:
+                self._bump_catch_up_refuse(tip_head_refuse)
+                logger.info(
+                    "[P2P] catch-up tip-head refuse %s peer=%s tip=%s head=%s",
+                    tip_head_refuse,
+                    (peer.peer_id or "")[:12],
+                    (self.head() or "")[:16],
+                    (getattr(peer, "head", "") or "")[:16],
+                )
+                reached_target = False
         if reached_target:
             print(f"[P2P] Sync complete. Our height: {tip}")
         else:
@@ -5717,6 +5806,9 @@ class P2PNode:
             "native_catch_up_peer_head_parent_bind": bool(
                 getattr(self.config, "p2p_catch_up_peer_head_parent_bind", True)
             ),
+            "native_catch_up_tip_head_bind": bool(
+                getattr(self.config, "p2p_catch_up_tip_head_bind", True)
+            ),
             "native_fork_peer_head_probe": bool(
                 getattr(self.config, "p2p_fork_peer_head_probe", True)
             ),
@@ -5853,6 +5945,9 @@ class P2PNode:
             ),
             "catch_up_peer_head_probe_refuse_total": int(
                 getattr(self, "_catch_up_peer_head_probe_refuse_total", 0) or 0
+            ),
+            "catch_up_tip_head_mismatch_total": int(
+                getattr(self, "_catch_up_tip_head_mismatch_total", 0) or 0
             ),
             "fork_peer_head_probe_refuse_total": int(
                 getattr(self, "_fork_peer_head_probe_refuse_total", 0) or 0

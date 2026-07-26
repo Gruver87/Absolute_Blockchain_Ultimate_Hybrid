@@ -77,7 +77,7 @@ def test_needles_v13171():
     assert "P2P_RECONCILE_SAME_HEIGHT_PARENT_BIND" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.171.md").read_text(encoding="utf-8")
     assert "1.3.171-industrial" in notes
-    assert Config().node_version.startswith("1.3.171")
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_reconcile_same_height_parent_bind" in metrics
     assert "abs_p2p_reconcile_same_height_parent_mismatch_total" in metrics
