@@ -1096,6 +1096,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_mempool_negative_value_refuse` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 139 — Mempool negative-nonce refuse before validate ✅ (v1.3.185)
+
+- [x] P2P wire txs with `nonce < 0` refused before `validate_transaction`
+- [x] Refuse `nonce_negative` (cheap DoS path; not account-nonce window)
+- [x] Config `p2p_mempool_negative_nonce_refuse` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
