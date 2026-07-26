@@ -67,7 +67,7 @@ def test_needles_v13154():
     assert "P2P_CATCH_UP_PEER_HEAD_PROBE" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.154.md").read_text(encoding="utf-8")
     assert "1.3.154-industrial" in notes
-    assert Config().node_version.startswith("1.3.154")
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_catch_up_peer_head_probe" in metrics
     assert "abs_p2p_catch_up_peer_head_probe_refuse_total" in metrics

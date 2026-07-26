@@ -1228,6 +1228,7 @@ class P2PNode:
         self._status_height_cap_total: int = 0
         self._new_block_height_cap_total: int = 0
         self._new_block_head_height_mismatch_total: int = 0
+        self._status_head_height_mismatch_total: int = 0
         self._handshake_height_cap_total: int = 0
         self._state_root_local_rejects_total: int = 0
         self._attestation_slot_ahead_rejects_total: int = 0
@@ -2037,6 +2038,21 @@ class P2PNode:
                 self._handshake_height_cap_total or 0
             ) + 1
             hs_head = ""  # do not install fantasy head with capped height
+        # v1.3.155: known local head ⇒ claimed height must match (soft ownership).
+        if hs_head:
+            bind_reason = self._status_head_height_refuse_reason(
+                hs_head, owned_h, reason="handshake_head_height_mismatch"
+            )
+            if bind_reason:
+                self._status_head_height_mismatch_total = int(
+                    getattr(self, "_status_head_height_mismatch_total", 0) or 0
+                ) + 1
+                self._handshake_rejects += 1
+                self._strike_peer_sync(peer, bind_reason)
+                print(
+                    f"[P2P] Rejected {peer.host}:{peer.port}: {bind_reason}"
+                )
+                return False
         peer.height = owned_h
         peer.head = hs_head or peer.head
         peer.listen_port = int(hs.get("p2p_port", 0) or peer.port or 0)
@@ -2746,8 +2762,22 @@ class P2PNode:
                         self._status_height_cap_total = int(
                             self._status_height_cap_total or 0
                         ) + 1
-                    peer.height = max(int(peer.height or 0), capped_h)
                     incoming_head = status.get("head_hash") or ""
+                    # v1.3.155: known local head ⇒ claimed height must match.
+                    if incoming_head and not was_capped:
+                        bind_local = self._status_head_height_refuse_reason(
+                            str(incoming_head), capped_h
+                        )
+                        if bind_local:
+                            self._status_head_height_mismatch_total = int(
+                                getattr(
+                                    self, "_status_head_height_mismatch_total", 0
+                                )
+                                or 0
+                            ) + 1
+                            self._strike_peer_sync(peer, bind_local)
+                            return
+                    peer.height = max(int(peer.height or 0), capped_h)
                     # v1.3.135: capped height ⇒ refuse fantasy head install.
                     if incoming_head and not was_capped:
                         peer.head = str(incoming_head)
@@ -3325,6 +3355,30 @@ class P2PNode:
             self._peer_sync_locks[peer_id] = asyncio.Lock()
         return self._peer_sync_locks[peer_id]
 
+    def _local_known_head_height_mismatch(
+        self, block_hash: str, block_h: int
+    ) -> bool:
+        """True when local header for hash disagrees with claimed height."""
+        head = str(block_hash or "").strip()
+        if not head:
+            return False
+        blk = None
+        try:
+            blk = self.get_block(head)
+        except Exception:
+            blk = None
+        if not isinstance(blk, dict):
+            return False
+        try:
+            local_h = int(blk.get("height", blk.get("number", -1)) or -1)
+        except (TypeError, ValueError):
+            local_h = -1
+        try:
+            claimed = int(block_h)
+        except (TypeError, ValueError):
+            claimed = -1
+        return local_h >= 0 and claimed >= 0 and local_h != claimed
+
     def _new_block_head_height_refuse_reason(
         self, block_hash: str, block_h: int
     ) -> str:
@@ -3334,26 +3388,24 @@ class P2PNode:
         """
         if not bool(getattr(self.config, "p2p_new_block_head_height_bind", True)):
             return ""
-        head = str(block_hash or "").strip()
-        if not head:
-            return ""
-        blk = None
-        try:
-            blk = self.get_block(head)
-        except Exception:
-            blk = None
-        if not isinstance(blk, dict):
-            return ""
-        try:
-            local_h = int(blk.get("height", blk.get("number", -1)) or -1)
-        except (TypeError, ValueError):
-            local_h = -1
-        try:
-            claimed = int(block_h)
-        except (TypeError, ValueError):
-            claimed = -1
-        if local_h >= 0 and claimed >= 0 and local_h != claimed:
+        if self._local_known_head_height_mismatch(block_hash, block_h):
             return "new_block_head_height_mismatch"
+        return ""
+
+    def _status_head_height_refuse_reason(
+        self,
+        block_hash: str,
+        block_h: int,
+        reason: str = "status_head_height_mismatch",
+    ) -> str:
+        """v1.3.155: known status/handshake head ⇒ claimed height must match.
+
+        Soft ownership only — not tip existence proof / Long-Range.
+        """
+        if not bool(getattr(self.config, "p2p_status_head_height_bind", True)):
+            return ""
+        if self._local_known_head_height_mismatch(block_hash, block_h):
+            return str(reason or "status_head_height_mismatch")
         return ""
 
     def _catch_up_ahead_refuse_reason(self, peer: PeerConnection) -> str:
@@ -5006,6 +5058,9 @@ class P2PNode:
             "native_new_block_head_height_bind": bool(
                 getattr(self.config, "p2p_new_block_head_height_bind", True)
             ),
+            "native_status_head_height_bind": bool(
+                getattr(self.config, "p2p_status_head_height_bind", True)
+            ),
             "native_handshake_height_cap": True,
             "native_status_capped_head_refuse": True,
             "native_attestation_slot_ahead": True,
@@ -5082,6 +5137,9 @@ class P2PNode:
             ),
             "new_block_head_height_mismatch_total": int(
                 getattr(self, "_new_block_head_height_mismatch_total", 0) or 0
+            ),
+            "status_head_height_mismatch_total": int(
+                getattr(self, "_status_head_height_mismatch_total", 0) or 0
             ),
             "handshake_height_cap_total": int(
                 getattr(self, "_handshake_height_cap_total", 0) or 0

@@ -787,6 +787,18 @@ class MetricsCollector:
                     f"abs_p2p_new_block_head_height_mismatch_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('new_block_head_height_mismatch_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_status_head_height_bind Whether known status/handshake head height bind is active (0/1)",
+                "# TYPE abs_p2p_native_status_head_height_bind gauge",
+                (
+                    f"abs_p2p_native_status_head_height_bind{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_status_head_height_bind') else 0}"
+                ),
+                "# HELP abs_p2p_status_head_height_mismatch_total status/handshake tip meta refused for local head/height mismatch",
+                "# TYPE abs_p2p_status_head_height_mismatch_total counter",
+                (
+                    f"abs_p2p_status_head_height_mismatch_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('status_head_height_mismatch_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_handshake_height_cap Whether handshake peer.height ahead gate is active (0/1)",
                 "# TYPE abs_p2p_native_handshake_height_cap gauge",
                 (

@@ -892,6 +892,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_catch_up_peer_head_probe` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony (not claimed)
 
+### Priority 109 — STATUS/handshake head↔height bind ✅ (v1.3.155)
+
+- [x] Known local `head_hash` ⇒ claimed height must match (`status_head_height_mismatch` / `handshake_head_height_mismatch`)
+- [x] Config `p2p_status_head_height_bind` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

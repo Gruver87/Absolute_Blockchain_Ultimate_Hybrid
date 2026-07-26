@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.154-industrial"
+    node_version: str = "1.3.155-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -114,6 +114,7 @@ class Config:
     p2p_catch_up_peer_head_probe: bool = True     # v1.3.154: solicit peer.head via get_block_by_hash before catch-up
     p2p_peers_solicit_only: bool = True           # v1.3.152: refuse unsolicited MSG_PEERS (no dial from push)
     p2p_new_block_head_height_bind: bool = True   # v1.3.153: known announce hash ⇒ height must match local header
+    p2p_status_head_height_bind: bool = True      # v1.3.155: known status/handshake head ⇒ height must match local header
     p2p_native_transport: bool = False            # v1.3.90+; prod forces True (v1.3.114)
     p2p_native_auto_pong: bool = True             # v1.3.98/99: ping reply + pong consume on read path
     p2p_native_read_batch: int = 8                # v1.3.101: read_messages max_n (1..64)
@@ -371,6 +372,9 @@ class Config:
         )
         self.p2p_new_block_head_height_bind = env_bool(
             "P2P_NEW_BLOCK_HEAD_HEIGHT_BIND", self.p2p_new_block_head_height_bind
+        )
+        self.p2p_status_head_height_bind = env_bool(
+            "P2P_STATUS_HEAD_HEIGHT_BIND", self.p2p_status_head_height_bind
         )
         self.p2p_native_transport = env_bool(
             "P2P_NATIVE_TRANSPORT",

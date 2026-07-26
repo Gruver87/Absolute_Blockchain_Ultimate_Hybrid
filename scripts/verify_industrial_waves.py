@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.154 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.155 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -115,6 +115,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13152_peers_solicit_only.py",
     "tests/unit/test_v13153_new_block_head_height_bind.py",
     "tests/unit/test_v13154_catch_up_peer_head_probe.py",
+    "tests/unit/test_v13155_status_head_height_bind.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -2022,6 +2023,34 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_catch_up_peer_head_probe_refuse_total",
         ],
     ),
+    (
+        "1.3.155",
+        "RELEASE_NOTES_v1.3.155.md",
+        ["1.3.155-industrial", "status_head_height_mismatch"],
+    ),
+    (
+        "1.3.155",
+        "network/p2p_node.py",
+        [
+            "status_head_height_mismatch",
+            "handshake_head_height_mismatch",
+            "_status_head_height_refuse_reason",
+            "native_status_head_height_bind",
+        ],
+    ),
+    (
+        "1.3.155",
+        "runtime/config.py",
+        ["p2p_status_head_height_bind"],
+    ),
+    (
+        "1.3.155",
+        "observability/metrics.py",
+        [
+            "abs_p2p_native_status_head_height_bind",
+            "abs_p2p_status_head_height_mismatch_total",
+        ],
+    ),
 ]
 
 
@@ -2049,8 +2078,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.154"):
-            errors.append(f"node_version expected 1.3.154-*, got {ver}")
+        if not ver.startswith("1.3.155"):
+            errors.append(f"node_version expected 1.3.155-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors
