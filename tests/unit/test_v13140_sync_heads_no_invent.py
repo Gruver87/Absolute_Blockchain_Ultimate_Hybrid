@@ -51,7 +51,7 @@ def test_needles_v13140():
     assert "abs_p2p_native_sync_heads_no_invent" in metrics
     assert "abs_p2p_heads_skipped_no_head" in metrics
     check = (ROOT / "scripts" / "check_all.ps1").read_text(encoding="utf-8")
-    assert 'EvidenceGitTag = "v1.3.139"' in check or "v1.3.140" in check or "v1.3.141" in check or "v1.3.142" in check or "v1.3.143" in check or "v1.3.144" in check or "v1.3.145" in check or "v1.3.146" in check or "v1.3.147" in check or "v1.3.148" in check or "v1.3.149" in check or "v1.3.150" in check or "v1.3.151" in check or "v1.3.152" in check or "v1.3.153" in check or "v1.3.154" in check or "v1.3.155" in check or "v1.3.156" in check or "v1.3.157" in check or "v1.3.158" in check or "v1.3.159" in check or "v1.3.160" in check or "v1.3.161" in check or "v1.3.162" in check or "v1.3.163" in check or "v1.3.164" in check or "v1.3.165" in check or "v1.3.166" in check
+    assert 'EvidenceGitTag = "v1.3.139"' in check or "v1.3.140" in check or "v1.3.141" in check or "v1.3.142" in check or "v1.3.143" in check or "v1.3.144" in check or "v1.3.145" in check or "v1.3.146" in check or "v1.3.147" in check or "v1.3.148" in check or "v1.3.149" in check or "v1.3.150" in check or "v1.3.151" in check or "v1.3.152" in check or "v1.3.153" in check or "v1.3.154" in check or "v1.3.155" in check or "v1.3.156" in check or "v1.3.157" in check or "v1.3.158" in check or "v1.3.159" in check or "v1.3.160" in check or "v1.3.161" in check or "v1.3.162" in check or "v1.3.163" in check or "v1.3.164" in check or "v1.3.165" in check or "v1.3.166" in check or "v1.3.167" in check
 
 
 def test_request_heads_skips_empty_head_no_local_invent():

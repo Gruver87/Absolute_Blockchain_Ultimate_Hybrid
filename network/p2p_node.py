@@ -1237,6 +1237,7 @@ class P2PNode:
         self._state_root_local_rejects_total: int = 0
         self._attestation_slot_ahead_rejects_total: int = 0
         self._attestation_local_head_rejects_total: int = 0
+        self._attestation_target_head_rejects_total: int = 0
         self._unsolicited_block_rejects_total: int = 0
         self._unsolicited_state_root_rejects_total: int = 0
         self._unsolicited_peers_rejects_total: int = 0
@@ -2989,6 +2990,14 @@ class P2PNode:
             ) + 1
             self._strike_peer_sync(peer, local_reason)
             return
+        # v1.3.167: tip-height attestation must cite local tip hash.
+        tip_reason = self._attestation_target_head_refuse_reason(data)
+        if tip_reason:
+            self._attestation_target_head_rejects_total = int(
+                getattr(self, "_attestation_target_head_rejects_total", 0) or 0
+            ) + 1
+            self._strike_peer_sync(peer, tip_reason)
+            return
         validator = data.get("validator", "")
         block_hash = data.get("target_hash", "")
         if not validator or not block_hash:
@@ -3025,6 +3034,35 @@ class P2PNode:
             return ""
         if local_h != want_h:
             return "attestation_local_height_mismatch"
+        return ""
+
+    def _attestation_target_head_refuse_reason(self, data: Dict) -> str:
+        """v1.3.167: tip-height attestation must cite local tip hash.
+
+        Soft LMD ownership — not tip proof / Long-Range / weak-subjectivity.
+        """
+        if not bool(getattr(self.config, "p2p_attestation_target_head_bind", True)):
+            return ""
+        if not isinstance(data, dict):
+            return ""
+        th_raw = data.get("target_height")
+        if th_raw is None:
+            return ""
+        try:
+            want_h = int(th_raw)
+            tip_h = int(self.blockchain.get_height() or 0)
+        except (TypeError, ValueError):
+            return ""
+        if tip_h <= 0 or want_h != tip_h:
+            return ""
+        block_hash = str(data.get("target_hash") or "").strip()
+        local_tip = ""
+        try:
+            local_tip = str(self.head() or "").strip()
+        except Exception:
+            local_tip = ""
+        if block_hash and local_tip and block_hash.lower() != local_tip.lower():
+            return "attestation_target_head_mismatch"
         return ""
 
     def _local_attestation_anchor(self) -> int:
@@ -5482,6 +5520,9 @@ class P2PNode:
             "native_status_capped_head_refuse": True,
             "native_attestation_slot_ahead": True,
             "native_attestation_local_head": True,
+            "native_attestation_target_head_bind": bool(
+                getattr(self.config, "p2p_attestation_target_head_bind", True)
+            ),
             "native_block_solicit_only": True,
             "native_state_root_solicit_only": True,
             "native_peers_solicit_only": bool(
@@ -5596,6 +5637,9 @@ class P2PNode:
             ),
             "attestation_local_head_rejects_total": int(
                 getattr(self, "_attestation_local_head_rejects_total", 0) or 0
+            ),
+            "attestation_target_head_rejects_total": int(
+                getattr(self, "_attestation_target_head_rejects_total", 0) or 0
             ),
             "unsolicited_block_rejects_total": int(
                 getattr(self, "_unsolicited_block_rejects_total", 0) or 0

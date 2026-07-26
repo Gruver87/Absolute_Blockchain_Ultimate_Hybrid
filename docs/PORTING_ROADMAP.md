@@ -971,6 +971,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_handshake_head_requires_height` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 121 — Attestation tip target-head bind ✅ (v1.3.167)
+
+- [x] Tip-height attestation must cite local tip hash (`attestation_target_head_mismatch`)
+- [x] Config `p2p_attestation_target_head_bind` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

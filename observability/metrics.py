@@ -913,6 +913,18 @@ class MetricsCollector:
                     f"abs_p2p_attestation_local_head_rejects_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('attestation_local_head_rejects_total', 0) or 0)}"
                 ),
+                "# HELP abs_p2p_native_attestation_target_head_bind Whether tip-height attestation must cite local tip (0/1)",
+                "# TYPE abs_p2p_native_attestation_target_head_bind gauge",
+                (
+                    f"abs_p2p_native_attestation_target_head_bind{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('native_attestation_target_head_bind') else 0}"
+                ),
+                "# HELP abs_p2p_attestation_target_head_rejects_total Tip-height attestations refused for non-tip target_hash",
+                "# TYPE abs_p2p_attestation_target_head_rejects_total counter",
+                (
+                    f"abs_p2p_attestation_target_head_rejects_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('attestation_target_head_rejects_total', 0) or 0)}"
+                ),
                 "# HELP abs_p2p_native_block_solicit_only Whether unsolicited block/blocks responses are rejected (0/1)",
                 "# TYPE abs_p2p_native_block_solicit_only gauge",
                 (
