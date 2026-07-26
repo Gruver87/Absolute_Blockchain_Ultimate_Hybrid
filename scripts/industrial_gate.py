@@ -2348,8 +2348,29 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_new_block_head_height_bind (v1.3.153)"
             )
+        # v1.3.154 — catch-up peer-head wire probe
+        if "catch_up_peer_head_probe_failed" not in p2p_py:
+            errors.append(
+                "p2p must refuse catch-up on peer-head probe fail (v1.3.154)"
+            )
+        if "_catch_up_peer_head_probe_refuse_reason" not in p2p_py:
+            errors.append(
+                "p2p must expose _catch_up_peer_head_probe_refuse_reason (v1.3.154)"
+            )
+        if "p2p_catch_up_peer_head_probe" not in (
+            ROOT / "runtime" / "config.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "config must expose p2p_catch_up_peer_head_probe (v1.3.154)"
+            )
+        if "abs_p2p_native_catch_up_peer_head_probe" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_catch_up_peer_head_probe (v1.3.154)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..153 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..154 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

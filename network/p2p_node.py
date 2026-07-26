@@ -1238,6 +1238,7 @@ class P2PNode:
         self._catch_up_no_head_refuse_total: int = 0
         self._catch_up_head_height_mismatch_total: int = 0
         self._catch_up_tip_probe_refuse_total: int = 0
+        self._catch_up_peer_head_probe_refuse_total: int = 0
         self._bootstrap_redial_total: int = 0
         self._bootstrap_pin_rejects_total: int = 0
         self._handshake_rejects: int = 0
@@ -3406,6 +3407,14 @@ class P2PNode:
             self._catch_up_tip_probe_refuse_total = int(
                 getattr(self, "_catch_up_tip_probe_refuse_total", 0) or 0
             ) + 1
+        elif r in (
+            "catch_up_peer_head_probe_failed",
+            "catch_up_peer_head_hash_mismatch",
+            "catch_up_peer_head_height_mismatch",
+        ):
+            self._catch_up_peer_head_probe_refuse_total = int(
+                getattr(self, "_catch_up_peer_head_probe_refuse_total", 0) or 0
+            ) + 1
 
     async def _catch_up_local_tip_probe_refuse_reason(
         self, peer: PeerConnection
@@ -3433,6 +3442,42 @@ class P2PNode:
             rh = 0
         if rh and rh != local_h:
             return "catch_up_tip_height_mismatch"
+        return ""
+
+    async def _catch_up_peer_head_probe_refuse_reason(
+        self, peer: PeerConnection
+    ) -> str:
+        """v1.3.154: before get_blocks, solicit peer.head via get_block_by_hash.
+
+        Soft wire bind — peer must return a block whose hash matches claimed
+        head and height matches claimed peer.height. Not tip proof / Long-Range.
+        """
+        if not bool(getattr(self.config, "p2p_catch_up_peer_head_probe", True)):
+            return ""
+        try:
+            local_h = int(self.blockchain.get_height() or 0)
+            peer_h = int(getattr(peer, "height", 0) or 0)
+        except (TypeError, ValueError):
+            return ""
+        if peer_h <= local_h:
+            return ""
+        head = str(getattr(peer, "head", "") or "").strip()
+        if not head:
+            return ""
+        peer_block = await self._request_block_by_hash(peer, head)
+        if not peer_block:
+            return "catch_up_peer_head_probe_failed"
+        got_hash = str(
+            peer_block.get("hash") or peer_block.get("block_hash") or ""
+        ).strip()
+        if got_hash and got_hash.lower() != head.lower():
+            return "catch_up_peer_head_hash_mismatch"
+        try:
+            bh = int(peer_block.get("height", peer_block.get("number", -1)) or -1)
+        except (TypeError, ValueError):
+            bh = -1
+        if bh >= 0 and bh != peer_h:
+            return "catch_up_peer_head_height_mismatch"
         return ""
 
     def _schedule_sync(self, peer: PeerConnection) -> None:
@@ -3589,6 +3634,18 @@ class P2PNode:
                 tip_refuse,
                 (peer.peer_id or "")[:12],
                 self.blockchain.get_height() if self.blockchain else 0,
+            )
+            return
+
+        # v1.3.154: solicit peer.head block before downloading ahead range.
+        head_refuse = await self._catch_up_peer_head_probe_refuse_reason(peer)
+        if head_refuse:
+            self._bump_catch_up_refuse(head_refuse)
+            logger.info(
+                "[P2P] catch-up peer-head probe refuse %s peer=%s head=%s",
+                head_refuse,
+                (peer.peer_id or "")[:12],
+                (getattr(peer, "head", "") or "")[:16],
             )
             return
 
@@ -4964,6 +5021,9 @@ class P2PNode:
             "native_catch_up_tip_probe": bool(
                 getattr(self.config, "p2p_catch_up_tip_probe", True)
             ),
+            "native_catch_up_peer_head_probe": bool(
+                getattr(self.config, "p2p_catch_up_peer_head_probe", True)
+            ),
             "native_catch_up_head_height_bind": True,
             "native_sync_heads_no_invent": True,
             "native_sync_state_wire_only": True,
@@ -5052,6 +5112,9 @@ class P2PNode:
             ),
             "catch_up_tip_probe_refuse_total": int(
                 getattr(self, "_catch_up_tip_probe_refuse_total", 0) or 0
+            ),
+            "catch_up_peer_head_probe_refuse_total": int(
+                getattr(self, "_catch_up_peer_head_probe_refuse_total", 0) or 0
             ),
             "heads_skipped_no_head": int(
                 getattr(getattr(self, "sync_engine", None), "_heads_skipped_no_head", 0)

@@ -885,6 +885,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_new_block_head_height_bind` (default on)
 - Remaining: catch-up peer-head wire probe / tip proof / Long-Range / libp2p / ceremony (not claimed)
 
+### Priority 108 — Catch-up peer-head wire probe ✅ (v1.3.154)
+
+- [x] Before ahead `get_blocks`, solicit `peer.head` via `get_block_by_hash`
+- [x] Refuse `catch_up_peer_head_probe_failed` / `_hash_mismatch` / `_height_mismatch`
+- [x] Config `p2p_catch_up_peer_head_probe` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
