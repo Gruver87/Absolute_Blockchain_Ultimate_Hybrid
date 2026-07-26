@@ -40,9 +40,7 @@ docker
 kubernetes
 json-rpc
 rest-api
-pos
 devnet
-tokenomics
 industrial
 soak-test
 cryptography
@@ -50,6 +48,7 @@ web3
 hybrid-blockchain
 ```
 
+> Cap = 20 topics. Prefer `web3` / `hybrid-blockchain` over vague `pos` / `tokenomics` (avoids investment-product misread).
 ## Branches
 
 | Branch | Role |
