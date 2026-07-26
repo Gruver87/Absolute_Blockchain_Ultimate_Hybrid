@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.193-industrial"
+    node_version: str = "1.3.194-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -133,6 +133,7 @@ class Config:
     p2p_mempool_max_pubkey_refuse: bool = True      # v1.3.192: refuse oversized public_key before validate_transaction
     p2p_mempool_max_pubkey_bytes: int = 2048        # v1.3.192: max wire public_key bytes
     p2p_mempool_nonfinite_value_refuse: bool = True # v1.3.193: refuse NaN/Inf value before validate_transaction
+    p2p_mempool_nonfinite_fee_refuse: bool = True   # v1.3.194: refuse NaN/Inf fee before validate_transaction
     p2p_get_blocks_future_refuse: bool = True     # v1.3.180: refuse GET_BLOCKS when from_height > local tip
     p2p_get_block_future_refuse: bool = True      # v1.3.181: refuse GET_BLOCK when height > local tip
     p2p_get_blocks_past_tip_clamp: bool = True    # v1.3.182: clamp GET_BLOCKS end to local tip (no DB past tip)
@@ -486,6 +487,10 @@ class Config:
         self.p2p_mempool_nonfinite_value_refuse = env_bool(
             "P2P_MEMPOOL_NONFINITE_VALUE_REFUSE",
             self.p2p_mempool_nonfinite_value_refuse,
+        )
+        self.p2p_mempool_nonfinite_fee_refuse = env_bool(
+            "P2P_MEMPOOL_NONFINITE_FEE_REFUSE",
+            self.p2p_mempool_nonfinite_fee_refuse,
         )
         self.p2p_get_blocks_future_refuse = env_bool(
             "P2P_GET_BLOCKS_FUTURE_REFUSE", self.p2p_get_blocks_future_refuse

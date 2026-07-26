@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.194] — 2026-07-26
+
+### Mempool — non-finite fee refuse
+
+- P2P refuses NaN/Inf `fee` before `validate_transaction` (`fee_non_finite`)
+- Soft DoS honesty — complements `fee_negative` (NaN/Inf slip past `< 0`)
+- Honesty: not tip proof / Long-Range / libp2p / public mainnet
+
 ## [1.3.193] — 2026-07-26
 
 ### Mempool — non-finite value refuse

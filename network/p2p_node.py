@@ -1288,6 +1288,7 @@ class P2PNode:
         self._mempool_sig_size_refuse_total: int = 0
         self._mempool_pubkey_size_refuse_total: int = 0
         self._mempool_nonfinite_value_refuse_total: int = 0
+        self._mempool_nonfinite_fee_refuse_total: int = 0
         self._get_blocks_future_refuse_total: int = 0
         self._get_block_future_refuse_total: int = 0
         self._get_blocks_past_tip_clamp_total: int = 0
@@ -3452,6 +3453,7 @@ class P2PNode:
         v1.3.191: also refuse oversized signature before validate_transaction.
         v1.3.192: also refuse oversized public_key before validate_transaction.
         v1.3.193: also refuse NaN/Inf value before validate_transaction.
+        v1.3.194: also refuse NaN/Inf fee before validate_transaction.
         """
         self._last_tx_wire_reject = ""
         if not native.validate_p2p_wire_tx(data):
@@ -3649,6 +3651,19 @@ class P2PNode:
                     self._last_tx_wire_reject = "fee_negative"
                     self._mempool_fee_negative_refuse_total = int(
                         getattr(self, "_mempool_fee_negative_refuse_total", 0) or 0
+                    ) + 1
+                    return None
+            except (TypeError, ValueError):
+                pass
+
+        # v1.3.194: cheap non-finite fee refuse before validate_transaction.
+        # Soft DoS honesty — NaN/Inf slip past fee_negative; not Rust fee PQ.
+        if bool(getattr(self.config, "p2p_mempool_nonfinite_fee_refuse", True)):
+            try:
+                if not math.isfinite(float(fee)):
+                    self._last_tx_wire_reject = "fee_non_finite"
+                    self._mempool_nonfinite_fee_refuse_total = int(
+                        getattr(self, "_mempool_nonfinite_fee_refuse_total", 0) or 0
                     ) + 1
                     return None
             except (TypeError, ValueError):
@@ -6448,6 +6463,9 @@ class P2PNode:
             "native_mempool_nonfinite_value_refuse": bool(
                 getattr(self.config, "p2p_mempool_nonfinite_value_refuse", True)
             ),
+            "native_mempool_nonfinite_fee_refuse": bool(
+                getattr(self.config, "p2p_mempool_nonfinite_fee_refuse", True)
+            ),
             "native_get_blocks_future_refuse": bool(
                 getattr(self.config, "p2p_get_blocks_future_refuse", True)
             ),
@@ -6655,6 +6673,9 @@ class P2PNode:
             ),
             "mempool_nonfinite_value_refuse_total": int(
                 getattr(self, "_mempool_nonfinite_value_refuse_total", 0) or 0
+            ),
+            "mempool_nonfinite_fee_refuse_total": int(
+                getattr(self, "_mempool_nonfinite_fee_refuse_total", 0) or 0
             ),
             "get_blocks_future_refuse_total": int(
                 getattr(self, "_get_blocks_future_refuse_total", 0) or 0
