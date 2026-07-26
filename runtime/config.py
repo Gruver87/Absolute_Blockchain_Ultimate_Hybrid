@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.157-industrial"
+    node_version: str = "1.3.158-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -793,8 +793,11 @@ class Config:
             jwt_secret = os.environ.get("JWT_SECRET") or getattr(self, "jwt_secret", "")
             if not jwt_secret:
                 errors.append("prod mode requires JWT_SECRET")
-            elif weak_secret(jwt_secret):
-                errors.append("prod JWT_SECRET is placeholder or too short")
+            elif weak_secret(jwt_secret, min_len=32):
+                errors.append(
+                    "prod JWT_SECRET is placeholder or too short "
+                    "(HS256 requires >= 32 bytes)"
+                )
         if self.is_production and self.bridge_enabled:
             if env_bool("BRIDGE_ALLOW_SYNTHETIC", False):
                 errors.append("prod bridge forbids BRIDGE_ALLOW_SYNTHETIC (local dev only)")

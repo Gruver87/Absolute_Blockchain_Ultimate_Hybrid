@@ -210,7 +210,7 @@ if ($Docker) {
     $oldCors = $env:CORS_ORIGINS
     $oldEthRpc = $env:ETH_RPC_URL
     try {
-        $placeholder = "composeconfigplaceholder"
+        $placeholder = "composeconfigplaceholder-min-32-bytes!!"
         if (-not $env:JWT_SECRET) { $env:JWT_SECRET = $placeholder }
         if (-not $env:RPC_API_KEYS) { $env:RPC_API_KEYS = $placeholder }
         if (-not $env:BRIDGE_ORACLE_SECRET) { $env:BRIDGE_ORACLE_SECRET = $placeholder }

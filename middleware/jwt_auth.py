@@ -6,6 +6,8 @@ import os
 from typing import Dict, Optional, Tuple
 
 ALGORITHM = "HS256"
+# PyJWT InsecureKeyLengthWarning threshold for HS256.
+MIN_HS256_SECRET_BYTES = 32
 
 
 def _resolve_jwt_secret() -> str:
@@ -16,6 +18,15 @@ def _resolve_jwt_secret() -> str:
     if os.getenv("DEPLOYMENT_MODE", "dev").lower() == "prod":
         return ""
     return ""
+
+
+def _assert_hs256_secret(key: str) -> None:
+    raw = str(key or "")
+    if len(raw.encode("utf-8")) < MIN_HS256_SECRET_BYTES:
+        raise RuntimeError(
+            f"JWT_SECRET too short for HS256 "
+            f"(need >= {MIN_HS256_SECRET_BYTES} bytes, got {len(raw.encode('utf-8'))})"
+        )
 
 
 class JWTAuth:
@@ -51,6 +62,7 @@ class JWTAuth:
         key = self.secret_key
         if not key:
             raise RuntimeError("JWT_SECRET not configured")
+        _assert_hs256_secret(key)
         role_n = str(role or "user").strip().lower() or "user"
         if role_n not in ("user", "admin"):
             raise ValueError(f"invalid JWT role: {role_n}")
@@ -66,6 +78,10 @@ class JWTAuth:
     def verify_token(self, token: str) -> Tuple[bool, Optional[Dict]]:
         key = self.secret_key
         if not key:
+            return False, None
+        try:
+            _assert_hs256_secret(key)
+        except RuntimeError:
             return False, None
         if token in self.blacklist:
             return False, None

@@ -72,7 +72,7 @@ def test_needles_v13157():
     assert "P2P_CATCH_UP_PEER_HEAD_PARENT_BIND" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.157.md").read_text(encoding="utf-8")
     assert "1.3.157-industrial" in notes
-    assert Config().node_version.startswith("1.3.157")
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_catch_up_peer_head_parent_bind" in metrics
 

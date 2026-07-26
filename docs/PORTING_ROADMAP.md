@@ -912,6 +912,12 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_catch_up_peer_head_parent_bind` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony (not claimed)
 
+### Priority 112 — JWT HS256 min 32-byte secret ✅ (v1.3.158)
+
+- [x] Refuse mint/verify when `JWT_SECRET` < 32 bytes (`MIN_HS256_SECRET_BYTES`)
+- [x] Prod `Config.validate` JWT weak check uses `min_len=32`
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

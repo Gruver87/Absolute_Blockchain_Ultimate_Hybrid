@@ -2432,8 +2432,24 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_catch_up_peer_head_parent_bind (v1.3.157)"
             )
+        # v1.3.158 — JWT HS256 min 32-byte secret
+        jwt_py = (ROOT / "middleware" / "jwt_auth.py").read_text(encoding="utf-8")
+        if "MIN_HS256_SECRET_BYTES" not in jwt_py:
+            errors.append(
+                "jwt_auth must expose MIN_HS256_SECRET_BYTES (v1.3.158)"
+            )
+        if "_assert_hs256_secret" not in jwt_py:
+            errors.append(
+                "jwt_auth must expose _assert_hs256_secret (v1.3.158)"
+            )
+        if "HS256 requires >= 32 bytes" not in (
+            ROOT / "runtime" / "config.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "config must enforce JWT HS256 >= 32 bytes (v1.3.158)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..157 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..158 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

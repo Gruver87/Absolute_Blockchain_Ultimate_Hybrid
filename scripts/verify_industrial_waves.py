@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.157 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.158 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -118,6 +118,7 @@ WAVE_TESTS = [
     "tests/unit/test_v13155_status_head_height_bind.py",
     "tests/unit/test_v13156_new_block_announce_body_bind.py",
     "tests/unit/test_v13157_catch_up_peer_head_parent_bind.py",
+    "tests/unit/test_v13158_jwt_hs256_min_secret.py",
     "tests/unit/test_v1364_writeback_preload.py",
     "tests/unit/test_v1363_writeback_bundle.py",
     "tests/unit/test_v1362_writeback_commit.py",
@@ -2103,6 +2104,21 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "observability/metrics.py",
         ["abs_p2p_native_catch_up_peer_head_parent_bind"],
     ),
+    (
+        "1.3.158",
+        "RELEASE_NOTES_v1.3.158.md",
+        ["1.3.158-industrial", "HS256"],
+    ),
+    (
+        "1.3.158",
+        "middleware/jwt_auth.py",
+        ["MIN_HS256_SECRET_BYTES", "_assert_hs256_secret"],
+    ),
+    (
+        "1.3.158",
+        "runtime/config.py",
+        ["HS256 requires >= 32 bytes"],
+    ),
 ]
 
 
@@ -2130,8 +2146,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.157"):
-            errors.append(f"node_version expected 1.3.157-*, got {ver}")
+        if not ver.startswith("1.3.158"):
+            errors.append(f"node_version expected 1.3.158-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

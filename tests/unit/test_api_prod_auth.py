@@ -53,7 +53,7 @@ def _get(url: str, timeout: float = 5):
 
 
 def _start_prod_server(tmp_path, monkeypatch):
-    monkeypatch.setenv("JWT_SECRET", "test-jwt-secret-wave28")
+    monkeypatch.setenv("JWT_SECRET", "test-jwt-secret-wave28-min-32-bytes!!")
     monkeypatch.setenv("BRIDGE_ORACLE_SECRET", "oracle-secret-wave28")
     fd, path = tempfile.mkstemp(suffix=".db", dir=tmp_path)
     os.close(fd)
@@ -91,7 +91,7 @@ def _start_prod_server(tmp_path, monkeypatch):
 
 
 def _start_dev_admin_server(tmp_path, monkeypatch):
-    monkeypatch.setenv("JWT_SECRET", "test-jwt-secret-dev-admin")
+    monkeypatch.setenv("JWT_SECRET", "test-jwt-secret-dev-admin-min-32b!!")
     fd, path = tempfile.mkstemp(suffix=".db", dir=tmp_path)
     os.close(fd)
     cfg = Config()
@@ -300,7 +300,7 @@ def test_status_includes_security_flags(tmp_path, monkeypatch):
 
 
 def test_prod_bridge_does_not_fallback_to_simulator(tmp_path, monkeypatch):
-    monkeypatch.setenv("JWT_SECRET", "test-jwt-secret-wave28")
+    monkeypatch.setenv("JWT_SECRET", "test-jwt-secret-wave28-min-32-bytes!!")
     fd, path = tempfile.mkstemp(suffix=".db", dir=tmp_path)
     os.close(fd)
     cfg = Config()

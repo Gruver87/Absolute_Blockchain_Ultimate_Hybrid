@@ -155,6 +155,20 @@ def test_prod_rejects_placeholder_and_weak_secrets(monkeypatch):
     assert any("BRIDGE_ORACLE_SECRET" in e and "placeholder" in e for e in errs)
 
 
+def test_prod_rejects_jwt_secret_under_32_bytes(monkeypatch):
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.require_wallet_file = False
+    cfg.rpc_api_key_required = False
+    # 31 bytes, non-placeholder — still too short for HS256.
+    monkeypatch.setenv("JWT_SECRET", "a" * 31)
+    errs = cfg.validate()
+    assert any("JWT_SECRET" in e and "too short" in e for e in errs)
+    monkeypatch.setenv("JWT_SECRET", "b" * 32)
+    errs = cfg.validate()
+    assert not any("JWT_SECRET" in e and "too short" in e for e in errs)
+
+
 def test_prod_bridge_requires_l1_rpc_and_proof_flag(monkeypatch):
     cfg = Config()
     cfg.deployment_mode = "prod"
