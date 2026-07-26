@@ -68,7 +68,7 @@ def test_needles_v13172():
     assert "P2P_CATCH_UP_TIP_HEAD_BIND" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.172.md").read_text(encoding="utf-8")
     assert "1.3.172-industrial" in notes
-    assert Config().node_version.startswith("1.3.172")
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_catch_up_tip_head_bind" in metrics
     assert "abs_p2p_catch_up_tip_head_mismatch_total" in metrics

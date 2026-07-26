@@ -1012,6 +1012,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_catch_up_tip_head_bind` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 127 — Reconcile tip-head bind ✅ (v1.3.173)
+
+- [x] After reconcile reorg/import, local tip hash must match `target_head`
+- [x] Refuse `reconcile_tip_head_mismatch`
+- [x] Config `p2p_reconcile_tip_head_bind` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

@@ -1252,6 +1252,7 @@ class P2PNode:
         self._ghost_head_probe_refuse_total: int = 0
         self._reconcile_contiguous_parent_mismatch_total: int = 0
         self._reconcile_same_height_parent_mismatch_total: int = 0
+        self._reconcile_tip_head_mismatch_total: int = 0
         self._bootstrap_redial_total: int = 0
         self._bootstrap_pin_rejects_total: int = 0
         self._handshake_rejects: int = 0
@@ -4019,6 +4020,26 @@ class P2PNode:
             return "reconcile_same_height_parent_mismatch"
         return ""
 
+    def _reconcile_tip_head_refuse_reason(self, target_head: str) -> str:
+        """v1.3.173: after reconcile import, local tip must match target_head.
+
+        Soft tip digest ownership at reorg choke — not tip proof / Long-Range.
+        Empty local tip soft-skips (do not refuse unresolved head).
+        """
+        if not bool(getattr(self.config, "p2p_reconcile_tip_head_bind", True)):
+            return ""
+        want = str(target_head or "").strip()
+        if not want:
+            return ""
+        local_tip = ""
+        try:
+            local_tip = str(self.head() or "").strip()
+        except Exception:
+            local_tip = ""
+        if local_tip and local_tip.lower() != want.lower():
+            return "reconcile_tip_head_mismatch"
+        return ""
+
     async def _ghost_head_probe_refuse_reason(
         self,
         ghost_head: str,
@@ -4552,6 +4573,20 @@ class P2PNode:
 
         if not await self._reorg_and_import_async(rollback_to, peer_block):
             print("[P2P] Failed to reorg/import target head")
+            return False
+
+        # v1.3.173: successful import must leave tip digest == target_head.
+        tip_reason = self._reconcile_tip_head_refuse_reason(target_head)
+        if tip_reason:
+            self._reconcile_tip_head_mismatch_total = int(
+                getattr(self, "_reconcile_tip_head_mismatch_total", 0) or 0
+            ) + 1
+            logger.info(
+                "[P2P] reconcile refuse %s target=%s tip=%s",
+                tip_reason,
+                target_head[:16],
+                (self.head() or "")[:16],
+            )
             return False
 
         if peer:
@@ -5830,6 +5865,9 @@ class P2PNode:
             "native_reconcile_same_height_parent_bind": bool(
                 getattr(self.config, "p2p_reconcile_same_height_parent_bind", True)
             ),
+            "native_reconcile_tip_head_bind": bool(
+                getattr(self.config, "p2p_reconcile_tip_head_bind", True)
+            ),
             "native_catch_up_head_height_bind": True,
             "native_sync_heads_no_invent": True,
             "native_sync_state_wire_only": True,
@@ -5966,6 +6004,9 @@ class P2PNode:
                     self, "_reconcile_same_height_parent_mismatch_total", 0
                 )
                 or 0
+            ),
+            "reconcile_tip_head_mismatch_total": int(
+                getattr(self, "_reconcile_tip_head_mismatch_total", 0) or 0
             ),
             "heads_skipped_no_head": int(
                 getattr(getattr(self, "sync_engine", None), "_heads_skipped_no_head", 0)
