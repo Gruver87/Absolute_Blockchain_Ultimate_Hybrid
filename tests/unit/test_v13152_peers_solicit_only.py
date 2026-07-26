@@ -66,7 +66,7 @@ def test_needles_v13152():
     assert "P2P_PEERS_SOLICIT_ONLY" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.152.md").read_text(encoding="utf-8")
     assert "1.3.152-industrial" in notes
-    assert Config().node_version.startswith("1.3.152")
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_peers_solicit_only" in metrics
     assert "abs_p2p_unsolicited_peers_rejects_total" in metrics

@@ -1227,6 +1227,7 @@ class P2PNode:
         self._unsolicited_mempool_rejects_total: int = 0
         self._status_height_cap_total: int = 0
         self._new_block_height_cap_total: int = 0
+        self._new_block_head_height_mismatch_total: int = 0
         self._handshake_height_cap_total: int = 0
         self._state_root_local_rejects_total: int = 0
         self._attestation_slot_ahead_rejects_total: int = 0
@@ -3005,6 +3006,16 @@ class P2PNode:
             peer.height = max(int(peer.height or 0), owned_h)
             return
 
+        # v1.3.153: if announce hash is already known locally, height must match
+        # that header (soft ownership — not tip existence proof).
+        bind_reason = self._new_block_head_height_refuse_reason(block_hash, block_h)
+        if bind_reason:
+            self._new_block_head_height_mismatch_total = int(
+                getattr(self, "_new_block_head_height_mismatch_total", 0) or 0
+            ) + 1
+            self._strike_peer_sync(peer, bind_reason)
+            return
+
         peer.height = max(int(peer.height or 0), block_h)
         if block_hash:
             peer.head = block_hash
@@ -3312,6 +3323,37 @@ class P2PNode:
         if peer_id not in self._peer_sync_locks:
             self._peer_sync_locks[peer_id] = asyncio.Lock()
         return self._peer_sync_locks[peer_id]
+
+    def _new_block_head_height_refuse_reason(
+        self, block_hash: str, block_h: int
+    ) -> str:
+        """v1.3.153: known announce hash ⇒ claimed height must match local header.
+
+        Soft ownership only — not tip existence proof / merkle tip bind.
+        """
+        if not bool(getattr(self.config, "p2p_new_block_head_height_bind", True)):
+            return ""
+        head = str(block_hash or "").strip()
+        if not head:
+            return ""
+        blk = None
+        try:
+            blk = self.get_block(head)
+        except Exception:
+            blk = None
+        if not isinstance(blk, dict):
+            return ""
+        try:
+            local_h = int(blk.get("height", blk.get("number", -1)) or -1)
+        except (TypeError, ValueError):
+            local_h = -1
+        try:
+            claimed = int(block_h)
+        except (TypeError, ValueError):
+            claimed = -1
+        if local_h >= 0 and claimed >= 0 and local_h != claimed:
+            return "new_block_head_height_mismatch"
+        return ""
 
     def _catch_up_ahead_refuse_reason(self, peer: PeerConnection) -> str:
         """v1.3.139: refuse height-only catch-up without a concrete peer.head.
@@ -4904,6 +4946,9 @@ class P2PNode:
             "native_mempool_solicit_armed_shell": True,
             "native_peer_score_quality": True,
             "native_new_block_height_cap": True,
+            "native_new_block_head_height_bind": bool(
+                getattr(self.config, "p2p_new_block_head_height_bind", True)
+            ),
             "native_handshake_height_cap": True,
             "native_status_capped_head_refuse": True,
             "native_attestation_slot_ahead": True,
@@ -4974,6 +5019,9 @@ class P2PNode:
             ),
             "new_block_height_cap_total": int(
                 getattr(self, "_new_block_height_cap_total", 0) or 0
+            ),
+            "new_block_head_height_mismatch_total": int(
+                getattr(self, "_new_block_head_height_mismatch_total", 0) or 0
             ),
             "handshake_height_cap_total": int(
                 getattr(self, "_handshake_height_cap_total", 0) or 0

@@ -19,7 +19,7 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.152-industrial"
+    node_version: str = "1.3.153-industrial"
     node_id: str = "node-1"
     deployment_mode: str = "dev"          # dev | staging | prod
 
@@ -112,6 +112,7 @@ class Config:
     p2p_catch_up_require_head: bool = True        # v1.3.139: refuse height-only catch-up without peer.head
     p2p_catch_up_tip_probe: bool = True           # v1.3.146: solicit local-tip state_root before ahead catch-up
     p2p_peers_solicit_only: bool = True           # v1.3.152: refuse unsolicited MSG_PEERS (no dial from push)
+    p2p_new_block_head_height_bind: bool = True   # v1.3.153: known announce hash ⇒ height must match local header
     p2p_native_transport: bool = False            # v1.3.90+; prod forces True (v1.3.114)
     p2p_native_auto_pong: bool = True             # v1.3.98/99: ping reply + pong consume on read path
     p2p_native_read_batch: int = 8                # v1.3.101: read_messages max_n (1..64)
@@ -363,6 +364,9 @@ class Config:
         )
         self.p2p_peers_solicit_only = env_bool(
             "P2P_PEERS_SOLICIT_ONLY", self.p2p_peers_solicit_only
+        )
+        self.p2p_new_block_head_height_bind = env_bool(
+            "P2P_NEW_BLOCK_HEAD_HEIGHT_BIND", self.p2p_new_block_head_height_bind
         )
         self.p2p_native_transport = env_bool(
             "P2P_NATIVE_TRANSPORT",
