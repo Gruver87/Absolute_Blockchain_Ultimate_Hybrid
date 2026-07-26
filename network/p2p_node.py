@@ -1283,6 +1283,7 @@ class P2PNode:
         self._mempool_fee_negative_refuse_total: int = 0
         self._mempool_gas_negative_refuse_total: int = 0
         self._mempool_empty_from_refuse_total: int = 0
+        self._mempool_from_size_refuse_total: int = 0
         self._mempool_empty_to_refuse_total: int = 0
         self._mempool_empty_hash_refuse_total: int = 0
         self._mempool_hash_size_refuse_total: int = 0
@@ -3451,6 +3452,7 @@ class P2PNode:
         v1.3.186: also refuse fee < 0 before validate_transaction.
         v1.3.187: also refuse gas < 0 before validate_transaction.
         v1.3.188: also refuse empty from address before validate_transaction.
+        v1.3.198: also refuse oversized from address before validate_transaction.
         v1.3.195: also refuse empty to address before validate_transaction.
         v1.3.196: also refuse empty hash before validate_transaction.
         v1.3.197: also refuse oversized hash before validate_transaction.
@@ -3485,6 +3487,22 @@ class P2PNode:
                 self._last_tx_wire_reject = "from_empty"
                 self._mempool_empty_from_refuse_total = int(
                     getattr(self, "_mempool_empty_from_refuse_total", 0) or 0
+                ) + 1
+                return None
+
+        # v1.3.198: cheap oversized-from refuse before validate_transaction.
+        # Soft DoS honesty — aligns MAX_P2P_ADDR_LEN; not checksum / anti-Sybil.
+        if bool(getattr(self.config, "p2p_mempool_max_from_refuse", True)):
+            try:
+                max_addr = int(
+                    getattr(self.config, "p2p_mempool_max_addr_chars", 128) or 128
+                )
+            except (TypeError, ValueError):
+                max_addr = 128
+            if max_addr > 0 and len(str(from_addr or "").strip()) > max_addr:
+                self._last_tx_wire_reject = "from_too_large"
+                self._mempool_from_size_refuse_total = int(
+                    getattr(self, "_mempool_from_size_refuse_total", 0) or 0
                 ) + 1
                 return None
 
@@ -6490,6 +6508,9 @@ class P2PNode:
             "native_mempool_empty_from_refuse": bool(
                 getattr(self.config, "p2p_mempool_empty_from_refuse", True)
             ),
+            "native_mempool_max_from_refuse": bool(
+                getattr(self.config, "p2p_mempool_max_from_refuse", True)
+            ),
             "native_mempool_empty_to_refuse": bool(
                 getattr(self.config, "p2p_mempool_empty_to_refuse", True)
             ),
@@ -6709,6 +6730,9 @@ class P2PNode:
             ),
             "mempool_empty_from_refuse_total": int(
                 getattr(self, "_mempool_empty_from_refuse_total", 0) or 0
+            ),
+            "mempool_from_size_refuse_total": int(
+                getattr(self, "_mempool_from_size_refuse_total", 0) or 0
             ),
             "mempool_empty_to_refuse_total": int(
                 getattr(self, "_mempool_empty_to_refuse_total", 0) or 0

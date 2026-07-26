@@ -3255,8 +3255,29 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_mempool_max_hash_refuse (v1.3.197)"
             )
+        # v1.3.198 — mempool max-from refuse before validate
+        if "from_too_large" not in p2p_py:
+            errors.append(
+                "p2p must refuse oversized from before validate (v1.3.198)"
+            )
+        if "p2p_mempool_max_from_refuse" not in p2p_py:
+            errors.append(
+                "p2p must gate on p2p_mempool_max_from_refuse (v1.3.198)"
+            )
+        if "p2p_mempool_max_from_refuse" not in (
+            ROOT / "runtime" / "config.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "config must expose p2p_mempool_max_from_refuse (v1.3.198)"
+            )
+        if "abs_p2p_native_mempool_max_from_refuse" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_mempool_max_from_refuse (v1.3.198)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..197 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..198 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

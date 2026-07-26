@@ -6,6 +6,14 @@
 
 ---
 
+## [1.3.198] — 2026-07-26
+
+### Mempool — max-from refuse
+
+- P2P refuses oversized wire `from` before `validate_transaction` (`from_too_large`)
+- Soft DoS honesty — default 128 chars, aligns Rust `MAX_P2P_ADDR_LEN`
+- Honesty: not tip proof / Long-Range / libp2p / public mainnet / checksum
+
 ## [1.3.197] — 2026-07-26
 
 ### Mempool — max-hash refuse
