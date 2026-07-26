@@ -3750,6 +3750,9 @@ class P2PNode:
 
         Soft wire bind — peer must return a block whose hash matches claimed head
         and height matches claimed peer.height. Not tip proof / Long-Range.
+
+        v1.3.168: probed head parent_hash must match expected tip-height parent
+        (same-height sibling soft bind).
         """
         if not bool(getattr(self.config, "p2p_fork_peer_head_probe", True)):
             return ""
@@ -3784,6 +3787,23 @@ class P2PNode:
             bh = -1
         if bh >= 0 and bh != peer_h:
             return "fork_peer_head_height_mismatch"
+        # v1.3.168: same-height sibling must share tip-height parent.
+        if bool(getattr(self.config, "p2p_fork_peer_head_parent_bind", True)):
+            parent = str(peer_block.get("parent_hash") or "").strip()
+            local_parent = ""
+            try:
+                local_parent = str(
+                    self._expected_parent_for_height(local_h) or ""
+                ).strip()
+            except Exception:
+                local_parent = ""
+            if (
+                parent
+                and local_parent
+                and local_parent != ("0" * 64)
+                and parent.lower() != local_parent.lower()
+            ):
+                return "fork_peer_head_parent_mismatch"
         return ""
 
     def _bump_fork_probe_refuse(self, reason: str) -> None:
@@ -3793,6 +3813,7 @@ class P2PNode:
             "fork_peer_head_probe_failed",
             "fork_peer_head_hash_mismatch",
             "fork_peer_head_height_mismatch",
+            "fork_peer_head_parent_mismatch",
         ):
             self._fork_peer_head_probe_refuse_total = int(
                 getattr(self, "_fork_peer_head_probe_refuse_total", 0) or 0
@@ -5542,6 +5563,9 @@ class P2PNode:
             ),
             "native_fork_peer_head_probe": bool(
                 getattr(self.config, "p2p_fork_peer_head_probe", True)
+            ),
+            "native_fork_peer_head_parent_bind": bool(
+                getattr(self.config, "p2p_fork_peer_head_parent_bind", True)
             ),
             "native_reconcile_head_hash_bind": bool(
                 getattr(self.config, "p2p_reconcile_head_hash_bind", True)

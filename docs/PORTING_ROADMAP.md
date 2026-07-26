@@ -977,6 +977,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_attestation_target_head_bind` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 122 — Fork peer-head parent bind ✅ (v1.3.168)
+
+- [x] After same-height fork peer.head probe, parent must match tip-height parent
+- [x] Refuse `fork_peer_head_parent_mismatch`
+- [x] Config `p2p_fork_peer_head_parent_bind` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.

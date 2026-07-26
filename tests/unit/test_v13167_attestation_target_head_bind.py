@@ -70,7 +70,7 @@ def test_needles_v13167():
     assert "P2P_ATTESTATION_TARGET_HEAD_BIND" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.167.md").read_text(encoding="utf-8")
     assert "1.3.167-industrial" in notes
-    assert Config().node_version.startswith("1.3.167")
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_attestation_target_head_bind" in metrics
     assert "abs_p2p_attestation_target_head_rejects_total" in metrics
