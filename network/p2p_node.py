@@ -1246,6 +1246,7 @@ class P2PNode:
         self._fork_peer_head_probe_refuse_total: int = 0
         self._reconcile_head_hash_mismatch_total: int = 0
         self._ghost_head_probe_refuse_total: int = 0
+        self._reconcile_contiguous_parent_mismatch_total: int = 0
         self._bootstrap_redial_total: int = 0
         self._bootstrap_pin_rejects_total: int = 0
         self._handshake_rejects: int = 0
@@ -3740,6 +3741,38 @@ class P2PNode:
             return "reconcile_head_hash_mismatch"
         return ""
 
+    def _reconcile_contiguous_parent_refuse_reason(
+        self, peer_block: Dict
+    ) -> str:
+        """v1.3.165: when fetched head is exactly local+1, parent must match tip.
+
+        Soft contiguous extension — not tip proof / Long-Range.
+        """
+        if not bool(
+            getattr(self.config, "p2p_reconcile_contiguous_parent_bind", True)
+        ):
+            return ""
+        if not isinstance(peer_block, dict):
+            return ""
+        try:
+            body_h = int(
+                peer_block.get("height", peer_block.get("number", -1)) or -1
+            )
+            tip_h = int(self.blockchain.get_height() or 0)
+        except (TypeError, ValueError):
+            return ""
+        if body_h < 0 or tip_h < 0 or body_h != tip_h + 1:
+            return ""
+        parent = str(peer_block.get("parent_hash") or "").strip()
+        local_tip = ""
+        try:
+            local_tip = str(self.head() or "").strip()
+        except Exception:
+            local_tip = ""
+        if parent and local_tip and parent.lower() != local_tip.lower():
+            return "reconcile_contiguous_parent_mismatch"
+        return ""
+
     async def _ghost_head_probe_refuse_reason(
         self,
         ghost_head: str,
@@ -4141,6 +4174,19 @@ class P2PNode:
             logger.info(
                 "[P2P] reconcile refuse %s target=%s",
                 bind_reason,
+                target_head[:16],
+            )
+            return False
+
+        # v1.3.165: contiguous (+1) fetched head must cite local tip as parent.
+        parent_reason = self._reconcile_contiguous_parent_refuse_reason(peer_block)
+        if parent_reason:
+            self._reconcile_contiguous_parent_mismatch_total = int(
+                getattr(self, "_reconcile_contiguous_parent_mismatch_total", 0) or 0
+            ) + 1
+            logger.info(
+                "[P2P] reconcile refuse %s target=%s",
+                parent_reason,
                 target_head[:16],
             )
             return False
@@ -5421,6 +5467,9 @@ class P2PNode:
             "native_ghost_head_probe": bool(
                 getattr(self.config, "p2p_ghost_head_probe", True)
             ),
+            "native_reconcile_contiguous_parent_bind": bool(
+                getattr(self.config, "p2p_reconcile_contiguous_parent_bind", True)
+            ),
             "native_catch_up_head_height_bind": True,
             "native_sync_heads_no_invent": True,
             "native_sync_state_wire_only": True,
@@ -5533,6 +5582,9 @@ class P2PNode:
             ),
             "ghost_head_probe_refuse_total": int(
                 getattr(self, "_ghost_head_probe_refuse_total", 0) or 0
+            ),
+            "reconcile_contiguous_parent_mismatch_total": int(
+                getattr(self, "_reconcile_contiguous_parent_mismatch_total", 0) or 0
             ),
             "heads_skipped_no_head": int(
                 getattr(getattr(self, "sync_engine", None), "_heads_skipped_no_head", 0)

@@ -2570,8 +2570,29 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "metrics must export abs_p2p_native_ghost_head_probe (v1.3.164)"
             )
+        # v1.3.165 — reconcile contiguous parent bind
+        if "reconcile_contiguous_parent_mismatch" not in p2p_py:
+            errors.append(
+                "p2p must refuse +1 reconcile on parent mismatch (v1.3.165)"
+            )
+        if "_reconcile_contiguous_parent_refuse_reason" not in p2p_py:
+            errors.append(
+                "p2p must expose _reconcile_contiguous_parent_refuse_reason (v1.3.165)"
+            )
+        if "p2p_reconcile_contiguous_parent_bind" not in (
+            ROOT / "runtime" / "config.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "config must expose p2p_reconcile_contiguous_parent_bind (v1.3.165)"
+            )
+        if "abs_p2p_native_reconcile_contiguous_parent_bind" not in (
+            ROOT / "observability" / "metrics.py"
+        ).read_text(encoding="utf-8"):
+            errors.append(
+                "metrics must export abs_p2p_native_reconcile_contiguous_parent_bind (v1.3.165)"
+            )
     except Exception as exc:
-        errors.append(f"fail-loud v1.3.28..164 honesty inspect failed: {exc}")
+        errors.append(f"fail-loud v1.3.28..165 honesty inspect failed: {exc}")
     try:
         metrics_py = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_sync_wire_probe_probed" not in metrics_py:

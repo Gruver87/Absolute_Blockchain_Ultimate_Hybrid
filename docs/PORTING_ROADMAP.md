@@ -958,6 +958,13 @@ Goal: move deterministic, CPU-bound, and consensus-critical code to **Rust/PyO3*
 - [x] Config `p2p_ghost_head_probe` (default on)
 - Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
 
+### Priority 119 — Reconcile contiguous parent bind ✅ (v1.3.165)
+
+- [x] When fetched head is exactly `local+1`, `parent_hash` must match local tip
+- [x] Refuse `reconcile_contiguous_parent_mismatch`
+- [x] Config `p2p_reconcile_contiguous_parent_bind` (default on)
+- Remaining: tip proof / Long-Range / libp2p / ceremony pin / external audit (not claimed)
+
 ## Process per module
 
 1. Python tests + golden vectors first.
