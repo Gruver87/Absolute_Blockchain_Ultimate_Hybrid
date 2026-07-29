@@ -53,6 +53,7 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | Path A live thin wire (`network/catchup_adapters`, ADR 0004 B) | **Integration-wired** — `_sync_with_peer` ahead branch replaced by `CatchUpPathAService.run_ahead` via P2P port adapters; 9 integration tests (simulated peer, no live TCP); **not** tip proof / libp2p / snap-sync |
 | Path A shared fast_sync (`sync/catchup/engine_io`, ADR 0004 C) | **Wired** — `SyncEngine.fast_sync` delegates ahead import to `CatchUpPathAService` via `SyncEngineCatchUpIO`; private `to_import` loop removed; incremental + Step C tests; **not** tip proof / libp2p |
 | Same-height fork reconcile (`sync/fork`, ADR 0005 A) | **Unit-proven + thin-wired + fail-closed** — `ForkReconcileService`; malicious same-height → `ForkReconcileMaliciousError` + `ForkSecurityEvidence` on `security.fork_refuse` bus + peer strike; spam escalate; **not** tip proof / Long-Range / mesh soak |
+| Storage ports + fake UoW (`storage/ports`, ADR 0006 A–C) | **Unit-proven** — domain Block/State/Meta/UoW/Health ports + `FakeStorage` atomicity / disk_full / corruption / CAS; `RocksDBStorageAdapter` present; **not** live Rocks soak / `blockchain.py` cutover / aux.db evacuated |
 
 **Industrial fixes applied (Jul 12 evening):** mesh mining gate no longer latches on stale P2P wire roots; hub uses live STATUS heights; P2P broadcast non-blocking; `add_block` runs in worker thread so EVM apply cannot freeze the event loop; parallel peer state-root RPC.
 
