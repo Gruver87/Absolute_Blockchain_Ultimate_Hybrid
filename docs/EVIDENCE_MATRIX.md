@@ -56,6 +56,7 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | Storage ports + fake UoW (`storage/ports`, ADR 0006 A–C) | **Unit-proven** — domain Block/State/Meta/UoW/Health ports + `FakeStorage` atomicity / disk_full / corruption / CAS; `RocksDBStorageAdapter` present; **not** live Rocks soak / aux.db evacuated |
 | Storage canonical cutover (`Blockchain` + `open_storage`, ADR 0006 D–E) | **Integration-wired** — `add_block` persist via StoragePort UoW (join open atomic); factory + main DI; cutover tests (CAS/ENOSPC/import/tip agree); **not** live disk-fill |
 | Storage domain purge (`blockchain.py` → `self.storage`, ADR 0006 F) | **Integration-wired** — domain logic uses StoragePort only; compat `@property db`→unwrap for API/P2P; native snapshot/writeback via port; **not** aux.db evacuated / API `.db` removed |
+| Consensus ports + round SM (`consensus/ports`, `consensus/bft`, ADR 0007 A–C) | **Unit-proven + adapter-wired** — `ConsensusPort` / `ValidatorRegistryPort`; fail-closed `RoundStateMachine` (Propose→Finalize/Locked) + Evidence/lockdown; façade keeps `attest`/`get_stats`; **`finality_quorum_live` remains False**; **not** mesh BFT quorum / tip proof / slash gossip |
 
 **Industrial fixes applied (Jul 12 evening):** mesh mining gate no longer latches on stale P2P wire roots; hub uses live STATUS heights; P2P broadcast non-blocking; `add_block` runs in worker thread so EVM apply cannot freeze the event loop; parallel peer state-root RPC.
 

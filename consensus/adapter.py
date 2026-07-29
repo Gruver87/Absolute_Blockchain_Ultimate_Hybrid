@@ -1,68 +1,82 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Consensus Adapter — связывает все компоненты консенсуса с живым узлом.
+Consensus Adapter — live-node façade over ConsensusPort / ValidatorRegistryPort (ADR 0007).
 
-Интегрирует:
-  - ConsensusEngineSlashing  : LMD-GHOST fork choice + Casper FFG + Slashing
-  - ConsensusEngine          : PoS proposer rotation, slots/epochs (fallback)
-  - FinalityEngine           : Casper FFG checkpoint finalization
-  - ValidatorRegistry        : Репутация, слэшинг, статистика валидаторов
-  - PBSMarket                : fee-bid PBS simulation (not MEV protection)
+Domain round state lives in ``_round_state`` (RoundStateMachine). Network I/O is
+forbidden here: EventBus side-effects go only through ConsensusSideEffectPort /
+Evidence / Lockdown ports. Legacy method names remain as thin shims for API/P2P.
 """
 
-import time
-import sys
+from __future__ import annotations
+
 import os
-from typing import Optional, Dict, List
+import sys
+import time
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from consensus_engine import ConsensusEngine, Validator
+from consensus_engine import ConsensusEngine
 from finality_engine import FinalityEngine
-from storage.database import Database
-from runtime.config import Config
 from kernel.event_bus import EventBus
+from runtime.config import Config
+from storage.database import Database
 
-# --- System C consensus (LMD-GHOST + Slashing + BeaconFinality) ---
+from consensus.bft import (
+    BlockRef,
+    ConsensusMaliciousError,
+    FinalityView,
+    Proposal,
+    QuorumCertificate,
+    RoundId,
+    RoundOutcome,
+    RoundPhase,
+    RoundStateMachine,
+    Vote,
+    VoteType,
+    build_evidence,
+)
+from consensus.ports import ConsensusPort, ValidatorRegistryPort
+from consensus.registry_adapter import (
+    AdapterConsensusEvidence,
+    AdapterConsensusLockdown,
+    AdapterConsensusSideEffect,
+    AdapterValidatorRegistry,
+)
+
 try:
     from consensus.engine_slashing import ConsensusEngineSlashing
     from consensus.validator_registry import ValidatorRegistry
     from consensus.pbs import PBSMarket, Builder, Proposer
+
     _SLASHING_AVAILABLE = True
 except ImportError:
     _SLASHING_AVAILABLE = False
 
-# --- Casper FFG finality engine (alternative two-step finality) ---
 try:
     from consensus.engine_casper import ConsensusEngineCasper
-    from consensus.finality_casper import CasperFinality
+
     _CASPER_AVAILABLE = True
 except ImportError:
     _CASPER_AVAILABLE = False
 
-# --- Beacon Chain consensus engine ---
 try:
     from consensus.engine_beacon import ConsensusEngineBeacon
+
     _BEACON_AVAILABLE = True
 except ImportError:
     _BEACON_AVAILABLE = False
 
 
 class ConsensusAdapter:
-    """
-    Unified consensus adapter — объединяет лучшее из трёх систем:
+    """Production façade implementing ``ConsensusPort`` over isolated round state.
 
-    System A (основная):
-      ConsensusEngine      → proposer selection, slot advancement
-      FinalityEngine       → Casper FFG checkpoints
-
-    System C (расширенная):
-      ConsensusEngineSlashing → LMD-GHOST fork choice + slashing protection
-      ValidatorRegistry       → reputation, missed-block penalties
-      PBSMarket               → fee-bid PBS simulation (not MEV protection)
+    Engines (LMD-GHOST, FinalityEngine, optional parallel Casper/Beacon) remain
+    for fork-choice / proposer rotation. Quorum round math and fail-closed
+    Evidence live exclusively in ``_round_state``.
     """
 
     def __init__(self, config: Config, db: Database, bus: Optional[EventBus] = None):
@@ -71,17 +85,17 @@ class ConsensusAdapter:
         self.bus = bus
         self._consensus_mode = config.resolved_consensus_mode()
         self._unified_consensus = self._consensus_mode == "unified"
+        self._deployment_mode = str(
+            getattr(config, "deployment_mode", "dev") or "dev"
+        ).lower()
 
-        # --- System A engines (always available) ---
         self.engine = ConsensusEngine()
         self.finality = FinalityEngine()
 
-        # --- System C engines (available if imported) ---
         if _SLASHING_AVAILABLE:
             epoch_size = getattr(config, "epoch_size", 32)
             self.slashing_engine = ConsensusEngineSlashing(epoch_size=epoch_size)
             self.validator_registry = ValidatorRegistry()
-            # PBS is fee-bid simulation — only when feature_mev is enabled (prod blocks it).
             if bool(getattr(config, "feature_mev", False)):
                 self.pbs_market = PBSMarket()
                 self.pbs_market.add_builder(Builder("default-builder"))
@@ -92,14 +106,16 @@ class ConsensusAdapter:
                 )
             else:
                 self.pbs_market = None
-                print("[Consensus] LMD-GHOST + Slashing + ValidatorRegistry: enabled (PBS off)")
+                print(
+                    "[Consensus] LMD-GHOST + Slashing + ValidatorRegistry: enabled (PBS off)"
+                )
         else:
             self.slashing_engine = None
             self.validator_registry = None
             self.pbs_market = None
             print("[Consensus] Basic PoS mode (engine_slashing not available)")
 
-        # --- Casper FFG engine (two-step finality, alternative to FinalityEngine) ---
+        # staging/prod → unified: never construct parallel engines
         if _CASPER_AVAILABLE and not self._unified_consensus:
             epoch_sz = getattr(config, "epoch_size", 32)
             self.casper_engine = ConsensusEngineCasper(epoch_size=epoch_sz)
@@ -109,7 +125,6 @@ class ConsensusAdapter:
             if _CASPER_AVAILABLE and self._unified_consensus:
                 print("[Consensus] Casper parallel engine: disabled (unified mode)")
 
-        # --- Beacon Chain consensus engine ---
         if _BEACON_AVAILABLE and not self._unified_consensus:
             epoch_sz = getattr(config, "epoch_size", 32)
             self.beacon_engine = ConsensusEngineBeacon(epoch_size=epoch_sz)
@@ -120,32 +135,72 @@ class ConsensusAdapter:
                 print("[Consensus] Beacon parallel engine: disabled (unified mode)")
 
         if self._unified_consensus:
-            print("[Consensus] Unified path: LMD-GHOST + FinalityEngine")
+            print(
+                f"[Consensus] Unified path: LMD-GHOST + FinalityEngine "
+                f"(deployment_mode={self._deployment_mode})"
+            )
 
         self._last_block_time: float = 0.0
         self._casper_ingest_fail = 0
         self._beacon_ingest_fail = 0
+        self._consensus_lockdown_reason: str = ""
+        self._last_consensus_security_evidence = None
+        self._lockdown_hook = None
+
+        # Port surfaces (constructed before validator load so registry port works)
+        self._registry_port: ValidatorRegistryPort = AdapterValidatorRegistry(self)
+        self._evidence_port = AdapterConsensusEvidence(self)
+        self._lockdown_port = AdapterConsensusLockdown(self)
+        self._side_effect_port = AdapterConsensusSideEffect(self)
+        # Compat aliases used by earlier Wave A–B wiring / tests
+        self._port_registry = self._registry_port
+        self._port_evidence = self._evidence_port
+        self._port_lockdown = self._lockdown_port
+
         self._load_validators_from_db()
         self._sync_finality_validator_count()
+        self._init_round_state()
 
         if self.bus:
             self.bus.on("block.new", self._on_new_block)
 
-    # ── Инициализация ────────────────────────────────────────────────────────
+    # ── Round state isolation (ADR 0007) ───────────────────────────────────
 
-    def _load_validators_from_db(self):
-        """Загружает валидаторов из БД при старте."""
+    def _init_round_state(self) -> None:
+        epoch_size = int(getattr(self.config, "epoch_size", 32) or 32)
+        self._round_state = RoundStateMachine(
+            self._registry_port,
+            self._evidence_port,
+            self._lockdown_port,
+            side=self._side_effect_port,
+            epoch_size=epoch_size,
+        )
+
+    @property
+    def round_sm(self) -> RoundStateMachine:
+        """Compat alias for ``_round_state`` (Wave A–B tests / ops)."""
+        return self._round_state
+
+    @property
+    def round_state(self) -> RoundStateMachine:
+        return self._round_state
+
+    # ── Bootstrap ──────────────────────────────────────────────────────────
+
+    def _load_validators_from_db(self) -> None:
         validators = self.db.get_validators(active_only=True)
         for v in validators:
             self._register_validator_all(v["address"], float(v["stake"]))
         if validators:
             print(f"[Consensus] Loaded {len(validators)} validators from DB")
-
         if self.slashing_engine:
-            self.slashing_engine.slashing.register_slash_callback(self._on_validator_slashed)
+            self.slashing_engine.slashing.register_slash_callback(
+                self._on_validator_slashed
+            )
 
-    def _on_validator_slashed(self, address: str, reason: str, slot: int, penalty: int):
-        """Persist slash to SQLite and validator registry (fail-loud on DB errors)."""
+    def _on_validator_slashed(
+        self, address: str, reason: str, slot: int, penalty: int
+    ) -> None:
         persist_err: Optional[BaseException] = None
         try:
             self.db.slash_validator(address)
@@ -164,36 +219,36 @@ class ConsensusAdapter:
                 f"slash persist failed for {address}: {persist_err}"
             ) from persist_err
 
-    def _register_validator_all(self, address: str, stake: float):
-        """Регистрирует валидатора во всех подсистемах."""
+    def _register_validator_all(self, address: str, stake: float) -> None:
         self.engine.add_validator(address, stake)
         if self.slashing_engine:
             self.slashing_engine.add_validator(address, int(stake))
         if self.validator_registry:
             self.validator_registry.register_validator(address, int(stake))
 
-    def _sync_finality_validator_count(self):
-        """Keep Casper FFG quorum aligned with live validator registry."""
+    def _sync_finality_validator_count(self) -> None:
         count = 0
-        if self.db and hasattr(self.db, "get_validators"):
+        try:
+            count = len(self._registry_port.list_active())
+        except Exception:
+            count = 0
+        if count <= 0 and self.db and hasattr(self.db, "get_validators"):
             count = len(self.db.get_validators(active_only=True) or [])
         if count <= 0:
             count = len(self.engine.validators)
         self.finality.set_active_validator_count(max(1, count))
 
     def get_finalized_floor_height(self) -> int:
-        """Highest block height protected from rollback (0 if none finalized)."""
-        floor = 0
+        floor = int(self._round_state.finality_status().finalized_height or 0)
         for epoch in self.finality.finalized_checkpoints:
             cp = self.finality.checkpoints.get(epoch)
             if cp and int(cp.block_number) > floor:
                 floor = int(cp.block_number)
         return floor
 
-    # ── Управление валидаторами ──────────────────────────────────────────────
+    # ── ValidatorRegistryPort-backed management ────────────────────────────
 
     def add_validator(self, address: str, stake: float) -> bool:
-        """Регистрирует нового валидатора (сохраняет в БД + во все движки)."""
         ok = self.engine.add_validator(address, stake)
         if ok:
             self.db.save_validator(address, stake)
@@ -205,15 +260,25 @@ class ConsensusAdapter:
             print(f"[Consensus] New validator: {address[:12]}... stake={stake}")
         return ok
 
-    def slash_validator(self, address: str):
-        """Slash validator via fail-loud DB + registry path."""
+    def slash_validator(self, address: str) -> None:
         self._on_validator_slashed(address, reason="manual", slot=0, penalty=0)
         print(f"[Consensus] Validator slashed: {address[:12]}...")
 
     def get_validators(self) -> List[Dict]:
+        infos = list(self._registry_port.list_active())
+        # Include slashed for ops visibility when registry object exists
         if self.validator_registry:
             return [v.to_dict() for v in self.validator_registry.get_all_validators()]
         return [
+            {
+                "address": i.validator_id,
+                "stake": i.stake,
+                "is_active": i.active and not i.slashed,
+                "attestations": 0,
+                "blocks_proposed": 0,
+            }
+            for i in infos
+        ] or [
             {
                 "address": v.address,
                 "stake": v.stake,
@@ -225,109 +290,277 @@ class ConsensusAdapter:
         ]
 
     def get_total_stake(self) -> float:
+        try:
+            stake = float(self._registry_port.total_active_stake())
+            if stake > 0:
+                return stake
+        except Exception:
+            pass
         return self.engine.get_total_stake()
 
-    # ── Выбор proposer ───────────────────────────────────────────────────────
-
     def select_proposer(self) -> Optional[str]:
-        """Deterministic stake-weighted proposer — all nodes agree on same slot."""
         if not self.engine.validators:
             return self.config.miner_address or "genesis"
-
         validator = self.engine.select_proposer()
         return validator.address if validator else self.config.miner_address or "genesis"
 
     def should_produce_block(self) -> bool:
-        """Проверяет, наступило ли время форжить следующий блок."""
         now = time.time()
         return now - self._last_block_time >= self.config.block_time
 
-    def mark_block_produced(self, proposer: str = None):
-        """Вызывается после успешного форжинга блока."""
+    def mark_block_produced(self, proposer: str = None) -> None:
         self._last_block_time = time.time()
         self.engine.advance_slot()
         if proposer and self.validator_registry:
             self.validator_registry.record_produced_block(proposer)
 
-    # ── Аттестации ───────────────────────────────────────────────────────────
+    # ── ConsensusPort implementation ───────────────────────────────────────
 
-    def attest(self, validator_addr: str, block_hash: str, slot: int | None = None) -> bool:
-        """Аттестация блока от валидатора. Проверяет на double-vote (slashing)."""
+    def submit_proposal(self, proposal: Proposal) -> RoundOutcome:
+        try:
+            return self._round_state.submit_proposal(proposal)
+        except ConsensusMaliciousError as exc:
+            return exc.outcome
+
+    def submit_vote(self, vote: Vote) -> RoundOutcome:
+        try:
+            return self._round_state.submit_vote(vote)
+        except ConsensusMaliciousError as exc:
+            return exc.outcome
+
+    def current_round(self) -> RoundId:
+        return self._round_state.current_round()
+
+    def round_phase(self, round_id: RoundId) -> RoundPhase:
+        return self._round_state.round_phase(round_id)
+
+    def canonical_head(self) -> Optional[BlockRef]:
+        head = self._round_state.canonical_head()
+        if head is not None:
+            return head
+        hh = self.get_canonical_head()
+        if not hh:
+            return None
+        return BlockRef(height=0, block_hash=str(hh), parent_hash="")
+
+    def finality_status(self) -> FinalityView:
+        view = self._round_state.finality_status()
+        # Honesty: never claim live mesh quorum in Waves A–C
+        return FinalityView(
+            finalized_height=max(
+                int(view.finalized_height), int(self.get_finalized_floor_height())
+            ),
+            justified_height=int(view.justified_height),
+            quorum_live=False,
+            local_attestations_present=bool(
+                view.local_attestations_present or self.get_attestations()
+            ),
+            detail="local_path_only",
+        )
+
+    def quorum_certificate(
+        self, round_id: RoundId, vote_type: VoteType
+    ) -> Optional[QuorumCertificate]:
+        return self._round_state.quorum_certificate(round_id, vote_type)
+
+    def add_block(self, block_ref: BlockRef, parent_hash: str = "") -> None:
+        parent = parent_hash or block_ref.parent_hash
+        self._round_state.add_block(block_ref, parent_hash=parent)
+        if self.slashing_engine:
+            self.slashing_engine.add_block(
+                {
+                    "hash": block_ref.block_hash,
+                    "parent_hash": parent,
+                    "number": int(block_ref.height),
+                }
+            )
+
+    def add_block_to_fork_choice(self, block: Dict) -> None:
+        if self.slashing_engine:
+            self.slashing_engine.add_block(block)
+        try:
+            ref = BlockRef(
+                height=int(block.get("number", block.get("height", 0)) or 0),
+                block_hash=str(block.get("hash") or block.get("block_hash") or ""),
+                parent_hash=str(block.get("parent_hash") or ""),
+            )
+            if ref.block_hash:
+                self._round_state.add_block(ref, parent_hash=ref.parent_hash)
+        except Exception:
+            pass
+
+    # ── Legacy attestation shim → ConsensusPort.submit_vote ────────────────
+
+    def attest(
+        self, validator_addr: str, block_hash: str, slot: int | None = None
+    ) -> bool:
+        """Legacy API: LMD + slash check, then domain PREVOTE via ConsensusPort."""
         slot_n = int(self.engine.current_slot if slot is None else slot)
 
-        # LMD-GHOST + slashing check
         if self.slashing_engine:
             ok = self.slashing_engine.on_attestation(validator_addr, block_hash, slot_n)
             if not ok:
-                print(f"[Consensus] Attestation rejected (slashing): {validator_addr[:12]}...")
+                print(
+                    f"[Consensus] Attestation rejected (slashing): {validator_addr[:12]}..."
+                )
+                self._fail_closed_double_vote(validator_addr, block_hash, slot_n)
                 return False
 
         ok = self.engine.attest(validator_addr, slot_n, block_hash)
-        if ok:
-            if self.validator_registry:
-                self.validator_registry.record_vote(validator_addr)
-            if self.bus:
-                self.bus.emit("consensus.attestation", {
-                    "validator": validator_addr,
-                    "slot": slot_n,
-                    "block_hash": block_hash,
-                })
-        return ok
+        if not ok:
+            return False
 
-    # ── GHOST fork choice ────────────────────────────────────────────────────
+        if self.validator_registry:
+            self.validator_registry.record_vote(validator_addr)
+
+        vote = self._build_prevote(validator_addr, block_hash, slot_n)
+        # Side-effect port emits bus event (no direct bus / no P2P)
+        self._side_effect_port.on_attestation(vote)
+        outcome = self.submit_vote(vote)
+        if outcome.status.value == "locked":
+            return False
+        return True
+
+    def _build_prevote(
+        self, validator_addr: str, block_hash: str, slot_n: int
+    ) -> Vote:
+        height = max(0, int(getattr(self.engine, "current_slot", slot_n) or slot_n))
+        phase = self._round_state.round_phase(self._round_state.current_round())
+        if (
+            self._round_state.current_round().height != height
+            or phase is RoundPhase.FINALIZE
+            or phase is RoundPhase.LOCKED
+        ):
+            proposer = self.select_proposer() or ""
+            self._round_state.open_round(height, expected_proposer=proposer)
+        return Vote(
+            validator_id=str(validator_addr or ""),
+            vote_type=VoteType.PREVOTE,
+            round_id=self._round_state.current_round(),
+            block_hash=str(block_hash or ""),
+            slot=int(slot_n),
+            verified=True,
+        )
+
+    def _fail_closed_double_vote(
+        self, validator_addr: str, block_hash: str, slot_n: int
+    ) -> None:
+        rid = self._round_state.current_round()
+        if rid.height <= 0:
+            self._round_state.open_round(max(1, int(slot_n or 1)))
+            rid = self._round_state.current_round()
+        vote = Vote(
+            validator_id=str(validator_addr or ""),
+            vote_type=VoteType.PREVOTE,
+            round_id=rid,
+            block_hash=str(block_hash or ""),
+            slot=int(slot_n),
+            verified=True,
+        )
+        attempts = self._evidence_port.note_malicious_attempt(
+            str(validator_addr or ""), "double_vote"
+        )
+        evidence = build_evidence(
+            reason_code="double_vote",
+            validator_id=str(validator_addr or ""),
+            round_id=rid,
+            conflicting_votes=(vote,),
+            attempt_count=attempts,
+            detail="legacy_slashing_rejected",
+        )
+        self._evidence_port.emit(evidence)
+        self._lockdown_port.request_lockdown("consensus_double_sign")
+        self._round_state._phase = RoundPhase.LOCKED  # noqa: SLF001
+
+    # Compat names used by earlier Wave B helpers
+    def finality_status_view(self) -> FinalityView:
+        return self.finality_status()
+
+    def _domain_submit_prevote(
+        self, validator_addr: str, block_hash: str, slot_n: int
+    ) -> None:
+        self.submit_vote(self._build_prevote(validator_addr, block_hash, slot_n))
+
+    def _domain_prevote_fail_closed(
+        self, validator_addr: str, block_hash: str, slot_n: int
+    ) -> None:
+        self._fail_closed_double_vote(validator_addr, block_hash, slot_n)
+
+    # ── GHOST fork choice ──────────────────────────────────────────────────
 
     def get_canonical_head(self) -> Optional[str]:
-        """Возвращает хэш канонической головы цепи по LMD-GHOST."""
         if self.slashing_engine:
             return self.slashing_engine.get_head()
-        return None
-
-    def add_block_to_fork_choice(self, block: Dict):
-        """Добавляет блок в дерево для GHOST fork choice."""
-        if self.slashing_engine:
-            self.slashing_engine.add_block(block)
+        head = self._round_state.canonical_head()
+        return head.block_hash if head else None
 
     def get_cumulative_weight(self, block_hash: str) -> int:
-        """Кумулятивный вес блока для LMD-GHOST."""
         if self.slashing_engine:
             return self.slashing_engine.get_cumulative_weight(block_hash)
         return 0
 
-    # ── PBS (fee-bid simulation; not MEV protection) ─────────────────────────
-
     def run_pbs_auction(self, pending_txs: List[Dict]) -> Optional[Dict]:
-        """
-        Fee-bid PBS simulation: builders score the same tx set;
-        proposer selects highest fee sum. Does not reorder or protect MEV.
-        """
         if self.pbs_market and pending_txs:
             return self.pbs_market.run_auction(pending_txs)
         return None
 
-    # ── Финальность ──────────────────────────────────────────────────────────
+    # ── Finality ───────────────────────────────────────────────────────────
 
-    def process_block_finality(self, block_number: int, block_hash: str,
-                               proposer: str) -> Dict:
-        """Обновляет статус финализации после добавления блока."""
+    def process_block_finality(
+        self, block_number: int, block_hash: str, proposer: str
+    ) -> Dict:
         result = self.finality.process_block(block_number, block_hash, proposer)
-
         epoch = result["epoch"]
         justified = epoch in result["justified"]
         finalized = epoch in result["finalized"]
         self.db.save_checkpoint(epoch, block_hash, justified, finalized)
 
-        if finalized and self.bus:
-            self.bus.emit("consensus.finalized", {"epoch": epoch, "block": block_number})
+        try:
+            self.add_block(
+                BlockRef(
+                    height=int(block_number),
+                    block_hash=str(block_hash or ""),
+                    parent_hash="",
+                )
+            )
+        except Exception:
+            pass
 
-        # Также обновляем слэшинг-движок финальностью
+        if finalized:
+            # Domain side-effect port only (no direct P2P)
+            self._side_effect_port.on_finalized(str(block_hash or ""), int(block_number))
+
         if self.slashing_engine:
             self.slashing_engine.finality.set_total_stake(
                 self.slashing_engine.slashing.get_total_active_stake()
             )
-
         return result
 
-    def is_finalized(self, block_number: int) -> bool:
+    def is_finalized(self, block_hash_or_height: Union[str, int]) -> bool:
+        """ConsensusPort + legacy: accept height (int) or block hash (str)."""
+        if isinstance(block_hash_or_height, str):
+            hh = block_hash_or_height.strip().lower()
+            if hh and self._round_state.is_finalized(hh):
+                return True
+            if hh and self.slashing_engine and self.slashing_engine.is_finalized(hh):
+                return True
+            if self._unified_consensus:
+                return False
+            if hh and self.casper_engine:
+                try:
+                    return bool(self.casper_engine.is_finalized(hh))
+                except Exception:
+                    return False
+            if hh and self.beacon_engine:
+                try:
+                    return bool(self.beacon_engine.is_finalized(hh))
+                except Exception:
+                    return False
+            return False
+
+        block_number = int(block_hash_or_height)
+        if self._round_state.is_finalized(block_number):
+            return True
         epoch = self.finality.get_epoch(block_number)
         if epoch in self.finality.finalized_checkpoints:
             return True
@@ -355,10 +588,7 @@ class ConsensusAdapter:
     def get_finality_status(self, block_number: int) -> Dict:
         return self.finality.get_finality_status(block_number)
 
-    # ── Слушатель событий ────────────────────────────────────────────────────
-
-    def _on_new_block(self, block_data: Dict):
-        """Автоматически обрабатывает финализацию при каждом новом блоке."""
+    def _on_new_block(self, block_data: Dict) -> None:
         if not isinstance(block_data, dict):
             return
         proposer = block_data.get("miner", "")
@@ -367,7 +597,6 @@ class ConsensusAdapter:
             block_hash=block_data.get("hash", ""),
             proposer=proposer,
         )
-        # Feed block to GHOST fork tree
         blk_for_fork = {
             "hash": block_data.get("hash", ""),
             "parent_hash": block_data.get("parent_hash", ""),
@@ -375,7 +604,6 @@ class ConsensusAdapter:
         }
         self.add_block_to_fork_choice(blk_for_fork)
 
-        # Parallel fork-choice engines (dev / research only; disabled in unified prod path)
         if not self._unified_consensus and self.casper_engine:
             try:
                 self.casper_engine.add_block(blk_for_fork)
@@ -390,14 +618,10 @@ class ConsensusAdapter:
                 self._beacon_ingest_fail += 1
                 print(f"[Consensus] beacon add_block error: {exc}")
 
-        # Record block production in validator registry
         if proposer and self.validator_registry:
             self.validator_registry.record_produced_block(proposer)
 
-    # ── Статистика ───────────────────────────────────────────────────────────
-
     def get_casper_status(self) -> Dict:
-        """Returns Casper FFG two-step finality status."""
         if not self.casper_engine:
             return {"enabled": False, "healthy": False}
         try:
@@ -417,7 +641,6 @@ class ConsensusAdapter:
             }
 
     def get_beacon_status(self) -> Dict:
-        """Returns Beacon Chain engine status (head, finality)."""
         if not self.beacon_engine:
             return {"enabled": False, "healthy": False}
         try:
@@ -444,11 +667,13 @@ class ConsensusAdapter:
         slashing_on = self.slashing_engine is not None
         pbs_on = self.pbs_market is not None
         registry_on = self.validator_registry is not None
+        view = self.finality_status()
         stats = {
             **engine_stats,
             **finality_stats,
             "enabled": True,
             "consensus_mode": self._consensus_mode,
+            "deployment_mode": self._deployment_mode,
             "unified_consensus_path": self._unified_consensus,
             "block_time": self.config.block_time,
             "min_stake": self.config.min_stake,
@@ -472,9 +697,17 @@ class ConsensusAdapter:
             "beacon_enabled": self.beacon_engine is not None,
             "casper_ingest_fail": int(self._casper_ingest_fail),
             "beacon_ingest_fail": int(self._beacon_ingest_fail),
+            "consensus_ports_enabled": True,
+            "bft_round_phase": self._round_state.round_phase(
+                self._round_state.current_round()
+            ).value,
+            "finality_quorum_live": False,
+            "local_attestations_present": bool(view.local_attestations_present),
+            "consensus_lockdown_reason": str(self._consensus_lockdown_reason or ""),
             "healthy": (
                 int(self._casper_ingest_fail) == 0
                 and int(self._beacon_ingest_fail) == 0
+                and not bool(self._consensus_lockdown_reason)
             ),
             "systems": {
                 "lmd_ghost": lmd_on,
@@ -483,6 +716,8 @@ class ConsensusAdapter:
                 "pbs": pbs_on,
                 "validator_registry": registry_on,
                 "beacon": self.beacon_engine is not None,
+                "round_sm": True,
+                "consensus_port": True,
             },
         }
         if self.slashing_engine:
@@ -498,14 +733,12 @@ class ConsensusAdapter:
                 stats["head_stats_error"] = str(e)
         if self.validator_registry:
             try:
-                reg_stats = self.validator_registry.get_stats()
-                stats.update(reg_stats)
+                stats.update(self.validator_registry.get_stats())
             except Exception as e:
                 stats["registry_stats_error"] = str(e)
         return stats
 
     def get_attestations(self) -> List[Dict]:
-        """Latest LMD votes per validator (live attestation table)."""
         if not self.slashing_engine:
             return []
         out = []
@@ -514,18 +747,19 @@ class ConsensusAdapter:
             return []
         weights = lmd.get_weights()
         for validator, (block_hash, slot) in lmd.latest_vote.items():
-            out.append({
-                "validator": validator,
-                "block_hash": block_hash,
-                "slot": int(slot),
-                "stake": int(lmd.validator_stake.get(validator, 0)),
-                "block_weight": int(weights.get(block_hash, 0)),
-            })
+            out.append(
+                {
+                    "validator": validator,
+                    "block_hash": block_hash,
+                    "slot": int(slot),
+                    "stake": int(lmd.validator_stake.get(validator, 0)),
+                    "block_weight": int(weights.get(block_hash, 0)),
+                }
+            )
         out.sort(key=lambda x: (-x["slot"], x["validator"]))
         return out
 
     def get_attestations_by_block(self) -> List[Dict]:
-        """Aggregate LMD votes grouped by target block hash."""
         grouped: Dict[str, Dict] = {}
         for vote in self.get_attestations():
             block_hash = vote.get("block_hash", "")
@@ -548,12 +782,35 @@ class ConsensusAdapter:
         return rows
 
     def get_attestations_for_block(self, block_hash: str) -> List[Dict]:
-        """Votes targeting a specific block hash."""
+        """API-facing list of dicts (JSON-serializable). Domain Votes stay internal."""
         target = (block_hash or "").strip().lower()
         if not target:
             return []
-        return [
-            v for v in self.get_attestations()
+        # Prefer LMD wire view for explorer compatibility
+        legacy = [
+            v
+            for v in self.get_attestations()
             if str(v.get("block_hash", "")).lower().startswith(target)
             or target in str(v.get("block_hash", "")).lower()
         ]
+        if legacy:
+            return legacy
+        # Fall back to domain round-state votes
+        domain_votes: Sequence[Vote] = self._round_state.get_attestations_for_block(
+            target
+        )
+        return [
+            {
+                "validator": v.validator_id,
+                "block_hash": v.block_hash,
+                "slot": int(v.slot),
+                "vote_type": v.vote_type.value,
+                "stake": 0,
+            }
+            for v in domain_votes
+        ]
+
+
+# Structural marker for isinstance(..., ConsensusPort) checks in units.
+assert hasattr(ConsensusAdapter, "submit_proposal")
+assert hasattr(ConsensusAdapter, "submit_vote")

@@ -515,6 +515,26 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("core_real must not invent finality_quorum_live from local attest count")
         if '"local_attestations_present"' not in http_py:
             errors.append("core_real must expose local_attestations_present separately from quorum")
+        # ADR 0007 — consensus ports + round SM (fail-closed; quorum_live stays false)
+        consensus_ports = (ROOT / "consensus" / "ports.py").read_text(encoding="utf-8")
+        if "class ConsensusPort" not in consensus_ports:
+            errors.append("consensus/ports.py must define ConsensusPort (ADR 0007)")
+        if "class ValidatorRegistryPort" not in consensus_ports:
+            errors.append("consensus/ports.py must define ValidatorRegistryPort (ADR 0007)")
+        round_sm_py = (ROOT / "consensus" / "bft" / "service.py").read_text(
+            encoding="utf-8"
+        )
+        if "class RoundStateMachine" not in round_sm_py:
+            errors.append("consensus/bft must expose RoundStateMachine (ADR 0007)")
+        adapter_py = (ROOT / "consensus" / "adapter.py").read_text(encoding="utf-8")
+        if "round_sm" not in adapter_py or "_init_round_state_machine" not in adapter_py:
+            errors.append("ConsensusAdapter must wire RoundStateMachine (ADR 0007)")
+        if '"finality_quorum_live": False' not in adapter_py:
+            errors.append(
+                "ConsensusAdapter get_stats must keep finality_quorum_live False (ADR 0007)"
+            )
+        if not (ROOT / "docs" / "adr" / "0007-consensus-boundary.md").is_file():
+            errors.append("docs/adr/0007-consensus-boundary.md missing")
         if '"state_engine": self.__class__.state_engine is not None' not in http_py:
             errors.append("core_real must expose state_engine availability")
         if "finality_engine_missing" not in http_py:

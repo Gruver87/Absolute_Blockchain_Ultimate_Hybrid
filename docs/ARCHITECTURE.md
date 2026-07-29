@@ -132,6 +132,7 @@ flowchart LR
 | [0004](adr/0004-catchup-path-a.md) | Catch-up Path A | Ahead batch loop + `Sync incomplete` |
 | [0005](adr/0005-fork-reconcile.md) | Fork / GHOST | Same-height reorg + fail-closed Evidence |
 | [0006](adr/0006-storage-boundary.md) | StoragePort | Canonical UoW; `Blockchain` on `self.storage` |
+| [0007](adr/0007-consensus-boundary.md) | ConsensusPort | Round SM + Evidence/lockdown; adapter façade |
 
 ---
 
@@ -154,10 +155,13 @@ storage/
   ports.py              StoragePort / UoW contracts
   adapters/             RocksDBStorageAdapter
   factory.py            open_storage(db)
+consensus/
+  adapter.py            façade (legacy API + RoundStateMachine)
+  ports.py              ConsensusPort / ValidatorRegistryPort
+  bft/                  Round SM · quorum · Evidence (ADR 0007)
 native/abs_native/      Rust crypto · Rocks · EVM kernels
-consensus/              LMD-GHOST + finality policy
 runtime/                Config · prod smoke profile
-docs/adr/               boundary decisions 0001–0006
+docs/adr/               boundary decisions 0001–0007
 scripts/                industrial_gate · mesh · soak
 ```
 
@@ -170,7 +174,8 @@ scripts/                industrial_gate · mesh · soak
 | REST / RPC / WS | Python | Yes | Yes |
 | P2P TCP + dispatch | Python | Yes | Yes |
 | Catch-up / fork services | Python domain | Yes | Yes |
-| Consensus policy | Python | Unified LMD-GHOST | Parallel/auto |
+| Consensus policy | Python | Unified LMD-GHOST + Round SM ports | Parallel/auto + Round SM |
+| Consensus BFT quorum live | — | **Not claimed** (`finality_quorum_live=False`) | Same |
 | TipSafety enforce | Python | **Required** | Optional |
 | Blockchain domain | Python → StoragePort | Yes | Yes |
 | State root / hashing | Rust PyO3 | Required | Required |

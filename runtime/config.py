@@ -294,10 +294,11 @@ class Config:
         return 1_704_067_200 + int(getattr(self, "chain_id", 77777))
 
     def resolved_consensus_mode(self) -> str:
-        """Single canonical fork-choice path in prod (LMD-GHOST + FinalityEngine)."""
+        """Single canonical fork-choice path in prod/staging (LMD-GHOST + FinalityEngine)."""
         mode = str(getattr(self, "consensus_mode", "auto") or "auto").strip().lower()
         if mode == "auto":
-            return "unified" if self.is_production else "parallel"
+            dep = str(getattr(self, "deployment_mode", "dev") or "dev").lower()
+            return "unified" if dep in ("prod", "staging") else "parallel"
         if mode in ("parallel", "unified"):
             return mode
         return "parallel"
@@ -351,6 +352,10 @@ class Config:
 
         self.node_id = env_str("NODE_ID", self.node_id)
         self.deployment_mode = env_str("DEPLOYMENT_MODE", self.deployment_mode).lower()
+        # staging/prod: hard-coerce parallel → unified (matches resolved_consensus_mode)
+        if self.deployment_mode in ("prod", "staging"):
+            if str(self.consensus_mode or "").strip().lower() == "parallel":
+                self.consensus_mode = "unified"
         self.tip_safety_shadow = env_bool(
             "TIP_SAFETY_SHADOW",
             self.tip_safety_shadow,
@@ -1179,6 +1184,13 @@ class Config:
             mode = str(getattr(self, "consensus_mode", "auto") or "auto").strip().lower()
             if mode == "parallel":
                 errors.append("prod forbids consensus_mode=parallel (use unified or auto)")
+        if str(self.deployment_mode or "").lower() == "staging":
+            mode = str(getattr(self, "consensus_mode", "auto") or "auto").strip().lower()
+            if mode == "parallel":
+                errors.append(
+                    "staging forbids consensus_mode=parallel (use unified or auto)"
+                )
+        if self.is_production:
             if not self.p2p_tls_fail_closed:
                 errors.append("prod requires p2p_tls_fail_closed=true")
             if not self.p2p_tls_bind_identity:
