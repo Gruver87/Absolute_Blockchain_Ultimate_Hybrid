@@ -49,14 +49,15 @@ Explorer: http://localhost:8080 · Mesh: `make mesh-up` or `.\scripts\docker_pro
 ## Repo layout (skimmers)
 
 ```text
-native/abs_native/   Rust crypto · P2P · EVM kernels (PyO3)   ← Cargo.toml here
-bridge/rust_bridge/  Rust L1 bridge CLI
-network/             P2P Python control plane
-core/                Blockchain / apply
+native/abs_native/   Rust crypto · Rocks · EVM kernels (PyO3)  ← Cargo.toml here
+network/             P2P TCP + dispatch + catchup/fork adapters
+sync/                CatchUp Path A · ForkReconcile · SolicitHub
+storage/             StoragePort · RocksDB adapter · open_storage
+core/                Blockchain domain (self.storage)
 api/                 REST + JSON-RPC
-scripts/             gates · mesh · soak (*.ps1 Windows · *.sh Linux)
-.github/workflows/   Ubuntu CI (test · docker · security · fuzz)
-docs/                evidence · architecture · commands
+consensus/           LMD-GHOST + finality policy
+docs/adr/            boundaries 0001–0006
+scripts/             gates · mesh · soak
 Makefile             make build | test-quick | test-gate | mesh-up
 ```
 
@@ -106,16 +107,19 @@ Makefile             make build | test-quick | test-gate | mesh-up
 
 ```mermaid
 flowchart TB
-  EX[Explorer / wallets] --> API[REST + JSON-RPC]
-  API --> ORCH[NodeOrchestrator Python]
-  ORCH --> P2P[P2P mesh]
-  ORCH --> CONS[Consensus]
-  ORCH --> BC[Blockchain]
-  BC --> STORE[(RocksDB prod / SQLite dev)]
-  BC --> RUST[abs_native Rust crypto + state_root]
+  EX["Explorer / wallets"] --> API["REST + JSON-RPC"]
+  API --> ORCH["NodeOrchestrator"]
+  ORCH --> P2P["P2P + dispatch"]
+  ORCH --> CONS["Consensus + TipSafety"]
+  ORCH --> BC["Blockchain"]
+  P2P --> SYNC["sync/ CatchUp · Fork · Solicit"]
+  SYNC --> BC
+  BC --> SP["StoragePort"]
+  SP --> ROCKS[("RocksDB prod")]
+  BC --> RUST["abs_native crypto + state_root"]
 ```
 
-Full: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**
+Ports & honesty: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · ADRs **[0001–0006](docs/adr/)**
 
 ### Operator cheatsheet
 

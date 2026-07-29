@@ -31,10 +31,14 @@ def test_needles_v13128():
     assert "bad_status_height_head" in wire
     assert "bad_handshake_height_head" in wire
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+    handlers = (ROOT / "network" / "p2p_dispatch" / "handlers.py").read_text(
+        encoding="utf-8"
+    )
+    surface = p2p + "\n" + handlers
     assert "p2p_peer_addr_is_dialable" in p2p
     assert "p2p_discovery_allow_private" in p2p
-    assert "verify_p2p_handshake_head_semantics" in p2p
-    assert "verify_p2p_status_height_head_binding" in p2p
+    assert "verify_p2p_handshake_head_semantics" in surface
+    assert "verify_p2p_status_height_head_binding" in surface
     notes = (ROOT / "RELEASE_NOTES_v1.3.128.md").read_text(encoding="utf-8")
     assert "1.3.128-industrial" in notes
     # Live Config().node_version advances with later waves; pin notes not config.

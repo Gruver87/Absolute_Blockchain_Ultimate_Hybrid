@@ -250,6 +250,7 @@ def prod_node_config(
         "verify_peer_state_root": True,
         "state_root_strict_p2p": True,
         "state_root_legacy_cutoff_height": 0,
+        "tip_safety_enforce": True,
         "monitor_enabled": False,
         "bridge_enabled": bridge_enabled,
         "bridge_mode": "rust",

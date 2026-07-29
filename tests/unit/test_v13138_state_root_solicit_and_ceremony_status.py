@@ -56,7 +56,12 @@ def _node() -> P2PNode:
 
 def test_needles_v13138():
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
-    assert "unsolicited_state_root_response" in p2p
+    solicit = (ROOT / "sync" / "solicit.py").read_text(encoding="utf-8")
+    handlers = (ROOT / "network" / "p2p_dispatch" / "handlers.py").read_text(
+        encoding="utf-8"
+    )
+    surface = p2p + "\n" + solicit + "\n" + handlers
+    assert "unsolicited_state_root_response" in surface
     assert "native_state_root_solicit_only" in p2p
     assert (ROOT / "scripts" / "ceremony_status.py").is_file()
     check = (ROOT / "scripts" / "check_all.ps1").read_text(encoding="utf-8")

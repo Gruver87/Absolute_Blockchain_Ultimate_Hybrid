@@ -73,9 +73,14 @@ def _node() -> P2PNode:
 
 def test_needles_v13137():
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+    solicit = (ROOT / "sync" / "solicit.py").read_text(encoding="utf-8")
+    handlers = (ROOT / "network" / "p2p_dispatch" / "handlers.py").read_text(
+        encoding="utf-8"
+    )
+    surface = p2p + "\n" + solicit + "\n" + handlers
     assert "_attestation_local_head_reject_reason" in p2p
     assert "attestation_local_height_mismatch" in p2p
-    assert "unsolicited_blocks" in p2p
+    assert "unsolicited_blocks" in surface
     assert "native_block_solicit_only" in p2p
     notes = (ROOT / "RELEASE_NOTES_v1.3.137.md").read_text(encoding="utf-8")
     assert "1.3.137-industrial" in notes

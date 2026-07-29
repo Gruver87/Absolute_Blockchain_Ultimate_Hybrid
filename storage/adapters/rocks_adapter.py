@@ -549,7 +549,7 @@ class RocksDBStorageAdapter:
 
     # ── StateStorePort ───────────────────────────────────────────────────────
 
-    def get_account(self, address: str) -> Optional[AccountRecord]:
+    def get_account(self, address: str) -> Optional[Mapping[str, Any]]:
         addr = str(address or "").strip()
         if not addr:
             return None
@@ -564,7 +564,15 @@ class RocksDBStorageAdapter:
                 "corrupt account row",
                 reason_code="corrupt_account",
             )
-        return AccountRecord.from_mapping(addr, raw)
+        out = dict(raw)
+        out.setdefault("address", addr)
+        return out
+
+    def get_account_record(self, address: str) -> Optional[AccountRecord]:
+        raw = self.get_account(address)
+        if raw is None:
+            return None
+        return AccountRecord.from_mapping(str(address or ""), raw)
 
     def get_state_root(self) -> str:
         store = self._store
@@ -600,15 +608,127 @@ class RocksDBStorageAdapter:
                 raise map_engine_error(exc) from exc
         return 0
 
+    def get_balance(self, address: str) -> float:
+        try:
+            return float(self._store.get_balance(str(address or "")) or 0.0)
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def get_balance_satoshi(self, address: str) -> int:
+        try:
+            if hasattr(self._store, "get_balance_satoshi"):
+                return int(self._store.get_balance_satoshi(str(address or "")) or 0)
+            from runtime.amount import to_satoshi
+
+            return int(to_satoshi(self.get_balance(address)))
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def get_nonce(self, address: str) -> int:
+        try:
+            return int(self._store.get_nonce(str(address or "")) or 0)
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def get_all_accounts(self) -> Sequence[Mapping[str, Any]]:
+        try:
+            rows = self._store.get_all_accounts()
+            return [dict(r) for r in (rows or []) if isinstance(r, Mapping)]
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def get_total_supply(self) -> float:
+        try:
+            return float(self._store.get_total_supply() or 0.0)
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def compute_state_root(self) -> str:
+        try:
+            if hasattr(self._store, "compute_state_root"):
+                return str(self._store.compute_state_root() or "")
+            from execution.state_root import compute_db_state_root
+
+            return str(compute_db_state_root(list(self.get_all_accounts())) or "")
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def balance_delta(self, address: str, delta: float) -> None:
+        try:
+            self._store.balance_delta(str(address or ""), float(delta))
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def update_balance(self, address: str, delta: float) -> float:
+        try:
+            return float(self._store.update_balance(str(address or ""), float(delta)))
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def set_balance(self, address: str, balance: float) -> None:
+        try:
+            self._store.set_balance(str(address or ""), float(balance))
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def nonce_increment(self, address: str) -> int:
+        try:
+            if hasattr(self._store, "nonce_increment"):
+                return int(self._store.nonce_increment(str(address or "")))
+            return int(self._store.increment_nonce(str(address or "")))
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def increment_nonce(self, address: str) -> int:
+        try:
+            if hasattr(self._store, "increment_nonce"):
+                return int(self._store.increment_nonce(str(address or "")))
+            return int(self.nonce_increment(address))
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def save_account(
+        self,
+        address: str,
+        balance: float = 0.0,
+        nonce: int = 0,
+        code: Any = None,
+        storage: Any = None,
+    ) -> None:
+        try:
+            self._store.save_account(
+                str(address or ""),
+                balance=float(balance),
+                nonce=int(nonce),
+                code=code,
+                storage=storage,
+            )
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def reset_accounts_from_alloc(
+        self, alloc: Mapping[str, Any], *, _in_atomic: bool = False
+    ) -> None:
+        try:
+            self._store.reset_accounts_from_alloc(dict(alloc or {}), _in_atomic=_in_atomic)
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
     # ── MetaStorePort ────────────────────────────────────────────────────────
 
-    def get_validators(self) -> Sequence[Mapping[str, Any]]:
+    def get_validators(self, active_only: bool = True) -> Sequence[Mapping[str, Any]]:
         store = self._store
         if not hasattr(store, "get_validators"):
             return []
         try:
-            rows = store.get_validators()
+            rows = store.get_validators(active_only=bool(active_only))
             return [dict(r) for r in (rows or []) if isinstance(r, Mapping)]
+        except TypeError:
+            try:
+                rows = store.get_validators()
+                return [dict(r) for r in (rows or []) if isinstance(r, Mapping)]
+            except Exception as exc:
+                raise map_engine_error(exc) from exc
         except Exception as exc:
             raise map_engine_error(exc) from exc
 
@@ -647,6 +767,117 @@ class RocksDBStorageAdapter:
             "store has no checkpoint path",
             reason_code="no_checkpoint",
         )
+
+    def get_meta(self, key: str, default: Any = None) -> Any:
+        try:
+            if hasattr(self._store, "get_meta"):
+                return self._store.get_meta(str(key), default)
+            return default
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def set_meta(self, key: str, value: Any) -> None:
+        try:
+            self._store.set_meta(str(key), value)
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def get_stats(self) -> Mapping[str, Any]:
+        try:
+            if hasattr(self._store, "get_stats"):
+                return dict(self._store.get_stats() or {})
+            return {}
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def get_burn_stats(self) -> Mapping[str, Any]:
+        try:
+            if hasattr(self._store, "get_burn_stats"):
+                return dict(self._store.get_burn_stats() or {})
+            return {}
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def get_chain_metrics(self, window: int = 0) -> Mapping[str, Any]:
+        try:
+            if hasattr(self._store, "get_chain_metrics"):
+                if window:
+                    return dict(self._store.get_chain_metrics(window) or {})
+                return dict(self._store.get_chain_metrics() or {})
+            return {}
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    # ── Block surgery / legacy dict mirrors (Wave F) ──────────────────────────
+
+    def save_block(self, block: Mapping[str, Any]) -> bool:
+        try:
+            return bool(self._store.save_block(dict(block)))
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def truncate_all_blocks(self) -> None:
+        try:
+            self._store.truncate_all_blocks()
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def truncate_blocks_above(self, height: int) -> Any:
+        try:
+            return self._store.truncate_blocks_above(int(height))
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def get_transaction(self, tx_hash: str) -> Optional[Mapping[str, Any]]:
+        try:
+            row = self._store.get_transaction(str(tx_hash or ""))
+            return dict(row) if isinstance(row, Mapping) else None
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def record_state_root_mismatch(self, *args: Any, **kwargs: Any) -> None:
+        if not hasattr(self._store, "record_state_root_mismatch"):
+            return
+        try:
+            self._store.record_state_root_mismatch(*args, **kwargs)
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def get_block(self, height: int) -> Optional[Mapping[str, Any]]:
+        """Legacy dict mirror used by Blockchain / tip_safety readers."""
+        try:
+            raw = self._store.get_block(int(height))
+            return dict(raw) if isinstance(raw, Mapping) else None
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def get_block_by_hash(self, block_hash: str) -> Optional[Mapping[str, Any]]:
+        try:
+            raw = self._store.get_block_by_hash(str(block_hash or ""))
+            return dict(raw) if isinstance(raw, Mapping) else None
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def get_last_block(self) -> Optional[Mapping[str, Any]]:
+        try:
+            raw = self._store.get_last_block()
+            return dict(raw) if isinstance(raw, Mapping) else None
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
+    def get_chain_tip(self) -> int:
+        return self.tip_height()
+
+    def atomic(self) -> AbstractContextManager[Any]:
+        store = self._store
+        if not hasattr(store, "atomic"):
+            raise StorageUnavailableError(
+                "store has no atomic()", reason_code="no_atomic"
+            )
+        return store.atomic()
+
+    def unwrap(self) -> Any:
+        return self._store
 
     # ── StorageHealthPort ────────────────────────────────────────────────────
 

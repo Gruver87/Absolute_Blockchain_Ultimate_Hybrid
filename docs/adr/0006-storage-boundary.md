@@ -1,6 +1,6 @@
-# ADR 0006 — Storage Boundary (Ports + Adapter + Unit DoD + Cutover)
+# ADR 0006 — Storage Boundary (Ports → Adapter → Cutover → Purge)
 
-- **Status:** Accepted A–E (canonical Blockchain UoW cutover wired)
+- **Status:** Accepted A–F (`blockchain.py` domain on StoragePort)
 - **Date:** 2026-07-29
 - **Deciders:** Absolute Blockchain maintainers
 
@@ -8,66 +8,34 @@
 
 Persistence was a duck-typed `Database` / `HybridDatabase` / `RocksChainStore`
 surface. Domain code spoke engine verbs (`atomic`, sync flags) and risked
-leaking CF / keycodec / bytes into business logic. Sync already avoids Rocks
-imports; storage had no Protocol ADR.
+leaking CF / keycodec / bytes into business logic.
 
 ## Decision
 
-### A — Domain ports
+### A–C — Ports, adapter, unit DoD
 
-| Path | Role |
-|------|------|
-| `storage/ports.py` | `BlockStorePort`, `StateStorePort`, `MetaStorePort`, `StorageUnitOfWorkPort`, `StorageHealthPort`, `StoragePort` |
-| `storage/types.py` | `BlockRecord`, `AccountRecord`, `TipMeta`, typed `Storage*Error` |
+Domain ports + `RocksDBStorageAdapter` + `FakeStorage` fault-injection tests.
 
-Ports exchange domain values only. Byte packing, JSON, CF names stay in adapters.
+### D–E — Canonical UoW cutover
 
-Atomic contract:
+`open_storage(db)`; `Blockchain.add_block` persists via CAS-aware UoW joining
+open `atomic()` / `_pending_batch`.
 
-```text
-uow = storage.begin_block_commit(expected_parent=..., expected_tip_height=...)
-uow.write_block(...)
-uow.write_state_delta(...)
-uow.set_tip(TipMeta(...))
-uow.commit()  # all-or-nothing
-```
+### F — Domain purge of `self.db.*`
 
-### B — RocksDB adapter
+`Blockchain` holds `self.storage` only for domain logic (blocks/state/meta/UoW/
+`atomic()`). Native apply snapshot/writeback goes through the state façade.
 
-`storage/adapters/rocks_adapter.py` implements ports over store façades:
-
-- Prefer join of open `atomic()` / `_pending_batch` (no nested WriteBatch)
-- Else single `store.atomic()` + `_persist_block_locked` + writeback + tip fence
-- Error map: ENOSPC → `StorageFullError`; decode fail → `StorageCorruptionError`; IO → `StorageUnavailableError`
-- Reopen repair: tip must reference an existing body or fail-closed / rewind
-
-### C — Unit DoD
-
-`tests/unit/fakes/fake_storage.py` + `tests/unit/test_storage_ports.py`:
-atomicity, abort, crash recover, reorg, disk_full, corruption, CAS conflict,
-isolation needles (no Rocks imports in ports/types).
-
-### D — Factory
-
-`storage/factory.open_storage(db)` wraps SQLite/`HybridDatabase` as `StoragePort`.
-`main.py` wires `storage=open_storage(self.db)` into `Blockchain`.
-
-### E — Blockchain canonical cutover
-
-`Blockchain(..., storage=...)` DI; `add_block` persist seam is
-`_persist_canonical_via_storage` (UoW + CAS). Execution (`balance_delta` /
-native apply) stays on legacy `self.db` inside the same outer `atomic()`.
-`import_block` unchanged (delegates to `add_block`) — tip_safety / sync order preserved.
-
-Evidence: `tests/unit/test_blockchain_storage_cutover.py`.
+Compat: `@property db` → `storage.unwrap()` for API/P2P/tests that still use
+`bc.db` (Wave G can evacuate those call sites).
 
 ## Honesty
 
-- Ports ≠ aux.db evacuated / 100% Rocks
-- Canonical UoW cutover ≠ every `self.db.*` call site removed (balance/nonce/reorg still legacy)
-- Unit/integration green ≠ live disk-fill soak / public mainnet storage audit
+- Domain purge ≠ aux.db gone / SQLite deleted
+- Compat `bc.db` ≠ permanent public storage API
+- Unit green ≠ live disk-fill soak / mainnet storage audit
 
 ## Out of scope (later)
 
-- F: evacuate aux.db behind `MetaStorePort` or document permanent dual-store
-- Expand StateStorePort for balance/nonce and reorg-replay UoW
+- G: remove `bc.db` from API/P2P
+- Evacuate aux.db behind MetaStore only

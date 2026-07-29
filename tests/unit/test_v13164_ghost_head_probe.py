@@ -120,10 +120,10 @@ async def test_reconcile_ghost_aborts_on_probe_fail():
     peer.head = OTHER
     node.peers[peer.peer_id] = peer
     node._request_block_by_hash = AsyncMock(return_value=None)  # type: ignore
-    node._reconcile_to_head_hash = AsyncMock(return_value=True)  # type: ignore
+    node._reorg_and_import_async = AsyncMock(return_value=True)  # type: ignore
     ok = await node._reconcile_ghost_head(GHOST, peer_hint=peer)
     assert ok is False
-    node._reconcile_to_head_hash.assert_not_called()
+    node._reorg_and_import_async.assert_not_called()
     assert node._ghost_head_probe_refuse_total >= 1
     st = node.get_p2p_security_status()
     assert st.get("native_ghost_head_probe") is True
@@ -137,9 +137,26 @@ async def test_ghost_probe_ok_then_reorg():
     peer.height = 10
     peer.head = GHOST
     node.peers[peer.peer_id] = peer
-    node._request_block_by_hash = AsyncMock(  # type: ignore
-        return_value={"hash": GHOST, "height": 10}
+    parent = "pp" * 32
+    node._tip = TIP
+
+    def _head():
+        return node._tip
+
+    node.head = MagicMock(side_effect=_head)  # type: ignore[method-assign]
+    node._expected_parent_for_height = MagicMock(return_value=parent)  # type: ignore
+    node.get_block = MagicMock(  # type: ignore
+        return_value={"hash": TIP, "height": 10, "parent_hash": parent}
     )
-    node._reconcile_to_head_hash = AsyncMock(return_value=True)  # type: ignore
+    node.blockchain.find_ancestor_height = MagicMock(return_value=9)
+    node._request_block_by_hash = AsyncMock(  # type: ignore
+        return_value={"hash": GHOST, "height": 10, "parent_hash": parent}
+    )
+
+    async def _reorg(_rollback, block):
+        node._tip = str(block.get("hash") or GHOST)
+        return True
+
+    node._reorg_and_import_async = AsyncMock(side_effect=_reorg)  # type: ignore
     assert await node._reconcile_ghost_head(GHOST, peer_hint=peer) is True
-    node._reconcile_to_head_hash.assert_awaited()
+    node._reorg_and_import_async.assert_awaited()

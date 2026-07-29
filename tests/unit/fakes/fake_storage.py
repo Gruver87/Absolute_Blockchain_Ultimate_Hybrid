@@ -421,9 +421,118 @@ class FakeStorage:
     def set_state_root_baseline(self, height: int) -> None:
         self._state_root_baseline = int(height)
 
+    def get_balance(self, address: str) -> float:
+        from runtime.amount import from_satoshi_float
+
+        rec = self.get_account(address)
+        if rec is None:
+            return 0.0
+        return float(from_satoshi_float(int(rec.balance_satoshi)))
+
+    def get_balance_satoshi(self, address: str) -> int:
+        rec = self.get_account(address)
+        return int(rec.balance_satoshi) if rec is not None else 0
+
+    def get_nonce(self, address: str) -> int:
+        rec = self.get_account(address)
+        return int(rec.nonce) if rec is not None else 0
+
+    def get_all_accounts(self) -> Sequence[Mapping[str, Any]]:
+        return [dict(a.to_mapping(), address=a.address) for a in self._accounts.values()]
+
+    def get_total_supply(self) -> float:
+        from runtime.amount import from_satoshi_float
+
+        total = sum(int(a.balance_satoshi) for a in self._accounts.values())
+        return float(from_satoshi_float(total))
+
+    def compute_state_root(self) -> str:
+        return str(self._state_root or "")
+
+    def balance_delta(self, address: str, delta: float) -> None:
+        from runtime.amount import from_satoshi_float, to_satoshi
+
+        key = str(address or "").strip().lower()
+        cur = self._accounts.get(key)
+        sat = int(cur.balance_satoshi) if cur else 0
+        sat = max(0, sat + int(to_satoshi(delta)))
+        nonce = int(cur.nonce) if cur else 0
+        code = cur.code if cur else ""
+        storage_json = cur.storage_json if cur else "{}"
+        self._accounts[key] = AccountRecord(
+            address=key,
+            balance_satoshi=sat,
+            nonce=nonce,
+            code=code,
+            storage_json=storage_json,
+        )
+
+    def update_balance(self, address: str, delta: float) -> float:
+        self.balance_delta(address, delta)
+        return self.get_balance(address)
+
+    def set_balance(self, address: str, balance: float) -> None:
+        from runtime.amount import to_satoshi
+
+        key = str(address or "").strip().lower()
+        cur = self._accounts.get(key)
+        self._accounts[key] = AccountRecord(
+            address=key,
+            balance_satoshi=int(to_satoshi(balance)),
+            nonce=int(cur.nonce) if cur else 0,
+            code=cur.code if cur else "",
+            storage_json=cur.storage_json if cur else "{}",
+        )
+
+    def nonce_increment(self, address: str) -> int:
+        key = str(address or "").strip().lower()
+        cur = self._accounts.get(key)
+        nonce = (int(cur.nonce) if cur else 0) + 1
+        self._accounts[key] = AccountRecord(
+            address=key,
+            balance_satoshi=int(cur.balance_satoshi) if cur else 0,
+            nonce=nonce,
+            code=cur.code if cur else "",
+            storage_json=cur.storage_json if cur else "{}",
+        )
+        return nonce
+
+    def increment_nonce(self, address: str) -> int:
+        return self.nonce_increment(address)
+
+    def save_account(
+        self,
+        address: str,
+        balance: float = 0.0,
+        nonce: int = 0,
+        code: Any = None,
+        storage: Any = None,
+    ) -> None:
+        from runtime.amount import to_satoshi
+
+        key = str(address or "").strip().lower()
+        storage_json = "{}" if storage is None else (
+            storage if isinstance(storage, str) else str(storage)
+        )
+        self._accounts[key] = AccountRecord(
+            address=key,
+            balance_satoshi=int(to_satoshi(balance)),
+            nonce=int(nonce),
+            code=str(code or ""),
+            storage_json=storage_json,
+        )
+
+    def reset_accounts_from_alloc(
+        self, alloc: Mapping[str, Any], *, _in_atomic: bool = False
+    ) -> None:
+        self._accounts.clear()
+        for addr, amount in (alloc or {}).items():
+            self.set_balance(str(addr), float(amount))
+
     # ── MetaStorePort ────────────────────────────────────────────────────────
 
-    def get_validators(self) -> Sequence[Mapping[str, Any]]:
+    def get_validators(self, active_only: bool = True) -> Sequence[Mapping[str, Any]]:
+        _ = active_only
         return list(self._validators)
 
     def get_checkpoint(self, epoch: int) -> Optional[Mapping[str, Any]]:
@@ -431,6 +540,73 @@ class FakeStorage:
 
     def put_checkpoint(self, epoch: int, data: Mapping[str, Any]) -> None:
         self._checkpoints[int(epoch)] = dict(data)
+
+    def get_meta(self, key: str, default: Any = None) -> Any:
+        return self._checkpoints.get(f"meta:{key}", default)
+
+    def set_meta(self, key: str, value: Any) -> None:
+        self._checkpoints[f"meta:{key}"] = value
+
+    def get_stats(self) -> Mapping[str, Any]:
+        return {"tip": self.tip_height(), "accounts": len(self._accounts)}
+
+    def get_burn_stats(self) -> Mapping[str, Any]:
+        return {"total_burned": 0.0}
+
+    def get_chain_metrics(self, window: int = 0) -> Mapping[str, Any]:
+        _ = window
+        return {"height": self.tip_height()}
+
+    def save_block(self, block: Mapping[str, Any]) -> bool:
+        rec = BlockRecord.from_mapping(block)
+        self._by_height[rec.height] = rec
+        self._by_hash[rec.block_hash] = rec
+        self._tip = TipMeta(height=rec.height, head_hash=rec.block_hash)
+        return True
+
+    def truncate_all_blocks(self) -> None:
+        self._by_height.clear()
+        self._by_hash.clear()
+        self._txs.clear()
+        self._tip = TipMeta(height=0, head_hash="")
+
+    def truncate_blocks_above(self, height: int) -> Any:
+        self.reorg_truncate_above(int(height))
+        return int(height)
+
+    def get_transaction(self, tx_hash: str) -> Optional[Mapping[str, Any]]:
+        return None
+
+    def record_state_root_mismatch(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+    def get_block(self, height: int) -> Optional[Mapping[str, Any]]:
+        blk = self.get_by_height(int(height))
+        return dict(blk.to_mapping()) if blk else None
+
+    def get_block_by_hash(self, block_hash: str) -> Optional[Mapping[str, Any]]:
+        blk = self.get_by_hash(str(block_hash or ""))
+        return dict(blk.to_mapping()) if blk else None
+
+    def get_last_block(self) -> Optional[Mapping[str, Any]]:
+        if self._tip.height <= 0 and not self._by_height:
+            return None
+        return self.get_block(self._tip.height)
+
+    def get_chain_tip(self) -> int:
+        return self.tip_height()
+
+    def atomic(self):
+        from contextlib import contextmanager
+
+        @contextmanager
+        def _cm():
+            yield self
+
+        return _cm()
+
+    def unwrap(self) -> "FakeStorage":
+        return self
 
     # ── StorageHealthPort ────────────────────────────────────────────────────
 

@@ -67,8 +67,13 @@ def _node() -> P2PNode:
 
 def test_needles_v13135():
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+    solicit = (ROOT / "sync" / "solicit.py").read_text(encoding="utf-8")
+    handlers = (ROOT / "network" / "p2p_dispatch" / "handlers.py").read_text(
+        encoding="utf-8"
+    )
+    surface = p2p + "\n" + solicit + "\n" + handlers
     assert "_state_root_request_ctx" in p2p
-    assert "bad_state_root_response_local_root" in p2p
+    assert "bad_state_root_response_local_root" in surface
     assert "native_handshake_height_cap" in p2p
     assert "native_state_root_local_consistency" in p2p
     assert "_cap_claimed_peer_height" in p2p

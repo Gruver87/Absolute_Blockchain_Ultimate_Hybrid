@@ -16,10 +16,15 @@ logger = logging.getLogger("P2P.ForkAdapter")
 class ForkReconcileP2PChainAdapter:
     """Implements ``ForkReconcileChainPort`` over P2PNode chain + apply path."""
 
-    __slots__ = ("_p2p",)
+    __slots__ = ("_p2p", "_loop")
 
-    def __init__(self, p2p: Any) -> None:
+    def __init__(
+        self,
+        p2p: Any,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+    ) -> None:
         self._p2p = p2p
+        self._loop = loop
 
     def height(self) -> int:
         return int(self._p2p.blockchain.get_height() or 0)
@@ -52,28 +57,43 @@ class ForkReconcileP2PChainAdapter:
         return None
 
     def reorg_and_import(self, rollback_to: int, block: Mapping[str, Any]) -> bool:
-        """Synchronous bridge into async reorg+import (tip-safety via import path)."""
+        """Synchronous bridge into async reorg+import (tip-safety via import path).
+
+        When called from ``asyncio.to_thread``, prefer the captured main-loop
+        handle (same pattern as Fetch/Probe adapters). ``get_event_loop()`` on
+        a worker thread has no running loop and must not be the primary path.
+        """
         p2p = self._p2p
+        loop = self._loop
+        if loop is None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                try:
+                    loop = asyncio.get_event_loop()
+                except Exception:
+                    loop = None
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
+            if loop is not None and loop.is_running():
                 fut = asyncio.run_coroutine_threadsafe(
                     p2p._reorg_and_import_async(int(rollback_to), dict(block)),
                     loop,
                 )
                 return bool(fut.result(timeout=60))
-            return bool(
-                loop.run_until_complete(
-                    p2p._reorg_and_import_async(int(rollback_to), dict(block))
+            if loop is not None:
+                return bool(
+                    loop.run_until_complete(
+                        p2p._reorg_and_import_async(int(rollback_to), dict(block))
+                    )
                 )
-            )
         except Exception:
-            # Fallback: sync worker path (still tip-safety via import_block).
-            try:
-                return bool(p2p._reorg_and_import(int(rollback_to), dict(block)))
-            except Exception as exc:
-                logger.warning("[ForkChain] reorg_and_import failed: %s", exc)
-                return False
+            pass
+        # Fallback: sync worker path (still tip-safety via import_block).
+        try:
+            return bool(p2p._reorg_and_import(int(rollback_to), dict(block)))
+        except Exception as exc:
+            logger.warning("[ForkChain] reorg_and_import failed: %s", exc)
+            return False
 
 
 class ForkReconcileP2PFetchAdapter:
@@ -361,7 +381,7 @@ def build_fork_reconcile_adapters(
         if pid and pid not in peers_by_id:
             peers_by_id[pid] = peer
     return (
-        ForkReconcileP2PChainAdapter(p2p),
+        ForkReconcileP2PChainAdapter(p2p, loop),
         ForkReconcileP2PFetchAdapter(p2p, peers_by_id, loop),
         ForkReconcileP2PProbeAdapter(p2p, peer, loop),
         ForkReconcileP2PSideEffectAdapter(p2p, peer),

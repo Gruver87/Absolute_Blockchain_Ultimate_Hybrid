@@ -264,14 +264,17 @@ class Blockchain:
     def __init__(
         self,
         config: Config,
-        db: Database,
+        db: Optional[Database] = None,
         bus: Optional[EventBus] = None,
         storage: Optional[StoragePort] = None,
     ):
         self.config = config
-        self.db = db
         self.bus = bus
-        self.storage: StoragePort = storage if storage is not None else open_storage(db)
+        if storage is None:
+            if db is None:
+                raise ValueError("Blockchain requires storage= or db=")
+            storage = open_storage(db)
+        self.storage: StoragePort = storage
         self.lock = threading.RLock()
         self.require_signatures = False
 
@@ -300,6 +303,24 @@ class Blockchain:
         cutoff = int(getattr(self.config, "state_root_legacy_cutoff_height", 0) or 0)
         self._state_root_baseline = max(cutoff, h)
 
+    @property
+    def db(self):
+        """Deprecated compat façade for API/P2P/tests — underlying store via unwrap()."""
+        unwrap = getattr(self.storage, "unwrap", None)
+        if callable(unwrap):
+            return unwrap()
+        return self.storage
+
+    @db.setter
+    def db(self, value: Any) -> None:
+        """Allow tests to swap the underlying store; re-wrap as StoragePort."""
+        if value is None:
+            raise ValueError("db cannot be None")
+        if hasattr(value, "unwrap") and hasattr(value, "begin_block_commit"):
+            self.storage = value
+        else:
+            self.storage = open_storage(value, repair_on_open=False)
+
     def _native_apply_fail_closed(self) -> bool:
         """Prod / require_native_crypto: never silently fall back after native apply failure."""
         if bool(getattr(self.config, "require_native_crypto", False)):
@@ -326,16 +347,16 @@ class Blockchain:
     # ── Genesis ──────────────────────────────────────────────────────────────
 
     def _ensure_genesis(self):
-        if getattr(self.config, "follower_genesis_sync", False) and self.db.get_last_block() is None:
+        if getattr(self.config, "follower_genesis_sync", False) and self.storage.get_last_block() is None:
             print("[Blockchain] follower_genesis_sync: waiting for leader genesis via P2P")
             return
-        if self.db.get_last_block() is None:
+        if self.storage.get_last_block() is None:
             founder = self._resolve_genesis_founder()
             alloc = genesis_balances(founder or None)
             initials = getattr(self.config, "founder_initials", "D.U.P.")
             total_minted = 0.0
             for addr, amount in alloc.items():
-                self.db.set_balance(addr, float(amount))
+                self.storage.set_balance(addr, float(amount))
                 total_minted += amount
             state_root = self._compute_state_root_from_db()
             genesis = Block(
@@ -350,11 +371,11 @@ class Blockchain:
                 state_root=state_root,
             )
             genesis.hash = genesis._compute_hash()
-            self.db.save_block(genesis.to_dict())
+            self.storage.save_block(genesis.to_dict())
             try:
-                self.db.set_meta("tokenomics", get_tokenomics_summary(founder or None))
-                self.db.set_meta("genesis_alloc_applied", True)
-                self.db.set_meta("genesis_founder", founder)
+                self.storage.set_meta("tokenomics", get_tokenomics_summary(founder or None))
+                self.storage.set_meta("genesis_alloc_applied", True)
+                self.storage.set_meta("genesis_founder", founder)
             except Exception as _gen_meta_err:
                 print(f"[Blockchain] genesis meta write failed: {_gen_meta_err}")
                 if getattr(self.config, "is_production", False):
@@ -379,13 +400,13 @@ class Blockchain:
     def _pinned_genesis_founder(self) -> str:
         """Founder used when genesis was minted — must not follow per-node wallets."""
         try:
-            pinned = self.db.get_meta("genesis_founder")
+            pinned = self.storage.get_meta("genesis_founder")
             if pinned:
                 return str(pinned).strip()
         except Exception as exc:
             _logger.debug("genesis_founder meta read failed: %s", exc)
         try:
-            tok = self.db.get_meta("tokenomics")
+            tok = self.storage.get_meta("tokenomics")
             if isinstance(tok, dict):
                 addr = str((tok.get("founder") or {}).get("address", "") or "").strip()
                 if addr:
@@ -420,7 +441,7 @@ class Blockchain:
                 f"(prod fail-closed; live={live[:16]}…)"
             )
             return False
-        blk = self.db.get_block(h)
+        blk = self.storage.get_block(h)
         if not blk:
             return False
         live = str(state_root or "").strip()
@@ -430,7 +451,7 @@ class Blockchain:
         row["state_root"] = live
         block = Block.from_dict(row)
         row["hash"] = block._compute_hash()
-        self.db.save_block(row)
+        self.storage.save_block(row)
         print(f"[Blockchain] Block #{h} state_root aligned ({live[:16]}…)")
         return True
 
@@ -442,7 +463,7 @@ class Blockchain:
         live = str(self._compute_state_root_from_db() or "").strip()
         if not live:
             return True
-        blk = self.db.get_block(h)
+        blk = self.storage.get_block(h)
         if not blk:
             return True
         if str(blk.get("state_root") or "").strip() == live:
@@ -453,7 +474,7 @@ class Blockchain:
         """Fix genesis header when tip is still 0 (minted state vs empty state_root)."""
         if self.get_height() != 0:
             return
-        blk = self.db.get_block(0)
+        blk = self.storage.get_block(0)
         if not blk:
             return
         live = self._compute_state_root_from_db()
@@ -513,7 +534,7 @@ class Blockchain:
     def create_block(self, transactions: List[Transaction], proposer: str) -> Block:
         """Собирает новый блок: валидирует txs, state применяется в add_block()."""
         with self.lock:
-            last = self.db.get_last_block()
+            last = self.storage.get_last_block()
             height = last["height"] + 1 if last else 1
             parent_hash = last["hash"] if last else self.GENESIS_HASH
 
@@ -588,7 +609,7 @@ class Blockchain:
         """Валидирует, выполняет все txs + reward атомарно, сохраняет в БД."""
         peer_hash = block.hash if preserve_peer_hash else None
         with self.lock:
-            if self.db.get_block(block.height):
+            if self.storage.get_block(block.height):
                 return False
 
             validation = self._validate_block_structure(block)
@@ -611,7 +632,7 @@ class Blockchain:
             computed_root = None
             peer_root_for_audit = None
 
-            last_before = self.db.get_last_block()
+            last_before = self.storage.get_last_block()
             if last_before:
                 expected_parent = str(last_before.get("hash") or "")
                 expected_tip_height = int(last_before.get("height") or 0)
@@ -620,7 +641,7 @@ class Blockchain:
                 expected_tip_height = 0
 
             try:
-                with self.db.atomic():
+                with self.storage.atomic():
                     block_burned = 0.0
                     native_applied = False
                     if (
@@ -732,10 +753,10 @@ class Blockchain:
                 if (
                     peer_root_for_audit
                     and computed_root
-                    and hasattr(self.db, "record_state_root_mismatch")
+                    and hasattr(self.storage, "record_state_root_mismatch")
                 ):
                     try:
-                        self.db.record_state_root_mismatch(
+                        self.storage.record_state_root_mismatch(
                             block.height,
                             peer_root_for_audit,
                             computed_root,
@@ -759,14 +780,14 @@ class Blockchain:
         normalized = self._normalize_block_dict(block_dict)
         height = int(normalized.get("height", normalized.get("number", 0)))
         with self.lock:
-            existing = self.db.get_block(height)
+            existing = self.storage.get_block(height)
             if existing and height == 0 and existing.get("hash") != normalized.get("hash"):
-                self.db.truncate_all_blocks()
+                self.storage.truncate_all_blocks()
             elif existing:
                 return False
 
             if self.block_validator:
-                last = self.db.get_last_block()
+                last = self.storage.get_last_block()
                 valid, msg = self.block_validator.validate_block(
                     normalized, last, strict_timestamp=False
                 )
@@ -774,7 +795,7 @@ class Blockchain:
                     print(f"[Blockchain] import_block rejected: {msg}")
                     return False
 
-            last = self.db.get_last_block()
+            last = self.storage.get_last_block()
             expected_parent = last["hash"] if last else self.GENESIS_HASH
             start_height = last["height"] if last else -1
             if not native.validate_imported_block_chain(
@@ -809,28 +830,28 @@ class Blockchain:
         return b
 
     def _validate_tx_for_block(self, tx: Transaction, nonce_cursor: Dict[str, int]) -> Dict:
-        expected = nonce_cursor.get(tx.from_addr, self.db.get_nonce(tx.from_addr))
+        expected = nonce_cursor.get(tx.from_addr, self.storage.get_nonce(tx.from_addr))
         if tx.nonce != expected:
             return {"valid": False, "error": "nonce_mismatch_in_block"}
         return self.validate_transaction(tx, expected_nonce=expected)
 
     def _apply_block_reward(self, proposer: str, in_atomic: bool = False) -> float:
-        current_supply = self.db.get_total_supply()
+        current_supply = self.storage.get_total_supply()
         max_supply = float(getattr(self.config, "max_supply", MAX_SUPPLY_ABS))
         reward = self.config.block_reward
         if current_supply + reward > max_supply:
             reward = max(0.0, max_supply - current_supply)
         if reward > 0:
             if in_atomic:
-                self.db.balance_delta(proposer, reward)
+                self.storage.balance_delta(proposer, reward)
             else:
-                self.db.update_balance(proposer, reward)
+                self.storage.update_balance(proposer, reward)
         return reward
 
     def _compute_state_root_from_db(self) -> str:
-        if hasattr(self.db, "compute_state_root"):
-            return self.db.compute_state_root()
-        return compute_db_state_root(self.db.get_all_accounts())
+        if hasattr(self.storage, "compute_state_root"):
+            return self.storage.compute_state_root()
+        return compute_db_state_root(self.storage.get_all_accounts())
 
     # ── Native simple-block apply / reorg assist ─────────────────────────────
 
@@ -889,8 +910,8 @@ class Blockchain:
             if not addr:
                 continue
             out[addr] = {
-                "balance": int(self.db.get_balance_satoshi(addr)),
-                "nonce": int(self.db.get_nonce(addr)),
+                "balance": int(self.storage.get_balance_satoshi(addr)),
+                "nonce": int(self.storage.get_nonce(addr)),
             }
         return out
 
@@ -902,25 +923,25 @@ class Blockchain:
             nonce = int(row.get("nonce", 0) or 0)
             bal_abs = from_satoshi_float(sat)
             existing = None
-            if hasattr(self.db, "get_account"):
-                existing = self.db.get_account(addr)
+            if hasattr(self.storage, "get_account"):
+                existing = self.storage.get_account(addr)
             # Match Python apply: do not materialize empty burn/dust accounts,
             # and never wipe EVM code/storage when rewriting balances.
             if existing is None and sat == 0 and nonce == 0:
                 continue
             code = existing.get("code") if existing else None
             storage = existing.get("storage") if existing else None
-            if hasattr(self.db, "save_account"):
-                self.db.save_account(
+            if hasattr(self.storage, "save_account"):
+                self.storage.save_account(
                     addr, balance=bal_abs, nonce=nonce, code=code, storage=storage
                 )
             else:
-                self.db.set_balance(addr, bal_abs)
-                while self.db.get_nonce(addr) < nonce:
-                    if hasattr(self.db, "nonce_increment"):
-                        self.db.nonce_increment(addr)
+                self.storage.set_balance(addr, bal_abs)
+                while self.storage.get_nonce(addr) < nonce:
+                    if hasattr(self.storage, "nonce_increment"):
+                        self.storage.nonce_increment(addr)
                     else:
-                        self.db.increment_nonce(addr)
+                        self.storage.increment_nonce(addr)
 
     def _apply_simple_block_native(self, block: "Block") -> float:
         """Apply simple transfers via abs_native; returns burned ABS (float)."""
@@ -941,8 +962,8 @@ class Blockchain:
                 }
             )
         supply_sat = 0
-        if hasattr(self.db, "get_total_supply"):
-            supply_sat = int(to_satoshi(self.db.get_total_supply()))
+        if hasattr(self.storage, "get_total_supply"):
+            supply_sat = int(to_satoshi(self.storage.get_total_supply()))
         else:
             supply_sat = sum(int(v["balance"]) for v in snap.values())
         max_supply_sat = int(to_satoshi(float(getattr(self.config, "max_supply", MAX_SUPPLY_ABS))))
@@ -983,7 +1004,7 @@ class Blockchain:
         """Execute EVM call/deploy (storage/code/value) without fee/nonce writes."""
         if not getattr(self, "evm", None):
             return {"success": False, "error": "evm_unavailable"}
-        target_acct = self.db.get_account(tx.to_addr) if tx.to_addr else None
+        target_acct = self.storage.get_account(tx.to_addr) if tx.to_addr else None
         if target_acct and target_acct.get("code"):
             evm_res = self.evm.call_contract(
                 tx.from_addr,
@@ -1059,8 +1080,8 @@ class Blockchain:
 
         snap = self._accounts_sat_snapshot(addrs)
         supply_sat = 0
-        if hasattr(self.db, "get_total_supply"):
-            supply_sat = int(to_satoshi(self.db.get_total_supply()))
+        if hasattr(self.storage, "get_total_supply"):
+            supply_sat = int(to_satoshi(self.storage.get_total_supply()))
         else:
             supply_sat = sum(int(v["balance"]) for v in snap.values())
         max_supply_sat = int(to_satoshi(float(getattr(self.config, "max_supply", MAX_SUPPLY_ABS))))
@@ -1107,8 +1128,8 @@ class Blockchain:
             if tx.to_addr:
                 session_addrs.add(tx.to_addr)
         session = self._accounts_sat_snapshot(session_addrs)
-        if hasattr(self.db, "get_total_supply"):
-            supply_sat = int(to_satoshi(self.db.get_total_supply()))
+        if hasattr(self.storage, "get_total_supply"):
+            supply_sat = int(to_satoshi(self.storage.get_total_supply()))
         else:
             supply_sat = sum(int(v["balance"]) for v in session.values())
 
@@ -1221,7 +1242,7 @@ class Blockchain:
 
     def _blocks_range_are_simple(self, from_h: int, to_h: int) -> bool:
         for h in range(from_h, to_h + 1):
-            block_dict = self.db.get_block(h)
+            block_dict = self.storage.get_block(h)
             if not block_dict:
                 return False
             for tx in block_dict.get("transactions") or []:
@@ -1242,7 +1263,7 @@ class Blockchain:
         max_supply_sat = int(to_satoshi(float(getattr(self.config, "max_supply", MAX_SUPPLY_ABS))))
         blocks = []
         for h in range(1, ancestor_height + 1):
-            block_dict = self.db.get_block(h)
+            block_dict = self.storage.get_block(h)
             if not block_dict:
                 raise RuntimeError(f"missing_block_at_replay_{h}")
             blocks.append(
@@ -1288,11 +1309,11 @@ class Blockchain:
         miner_fee = plan["miner_fee"]
         total_cost = plan["total_cost"]
 
-        expected_nonce = self.db.get_nonce(tx.from_addr)
+        expected_nonce = self.storage.get_nonce(tx.from_addr)
         if tx.nonce != expected_nonce:
             return {"success": False, "error": "nonce_mismatch"}
 
-        sender_sat = self.db.get_balance_satoshi(tx.from_addr)
+        sender_sat = self.storage.get_balance_satoshi(tx.from_addr)
         if not can_afford_transfer(sender_sat, total_cost):
             return {"success": False, "error": "insufficient_funds"}
         sender_balance = from_satoshi_float(sender_sat)
@@ -1310,7 +1331,7 @@ class Blockchain:
 
         # EVM: contract call or deploy when calldata present
         if tx.data and getattr(self, "evm", None):
-            target_acct = self.db.get_account(tx.to_addr)
+            target_acct = self.storage.get_account(tx.to_addr)
             if target_acct and target_acct.get("code"):
                 evm_res = self.evm.call_contract(
                     tx.from_addr,
@@ -1335,17 +1356,17 @@ class Blockchain:
                 if not can_afford_transfer(sender_sat, total_cost):
                     return {"success": False, "error": "insufficient_funds"}
                 if in_atomic:
-                    self.db.balance_delta(tx.from_addr, -fee)
-                    self.db.balance_delta(proposer, miner_fee)
+                    self.storage.balance_delta(tx.from_addr, -fee)
+                    self.storage.balance_delta(proposer, miner_fee)
                     if burn_amount > 0 and self.config.burn_address:
-                        self.db.balance_delta(self.config.burn_address, burn_amount)
-                    self.db.nonce_increment(tx.from_addr)
+                        self.storage.balance_delta(self.config.burn_address, burn_amount)
+                    self.storage.nonce_increment(tx.from_addr)
                 else:
-                    self.db.update_balance(tx.from_addr, -fee)
-                    self.db.update_balance(proposer, miner_fee)
+                    self.storage.update_balance(tx.from_addr, -fee)
+                    self.storage.update_balance(proposer, miner_fee)
                     if burn_amount > 0 and self.config.burn_address:
-                        self.db.update_balance(self.config.burn_address, burn_amount)
-                    self.db.increment_nonce(tx.from_addr)
+                        self.storage.update_balance(self.config.burn_address, burn_amount)
+                    self.storage.increment_nonce(tx.from_addr)
                 if self.pool_locks:
                     self.pool_locks.record_outgoing(tx.from_addr, fee + tx.value)
                 tx.fee = fee
@@ -1391,17 +1412,17 @@ class Blockchain:
                 if sender_balance < deploy_cost:
                     return {"success": False, "error": "insufficient_funds_for_deploy"}
                 if in_atomic:
-                    self.db.balance_delta(tx.from_addr, -fee)
-                    self.db.balance_delta(proposer, miner_fee)
+                    self.storage.balance_delta(tx.from_addr, -fee)
+                    self.storage.balance_delta(proposer, miner_fee)
                     if burn_amount > 0 and self.config.burn_address:
-                        self.db.balance_delta(self.config.burn_address, burn_amount)
-                    self.db.nonce_increment(tx.from_addr)
+                        self.storage.balance_delta(self.config.burn_address, burn_amount)
+                    self.storage.nonce_increment(tx.from_addr)
                 else:
-                    self.db.update_balance(tx.from_addr, -fee)
-                    self.db.update_balance(proposer, miner_fee)
+                    self.storage.update_balance(tx.from_addr, -fee)
+                    self.storage.update_balance(proposer, miner_fee)
                     if burn_amount > 0 and self.config.burn_address:
-                        self.db.update_balance(self.config.burn_address, burn_amount)
-                    self.db.increment_nonce(tx.from_addr)
+                        self.storage.update_balance(self.config.burn_address, burn_amount)
+                    self.storage.increment_nonce(tx.from_addr)
                 if self.pool_locks:
                     self.pool_locks.record_outgoing(tx.from_addr, deploy_cost)
                 tx.fee = fee
@@ -1421,19 +1442,19 @@ class Blockchain:
                 }
 
         if in_atomic:
-            self.db.balance_delta(tx.from_addr, -total_cost)
-            self.db.balance_delta(tx.to_addr, tx.value)
-            self.db.balance_delta(proposer, miner_fee)
+            self.storage.balance_delta(tx.from_addr, -total_cost)
+            self.storage.balance_delta(tx.to_addr, tx.value)
+            self.storage.balance_delta(proposer, miner_fee)
             if burn_amount > 0 and self.config.burn_address:
-                self.db.balance_delta(self.config.burn_address, burn_amount)
-            self.db.nonce_increment(tx.from_addr)
+                self.storage.balance_delta(self.config.burn_address, burn_amount)
+            self.storage.nonce_increment(tx.from_addr)
         else:
-            self.db.update_balance(tx.from_addr, -total_cost)
-            self.db.update_balance(tx.to_addr, tx.value)
-            self.db.update_balance(proposer, miner_fee)
+            self.storage.update_balance(tx.from_addr, -total_cost)
+            self.storage.update_balance(tx.to_addr, tx.value)
+            self.storage.update_balance(proposer, miner_fee)
             if burn_amount > 0 and self.config.burn_address:
-                self.db.update_balance(self.config.burn_address, burn_amount)
-            self.db.increment_nonce(tx.from_addr)
+                self.storage.update_balance(self.config.burn_address, burn_amount)
+            self.storage.increment_nonce(tx.from_addr)
 
         if self.pool_locks:
             self.pool_locks.record_outgoing(tx.from_addr, total_cost)
@@ -1479,7 +1500,7 @@ class Blockchain:
             if not sig_check["valid"]:
                 return sig_check
 
-        tip_nonce = self.db.get_nonce(tx.from_addr)
+        tip_nonce = self.storage.get_nonce(tx.from_addr)
         want_nonce = tip_nonce if expected_nonce is None else int(expected_nonce)
         if tx.nonce != want_nonce:
             return {
@@ -1495,7 +1516,7 @@ class Blockchain:
             self.config.burn_rate,
             tx.value,
         )
-        balance_sat = self.db.get_balance_satoshi(tx.from_addr)
+        balance_sat = self.storage.get_balance_satoshi(tx.from_addr)
         total_cost = fee_plan["total_cost"]
         if not can_afford_transfer(balance_sat, total_cost):
             return {"valid": False, "error": "insufficient_funds"}
@@ -1523,7 +1544,7 @@ class Blockchain:
     def _is_evm_deploy_tx(self, tx: Transaction) -> bool:
         if not tx.data or not getattr(self, "evm", None):
             return False
-        target_acct = self.db.get_account(tx.to_addr)
+        target_acct = self.storage.get_account(tx.to_addr)
         if target_acct and target_acct.get("code"):
             return False
         deploy_data = (tx.data or "").strip()
@@ -1635,7 +1656,7 @@ class Blockchain:
         if not getattr(self.config, "enforce_proposer", True):
             return {"valid": True}
 
-        validators = self.db.get_validators(active_only=True) if hasattr(self.db, "get_validators") else []
+        validators = self.storage.get_validators(active_only=True) if hasattr(self.storage, "get_validators") else []
         if len(validators) <= 1:
             return {"valid": True}
 
@@ -1695,13 +1716,13 @@ class Blockchain:
 
             try:
                 repair_meta: tuple[int, str] | None = None
-                with self.db.atomic():
+                with self.storage.atomic():
                     cut = int(ancestor_height)
                     replay_only = cut >= tip
                     if not replay_only:
-                        self.db.reorg_truncate_above(cut)
+                        self.storage.reorg_truncate_above(cut)
 
-                    self.db.reset_accounts_from_alloc(alloc, _in_atomic=True)
+                    self.storage.reset_accounts_from_alloc(alloc, _in_atomic=True)
 
                     native_replayed = False
                     if (
@@ -1722,7 +1743,7 @@ class Blockchain:
 
                     if not native_replayed:
                         for h in range(1, ancestor_height + 1):
-                            block_dict = self.db.get_block(h)
+                            block_dict = self.storage.get_block(h)
                             if not block_dict:
                                 raise RuntimeError(f"missing_block_at_replay_{h}")
                             block = Block.from_dict(block_dict)
@@ -1735,7 +1756,7 @@ class Blockchain:
                             self._apply_block_reward(block.miner, in_atomic=True)
 
                     replay_root = self._compute_state_root_from_db()
-                    ancestor_block = self.db.get_block(cut)
+                    ancestor_block = self.storage.get_block(cut)
                     if ancestor_block:
                         expected = str(ancestor_block.get("state_root") or "").strip()
                         if expected and expected != replay_root:
@@ -1758,7 +1779,7 @@ class Blockchain:
         """Replay canonical chain if live balances drifted from tip block state_root."""
         with self.lock:
             h = self.get_height()
-            tip_blk = self.db.get_block(h)
+            tip_blk = self.storage.get_block(h)
             if not tip_blk:
                 return True
             expected = str(tip_blk.get("state_root") or "").strip()
@@ -1769,7 +1790,7 @@ class Blockchain:
                 return True
             if h == 0:
                 self._align_genesis_state_root_if_needed()
-                tip_blk = self.db.get_block(0)
+                tip_blk = self.storage.get_block(0)
                 expected = str((tip_blk or {}).get("state_root") or "").strip()
                 return self._compute_state_root_from_db() == expected
             print(
@@ -1781,7 +1802,7 @@ class Blockchain:
 
     def _validate_block_structure(self, block: Block) -> Dict:
         """Height/parent/hash checks before state execution."""
-        last = self.db.get_last_block()
+        last = self.storage.get_last_block()
         if last:
             expected_height = last["height"] + 1
             if block.height != expected_height:
@@ -1808,45 +1829,45 @@ class Blockchain:
     # ── Публичные геттеры ────────────────────────────────────────────────────
 
     def get_height(self) -> int:
-        return self.db.get_chain_tip()
+        return self.storage.get_chain_tip()
 
     def get_balance(self, address: str) -> float:
         from runtime.state_truth import canonical_balance_abs
 
-        return canonical_balance_abs(self.db, address)
+        return canonical_balance_abs(self.storage.unwrap(), address)
 
     def get_balance_satoshi(self, address: str) -> int:
         from runtime.state_truth import canonical_balance_satoshi
 
-        return canonical_balance_satoshi(self.db, address)
+        return canonical_balance_satoshi(self.storage.unwrap(), address)
 
     def get_last_block(self) -> Optional[Dict]:
-        return self.db.get_last_block()
+        return self.storage.get_last_block()
 
     def get_block(self, height: int) -> Optional[Dict]:
-        return self.db.get_block(height)
+        return self.storage.get_block(height)
 
     def get_block_by_hash(self, block_hash: str) -> Optional[Dict]:
-        return self.db.get_block_by_hash(block_hash) if hasattr(self.db, "get_block_by_hash") else None
+        return self.storage.get_block_by_hash(block_hash) if hasattr(self.storage, "get_block_by_hash") else None
 
     def truncate_to_height(self, height: int) -> int:
         """Drop blocks above height (keep genesis at 0). Used when joining a longer peer chain."""
         with self.lock:
-            return self.db.truncate_blocks_above(height)
+            return self.storage.truncate_blocks_above(height)
 
     def get_transaction(self, tx_hash: str) -> Optional[Dict]:
-        return self.db.get_transaction(tx_hash)
+        return self.storage.get_transaction(tx_hash)
 
     def get_state_root(self) -> str:
         """Canonical L1 state root from SQLite balances (consensus/P2P path)."""
         return self._compute_state_root_from_db()
 
     def get_stats(self) -> Dict:
-        db_stats = self.db.get_stats()
-        burn_stats = self.db.get_burn_stats()
+        db_stats = self.storage.get_stats()
+        burn_stats = self.storage.get_burn_stats()
         chain_metrics = (
-            self.db.get_chain_metrics()
-            if hasattr(self.db, "get_chain_metrics")
+            self.storage.get_chain_metrics()
+            if hasattr(self.storage, "get_chain_metrics")
             else {}
         )
         return {

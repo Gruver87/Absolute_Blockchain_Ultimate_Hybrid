@@ -45,10 +45,15 @@ class CatchUpP2PChainAdapter:
     fetch adapter's thread-pool bridge (handled by the service caller).
     """
 
-    __slots__ = ("_p2p",)
+    __slots__ = ("_p2p", "_loop")
 
-    def __init__(self, p2p: Any) -> None:
+    def __init__(
+        self,
+        p2p: Any,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+    ) -> None:
         self._p2p = p2p
+        self._loop = loop
 
     def height(self) -> int:
         return int(self._p2p.blockchain.get_height() or 0)
@@ -106,8 +111,19 @@ class CatchUpP2PChainAdapter:
             return False
         q = getattr(self._p2p, "apply_queue", None)
         if q is not None:
+            loop = self._loop
+            if loop is None:
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    try:
+                        loop = asyncio.get_event_loop()
+                    except Exception:
+                        loop = None
+            if loop is None or not loop.is_running():
+                logger.warning("[CatchUpChain] reorg via queue: no running loop")
+                return False
             try:
-                loop = asyncio.get_event_loop()
                 fut = asyncio.run_coroutine_threadsafe(
                     q.submit_reorg_async(int(height)), loop
                 )
@@ -279,7 +295,7 @@ def build_path_a_adapters(
 ]:
     """Build all four adapters for one ``_sync_with_peer`` invocation."""
     return (
-        CatchUpP2PChainAdapter(p2p),
+        CatchUpP2PChainAdapter(p2p, loop),
         CatchUpP2PFetchAdapter(p2p, peer, loop),
         CatchUpP2PProbeAdapter(p2p, peer, loop),
         CatchUpP2PSideEffectAdapter(p2p, peer),

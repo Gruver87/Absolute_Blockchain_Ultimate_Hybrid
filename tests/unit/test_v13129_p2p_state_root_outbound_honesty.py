@@ -51,8 +51,15 @@ def test_needles_v13129():
     p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
     assert "_state_root_response_for_height" in p2p
     assert "state_root_outbound_refuse_total" in p2p
-    assert "never label tip root/head as a non-tip height" in p2p
-    assert "must not inflate peer.height" in p2p
+    # Wording evolved with later waves; keep the honesty intent.
+    assert (
+        "never label tip root/head as a non-tip height" in p2p
+        or "never mislabel tip" in p2p
+    )
+    assert (
+        "must not inflate peer.height" in p2p
+        or "must not inflate peer tip" in p2p
+    )
     notes = (ROOT / "RELEASE_NOTES_v1.3.129.md").read_text(encoding="utf-8")
     assert "1.3.129-industrial" in notes
     # Live Config().node_version advances with later waves; pin notes not config.

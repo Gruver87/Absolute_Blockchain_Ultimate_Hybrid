@@ -94,7 +94,8 @@ def test_needles_v13205():
     assert "P2P_MEMPOOL_UNPARSEABLE_NONCE_REFUSE" in cfg
     notes = (ROOT / "RELEASE_NOTES_v1.3.205.md").read_text(encoding="utf-8")
     assert "1.3.205-industrial" in notes
-    assert Config().node_version.startswith("1.3.205")
+    # Live Config().node_version advances with later waves; pin notes not config.
+    assert Config().node_version.startswith("1.3.")
     metrics = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
     assert "abs_p2p_native_mempool_unparseable_nonce_refuse" in metrics
     assert "abs_p2p_mempool_nonce_unparseable_refuse_total" in metrics

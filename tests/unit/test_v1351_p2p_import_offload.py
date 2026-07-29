@@ -38,11 +38,17 @@ def test_hot_paths_do_not_call_blockchain_import_synchronously():
     )[0]
     assert "blockchain.import_block(" not in handle
     assert "_import_block_async" in handle
-    assert "self.import_block(" not in sync or "_import_block_async" in sync
+    # ADR 0004: ahead catch-up is CatchUpPathAService via asyncio.to_thread
+    # (imports run off the event loop inside the worker thread).
     assert "blockchain.import_block(" not in sync
-    assert "_import_block_async" in sync
+    assert "CatchUpPathAService" in sync
+    assert "asyncio.to_thread" in sync
+    # ADR 0005: reconcile delegates to ForkReconcileService; reorg offload
+    # lives in fork_adapters → _reorg_and_import_async.
     assert "blockchain.import_block(" not in reconcile
-    assert "_reorg_and_import_async" in reconcile
+    assert "_fork_reconcile_run_to_head" in reconcile
+    adapters = Path("network/fork_adapters.py").read_text(encoding="utf-8")
+    assert "_reorg_and_import_async" in adapters
     assert "asyncio.to_thread(self.sync_engine.fast_sync)" in Path(
         "main.py"
     ).read_text(encoding="utf-8")

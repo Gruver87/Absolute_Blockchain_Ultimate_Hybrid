@@ -235,6 +235,7 @@ class Config:
 
     # ── Промышленный профиль ────────────────────────────────────────────────
     # Fail-closed defaults: empty CORS / proxy off (opt-in via env or JSON).
+    deployment_mode: str = "dev"          # dev | staging | prod
     cors_origins: List[str] = field(default_factory=list)
     jwt_enforce_admin: bool = False       # prod: требовать JWT на POST/admin
     require_wallet_file: bool = False     # prod: не генерировать кошелёк автоматически

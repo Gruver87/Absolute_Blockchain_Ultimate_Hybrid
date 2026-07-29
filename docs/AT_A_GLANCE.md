@@ -34,8 +34,12 @@ Public audited mainnet · listed ABS token · investment product · bridge ON on
 
 | Path | Role |
 |------|------|
-| `native/abs_native/` | Rust (look for `Cargo.toml`) |
-| `network/` | P2P control plane |
+| `native/abs_native/` | Rust crypto / Rocks / EVM (`Cargo.toml`) |
+| `network/` | P2P TCP + dispatch + adapters |
+| `sync/` | Catch-up · fork reconcile · solicit |
+| `storage/` | StoragePort · RocksDB adapter |
+| `core/` | Blockchain domain |
+| `docs/ARCHITECTURE.md` | System map (mermaid) |
 | `scripts/` | Ops gates |
 | `Makefile` | Linux/macOS shortcuts |
 

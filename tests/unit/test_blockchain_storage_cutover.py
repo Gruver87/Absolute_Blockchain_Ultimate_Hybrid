@@ -305,5 +305,29 @@ def test_blockchain_auto_wires_storage_when_omitted(tmp_path) -> None:
     bc = Blockchain(cfg, db, EventBus())
     assert bc.storage is not None
     assert isinstance(bc.storage, RocksDBStorageAdapter)
+    assert bc.storage.unwrap() is db
     block = _mine_one(bc)
     assert bc.get_height() == block.height
+
+
+def test_blockchain_domain_has_no_self_db_attribute_access() -> None:
+    """Wave F needle: domain logic must not use self.db.* (compat property only)."""
+    path = ROOT / "core" / "blockchain.py"
+    text = path.read_text(encoding="utf-8")
+    offenders = [
+        f"{i}:{line.strip()}"
+        for i, line in enumerate(text.splitlines(), 1)
+        if "self.db." in line or "hasattr(self.db" in line or "self.db," in line
+    ]
+    assert offenders == [], f"self.db still used in domain logic: {offenders}"
+    assert "self.storage." in text
+    assert "def db(self)" in text
+    assert "@property" in text
+
+
+def test_compat_db_property_unwraps_underlying_store(chain_env) -> None:
+    _cfg, db, storage, bc = chain_env
+    assert bc.db is db
+    assert bc.storage.unwrap() is db
+    bc.db.set_balance("0x" + "ab" * 20, 3.0)
+    assert abs(bc.get_balance("0x" + "ab" * 20) - 3.0) < 1e-9

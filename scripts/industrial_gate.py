@@ -640,8 +640,14 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
                 "P2P unsolicited state_root must be solicit-only "
                 "(or legacy mismatch must clear consistent)"
             )
-        if "Sync incomplete" not in p2p_py:
-            errors.append("P2P sync must log Sync incomplete (not claim complete on stall)")
+        # ADR 0004: "Sync incomplete" honesty may live in CatchUpPathAService.
+        catchup_path_a = (
+            ROOT / "sync" / "catchup" / "path_a.py"
+        ).read_text(encoding="utf-8")
+        if "Sync incomplete" not in p2p_py and "Sync incomplete" not in catchup_path_a:
+            errors.append(
+                "P2P sync must log Sync incomplete (not claim complete on stall)"
+            )
         if "reached_target" not in p2p_py:
             errors.append("P2P sync must gate state_root baseline on reached_target")
         if "consistent_ok = bool(self._state_consistent) if peers else True" not in p2p_py:
