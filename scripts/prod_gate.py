@@ -51,6 +51,7 @@ REQUIRED_TRUE = [
     "p2p_native_transport",
     "evm_create2_eip1014",
     "evm_require_deploy_salt",
+    "tip_safety_enforce",
 ]
 
 DEVNET_CHAIN_ID = 77777

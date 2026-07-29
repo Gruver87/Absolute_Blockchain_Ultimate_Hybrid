@@ -27,6 +27,8 @@ data:
   WS_HOST: "0.0.0.0"
   METRICS_ENABLED: "true"
   ABS_REQUIRE_NATIVE_CRYPTO: "true"
+  TIP_SAFETY_ENFORCE: "true"
+  TIP_SAFETY_SHADOW: "true"
   REDIS_RATE_LIMIT: "true"
   REDIS_URL: "redis://abs-redis:6379/0"
   RATE_LIMIT_RPM: "120"
@@ -86,6 +88,8 @@ data:
       "mining_enabled": false,
       "require_signatures": true,
       "require_native_crypto": true,
+      "tip_safety_enforce": true,
+      "tip_safety_shadow": true,
       "p2p_native_transport": true,
       "enforce_proposer": true,
       "verify_peer_state_root": true,

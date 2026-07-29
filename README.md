@@ -195,6 +195,7 @@ Code: `runtime/tokenomics.py` · `GET /tokenomics` — **not** a listed token.
 | Jul 12 | Failover, signed tx, EVM, **7h soak PASS** |
 | Jul 19–21 | **48h soak PASS** |
 | Jul 21–26 | Industrial **v1.3.65–v1.3.146** + professional repo surface (Dependabot/SBOM/SUPPORT) |
+| Jul 29 | **v1.3.206** Tip-safety (enforce) + P2P transport boundary + application dispatcher |
 
 Ledger: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md)
 
@@ -215,4 +216,4 @@ MIT — [LICENSE](LICENSE)
 ---
 
 *Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87) · Default branch: `master`*  
-*Last update: 2026-07-26 — **v1.3.146** Catch-up tip probe + head height bind. Not a launched public mainnet.*
+*Last update: 2026-07-29 — **v1.3.206** Tip-safety + P2P transport/dispatch boundaries. Not a launched public mainnet.*

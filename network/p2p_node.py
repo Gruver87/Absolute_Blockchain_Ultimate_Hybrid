@@ -275,6 +275,7 @@ class PeerConnection:
         self._native_auto_pong: bool = True
         self._native_io_timeout_ms: int = 30000
         self._use_egress_prepare = False  # v1.3.87 unified prepare
+        self._transport_adapter = None  # set by P2PNode._attach_peer_hooks (Step C)
         self._egress_max_bytes = DEFAULT_MAX_P2P_LINE_BYTES
         # v1.3.66/72: bounded outbound queue (config-driven size + drain timeout)
         qmax = max(8, int(send_queue_max or 256))
@@ -479,21 +480,61 @@ class PeerConnection:
 
     def _prepare_outbound(self, msg_type: str, data: Any) -> Optional[bytes]:
         """v1.3.87: encode + allowlist + size + egress admit (or legacy fallback)."""
-        if self._use_egress_prepare and hasattr(native, "p2p_egress_prepare"):
-            import json
-
+        adapter = getattr(self, "_transport_adapter", None)
+        if self._use_egress_prepare and (
+            adapter is not None or hasattr(native, "p2p_egress_prepare")
+        ):
             data_json = (
                 "null"
                 if data is None
                 else json.dumps(data, separators=(",", ":"), ensure_ascii=False)
             )
+            peer_key = self._egress_peer_key()
+            max_bytes = int(self._egress_max_bytes or DEFAULT_MAX_P2P_LINE_BYTES)
             try:
+                if adapter is not None:
+                    from network.transport import OutboundEnvelope
+
+                    decision = adapter.prepare_outbound(
+                        OutboundEnvelope(
+                            peer_id=str(peer_key or ""),
+                            msg_type=str(msg_type or ""),
+                            payload={},
+                        ),
+                        now=float(time.time()),
+                        max_bytes=max_bytes,
+                        allowed_types=list(ALLOWED_WIRE_TYPES),
+                        rate_table=self._rl_table,
+                        data_json=data_json,
+                    )
+                    if not decision.accepted:
+                        reason = (
+                            decision.reject.reason_code
+                            if decision.reject is not None
+                            else "prepare_failed"
+                        )
+                        if "egress_bandwidth" in reason:
+                            cb = self._on_egress_reject
+                            if cb is not None:
+                                try:
+                                    cb()
+                                except Exception:
+                                    pass
+                        else:
+                            logger.warning(
+                                "[P2P] egress prepare reject to %s (%s)",
+                                self.peer_id or self.host,
+                                reason or "prepare_failed",
+                            )
+                        return None
+                    payload = (decision.frame.data or {}).get("payload") if decision.frame else None
+                    return bytes(payload or b"")
                 out = native.p2p_egress_prepare(
                     str(msg_type or ""),
                     data_json,
-                    self._egress_peer_key(),
+                    peer_key,
                     float(time.time()),
-                    int(self._egress_max_bytes or DEFAULT_MAX_P2P_LINE_BYTES),
+                    max_bytes,
                     list(ALLOWED_WIRE_TYPES),
                     self._rl_table,
                 )
@@ -914,17 +955,46 @@ class PeerConnection:
             if (
                 use_ingress
                 and rl_table is not None
-                and hasattr(native, "p2p_ingress_admit")
+                and (
+                    getattr(self, "_transport_adapter", None) is not None
+                    or hasattr(native, "p2p_ingress_admit")
+                )
             ):
+                peer_id = str(peer_key or self.peer_id or self.host or "")
                 try:
-                    admitted = native.p2p_ingress_admit(
-                        line,
-                        str(peer_key or self.peer_id or self.host or ""),
-                        float(time.time()),
-                        int(limit),
-                        list(ALLOWED_WIRE_TYPES),
-                        rl_table,
-                    )
+                    adapter = getattr(self, "_transport_adapter", None)
+                    if adapter is not None:
+                        decision = adapter.admit_inbound_line(
+                            line,
+                            peer_id=peer_id,
+                            now=float(time.time()),
+                            max_bytes=int(limit),
+                            allowed_types=list(ALLOWED_WIRE_TYPES),
+                            rate_table=rl_table,
+                        )
+                        if not decision.accepted:
+                            reason = (
+                                decision.reject.reason_code
+                                if decision.reject is not None
+                                else "bad_wire_line"
+                            )
+                            admitted = {"ok": False, "reason": reason}
+                        else:
+                            assert decision.frame is not None
+                            admitted = {
+                                "ok": True,
+                                "type": decision.frame.msg_type,
+                                "data": decision.frame.data,
+                            }
+                    else:
+                        admitted = native.p2p_ingress_admit(
+                            line,
+                            peer_id,
+                            float(time.time()),
+                            int(limit),
+                            list(ALLOWED_WIRE_TYPES),
+                            rl_table,
+                        )
                 except Exception as exc:
                     logger.warning(
                         "[P2P] ingress admit error from %s: %s",
@@ -949,6 +1019,7 @@ class PeerConnection:
                         "rate_limit_exceeded",
                         "exempt_rate_exceeded",
                         "bandwidth_exceeded",
+                        "rate_limited",
                     ):
                         logger.warning(
                             "[P2P] ingress rate reject from %s (%s)",
@@ -1308,6 +1379,27 @@ class P2PNode:
         self._import_offload_total: int = 0
         self.apply_queue = None  # set by AbsoluteNode — serial mine+import
         self.sync_executor = None  # dedicated pool for sync_state (not default executor)
+        # Stage 2 tip-safety shadow observer (set by AbsoluteNode; observe-only).
+        self.tip_safety_shadow = None
+        # Step C: transport boundary facade (always present; gates use existing flags).
+        from network.transport import NativeTransportAdapter
+
+        self.transport_adapter = NativeTransportAdapter(
+            require_native=bool(_want_native_rl),
+        )
+        # Step D: application dispatcher (type → handler registry; tip-evidence DI).
+        from network.p2p_dispatch import (
+            TipSafetyEvidenceBridge,
+            build_default_dispatcher,
+        )
+
+        self._dispatch_tip_evidence_refuse_total: int = 0
+        self._tip_evidence_bridge = TipSafetyEvidenceBridge(
+            shadow_provider=lambda: getattr(self, "tip_safety_shadow", None),
+        )
+        self.dispatcher = build_default_dispatcher(
+            tip_evidence=self._tip_evidence_bridge,
+        )
         self._sync_fail: int = 0
         self._peer_sync_fail: int = 0
         self._discovery_loop_fail: int = 0
@@ -1422,8 +1514,93 @@ class P2PNode:
             return self.blockchain.get_block_by_hash(block_hash)
         return None
 
+    # ── DispatchHost surface (Step D — structural Protocol for P2PDispatcher) ─
+
+    def strike_peer(self, peer: PeerConnection, reason: str) -> bool:
+        """DispatchHost: strike peer; True if peer should be removed."""
+        return bool(self._strike_peer_sync(peer, reason))
+
+    def remove_peer(self, peer_id: str, peer: Any = None) -> None:
+        """DispatchHost: remove peer from the mesh."""
+        self._remove_peer(peer_id, peer)
+
+    def bump_counter(self, name: str, delta: int = 1) -> None:
+        """DispatchHost: increment a node counter by public name."""
+        attr = name if str(name).startswith("_") else f"_{name}"
+        cur = int(getattr(self, attr, 0) or 0)
+        setattr(self, attr, cur + int(delta))
+
+    async def handle_new_block(self, peer: PeerConnection, data: Any) -> None:
+        await self._handle_new_block(peer, data)
+
+    async def handle_get_blocks(self, peer: PeerConnection, data: Any) -> None:
+        await self._handle_get_blocks(peer, data)
+
+    async def handle_new_tx(self, peer: PeerConnection, data: Any) -> None:
+        await self._handle_new_tx(peer, data)
+
+    async def handle_get_mempool(self, peer: PeerConnection) -> None:
+        await self._handle_get_mempool(peer)
+
+    async def handle_attestation(self, peer: PeerConnection, data: Any) -> None:
+        await self._handle_attestation(peer, data)
+
+    async def handle_validator_register(self, peer: PeerConnection, data: Any) -> None:
+        await self._handle_validator_register(peer, data)
+
+    async def handle_cross_shard_tx(self, peer: PeerConnection, data: Any) -> None:
+        await self._handle_cross_shard_tx(peer, data)
+
+    async def handle_cross_shard_ack(self, peer: PeerConnection, data: Any) -> None:
+        await self._handle_cross_shard_ack(peer, data)
+
+    async def handle_shard_migration(self, peer: PeerConnection, data: Any) -> None:
+        await self._handle_shard_migration(peer, data)
+
+    def get_block_future_refuse_reason(self, height: int) -> str:
+        return self._get_block_future_refuse_reason(height)
+
+    def cap_claimed_peer_height(self, height: int) -> tuple:
+        return self._cap_claimed_peer_height(height)
+
+    def status_head_height_refuse_reason(self, head_hash: str, height: int) -> str:
+        return self._status_head_height_refuse_reason(head_hash, height)
+
+    def ingest_discovered_peers(self, peer: PeerConnection, data: Any) -> None:
+        self._ingest_discovered_peers(peer, data)
+
+    def state_root_response_for_height(self, height: int) -> Any:
+        return self._state_root_response_for_height(height)
+
+    def _tip_safety_precheck(self, block_data: Dict) -> bool:
+        """Run tip-safety observe/enforce before chain import.
+
+        Returns:
+            True if import may proceed; False if enforce refused the candidate.
+        """
+        shadow = getattr(self, "tip_safety_shadow", None)
+        if shadow is None:
+            return True
+        decision = None
+        try:
+            decision = shadow.observe_before_import(block_data, self.blockchain)
+        except Exception as exc:
+            logger.warning("[P2P] tip_safety observe suppressed: %s", exc)
+            decision = None
+        if bool(getattr(shadow, "enforce", False)) and not shadow.allows_import(
+            decision
+        ):
+            code = shadow.record_enforce_refuse(decision)
+            self._import_block_fail = int(self._import_block_fail or 0) + 1
+            logger.warning("[P2P] tip_safety enforce refused import (%s)", code)
+            return False
+        return True
+
     def import_block(self, block_data: Dict) -> bool:
         """For SyncEngine.fast_sync() (must stay sync — often already on a worker thread)."""
+        if not self._tip_safety_precheck(block_data):
+            return False
+        shadow = getattr(self, "tip_safety_shadow", None)
         q = getattr(self, "apply_queue", None)
         if q is not None:
             self._import_offload_total = int(self._import_offload_total or 0) + 1
@@ -1431,7 +1608,67 @@ class P2PNode:
             if not ok:
                 self._import_block_fail = int(self._import_block_fail or 0) + 1
                 logger.warning("[P2P] import_block rejected (apply queue)")
+            if shadow is not None:
+                try:
+                    shadow.note_import_result(ok, self.blockchain)
+                except Exception as exc:
+                    logger.warning("[P2P] tip_safety note suppressed: %s", exc)
             return ok
+        try:
+            if hasattr(self.blockchain, "import_block"):
+                ok = bool(self.blockchain.import_block(block_data))
+            else:
+                from core.blockchain import Block
+
+                blk = Block.from_dict(block_data)
+                ok = bool(self.blockchain.add_block(blk))
+            if not ok:
+                self._import_block_fail = int(self._import_block_fail or 0) + 1
+                logger.warning("[P2P] import_block rejected")
+            if shadow is not None:
+                try:
+                    shadow.note_import_result(ok, self.blockchain)
+                except Exception as exc:
+                    logger.warning("[P2P] tip_safety note suppressed: %s", exc)
+            return ok
+        except Exception as exc:
+            self._import_block_fail = int(self._import_block_fail or 0) + 1
+            logger.warning("[P2P] import_block failed: %s", exc)
+            if shadow is not None:
+                try:
+                    shadow.note_import_result(False, self.blockchain)
+                except Exception as note_exc:
+                    logger.warning(
+                        "[P2P] tip_safety note suppressed: %s", note_exc
+                    )
+            return False
+
+    async def _import_block_async(self, block_data: Dict) -> bool:
+        """Offload chain apply so the asyncio loop stays responsive under EVM load."""
+        self._import_offload_total = int(self._import_offload_total or 0) + 1
+        if not self._tip_safety_precheck(block_data):
+            return False
+        shadow = getattr(self, "tip_safety_shadow", None)
+        q = getattr(self, "apply_queue", None)
+        if q is not None:
+            ok = bool(await q.submit_import_async(block_data))
+        else:
+            ok = bool(
+                await asyncio.to_thread(self._import_block_without_shadow, block_data)
+            )
+        if shadow is not None:
+            try:
+                shadow.note_import_result(ok, self.blockchain)
+            except Exception as exc:
+                logger.warning("[P2P] tip_safety note suppressed: %s", exc)
+        return ok
+
+    def _import_block_without_shadow(self, block_data: Dict) -> bool:
+        """Direct chain import used by async offload when no apply queue is set.
+
+        Intentionally skips shadow hooks — caller (``_import_block_async``)
+        already observed/noted around this call to avoid double-counting.
+        """
         try:
             if hasattr(self.blockchain, "import_block"):
                 ok = bool(self.blockchain.import_block(block_data))
@@ -1448,14 +1685,6 @@ class P2PNode:
             self._import_block_fail = int(self._import_block_fail or 0) + 1
             logger.warning("[P2P] import_block failed: %s", exc)
             return False
-
-    async def _import_block_async(self, block_data: Dict) -> bool:
-        """Offload chain apply so the asyncio loop stays responsive under EVM load."""
-        self._import_offload_total = int(self._import_offload_total or 0) + 1
-        q = getattr(self, "apply_queue", None)
-        if q is not None:
-            return bool(await q.submit_import_async(block_data))
-        return await asyncio.to_thread(self.import_block, block_data)
 
     async def _sync_state_async(self) -> bool:
         """Run SyncEngine.sync_state on the dedicated sync executor (not default pool)."""
@@ -1673,9 +1902,12 @@ class P2PNode:
         peer._native_message_loop_shell = bool(
             getattr(self, "_native_message_loop_shell", False)
         )
+        peer._transport_adapter = getattr(self, "transport_adapter", None)
         if self._use_native_egress:
             peer._rl_table = self._rl_table
-            peer._use_egress_prepare = hasattr(native, "p2p_egress_prepare")
+            peer._use_egress_prepare = hasattr(native, "p2p_egress_prepare") or (
+                peer._transport_adapter is not None
+            )
 
     def _apply_native_io_timeout(self, native_conn) -> None:
         """v1.3.102: apply configured SO_RCV/SNDTIMEO on a native conn."""
@@ -2721,231 +2953,11 @@ class P2PNode:
                 fut.set_result(msg)
                 return
 
-        if msg_type == MSG_PING:
-            await peer.send(MSG_PONG, {"ts": time.time()})
+        # Step D: application type routing via Handler Registry (not inline if/elif).
+        from network.p2p_dispatch import DispatchOutcome
 
-        elif msg_type == MSG_PONG:
-            pass  # обновление last_seen уже сделано в _message_loop
-
-        elif msg_type == MSG_NEW_BLOCK:
-            await self._handle_new_block(peer, data)
-
-        elif msg_type == MSG_GET_BLOCK:
-            height = native.validate_p2p_get_block(data)
-            if height is None:
-                self._strike_peer_sync(peer, "bad_get_block")
-                return
-            # v1.3.181: do not DB-fetch fantasy heights above local tip.
-            refuse = self._get_block_future_refuse_reason(int(height))
-            if refuse:
-                self._get_block_future_refuse_total = int(
-                    getattr(self, "_get_block_future_refuse_total", 0) or 0
-                ) + 1
-                logger.info(
-                    "[P2P] get_block future refuse %s peer=%s height=%s local=%s",
-                    refuse,
-                    (peer.peer_id or "")[:12],
-                    height,
-                    self.blockchain.get_height() if self.blockchain else 0,
-                )
-                await peer.send(MSG_BLOCK, None)
-                return
-            block = self.blockchain.get_block(int(height))
-            await peer.send(MSG_BLOCK, block)
-
-        elif msg_type == MSG_GET_BLOCK_BY_HASH:
-            block_hash = native.validate_p2p_get_block_by_hash(data)
-            if block_hash is None:
-                self._strike_peer_sync(peer, "bad_get_block_by_hash")
-                return
-            block = None
-            if hasattr(self.blockchain, "get_block_by_hash"):
-                block = self.blockchain.get_block_by_hash(block_hash)
-            await peer.send(MSG_BLOCK, block)
-
-        elif msg_type == MSG_GET_BLOCKS:
-            await self._handle_get_blocks(peer, data)
-
-        elif msg_type == MSG_NEW_TX:
-            await self._handle_new_tx(peer, data)
-
-        elif msg_type == MSG_GET_MEMPOOL:
-            await self._handle_get_mempool(peer)
-
-        elif msg_type == MSG_MEMPOOL:
-            # v1.3.131: pull-only — unsolicited batches never ingest.
-            self._unsolicited_mempool_rejects_total = int(
-                self._unsolicited_mempool_rejects_total or 0
-            ) + 1
-            self._strike_peer_sync(peer, "unsolicited_mempool")
-            return
-
-        elif msg_type == MSG_BLOCKS:
-            # v1.3.137: pull-only — unsolicited batches never steer sync.
-            self._unsolicited_block_rejects_total = int(
-                self._unsolicited_block_rejects_total or 0
-            ) + 1
-            self._strike_peer_sync(peer, "unsolicited_blocks")
-            return
-
-        elif msg_type == MSG_BLOCK:
-            self._unsolicited_block_rejects_total = int(
-                self._unsolicited_block_rejects_total or 0
-            ) + 1
-            self._strike_peer_sync(peer, "unsolicited_block")
-            return
-
-        elif msg_type == MSG_GET_PEERS:
-            allow_private = bool(
-                getattr(self.config, "p2p_discovery_allow_private", False)
-            )
-            peer_list = []
-            for p in self.peers.values():
-                if p.peer_id == peer.peer_id:
-                    continue
-                port = p.listen_port or p.port
-                if not port:
-                    continue
-                addr = f"{p.host}:{port}"
-                if native.p2p_peer_addr_is_dialable(addr, allow_private=allow_private):
-                    peer_list.append(addr)
-            await peer.send(MSG_PEERS, peer_list)
-
-        elif msg_type == MSG_PEERS:
-            # v1.3.152: pull-only — unsolicited peer lists never dial.
-            if bool(getattr(self.config, "p2p_peers_solicit_only", True)):
-                self._unsolicited_peers_rejects_total = int(
-                    self._unsolicited_peers_rejects_total or 0
-                ) + 1
-                self._strike_peer_sync(peer, "unsolicited_peers")
-                return
-            self._ingest_discovered_peers(peer, data)
-
-        elif msg_type == MSG_STATUS:
-            status = native.validate_p2p_status_payload(data)
-            if status:
-                bind_reason = native.verify_p2p_status_height_head_binding(
-                    data if isinstance(data, dict) else status
-                )
-                if bind_reason:
-                    self._status_height_head_rejects_total = int(
-                        self._status_height_head_rejects_total or 0
-                    ) + 1
-                    self._strike_peer_sync(peer, str(bind_reason))
-                    return
-                incoming_h = int(status.get("height", 0) or 0)
-                our_h = int(self.blockchain.get_height() or 0)
-                if incoming_h:
-                    # v1.3.131: cap fantasy height inflation above local tip.
-                    capped_h, was_capped = self._cap_claimed_peer_height(incoming_h)
-                    if was_capped:
-                        self._status_height_cap_total = int(
-                            self._status_height_cap_total or 0
-                        ) + 1
-                    incoming_head = status.get("head_hash") or ""
-                    # v1.3.155: known local head ⇒ claimed height must match.
-                    if incoming_head and not was_capped:
-                        bind_local = self._status_head_height_refuse_reason(
-                            str(incoming_head), capped_h
-                        )
-                        if bind_local:
-                            self._status_head_height_mismatch_total = int(
-                                getattr(
-                                    self, "_status_head_height_mismatch_total", 0
-                                )
-                                or 0
-                            ) + 1
-                            self._strike_peer_sync(peer, bind_local)
-                            return
-                    peer.height = max(int(peer.height or 0), capped_h)
-                    # v1.3.135: capped height ⇒ refuse fantasy head install.
-                    # v1.3.159: also clear any prior fantasy peer.head (handshake parity).
-                    if was_capped and bool(
-                        getattr(self.config, "p2p_height_cap_clear_head", True)
-                    ):
-                        peer.head = ""
-                    elif incoming_head and not was_capped:
-                        peer.head = str(incoming_head)
-                else:
-                    incoming_head = status.get("head_hash") or ""
-                    if incoming_head:
-                        # v1.3.161: head-only STATUS (height<=0) refused when local tip > 0.
-                        if bool(
-                            getattr(
-                                self.config, "p2p_status_head_requires_height", True
-                            )
-                        ) and our_h > 0:
-                            self._status_head_without_height_total = int(
-                                getattr(
-                                    self, "_status_head_without_height_total", 0
-                                )
-                                or 0
-                            ) + 1
-                            self._strike_peer_sync(peer, "status_head_without_height")
-                            return
-                        # Known local head ⇒ claimed height 0 must match (usually refuse).
-                        bind_local = self._status_head_height_refuse_reason(
-                            str(incoming_head), 0
-                        )
-                        if bind_local:
-                            self._status_head_height_mismatch_total = int(
-                                getattr(
-                                    self, "_status_head_height_mismatch_total", 0
-                                )
-                                or 0
-                            ) + 1
-                            self._strike_peer_sync(peer, bind_local)
-                            return
-                        peer.head = str(incoming_head)
-                if incoming_h and incoming_h != our_h:
-                    await peer.send(MSG_STATUS, {
-                        "height": our_h,
-                        "head_hash": self.head() or "",
-                    })
-
-        elif msg_type == MSG_ATTESTATION:
-            await self._handle_attestation(peer, data)
-
-        elif msg_type == MSG_VALIDATOR_REGISTER:
-            await self._handle_validator_register(peer, data)
-
-        elif msg_type == MSG_STATE_ROOT_REQUEST:
-            req_h = native.validate_p2p_state_root_request(data)
-            if req_h is None:
-                self._strike_peer_sync(peer, "bad_state_root_request")
-                return
-            # v1.3.129: never label tip root/head as a non-tip height.
-            payload = self._state_root_response_for_height(int(req_h))
-            if payload is None:
-                self._state_root_outbound_refuse_total = int(
-                    self._state_root_outbound_refuse_total or 0
-                ) + 1
-                return
-            await peer.send(MSG_STATE_ROOT_RESPONSE, payload)
-
-        elif msg_type == MSG_STATE_ROOT_RESPONSE:
-            # v1.3.129: must not inflate peer.height from unsolicited state_root_response.
-            # v1.3.138: solicit-only — strike unsolicited; never mutate _state_consistent
-            # (stronger than the v1.3.16 match/mismatch path: not flip consistent=True /
-            # must clear consistent on mismatch — unsolicited is refused entirely).
-            resp = native.validate_p2p_state_root_response(data)
-            if not resp:
-                self._strike_peer_sync(peer, "bad_state_root_response")
-                return
-            self._unsolicited_state_root_rejects_total = int(
-                self._unsolicited_state_root_rejects_total or 0
-            ) + 1
-            self._strike_peer_sync(peer, "unsolicited_state_root_response")
-            return
-        elif msg_type == MSG_CROSS_SHARD_TX:
-            await self._handle_cross_shard_tx(peer, data)
-
-        elif msg_type == MSG_CROSS_SHARD_ACK:
-            await self._handle_cross_shard_ack(peer, data)
-        elif msg_type == MSG_SHARD_MIGRATION:
-            await self._handle_shard_migration(peer, data)
-
-        else:
+        outcome = await self.dispatcher.dispatch(self, peer, msg_type, data)
+        if outcome is DispatchOutcome.UNHANDLED:
             if self._strike_peer_sync(peer, f"unhandled_type:{msg_type}"):
                 self._remove_peer(peer.peer_id, peer)
 
@@ -6435,7 +6447,7 @@ class P2PNode:
                 if until > now
             ]
             tracked = len(self._peer_strikes)
-        return {
+        status = {
             "rate_limit_per_sec": int(getattr(self.config, "p2p_max_messages_per_sec", 0) or 0),
             "max_message_bytes": _max_p2p_line_bytes(self.config),
             "ban_seconds": int(getattr(self.config, "p2p_ban_seconds", 300) or 300),
@@ -7057,3 +7069,28 @@ class P2PNode:
             ),
             "tls": p2p_tls_status(self.config),
         }
+        shadow = getattr(self, "tip_safety_shadow", None)
+        if shadow is not None and hasattr(shadow, "merge_into_status"):
+            try:
+                shadow.merge_into_status(status)
+            except Exception as exc:
+                logger.warning("[P2P] tip_safety shadow status merge failed: %s", exc)
+        else:
+            status.setdefault("tip_safety_shadow_enabled", False)
+        adapter = getattr(self, "transport_adapter", None)
+        if adapter is not None and hasattr(adapter, "merge_into_status"):
+            try:
+                adapter.merge_into_status(status)
+            except Exception as exc:
+                logger.warning("[P2P] transport adapter status merge failed: %s", exc)
+        else:
+            status.setdefault("transport_boundary", False)
+        dispatcher = getattr(self, "dispatcher", None)
+        if dispatcher is not None and hasattr(dispatcher, "merge_into_status"):
+            try:
+                dispatcher.merge_into_status(status)
+            except Exception as exc:
+                logger.warning("[P2P] dispatcher status merge failed: %s", exc)
+        else:
+            status.setdefault("dispatch_boundary", False)
+        return status

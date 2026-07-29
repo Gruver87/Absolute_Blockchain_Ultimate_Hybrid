@@ -1,0 +1,223 @@
+#!/usr/bin/env python3
+"""Unit tests for tip-safety shadow observer (stage 2)."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+from typing import Any, Dict, Optional
+from unittest.mock import MagicMock
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from consensus.tip_safety.errors import TipValidationError
+from consensus.tip_safety.shadow import (
+    TipSafetyShadowObserver,
+    block_ref_from_mapping,
+    tip_state_from_chain,
+)
+from consensus.tip_safety.types import ApplyOutcome, BlockRef
+from network.p2p_node import P2PNode
+from runtime.config import Config
+
+
+def _h(n: int) -> str:
+    return f"{n:064x}"
+
+
+def _block_dict(height: int, *, n: int | None = None) -> Dict[str, Any]:
+    digest = _h(n if n is not None else height)
+    parent = "" if height == 0 else _h(height - 1)
+    return {
+        "height": height,
+        "hash": digest,
+        "parent_hash": parent,
+        "transactions": [],
+    }
+
+
+class _FakeChain:
+    GENESIS_HASH = "0" * 64
+
+    def __init__(self, height: int = 0) -> None:
+        self._height = height
+        self._blocks: Dict[int, Dict[str, Any]] = {
+            0: _block_dict(0, n=0),
+        }
+        for i in range(1, height + 1):
+            self._blocks[i] = _block_dict(i)
+
+    def get_height(self) -> int:
+        return self._height
+
+    def get_block(self, height: int) -> Optional[Dict[str, Any]]:
+        return self._blocks.get(height)
+
+    def get_last_block(self) -> Optional[Dict[str, Any]]:
+        return self._blocks.get(self._height)
+
+    def import_block(self, data: Dict[str, Any]) -> bool:
+        h = int(data["height"])
+        if h != self._height + 1:
+            return False
+        if data.get("parent_hash") != self._blocks[self._height]["hash"]:
+            return False
+        self._blocks[h] = dict(data)
+        self._height = h
+        return True
+
+
+def test_block_ref_from_mapping_ok() -> None:
+    ref = block_ref_from_mapping(_block_dict(1))
+    assert ref.height == 1
+    assert ref.parent_hash == _h(0)
+
+
+def test_block_ref_from_mapping_rejects_junk() -> None:
+    with pytest.raises(TipValidationError):
+        block_ref_from_mapping({"height": "x", "hash": _h(1)})
+
+
+def test_tip_state_from_chain_genesis() -> None:
+    state = tip_state_from_chain(_FakeChain(0))
+    assert state.head.height == 0
+
+
+def test_disabled_observer_is_noop() -> None:
+    obs = TipSafetyShadowObserver(enabled=False)
+    chain = _FakeChain(1)
+    assert obs.observe_before_import(_block_dict(2), chain) is None
+    obs.note_import_result(True, chain)
+    st = obs.status()
+    assert st["tip_safety_shadow_enabled"] is False
+    assert st["tip_safety_shadow_observe_total"] == 0
+
+
+def test_shadow_observe_accept_extend() -> None:
+    obs = TipSafetyShadowObserver(enabled=True)
+    chain = _FakeChain(1)
+    assert obs.sync_from_chain(chain) is True
+    decision = obs.observe_before_import(_block_dict(2), chain)
+    assert decision is not None
+    assert decision.outcome == ApplyOutcome.ACCEPT_EXTEND
+    assert obs.accept_total == 1
+
+
+def test_shadow_observe_reject_gap_does_not_raise() -> None:
+    obs = TipSafetyShadowObserver(enabled=True)
+    chain = _FakeChain(1)
+    obs.sync_from_chain(chain)
+    decision = obs.observe_before_import(_block_dict(50), chain)
+    assert decision is not None
+    assert decision.outcome == ApplyOutcome.REJECT
+    assert decision.reason_code == "tip_unknown_parent"
+    assert obs.reject_total == 1
+    assert obs.reject_by_code.get("tip_unknown_parent") == 1
+
+
+def test_shadow_bad_hash_increments_observe_errors() -> None:
+    obs = TipSafetyShadowObserver(enabled=True)
+    chain = _FakeChain(0)
+    obs.sync_from_chain(chain)
+    decision = obs.observe_before_import(
+        {"height": 1, "hash": "not-hex", "parent_hash": _h(0)},
+        chain,
+    )
+    assert decision is None
+    assert obs.observe_errors >= 1
+
+
+def test_diverge_policy_reject_import_ok() -> None:
+    obs = TipSafetyShadowObserver(enabled=True)
+    chain = _FakeChain(1)
+    obs.sync_from_chain(chain)
+    # Gap: policy rejects
+    obs.observe_before_import(_block_dict(50), chain)
+    # Legacy still "imports" (simulated)
+    obs.note_import_result(True, chain)
+    assert obs.diverge_policy_reject_import_ok == 1
+
+
+def test_diverge_policy_accept_import_fail() -> None:
+    obs = TipSafetyShadowObserver(enabled=True)
+    chain = _FakeChain(1)
+    obs.sync_from_chain(chain)
+    obs.observe_before_import(_block_dict(2), chain)
+    obs.note_import_result(False, chain)
+    assert obs.diverge_policy_accept_import_fail == 1
+
+
+def test_p2p_import_block_shadow_does_not_change_result() -> None:
+    cfg = Config()
+    cfg.p2p_native_transport = False
+    cfg.require_native_crypto = False
+    cfg.deployment_mode = "dev"
+    cfg.bootstrap_peers = []
+    cfg.tip_safety_shadow = True
+    cfg.tip_safety_enforce = False
+    chain = _FakeChain(1)
+    mp = MagicMock()
+    node = P2PNode(cfg, chain, mp)
+    node.tip_safety_shadow = TipSafetyShadowObserver(enabled=True, enforce=False)
+    node.tip_safety_shadow.sync_from_chain(chain)
+
+    ok = node.import_block(_block_dict(2))
+    assert ok is True
+    assert node.tip_safety_shadow.observe_total == 1
+    assert node.tip_safety_shadow.accept_total == 1
+
+    # Gap candidate: shadow rejects, import also fails — no enforce change
+    ok2 = node.import_block(_block_dict(99))
+    assert ok2 is False
+    assert node.tip_safety_shadow.reject_total >= 1
+
+    status = node.get_p2p_security_status()
+    assert status.get("tip_safety_shadow_enabled") is True
+    assert status.get("tip_safety_enforce") is False
+    assert int(status.get("tip_safety_shadow_observe_total", 0)) >= 2
+
+
+def test_p2p_enforce_refuses_gap_without_calling_chain() -> None:
+    cfg = Config()
+    cfg.p2p_native_transport = False
+    cfg.require_native_crypto = False
+    cfg.deployment_mode = "dev"
+    cfg.bootstrap_peers = []
+    chain = _FakeChain(1)
+    mp = MagicMock()
+    node = P2PNode(cfg, chain, mp)
+    node.tip_safety_shadow = TipSafetyShadowObserver(enabled=True, enforce=True)
+    assert node.tip_safety_shadow.sync_from_chain(chain) is True
+    chain.import_block = MagicMock(  # type: ignore[method-assign]
+        side_effect=AssertionError("must not import")
+    )
+
+    ok = node.import_block(_block_dict(99))
+    assert ok is False
+    assert node.tip_safety_shadow.enforce_refuse_total >= 1
+    chain.import_block.assert_not_called()
+
+
+def test_enforce_implies_allows_import_false_on_none() -> None:
+    obs = TipSafetyShadowObserver(enabled=True, enforce=True)
+    assert obs.allows_import(None) is False
+
+
+def test_config_env_defaults() -> None:
+    cfg = Config()
+    assert cfg.tip_safety_shadow is False
+    assert cfg.tip_safety_enforce is False
+
+
+def test_prod_validate_requires_tip_safety_enforce() -> None:
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.require_native_crypto = True
+    cfg.p2p_native_transport = False  # will also error; we only assert tip message present
+    cfg.tip_safety_enforce = False
+    errors = cfg.validate()
+    assert any("tip_safety_enforce" in e for e in errors)

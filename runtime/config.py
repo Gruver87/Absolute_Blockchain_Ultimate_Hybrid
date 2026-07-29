@@ -19,9 +19,10 @@ class Config:
     chain_id: int = 77777                 # Absolute Devnet (see node.example.json)
     genesis_timestamp: int = 0              # 0 = deterministic from chain_id (multi-node P2P)
     network_name: str = "Absolute"
-    node_version: str = "1.3.205-industrial"
+    node_version: str = "1.3.206-industrial"
     node_id: str = "node-1"
-    deployment_mode: str = "dev"          # dev | staging | prod
+    tip_safety_shadow: bool = False  # stage 2: observe tip policy without enforce
+    tip_safety_enforce: bool = False  # stage 3: refuse import on tip-safety reject
 
     # ── Монета (токеномика D.U.P. / Uladzimir Dabranski) ───────────────────
     coin_symbol: str = "ABS"
@@ -349,6 +350,17 @@ class Config:
 
         self.node_id = env_str("NODE_ID", self.node_id)
         self.deployment_mode = env_str("DEPLOYMENT_MODE", self.deployment_mode).lower()
+        self.tip_safety_shadow = env_bool(
+            "TIP_SAFETY_SHADOW",
+            self.tip_safety_shadow,
+        )
+        self.tip_safety_enforce = env_bool(
+            "TIP_SAFETY_ENFORCE",
+            self.tip_safety_enforce,
+        )
+        if self.tip_safety_enforce:
+            # Enforce implies observation; keep metrics aligned with gate decisions.
+            self.tip_safety_shadow = True
         self.chain_id = env_int("CHAIN_ID", self.chain_id)
         self.rpc_host = env_str("RPC_HOST", self.rpc_host)
         self.http_host = env_str("HTTP_HOST", self.http_host)
@@ -994,6 +1006,11 @@ class Config:
                 errors.append("prod mode requires evm_create2_eip1014=true")
             if not self.evm_require_deploy_salt:
                 errors.append("prod mode requires evm_require_deploy_salt=true")
+            if not self.tip_safety_enforce:
+                errors.append(
+                    "prod mode requires tip_safety_enforce=true "
+                    "(TIP_SAFETY_ENFORCE=true; tip/finality import gate)"
+                )
             if int(self.chain_id or 0) == 77777:
                 errors.append(
                     "prod chain_id 77777 is devnet default; assign unique mainnet chain_id"

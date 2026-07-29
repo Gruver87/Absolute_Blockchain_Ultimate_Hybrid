@@ -657,6 +657,28 @@ class NodeOrchestrator:
         self.p2p.apply_queue = self.apply_queue
         self.p2p.sync_executor = self.sync_executor
 
+        # 7b. Tip-safety gate (stage 2 shadow / stage 3 enforce)
+        from consensus.tip_safety import TipSafetyShadowObserver
+
+        _enforce = bool(getattr(config, "tip_safety_enforce", False))
+        _shadow = bool(getattr(config, "tip_safety_shadow", False)) or _enforce
+        self.tip_safety_shadow = TipSafetyShadowObserver(
+            enabled=_shadow,
+            enforce=_enforce,
+        )
+        self.p2p.tip_safety_shadow = self.tip_safety_shadow
+        if self.tip_safety_shadow.enabled:
+            synced = self.tip_safety_shadow.sync_from_chain(self.blockchain)
+            mode = "ENFORCE" if self.tip_safety_shadow.enforce else "shadow-observe"
+            print(
+                f"[Node] Tip-safety: {mode} (synced={synced})"
+            )
+        else:
+            print(
+                "[Node] Tip-safety: OFF "
+                "(TIP_SAFETY_SHADOW=1 observe, TIP_SAFETY_ENFORCE=1 refuse)"
+            )
+
         # 8. Мост
         self.bridge = RustBridge(config, self.db, self.bus) if config.bridge_enabled else None
         if config.bridge_enabled and getattr(config, "bridge_mode", "rust") == "simulator":

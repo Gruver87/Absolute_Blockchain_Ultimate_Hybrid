@@ -42,6 +42,12 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | Ceremony pin | Automation exists; production hash/manifest still operator-owned |
 | P2P TLS | Default ON for prod mesh (+mTLS); handshake `node_id` bound to cert CN/SAN (v1.2.87) |
 | JWT admin | `role=admin` enforced on protected POSTs; mint via `scripts/mint_admin_jwt.py` |
+| Tip-safety domain (`consensus/tip_safety`) | **Unit-proven** (stage 1) — see [ADR 0001](adr/0001-tip-safety.md) |
+| Tip-safety shadow (`TIP_SAFETY_SHADOW`) | **Wired observe-only** (stage 2) — metrics `abs_tip_safety_shadow_*` |
+| Tip-safety enforce (`TIP_SAFETY_ENFORCE`) | **Wired on import path** (stage 3) — refuse on policy reject; **required in prod** via `prod_gate` / `Config.validate()`; lab-proven via unit tests, not yet 48h soak-as-enforce |
+| Tip proof / Long-Range / BFT quorum | **Not proven** — deep reorgs without ancestry store still rejected; not a consensus replacement |
+| P2P transport boundary (`network/transport`, ADR 0002 A–C) | **Wired** on Python ingress admit + egress prepare (`NativeTransportAdapter`); metrics `abs_p2p_transport_*` |
+| P2P application dispatcher (`network/p2p_dispatch`, ADR 0002 D) | **Wired** — `HandlerRegistry` + `P2PDispatcher` routes application types; tip-evidence DI via `TipSafetyEvidenceBridge`; shape gates / sync waiters remain on node; **not** native shell ownership; not libp2p / tip proof |
 
 **Industrial fixes applied (Jul 12 evening):** mesh mining gate no longer latches on stale P2P wire roots; hub uses live STATUS heights; P2P broadcast non-blocking; `add_block` runs in worker thread so EVM apply cannot freeze the event loop; parallel peer state-root RPC.
 

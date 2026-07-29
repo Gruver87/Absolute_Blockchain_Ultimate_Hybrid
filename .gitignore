@@ -77,6 +77,14 @@ bridge/abs_bridge_bin.exe
 bridge/rust_bridge/target/
 native/abs_native/target/
 
+# Built wheels / local dist (never commit binary artifacts)
+dist/
+*.whl
+
+# Local pytest scratch dumps
+pytest_out.txt
+pytest_exit.txt
+
 Old files
 Новый.py
 ABSOLUTE_FINAL_FIXED_backup.py

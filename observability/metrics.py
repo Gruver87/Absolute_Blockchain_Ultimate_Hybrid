@@ -469,6 +469,64 @@ class MetricsCollector:
                     f"abs_p2p_native_tls{{node_id=\"{node_id}\"}} "
                     f"{1 if p2p_security.get('native_p2p_tls') else 0}"
                 ),
+                "# HELP abs_p2p_transport_boundary Whether transport boundary adapter status is present (0/1)",
+                "# TYPE abs_p2p_transport_boundary gauge",
+                (
+                    f"abs_p2p_transport_boundary{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('transport_boundary') else 0}"
+                ),
+                "# HELP abs_p2p_transport_admit_ok_total Transport-boundary ingress admits",
+                "# TYPE abs_p2p_transport_admit_ok_total counter",
+                (
+                    f"abs_p2p_transport_admit_ok_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('transport_admit_ok_total', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_transport_egress_ok_total Transport-boundary egress prepares",
+                "# TYPE abs_p2p_transport_egress_ok_total counter",
+                (
+                    f"abs_p2p_transport_egress_ok_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('transport_egress_ok_total', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_transport_reject_total Transport-boundary rejects (all classes)",
+                "# TYPE abs_p2p_transport_reject_total counter",
+                (
+                    f"abs_p2p_transport_reject_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('transport_reject_total', 0) or 0)}"
+                ),
+                "# HELP abs_p2p_transport_reject Transport-boundary rejects by reason",
+                "# TYPE abs_p2p_transport_reject counter",
+            ]
+        )
+        for reason, count in (p2p_security.get("transport_reject_by_reason") or {}).items():
+            safe_reason = (
+                str(reason)
+                .replace("\\", "\\\\")
+                .replace('"', '\\"')
+                .replace("\n", " ")
+            )
+            lines.append(
+                f"abs_p2p_transport_reject{{node_id=\"{node_id}\",reason=\"{safe_reason}\"}} "
+                f"{int(count or 0)}"
+            )
+        lines.extend(
+            [
+                "# HELP abs_p2p_transport_reject_class Transport-boundary rejects by class",
+                "# TYPE abs_p2p_transport_reject_class counter",
+            ]
+        )
+        for klass, count in (p2p_security.get("transport_reject_by_class") or {}).items():
+            safe_klass = (
+                str(klass)
+                .replace("\\", "\\\\")
+                .replace('"', '\\"')
+                .replace("\n", " ")
+            )
+            lines.append(
+                f"abs_p2p_transport_reject_class{{node_id=\"{node_id}\",class=\"{safe_klass}\"}} "
+                f"{int(count or 0)}"
+            )
+        lines.extend(
+            [
                 "# HELP abs_p2p_native_read_message Whether fused read_message pump is active (0/1)",
                 "# TYPE abs_p2p_native_read_message gauge",
                 (
@@ -1350,6 +1408,60 @@ class MetricsCollector:
                 (
                     f"abs_p2p_mempool_nonce_unparseable_refuse_total{{node_id=\"{node_id}\"}} "
                     f"{int(p2p_security.get('mempool_nonce_unparseable_refuse_total', 0) or 0)}"
+                ),
+                "# HELP abs_tip_safety_shadow_enabled Whether tip-safety shadow observer is enabled (0/1)",
+                "# TYPE abs_tip_safety_shadow_enabled gauge",
+                (
+                    f"abs_tip_safety_shadow_enabled{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('tip_safety_shadow_enabled') else 0}"
+                ),
+                "# HELP abs_tip_safety_enforce Whether tip-safety import enforce is enabled (0/1)",
+                "# TYPE abs_tip_safety_enforce gauge",
+                (
+                    f"abs_tip_safety_enforce{{node_id=\"{node_id}\"}} "
+                    f"{1 if p2p_security.get('tip_safety_enforce') else 0}"
+                ),
+                "# HELP abs_tip_safety_enforce_refuse_total Tip-safety enforce refused imports",
+                "# TYPE abs_tip_safety_enforce_refuse_total counter",
+                (
+                    f"abs_tip_safety_enforce_refuse_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('tip_safety_enforce_refuse_total', 0) or 0)}"
+                ),
+                "# HELP abs_tip_safety_shadow_observe_total Tip-safety shadow observations",
+                "# TYPE abs_tip_safety_shadow_observe_total counter",
+                (
+                    f"abs_tip_safety_shadow_observe_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('tip_safety_shadow_observe_total', 0) or 0)}"
+                ),
+                "# HELP abs_tip_safety_shadow_accept_total Tip-safety shadow policy accepts",
+                "# TYPE abs_tip_safety_shadow_accept_total counter",
+                (
+                    f"abs_tip_safety_shadow_accept_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('tip_safety_shadow_accept_total', 0) or 0)}"
+                ),
+                "# HELP abs_tip_safety_shadow_reject_total Tip-safety shadow policy rejects",
+                "# TYPE abs_tip_safety_shadow_reject_total counter",
+                (
+                    f"abs_tip_safety_shadow_reject_total{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('tip_safety_shadow_reject_total', 0) or 0)}"
+                ),
+                "# HELP abs_tip_safety_shadow_diverge_policy_reject_import_ok Shadow policy reject but import succeeded",
+                "# TYPE abs_tip_safety_shadow_diverge_policy_reject_import_ok counter",
+                (
+                    f"abs_tip_safety_shadow_diverge_policy_reject_import_ok{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('tip_safety_shadow_diverge_policy_reject_import_ok', 0) or 0)}"
+                ),
+                "# HELP abs_tip_safety_shadow_diverge_policy_accept_import_fail Shadow policy accept but import failed",
+                "# TYPE abs_tip_safety_shadow_diverge_policy_accept_import_fail counter",
+                (
+                    f"abs_tip_safety_shadow_diverge_policy_accept_import_fail{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('tip_safety_shadow_diverge_policy_accept_import_fail', 0) or 0)}"
+                ),
+                "# HELP abs_tip_safety_shadow_observe_errors Tip-safety shadow observer internal errors",
+                "# TYPE abs_tip_safety_shadow_observe_errors counter",
+                (
+                    f"abs_tip_safety_shadow_observe_errors{{node_id=\"{node_id}\"}} "
+                    f"{int(p2p_security.get('tip_safety_shadow_observe_errors', 0) or 0)}"
                 ),
                 "# HELP abs_p2p_native_mempool_empty_from_refuse Whether P2P refuses empty from before validate (0/1)",
                 "# TYPE abs_p2p_native_mempool_empty_from_refuse gauge",
