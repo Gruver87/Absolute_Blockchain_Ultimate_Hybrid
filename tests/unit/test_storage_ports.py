@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Unit DoD for storage ports + FakeStorage (ADR 0006 A–C)."""
+"""Unit DoD + fault-injection stress tests for storage ports (ADR 0006 C)."""
 
 from __future__ import annotations
 
 import ast
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -22,7 +23,12 @@ from storage.types import (
     StorageUnavailableError,
     TipMeta,
 )
-from tests.unit.fakes.fake_storage import FakeStorage
+from tests.unit.fakes.fake_storage import (
+    COMMIT_FAULT_DISK_FULL,
+    COMMIT_FAULT_ENOSPC_MID,
+    COMMIT_FAULT_IO,
+    FakeStorage,
+)
 
 
 def _block(height: int, hh: str, parent: str = "") -> BlockRecord:
@@ -43,6 +49,7 @@ def _commit_one(
     accounts: dict | None = None,
     expected_parent: str = "",
     expected_tip_height: int = -1,
+    txs: list | None = None,
 ) -> None:
     uow = store.begin_block_commit(
         expected_parent=expected_parent or parent,
@@ -50,13 +57,26 @@ def _commit_one(
     )
     blk = _block(height, hh, parent)
     uow.write_block(blk)
+    if txs:
+        uow.write_transactions(txs)
     if accounts:
         uow.write_state_delta(accounts)
     uow.set_tip(TipMeta(height=height, head_hash=hh, state_root=f"root-{height}"))
     uow.commit()
 
 
-# ── Atomicity ────────────────────────────────────────────────────────────────
+def _snapshot(store: FakeStorage) -> dict:
+    return {
+        "tip_h": store.tip_height(),
+        "tip_hash": store.tip_hash(),
+        "counts": store.snapshot_counts(),
+        "state_root": store.get_state_root(),
+        "alice": store.get_account("alice"),
+        "bob": store.get_account("bob"),
+    }
+
+
+# ── Atomicity (baseline DoD) ─────────────────────────────────────────────────
 
 
 def test_happy_path_commit_shows_tip_body_state_together() -> None:
@@ -101,7 +121,7 @@ def test_interrupted_commit_reopen_recovers_last_committed_only() -> None:
     uow = store.begin_block_commit(expected_parent="hash_1", expected_tip_height=1)
     uow.write_block(_block(2, "hash_2", "hash_1"))
     uow.set_tip(TipMeta(height=2, head_hash="hash_2"))
-    uow.commit()  # simulated crash — no durable mutation
+    uow.commit()
     assert store.tip_height() == 1
     recovered = store.reopen_after_crash()
     assert recovered.tip_height() == 1
@@ -124,17 +144,15 @@ def test_reorg_truncate_above_rewinds_tip() -> None:
     assert store.get_by_height(2) is None
     assert store.get_by_height(3) is None
     assert store.get_by_hash("h2") is None
-    # Account policy for A–C fake: accounts are not auto-rewound (documented).
-    # Tip/body/indexes above H are gone.
 
 
-# ── Disk / integrity faults ──────────────────────────────────────────────────
+# ── Disk / integrity faults (baseline DoD) ───────────────────────────────────
 
 
 def test_disk_full_on_commit_raises_and_tip_unchanged() -> None:
     store = FakeStorage()
     _commit_one(store, height=1, hh="h1", expected_tip_height=0)
-    store.fail_next_commit = "disk_full"
+    store.inject_commit_fault(COMMIT_FAULT_DISK_FULL)
     uow = store.begin_block_commit(expected_parent="h1", expected_tip_height=1)
     uow.write_block(_block(2, "h2", "h1"))
     uow.set_tip(TipMeta(height=2, head_hash="h2"))
@@ -148,7 +166,7 @@ def test_disk_full_on_commit_raises_and_tip_unchanged() -> None:
 def test_corrupt_payload_on_get_by_hash_raises() -> None:
     store = FakeStorage()
     _commit_one(store, height=1, hh="bad_hash", expected_tip_height=0)
-    store.corrupt_block_hashes.add("bad_hash")
+    store.inject_block_corruption("bad_hash")
     with pytest.raises(StorageCorruptionError):
         store.get_by_hash("bad_hash")
     with pytest.raises(StorageCorruptionError):
@@ -161,7 +179,7 @@ def test_double_commit_same_hash_idempotent() -> None:
     uow = store.begin_block_commit(expected_parent="", expected_tip_height=1)
     uow.write_block(_block(1, "same", ""))
     uow.set_tip(TipMeta(height=1, head_hash="same"))
-    uow.commit()  # idempotent skip
+    uow.commit()
     assert store.tip_height() == 1
     assert len(store._by_hash) == 1
 
@@ -190,12 +208,266 @@ def test_stale_tip_height_raises_conflict() -> None:
 
 def test_io_fault_raises_unavailable() -> None:
     store = FakeStorage()
-    store.fail_next_commit = "io"
+    store.inject_commit_fault(COMMIT_FAULT_IO)
     uow = store.begin_block_commit(expected_tip_height=0)
     uow.write_block(_block(1, "h1"))
     with pytest.raises(StorageUnavailableError):
         uow.commit()
     assert store.tip_height() == 0
+
+
+# ── Stress: ENOSPC mid-write → full rollback ─────────────────────────────────
+
+
+def test_enospc_mid_write_rolls_back_no_partial_block_or_state() -> None:
+    """ENOSPC mid WriteBatch: tip, body, accounts must remain pre-commit snapshot."""
+    store = FakeStorage()
+    _commit_one(
+        store,
+        height=1,
+        hh="canon_1",
+        accounts={"alice": {"balance_satoshi": 50, "nonce": 1}},
+        expected_tip_height=0,
+    )
+    store.set_finalized_height(1)
+    before = _snapshot(store)
+
+    store.inject_commit_fault(COMMIT_FAULT_ENOSPC_MID)
+    uow = store.begin_block_commit(expected_parent="canon_1", expected_tip_height=1)
+    uow.write_block(_block(2, "partial_2", "canon_1"))
+    uow.write_transactions([{"hash": "tx_partial", "from": "alice", "to": "bob"}])
+    uow.write_state_delta(
+        {
+            "alice": {"balance_satoshi": 10, "nonce": 2},
+            "bob": {"balance_satoshi": 40, "nonce": 0},
+        }
+    )
+    uow.set_tip(TipMeta(height=2, head_hash="partial_2", state_root="root-partial"))
+
+    with pytest.raises(StorageFullError) as ei:
+        uow.commit()
+    assert ei.value.reason_code == "disk_full"
+    assert "ENOSPC" in str(ei.value) or "space" in str(ei.value).lower()
+
+    after = _snapshot(store)
+    assert after["tip_h"] == before["tip_h"] == 1
+    assert after["tip_hash"] == before["tip_hash"] == "canon_1"
+    assert after["state_root"] == before["state_root"] == "root-1"
+    assert store.get_by_hash("partial_2") is None
+    assert store.get_by_height(2) is None
+    assert store.get_account("bob") is None
+    alice = store.get_account("alice")
+    assert alice is not None and alice.balance_satoshi == 50
+    assert store.finalized_height() == 1
+    assert store.last_flush_ok() is False
+    assert store.snapshot_counts()["enospc_aborts"] == 1
+    assert store.snapshot_counts()["heights"] == 1
+
+
+def test_enospc_then_recover_commit_succeeds_cleanly() -> None:
+    store = FakeStorage()
+    _commit_one(store, height=1, hh="h1", expected_tip_height=0)
+    store.inject_commit_fault(COMMIT_FAULT_ENOSPC_MID)
+    uow = store.begin_block_commit(expected_parent="h1", expected_tip_height=1)
+    uow.write_block(_block(2, "h2", "h1"))
+    uow.write_state_delta({"bob": {"balance_satoshi": 7}})
+    uow.set_tip(TipMeta(height=2, head_hash="h2", state_root="root-2"))
+    with pytest.raises(StorageFullError):
+        uow.commit()
+
+    # Retry without fault — full atomic success.
+    _commit_one(
+        store,
+        height=2,
+        hh="h2",
+        parent="h1",
+        expected_parent="h1",
+        expected_tip_height=1,
+        accounts={"bob": {"balance_satoshi": 7}},
+    )
+    assert store.tip_height() == 2
+    assert store.tip_hash() == "h2"
+    assert store.get_account("bob") is not None
+    assert store.last_flush_ok() is True
+
+
+# ── Stress: crash reopen + tip repair ────────────────────────────────────────
+
+
+def test_crash_reopen_tip_repair_rewinds_orphan_head_and_finalized() -> None:
+    """Tip points past missing body → repair restores head + finalized pointers."""
+    store = FakeStorage()
+    _commit_one(store, height=1, hh="final_1", expected_tip_height=0)
+    _commit_one(
+        store,
+        height=2,
+        hh="final_2",
+        parent="final_1",
+        expected_parent="final_1",
+        expected_tip_height=1,
+        accounts={"alice": {"balance_satoshi": 1}},
+    )
+    store.set_finalized_height(2)
+
+    # Simulate crash: tip meta advanced to #3 but body never landed.
+    store.inject_tip_orphan(height=3, head_hash="ghost_3")
+    store.set_finalized_height(3)
+    assert store.tip_height() == 3
+    assert store.get_by_height(3) is None
+
+    recovered = store.reopen_after_crash()
+    assert recovered.tip_height() == 2
+    assert recovered.tip_hash() == "final_2"
+    assert recovered.get_by_hash("ghost_3") is None
+    assert recovered.get_by_height(2) is not None
+    assert recovered.finalized_height() == 2
+    assert recovered.last_flush_ok() is True
+
+
+def test_crash_mid_commit_interrupt_then_reopen_keeps_prior_tip() -> None:
+    store = FakeStorage()
+    _commit_one(store, height=1, hh="alive", expected_tip_height=0)
+    store.set_finalized_height(1)
+    store.interrupt_next_commit = True
+    uow = store.begin_block_commit(expected_parent="alive", expected_tip_height=1)
+    uow.write_block(_block(2, "dead", "alive"))
+    uow.write_state_delta({"x": {"balance_satoshi": 99}})
+    uow.set_tip(TipMeta(height=2, head_hash="dead"))
+    uow.commit()
+
+    recovered = store.reopen_after_crash()
+    assert recovered.tip_height() == 1
+    assert recovered.tip_hash() == "alive"
+    assert recovered.finalized_height() == 1
+    assert recovered.get_account("x") is None
+
+
+def test_tip_repair_walks_down_multiple_missing_heights() -> None:
+    store = FakeStorage()
+    _commit_one(store, height=1, hh="h1", expected_tip_height=0)
+    store.set_finalized_height(1)
+    # Tip jumped to 5 with bodies 2..5 missing.
+    store.inject_tip_orphan(height=5, head_hash="ghost5")
+    store.set_finalized_height(5)
+    store.repair_tip_consistency()
+    assert store.tip_height() == 1
+    assert store.tip_hash() == "h1"
+    assert store.finalized_height() == 1
+
+
+# ── Stress: CAS concurrent parent conflict ───────────────────────────────────
+
+
+def test_cas_conflict_concurrent_uow_conflicting_parent_hash() -> None:
+    """Two UoWs race: first wins; second with stale/conflict parent fails CAS."""
+    store = FakeStorage()
+    _commit_one(store, height=1, hh="parent_a", expected_tip_height=0)
+
+    # Contender A and B both expect parent_a at tip=1.
+    uow_a = store.begin_block_commit(expected_parent="parent_a", expected_tip_height=1)
+    uow_b = store.begin_block_commit(expected_parent="parent_a", expected_tip_height=1)
+
+    uow_a.write_block(_block(2, "child_a", "parent_a"))
+    uow_a.write_state_delta({"alice": {"balance_satoshi": 11}})
+    uow_a.set_tip(TipMeta(height=2, head_hash="child_a", state_root="root-a"))
+
+    uow_b.write_block(_block(2, "child_b", "parent_a"))
+    uow_b.write_state_delta({"bob": {"balance_satoshi": 22}})
+    uow_b.set_tip(TipMeta(height=2, head_hash="child_b", state_root="root-b"))
+
+    uow_a.commit()
+    assert store.tip_hash() == "child_a"
+
+    with pytest.raises(StorageConflictError) as ei:
+        uow_b.commit()
+    assert ei.value.reason_code in ("expected_parent_mismatch", "stale_tip_height")
+    assert store.tip_height() == 2
+    assert store.tip_hash() == "child_a"
+    assert store.get_by_hash("child_b") is None
+    assert store.get_account("bob") is None
+    assert store.get_account("alice") is not None
+
+
+def test_cas_conflict_wrong_parent_hash_does_not_mutate() -> None:
+    store = FakeStorage()
+    _commit_one(store, height=1, hh="real_parent", expected_tip_height=0)
+    before = store.snapshot_counts()
+    uow = store.begin_block_commit(
+        expected_parent="other_fork_parent",
+        expected_tip_height=1,
+    )
+    uow.write_block(_block(2, "evil", "other_fork_parent"))
+    uow.set_tip(TipMeta(height=2, head_hash="evil"))
+    with pytest.raises(StorageConflictError) as ei:
+        uow.commit()
+    assert ei.value.reason_code == "expected_parent_mismatch"
+    assert store.snapshot_counts()["heights"] == before["heights"]
+    assert store.tip_hash() == "real_parent"
+
+
+def test_cas_threaded_race_only_one_child_commits() -> None:
+    store = FakeStorage()
+    _commit_one(store, height=1, hh="p", expected_tip_height=0)
+    errors: list[BaseException] = []
+    wins: list[str] = []
+
+    def _race(name: str) -> None:
+        try:
+            uow = store.begin_block_commit(expected_parent="p", expected_tip_height=1)
+            uow.write_block(_block(2, name, "p"))
+            uow.set_tip(TipMeta(height=2, head_hash=name))
+            uow.commit()
+            wins.append(name)
+        except BaseException as exc:  # noqa: BLE001 — collect for assertion
+            errors.append(exc)
+
+    t1 = threading.Thread(target=_race, args=("child_left",))
+    t2 = threading.Thread(target=_race, args=("child_right",))
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+
+    assert len(wins) == 1
+    assert len(errors) == 1
+    assert isinstance(errors[0], StorageConflictError)
+    assert store.tip_height() == 2
+    assert store.tip_hash() in ("child_left", "child_right")
+    assert store.get_by_hash("child_left") is None or store.get_by_hash("child_right") is None
+    assert (store.get_by_hash("child_left") is not None) ^ (
+        store.get_by_hash("child_right") is not None
+    )
+
+
+# ── Extra integrity ──────────────────────────────────────────────────────────
+
+
+def test_corrupt_account_read_raises_no_empty_dict() -> None:
+    store = FakeStorage()
+    _commit_one(
+        store,
+        height=1,
+        hh="h1",
+        accounts={"alice": {"balance_satoshi": 9}},
+        expected_tip_height=0,
+    )
+    store.inject_account_corruption("alice")
+    with pytest.raises(StorageCorruptionError):
+        store.get_account("alice")
+
+
+def test_account_record_roundtrip_via_state_delta() -> None:
+    store = FakeStorage()
+    rec = AccountRecord(address="Carol", balance_satoshi=123, nonce=3, code="0xab")
+    uow = store.begin_block_commit(expected_tip_height=0)
+    uow.write_block(_block(1, "h1"))
+    uow.write_state_delta([rec])
+    uow.set_tip(TipMeta(height=1, head_hash="h1"))
+    uow.commit()
+    got = store.get_account("carol")
+    assert got is not None
+    assert got.balance_satoshi == 123
+    assert got.nonce == 3
 
 
 # ── Isolation needles ────────────────────────────────────────────────────────
@@ -289,3 +561,20 @@ def test_rocks_adapter_error_map_and_repair() -> None:
     assert stub.truncated == [1]
     assert adapter.tip_height() == 1
     assert adapter.ping() is True
+
+
+def test_rocks_adapter_maps_corruption_and_disk_full_messages() -> None:
+    from storage.adapters.rocks_adapter import map_engine_error
+
+    assert isinstance(
+        map_engine_error(RuntimeError("RocksDB: Corruption: checksum mismatch")),
+        StorageCorruptionError,
+    )
+    assert isinstance(
+        map_engine_error(OSError("No space left on device")),
+        StorageFullError,
+    )
+    assert isinstance(
+        map_engine_error(IOError("engine closed")),
+        StorageUnavailableError,
+    )

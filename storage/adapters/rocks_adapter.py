@@ -302,6 +302,58 @@ class RocksDBStorageAdapter:
             raise map_engine_error(exc) from exc
         return tip_h, tip_hash
 
+    def _store_batch_open(self) -> bool:
+        """True when caller already holds Rocks WriteBatch or SQLite transaction.
+
+        Nested ``atomic()`` would replace ``_pending_batch`` and break tip fence —
+        join the open batch instead (ADR 0006 D–E cutover).
+        """
+        store = self._store
+        if getattr(store, "_pending_batch", None) is not None:
+            return True
+        core = getattr(store, "_core", None)
+        if core is not None and getattr(core, "_pending_batch", None) is not None:
+            return True
+        conn = getattr(store, "conn", None)
+        if conn is not None:
+            try:
+                if bool(getattr(conn, "in_transaction", False)):
+                    return True
+            except Exception:
+                pass
+        return False
+
+    def _persist_locked_into_batch(
+        self,
+        *,
+        block: Dict[str, Any],
+        transactions: List[Dict[str, Any]],
+        accounts: Dict[str, Dict[str, Any]],
+        burned_amount: float,
+        burn_address: str,
+        tip: Optional[TipMeta],
+    ) -> None:
+        store = self._store
+        if not hasattr(store, "_persist_block_locked"):
+            raise StorageUnavailableError(
+                "store has no _persist_block_locked",
+                reason_code="no_persist_locked",
+            )
+        height = int(block.get("height") or 0)
+        store._persist_block_locked(
+            dict(block),
+            list(transactions),
+            float(burned_amount or 0.0),
+            str(burn_address or ""),
+        )
+        if accounts:
+            self._writeback_accounts(
+                accounts,
+                block_height=height,
+                inside_atomic=True,
+            )
+        self._apply_tip_meta(tip, block)
+
     def _commit_block_bundle(
         self,
         *,
@@ -314,29 +366,36 @@ class RocksDBStorageAdapter:
     ) -> None:
         """Persist block (+ optional accounts) with best-effort single-batch atomicity."""
         store = self._store
-        height = int(block.get("height") or 0)
 
-        # Preferred path: one Rocks WriteBatch via store.atomic() + locked helpers.
+        # Join outer Blockchain.db.atomic() / Hybrid→Rocks batch — no nested WriteBatch.
+        if self._store_batch_open() and hasattr(store, "_persist_block_locked"):
+            self._persist_locked_into_batch(
+                block=block,
+                transactions=transactions,
+                accounts=accounts,
+                burned_amount=burned_amount,
+                burn_address=burn_address,
+                tip=tip,
+            )
+            return
+
+        # Standalone UoW: one Rocks/SQLite atomic via store.atomic() + locked helpers.
         if hasattr(store, "atomic") and hasattr(store, "_persist_block_locked"):
             cm = store.atomic()
             if isinstance(cm, AbstractContextManager) or hasattr(cm, "__enter__"):
                 with cm:
-                    store._persist_block_locked(
-                        dict(block),
-                        list(transactions),
-                        float(burned_amount or 0.0),
-                        str(burn_address or ""),
+                    self._persist_locked_into_batch(
+                        block=block,
+                        transactions=transactions,
+                        accounts=accounts,
+                        burned_amount=burned_amount,
+                        burn_address=burn_address,
+                        tip=tip,
                     )
-                    if accounts:
-                        self._writeback_accounts(
-                            accounts,
-                            block_height=height,
-                            inside_atomic=True,
-                        )
-                    self._apply_tip_meta(tip, block)
                 return
 
         # Fallback: public persist_block_atomic then writeback (two store commits).
+        height = int(block.get("height") or 0)
         ok = False
         try:
             ok = bool(

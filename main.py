@@ -52,7 +52,7 @@ if BASE_DIR not in sys.path:
 
 # ── Импорты всех модулей узла ────────────────────────────────────────────────
 from runtime.config import Config
-from storage.factory import open_database
+from storage.factory import open_database, open_storage
 from core.blockchain import Blockchain, Transaction
 from core.chain_apply_queue import ChainApplyQueue
 from blockchain.mempool import Mempool, MempoolTransaction
@@ -351,8 +351,9 @@ class NodeOrchestrator:
         # 3. Мемпул
         self.mempool = Mempool(max_size=10_000, min_fee=config.base_fee() * 0.5)
 
-        # 4. Ядро блокчейна
-        self.blockchain = Blockchain(config, self.db, self.bus)
+        # 4. Ядро блокчейна (StoragePort DI — ADR 0006 D–E canonical UoW)
+        self.storage = open_storage(self.db)
+        self.blockchain = Blockchain(config, self.db, self.bus, storage=self.storage)
         self.apply_queue = ChainApplyQueue(
             self.blockchain,
             maxsize=int(getattr(config, "chain_apply_queue_max", 64) or 64),

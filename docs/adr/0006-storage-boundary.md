@@ -1,6 +1,6 @@
-# ADR 0006 — Storage Boundary (Ports + Adapter + Unit DoD)
+# ADR 0006 — Storage Boundary (Ports + Adapter + Unit DoD + Cutover)
 
-- **Status:** Accepted (A); B adapter implemented; C unit DoD via FakeStorage
+- **Status:** Accepted A–E (canonical Blockchain UoW cutover wired)
 - **Date:** 2026-07-29
 - **Deciders:** Absolute Blockchain maintainers
 
@@ -34,12 +34,12 @@ uow.commit()  # all-or-nothing
 
 ### B — RocksDB adapter
 
-`storage/adapters/rocks_adapter.py` implements ports over `RocksChainStore`:
+`storage/adapters/rocks_adapter.py` implements ports over store façades:
 
-- Single commit path maps UoW → `persist_block_atomic` + account writeback + tip fence
+- Prefer join of open `atomic()` / `_pending_batch` (no nested WriteBatch)
+- Else single `store.atomic()` + `_persist_block_locked` + writeback + tip fence
 - Error map: ENOSPC → `StorageFullError`; decode fail → `StorageCorruptionError`; IO → `StorageUnavailableError`
 - Reopen repair: tip must reference an existing body or fail-closed / rewind
-- `sync_writes` / WAL remain adapter-owned
 
 ### C — Unit DoD
 
@@ -47,14 +47,27 @@ uow.commit()  # all-or-nothing
 atomicity, abort, crash recover, reorg, disk_full, corruption, CAS conflict,
 isolation needles (no Rocks imports in ports/types).
 
+### D — Factory
+
+`storage/factory.open_storage(db)` wraps SQLite/`HybridDatabase` as `StoragePort`.
+`main.py` wires `storage=open_storage(self.db)` into `Blockchain`.
+
+### E — Blockchain canonical cutover
+
+`Blockchain(..., storage=...)` DI; `add_block` persist seam is
+`_persist_canonical_via_storage` (UoW + CAS). Execution (`balance_delta` /
+native apply) stays on legacy `self.db` inside the same outer `atomic()`.
+`import_block` unchanged (delegates to `add_block`) — tip_safety / sync order preserved.
+
+Evidence: `tests/unit/test_blockchain_storage_cutover.py`.
+
 ## Honesty
 
 - Ports ≠ aux.db evacuated / 100% Rocks
-- Unit green ≠ live disk-fill soak / public mainnet storage audit
-- Adapter present ≠ every `blockchain.py` call site cut over (Step D–E later)
+- Canonical UoW cutover ≠ every `self.db.*` call site removed (balance/nonce/reorg still legacy)
+- Unit/integration green ≠ live disk-fill soak / public mainnet storage audit
 
 ## Out of scope (later)
 
-- D: factory returns port façade as primary
-- E: `Blockchain._persist_block_locked` / EVM writeback → UoW
-- F: aux.db behind MetaStore only
+- F: evacuate aux.db behind `MetaStorePort` or document permanent dual-store
+- Expand StateStorePort for balance/nonce and reorg-replay UoW

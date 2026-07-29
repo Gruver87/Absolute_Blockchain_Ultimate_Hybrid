@@ -23,6 +23,9 @@ from typing import List, Dict, Optional, Any
 
 from crypto import native
 from storage.database import Database
+from storage.factory import open_storage
+from storage.ports import StoragePort
+from storage.types import StorageError, TipMeta
 from runtime.config import Config
 from runtime.tokenomics import genesis_balances, get_tokenomics_summary, MAX_SUPPLY_ABS
 from kernel.event_bus import EventBus
@@ -258,10 +261,17 @@ class Blockchain:
 
     GENESIS_HASH = "0" * 64
 
-    def __init__(self, config: Config, db: Database, bus: Optional[EventBus] = None):
+    def __init__(
+        self,
+        config: Config,
+        db: Database,
+        bus: Optional[EventBus] = None,
+        storage: Optional[StoragePort] = None,
+    ):
         self.config = config
         self.db = db
         self.bus = bus
+        self.storage: StoragePort = storage if storage is not None else open_storage(db)
         self.lock = threading.RLock()
         self.require_signatures = False
 
@@ -528,6 +538,50 @@ class Blockchain:
                 extra_data=f"v{self.config.node_version}",
             )
 
+    # ── Canonical persist via StoragePort UoW (ADR 0006 D–E) ─────────────────
+
+    def _persist_canonical_via_storage(
+        self,
+        block: "Block",
+        tx_dicts: List[Dict],
+        *,
+        expected_parent: str,
+        expected_tip_height: int,
+    ) -> None:
+        """Stage block + txs + tip through StoragePort; join open ``db.atomic()`` batch.
+
+        Account mutations already applied via ``balance_delta`` / native apply inside
+        the same outer atomic — UoW does not re-write state deltas here.
+        Raises ``StorageError`` subclasses on CAS / disk / engine failure.
+        """
+        uow = self.storage.begin_block_commit(
+            expected_parent=str(expected_parent or ""),
+            expected_tip_height=int(expected_tip_height),
+        )
+        try:
+            uow.write_block(block.to_dict())
+            uow.write_transactions(list(tx_dicts or []))
+            uow.set_tip(
+                TipMeta(
+                    height=int(block.height),
+                    head_hash=str(block.hash or ""),
+                    state_root=str(getattr(block, "state_root", "") or ""),
+                )
+            )
+            uow.commit()
+        except StorageError:
+            try:
+                uow.abort()
+            except Exception:
+                pass
+            raise
+        except Exception:
+            try:
+                uow.abort()
+            except Exception:
+                pass
+            raise
+
     # ── Добавление блока ─────────────────────────────────────────────────────
 
     def add_block(self, block: Block, preserve_peer_hash: bool = False) -> bool:
@@ -556,6 +610,14 @@ class Blockchain:
             slashing = self._resolve_slashing_core()
             computed_root = None
             peer_root_for_audit = None
+
+            last_before = self.db.get_last_block()
+            if last_before:
+                expected_parent = str(last_before.get("hash") or "")
+                expected_tip_height = int(last_before.get("height") or 0)
+            else:
+                expected_parent = str(block.parent_hash or self.GENESIS_HASH)
+                expected_tip_height = 0
 
             try:
                 with self.db.atomic():
@@ -660,11 +722,11 @@ class Blockchain:
                         tx.block_height = block.height
                         tx_dicts.append(tx.to_dict())
 
-                    self.db._persist_block_locked(
-                        block.to_dict(),
+                    self._persist_canonical_via_storage(
+                        block,
                         tx_dicts,
-                        burned_amount=block.total_burned,
-                        burn_address="",
+                        expected_parent=expected_parent,
+                        expected_tip_height=expected_tip_height,
                     )
             except Exception as e:
                 if (
