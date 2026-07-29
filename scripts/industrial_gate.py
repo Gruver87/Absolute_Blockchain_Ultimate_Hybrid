@@ -364,6 +364,31 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
             "prod mesh JSON: p2p_tls_enabled is not true "
             "(enable TLS overlay / -P2pTls for public mainnet wire)"
         )
+    # ADR 0003 — sync consistency boundary + solicit hub
+    p2p_src = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+    sync_src = (ROOT / "sync" / "sync_engine.py").read_text(encoding="utf-8")
+    if not (ROOT / "docs" / "adr" / "0003-sync-consistency.md").is_file():
+        errors.append("missing ADR 0003 sync consistency")
+    if not (ROOT / "sync" / "ports.py").is_file():
+        errors.append("missing sync/ports.py (ADR 0003)")
+    if not (ROOT / "sync" / "solicit.py").is_file():
+        errors.append("missing sync/solicit.py SyncSolicitHub (ADR 0003)")
+    if "solicit_hub.fulfill_or_reject" not in p2p_src:
+        errors.append("p2p_node must route waiters via solicit_hub.fulfill_or_reject")
+    if "from sync.solicit import SyncSolicitHub" not in p2p_src:
+        errors.append("p2p_node must import SyncSolicitHub")
+    if "ConsistencyService" not in sync_src:
+        errors.append("SyncEngine must use ConsistencyService")
+    if "def force_inconsistent" not in p2p_src:
+        errors.append("P2PNode must expose force_inconsistent (single-writer lockdown)")
+    if "async def refresh_consistency" not in p2p_src:
+        errors.append("P2PNode must expose refresh_consistency")
+    if "CatchUpOrchestrator" not in p2p_src:
+        errors.append("P2PNode must wire CatchUpOrchestrator")
+    if "abs_sync_consistency_state" not in metrics_py:
+        errors.append("metrics must export abs_sync_consistency_state")
+    if "import_block" not in (ROOT / "main.py").read_text(encoding="utf-8"):
+        errors.append("AbsoluteNode.import_block tip-safety path missing")
     return errors, warnings
 
 
@@ -413,8 +438,14 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(f"SyncEngine.fast_sync inspect failed: {exc}")
         if "db_probe_error" not in http_py or "/health/ready" not in http_py:
             errors.append("/health/ready must probe database and surface db_probe_error")
-        if "self.p2p._state_consistent = False" not in main_py:
-            errors.append("main.py must clear _state_consistent on sync probe failure")
+        if (
+            "self.p2p._state_consistent = False" not in main_py
+            and "force_inconsistent" not in main_py
+        ):
+            errors.append(
+                "main.py must clear consistency on sync probe failure "
+                "(force_inconsistent or _state_consistent=False)"
+            )
         for needle in (
             "[Mining] PBS auction failed",
             "[Mining] cross-shard processing failed",
@@ -586,17 +617,23 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         errors.append(f"fail-loud main CORS inspect failed: {exc}")
     try:
         p2p_py = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+        solicit_py = (ROOT / "sync" / "solicit.py").read_text(encoding="utf-8")
+        dispatch_handlers = (
+            ROOT / "network" / "p2p_dispatch" / "handlers.py"
+        ).read_text(encoding="utf-8")
+        solicit_surface = p2p_py + "\n" + solicit_py + "\n" + dispatch_handlers
         if "self._state_consistent = False" not in p2p_py:
             errors.append("P2PNode must boot with _state_consistent=False")
         # v1.3.138: solicit-only supersedes the older match/mismatch log path.
-        if "unsolicited_state_root_response" not in p2p_py and (
+        # ADR 0003: strike strings may live in SyncSolicitHub / dispatcher.
+        if "unsolicited_state_root_response" not in solicit_surface and (
             "Unsolicited state_root match" not in p2p_py
         ):
             errors.append(
                 "P2P unsolicited state_root must be solicit-only "
                 "(or legacy match must not flip consistent=True)"
             )
-        if "unsolicited_state_root_response" not in p2p_py and (
+        if "unsolicited_state_root_response" not in solicit_surface and (
             "State root mismatch vs" not in p2p_py
         ):
             errors.append(
@@ -1979,7 +2016,9 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             )
         if "p2p_peer_addr_is_dialable" not in p2p_py:
             errors.append("p2p_node must call p2p_peer_addr_is_dialable (v1.3.128)")
-        if "verify_p2p_status_height_head_binding" not in p2p_py:
+        if "verify_p2p_status_height_head_binding" not in p2p_py and (
+            "verify_p2p_status_height_head_binding" not in dispatch_handlers
+        ):
             errors.append(
                 "p2p_node must call verify_p2p_status_height_head_binding (v1.3.128)"
             )
@@ -1994,7 +2033,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "p2p_node must expose _state_root_response_for_height (v1.3.129)"
             )
-        if "must not inflate peer.height" not in p2p_py:
+        if (
+            "must not inflate peer.height" not in p2p_py
+            and "must not inflate peer tip" not in p2p_py
+        ):
             errors.append(
                 "p2p_node must refuse peer.height inflation from state_root_response (v1.3.129)"
             )
@@ -2080,7 +2122,7 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         # v1.3.135 — local state_root consistency + handshake/status tip ownership
         if "_state_root_request_ctx" not in p2p_py:
             errors.append("p2p_node must expose _state_root_request_ctx (v1.3.135)")
-        if "bad_state_root_response_local_root" not in p2p_py:
+        if "bad_state_root_response_local_root" not in solicit_surface:
             errors.append(
                 "p2p_node must strike bad_state_root_response_local_root (v1.3.135)"
             )
@@ -2114,7 +2156,7 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "p2p_node must expose _attestation_local_head_reject_reason (v1.3.137)"
             )
-        if "unsolicited_blocks" not in p2p_py:
+        if "unsolicited_blocks" not in solicit_surface:
             errors.append("p2p_node must strike unsolicited_blocks (v1.3.137)")
         if "abs_p2p_native_block_solicit_only" not in (
             ROOT / "observability" / "metrics.py"
@@ -2123,7 +2165,7 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
                 "metrics must export abs_p2p_native_block_solicit_only (v1.3.137)"
             )
         # v1.3.138 — solicit-only state_root + ceremony_status honesty
-        if "unsolicited_state_root_response" not in p2p_py:
+        if "unsolicited_state_root_response" not in solicit_surface:
             errors.append(
                 "p2p_node must strike unsolicited_state_root_response (v1.3.138)"
             )
@@ -2169,7 +2211,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
                 "metrics must export abs_p2p_native_sync_heads_no_invent (v1.3.140)"
             )
         # v1.3.141 — sync_state same-height match is wire-only
-        if "same-height consistency only from wire roots" not in sync_py:
+        if (
+            "same-height consistency only from wire roots" not in sync_py
+            and "native_sync_state_wire_only" not in sync_py
+        ):
             errors.append(
                 "sync_engine must document wire-only same-height match (v1.3.141)"
             )

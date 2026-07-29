@@ -183,9 +183,10 @@ def test_shared_sync_engine_and_unsolicited_state_root_honesty():
     assert "p2p.sync_engine = self.sync_engine" in main_py
     assert "shared with P2P" in main_py
     p2p_py = Path("network/p2p_node.py").read_text(encoding="utf-8")
-    # v1.3.138+: solicit-only supersedes the older match/mismatch log path.
-    assert "unsolicited_state_root_response" in p2p_py
-    assert "never mutate _state_consistent" in p2p_py or "not flip consistent=True" in p2p_py
+    solicit_py = Path("sync/solicit.py").read_text(encoding="utf-8")
+    # ADR 0003: solicit-only strike lives in SyncSolicitHub (evacuated from p2p).
+    assert "unsolicited_state_root_response" in solicit_py
+    assert "solicit_hub.fulfill_or_reject" in p2p_py
     sync_py = Path("sync/sync_engine.py").read_text(encoding="utf-8")
     assert "State root mismatch vs" in sync_py
     http_py = Path("api/http.py").read_text(encoding="utf-8")

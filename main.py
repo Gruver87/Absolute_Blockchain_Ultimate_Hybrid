@@ -1293,7 +1293,10 @@ class NodeOrchestrator:
         return None
 
     def import_block(self, block_data: dict) -> bool:
-        return self.blockchain.import_block(block_data)
+        """Tip-safety-aware import for SyncEngine (ADR 0003 SyncChainPort)."""
+        if self.p2p is not None and hasattr(self.p2p, "import_block"):
+            return bool(self.p2p.import_block(block_data))
+        return bool(self.blockchain.import_block(block_data))
 
     def get_height(self) -> int:
         return self.blockchain.get_height()
@@ -1727,11 +1730,13 @@ class NodeOrchestrator:
                         ex = getattr(self, "sync_executor", None) or getattr(
                             self.p2p, "sync_executor", None
                         )
-                        ok = await loop.run_in_executor(ex, self.sync_engine.sync_state)
-                        self.p2p._state_consistent = bool(ok)
+                        await loop.run_in_executor(ex, self.sync_engine.sync_state)
                     except Exception as _sync_probe_err:
                         print(f"[Mining] sync_state probe failed: {_sync_probe_err}")
-                        self.p2p._state_consistent = False
+                        if hasattr(self.p2p, "force_inconsistent"):
+                            self.p2p.force_inconsistent("mining_probe_failed")
+                        else:
+                            self.p2p._state_consistent = False
                 if connected > 0 and not getattr(self.p2p, "_state_consistent", False):
                     continue
                 if _min_mesh_peers > 0:
@@ -1747,7 +1752,10 @@ class NodeOrchestrator:
                         print(f"[Mining] request_peer_state_roots failed: {exc}")
                         wire_roots = []
                         if bool(getattr(self.config, "is_production", False)):
-                            self.p2p._state_consistent = False
+                            if hasattr(self.p2p, "force_inconsistent"):
+                                self.p2p.force_inconsistent("mining_wire_roots_failed")
+                            else:
+                                self.p2p._state_consistent = False
 
                     hold_h = int(getattr(self, "_mesh_forge_hold_height", 0) or 0)
                     if hold_h and local_h >= hold_h:
@@ -2026,7 +2034,10 @@ class NodeOrchestrator:
                 except Exception as exc:
                     print(f"[Mining] sync_state schedule failed: {exc}")
                     if bool(getattr(self.config, "is_production", False)):
-                        self.p2p._state_consistent = False
+                        if hasattr(self.p2p, "force_inconsistent"):
+                            self.p2p.force_inconsistent("mining_sync_schedule_failed")
+                        else:
+                            self.p2p._state_consistent = False
 
             # Deterministic proposer entropy mix (not commit/reveal RANDAO)
             if self.validator_selection:

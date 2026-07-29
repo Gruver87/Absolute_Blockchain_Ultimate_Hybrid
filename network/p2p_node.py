@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 P2P Network — TCP-сеть для синхронизации блоков и транзакций.
@@ -1125,8 +1125,8 @@ class P2PNode:
         self._server: Optional[asyncio.Server] = None
         self._running = False
         self._loop: Optional[asyncio.AbstractEventLoop] = None
-        # Sync responses routed from _message_loop (avoid double recv on same socket)
-        self._sync_waiters: Dict[str, tuple] = {}  # peer_id -> (expected_types, Future)
+        # Solicit waiters live exclusively on SyncSolicitHub (ADR 0003 C/D).
+        # Alias `_sync_waiters` is assigned after hub construction below.
         self._peer_sync_locks: Dict[str, asyncio.Lock] = {}
         self._peer_msg_windows: Dict[str, tuple[int, float]] = {}
         self._peer_strikes: Dict[str, int] = {}
@@ -1416,6 +1416,30 @@ class P2PNode:
         # Fail-closed until SyncEngine.sync_state proves peer roots match.
         self._state_consistent = False
         self._sharding = None
+        # ADR 0003 Step C/D: solicit waiter hub owns arm/fulfill/timeout.
+        # `_handle_message` only forwards — never inspects waiter tables.
+        from sync.solicit import SyncSolicitHub
+
+        self.solicit_hub = SyncSolicitHub(
+            peers_solicit_only=bool(
+                getattr(config, "p2p_peers_solicit_only", True)
+            ),
+            verify_blocks=getattr(native, "verify_p2p_blocks_response_semantics", None),
+            verify_block=getattr(native, "verify_p2p_block_response_semantics", None),
+            verify_state_root=getattr(
+                native, "verify_p2p_state_root_response_request_semantics", None
+            ),
+            default_max_age_sec=float(
+                getattr(config, "p2p_solicit_waiter_max_age_sec", 120.0) or 120.0
+            ),
+        )
+        # Back-compat read-only-ish alias (same mapping object as hub.waiters).
+        self._sync_waiters = self.solicit_hub.waiters
+        # Catch-up pure policy + orchestrator gates (ADR 0003).
+        from sync.catchup import CatchUpOrchestrator, CatchUpPolicy
+
+        self.catch_up_policy = CatchUpPolicy()
+        self.catch_up = CatchUpOrchestrator(self.catch_up_policy)
 
         # Подписка на события шины — транслируем в сеть
         if self.bus:
@@ -1429,6 +1453,22 @@ class P2PNode:
             print("[P2P] SyncEngine: enabled (fast catch-up)")
         else:
             self.sync_engine = None
+
+    def force_inconsistent(self, reason: str = "forced") -> None:
+        """Fail-closed lockdown via ConsistencyService (single writer)."""
+        eng = getattr(self, "sync_engine", None)
+        svc = getattr(eng, "consistency", None) if eng is not None else None
+        if svc is not None:
+            svc.request_lockdown(str(reason or "forced"))
+            return
+        self._state_consistent = False
+
+    async def refresh_consistency(self) -> bool:
+        """Re-evaluate consistency through SyncEngine / ConsistencyService."""
+        if not self.sync_engine:
+            self.force_inconsistent("no_sync_engine")
+            return False
+        return bool(await self._sync_state_async())
 
     def head(self) -> Optional[str]:
         """Current head block hash for SyncEngine."""
@@ -2806,154 +2846,19 @@ class P2PNode:
                         self._remove_peer(peer.peer_id, peer)
                     return
 
-        waiter = self._sync_waiters.get(peer.peer_id)
-        if waiter:
-            if len(waiter) >= 3:
-                expected_types, fut, request_ctx = waiter[0], waiter[1], waiter[2]
-            else:
-                expected_types, fut = waiter[0], waiter[1]
-                request_ctx = None
-            if msg_type in expected_types and not fut.done():
-                if (
-                    msg_type == MSG_BLOCKS
-                    and isinstance(request_ctx, dict)
-                    and request_ctx.get("kind") == "blocks"
-                ):
-                    reason = native.verify_p2p_blocks_response_semantics(
-                        data if isinstance(data, list) else (data or []),
-                        int(request_ctx.get("from_height", 0) or 0),
-                        int(request_ctx.get("to_height", 0) or 0),
-                        str(request_ctx.get("parent_hash") or ""),
-                        allow_empty=bool(request_ctx.get("allow_empty", False)),
-                    )
-                    if reason:
-                        self._blocks_response_semantic_rejects_total = int(
-                            self._blocks_response_semantic_rejects_total or 0
-                        ) + 1
-                        self._strike_peer_sync(peer, str(reason))
-                        fut.set_result(None)
-                        return
-                if (
-                    msg_type == MSG_BLOCK
-                    and isinstance(request_ctx, dict)
-                    and request_ctx.get("kind") == "block"
-                ):
-                    reason = native.verify_p2p_block_response_semantics(
-                        data,
-                        str(request_ctx.get("expected_hash") or ""),
-                        allow_null=bool(request_ctx.get("allow_null", True)),
-                    )
-                    if reason:
-                        self._block_response_semantic_rejects_total = int(
-                            self._block_response_semantic_rejects_total or 0
-                        ) + 1
-                        self._strike_peer_sync(peer, str(reason))
-                        fut.set_result(None)
-                        return
-                if (
-                    msg_type == MSG_STATE_ROOT_RESPONSE
-                    and isinstance(request_ctx, dict)
-                    and request_ctx.get("kind") == "state_root"
-                ):
-                    reason = native.verify_p2p_state_root_response_request_semantics(
-                        data if isinstance(data, dict) else (data or {}),
-                        int(request_ctx.get("height", 0) or 0),
-                        str(request_ctx.get("expected_head") or ""),
-                    )
-                    if reason:
-                        self._state_root_response_request_rejects_total = int(
-                            self._state_root_response_request_rejects_total or 0
-                        ) + 1
-                        self._strike_peer_sync(peer, str(reason))
-                        fut.set_result(None)
-                        return
-                    # v1.3.135: when we know the local header, peer root must match.
-                    expect_root = str(
-                        request_ctx.get("expected_state_root") or ""
-                    ).strip()
-                    if expect_root and isinstance(data, dict):
-                        got_root = str(data.get("state_root") or "").strip()
-                        if got_root and got_root.lower() != expect_root.lower():
-                            self._state_root_local_rejects_total = int(
-                                self._state_root_local_rejects_total or 0
-                            ) + 1
-                            self._strike_peer_sync(
-                                peer, "bad_state_root_response_local_root"
-                            )
-                            fut.set_result(None)
-                            return
-                    fut.set_result(msg)
-                    return
-                if msg_type == MSG_STATE_ROOT_RESPONSE:
-                    # v1.3.138: solicit-only — wrong waiter ctx never fulfills.
-                    self._unsolicited_state_root_rejects_total = int(
-                        self._unsolicited_state_root_rejects_total or 0
-                    ) + 1
-                    self._strike_peer_sync(peer, "unsolicited_state_root_response")
-                    fut.set_result(None)
-                    return
-                if msg_type == MSG_MEMPOOL:
-                    # v1.3.131: only fulfill when this waiter's ctx is mempool pull.
-                    if (
-                        isinstance(request_ctx, dict)
-                        and request_ctx.get("kind") == "mempool"
-                    ):
-                        fut.set_result(msg)
-                    else:
-                        self._unsolicited_mempool_rejects_total = int(
-                            self._unsolicited_mempool_rejects_total or 0
-                        ) + 1
-                        self._strike_peer_sync(peer, "unsolicited_mempool")
-                        fut.set_result(None)
-                    return
-                if msg_type == MSG_BLOCKS:
-                    # v1.3.137: solicit-only — only active get_blocks waiters.
-                    if (
-                        isinstance(request_ctx, dict)
-                        and request_ctx.get("kind") == "blocks"
-                    ):
-                        fut.set_result(msg)
-                    else:
-                        self._unsolicited_block_rejects_total = int(
-                            self._unsolicited_block_rejects_total or 0
-                        ) + 1
-                        self._strike_peer_sync(peer, "unsolicited_blocks")
-                        fut.set_result(None)
-                    return
-                if msg_type == MSG_BLOCK:
-                    if (
-                        isinstance(request_ctx, dict)
-                        and request_ctx.get("kind") == "block"
-                    ):
-                        fut.set_result(msg)
-                    else:
-                        self._unsolicited_block_rejects_total = int(
-                            self._unsolicited_block_rejects_total or 0
-                        ) + 1
-                        self._strike_peer_sync(peer, "unsolicited_block")
-                        fut.set_result(None)
-                    return
-                if msg_type == MSG_PEERS:
-                    # v1.3.152: solicit-only — only active get_peers waiters.
-                    if (
-                        isinstance(request_ctx, dict)
-                        and request_ctx.get("kind") == "peers"
-                    ):
-                        fut.set_result(msg)
-                    else:
-                        if bool(getattr(self.config, "p2p_peers_solicit_only", True)):
-                            self._unsolicited_peers_rejects_total = int(
-                                self._unsolicited_peers_rejects_total or 0
-                            ) + 1
-                            self._strike_peer_sync(peer, "unsolicited_peers")
-                            fut.set_result(None)
-                        else:
-                            fut.set_result(msg)
-                    return
-                fut.set_result(msg)
-                return
+        # ADR 0003 C/D: thin handoff — hub owns waiter state; dispatcher stays unaware.
+        waiter_result = self.solicit_hub.fulfill_or_reject(
+            peer,
+            str(msg_type or ""),
+            data,
+            msg if isinstance(msg, dict) else {"type": msg_type, "data": data},
+            strike=self._strike_peer_sync,
+            bump=self.bump_counter,
+        )
+        if waiter_result.consumed:
+            return
 
-        # Step D: application type routing via Handler Registry (not inline if/elif).
+        # ADR 0002 Step D: application type routing via Handler Registry.
         from network.p2p_dispatch import DispatchOutcome
 
         outcome = await self.dispatcher.dispatch(self, peer, msg_type, data)
@@ -3303,7 +3208,7 @@ class P2PNode:
                 self.mempool.remove(tx.hash)
             print(f"[P2P] Accepted block #{block.height} from {peer.peer_id[:8]}")
             if self.sync_engine:
-                self._state_consistent = bool(await self._sync_state_async())
+                await self.refresh_consistency()
             if self._consensus and self.validator_keys:
                 try:
                     # Match proposer attestation slot (block forged at slot height-1).
@@ -4312,17 +4217,28 @@ class P2PNode:
             peer_h = int(getattr(peer, "height", 0) or 0)
         except (TypeError, ValueError):
             return ""
+        head = str(getattr(peer, "head", "") or "").strip()
+        blk = None
+        if head:
+            try:
+                blk = self.get_block(head)
+            except Exception:
+                blk = None
+        policy = getattr(self, "catch_up", None) or getattr(self, "catch_up_policy", None)
+        if policy is not None:
+            ahead = getattr(policy, "ahead_refuse_reason", None)
+            if ahead is not None:
+                return ahead(
+                    local_height=our_h,
+                    peer_height=peer_h,
+                    peer_head=head,
+                    local_block_for_head=blk,
+                    require_head=True,
+                )
         if peer_h <= our_h:
             return ""
-        head = str(getattr(peer, "head", "") or "").strip()
         if not head:
             return "catch_up_no_head"
-        # Known local header for claimed head ⇒ height must agree.
-        blk = None
-        try:
-            blk = self.get_block(head)
-        except Exception:
-            blk = None
         if isinstance(blk, dict):
             try:
                 local_h = int(blk.get("height", blk.get("number", -1)) or -1)
@@ -4386,9 +4302,17 @@ class P2PNode:
         Soft refuse-before-mutate — out-of-order / skip-ahead bodies must not
         force expensive import/reorg. Not tip proof / Long-Range.
         """
-        if not bool(
+        enabled = bool(
             getattr(self.config, "p2p_catch_up_height_continuity_bind", True)
-        ):
+        )
+        orch = getattr(self, "catch_up", None)
+        if orch is not None:
+            return orch.height_continuity_refuse_reason(
+                block_data if isinstance(block_data, dict) else {},
+                int(expected_h),
+                enabled=enabled,
+            )
+        if not enabled:
             return ""
         if not isinstance(block_data, dict):
             return ""
@@ -4413,9 +4337,10 @@ class P2PNode:
         Soft contiguous extension during get_blocks — not tip proof / Long-Range.
         Empty parent / empty tip soft-skips.
         """
-        if not bool(
+        enabled = bool(
             getattr(self.config, "p2p_catch_up_contiguous_parent_bind", True)
-        ):
+        )
+        if not enabled:
             return ""
         if not isinstance(block_data, dict):
             return ""
@@ -4434,6 +4359,11 @@ class P2PNode:
             local_tip = str(self.head() or "").strip()
         except Exception:
             local_tip = ""
+        orch = getattr(self, "catch_up", None)
+        if orch is not None:
+            return orch.contiguous_parent_refuse_reason(
+                block_data, local_tip, enabled=True
+            )
         if parent and local_tip and parent.lower() != local_tip.lower():
             return "catch_up_contiguous_parent_mismatch"
         return ""
@@ -4445,23 +4375,33 @@ class P2PNode:
         Not tip proof / Long-Range. Only binds when tip == peer.height
         (exact completion) to avoid racing tip advance false refuses.
         """
-        if not bool(getattr(self.config, "p2p_catch_up_tip_head_bind", True)):
-            return ""
+        enabled = bool(getattr(self.config, "p2p_catch_up_tip_head_bind", True))
         peer_head = str(getattr(peer, "head", "") or "").strip()
-        if not peer_head:
-            return ""
-        try:
-            tip_h = int(self.blockchain.get_height() or 0)
-            peer_h = int(getattr(peer, "height", 0) or 0)
-        except (TypeError, ValueError):
-            return ""
-        if tip_h <= 0 or peer_h <= 0 or tip_h != peer_h:
-            return ""
         local_tip = ""
         try:
             local_tip = str(self.head() or "").strip()
         except Exception:
             local_tip = ""
+        try:
+            tip_h = int(self.blockchain.get_height() or 0)
+            peer_h = int(getattr(peer, "height", 0) or 0)
+        except (TypeError, ValueError):
+            tip_h, peer_h = 0, 0
+        orch = getattr(self, "catch_up", None)
+        if orch is not None:
+            return orch.tip_head_at_height_refuse_reason(
+                local_height=tip_h,
+                peer_height=peer_h,
+                local_head=local_tip,
+                peer_head=peer_head,
+                enabled=enabled,
+            )
+        if not enabled:
+            return ""
+        if not peer_head:
+            return ""
+        if tip_h <= 0 or peer_h <= 0 or tip_h != peer_h:
+            return ""
         if local_tip and local_tip.lower() != peer_head.lower():
             return "catch_up_tip_head_mismatch"
         return ""
@@ -4836,17 +4776,15 @@ class P2PNode:
         ghost_head: str,
         peer_hint: Optional[PeerConnection] = None,
     ) -> bool:
-        """Probe ghost_head on wire, then reorg via _reconcile_to_head_hash."""
-        refuse = await self._ghost_head_probe_refuse_reason(ghost_head, peer_hint)
-        if refuse:
-            self._bump_ghost_probe_refuse(refuse)
-            logger.info(
-                "[P2P] ghost head probe refuse %s head=%s",
-                refuse,
-                str(ghost_head or "")[:16],
-            )
+        """Probe ghost_head on wire, then reorg via ForkReconcileService."""
+        from sync.fork import ForkReconcileStatus
+
+        outcome = await self._fork_reconcile_run_to_head(
+            ghost_head, peer_hint=peer_hint, ghost_probe=True
+        )
+        if outcome is None:
             return False
-        return await self._reconcile_to_head_hash(ghost_head, peer_hint=peer_hint)
+        return outcome.status is ForkReconcileStatus.COMPLETE
 
     def _schedule_sync(self, peer: PeerConnection) -> None:
         """Coalesce duplicate sync tasks per peer (v1.3.66) + global inflight cap (v1.3.72)."""
@@ -4921,17 +4859,10 @@ class P2PNode:
         pid = getattr(peer, "peer_id", "") or ""
         if not pid:
             return False
-        waiter = self._sync_waiters.get(pid)
-        if not waiter or len(waiter) < 3:
+        hub = getattr(self, "solicit_hub", None)
+        if hub is None:
             return False
-        expected_types, _fut, request_ctx = waiter[0], waiter[1], waiter[2]
-        try:
-            types_ok = MSG_MEMPOOL in tuple(expected_types or ())
-        except TypeError:
-            types_ok = False
-        if not types_ok:
-            return False
-        return isinstance(request_ctx, dict) and request_ctx.get("kind") == "mempool"
+        return bool(hub.mempool_solicit_armed(pid))
 
     async def _wait_peer_response(
         self,
@@ -4941,17 +4872,24 @@ class P2PNode:
         presend=None,
         request_ctx: Optional[Dict] = None,
     ) -> Optional[Dict]:
+        hub = getattr(self, "solicit_hub", None)
+        if hub is None:
+            raise RuntimeError("solicit_hub required for peer response wait")
         loop = asyncio.get_running_loop()
         fut = loop.create_future()
-        self._sync_waiters[peer.peer_id] = (expected_types, fut, request_ctx)
+        hub.arm(peer.peer_id, expected_types, fut, request_ctx)
         try:
             if presend:
                 await presend()
-            return await asyncio.wait_for(fut, timeout=timeout)
+            # shield: transport timeout must not cancel the Future so the hub
+            # can fulfill it with None via timeout() (owned waiter semantics).
+            return await asyncio.wait_for(asyncio.shield(fut), timeout=timeout)
         except asyncio.TimeoutError:
+            # Hub-side timeout: fulfill future (if still pending) + drop waiter.
+            hub.timeout(peer.peer_id, result=None)
             return None
         finally:
-            self._sync_waiters.pop(peer.peer_id, None)
+            hub.clear(peer.peer_id)
 
     def _expected_parent_for_height(self, height: int) -> str:
         """Parent digest expected for the first block at `height`."""
@@ -4976,7 +4914,7 @@ class P2PNode:
             if peer_head and local_head != peer_head:
                 await self._reconcile_fork_at_peer(peer)
             elif self.sync_engine:
-                self._state_consistent = bool(await self._sync_state_async())
+                await self.refresh_consistency()
             await self._sync_mempool_with_peer(peer)
             return
 
@@ -5020,186 +4958,64 @@ class P2PNode:
         if self.sync_engine:
             self.sync_engine.add_peer(peer)
 
-        print(f"[P2P] Syncing from #{our_height} to #{peer.height} via {peer.peer_id[:8]}")
-        current = 0 if our_height == 0 else our_height + 1
+        # ADR 0004 Step B: ahead batch loop delegated to CatchUpPathAService
+        # via thin P2P adapters. All policy, import, reorg, and tip-head logic
+        # lives in the domain layer; P2P keeps TCP ownership only.
+        from network.catchup_adapters import build_path_a_adapters
+        from sync.catchup import CatchUpConfig, CatchUpPathAService, CatchUpPeerView, CatchUpStatus
 
-        while current <= peer.height and self._running:
-            batch_end = min(current + self.config.sync_batch_size - 1, peer.height)
-            parent_hash = self._expected_parent_for_height(current)
+        _loop = asyncio.get_running_loop()
+        _chain_a, _fetch_a, _probe_a, _side_a = build_path_a_adapters(self, peer, _loop)
+        _svc = CatchUpPathAService(
+            chain=_chain_a,
+            fetch=_fetch_a,
+            probe=_probe_a,
+            side=_side_a,
+            orchestrator=getattr(self, "catch_up", None),
+        )
+        _peer_view = CatchUpPeerView(
+            peer_id=str(peer.peer_id or ""),
+            height=int(getattr(peer, "height", 0) or 0),
+            head_hash=str(getattr(peer, "head", "") or ""),
+        )
+        _cfg = CatchUpConfig(
+            batch_size=max(1, int(self.config.sync_batch_size or 32)),
+            require_head=bool(getattr(self.config, "p2p_catch_up_require_head", True)),
+            tip_head_bind=bool(getattr(self.config, "p2p_catch_up_tip_head_bind", True)),
+            height_continuity_bind=bool(
+                getattr(self.config, "p2p_catch_up_height_continuity_bind", True)
+            ),
+            contiguous_parent_bind=bool(
+                getattr(self.config, "p2p_catch_up_contiguous_parent_bind", True)
+            ),
+            tip_probe_enabled=bool(getattr(self.config, "p2p_catch_up_tip_probe", True)),
+            peer_head_probe_enabled=bool(
+                getattr(self.config, "p2p_catch_up_peer_head_probe", True)
+            ),
+            fetch_timeout=45.0,
+        )
+        # Run synchronous domain loop in a dedicated thread so the asyncio
+        # event loop stays responsive; fetch/probe adapters bridge back via
+        # run_coroutine_threadsafe.
+        outcome = await asyncio.to_thread(_svc.run_ahead, _peer_view, _cfg)
 
-            msg = await self._wait_peer_response(
-                peer,
-                (MSG_BLOCKS,),
-                timeout=45,
-                presend=lambda c=current, e=batch_end: peer.send(
-                    MSG_GET_BLOCKS, {"from_height": c, "to_height": e}
-                ),
-                request_ctx={
-                    "kind": "blocks",
-                    "from_height": int(current),
-                    "to_height": int(batch_end),
-                    "parent_hash": parent_hash,
-                    "allow_empty": False,
-                },
-            )
-            if not msg or msg.get("type") != MSG_BLOCKS:
-                print(f"[P2P] Sync stalled at #{current} (no blocks response)")
-                break
-
-            blocks_data = msg.get("data", [])
-            if not blocks_data:
-                break
-
-            imported_any = False
-            for block_data in blocks_data:
-                try:
-                    # v1.3.176: body height must equal expected sync cursor.
-                    cont_reason = self._catch_up_height_continuity_refuse_reason(
-                        block_data if isinstance(block_data, dict) else {},
-                        int(current),
-                    )
-                    if cont_reason:
-                        self._bump_catch_up_refuse(cont_reason)
-                        logger.info(
-                            "[P2P] catch-up height-continuity refuse at import "
-                            "peer=%s want=%s",
-                            (peer.peer_id or "")[:12],
-                            current,
-                        )
-                        break
-                    # v1.3.175: contiguous (+1) get_blocks body must cite tip as parent.
-                    contig_reason = self._catch_up_contiguous_parent_refuse_reason(
-                        block_data if isinstance(block_data, dict) else {}
-                    )
-                    if contig_reason:
-                        self._bump_catch_up_refuse(contig_reason)
-                        logger.info(
-                            "[P2P] catch-up contiguous-parent refuse at import "
-                            "peer=%s reason=%s",
-                            (peer.peer_id or "")[:12],
-                            contig_reason,
-                        )
-                        break
-                    # v1.3.172: block at claimed peer.height must cite peer.head.
-                    try:
-                        cand_h = int(
-                            block_data.get(
-                                "height", block_data.get("number", -1)
-                            )
-                            or -1
-                        )
-                        peer_h = int(getattr(peer, "height", 0) or 0)
-                    except (TypeError, ValueError):
-                        cand_h, peer_h = -1, -1
-                    if (
-                        cand_h >= 0
-                        and peer_h >= 0
-                        and cand_h == peer_h
-                        and bool(
-                            getattr(
-                                self.config, "p2p_catch_up_tip_head_bind", True
-                            )
-                        )
-                    ):
-                        want = str(getattr(peer, "head", "") or "").strip()
-                        got = str(
-                            block_data.get("hash")
-                            or block_data.get("block_hash")
-                            or ""
-                        ).strip()
-                        if (
-                            want
-                            and got
-                            and want.lower() != got.lower()
-                        ):
-                            self._bump_catch_up_refuse(
-                                "catch_up_tip_head_mismatch"
-                            )
-                            logger.info(
-                                "[P2P] catch-up tip-head refuse at import "
-                                "peer=%s want=%s got=%s",
-                                (peer.peer_id or "")[:12],
-                                want[:16],
-                                got[:16],
-                            )
-                            break
-                    if await self._import_block_async(block_data):
-                        h = block_data.get("height", block_data.get("number", current))
-                        current = int(h) + 1
-                        imported_any = True
-                    else:
-                        fail_h = int(
-                            block_data.get("height", block_data.get("number", current)) or current
-                        )
-                        # v1.3.145: attribute failed sync import to sourcing peer.
-                        self._note_peer_import_fail(peer)
-                        parent_hash = block_data.get("parent_hash", "")
-                        ancestor = None
-                        if hasattr(self.blockchain, "find_ancestor_height"):
-                            ancestor = self.blockchain.find_ancestor_height(parent_hash)
-                        reorg_ok = False
-                        if (
-                            ancestor is not None
-                            and ancestor < self.blockchain.get_height()
-                            and hasattr(self.blockchain, "reorg_to_ancestor")
-                        ):
-                            q = getattr(self, "apply_queue", None)
-                            if q is not None:
-                                reorg_ok = bool(await q.submit_reorg_async(ancestor))
-                            else:
-                                reorg_ok = bool(
-                                    await asyncio.to_thread(
-                                        self.blockchain.reorg_to_ancestor, ancestor
-                                    )
-                                )
-                        if reorg_ok:
-                            print(f"[P2P] Fork resolved — reorg to #{ancestor}, retry import")
-                            our_height = ancestor
-                            current = ancestor + 1
-                            break
-                        print(f"[P2P] Import failed at #{fail_h}, aborting batch")
-                        break
-                except Exception as e:
-                    self._sync_fail = int(self._sync_fail or 0) + 1
-                    print(f"[P2P] Sync block error at #{current}: {e}")
-                    return
-
-            if not imported_any:
-                self._sync_fail = int(self._sync_fail or 0) + 1
-                break
-
-            peer.height = max(peer.height, self.blockchain.get_height())
-
-        tip = self.blockchain.get_height()
-        target = int(peer.height or 0)
-        reached_target = tip >= target
-        # v1.3.172: height-complete still requires tip digest == peer.head.
-        if reached_target:
-            tip_head_refuse = self._catch_up_tip_head_refuse_reason(peer)
-            if tip_head_refuse:
-                self._bump_catch_up_refuse(tip_head_refuse)
-                logger.info(
-                    "[P2P] catch-up tip-head refuse %s peer=%s tip=%s head=%s",
-                    tip_head_refuse,
-                    (peer.peer_id or "")[:12],
-                    (self.head() or "")[:16],
-                    (getattr(peer, "head", "") or "")[:16],
-                )
-                reached_target = False
-        if reached_target:
-            print(f"[P2P] Sync complete. Our height: {tip}")
-        else:
+        reached_target = outcome.reached_target
+        if not reached_target and outcome.status is not CatchUpStatus.SKIPPED:
             self._sync_fail = int(self._sync_fail or 0) + 1
-            print(
-                f"[P2P] Sync incomplete. Our height: {tip} "
-                f"(peer target #{target})"
-            )
+        logger.info(
+            "[P2P] CatchUpPathA peer=%s status=%s imported=%d reached=%s",
+            (peer.peer_id or "")[:12],
+            outcome.status.value,
+            outcome.imported,
+            reached_target,
+        )
 
         if self.sync_engine:
-            self._state_consistent = bool(await self._sync_state_async())
+            await self.refresh_consistency()
 
         # Never raise state-root baseline after a stalled/incomplete sync —
         # that would greenwash partial catch-up as a new strict tip.
+        tip = self.blockchain.get_height()
         if reached_target and hasattr(self.blockchain, "set_state_root_baseline"):
             self.blockchain.set_state_root_baseline(tip)
             print(f"[P2P] State-root baseline set to #{tip} (strict above)")
@@ -5211,153 +5027,149 @@ class P2PNode:
         target_head: str,
         peer_hint: Optional[PeerConnection] = None,
     ) -> bool:
-        """Reorg to target head hash (GHOST canonical or peer tip)."""
+        """Reorg to target head hash via ForkReconcileService (ADR 0005)."""
         target_head = (target_head or "").strip()
         if not target_head:
             return False
-        local_head = self.head() or ""
-        if local_head and (
-            local_head == target_head
-            or local_head.lower() == target_head.lower()
-        ):
-            return True
-
-        peer = peer_hint if peer_hint and (peer_hint.head or "") == target_head else None
-        if peer is None:
-            peer = self._peer_with_head(target_head)
-
-        peer_block = None
-        if peer:
-            peer_block = await self._request_block_by_hash(peer, target_head)
-        if not peer_block:
-            for candidate in self.peers.values():
-                peer_block = await self._request_block_by_hash(candidate, target_head)
-                if peer_block:
-                    peer = candidate
-                    break
-        if not peer_block:
-            print(f"[P2P] Could not fetch head block {target_head[:12]} for reconcile")
-            return False
-
-        # v1.3.163: fetched body hash must match target_head before reorg.
-        bind_reason = self._reconcile_fetched_head_refuse_reason(
-            target_head, peer_block
+        outcome = await self._fork_reconcile_run_to_head(
+            target_head, peer_hint=peer_hint, ghost_probe=False
         )
-        if bind_reason:
-            self._reconcile_head_hash_mismatch_total = int(
-                getattr(self, "_reconcile_head_hash_mismatch_total", 0) or 0
-            ) + 1
-            logger.info(
-                "[P2P] reconcile refuse %s target=%s",
-                bind_reason,
-                target_head[:16],
-            )
+        if outcome is None:
             return False
-
-        # v1.3.165: contiguous (+1) fetched head must cite local tip as parent.
-        parent_reason = self._reconcile_contiguous_parent_refuse_reason(peer_block)
-        if parent_reason:
-            self._reconcile_contiguous_parent_mismatch_total = int(
-                getattr(self, "_reconcile_contiguous_parent_mismatch_total", 0) or 0
-            ) + 1
-            logger.info(
-                "[P2P] reconcile refuse %s target=%s",
-                parent_reason,
-                target_head[:16],
-            )
-            return False
-
-        # v1.3.171: same-height sibling must share tip-height parent.
-        same_h_reason = self._reconcile_same_height_parent_refuse_reason(peer_block)
-        if same_h_reason:
-            self._reconcile_same_height_parent_mismatch_total = int(
-                getattr(
-                    self, "_reconcile_same_height_parent_mismatch_total", 0
-                )
-                or 0
-            ) + 1
-            logger.info(
-                "[P2P] reconcile refuse %s target=%s",
-                same_h_reason,
-                target_head[:16],
-            )
-            return False
-
-        block_h = int(peer_block.get("height", peer_block.get("number", 0)))
-        parent_hash = peer_block.get("parent_hash", "")
-        ancestor = self.blockchain.find_ancestor_height(parent_hash)
-        if ancestor is None:
-            print("[P2P] No common ancestor for target head")
-            return False
-
-        rollback_to = min(ancestor, block_h - 1)
-        predictor = getattr(self, "reorg_predictor", None)
-        if predictor and hasattr(predictor, "analyze_live_peers"):
-            peer_heights = [int(p.height) for p in self.peers.values()]
-            risk = predictor.analyze_live_peers(
-                self.blockchain.get_height(), peer_heights
-            )
-            if risk.get("risk", 0) > 0.5:
-                print(
-                    f"[P2P] High reorg risk ({risk.get('risk'):.2f}) — "
-                    f"proceeding with finality guard"
-                )
-
-        if not await self._reorg_and_import_async(rollback_to, peer_block):
-            print("[P2P] Failed to reorg/import target head")
-            return False
-
-        # v1.3.173: successful import must leave tip digest == target_head.
-        tip_reason = self._reconcile_tip_head_refuse_reason(target_head)
-        if tip_reason:
-            self._reconcile_tip_head_mismatch_total = int(
-                getattr(self, "_reconcile_tip_head_mismatch_total", 0) or 0
-            ) + 1
-            logger.info(
-                "[P2P] reconcile refuse %s target=%s tip=%s",
-                tip_reason,
-                target_head[:16],
-                (self.head() or "")[:16],
-            )
-            return False
-
-        if peer:
-            peer.height = block_h
-            peer.head = peer_block.get("hash", target_head)
-        if peer and block_h > self.blockchain.get_height():
-            await self._sync_with_peer_safe(peer)
-        print(f"[P2P] Reorg complete — head={target_head[:12]} height=#{block_h}")
-        return True
+        if outcome.status.value == "complete":
+            peer = peer_hint
+            if peer is None:
+                peer = self._peer_with_head(target_head)
+            if peer is not None:
+                try:
+                    tip = int(self.blockchain.get_height() or 0)
+                    ph = int(getattr(peer, "height", 0) or 0)
+                except (TypeError, ValueError):
+                    tip, ph = 0, 0
+                if ph > tip:
+                    await self._sync_with_peer_safe(peer)
+            return True
+        return bool(outcome.ok and outcome.status.value == "skipped")
 
     async def _reconcile_fork_at_peer(self, peer: PeerConnection) -> bool:
-        """Same height, different head — reorg to GHOST canonical or peer head."""
-        ghost_head = self._ghost_canonical_head()
-        local_head = self.head() or ""
-        if ghost_head and ghost_head.lower() != local_head.lower():
-            if await self._reconcile_ghost_head(ghost_head, peer_hint=peer):
-                return True
-
-        peer_head = peer.head or ""
-        if not peer_head or peer_head == local_head:
-            return True
-
-        # v1.3.162: wire-probe peer.head before same-height reorg.
-        probe_refuse = await self._fork_peer_head_probe_refuse_reason(peer)
-        if probe_refuse:
-            self._bump_fork_probe_refuse(probe_refuse)
-            logger.info(
-                "[P2P] fork peer-head probe refuse %s peer=%s head=%s",
-                probe_refuse,
-                (peer.peer_id or "")[:12],
-                peer_head[:16],
-            )
-            return False
-
-        print(
-            f"[P2P] Fork at #{peer.height}: "
-            f"local={local_head[:12]} peer={peer_head[:12]}"
+        """Same height, different head — thin wire to ForkReconcileService."""
+        from network.fork_adapters import build_fork_reconcile_adapters
+        from sync.fork import (
+            ForkPeerView,
+            ForkReconcileConfig,
+            ForkReconcileService,
+            ForkReconcileStatus,
         )
-        return await self._reconcile_to_head_hash(peer_head, peer_hint=peer)
+
+        loop = asyncio.get_running_loop()
+        chain_a, fetch_a, probe_a, side_a = build_fork_reconcile_adapters(
+            self, peer, loop
+        )
+        svc = ForkReconcileService(
+            chain=chain_a, fetch=fetch_a, probe=probe_a, side=side_a
+        )
+        view = ForkPeerView(
+            peer_id=str(peer.peer_id or ""),
+            height=int(getattr(peer, "height", 0) or 0),
+            head_hash=str(getattr(peer, "head", "") or ""),
+        )
+        cfg = ForkReconcileConfig(
+            fork_probe_enabled=bool(
+                getattr(self.config, "p2p_fork_peer_head_probe", True)
+            ),
+            ghost_probe_enabled=bool(
+                getattr(self.config, "p2p_ghost_head_probe", True)
+            ),
+            prefer_ghost=True,
+            head_hash_bind=bool(
+                getattr(self.config, "p2p_reconcile_head_hash_bind", True)
+            ),
+            contiguous_parent_bind=bool(
+                getattr(self.config, "p2p_reconcile_contiguous_parent_bind", True)
+            ),
+            same_height_parent_bind=bool(
+                getattr(self.config, "p2p_reconcile_same_height_parent_bind", True)
+            ),
+            tip_head_bind=bool(
+                getattr(self.config, "p2p_reconcile_tip_head_bind", True)
+            ),
+            fetch_timeout=30.0,
+        )
+        outcome = await asyncio.to_thread(svc.run_same_height, view, cfg)
+        logger.info(
+            "[P2P] ForkReconcile peer=%s status=%s reason=%s",
+            (peer.peer_id or "")[:12],
+            outcome.status.value,
+            outcome.reason_code,
+        )
+        if outcome.status is ForkReconcileStatus.COMPLETE:
+            try:
+                tip = int(self.blockchain.get_height() or 0)
+                ph = int(getattr(peer, "height", 0) or 0)
+            except (TypeError, ValueError):
+                tip, ph = 0, 0
+            if ph > tip:
+                await self._sync_with_peer_safe(peer)
+            return True
+        return bool(outcome.ok)
+
+    async def _fork_reconcile_run_to_head(
+        self,
+        target_head: str,
+        *,
+        peer_hint: Optional[PeerConnection] = None,
+        ghost_probe: bool = False,
+    ):
+        """Shared thin wire for run_to_head (GHOST / admin / peer tip)."""
+        from network.fork_adapters import build_fork_reconcile_adapters
+        from sync.fork import ForkPeerView, ForkReconcileConfig, ForkReconcileService
+
+        peer = peer_hint
+        if peer is None:
+            peer = self._peer_with_head(target_head)
+        loop = asyncio.get_running_loop()
+        chain_a, fetch_a, probe_a, side_a = build_fork_reconcile_adapters(
+            self, peer, loop
+        )
+        svc = ForkReconcileService(
+            chain=chain_a, fetch=fetch_a, probe=probe_a, side=side_a
+        )
+        view = ForkPeerView(
+            peer_id=str(getattr(peer, "peer_id", "") or "") if peer else "",
+            height=int(getattr(peer, "height", 0) or 0) if peer else 0,
+            head_hash=str(getattr(peer, "head", "") or "") if peer else "",
+        )
+        cfg = ForkReconcileConfig(
+            fork_probe_enabled=bool(
+                getattr(self.config, "p2p_fork_peer_head_probe", True)
+            ),
+            ghost_probe_enabled=bool(
+                getattr(self.config, "p2p_ghost_head_probe", True)
+            ),
+            prefer_ghost=True,
+            head_hash_bind=bool(
+                getattr(self.config, "p2p_reconcile_head_hash_bind", True)
+            ),
+            contiguous_parent_bind=bool(
+                getattr(self.config, "p2p_reconcile_contiguous_parent_bind", True)
+            ),
+            same_height_parent_bind=bool(
+                getattr(self.config, "p2p_reconcile_same_height_parent_bind", True)
+            ),
+            tip_head_bind=bool(
+                getattr(self.config, "p2p_reconcile_tip_head_bind", True)
+            ),
+            fetch_timeout=30.0,
+        )
+        return await asyncio.to_thread(
+            lambda: svc.run_to_head(
+                str(target_head or ""),
+                view,
+                cfg,
+                ghost_probe=bool(ghost_probe),
+            )
+        )
+
 
     async def reconcile_peers(self) -> Dict:
         """Align chain tips with connected peers (height + head + state_root)."""
@@ -5393,10 +5205,10 @@ class P2PNode:
             results.append(entry)
 
         if self.sync_engine:
-            self._state_consistent = bool(await self._sync_state_async())
+            await self.refresh_consistency()
         elif self.peers:
             # Reconcile "ok" without a SyncEngine must not leave stale mesh-green.
-            self._state_consistent = False
+            self.force_inconsistent("no_sync_engine_with_peers")
 
         return {
             "reconciled": results,
@@ -7093,4 +6905,22 @@ class P2PNode:
                 logger.warning("[P2P] dispatcher status merge failed: %s", exc)
         else:
             status.setdefault("dispatch_boundary", False)
+        eng = getattr(self, "sync_engine", None)
+        cons = getattr(eng, "consistency", None) if eng is not None else None
+        if cons is not None and hasattr(cons, "merge_into_status"):
+            try:
+                cons.merge_into_status(status)
+            except Exception as exc:
+                logger.warning("[P2P] consistency status merge failed: %s", exc)
+        else:
+            status.setdefault("consistency_boundary", False)
+        hub = getattr(self, "solicit_hub", None)
+        if hub is not None and hasattr(hub, "merge_into_status"):
+            try:
+                hub.merge_into_status(status)
+            except Exception as exc:
+                logger.warning("[P2P] solicit hub status merge failed: %s", exc)
+                status.setdefault("solicit_hub", True)
+        else:
+            status.setdefault("solicit_hub", False)
         return status

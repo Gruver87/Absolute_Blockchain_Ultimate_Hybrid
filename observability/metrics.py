@@ -301,6 +301,18 @@ class MetricsCollector:
                     f"abs_sync_wire_probe_probed{{node_id=\"{node_id}\"}} "
                     f"{1 if sync_status.get('wire_probe_probed') else 0}"
                 ),
+                "# HELP abs_sync_consistency_state Consistency machine state label",
+                "# TYPE abs_sync_consistency_state gauge",
+                (
+                    f"abs_sync_consistency_state{{node_id=\"{node_id}\","
+                    f"state=\"{str(sync_status.get('sync_consistency_state') or 'unknown')}\"}} 1"
+                ),
+                "# HELP abs_sync_lockdown_total Consistency lockdown transitions",
+                "# TYPE abs_sync_lockdown_total counter",
+                (
+                    f"abs_sync_lockdown_total{{node_id=\"{node_id}\"}} "
+                    f"{int(sync_status.get('sync_lockdown_total', 0) or 0)}"
+                ),
                 "# HELP abs_rocksdb_tuning_source Whether live DB stats or config fallback",
                 "# TYPE abs_rocksdb_tuning_source gauge",
                 (

@@ -3,13 +3,19 @@
 Sync Engine — fast catch-up for late-joining nodes
 - Peer head resolution
 - Chain download (headers → blocks)
-- State reconciliation
+- State reconciliation (fail-closed ConsistencyService, ADR 0003)
 """
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import time
 
 from crypto import native
+from sync.consistency import (
+    ConsistencyService,
+    InMemoryConsistencyStore,
+    PeerSyncView,
+    WireProbeResult,
+)
 
 
 class SyncEngine:
@@ -17,7 +23,7 @@ class SyncEngine:
     Fast sync engine with deterministic head selection and fail-closed block import.
     """
 
-    def __init__(self, node):
+    def __init__(self, node, consistency: Optional[ConsistencyService] = None):
         self.node = node
         self.peers = []
         self.is_syncing = False
@@ -27,6 +33,11 @@ class SyncEngine:
         self._last_sync_error = ""
         self._last_sync_ok_at = 0
         self._heads_skipped_no_head = 0
+        if consistency is not None:
+            self.consistency = consistency
+        else:
+            store = InMemoryConsistencyStore(on_change=self._on_consistency_change)
+            self.consistency = ConsistencyService(store)
 
     def add_peer(self, peer):
         """Добавляет пира для синхронизации"""
@@ -192,9 +203,11 @@ class SyncEngine:
         return list(reversed(chain))
 
     def fast_sync(self, target_block: int = 0) -> bool:
-        """
-        Полная процедура синхронизации.
-        Импортирует только блоки выше локальной высоты (без полного replay).
+        """Ahead catch-up via shared ``CatchUpPathAService`` (ADR 0004 Step C).
+
+        Peer/head selection and consistency stay on SyncEngine. The former
+        private download→import I/O loop is gone: Path A ``run_ahead`` owns
+        batch fetch/import through CatchUp* ports (``SyncEngineCatchUpIO``).
         """
         if self.is_syncing:
             print("[Sync] Already in progress")
@@ -217,7 +230,18 @@ class SyncEngine:
                 self._last_sync_error = "no_valid_head"
                 return False
 
-            best_peer_h = max(int(h.get("height", 0) or 0) for h in heads)
+            # Prefer the selected head's peer height; fall back to max claimed.
+            best_peer_h = 0
+            best_peer_id = ""
+            for h in heads:
+                hh = str(h.get("hash") or "").strip()
+                ph = int(h.get("height", 0) or 0)
+                if hh == best_head:
+                    best_peer_h = ph
+                    best_peer_id = str(h.get("peer_id") or "")
+                    break
+            if best_peer_h <= 0:
+                best_peer_h = max(int(h.get("height", 0) or 0) for h in heads)
             if target_block > 0:
                 best_peer_h = min(best_peer_h, int(target_block))
 
@@ -233,63 +257,127 @@ class SyncEngine:
 
             print(f"[Sync] Selected head: {best_head[:8]}... (peer height {best_peer_h})")
 
-            chain = self.download_chain(best_head, stop_at_height=local_h)
-            if not chain:
-                print("[Sync] Chain download failed")
-                self._last_sync_error = "download_failed"
+            from sync.catchup.engine_io import SyncEngineCatchUpIO
+            from sync.catchup.path_a import CatchUpPathAService
+            from sync.catchup.types import CatchUpConfig, CatchUpPeerView, CatchUpStatus
+
+            io = SyncEngineCatchUpIO(
+                self,
+                peer_id=best_peer_id or "fast_sync",
+                peer_head=best_head,
+                target_height=int(best_peer_h),
+                batch_size=32,
+                running=True,
+            )
+            # Materialise ahead index early so tip-head bind cites the hash
+            # at the (possibly target-capped) height, not the uncapped peer tip.
+            io._ensure_ahead_index()
+            tip_blk = io._by_height.get(int(best_peer_h))
+            bind_head = best_head
+            if isinstance(tip_blk, dict):
+                tip_hh = str(
+                    tip_blk.get("hash") or tip_blk.get("block_hash") or ""
+                ).strip()
+                if tip_hh:
+                    bind_head = tip_hh
+
+            svc = CatchUpPathAService(
+                chain=io,
+                fetch=io,
+                probe=io,
+                side=io,
+            )
+            peer_view = CatchUpPeerView(
+                peer_id=best_peer_id or "fast_sync",
+                height=int(best_peer_h),
+                head_hash=bind_head,
+            )
+            cfg = CatchUpConfig(
+                batch_size=32,
+                require_head=True,
+                tip_head_bind=True,
+                height_continuity_bind=True,
+                contiguous_parent_bind=True,
+                # SyncEngine historically had no tip/peer-head wire probes.
+                tip_probe_enabled=False,
+                peer_head_probe_enabled=False,
+                fetch_timeout=45.0,
+            )
+            outcome = svc.run_ahead(peer_view, cfg)
+            self.sync_progress = int(outcome.imported or 0)
+
+            if outcome.status is CatchUpStatus.REFUSED:
+                self._last_sync_error = str(outcome.reason_code or "refused")
+                print(f"[Sync] Catch-up refused: {self._last_sync_error}")
                 return False
-
-            target_h = best_peer_h if target_block > 0 else None
-            to_import = []
-            needs_genesis = False
-            if hasattr(self.node, "blockchain") and self.node.blockchain is not None:
-                bc_db = getattr(self.node.blockchain, "db", None)
-                if bc_db is not None and bc_db.get_last_block() is None:
-                    needs_genesis = True
-            import_floor = -1 if needs_genesis else local_h
-            for block in chain:
-                height = self._block_height(block)
-                if height <= import_floor:
-                    continue
-                if target_h is not None and height > target_h:
-                    continue
-                to_import.append(block)
-            to_import.sort(key=self._block_height)
-
-            if not to_import:
-                print(f"[Sync] No new blocks (local={local_h}, chain_len={len(chain)})")
-                ok = bool(self.sync_state())
-                if ok:
-                    self._last_sync_ok_at = int(time.time())
-                    self._last_sync_error = ""
+            if outcome.status is CatchUpStatus.STALLED:
+                err = str(outcome.reason_code or "fetch_stall")
+                if getattr(io, "_chain_error", ""):
+                    err = str(io._chain_error)
+                self._last_sync_error = err
+                if err == "non_contiguous_chain":
+                    print("[Sync] Downloaded chain is not contiguous")
                 else:
-                    self._last_sync_error = "state_sync_failed"
-                return ok
-
-            if not self._validate_downloaded_chain(to_import, local_h):
-                print("[Sync] Downloaded chain is not contiguous")
-                self._last_sync_error = "non_contiguous_chain"
+                    print(f"[Sync] Chain download stalled: {err}")
                 return False
-
-            imported = 0
-            for i, block in enumerate(to_import):
-                block_ok = False
-                if hasattr(self.node, "import_block"):
-                    block_ok = bool(self.node.import_block(block))
-                elif hasattr(self.node, "consensus") and hasattr(self.node.consensus, "add_block"):
-                    block_ok = bool(self.node.consensus.add_block(block))
-                if block_ok:
-                    imported += 1
-                else:
-                    print(f"[Sync] Import failed at height {self._block_height(block)}")
-                    self._last_sync_error = f"import_failed:{self._block_height(block)}"
+            if outcome.status is CatchUpStatus.ERROR:
+                self._sync_fail += 1
+                self._last_sync_error = str(
+                    outcome.reason_code or outcome.detail or "path_a_error"
+                )
+                print(f"[Sync] fast_sync error: {self._last_sync_error}")
+                return False
+            if (
+                outcome.status is CatchUpStatus.INCOMPLETE
+                and int(outcome.imported or 0) == 0
+                and outcome.reason_code
+                in ("empty_batch", "batch_no_progress", "fetch_stall")
+            ):
+                # No bodies served after head selection — treat as download fail
+                # unless we already know a contiguity refuse was recorded.
+                if "non_contiguous_chain" in getattr(io, "refuses", []):
+                    self._last_sync_error = "non_contiguous_chain"
+                    print("[Sync] Downloaded chain is not contiguous")
                     return False
-                self.sync_progress = i + 1
+                if getattr(io, "_chain_error", "") == "non_contiguous_chain":
+                    self._last_sync_error = "non_contiguous_chain"
+                    print("[Sync] Downloaded chain is not contiguous")
+                    return False
+                if not io.fetch_calls or getattr(io, "_chain_error", ""):
+                    self._last_sync_error = (
+                        getattr(io, "_chain_error", "") or "download_failed"
+                    )
+                    print("[Sync] Chain download failed")
+                    return False
 
-            if hasattr(self.node, "consensus") and hasattr(self.node.consensus, "set_head"):
-                self.node.consensus.set_head(best_head)
-            elif hasattr(self.node, "chain") and hasattr(self.node.chain, "set_head"):
-                self.node.chain.set_head(best_head)
+            if int(outcome.imported or 0) == 0 and outcome.status is CatchUpStatus.SKIPPED:
+                print(f"[Sync] No new blocks (local={local_h})")
+            elif int(outcome.imported or 0) == 0 and outcome.status is CatchUpStatus.INCOMPLETE:
+                # Import aborted mid-way with zero progress after refuse gates,
+                # or download yielded nothing useful.
+                if outcome.reason_code and "import" in str(outcome.reason_code):
+                    self._last_sync_error = str(outcome.reason_code)
+                    return False
+
+            # Tip bind / set_head after successful height catch-up.
+            if outcome.reached_target or outcome.status is CatchUpStatus.COMPLETE:
+                if hasattr(self.node, "consensus") and hasattr(
+                    self.node.consensus, "set_head"
+                ):
+                    self.node.consensus.set_head(best_head)
+                elif hasattr(self.node, "chain") and hasattr(self.node.chain, "set_head"):
+                    self.node.chain.set_head(best_head)
+
+            # Import-fail mid-batch: Path A returns incomplete; mirror old False.
+            if (
+                outcome.status is CatchUpStatus.INCOMPLETE
+                and io.import_fails
+                and not outcome.reached_target
+            ):
+                tip_now = self._local_height()
+                self._last_sync_error = f"import_failed:{tip_now + 1}"
+                print(f"[Sync] Import failed at height {tip_now + 1}")
+                return False
 
             ok = bool(self.sync_state())
             if ok:
@@ -298,8 +386,8 @@ class SyncEngine:
             else:
                 self._last_sync_error = "state_sync_failed"
             print(
-                f"[Sync] Done: imported {imported}/{len(to_import)} blocks "
-                f"(local now {self._local_height()})"
+                f"[Sync] Done: imported {int(outcome.imported or 0)} blocks "
+                f"(local now {self._local_height()}; status={outcome.status.value})"
             )
             return ok
         except Exception as exc:
@@ -311,6 +399,35 @@ class SyncEngine:
             # Fail-closed: never leave is_syncing stuck after unexpected errors.
             self.is_syncing = False
 
+    def _on_consistency_change(self, snap) -> None:
+        """Mirror ConsistencyService snapshot onto node/P2P flags."""
+        flag = bool(getattr(snap, "consistent", False))
+        probe = getattr(snap, "probe", None)
+        if probe is not None and getattr(probe, "probed", False):
+            self._last_wire_probe_ok = probe.ok
+        elif probe is not None and not getattr(probe, "probed", True):
+            self._last_wire_probe_ok = None
+        self._set_state_consistent(flag)
+
+    def _peer_views(self) -> List[PeerSyncView]:
+        views: List[PeerSyncView] = []
+        for peer in self._collect_p2p_peers():
+            head_raw = getattr(peer, "head", None)
+            head_hash = ""
+            if isinstance(head_raw, dict):
+                head_hash = str(head_raw.get("hash") or "")
+            else:
+                head_hash = str(head_raw or "")
+            views.append(
+                PeerSyncView(
+                    peer_id=str(getattr(peer, "peer_id", "") or ""),
+                    height=int(getattr(peer, "height", 0) or 0),
+                    head_hash=head_hash.strip(),
+                    dial_key=str(getattr(peer, "dial_target", "") or ""),
+                )
+            )
+        return views
+
     def _set_state_consistent(self, ok: bool) -> None:
         """Mirror consistency on AbsoluteNode and/or nested P2PNode."""
         flag = bool(ok)
@@ -320,112 +437,104 @@ class SyncEngine:
         if p2p is not None and hasattr(p2p, "_state_consistent"):
             p2p._state_consistent = flag
 
+    def reevaluate_consistency(self) -> bool:
+        """Post catch-up / reconcile re-eval via ConsistencyService (ADR 0003)."""
+        return bool(self.sync_state())
+
     def sync_state(self) -> bool:
-        """Compare local state_root with peer-reported roots when available."""
+        """Compare local state_root with peer-reported roots when available.
+
+        same-height consistency only from wire roots (never invent via local
+        get_block). Returns True only when ConsistencyService reports trusted
+        consistent. Incomplete-ahead is BehindOpen → returns False
+        (ADR 0003 fail-closed).
+        """
         print("[Sync] Checking state consistency...")
         if not hasattr(self.node, "blockchain"):
             print("   No blockchain attached")
+            self.consistency.request_lockdown("no_blockchain")
             return False
 
         bc = self.node.blockchain
         if not hasattr(bc, "get_state_root"):
             print("   [Sync] blockchain missing get_state_root — fail-closed")
-            self._set_state_consistent(False)
-            self._last_wire_probe_ok = False
+            self.consistency.request_lockdown("no_get_state_root")
             return False
 
-        local_root = bc.get_state_root()
-        local_height = bc.get_height()
-        mismatches = []
+        local_root = str(bc.get_state_root() or "")
+        local_height = int(bc.get_height() or 0)
+        peers = self._peer_views()
 
-        wire_roots = []
-        peers = self._collect_p2p_peers()
-
-        # Solo / no peers: never claim a wire probe completed, and do not use an
-        # empty peer set as evidence that tip roots match the mesh. Clear any
-        # prior mesh-green flag so readiness/mining cannot keep a stale True.
         if not peers:
             print("   Solo / no peers — wire probe deferred (never-probed), fail-closed")
-            self._last_wire_probe_ok = None
-            self._set_state_consistent(False)
-            return False
+            decision = self.consistency.apply_probe_evaluation(
+                peers=(),
+                local_height=local_height,
+                local_root=local_root,
+                probe=WireProbeResult.never_probed("no_peers"),
+            )
+            return bool(decision.trusted)
 
         if not hasattr(self.node, "request_peer_state_roots_sync"):
             print(
                 "   [Sync] request_peer_state_roots_sync missing with peers "
                 "— fail-closed (never paint green without a real probe)"
             )
-            self._last_wire_probe_ok = False
-            self._set_state_consistent(False)
-            return False
+            decision = self.consistency.apply_probe_evaluation(
+                peers=peers,
+                local_height=local_height,
+                local_root=local_root,
+                probe=WireProbeResult.failed("probe_api_missing"),
+            )
+            return bool(decision.trusted)
 
-        wire_probe_ok = True
+        self.consistency.request_probing()
+        wire_roots: List[Any] = []
         try:
-            wire_roots = self.node.request_peer_state_roots_sync()
-            if wire_roots is None:
-                wire_probe_ok = False
+            raw = self.node.request_peer_state_roots_sync()
+            if raw is None:
                 print("   [Sync] peer state_root wire probe failed: timeout/empty")
-                wire_roots = []
-            elif len(wire_roots) == 0:
-                wire_probe_ok = False
+                probe = WireProbeResult.failed("probe_timeout_empty")
+            elif len(raw) == 0:
                 print(
                     "   [Sync] peer state_root wire probe empty "
                     f"with {len(peers)} peer(s)"
                 )
+                probe = WireProbeResult.failed("probe_empty")
+            else:
+                wire_roots = list(raw)
+                probe = WireProbeResult.succeeded(wire_roots=tuple(wire_roots))
         except Exception as exc:
-            wire_probe_ok = False
             print(f"   [Sync] peer state_root wire probe failed: {exc}")
-            wire_roots = []
-        self._last_wire_probe_ok = wire_probe_ok
+            probe = WireProbeResult.failed(str(exc))
 
-        if not wire_probe_ok:
-            self._set_state_consistent(False)
-            return False
-
-        # v1.3.141: same-height consistency only from wire roots — never invent a
-        # match from the local tip at the peer's claimed height. Soft honesty only —
-        # not tip proof.
-        same_height_match = False
-        for entry in wire_roots:
-            peer_root = entry.get("state_root", "")
-            peer_h = int(entry.get("height", 0) or 0)
-            if peer_h < local_height:
-                continue
-            if peer_h == local_height and peer_root:
-                if peer_root != local_root:
-                    mismatches.append(entry.get("peer_id", "peer")[:8])
-                else:
-                    same_height_match = True
-
-        if mismatches:
-            print(f"   State root mismatch vs peers: {', '.join(mismatches)}")
-            self._set_state_consistent(False)
-            return False
-
-        # Peers all behind (or empty roots) must not paint green without proof.
-        if not same_height_match:
-            peers_ahead = any(
-                int(getattr(peer, "height", 0) or 0) > local_height for peer in peers
+        decision = self.consistency.apply_probe_evaluation(
+            peers=peers,
+            local_height=local_height,
+            local_root=local_root,
+            probe=probe,
+        )
+        snap = self.consistency.snapshot()
+        if snap.reason_code == "state_root_mismatch":
+            print(
+                f"   State root mismatch vs peers: "
+                f"{', '.join(snap.probe.mismatch_peers)}"
             )
-            if peers_ahead:
-                # Partial / target-capped sync: still behind tip — incomplete, not a
-                # root conflict. Keep state_consistent=False for readiness honesty.
-                print(
-                    "   Sync incomplete vs ahead peers — not tip-consistent yet "
-                    f"(local height={local_height})"
-                )
-                self._set_state_consistent(False)
-                return True
+        elif snap.state.value == "behind_open":
+            print(
+                "   Sync incomplete vs ahead peers — not tip-consistent yet "
+                f"(local height={local_height})"
+            )
+        elif snap.reason_code == "no_same_height_match":
             print(
                 "   No same-height peer root match — fail-closed "
                 f"(local height={local_height})"
             )
-            self._set_state_consistent(False)
-            return False
-
-        print(f"   State consistent (root={local_root[:12]}... height={local_height})")
-        self._set_state_consistent(True)
-        return True
+        elif decision.trusted:
+            print(
+                f"   State consistent (root={local_root[:12]}... height={local_height})"
+            )
+        return bool(decision.trusted)
 
     def get_status(self) -> dict:
         local_height = self._local_height()
@@ -434,9 +543,9 @@ class SyncEngine:
         for peer in peers:
             best_peer_height = max(best_peer_height, int(getattr(peer, "height", 0) or 0))
 
-        p2p = getattr(self.node, "p2p", None)
-        state_consistent = getattr(p2p, "_state_consistent", False) if p2p else False
+        state_consistent = bool(self.consistency.snapshot().consistent)
         probe = getattr(self, "_last_wire_probe_ok", None)
+        cstat = self.consistency.status()
 
         return {
             "syncing": self.is_syncing,
@@ -457,6 +566,10 @@ class SyncEngine:
             ),
             "native_sync_heads_no_invent": True,
             "native_sync_state_wire_only": True,
+            "consistency_boundary": True,
+            "sync_consistency_state": cstat.get("sync_consistency_state"),
+            "sync_consistency_reason": cstat.get("sync_consistency_reason"),
+            "sync_lockdown_total": cstat.get("sync_lockdown_total"),
         }
 
     def reset(self):

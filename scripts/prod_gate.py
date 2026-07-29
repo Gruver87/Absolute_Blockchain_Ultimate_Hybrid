@@ -174,11 +174,35 @@ def check_mesh_compose_redis() -> list[str]:
     return errors
 
 
+def check_sync_consistency_surface() -> list[str]:
+    """ADR 0003: sync consistency + solicit hub modules must exist."""
+    errors: list[str] = []
+    required = (
+        "sync/ports.py",
+        "sync/consistency/machine.py",
+        "sync/consistency/service.py",
+        "sync/solicit.py",
+        "docs/adr/0003-sync-consistency.md",
+    )
+    for rel in required:
+        if not (ROOT / rel).is_file():
+            errors.append(f"missing sync consistency surface: {rel}")
+    p2p = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+    if "solicit_hub.fulfill_or_reject" not in p2p:
+        errors.append("p2p_node.py missing SyncSolicitHub fulfill_or_reject wiring")
+    if "ConsistencyService" not in (ROOT / "sync" / "sync_engine.py").read_text(
+        encoding="utf-8"
+    ):
+        errors.append("sync_engine.py must use ConsistencyService")
+    return errors
+
+
 def main() -> int:
     errors: list[str] = []
     for path in PROD_FILES:
         errors.extend(check_file(path))
     errors.extend(check_mesh_compose_redis())
+    errors.extend(check_sync_consistency_surface())
 
     if errors:
         print("FAIL: production gate")

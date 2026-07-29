@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Absolute Blockchain — HTTP API серверы.
@@ -6300,12 +6300,18 @@ class RESTHandler(BaseHTTPRequestHandler):
                     )
                     if se and hasattr(se, "sync_state"):
                         try:
-                            p2p._state_consistent = bool(se.sync_state())
+                            se.sync_state()
                         except Exception as exc:
-                            p2p._state_consistent = False
+                            if hasattr(p2p, "force_inconsistent"):
+                                p2p.force_inconsistent("repair_sync_failed")
+                            else:
+                                p2p._state_consistent = False
                             sync_error = str(exc)
                     elif not harness.get("harness_healthy"):
-                        p2p._state_consistent = False
+                        if hasattr(p2p, "force_inconsistent"):
+                            p2p.force_inconsistent("repair_harness_unhealthy")
+                        else:
+                            p2p._state_consistent = False
                 # success requires tip repair + healthy harness + consistency
                 # (never greenwash repaired=True alone while harness/wire fail).
                 harness_ok = bool(harness.get("harness_healthy"))
