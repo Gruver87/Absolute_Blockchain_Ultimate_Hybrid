@@ -1,41 +1,46 @@
 # ADR 0005 — Same-Height Fork Reconcile Thin Adapter
 
-- **Status:** Accepted (A)
+- **Status:** Accepted (A) — fail-closed Evidence hardened
 - **Date:** 2026-07-29
 - **Deciders:** Absolute Blockchain maintainers
 
 ## Context
 
-Same-height fork reconcile (`P2PNode._reconcile_fork_at_peer` →
-`_reconcile_to_head_hash`) mixed wire probes, hash/parent/tip binds, ancestor
-lookup, and reorg+import inside the network control plane.
-
-ADR 0004 extracted Path A ahead catch-up. Same-height reconcile remained on P2P.
+Same-height fork reconcile mixed wire probes, hash/parent/tip binds, ancestor
+lookup, and reorg+import inside the P2P control plane. Hostile peers can spam
+fake same-height bodies; soft refuse without strike/evidence is insufficient.
 
 ## Decision
 
-### A — Ports + domain + thin wire (this stage)
+### Ports → domain → thin wire
 
 | Path | Role |
 |------|------|
-| `sync/ports.py` | `ForkReconcileChainPort`, `FetchPort`, `ProbePort`, `SideEffectPort` |
-| `sync/fork/policy.py` | Pure refuse predicates (hash / parent / tip binds) |
-| `sync/fork/service.py` | `ForkReconcileService.run_same_height` / `run_to_head` |
-| `network/fork_adapters.py` | P2P blocking façades over solicit / reorg |
+| `sync/ports.py` | `ForkReconcileChain/Fetch/Probe/SideEffectPort` (+ Evidence hooks) |
+| `sync/fork/policy.py` | Pure refuse predicates |
+| `sync/fork/evidence.py` | `ForkSecurityEvidence`, `ForkReconcileMaliciousError` |
+| `sync/fork/service.py` | `ForkReconcileService` — fail-closed on malicious refuses |
+| `network/fork_adapters.py` | P2P façades; `bus.emit("security.fork_refuse", …)` + `strike_peer` |
 
-- Domain is **synchronous** over ports (no `asyncio`, no `PeerConnection`).
-- Sync domain **must not** import the P2P node module.
-- Scheduling / NEW_BLOCK callers stay on P2P; they call the thin wire.
+Domain is synchronous; no P2P node imports under `sync/fork/`.
+
+### Fail-closed malicious path
+
+On malicious refuse codes (hash/parent/probe/tip-evidence/spam):
+
+1. `note_malicious_attempt` (spam escalate at ≥3 → `fork_same_height_spam`)
+2. `emit_security_evidence` → EventBus `security.fork_refuse` + node status
+3. `strike_malicious_peer`
+4. raise `ForkReconcileMaliciousError` (thin wire catches → `False`)
 
 ### Honesty
 
-- Fork reconcile ≠ tip proof / Long-Range / BFT
-- Soft parent/hash binds ≠ ancestry DAG store
+- Soft binds ≠ tip proof / Long-Range
+- Evidence event ≠ audited SIEM
 - Unit green ≠ mesh soak
 
 ## Definition of Done
 
-- Unit tests: ok sibling reorg, malicious hash mismatch, same-height parent
-  mismatch, probe refuse, no ancestor, tip-head post-import refuse
-- `_reconcile_fork_at_peer` / `_reconcile_to_head_hash` thin-wired
-- Evidence: unit-proven + integration-wired; live mesh **not** claimed
+- Unit tests: happy path, malicious hash/parent, spam escalate, tip-evidence,
+  Evidence payload, strike, thin-wire needles
+- `_reconcile_fork_at_peer` is thin wire only

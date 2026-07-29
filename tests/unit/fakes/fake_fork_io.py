@@ -22,6 +22,7 @@ class FakeForkReconcileIO:
         ghost_head: str = "",
         reorg_ok: bool = True,
         tip_after_reorg: Optional[str] = None,
+        tip_evidence_refuse: str = "",
         running: bool = True,
     ) -> None:
         self._height = int(height)
@@ -35,12 +36,16 @@ class FakeForkReconcileIO:
         self._ghost_head = str(ghost_head or "")
         self._reorg_ok = bool(reorg_ok)
         self._tip_after_reorg = tip_after_reorg
+        self._tip_evidence_refuse = str(tip_evidence_refuse or "")
         self._running = bool(running)
         self.refuses: List[str] = []
         self.progress: List[str] = []
         self.reorg_calls: List[tuple] = []
         self.fetch_calls: List[tuple] = []
         self.peer_tips: Dict[str, tuple] = {}
+        self.evidence: List[Any] = []
+        self.strikes: List[tuple] = []
+        self.malicious_attempts: Dict[str, int] = {}
 
     # ── Chain ────────────────────────────────────────────────────────────────
 
@@ -129,3 +134,19 @@ class FakeForkReconcileIO:
 
     def on_progress(self, message: str) -> None:
         self.progress.append(str(message or ""))
+
+    def tip_evidence_refuse(self, block: Mapping[str, Any]) -> str:
+        return str(self._tip_evidence_refuse or "")
+
+    def note_malicious_attempt(self, peer_id: str, reason: str) -> int:
+        peer_key = str(peer_id or "")
+        n = int(self.malicious_attempts.get(peer_key, 0) or 0) + 1
+        self.malicious_attempts[peer_key] = n
+        return n
+
+    def emit_security_evidence(self, evidence: Any) -> None:
+        self.evidence.append(evidence)
+
+    def strike_malicious_peer(self, peer_id: str, reason: str) -> bool:
+        self.strikes.append((str(peer_id), str(reason)))
+        return False

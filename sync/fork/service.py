@@ -1,6 +1,9 @@
 """ForkReconcileService — same-height / to-head reconcile over ports (ADR 0005).
 
 No ``asyncio``, no P2P node imports. I/O lives behind ForkReconcile* ports.
+
+Malicious same-height bodies are **fail-closed**: evidence is emitted, the peer
+is struck, and ``ForkReconcileMaliciousError`` is raised immediately.
 """
 
 from __future__ import annotations
@@ -8,6 +11,12 @@ from __future__ import annotations
 import logging
 from typing import Any, Mapping, Optional
 
+from sync.fork.evidence import (
+    ForkReconcileMaliciousError,
+    ForkSecurityEvidence,
+    build_evidence,
+    is_malicious_refuse,
+)
 from sync.fork.policy import ForkReconcilePolicy
 from sync.fork.types import (
     ForkPeerView,
@@ -23,6 +32,9 @@ from sync.ports import (
 )
 
 logger = logging.getLogger("Sync.Fork.Reconcile")
+
+# After this many malicious same-height attempts from one peer → spam escalate.
+_SPAM_THRESHOLD = 3
 
 
 def _block_height(block: Mapping[str, Any], default: int = -1) -> int:
@@ -64,10 +76,15 @@ class ForkReconcileService:
         peer: ForkPeerView,
         config: Optional[ForkReconcileConfig] = None,
     ) -> ForkReconcileOutcome:
-        """Reconcile when peer height == local and heads differ (GHOST preferred)."""
+        """Reconcile when peer height == local and heads differ (GHOST preferred).
+
+        Raises ``ForkReconcileMaliciousError`` on fail-closed hostile bodies.
+        """
         cfg = config if config is not None else ForkReconcileConfig()
         try:
             return self._run_same_height_inner(peer, cfg)
+        except ForkReconcileMaliciousError:
+            raise
         except Exception as exc:
             logger.exception(
                 "[Fork] run_same_height error peer=%s", (peer.peer_id or "")[:12]
@@ -87,7 +104,10 @@ class ForkReconcileService:
         *,
         ghost_probe: bool = False,
     ) -> ForkReconcileOutcome:
-        """Fetch ``target_head``, policy-gate, reorg+import, tip-head bind."""
+        """Fetch ``target_head``, policy-gate, reorg+import, tip-head bind.
+
+        Raises ``ForkReconcileMaliciousError`` on fail-closed hostile bodies.
+        """
         cfg = config if config is not None else ForkReconcileConfig()
         try:
             return self._run_to_head_inner(
@@ -96,6 +116,8 @@ class ForkReconcileService:
                 cfg,
                 ghost_probe=bool(ghost_probe),
             )
+        except ForkReconcileMaliciousError:
+            raise
         except Exception as exc:
             logger.exception("[Fork] run_to_head error target=%s", str(target_head)[:16])
             return ForkReconcileOutcome.error(
@@ -105,12 +127,76 @@ class ForkReconcileService:
                 detail=str(exc),
             )
 
+    def _fail_closed(
+        self,
+        reason: str,
+        *,
+        peer_id: str,
+        local_height: int,
+        target_head: str = "",
+        block: Optional[Mapping[str, Any]] = None,
+        detail: str = "",
+    ) -> None:
+        """Bump, emit Evidence, strike peer, raise — never soft-continue."""
+        reason_code = str(reason or "refused")
+        attempts = int(self._side.note_malicious_attempt(peer_id, reason_code) or 1)
+        if attempts >= _SPAM_THRESHOLD and reason_code != "fork_same_height_spam":
+            reason_code = "fork_same_height_spam"
+            self._side.bump_refuse(reason_code)
+            attempts = int(
+                self._side.note_malicious_attempt(peer_id, reason_code) or attempts
+            )
+        else:
+            self._side.bump_refuse(reason_code)
+
+        evidence = build_evidence(
+            reason_code=reason_code,
+            peer_id=peer_id,
+            local_height=int(local_height),
+            target_head=str(target_head or ""),
+            block=block,
+            detail=str(detail or ""),
+            attempt_count=attempts,
+        )
+        self._side.emit_security_evidence(evidence)
+        self._side.strike_malicious_peer(peer_id, reason_code)
+        outcome = ForkReconcileOutcome.refused(
+            reason_code,
+            local_height=int(local_height),
+            target_head=str(target_head or ""),
+            detail=str(detail or evidence.detail or ""),
+        )
+        raise ForkReconcileMaliciousError(outcome, evidence)
+
+    def _refuse_or_fail_closed(
+        self,
+        reason: str,
+        *,
+        peer_id: str,
+        local_height: int,
+        target_head: str = "",
+        block: Optional[Mapping[str, Any]] = None,
+    ) -> ForkReconcileOutcome:
+        if is_malicious_refuse(reason):
+            self._fail_closed(
+                reason,
+                peer_id=peer_id,
+                local_height=local_height,
+                target_head=target_head,
+                block=block,
+            )
+        self._side.bump_refuse(reason)
+        return ForkReconcileOutcome.refused(
+            reason, local_height=local_height, target_head=target_head
+        )
+
     def _run_same_height_inner(
         self, peer: ForkPeerView, cfg: ForkReconcileConfig
     ) -> ForkReconcileOutcome:
         local_h = int(self._chain.height() or 0)
         local_head = str(self._chain.head() or "").strip()
         peer_head = str(peer.head_hash or "").strip()
+        peer_id = str(peer.peer_id or "")
 
         if bool(cfg.prefer_ghost):
             ghost = str(self._side.ghost_canonical_head() or "").strip()
@@ -120,7 +206,6 @@ class ForkReconcileService:
                 )
                 if ghost_out.status is ForkReconcileStatus.COMPLETE:
                     return ghost_out
-                # Parity with P2P: ghost failure falls through to peer head.
 
         if not peer_head or (
             local_head and peer_head.lower() == local_head.lower()
@@ -134,9 +219,11 @@ class ForkReconcileService:
         if bool(cfg.fork_probe_enabled):
             refuse = str(self._probe.fork_peer_head_probe_refuse(peer) or "")
             if refuse:
-                self._side.bump_refuse(refuse)
-                return ForkReconcileOutcome.refused(
-                    refuse, local_height=local_h, target_head=peer_head
+                return self._refuse_or_fail_closed(
+                    refuse,
+                    peer_id=peer_id,
+                    local_height=local_h,
+                    target_head=peer_head,
                 )
 
         self._side.on_progress(
@@ -154,6 +241,7 @@ class ForkReconcileService:
     ) -> ForkReconcileOutcome:
         local_h = int(self._chain.height() or 0)
         target = str(target_head or "").strip()
+        peer_id = str(peer_hint.peer_id if peer_hint is not None else "")
         if not target:
             return ForkReconcileOutcome.refused(
                 "empty_target_head", local_height=local_h
@@ -173,9 +261,11 @@ class ForkReconcileService:
                 or ""
             )
             if refuse:
-                self._side.bump_refuse(refuse)
-                return ForkReconcileOutcome.refused(
-                    refuse, local_height=local_h, target_head=target
+                return self._refuse_or_fail_closed(
+                    refuse,
+                    peer_id=peer_id,
+                    local_height=local_h,
+                    target_head=target,
                 )
 
         peer_block, sourced_peer = self._fetch_target_block(
@@ -188,14 +278,35 @@ class ForkReconcileService:
             return ForkReconcileOutcome.fetch_failed(
                 local_height=local_h, target_head=target
             )
+        if sourced_peer:
+            peer_id = sourced_peer
+
+        # Tip-safety evidence gate before soft ownership binds / reorg.
+        tip_ev = str(self._side.tip_evidence_refuse(peer_block) or "")
+        if tip_ev:
+            reason = (
+                tip_ev
+                if is_malicious_refuse(tip_ev)
+                else "tip_evidence_enforce_refuse"
+            )
+            return self._refuse_or_fail_closed(
+                reason,
+                peer_id=peer_id,
+                local_height=local_h,
+                target_head=target,
+                block=peer_block,
+            )
 
         refuse = self._policy.fetched_head_refuse_reason(
             target, peer_block, enabled=bool(cfg.head_hash_bind)
         )
         if refuse:
-            self._side.bump_refuse(refuse)
-            return ForkReconcileOutcome.refused(
-                refuse, local_height=local_h, target_head=target
+            return self._refuse_or_fail_closed(
+                refuse,
+                peer_id=peer_id,
+                local_height=local_h,
+                target_head=target,
+                block=peer_block,
             )
 
         tip_h = int(self._chain.height() or 0)
@@ -207,9 +318,12 @@ class ForkReconcileService:
             enabled=bool(cfg.contiguous_parent_bind),
         )
         if refuse:
-            self._side.bump_refuse(refuse)
-            return ForkReconcileOutcome.refused(
-                refuse, local_height=tip_h, target_head=target
+            return self._refuse_or_fail_closed(
+                refuse,
+                peer_id=peer_id,
+                local_height=tip_h,
+                target_head=target,
+                block=peer_block,
             )
 
         local_parent = str(self._chain.expected_parent(tip_h) or "")
@@ -221,9 +335,12 @@ class ForkReconcileService:
             enabled=bool(cfg.same_height_parent_bind),
         )
         if refuse:
-            self._side.bump_refuse(refuse)
-            return ForkReconcileOutcome.refused(
-                refuse, local_height=tip_h, target_head=target
+            return self._refuse_or_fail_closed(
+                refuse,
+                peer_id=peer_id,
+                local_height=tip_h,
+                target_head=target,
+                block=peer_block,
             )
 
         block_h = _block_height(peer_block, 0)
@@ -250,11 +367,14 @@ class ForkReconcileService:
             enabled=bool(cfg.tip_head_bind),
         )
         if tip_refuse:
-            self._side.bump_refuse(tip_refuse)
-            return ForkReconcileOutcome.refused(
+            # Post-import tip drift is integrity refuse, not necessarily spam —
+            # still bump, but only fail-closed if classified malicious.
+            return self._refuse_or_fail_closed(
                 tip_refuse,
+                peer_id=peer_id,
                 local_height=int(self._chain.height() or 0),
                 target_head=target,
+                block=peer_block,
             )
 
         sourced = sourced_peer or (peer_hint.peer_id if peer_hint else "")

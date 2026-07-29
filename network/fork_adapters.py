@@ -150,19 +150,23 @@ class ForkReconcileP2PProbeAdapter:
 
 
 class ForkReconcileP2PSideEffectAdapter:
-    """Implements ``ForkReconcileSideEffectPort``."""
+    """Implements ``ForkReconcileSideEffectPort`` including security Evidence."""
 
-    __slots__ = ("_p2p", "_peer")
+    __slots__ = ("_p2p", "_peer", "_malicious_attempts", "_evidence_log")
 
     def __init__(self, p2p: Any, peer: Any) -> None:
         self._p2p = p2p
         self._peer = peer
+        self._malicious_attempts: Dict[str, int] = {}
+        self._evidence_log: List[Any] = []
 
     def bump_refuse(self, reason: str) -> None:
         r = str(reason or "")
         try:
             if r.startswith("fork_"):
                 self._p2p._bump_fork_probe_refuse(r)
+                if r == "fork_same_height_spam":
+                    self._p2p.bump_counter("fork_same_height_spam_total")
             elif r.startswith("ghost_"):
                 self._p2p._bump_ghost_probe_refuse(r)
             elif r == "reconcile_head_hash_mismatch":
@@ -187,6 +191,10 @@ class ForkReconcileP2PSideEffectAdapter:
                 self._p2p._reconcile_tip_head_mismatch_total = int(
                     getattr(self._p2p, "_reconcile_tip_head_mismatch_total", 0) or 0
                 ) + 1
+            elif r == "tip_evidence_enforce_refuse":
+                self._p2p.bump_counter("dispatch_tip_evidence_refuse_total")
+            if hasattr(self._p2p, "bump_counter"):
+                self._p2p.bump_counter(f"fork_refuse_{r}_total")
         except Exception:
             pass
 
@@ -252,6 +260,89 @@ class ForkReconcileP2PSideEffectAdapter:
     def on_progress(self, message: str) -> None:
         logger.info("[Fork] %s", message)
         print(f"[P2P] {message}")
+
+    def tip_evidence_refuse(self, block: Mapping[str, Any]) -> str:
+        bridge = getattr(self._p2p, "_tip_evidence_bridge", None)
+        if bridge is None or not hasattr(bridge, "evaluate_block_candidate"):
+            return ""
+        try:
+            decision = bridge.evaluate_block_candidate(
+                dict(block), getattr(self._p2p, "blockchain", None)
+            )
+        except Exception as exc:
+            logger.warning("[Fork] tip evidence evaluate failed: %s", exc)
+            return ""
+        if decision is None:
+            return ""
+        if bool(getattr(decision, "enforce_refuse", False)):
+            return str(
+                getattr(decision, "reason_code", "") or "tip_evidence_enforce_refuse"
+            )
+        if getattr(decision, "ok", True) is False and bool(
+            getattr(bridge, "enforce", False)
+        ):
+            return str(
+                getattr(decision, "reason_code", "") or "tip_evidence_enforce_refuse"
+            )
+        return ""
+
+    def note_malicious_attempt(self, peer_id: str, reason: str) -> int:
+        key = f"{peer_id}:{reason}"
+        n = int(self._malicious_attempts.get(key, 0) or 0) + 1
+        self._malicious_attempts[key] = n
+        # Also aggregate per-peer across reasons for spam threshold.
+        peer_key = str(peer_id or "")
+        total = int(self._malicious_attempts.get(peer_key, 0) or 0) + 1
+        self._malicious_attempts[peer_key] = total
+        return total
+
+    def emit_security_evidence(self, evidence: Any) -> None:
+        self._evidence_log.append(evidence)
+        payload = (
+            evidence.to_bus_payload()
+            if hasattr(evidence, "to_bus_payload")
+            else {"evidence": str(evidence)}
+        )
+        try:
+            self._p2p.bump_counter("fork_security_evidence_total")
+        except Exception:
+            pass
+        # Persist last evidence on the node for status / ops.
+        try:
+            self._p2p._last_fork_security_evidence = dict(payload)
+        except Exception:
+            pass
+        bus = getattr(self._p2p, "bus", None)
+        if bus is not None and hasattr(bus, "emit"):
+            try:
+                bus.emit("security.fork_refuse", payload)
+            except Exception as exc:
+                logger.warning("[Fork] security bus emit failed: %s", exc)
+        logger.warning(
+            "[Fork] SECURITY EVIDENCE peer=%s reason=%s attempts=%s",
+            str(payload.get("peer_id", ""))[:12],
+            payload.get("reason_code"),
+            payload.get("attempt_count"),
+        )
+
+    def strike_malicious_peer(self, peer_id: str, reason: str) -> bool:
+        peer = None
+        if self._peer is not None and str(
+            getattr(self._peer, "peer_id", "") or ""
+        ) == str(peer_id or ""):
+            peer = self._peer
+        else:
+            peer = (getattr(self._p2p, "peers", {}) or {}).get(str(peer_id or ""))
+        if peer is None:
+            return False
+        try:
+            banned = bool(self._p2p.strike_peer(peer, str(reason or "fork_malicious")))
+            if banned:
+                self._p2p.remove_peer(str(peer_id or ""), peer)
+            return banned
+        except Exception as exc:
+            logger.warning("[Fork] strike failed: %s", exc)
+            return False
 
 
 def build_fork_reconcile_adapters(

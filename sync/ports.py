@@ -295,7 +295,7 @@ class ForkReconcileProbePort(Protocol):
 
 @runtime_checkable
 class ForkReconcileSideEffectPort(Protocol):
-    """Telemetry / peer bookkeeping / GHOST view (no policy decisions)."""
+    """Telemetry / peer bookkeeping / security evidence (no policy decisions)."""
 
     def bump_refuse(self, reason: str) -> None:
         ...
@@ -319,4 +319,20 @@ class ForkReconcileSideEffectPort(Protocol):
         ...
 
     def on_progress(self, message: str) -> None:
+        ...
+
+    def tip_evidence_refuse(self, block: Mapping[str, Any]) -> str:
+        """Empty = ok; otherwise tip-evidence enforce refuse reason."""
+        ...
+
+    def note_malicious_attempt(self, peer_id: str, reason: str) -> int:
+        """Record hostile same-height attempt; return per-peer attempt count."""
+        ...
+
+    def emit_security_evidence(self, evidence: Any) -> None:
+        """Publish fail-closed evidence to security bus / status surface."""
+        ...
+
+    def strike_malicious_peer(self, peer_id: str, reason: str) -> bool:
+        """Strike (and possibly ban) the offending peer. True if removed."""
         ...

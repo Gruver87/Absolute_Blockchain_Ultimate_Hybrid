@@ -5057,6 +5057,7 @@ class P2PNode:
         from sync.fork import (
             ForkPeerView,
             ForkReconcileConfig,
+            ForkReconcileMaliciousError,
             ForkReconcileService,
             ForkReconcileStatus,
         )
@@ -5095,7 +5096,16 @@ class P2PNode:
             ),
             fetch_timeout=30.0,
         )
-        outcome = await asyncio.to_thread(svc.run_same_height, view, cfg)
+        try:
+            outcome = await asyncio.to_thread(svc.run_same_height, view, cfg)
+        except ForkReconcileMaliciousError as exc:
+            logger.warning(
+                "[P2P] ForkReconcile FAIL-CLOSED peer=%s reason=%s evidence=%s",
+                (peer.peer_id or "")[:12],
+                exc.outcome.reason_code,
+                getattr(exc.evidence, "reason_code", ""),
+            )
+            return False
         logger.info(
             "[P2P] ForkReconcile peer=%s status=%s reason=%s",
             (peer.peer_id or "")[:12],
@@ -5122,7 +5132,12 @@ class P2PNode:
     ):
         """Shared thin wire for run_to_head (GHOST / admin / peer tip)."""
         from network.fork_adapters import build_fork_reconcile_adapters
-        from sync.fork import ForkPeerView, ForkReconcileConfig, ForkReconcileService
+        from sync.fork import (
+            ForkPeerView,
+            ForkReconcileConfig,
+            ForkReconcileMaliciousError,
+            ForkReconcileService,
+        )
 
         peer = peer_hint
         if peer is None:
@@ -5161,14 +5176,21 @@ class P2PNode:
             ),
             fetch_timeout=30.0,
         )
-        return await asyncio.to_thread(
-            lambda: svc.run_to_head(
-                str(target_head or ""),
-                view,
-                cfg,
-                ghost_probe=bool(ghost_probe),
+        try:
+            return await asyncio.to_thread(
+                lambda: svc.run_to_head(
+                    str(target_head or ""),
+                    view,
+                    cfg,
+                    ghost_probe=bool(ghost_probe),
+                )
             )
-        )
+        except ForkReconcileMaliciousError as exc:
+            logger.warning(
+                "[P2P] ForkReconcile FAIL-CLOSED to_head reason=%s",
+                exc.outcome.reason_code,
+            )
+            return exc.outcome
 
 
     async def reconcile_peers(self) -> Dict:
