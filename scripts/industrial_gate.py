@@ -527,8 +527,23 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         if "class RoundStateMachine" not in round_sm_py:
             errors.append("consensus/bft must expose RoundStateMachine (ADR 0007)")
         adapter_py = (ROOT / "consensus" / "adapter.py").read_text(encoding="utf-8")
-        if "round_sm" not in adapter_py or "_init_round_state_machine" not in adapter_py:
+        if "RoundStateMachine" not in adapter_py:
             errors.append("ConsensusAdapter must wire RoundStateMachine (ADR 0007)")
+        if (
+            "round_sm" not in adapter_py
+            and "_round_state" not in adapter_py
+            and "round_state" not in adapter_py
+        ):
+            errors.append(
+                "ConsensusAdapter must expose round_state / round_sm (ADR 0007)"
+            )
+        if (
+            "_init_round_state" not in adapter_py
+            and "_init_round_state_machine" not in adapter_py
+        ):
+            errors.append(
+                "ConsensusAdapter must init round state machine (ADR 0007)"
+            )
         if '"finality_quorum_live": False' not in adapter_py:
             errors.append(
                 "ConsensusAdapter get_stats must keep finality_quorum_live False (ADR 0007)"

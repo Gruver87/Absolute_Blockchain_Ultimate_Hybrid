@@ -2765,9 +2765,14 @@ def p2p_egress_prepare(
     max_bytes: int = 2 * 1024 * 1024,
     allowed_types: Optional[List[str]] = None,
     rl=None,
+    codec: Optional[str] = None,
 ):
-    """Encode + allowlist + size + egress admit (v1.3.87). Returns {ok, payload} / reject."""
+    """Encode + allowlist + size + egress admit (v1.3.87). Returns {ok, payload} / reject.
+
+    ``codec``: ``v1`` (NDJSON) or ``v2`` (AB2 Borsh). Defaults to ``ABS_P2P_WIRE_CODEC``.
+    """
     _require_native_kernel("p2p_egress_prepare")
+    mode = codec if codec is not None else p2p_wire_codec_mode()
     if _native is not None and hasattr(_native, "p2p_egress_prepare"):
         return _native.p2p_egress_prepare(
             str(msg_type or ""),
@@ -2777,6 +2782,7 @@ def p2p_egress_prepare(
             int(max_bytes),
             list(allowed_types) if allowed_types is not None else None,
             rl,
+            str(mode or "v1"),
         )
     raise RuntimeError("p2p_egress_prepare requires abs_native")
 
@@ -3414,11 +3420,52 @@ def parse_p2p_wire_line(
 
 
 def encode_p2p_wire_message(msg_type: str, data: Any = None) -> bytes:
-    """Encode a newline-terminated P2P envelope."""
+    """Encode a newline-terminated P2P envelope (v1 NDJSON by default)."""
     data_json = "null" if data is None else json.dumps(data, separators=(",", ":"), ensure_ascii=False)
     if _native is not None and hasattr(_native, "encode_p2p_wire_message"):
         return bytes(_native.encode_p2p_wire_message(str(msg_type), data_json))
     return (json.dumps({"type": str(msg_type), "data": data}, separators=(",", ":"), ensure_ascii=False) + "\n").encode()
+
+
+def p2p_wire_codec_mode(default: str = "auto") -> str:
+    """Outbound codec policy: ``ABS_P2P_WIRE_CODEC`` = ``auto`` | ``v1`` | ``v2``.
+
+    ``auto`` (default): reply in the peer's last inbound codec; bootstrap with v1.
+    """
+    raw = os.getenv("ABS_P2P_WIRE_CODEC", default or "auto").strip().lower()
+    if raw in {"v2", "borsh", "wire_v2"}:
+        return "v2"
+    if raw in {"v1", "json", "ndjson"}:
+        return "v1"
+    return "auto"
+
+
+def encode_p2p_wire_message_v2(msg_type: str, data: Any = None) -> bytes:
+    """Encode Borsh dual-stack line: ``AB2:`` + hex(envelope) + ``\\n``."""
+    data_json = "null" if data is None else json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+    if _native is not None and hasattr(_native, "encode_p2p_wire_message_v2"):
+        return bytes(_native.encode_p2p_wire_message_v2(str(msg_type), data_json))
+    from network.wire_codec import encode_wire_v2
+
+    body = encode_wire_v2(str(msg_type), data_json.encode("utf-8"))
+    return ("AB2:" + body.hex() + "\n").encode("ascii")
+
+
+def encode_p2p_wire_message_codec(
+    msg_type: str, data: Any = None, *, codec: Optional[str] = None
+) -> bytes:
+    """Encode with explicit or env-selected codec (``v1`` / ``v2``)."""
+    mode = (codec or p2p_wire_codec_mode()).strip().lower()
+    if mode in {"v2", "borsh", "wire_v2"}:
+        return encode_p2p_wire_message_v2(msg_type, data)
+    return encode_p2p_wire_message(msg_type, data)
+
+
+def p2p_wire_detect_codec(line: bytes) -> str:
+    if _native is not None and hasattr(_native, "p2p_wire_detect_codec"):
+        return str(_native.p2p_wire_detect_codec(bytes(line)))
+    text = bytes(line).decode("utf-8", errors="ignore").strip()
+    return "v2" if text.startswith("AB2:") else "v1"
 
 
 def hash_sorted_json(obj_json: str) -> str:

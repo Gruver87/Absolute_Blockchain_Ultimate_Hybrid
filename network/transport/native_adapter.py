@@ -31,13 +31,42 @@ class NativeTransportAdapter:
         require_native: When True, capability / admit paths raise if native
             kernels are missing (prod-style fail-closed). When False, admit
             returns a structured CAPABILITY reject instead of raising.
+        wire_codec: Outbound wire codec (``v1`` NDJSON / ``v2`` Borsh AB2).
+            ``None`` → ``ABS_P2P_WIRE_CODEC`` (default ``v1``). Inbound always
+            auto-detects ``AB2:`` vs JSON.
     """
 
-    __slots__ = ("_require_native", "_counters")
+    __slots__ = ("_require_native", "_counters", "_wire_codec")
 
-    def __init__(self, *, require_native: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        require_native: bool = False,
+        wire_codec: Optional[str] = None,
+    ) -> None:
         self._require_native = bool(require_native)
         self._counters = RejectCounters()
+        self._wire_codec = wire_codec
+
+    @property
+    def wire_codec(self) -> str:
+        from crypto import native as nat
+
+        if self._wire_codec is not None:
+            raw = str(self._wire_codec).strip().lower()
+            if raw in {"v2", "borsh", "wire_v2"}:
+                return "v2"
+            if raw in {"auto"}:
+                return "auto"
+            return "v1"
+        return nat.p2p_wire_codec_mode()
+
+    def resolve_outbound_codec(self, peer_codec: str = "v1") -> str:
+        """Map adapter policy + peer's last inbound codec → concrete ``v1``/``v2``."""
+        policy = self.wire_codec
+        if policy == "auto":
+            return "v2" if str(peer_codec).strip().lower() == "v2" else "v1"
+        return policy
 
     @property
     def counters(self) -> RejectCounters:
@@ -54,6 +83,7 @@ class NativeTransportAdapter:
             "transport": bool(n.p2p_native_transport_available()),
             "tls": bool(n.p2p_native_tls_available()),
             "require_native": self._require_native,
+            "wire_codec": self.wire_codec,
             "error": str(err) if err else "",
         }
 
@@ -177,6 +207,7 @@ class NativeTransportAdapter:
         allowed_types: Optional[Sequence[str]] = None,
         rate_table: Any = None,
         data_json: Optional[str] = None,
+        peer_wire_codec: str = "v1",
     ) -> AdmitDecision:
         """Encode + allowlist + egress admit via native prepare.
 
@@ -184,6 +215,8 @@ class NativeTransportAdapter:
             data_json: When set, use this wire JSON for ``data`` instead of
                 dumping ``envelope.payload`` (preserves peer ``ensure_ascii=False``
                 serialization parity with legacy ``p2p_egress_prepare`` callers).
+            peer_wire_codec: Last inbound codec for this peer (``v1``/``v2``);
+                used when adapter policy is ``auto``.
         """
         if not isinstance(envelope, OutboundEnvelope):
             reject = make_reject("transport_validation", "envelope must be OutboundEnvelope")
@@ -218,6 +251,7 @@ class NativeTransportAdapter:
                 max_bytes=int(max_bytes),
                 allowed_types=list(allowed_types) if allowed_types is not None else None,
                 rl=rate_table,
+                codec=self.resolve_outbound_codec(peer_wire_codec),
             )
         except Exception as exc:
             if self._require_native:
@@ -242,6 +276,7 @@ class NativeTransportAdapter:
         status["transport_native_available"] = bool(cap.get("available"))
         status["transport_native_transport"] = bool(cap.get("transport"))
         status["transport_native_tls"] = bool(cap.get("tls"))
+        status["transport_wire_codec"] = str(cap.get("wire_codec") or self.wire_codec)
         return status
 
     def _capability_admit_fail(self, detail: str) -> AdmitDecision:
@@ -279,6 +314,7 @@ class NativeTransportAdapter:
             msg_type=msg_type,
             data=raw.get("data"),
             raw_len=int(raw_len),
+            wire_codec=str(raw.get("wire_codec") or "v1"),
         )
         self._counters.record_admit_ok()
         return AdmitDecision(ok=True, frame=frame)

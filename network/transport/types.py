@@ -53,19 +53,21 @@ class PeerEndpoint:
 
 @dataclass(frozen=True, slots=True)
 class InboundFrame:
-    """One admitted inbound NDJSON application message.
+    """One admitted inbound application message (v1 NDJSON or v2 AB2 Borsh).
 
     Attributes:
         peer_id: Peer key used for rate/ban tables.
         msg_type: Wire ``type`` field.
         data: Decoded ``data`` payload (JSON-compatible).
         raw_len: Original line byte length (for cost accounting).
+        wire_codec: ``v1`` or ``v2`` (auto-detected from the frame).
     """
 
     peer_id: str
     msg_type: str
     data: Any
     raw_len: int
+    wire_codec: str = "v1"
 
 
 @dataclass(frozen=True, slots=True)

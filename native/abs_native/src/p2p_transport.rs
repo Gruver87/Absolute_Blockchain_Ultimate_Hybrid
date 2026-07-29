@@ -45,7 +45,7 @@
 
 use crate::p2p_frame::P2PLineFramer;
 use crate::p2p_wire::{
-    clamp_max_bytes, encode_p2p_wire_message_inner, parse_p2p_wire_line_inner,
+    clamp_max_bytes, encode_p2p_wire_by_codec, parse_p2p_wire_line_inner, resolve_outbound_codec,
     validate_attestation_shape_inner, validate_block_announce_inner, validate_blocks_batch_inner,
     validate_cross_shard_ack_inner, validate_cross_shard_tx_inner, validate_get_block_by_hash_inner,
     validate_get_block_inner, validate_get_blocks_inner, validate_handshake_inner,
@@ -548,12 +548,14 @@ fn decoded_ok_dict(
     msg_type: &str,
     data: &serde_json::Value,
     nbytes: usize,
+    wire_codec: &str,
 ) -> PyResult<PyObject> {
     let dict = PyDict::new_bound(py);
     dict.set_item("ok", true)?;
     dict.set_item("eof", false)?;
     dict.set_item("type", msg_type)?;
     dict.set_item("nbytes", nbytes)?;
+    dict.set_item("wire_codec", wire_codec)?;
     let data_json = serde_json::to_string(data)
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
     let data_obj = pyo3::types::PyModule::import_bound(py, "json")?
@@ -565,13 +567,14 @@ fn decoded_ok_dict(
 
 fn messages_to_list(
     py: Python<'_>,
-    batch: &[(String, serde_json::Value, usize)],
+    batch: &[(String, serde_json::Value, usize, String)],
 ) -> PyResult<PyObject> {
     let list = PyList::empty_bound(py);
-    for (msg_type, data, nbytes) in batch {
+    for (msg_type, data, nbytes, wire_codec) in batch {
         let item = PyDict::new_bound(py);
         item.set_item("type", msg_type)?;
         item.set_item("nbytes", *nbytes)?;
+        item.set_item("wire_codec", wire_codec)?;
         let data_json = serde_json::to_string(data)
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
         let data_obj = pyo3::types::PyModule::import_bound(py, "json")?
@@ -981,6 +984,8 @@ pub struct P2PNativeConn {
     io_timeout_ms: u64,
     /// v1.3.103: after successful Python handshake policy, reject mid-session HS.
     session_established: bool,
+    /// ADR 0008: last inbound wire codec (`v1` / `v2`) — used for auto outbound replies.
+    peer_wire_codec: String,
     closed: bool,
     tls: bool,
 }
@@ -1003,9 +1008,22 @@ impl P2PNativeConn {
             auto_keeps: 0,
             io_timeout_ms: 0,
             session_established: false,
+            peer_wire_codec: "v1".to_string(),
             closed: false,
             tls,
         }
+    }
+
+    fn note_peer_codec(&mut self, codec: &str) {
+        if codec == "v2" {
+            self.peer_wire_codec = "v2".to_string();
+        } else if codec == "v1" {
+            self.peer_wire_codec = "v1".to_string();
+        }
+    }
+
+    fn outbound_codec<'a>(&'a self, requested: &'a str) -> &'static str {
+        resolve_outbound_codec(requested, &self.peer_wire_codec)
     }
 
     fn from_plain(stream: TcpStream, max_bytes: usize, timeout_ms: u64) -> Result<Self, String> {
@@ -1042,7 +1060,8 @@ impl P2PNativeConn {
             .map(|d| d.as_secs_f64())
             .unwrap_or(0.0);
         let data_json = format!(r#"{{"ts":{ts}}}"#);
-        let payload = encode_p2p_wire_message_inner("pong", &data_json)?;
+        let codec = self.peer_wire_codec.clone();
+        let payload = encode_p2p_wire_by_codec("pong", &data_json, &codec)?;
         if payload.len() > self.max_bytes {
             return Err("p2p_line_too_large".to_string());
         }
@@ -1125,18 +1144,20 @@ impl P2PNativeConn {
     }
 
     /// One framed line → decoded envelope (or EOF / error).
+    /// Returns `(msg_type, data, nbytes, wire_codec)` and remembers peer codec.
     fn read_one_decoded(
         &mut self,
         chunk_sz: usize,
         allowed: Option<&HashSet<String>>,
-    ) -> Result<Option<(String, serde_json::Value, usize)>, String> {
+    ) -> Result<Option<(String, serde_json::Value, usize, String)>, String> {
         match self.read_line_inner(chunk_sz) {
             Ok(None) => Ok(None),
             Ok(Some(line)) => {
                 let nbytes = line.len();
-                let (msg_type, data) =
+                let (msg_type, data, codec) =
                     parse_p2p_wire_line_inner(&line, self.max_bytes, allowed)?;
-                Ok(Some((msg_type, data, nbytes)))
+                self.note_peer_codec(codec);
+                Ok(Some((msg_type, data, nbytes, codec.to_string())))
             }
             Err(reason) => Err(reason),
         }
@@ -1334,12 +1355,12 @@ impl P2PNativeConn {
     ) -> PyResult<PyObject> {
         let allowed_set = allowed_types.map(|items| items.into_iter().collect::<HashSet<_>>());
         let keeps_before = self.auto_keeps;
-        let result = py.allow_threads(|| -> Result<Option<(String, serde_json::Value, usize)>, String> {
+        let result = py.allow_threads(|| -> Result<Option<(String, serde_json::Value, usize, String)>, String> {
             // Bound auto-keepalive skips so a ping/pong flood cannot spin forever.
             for _ in 0..64 {
                 match self.read_one_decoded(chunk_sz, allowed_set.as_ref())? {
                     None => return Ok(None),
-                    Some((msg_type, data, nbytes)) => {
+                    Some((msg_type, data, nbytes, wire_codec)) => {
                         check_mid_session_handshake(self.session_established, &msg_type)?;
                         check_ingress_shape_gates(&msg_type, &data)?;
                         // Early reject get_* always; ping/pong gated inside auto_pong path.
@@ -1349,7 +1370,7 @@ impl P2PNativeConn {
                         if self.maybe_auto_pong(&msg_type, &data, auto_pong)? {
                             continue;
                         }
-                        return Ok(Some((msg_type, data, nbytes)));
+                        return Ok(Some((msg_type, data, nbytes, wire_codec)));
                     }
                 }
             }
@@ -1362,10 +1383,11 @@ impl P2PNativeConn {
                 dict.set_item("ok", true)?;
                 dict.set_item("eof", true)?;
                 dict.set_item("keepalive_touches", keepalive_touches)?;
+                dict.set_item("wire_codec", self.peer_wire_codec.as_str())?;
                 Ok(dict.into_any().unbind())
             }
-            Ok(Some((msg_type, data, nbytes))) => {
-                let obj = decoded_ok_dict(py, &msg_type, &data, nbytes)?;
+            Ok(Some((msg_type, data, nbytes, wire_codec))) => {
+                let obj = decoded_ok_dict(py, &msg_type, &data, nbytes, &wire_codec)?;
                 obj.bind(py)
                     .downcast::<PyDict>()?
                     .set_item("keepalive_touches", keepalive_touches)?;
@@ -1375,7 +1397,7 @@ impl P2PNativeConn {
                 // Timeout after only keepalive frames → synthetic pong for last_seen touch.
                 if reason == "p2p_transport_timeout" && keepalive_touches > 0 {
                     let data = serde_json::json!({});
-                    let obj = decoded_ok_dict(py, "pong", &data, 0)?;
+                    let obj = decoded_ok_dict(py, "pong", &data, 0, &self.peer_wire_codec)?;
                     let d = obj.bind(py).downcast::<PyDict>()?;
                     d.set_item("keepalive", true)?;
                     d.set_item("keepalive_touches", keepalive_touches)?;
@@ -1387,6 +1409,7 @@ impl P2PNativeConn {
                 dict.set_item("reason", short)?;
                 dict.set_item("eof", false)?;
                 dict.set_item("keepalive_touches", keepalive_touches)?;
+                dict.set_item("wire_codec", self.peer_wire_codec.as_str())?;
                 Ok(dict.into_any().unbind())
             }
         }
@@ -1428,7 +1451,7 @@ impl P2PNativeConn {
         let pongs_before = self.auto_pongs;
         let keeps_before = self.auto_keeps;
         let result = py.allow_threads(|| {
-            let mut batch: Vec<(String, serde_json::Value, usize)> = Vec::new();
+            let mut batch: Vec<(String, serde_json::Value, usize, String)> = Vec::new();
             let mut eof = false;
             let mut err: Option<String> = None;
             let mut skips = 0u32;
@@ -1438,7 +1461,7 @@ impl P2PNativeConn {
                         eof = true;
                         break;
                     }
-                    Ok(Some((msg_type, data, nbytes))) => {
+                    Ok(Some((msg_type, data, nbytes, wire_codec))) => {
                         if let Err(reason) =
                             check_mid_session_handshake(self.session_established, &msg_type)
                         {
@@ -1464,7 +1487,7 @@ impl P2PNativeConn {
                                 }
                                 continue;
                             }
-                            Ok(false) => batch.push((msg_type, data, nbytes)),
+                            Ok(false) => batch.push((msg_type, data, nbytes, wire_codec)),
                             Err(reason) => {
                                 err = Some(reason);
                                 break;
@@ -1553,7 +1576,7 @@ impl P2PNativeConn {
                         events.push(LoopShellEvent::Eof);
                         break;
                     }
-                    Ok(Some((msg_type, data, nbytes))) => {
+                    Ok(Some((msg_type, data, nbytes, _wire_codec))) => {
                         if let Err(reason) =
                             check_mid_session_handshake(self.session_established, &msg_type)
                         {
@@ -1693,13 +1716,14 @@ impl P2PNativeConn {
     ///
     /// `{ok:true, nbytes}` | `{ok:false, reason}`.
     /// Egress rate-limit remains Python (`p2p_egress_prepare` / `admit_egress`).
-    #[pyo3(signature = (msg_type, data_json="null", allowed_types=None))]
+    #[pyo3(signature = (msg_type, data_json="null", allowed_types=None, codec="auto"))]
     fn write_message(
         &mut self,
         py: Python<'_>,
         msg_type: &str,
         data_json: &str,
         allowed_types: Option<Vec<String>>,
+        codec: &str,
     ) -> PyResult<PyObject> {
         if let Some(allowed) = allowed_types.as_ref() {
             if !allowed.is_empty() && !allowed.iter().any(|t| t == msg_type) {
@@ -1711,9 +1735,10 @@ impl P2PNativeConn {
         }
         let msg_type = msg_type.to_string();
         let data_json = data_json.to_string();
+        let codec = self.outbound_codec(codec).to_string();
         let max_bytes = self.max_bytes;
         let result = py.allow_threads(|| -> Result<usize, String> {
-            let payload = encode_p2p_wire_message_inner(&msg_type, &data_json)?;
+            let payload = encode_p2p_wire_by_codec(&msg_type, &data_json, &codec)?;
             if payload.len() > max_bytes {
                 return Err("p2p_line_too_large".to_string());
             }
@@ -1725,6 +1750,7 @@ impl P2PNativeConn {
                 let dict = PyDict::new_bound(py);
                 dict.set_item("ok", true)?;
                 dict.set_item("nbytes", nbytes)?;
+                dict.set_item("wire_codec", codec)?;
                 Ok(dict.into_any().unbind())
             }
             Err(reason) => {
@@ -1741,12 +1767,13 @@ impl P2PNativeConn {
     ///
     /// `items` is a list of `(msg_type, data_json)` tuples.
     /// `{ok:true, nbytes, count}` | `{ok:false, reason, written, count}`.
-    #[pyo3(signature = (items, allowed_types=None))]
+    #[pyo3(signature = (items, allowed_types=None, codec="auto"))]
     fn write_messages(
         &mut self,
         py: Python<'_>,
         items: Vec<(String, String)>,
         allowed_types: Option<Vec<String>>,
+        codec: &str,
     ) -> PyResult<PyObject> {
         if items.is_empty() {
             let dict = PyDict::new_bound(py);
@@ -1766,6 +1793,7 @@ impl P2PNativeConn {
         let allowed_set: Option<HashSet<String>> =
             allowed_types.map(|items| items.into_iter().collect());
         let max_bytes = self.max_bytes;
+        let codec = self.outbound_codec(codec).to_string();
         let result = py.allow_threads(|| -> Result<(usize, usize), (String, usize, usize)> {
             let mut total = 0usize;
             let mut written = 0usize;
@@ -1779,7 +1807,7 @@ impl P2PNativeConn {
                         ));
                     }
                 }
-                let payload = encode_p2p_wire_message_inner(msg_type, data_json)
+                let payload = encode_p2p_wire_by_codec(msg_type, data_json, &codec)
                     .map_err(|e| (e, total, written))?;
                 if payload.len() > max_bytes {
                     return Err(("p2p_line_too_large".to_string(), total, written));
@@ -1797,6 +1825,7 @@ impl P2PNativeConn {
                 dict.set_item("ok", true)?;
                 dict.set_item("nbytes", nbytes)?;
                 dict.set_item("count", count)?;
+                dict.set_item("wire_codec", codec)?;
                 Ok(dict.into_any().unbind())
             }
             Err((reason, nbytes, written)) => {
@@ -1902,16 +1931,17 @@ impl P2PNativeConn {
         let allowed: HashSet<String> = ["handshake".into(), "handshake_ack".into()]
             .into_iter()
             .collect();
-        let result = py.allow_threads(|| -> Result<(String, serde_json::Value, usize), String> {
+        let result = py.allow_threads(|| -> Result<(String, serde_json::Value, usize, String), String> {
             if initiator {
-                let payload = encode_p2p_wire_message_inner("handshake", &our_data_json)?;
+                // Bootstrap handshake in v1; peer may answer v2 — we learn and stick.
+                let payload = encode_p2p_wire_by_codec("handshake", &our_data_json, "v1")?;
                 if payload.len() > max_bytes {
                     return Err("p2p_line_too_large".to_string());
                 }
                 self.write_inner(&payload)?;
                 match self.read_one_decoded(chunk_sz, Some(&allowed))? {
                     None => Err("p2p_handshake_eof".to_string()),
-                    Some((msg_type, data, nbytes)) => {
+                    Some((msg_type, data, nbytes, wire_codec)) => {
                         if msg_type != "handshake_ack" {
                             return Err(format!("p2p_handshake_unexpected:{msg_type}"));
                         }
@@ -1924,13 +1954,13 @@ impl P2PNativeConn {
                             conn_tls,
                             &peer_identities,
                         )?;
-                        Ok((msg_type, data, nbytes))
+                        Ok((msg_type, data, nbytes, wire_codec))
                     }
                 }
             } else {
                 match self.read_one_decoded(chunk_sz, Some(&allowed))? {
                     None => Err("p2p_handshake_eof".to_string()),
-                    Some((msg_type, data, nbytes)) => {
+                    Some((msg_type, data, nbytes, wire_codec)) => {
                         if msg_type != "handshake" {
                             return Err(format!("p2p_handshake_unexpected:{msg_type}"));
                         }
@@ -1943,19 +1973,25 @@ impl P2PNativeConn {
                             conn_tls,
                             &peer_identities,
                         )?;
-                        let payload =
-                            encode_p2p_wire_message_inner("handshake_ack", &our_data_json)?;
+                        // Reply in the peer's native codec (learned from inbound handshake).
+                        let payload = encode_p2p_wire_by_codec(
+                            "handshake_ack",
+                            &our_data_json,
+                            &wire_codec,
+                        )?;
                         if payload.len() > max_bytes {
                             return Err("p2p_line_too_large".to_string());
                         }
                         self.write_inner(&payload)?;
-                        Ok((msg_type, data, nbytes))
+                        Ok((msg_type, data, nbytes, wire_codec))
                     }
                 }
             }
         });
         match result {
-            Ok((msg_type, data, nbytes)) => decoded_ok_dict(py, &msg_type, &data, nbytes),
+            Ok((msg_type, data, nbytes, wire_codec)) => {
+                decoded_ok_dict(py, &msg_type, &data, nbytes, &wire_codec)
+            }
             Err(reason) => {
                 let short = wire_fail_reason(&reason);
                 let dict = PyDict::new_bound(py);
@@ -1986,6 +2022,21 @@ impl P2PNativeConn {
     #[getter]
     fn session_established(&self) -> bool {
         self.session_established
+    }
+
+    /// ADR 0008: last inbound peer wire codec (`v1` / `v2`).
+    #[getter]
+    fn peer_wire_codec(&self) -> &str {
+        &self.peer_wire_codec
+    }
+
+    /// Force peer codec (tests / explicit negotiation).
+    fn set_peer_wire_codec(&mut self, codec: &str) {
+        self.note_peer_codec(if codec.trim().eq_ignore_ascii_case("v2") {
+            "v2"
+        } else {
+            "v1"
+        });
     }
 
     fn shutdown(&mut self) {
@@ -2286,10 +2337,14 @@ mod tests {
         let (msg_type, data, nbytes) = {
             let line = conn.read_line_inner(4096).unwrap().unwrap();
             let nbytes = line.len();
-            let (t, d) = parse_p2p_wire_line_inner(&line, conn.max_bytes, allowed.as_ref()).unwrap();
+            let (t, d, codec) =
+                parse_p2p_wire_line_inner(&line, conn.max_bytes, allowed.as_ref()).unwrap();
+            assert_eq!(codec, "v1");
+            conn.note_peer_codec(codec);
             (t, d, nbytes)
         };
         assert_eq!(msg_type, "status");
+        assert_eq!(conn.peer_wire_codec, "v1");
         assert_eq!(data["height"], 7);
         assert!(nbytes > 10);
         handle.join().unwrap();

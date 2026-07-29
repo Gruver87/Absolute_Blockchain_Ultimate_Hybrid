@@ -35,7 +35,7 @@ pub fn fuzz_p2p_wire_parse(line: &[u8], max_bytes: usize) -> Result<(), String> 
 /// Encode then parse round-trip when both succeed (no panic).
 pub fn fuzz_p2p_wire_roundtrip(msg_type: &str, data_json: &str) -> Result<(), String> {
     let encoded = encode_p2p_wire_message_inner(msg_type, data_json)?;
-    let (got_type, _) =
+    let (got_type, _, _codec) =
         parse_p2p_wire_line_inner(&encoded, DEFAULT_MAX_P2P_LINE_BYTES, None)?;
     if got_type != msg_type {
         return Err(format!("type_mismatch:{got_type}"));

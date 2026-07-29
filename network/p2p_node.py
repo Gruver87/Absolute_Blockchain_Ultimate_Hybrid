@@ -276,6 +276,7 @@ class PeerConnection:
         self._native_io_timeout_ms: int = 30000
         self._use_egress_prepare = False  # v1.3.87 unified prepare
         self._transport_adapter = None  # set by P2PNode._attach_peer_hooks (Step C)
+        self._wire_codec = None  # ADR 0008: learned peer codec (v1|v2); None → auto
         self._egress_max_bytes = DEFAULT_MAX_P2P_LINE_BYTES
         # v1.3.66/72: bounded outbound queue (config-driven size + drain timeout)
         qmax = max(8, int(send_queue_max or 256))
@@ -289,6 +290,37 @@ class PeerConnection:
         """Async wait bound matching socket I/O timeout (+1s cushion)."""
         ms = int(getattr(self, "_native_io_timeout_ms", 30000) or 30000)
         return max(2.0, (ms / 1000.0) + 1.0)
+
+    def _effective_wire_codec(self) -> str:
+        """Concrete outbound codec for this peer (auto → learned / v1 bootstrap)."""
+        learned = getattr(self, "_wire_codec", None)
+        if learned in ("v1", "v2"):
+            return str(learned)
+        conn = getattr(self, "_native_conn", None)
+        if conn is not None and hasattr(conn, "peer_wire_codec"):
+            try:
+                native_codec = str(conn.peer_wire_codec or "").strip().lower()
+                if native_codec in ("v1", "v2"):
+                    return native_codec
+            except Exception:
+                pass
+        mode = native.p2p_wire_codec_mode()
+        if mode in ("v1", "v2"):
+            return mode
+        return "v1"
+
+    def _note_peer_wire_codec(self, codec: Any) -> None:
+        """Remember peer's inbound codec and sync native conn for auto replies."""
+        raw = str(codec or "").strip().lower()
+        if raw not in ("v1", "v2"):
+            return
+        self._wire_codec = raw
+        conn = getattr(self, "_native_conn", None)
+        if conn is not None and hasattr(conn, "set_peer_wire_codec"):
+            try:
+                conn.set_peer_wire_codec(raw)
+            except Exception:
+                pass
 
     def touch(self):
         self.last_seen = time.time()
@@ -339,6 +371,7 @@ class PeerConnection:
                     str(msg_type or ""),
                     data_json,
                     list(ALLOWED_WIRE_TYPES),
+                    "auto",
                 ),
                 timeout=self._drain_timeout_sec,
             )
@@ -506,6 +539,7 @@ class PeerConnection:
                         allowed_types=list(ALLOWED_WIRE_TYPES),
                         rate_table=self._rl_table,
                         data_json=data_json,
+                        peer_wire_codec=self._effective_wire_codec(),
                     )
                     if not decision.accepted:
                         reason = (
@@ -537,6 +571,7 @@ class PeerConnection:
                     max_bytes,
                     list(ALLOWED_WIRE_TYPES),
                     self._rl_table,
+                    self._effective_wire_codec(),
                 )
             except Exception as exc:
                 logger.warning(
@@ -564,7 +599,11 @@ class PeerConnection:
                     )
                 return None
             return bytes(out.get("payload") or b"")
-        payload = native.encode_p2p_wire_message(msg_type, data)
+        payload = native.encode_p2p_wire_message_codec(
+            msg_type,
+            data,
+            codec=self._effective_wire_codec(),
+        )
         if not self._egress_ok(msg_type, payload):
             return None
         return payload
@@ -740,6 +779,7 @@ class PeerConnection:
         msg_type = item.get("type")
         data = item.get("data")
         nbytes = int(item.get("nbytes") or 0)
+        self._note_peer_wire_codec(item.get("wire_codec"))
         if use_ingress and rl_table is not None and hasattr(rl_table, "admit_rate"):
             reject = rl_table.admit_rate(
                 str(peer_key or self.peer_id or self.host or ""),
@@ -944,6 +984,7 @@ class PeerConnection:
                         "type": out.get("type"),
                         "data": out.get("data"),
                         "nbytes": int(out.get("nbytes") or 0),
+                        "wire_codec": out.get("wire_codec") or "v1",
                     }
                 return self._admit_pending_item(
                     item, use_ingress=use_ingress, rl_table=rl_table, peer_key=peer_key
@@ -981,10 +1022,12 @@ class PeerConnection:
                             admitted = {"ok": False, "reason": reason}
                         else:
                             assert decision.frame is not None
+                            self._note_peer_wire_codec(decision.frame.wire_codec)
                             admitted = {
                                 "ok": True,
                                 "type": decision.frame.msg_type,
                                 "data": decision.frame.data,
+                                "wire_codec": decision.frame.wire_codec,
                             }
                     else:
                         admitted = native.p2p_ingress_admit(
@@ -1034,9 +1077,12 @@ class PeerConnection:
                             len(line),
                         )
                     return WireReject(reason)
+                self._note_peer_wire_codec(admitted.get("wire_codec"))
                 return {
                     "type": admitted.get("type"),
                     "data": admitted.get("data"),
+                    "wire_codec": admitted.get("wire_codec")
+                    or self._effective_wire_codec(),
                 }
             try:
                 parsed = native.parse_p2p_wire_line(
@@ -1063,6 +1109,8 @@ class PeerConnection:
                     len(line),
                 )
                 return WireReject("bad_wire_line")
+            if isinstance(parsed, dict):
+                self._note_peer_wire_codec(parsed.get("wire_codec"))
             return parsed
         except asyncio.TimeoutError:
             return {"type": MSG_IDLE, "data": None}
@@ -1943,6 +1991,8 @@ class P2PNode:
             getattr(self, "_native_message_loop_shell", False)
         )
         peer._transport_adapter = getattr(self, "transport_adapter", None)
+        # Dual-stack: start in auto mode; peer codec is learned from first inbound.
+        peer._wire_codec = None
         if self._use_native_egress:
             peer._rl_table = self._rl_table
             peer._use_egress_prepare = hasattr(native, "p2p_egress_prepare") or (

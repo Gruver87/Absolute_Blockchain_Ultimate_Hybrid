@@ -6,6 +6,7 @@ version = 4
 name = "abs_native"
 version = "0.1.0"
 dependencies = [
+ "borsh",
  "hex",
  "k256",
  "num-bigint",

@@ -6,7 +6,7 @@
 
 use crate::p2p_rate_limit::P2PRateLimitTable;
 use crate::p2p_wire::{
-    clamp_max_bytes, encode_p2p_wire_message_inner, parse_p2p_wire_line_inner,
+    clamp_max_bytes, encode_p2p_wire_by_codec, parse_p2p_wire_line_inner,
     DEFAULT_MAX_P2P_LINE_BYTES,
 };
 use pyo3::prelude::*;
@@ -49,11 +49,11 @@ fn p2p_ingress_admit(
     mut rl: Option<PyRefMut<'_, P2PRateLimitTable>>,
 ) -> PyResult<PyObject> {
     let allowed_set = allowed_types.map(|items| items.into_iter().collect::<HashSet<_>>());
-    let (msg_type, data) = match parse_p2p_wire_line_inner(line, max_bytes, allowed_set.as_ref())
-    {
-        Ok(v) => v,
-        Err(err) => return reject_dict(py, &wire_reject_reason(&err)),
-    };
+    let (msg_type, data, wire_codec) =
+        match parse_p2p_wire_line_inner(line, max_bytes, allowed_set.as_ref()) {
+            Ok(v) => v,
+            Err(err) => return reject_dict(py, &wire_reject_reason(&err)),
+        };
 
     if let Some(ref mut table) = rl {
         if let Some(reason) =
@@ -66,6 +66,7 @@ fn p2p_ingress_admit(
     let dict = PyDict::new_bound(py);
     dict.set_item("ok", true)?;
     dict.set_item("type", &msg_type)?;
+    dict.set_item("wire_codec", wire_codec)?;
     let data_json = serde_json::to_string(&data)
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
     let data_obj = pyo3::types::PyModule::import_bound(py, "json")?
@@ -493,7 +494,7 @@ fn p2p_peer_addr_is_dialable(addr: &str, allow_private: bool) -> bool {
 /// v1.3.87: outbound prepare — encode + allowlist + size + egress admit (mirror of ingress).
 /// Returns `{ok:true, payload: bytes}` or `{ok:false, reason}`.
 #[pyfunction]
-#[pyo3(signature = (msg_type, data_json, peer_id, now, max_bytes=DEFAULT_MAX_P2P_LINE_BYTES, allowed_types=None, rl=None))]
+#[pyo3(signature = (msg_type, data_json, peer_id, now, max_bytes=DEFAULT_MAX_P2P_LINE_BYTES, allowed_types=None, rl=None, codec="auto"))]
 fn p2p_egress_prepare(
     py: Python<'_>,
     msg_type: &str,
@@ -503,6 +504,7 @@ fn p2p_egress_prepare(
     max_bytes: usize,
     allowed_types: Option<Vec<String>>,
     mut rl: Option<PyRefMut<'_, P2PRateLimitTable>>,
+    codec: &str,
 ) -> PyResult<PyObject> {
     let limit = clamp_max_bytes(max_bytes);
     if let Some(allowed) = allowed_types.as_ref() {
@@ -511,7 +513,7 @@ fn p2p_egress_prepare(
             return reject_dict(py, &format!("p2p_type_not_allowed:{msg_type}"));
         }
     }
-    let payload = match encode_p2p_wire_message_inner(msg_type, data_json) {
+    let payload = match encode_p2p_wire_by_codec(msg_type, data_json, codec) {
         Ok(bytes) => bytes,
         Err(err) => return reject_dict(py, &wire_reject_reason(&err)),
     };

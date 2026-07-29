@@ -1,24 +1,115 @@
-//! Fail-closed P2P wire envelope parse/encode (newline-delimited JSON).
+//! Fail-closed P2P wire envelope parse/encode (newline-delimited).
+//!
+//! v1: NDJSON `{"type":...,"data":...}\n`
+//! v2: `AB2:` + hex(Borsh WireEnvelopeV2) + `\n` (ADR 0008 dual-stack)
 
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde_json::Value;
 use std::collections::HashSet;
 
+use crate::hotpath::{decode_wire_v2_inner, encode_wire_v2_inner};
+
 pub(crate) const DEFAULT_MAX_P2P_LINE_BYTES: usize = 2 * 1024 * 1024;
 pub(crate) const MIN_P2P_LINE_BYTES: usize = 4096;
 pub(crate) const MAX_P2P_LINE_BYTES: usize = 16 * 1024 * 1024;
 pub(crate) const MAX_P2P_TYPE_LEN: usize = 64;
+/// Line prefix for Borsh wire codec v2 (≠ `{`, safe for read_line dual-stack).
+pub(crate) const WIRE_V2_LINE_PREFIX: &str = "AB2:";
 
 pub(crate) fn clamp_max_bytes(max_bytes: usize) -> usize {
     max_bytes.clamp(MIN_P2P_LINE_BYTES, MAX_P2P_LINE_BYTES)
 }
 
+fn is_wire_codec_v2(codec: &str) -> bool {
+    matches!(
+        codec.trim().to_ascii_lowercase().as_str(),
+        "v2" | "borsh" | "wire_v2"
+    )
+}
+
+pub(crate) fn encode_p2p_wire_message_v2_inner(
+    msg_type: &str,
+    data_json: &str,
+) -> Result<Vec<u8>, String> {
+    if msg_type.is_empty() || msg_type.len() > MAX_P2P_TYPE_LEN {
+        return Err("p2p_type_invalid".to_string());
+    }
+    // Validate JSON (or null) then store raw UTF-8 as Borsh payload.
+    let payload_bytes: Vec<u8> = if data_json.trim().is_empty() {
+        b"null".to_vec()
+    } else {
+        let _: Value = serde_json::from_str(data_json)
+            .map_err(|e| format!("p2p_data_json_invalid: {e}"))?;
+        data_json.as_bytes().to_vec()
+    };
+    let body = encode_wire_v2_inner(msg_type, &payload_bytes)?;
+    let hex_body = hex::encode(body);
+    let mut out = String::with_capacity(WIRE_V2_LINE_PREFIX.len() + hex_body.len() + 1);
+    out.push_str(WIRE_V2_LINE_PREFIX);
+    out.push_str(&hex_body);
+    out.push('\n');
+    let bytes = out.into_bytes();
+    if bytes.len() > MAX_P2P_LINE_BYTES {
+        return Err(format!(
+            "p2p_line_too_large: {} > {} bytes",
+            bytes.len(),
+            MAX_P2P_LINE_BYTES
+        ));
+    }
+    Ok(bytes)
+}
+
+pub(crate) fn encode_p2p_wire_by_codec(
+    msg_type: &str,
+    data_json: &str,
+    codec: &str,
+) -> Result<Vec<u8>, String> {
+    // `auto` without a peer context falls back to v1 (bootstrap). Callers that
+    // know the peer must pass resolve_outbound_codec(...) first.
+    if is_wire_codec_v2(codec) {
+        encode_p2p_wire_message_v2_inner(msg_type, data_json)
+    } else {
+        encode_p2p_wire_message_inner(msg_type, data_json)
+    }
+}
+
+pub(crate) fn parse_p2p_wire_v2_line(
+    text: &str,
+    allowed_types: Option<&HashSet<String>>,
+) -> Result<(String, Value), String> {
+    let hex_part = text
+        .strip_prefix(WIRE_V2_LINE_PREFIX)
+        .ok_or_else(|| "p2p_v2_prefix_missing".to_string())?
+        .trim();
+    if hex_part.is_empty() {
+        return Err("p2p_v2_empty".to_string());
+    }
+    let body = hex::decode(hex_part).map_err(|e| format!("p2p_v2_hex_invalid: {e}"))?;
+    let env = decode_wire_v2_inner(&body)?;
+    if env.msg_type.is_empty() || env.msg_type.len() > MAX_P2P_TYPE_LEN {
+        return Err("p2p_type_invalid".to_string());
+    }
+    if let Some(allowed) = allowed_types {
+        if !allowed.is_empty() && !allowed.contains(&env.msg_type) {
+            return Err(format!("p2p_type_not_allowed: {}", env.msg_type));
+        }
+    }
+    let data: Value = if env.payload.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_slice(&env.payload)
+            .map_err(|e| format!("p2p_v2_payload_json_invalid: {e}"))?
+    };
+    Ok((env.msg_type, data))
+}
+
+/// Parse one P2P line. Returns `(msg_type, data, wire_codec)` where codec is `"v1"` or `"v2"`.
 pub(crate) fn parse_p2p_wire_line_inner(
     line: &[u8],
     max_bytes: usize,
     allowed_types: Option<&HashSet<String>>,
-) -> Result<(String, Value), String> {
+) -> Result<(String, Value, &'static str), String> {
     let limit = clamp_max_bytes(max_bytes);
     if line.len() > limit {
         return Err(format!(
@@ -33,6 +124,11 @@ pub(crate) fn parse_p2p_wire_line_inner(
         .trim_end_matches('\0');
     if text.is_empty() {
         return Err("p2p_line_empty".to_string());
+    }
+    // Dual-stack auto-detect: Borsh v2 line vs legacy NDJSON.
+    if text.starts_with(WIRE_V2_LINE_PREFIX) {
+        let (msg_type, data) = parse_p2p_wire_v2_line(text, allowed_types)?;
+        return Ok((msg_type, data, "v2"));
     }
     let value: Value = serde_json::from_str(text).map_err(|e| format!("p2p_json_invalid: {e}"))?;
     let obj = value
@@ -51,7 +147,24 @@ pub(crate) fn parse_p2p_wire_line_inner(
         }
     }
     let data = obj.get("data").cloned().unwrap_or(Value::Null);
-    Ok((msg_type.to_string(), data))
+    Ok((msg_type.to_string(), data, "v1"))
+}
+
+/// Resolve outbound codec: `auto` → peer's last inbound codec; else explicit v1/v2.
+pub(crate) fn resolve_outbound_codec(requested: &str, peer_codec: &str) -> &'static str {
+    let req = requested.trim().to_ascii_lowercase();
+    if req.is_empty() || req == "auto" {
+        return if is_wire_codec_v2(peer_codec) {
+            "v2"
+        } else {
+            "v1"
+        };
+    }
+    if is_wire_codec_v2(&req) {
+        "v2"
+    } else {
+        "v1"
+    }
 }
 
 pub(crate) fn encode_p2p_wire_message_inner(msg_type: &str, data_json: &str) -> Result<Vec<u8>, String> {
@@ -90,9 +203,10 @@ fn parse_p2p_wire_line(
 ) -> PyResult<Option<PyObject>> {
     let allowed_set = allowed_types.map(|items| items.into_iter().collect::<HashSet<_>>());
     match parse_p2p_wire_line_inner(line, max_bytes, allowed_set.as_ref()) {
-        Ok((msg_type, data)) => {
+        Ok((msg_type, data, wire_codec)) => {
             let dict = PyDict::new_bound(py);
             dict.set_item("type", msg_type)?;
+            dict.set_item("wire_codec", wire_codec)?;
             let data_json = serde_json::to_string(&data)
                 .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
             let data_obj = pyo3::types::PyModule::import_bound(py, "json")?
@@ -112,6 +226,33 @@ fn parse_p2p_wire_line(
 fn encode_p2p_wire_message(msg_type: String, data_json: String) -> PyResult<Vec<u8>> {
     encode_p2p_wire_message_inner(&msg_type, &data_json)
         .map_err(pyo3::exceptions::PyValueError::new_err)
+}
+
+#[pyfunction]
+#[pyo3(signature = (msg_type, data_json, codec="v1"))]
+fn encode_p2p_wire_message_codec(
+    msg_type: String,
+    data_json: String,
+    codec: &str,
+) -> PyResult<Vec<u8>> {
+    encode_p2p_wire_by_codec(&msg_type, &data_json, codec)
+        .map_err(pyo3::exceptions::PyValueError::new_err)
+}
+
+#[pyfunction]
+fn encode_p2p_wire_message_v2(msg_type: String, data_json: String) -> PyResult<Vec<u8>> {
+    encode_p2p_wire_message_v2_inner(&msg_type, &data_json)
+        .map_err(pyo3::exceptions::PyValueError::new_err)
+}
+
+#[pyfunction]
+fn p2p_wire_detect_codec(line: &[u8]) -> String {
+    let text = std::str::from_utf8(line).unwrap_or("").trim();
+    if text.starts_with(WIRE_V2_LINE_PREFIX) {
+        "v2".to_string()
+    } else {
+        "v1".to_string()
+    }
 }
 
 #[pyfunction]
@@ -1519,6 +1660,9 @@ fn validate_p2p_shard_migration(py: Python<'_>, data_json: String) -> PyResult<O
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_p2p_wire_line, m)?)?;
     m.add_function(wrap_pyfunction!(encode_p2p_wire_message, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_p2p_wire_message_v2, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_p2p_wire_message_codec, m)?)?;
+    m.add_function(wrap_pyfunction!(p2p_wire_detect_codec, m)?)?;
     m.add_function(wrap_pyfunction!(hash_sorted_json, m)?)?;
     m.add_function(wrap_pyfunction!(verify_attestation_secp256k1, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_status_payload, m)?)?;
@@ -1553,9 +1697,11 @@ mod tests {
     #[test]
     fn parses_valid_envelope() {
         let line = br#"{"type":"ping","data":null}"#;
-        let (msg_type, data) = parse_p2p_wire_line_inner(line, 1024 * 1024, None).unwrap();
+        let (msg_type, data, codec) =
+            parse_p2p_wire_line_inner(line, 1024 * 1024, None).unwrap();
         assert_eq!(msg_type, "ping");
         assert!(data.is_null());
+        assert_eq!(codec, "v1");
     }
 
     #[test]
@@ -1569,8 +1715,44 @@ mod tests {
     fn encode_roundtrip_type() {
         let bytes = encode_p2p_wire_message_inner("status", r#"{"height":1}"#).unwrap();
         assert!(bytes.ends_with(b"\n"));
-        let (msg_type, data) = parse_p2p_wire_line_inner(&bytes, 1024 * 1024, None).unwrap();
+        let (msg_type, data, codec) =
+            parse_p2p_wire_line_inner(&bytes, 1024 * 1024, None).unwrap();
         assert_eq!(msg_type, "status");
         assert_eq!(data["height"], 1);
+        assert_eq!(codec, "v1");
+    }
+
+    #[test]
+    fn encode_roundtrip_v2_ab2_line() {
+        let bytes = encode_p2p_wire_message_v2_inner("new_tx", r#"{"hash":"abc"}"#).unwrap();
+        assert!(bytes.starts_with(b"AB2:"));
+        assert!(bytes.ends_with(b"\n"));
+        let (msg_type, data, codec) =
+            parse_p2p_wire_line_inner(&bytes, 1024 * 1024, None).unwrap();
+        assert_eq!(msg_type, "new_tx");
+        assert_eq!(data["hash"], "abc");
+        assert_eq!(codec, "v2");
+    }
+
+    #[test]
+    fn dual_stack_auto_detect_v1_and_v2() {
+        let v1 = encode_p2p_wire_by_codec("ping", "null", "v1").unwrap();
+        let v2 = encode_p2p_wire_by_codec("ping", "null", "v2").unwrap();
+        assert!(!v1.starts_with(b"AB2:"));
+        assert!(v2.starts_with(b"AB2:"));
+        let (t1, _, c1) = parse_p2p_wire_line_inner(&v1, 1024 * 1024, None).unwrap();
+        let (t2, _, c2) = parse_p2p_wire_line_inner(&v2, 1024 * 1024, None).unwrap();
+        assert_eq!(t1, "ping");
+        assert_eq!(t2, "ping");
+        assert_eq!(c1, "v1");
+        assert_eq!(c2, "v2");
+    }
+
+    #[test]
+    fn resolve_outbound_codec_follows_peer() {
+        assert_eq!(resolve_outbound_codec("auto", "v2"), "v2");
+        assert_eq!(resolve_outbound_codec("auto", "v1"), "v1");
+        assert_eq!(resolve_outbound_codec("v1", "v2"), "v1");
+        assert_eq!(resolve_outbound_codec("v2", "v1"), "v2");
     }
 }
