@@ -10,10 +10,27 @@
 
 ### Docs / GitHub UX
 
-- README first screen: fewer badges, quickstart above status table, Security checks wording
-- Evergreen banner + social preview (no per-release version chip)
-- SECURITY.md + issue chooser: private vulnerability report link
-- About description shortened (durable one-liner)
+- First-screen refresh: ADR **0001–0015**, architecture mermaid, AT_A_GLANCE / REPO_PROFILE aligned to `v1.3.1338-deterministic-core`
+
+## [1.3.1338-deterministic-core] — 2026-07-30
+
+### Consensus / determinism
+
+- Forest-aware LMD-GHOST genesis among `parent=None` roots; parent-stub upgrade on late block materialization
+- Native `ghost_select_head` parity (heaviest subtree + lex tie-break)
+- QueryPort honesty: `NullQueryFacade` no longer swallows `eth_getLogs` (fallback to `bc.db` until attach)
+- Industrial `final_audit` / facade needles follow `StateService` / `TxPipeline`
+
+### Observability & secrets (ADR 0015)
+
+- `MetricsExporterPort` + Prometheus snapshot path on `/metrics` (`abs_tps`, chain window TPS)
+- `secret_mgmt/` SecretManagerPort (env/K8s, Vault KV, file refuse in prod)
+- Boot resolves wallet / BFT keys via SecretManager; `SECRET_BACKEND`
+- `docs/DISASTER_RECOVERY.md` runbooks
+
+### Prior same-day port stack (already on trunk)
+
+- ADR 0010 BridgePort · ADR 0011 QueryFacade · ADR 0012 Chaos · ADR 0014 Graceful shutdown
 
 ## [1.3.205] — 2026-07-26
 

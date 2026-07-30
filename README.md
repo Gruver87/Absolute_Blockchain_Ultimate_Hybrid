@@ -53,11 +53,13 @@ native/abs_native/   Rust crypto · Rocks · EVM kernels (PyO3)  ← Cargo.toml 
 network/             P2P TCP + dispatch + catchup/fork adapters
 sync/                CatchUp Path A · ForkReconcile · SolicitHub
 storage/             StoragePort · RocksDB adapter · open_storage
-core/                Blockchain domain (self.storage)
-api/                 REST + JSON-RPC
-consensus/           LMD-GHOST + finality policy
-docs/adr/            boundaries 0001–0010
-scripts/             gates · mesh · soak
+core/                Blockchain facade · StateService · TxPipeline
+api/                 REST + JSON-RPC · QueryFacade (ADR 0011)
+consensus/           LMD-GHOST (forest-deterministic) + finality
+secret_mgmt/         SecretManagerPort (ADR 0015)
+observability/       MetricsExporterPort · Prometheus (ADR 0015)
+docs/adr/            boundaries 0001–0015
+scripts/             gates · mesh · soak · DR
 Makefile             make build | test-quick | test-gate | mesh-up
 ```
 
@@ -97,9 +99,12 @@ Makefile             make build | test-quick | test-gate | mesh-up
 | **Rust native** | Hybrid path | `ABS_REQUIRE_NATIVE_CRYPTO` in prod |
 | **Failover / soak** | **Proven** | 7h + **48h PASS** |
 | **Bridge** | Ports isolated (ADR 0010) | OFF on prod mesh until L1 cutover |
+| **RPC / Query** | Typed QueryFacade (ADR 0011) | DoS caps · no raw DB from handlers |
+| **Secrets / metrics** | SecretManager + exporter (ADR 0015) | Env/K8s/Vault · `/metrics` snapshot |
+| **Shutdown / ready** | Graceful stop (ADR 0014) | SIGTERM · deep `/health/ready` |
 | **Public mainnet** | **Not launched** | Audit + ops + L1 cutover remaining |
 
-**Quality gate:** CI · `make test-quick` / `check_all.ps1` · **1260+** tests collected
+**Quality gate:** CI · `make test-quick` / `check_all.ps1` · **2100+** tests collected
 
 ---
 
@@ -108,18 +113,25 @@ Makefile             make build | test-quick | test-gate | mesh-up
 ```mermaid
 flowchart TB
   EX["Explorer / wallets"] --> API["REST + JSON-RPC"]
+  API --> QF["QueryFacade · ADR 0011"]
+  API --> MET["MetricsExporter · ADR 0015"]
   API --> ORCH["NodeOrchestrator"]
+  ORCH --> SM["SecretManager · ADR 0015"]
   ORCH --> P2P["P2P + dispatch"]
-  ORCH --> CONS["Consensus + TipSafety"]
-  ORCH --> BC["Blockchain"]
+  ORCH --> CONS["LMD-GHOST forest-stable · TipSafety"]
+  ORCH --> BC["Blockchain facade"]
+  ORCH --> BR["BridgePort · ADR 0010 · OFF on mesh"]
+  QF --> BC
   P2P --> SYNC["sync/ CatchUp · Fork · Solicit"]
   SYNC --> BC
-  BC --> SP["StoragePort"]
+  BC --> SS["StateService · TxPipeline"]
+  SS --> SP["StoragePort"]
   SP --> ROCKS[("RocksDB prod")]
-  BC --> RUST["abs_native crypto + state_root"]
+  SS --> RUST["abs_native · satoshi state_root"]
+  CONS --> RUST
 ```
 
-Ports & honesty: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · ADRs **[0001–0010](docs/adr/)**
+Ports & honesty: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · ADRs **[0001–0015](docs/adr/)** · DR **[DISASTER_RECOVERY](docs/DISASTER_RECOVERY.md)**
 
 ### Operator cheatsheet
 
@@ -200,7 +212,8 @@ Code: `runtime/tokenomics.py` · `GET /tokenomics` — **not** a listed token.
 | Jul 19–21 | **48h soak PASS** |
 | Jul 21–26 | Industrial **v1.3.65–v1.3.146** + professional repo surface (Dependabot/SBOM/SUPPORT) |
 | Jul 29 | **v1.3.206** Tip-safety (enforce) + P2P transport boundary + application dispatcher |
-| Jul 30 | **ADR 0010** L1 EVM bridge behind `BridgePort` (validate→claim/credit, FakeEvmBridge, 27 scenarios) |
+| Jul 30 | **ADR 0010–0015** BridgePort · QueryFacade · Chaos · Graceful shutdown · Observability/SecretManager |
+| Jul 30 | **v1.3.1338-deterministic-core** satoshi state domain + forest-stable LMD-GHOST + QueryPort honesty |
 
 Ledger: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md)
 
@@ -221,4 +234,4 @@ MIT — [LICENSE](LICENSE)
 ---
 
 *Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87) · Default branch: `master`*  
-*Last update: 2026-07-30 — **ADR 0010** BridgePort isolation (+ prior **v1.3.206** tip-safety / P2P). Not a launched public mainnet.*
+*Last update: 2026-07-30 — **v1.3.1338-deterministic-core** + **ADR 0010–0015** (Bridge · Query · Chaos · Shutdown · Observability/Secrets). Not a launched public mainnet.*

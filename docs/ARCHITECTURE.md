@@ -1,13 +1,13 @@
 # Architecture (honest overview)
 
-**Updated:** 2026-07-29  
-**Scope:** Absolute Blockchain Ultimate Hybrid — domain ports + adapters (ADR 0001–0006). Devnet + mainnet-v1 **prep**, not a launched public mainnet.
+**Updated:** 2026-07-30  
+**Scope:** Absolute Blockchain Ultimate Hybrid — domain ports + adapters (ADR **0001–0015**). Devnet + mainnet-v1 **prep**, not a launched public mainnet.
 
 ---
 
 ## One-line summary
 
-**Python** owns orchestration (API, P2P TCP, consensus policy). **Domain services** (`sync/`, `storage/`) own catch-up, fork reconcile, and persistence behind ports. **Rust/PyO3** (`abs_native`) accelerates crypto, state roots, RocksDB engine, and EVM kernels. **Prod** hot path = RocksDB; SQLite remains aux / dev.
+**Python** owns orchestration (API, P2P TCP, consensus policy, secrets, metrics export). **Domain services** (`sync/`, `storage/`, `core/components/`) own catch-up, fork reconcile, state apply, and persistence behind ports. **Rust/PyO3** (`abs_native`) accelerates crypto, satoshi-integer state roots, RocksDB engine, and EVM kernels. **Prod** hot path = RocksDB; SQLite remains aux / dev.
 
 ---
 
@@ -24,13 +24,18 @@ flowchart TB
     REST["REST :8080"]
     JR["JSON-RPC :8545"]
     WS["WebSocket"]
+    QF["QueryFacade · ADR 0011"]
+    MET["MetricsExporter · ADR 0015"]
   end
 
   subgraph orch ["Orchestration"]
     MAIN["main.py · NodeOrchestrator"]
     CFG["runtime.Config"]
-    CONS["Consensus · LMD-GHOST · Finality"]
+    SM["SecretManager · ADR 0015"]
+    CONS["Consensus · LMD-GHOST forest-stable · Finality"]
     TIP["TipSafety · ADR 0001"]
+    BR["BridgePort · ADR 0010 · OFF on mesh"]
+    STOP["Graceful shutdown · ADR 0014"]
   end
 
   subgraph net ["Network plane"]
@@ -44,7 +49,8 @@ flowchart TB
     CAP["CatchUpPathA · ADR 0004"]
     FORK["ForkReconcile · ADR 0005"]
     SOL["SyncSolicitHub · ADR 0003"]
-    BC["Blockchain"]
+    BC["Blockchain facade"]
+    SS["StateService · TxPipeline"]
     SP["StoragePort · ADR 0006"]
   end
 
@@ -56,20 +62,29 @@ flowchart TB
 
   subgraph rust ["abs_native — Rust"]
     CRYPTO["Merkle · ECDSA · Keccak"]
-    SR["StateRootAccumulator"]
+    SR["StateRoot · satoshi domain"]
     RE["RocksEngine"]
+    GHOST["ghost_select_head forest-aware"]
   end
 
   EX --> REST
   W --> JR
+  REST --> QF
+  JR --> QF
+  REST --> MET
   REST --> MAIN
   JR --> MAIN
   WS --> MAIN
+  QF --> BC
   MAIN --> CFG
+  MAIN --> SM
   MAIN --> CONS
   MAIN --> P2P
   MAIN --> BC
+  MAIN --> BR
+  MAIN --> STOP
   CONS --> TIP
+  CONS --> GHOST
   P2P --> DISP
   P2P --> CA
   P2P --> FA
@@ -78,17 +93,20 @@ flowchart TB
   P2P --> SOL
   CAP --> BC
   FORK --> BC
-  BC --> SP
+  BC --> SS
+  SS --> SP
   SP --> AD
   AD --> ROCKS
   AD -.-> AUX
-  BC --> CRYPTO
-  BC --> SR
+  SS --> CRYPTO
+  SS --> SR
   AD --> RE
   TIP --> BC
 ```
 
 Solid = **prod-relevant hot path**. Dotted = **aux / cold / optional**.
+
+ADR index: [docs/adr/](adr/) (**0001–0015**). Disaster runbooks: [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md).
 
 ---
 

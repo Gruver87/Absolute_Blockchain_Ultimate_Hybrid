@@ -60,8 +60,10 @@ blockchain-development
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v1.3.205` — mempool unparseable-nonce refuse |
-| **Notes** | [RELEASE_NOTES_v1.3.205.md](../RELEASE_NOTES_v1.3.205.md) |
+| **Tag** | `v1.3.1338-deterministic-core` — satoshi state domain + forest-stable LMD-GHOST + QueryPort honesty |
+| **Prior** | `v1.3.206` — tip-safety + P2P transport/dispatch |
+| **ADR stack** | **0001–0015** (Bridge · Query · Chaos · Shutdown · Observability/Secrets) |
+| **Notes** | [CHANGELOG](../CHANGELOG.md) · [DISASTER_RECOVERY](../docs/DISASTER_RECOVERY.md) |
 | **Self-check** | `.\scripts\operator_verify.ps1 -SkipNativeBuild` · `.\scripts\check_all.ps1` |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` (displayed as **Security checks**) |
 | **API wave** | 61 |
@@ -73,6 +75,8 @@ blockchain-development
 - `industrial_gate --min-soak-hours 48` OK
 - Isolated P2P CI (`verify_p2p_ci --mode ci`) OK after signer + mesh_min fix
 - Audit pack exporter: `.\scripts\export_audit_pack.ps1`
+- GHOST forest determinism: flake ~37% → 0/30 on hybrid reorg attestation test
+- ADR 0015 SecretManager + Prometheus exporter unit coverage
 
 ### Not yet proven (do not claim in About)
 
@@ -80,6 +84,7 @@ blockchain-development
 - Public VPS testnet URL + DNS/TLS
 - Bridge L1 mainnet cutover
 - Launched public mainnet / listed ABS token
+- GPG-signed release tags (annotated tags in use when signing key absent)
 
 ## Honest positioning (release / About)
 

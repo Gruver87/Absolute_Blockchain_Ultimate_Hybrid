@@ -4,7 +4,7 @@ One-screen card for people who do not read long READMEs. Full detail: [README](.
 
 ## What this is
 
-Hybrid **Python + Rust** L1 node with prod-profile Docker mesh, RocksDB, REST/JSON-RPC, `abs_native`, EVM path.
+Hybrid **Python + Rust** L1 node with prod-profile Docker mesh, RocksDB, REST/JSON-RPC, `abs_native`, EVM path, port-isolated bridge/RPC/secrets/metrics.
 
 ## What it is not
 
@@ -14,7 +14,9 @@ Public audited mainnet · listed ABS token · investment product · bridge ON on
 
 | | |
 |---|---|
-| Tag | **[v1.3.205](../RELEASE_NOTES_v1.3.205.md)** |
+| Tag | **[v1.3.1338-deterministic-core](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1338-deterministic-core)** |
+| Prior industrial | [v1.3.206](../RELEASE_NOTES_v1.3.206.md) tip-safety / P2P |
+| ADR stack | **0001–0015** ([docs/adr/](adr/)) |
 | CI | Ubuntu `test.yml` + docker + security + fuzz |
 | 48h soak | **PASS** |
 | Self-check | `.\scripts\operator_verify.ps1 -SkipNativeBuild` · `make test-quick` |
@@ -28,7 +30,9 @@ Public audited mainnet · listed ABS token · investment product · bridge ON on
 | 3-node prod-profile mesh | Public mainnet |
 | 48h soak PASS | External L1 / contract audit |
 | Failover + signed tx + EVM on mesh | Tip proof / Long-Range / libp2p |
+| Forest-stable LMD-GHOST + satoshi state domain | Full Rust P2P transport claim |
 | Bridge **OFF** on live mesh | Listed ABS / investment product |
+| ADR 0010–0015 ports in-tree | Live mesh bridge cutover |
 
 ## Where code lives
 
@@ -38,8 +42,12 @@ Public audited mainnet · listed ABS token · investment product · bridge ON on
 | `network/` | P2P TCP + dispatch + adapters |
 | `sync/` | Catch-up · fork reconcile · solicit |
 | `storage/` | StoragePort · RocksDB adapter |
-| `core/` | Blockchain domain |
+| `core/` | Blockchain facade · StateService · TxPipeline |
+| `api/` | REST/RPC · QueryFacade (ADR 0011) |
+| `secret_mgmt/` | SecretManagerPort (ADR 0015) |
+| `observability/` | MetricsExporterPort (ADR 0015) |
 | `docs/ARCHITECTURE.md` | System map (mermaid) |
+| `docs/DISASTER_RECOVERY.md` | Operator DR runbooks |
 | `scripts/` | Ops gates |
 | `Makefile` | Linux/macOS shortcuts |
 
