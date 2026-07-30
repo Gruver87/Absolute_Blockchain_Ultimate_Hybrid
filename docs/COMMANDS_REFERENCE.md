@@ -56,6 +56,36 @@ CI: `.github/workflows/test.yml` (Ubuntu) уже собирает native и го
 
 Алиасы того же полного gate: `.\scripts\test_all.ps1`, `.\scripts\check_everything.ps1`.
 
+### ADR 0012 — Chaos bombardment
+
+Smoke (CI / default pytest):
+
+```powershell
+pytest tests/chaos -q -m chaos_smoke --tb=line
+```
+
+**Total attack map (lab evidence, ≥500 / ≤120s):**
+
+```powershell
+$env:CHAOS_FULL="1"
+pytest tests/chaos/test_total_chaos_bombardment.py::test_total_chaos_bombardment_2min -q -m chaos_full --tb=line
+```
+
+Overrides: `CHAOS_DURATION_SEC`, `CHAOS_INJECTIONS`.  
+Honesty: prod `NodeOrchestrator` / `main.py` never arms chaos; garbage stays at `wire_codec` (no Rust `allow_threads` patch).
+
+
+### Live 4-node mesh + physical kill-9 (E2E)
+
+Requires `abs_native`. Spawns real `main.py` processes on `:15480–15483` (no mocks).
+
+```powershell
+$env:LIVE_MESH_E2E="1"
+pytest tests/e2e/test_live_mesh_consensus.py -q -m live_mesh --tb=line
+```
+
+Keep temp dirs on failure: `$env:LIVE_MESH_KEEP="1"`.
+
 ---
 
 ## Порты (шпаргалка)

@@ -566,6 +566,24 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("docs/adr/0010-evm-bridge-boundary.md missing")
         if not (ROOT / "docs" / "adr" / "0011-rpc-api-boundary.md").is_file():
             errors.append("docs/adr/0011-rpc-api-boundary.md missing")
+        if not (ROOT / "docs" / "adr" / "0012-chaos-injection.md").is_file():
+            errors.append("docs/adr/0012-chaos-injection.md missing")
+        if not (ROOT / "chaos" / "ports.py").is_file():
+            errors.append("chaos/ports.py missing (ADR 0012)")
+        if not (ROOT / "chaos" / "engine.py").is_file():
+            errors.append("chaos/engine.py missing (ADR 0012 TotalChaosEngine)")
+        chaos_engine_py = (ROOT / "chaos" / "engine.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "class TotalChaosEngine" not in chaos_engine_py:
+            errors.append("chaos/engine.py must define TotalChaosEngine (ADR 0012)")
+        if "refuse_prod_arming" not in chaos_engine_py:
+            errors.append("chaos/engine.py must refuse prod arming (ADR 0012)")
+        if not (ROOT / "tests" / "chaos" / "test_total_chaos_bombardment.py").is_file():
+            errors.append("tests/chaos/test_total_chaos_bombardment.py missing (ADR 0012)")
+        main_py_chaos = (ROOT / "main.py").read_text(encoding="utf-8", errors="replace")
+        if "TotalChaosEngine" in main_py_chaos or "from chaos" in main_py_chaos or "import chaos" in main_py_chaos:
+            errors.append("main.py must not arm/import chaos (ADR 0012)")
         if not (ROOT / "api" / "ports.py").is_file():
             errors.append("api/ports.py missing (ADR 0011 RpcPort)")
         api_ports_py = (ROOT / "api" / "ports.py").read_text(encoding="utf-8", errors="replace")
@@ -588,6 +606,7 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         ws_py = (ROOT / "network" / "websocket.py").read_text(encoding="utf-8", errors="replace")
         if "from api.http import" in ws_py:
             errors.append("network/websocket.py must not import from api.http (ADR 0011)")
+
         if not (ROOT / "bridge" / "ports.py").is_file():
             errors.append("bridge/ports.py missing (ADR 0010 BridgePort)")
         ports_py = (ROOT / "bridge" / "ports.py").read_text(encoding="utf-8", errors="replace")
