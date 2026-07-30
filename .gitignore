@@ -1,5 +1,4 @@
-﻿
-Python
+﻿# Python
 __pycache__/
 *.py[cod]
 *.so
@@ -9,7 +8,7 @@ venv/
 ENV/
 .venv
 
-Data (исключаем БД и локальные кошельки)
+# Data (исключаем БД и локальные кошельки)
 *.db
 *.db-journal
 *.db-wal
@@ -20,17 +19,17 @@ wallet.json
 logs/
 .hypothesis/
 
-IDE
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 
-OS
+# OS
 .DS_Store
 Thumbs.db
 
-Backup
+# Backup
 backup_*/
 backups/
 *.zip
@@ -42,7 +41,7 @@ node_debug.log
 test_hardened_system/
 pytest-cache-files*/
 
-Secrets
+# Secrets
 .env
 .env.local
 .env.production
@@ -59,7 +58,7 @@ Absolute_Blockchain_All_Commands.txt
 start_all_services.bat
 !wallet.example.json
 
-Coverage
+# Coverage
 .coverage
 htmlcov/
 .pytest_cache/
@@ -85,7 +84,7 @@ dist/
 pytest_out.txt
 pytest_exit.txt
 
-Old files
+# Old files
 Новый.py
 ABSOLUTE_FINAL_FIXED_backup.py
 absolute-blockchain-ultimate/
