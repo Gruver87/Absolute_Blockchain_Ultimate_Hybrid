@@ -1032,6 +1032,14 @@ class Database:
                 if intervals:
                     avg_block_time = sum(intervals) / len(intervals)
             target = 15.0
+            window_tx = sum(int(r["tx_count"] or 0) for r in rows)
+            window_elapsed = 0.0
+            if len(rows) >= 2:
+                ordered = sorted(rows, key=lambda r: r["height"])
+                window_elapsed = float(
+                    max(0, int(ordered[-1]["timestamp"]) - int(ordered[0]["timestamp"]))
+                )
+            tps = (window_tx / max(window_elapsed, 1.0)) if window_elapsed > 0 else 0.0
             return {
                 "height": tip,
                 "tx_count": int(tx_count),
@@ -1043,6 +1051,9 @@ class Database:
                 "avg_block_time_sec": round(avg_block_time, 2),
                 "target_block_time_sec": target,
                 "blocks_sampled": len(rows),
+                "window_tx_count": int(window_tx),
+                "window_elapsed_sec": round(window_elapsed, 2),
+                "tps": round(tps, 6),
                 "burn_last_window": round(
                     sum(float(r["total_burned"] or 0) for r in rows), 6
                 ),

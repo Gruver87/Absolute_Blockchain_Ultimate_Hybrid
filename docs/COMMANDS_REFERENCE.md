@@ -6,7 +6,7 @@
 
 | | |
 |---|---|
-| **Версия** | `1.3.205-industrial` |
+| **Версия** | `1.3.206-industrial` |
 | **API Wave** | `61` |
 | **Обновлено** | 2026-07-26 |
 | **Entry** | `python main.py` / `.\scripts\start_node.ps1` / `make build` |
@@ -102,6 +102,18 @@ pytest tests/e2e/test_runtime_signals.py -q -m live_mesh --tb=line
 ```
 
 K8s: readiness must use `/health/ready` (503 while draining or mesh not deep-ready); liveness stays `/health/live`.
+
+### ADR 0015 — Observability & Secret Management
+
+```powershell
+pytest tests/unit/test_prometheus_export_format.py tests/unit/test_secrets_isolation.py -q --tb=line
+```
+
+Backends: `$env:SECRET_BACKEND="env"` (default / K8s Secret→env), `"vault"` (`VAULT_ADDR` + `VAULT_TOKEN` + `VAULT_KV_PATH`), or `"file"` (dev wallet.json only). Package is `secret_mgmt/` (does not shadow stdlib `secrets`).
+
+### Disaster Recovery (Point 9)
+
+Ops runbooks: [`docs/DISASTER_RECOVERY.md`](DISASTER_RECOVERY.md) — RocksDB tip repair / wipe+fast-sync, BFT quorum stall, validator key rotate via SecretManager, auditor onboarding.
 
 ---
 

@@ -52,6 +52,8 @@ class TxPipeline:
             return TxValidationResult(valid=False, error="gas_too_low")
 
         require_sigs = bool(getattr(self.config, "require_signatures", False))
+        # Cheap crypto refuse before state lookups — verify sig before
+        # nonce/balance DB lookups (v1.3.143).
         if require_sigs or bool(tx.signature):
             sig_check = self.verify_tx_signature(tx)
             if not sig_check.valid:

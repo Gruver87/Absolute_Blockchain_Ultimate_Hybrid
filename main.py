@@ -420,10 +420,40 @@ class NodeOrchestrator:
         self.consensus = ConsensusAdapter(config, self.db, self.bus)
         self.blockchain.consensus_adapter = self.consensus
 
-        # Если miner_address не задан — загружаем wallet.json или генерируем ECDSA
-        self.wallet = None
+        # ADR 0015 — SecretManagerPort (env/K8s / Vault / file)
         _data_dir = os.path.dirname(config.db_path) if os.path.dirname(config.db_path) else "data"
         _wallet_path = os.path.join(_data_dir, "wallet.json")
+        try:
+            from secret_mgmt import (
+                SECRET_NODE_BFT_SIGNING_KEY,
+                SECRET_NODE_WALLET_PRIVATE_KEY,
+                build_secret_manager,
+            )
+            self.secret_manager = build_secret_manager(
+                config, wallet_path=_wallet_path
+            )
+        except Exception as _sm_err:
+            self.secret_manager = None
+            print(f"[Node] SecretManager unavailable ({_sm_err})")
+
+        def _resolve_wallet_private_key() -> str:
+            """Resolve signing key via SecretManagerPort; never log the value."""
+            sm = getattr(self, "secret_manager", None)
+            if sm is None:
+                return (os.environ.get("WALLET_PRIVATE_KEY", "") or "").strip()
+            for logical in (
+                SECRET_NODE_WALLET_PRIVATE_KEY,
+                SECRET_NODE_BFT_SIGNING_KEY,
+            ):
+                try:
+                    if sm.has_secret(logical):
+                        return (sm.get_secret(logical) or "").strip()
+                except Exception:
+                    continue
+            return ""
+
+        # Если miner_address не задан — загружаем wallet.json или генерируем ECDSA
+        self.wallet = None
         _chain_h_boot = self.blockchain.get_height() if self.blockchain else 0
         if os.path.exists(_wallet_path):
             try:
@@ -451,7 +481,7 @@ class NodeOrchestrator:
                             f"(height={_chain_h_boot})"
                         )
                     else:
-                        _pk_env = os.environ.get("WALLET_PRIVATE_KEY", "").strip()
+                        _pk_env = _resolve_wallet_private_key()
                         if _pk_env:
                             try:
                                 _w = Wallet.from_private_key(_pk_env)
@@ -465,13 +495,13 @@ class NodeOrchestrator:
                                 if _founder_mining and _w.address.lower() != _waddr.lower():
                                     self._dev_signer_only = True
                                     print(
-                                        f"[Node] Signing wallet from WALLET_PRIVATE_KEY: "
+                                        f"[Node] Signing wallet from SecretManager: "
                                         f"{_w.address} (founder mines: {_waddr})"
                                     )
                                 else:
                                     config.miner_address = _w.address
                                     print(
-                                        f"[Node] Operational wallet from WALLET_PRIVATE_KEY: "
+                                        f"[Node] Operational wallet from SecretManager: "
                                         f"{_w.address} (mining + signing)"
                                     )
                                 if _waddr and _w.address.lower() != _waddr.lower() and not _founder_mining:
@@ -480,20 +510,20 @@ class NodeOrchestrator:
                                         f"(tokenomics): {_waddr}"
                                     )
                             except Exception as _pke:
-                                print(f"[Node] WALLET_PRIVATE_KEY invalid ({_pke})")
+                                print(f"[Node] SecretManager wallet key invalid ({_pke})")
             except Exception as _we:
                 print(f"[Node] Wallet load warning ({_we})")
         elif _WALLET_AVAILABLE:
-            _pk_env = os.environ.get("WALLET_PRIVATE_KEY", "").strip()
+            _pk_env = _resolve_wallet_private_key()
             if _pk_env:
                 try:
                     _w = Wallet.from_private_key(_pk_env)
                     self.wallet = _w
                     config.signing_address = _w.address
                     config.miner_address = _w.address
-                    print(f"[Node] Operational wallet from WALLET_PRIVATE_KEY: {_w.address}")
+                    print(f"[Node] Operational wallet from SecretManager: {_w.address}")
                 except Exception as _pke:
-                    print(f"[Node] WALLET_PRIVATE_KEY invalid ({_pke})")
+                    print(f"[Node] SecretManager wallet key invalid ({_pke})")
         if config.require_wallet_file and self.wallet is None:
             _synced_prod_follower = (
                 not config.mining_enabled

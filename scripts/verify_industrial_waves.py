@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify industrial hardening waves v1.3.65–v1.3.205 (plan checklist).
+"""Verify industrial hardening waves v1.3.65–v1.3.206 (plan checklist).
 
 Runs static needle checks, targeted unit tests, and industrial_gate.
 
@@ -261,7 +261,7 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
     ),
     (
         "1.3.69",
-        "core/blockchain.py",
+        "core/components/state_service.py",
         ["block-scoped sat session", "_writeback_accounts_sat(session)"],
     ),
     (
@@ -515,7 +515,12 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
     (
         "1.3.89",
         "network/p2p_node.py",
-        ["_maybe_eclipse_prune", "diversity_snapshot"],
+        ["_maybe_eclipse_prune"],
+    ),
+    (
+        "1.3.89",
+        "network/peer_manager.py",
+        ["diversity_snapshot"],
     ),
     (
         "1.3.89",
@@ -1459,8 +1464,12 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "p2p_peer_addr_is_dialable",
             "p2p_discovery_allow_private",
             "verify_p2p_handshake_head_semantics",
-            "verify_p2p_status_height_head_binding",
         ],
+    ),
+    (
+        "1.3.128",
+        "network/p2p_dispatch/handlers.py",
+        ["verify_p2p_status_height_head_binding"],
     ),
     (
         "1.3.128",
@@ -1487,7 +1496,7 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         [
             "_state_root_response_for_height",
             "state_root_outbound_refuse_total",
-            "must not inflate peer.height",
+            "must not inflate peer tip",
         ],
     ),
     (
@@ -1650,10 +1659,14 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "network/p2p_node.py",
         [
             "_state_root_request_ctx",
-            "bad_state_root_response_local_root",
             "native_handshake_height_cap",
             "_cap_claimed_peer_height",
         ],
+    ),
+    (
+        "1.3.135",
+        "sync/solicit.py",
+        ["bad_state_root_response_local_root"],
     ),
     (
         "1.3.135",
@@ -1702,9 +1715,13 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         [
             "_attestation_local_head_reject_reason",
             "attestation_local_height_mismatch",
-            "unsolicited_blocks",
             "native_block_solicit_only",
         ],
+    ),
+    (
+        "1.3.137",
+        "network/p2p_dispatch/handlers.py",
+        ["unsolicited_blocks"],
     ),
     (
         "1.3.137",
@@ -1724,9 +1741,13 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
         "1.3.138",
         "network/p2p_node.py",
         [
-            "unsolicited_state_root_response",
             "native_state_root_solicit_only",
         ],
+    ),
+    (
+        "1.3.138",
+        "network/p2p_dispatch/handlers.py",
+        ["unsolicited_state_root_response"],
     ),
     (
         "1.3.138",
@@ -1839,7 +1860,7 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
     ),
     (
         "1.3.143",
-        "core/blockchain.py",
+        "core/components/tx_pipeline.py",
         ["nonce/balance DB lookups"],
     ),
     (
@@ -3425,6 +3446,16 @@ NEEDLES: list[tuple[str, str, list[str]]] = [
             "abs_p2p_mempool_nonce_unparseable_refuse_total",
         ],
     ),
+    (
+        "1.3.206",
+        "RELEASE_NOTES_v1.3.206.md",
+        ["1.3.206-industrial", "tip-safety", "p2p_dispatch"],
+    ),
+    (
+        "1.3.206",
+        "runtime/config.py",
+        ["tip_safety_enforce", "1.3.206-industrial"],
+    ),
 ]
 
 
@@ -3452,8 +3483,8 @@ def check_version() -> list[str]:
         from runtime.config import Config
 
         ver = str(Config().node_version)
-        if not ver.startswith("1.3.205"):
-            errors.append(f"node_version expected 1.3.205-*, got {ver}")
+        if not ver.startswith("1.3.206"):
+            errors.append(f"node_version expected 1.3.206-*, got {ver}")
     except Exception as exc:
         errors.append(f"config import failed: {exc}")
     return errors

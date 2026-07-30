@@ -44,6 +44,7 @@ class MetricsCollector:
         core_engines: Optional[dict[str, Any]] = None,
         ws_stats: Optional[dict[str, Any]] = None,
         apply_isolation: Optional[dict[str, Any]] = None,
+        tps: float = 0.0,
     ) -> str:
         native_crypto = native_crypto or {}
         bridge_health = bridge_health or {}
@@ -53,6 +54,25 @@ class MetricsCollector:
         core_engines = core_engines or {}
         ws_stats = ws_stats or {}
         apply_isolation = apply_isolation or {}
+        try:
+            tps_val = float(tps or 0.0)
+            if tps_val != tps_val or tps_val in (float("inf"), float("-inf")):
+                tps_val = 0.0
+        except Exception:
+            tps_val = 0.0
+        if "security_ok" in p2p_security:
+            security_ok = 1 if p2p_security.get("security_ok") else 0
+        elif p2p_security:
+            security_ok = (
+                1
+                if (
+                    "active_bans" in p2p_security
+                    or "rate_limit_per_sec" in p2p_security
+                )
+                else 0
+            )
+        else:
+            security_ok = 0
         lines = [
             "# HELP abs_uptime_seconds Node uptime",
             "# TYPE abs_uptime_seconds gauge",
@@ -63,6 +83,12 @@ class MetricsCollector:
             "# HELP abs_peers_connected Connected P2P peers",
             "# TYPE abs_peers_connected gauge",
             f"abs_peers_connected{{node_id=\"{node_id}\"}} {peers}",
+            "# HELP abs_tps Estimated transactions per second (chain window)",
+            "# TYPE abs_tps gauge",
+            f"abs_tps{{node_id=\"{node_id}\"}} {tps_val:.6f}",
+            "# HELP abs_p2p_security_ok Whether P2P security snapshot is healthy/present",
+            "# TYPE abs_p2p_security_ok gauge",
+            f"abs_p2p_security_ok{{node_id=\"{node_id}\"}} {security_ok}",
             "# HELP abs_mempool_size Pending transactions",
             "# TYPE abs_mempool_size gauge",
             f"abs_mempool_size{{node_id=\"{node_id}\"}} {mempool}",

@@ -13,12 +13,16 @@ if str(ROOT) not in sys.path:
 
 def test_mixed_apply_uses_block_session():
     bc = (ROOT / "core" / "blockchain.py").read_text(encoding="utf-8")
-    assert "block-scoped sat session" in bc
-    assert "session = self._accounts_sat_snapshot" in bc
+    state = (ROOT / "core" / "components" / "state_service.py").read_text(encoding="utf-8")
+    surface = bc + "\n" + state
+    assert "block-scoped sat session" in surface
+    assert (
+        "session = self._accounts_sat_snapshot" in surface
+        or "session = self._accounts_sat_snapshot" in state
+    )
     # One writeback at end — not per-tx inside the loop for mixed path.
-    # Find the mixed method body and ensure final writeback of session.
-    assert "self._writeback_accounts_sat(session)" in bc
-    assert "1.3.69" in bc or "v1.3.69" in bc
+    assert "self._writeback_accounts_sat(session)" in surface
+    assert "1.3.69" in surface or "v1.3.69" in surface
 
 
 def test_verify_script_exists():

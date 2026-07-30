@@ -570,6 +570,55 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("docs/adr/0012-chaos-injection.md missing")
         if not (ROOT / "docs" / "adr" / "0014-graceful-shutdown-deep-health.md").is_file():
             errors.append("docs/adr/0014-graceful-shutdown-deep-health.md missing")
+        if not (ROOT / "docs" / "adr" / "0015-observability-secret-management.md").is_file():
+            errors.append("docs/adr/0015-observability-secret-management.md missing")
+        if not (ROOT / "observability" / "ports.py").is_file():
+            errors.append("observability/ports.py missing (ADR 0015 MetricsExporterPort)")
+        obs_ports = (ROOT / "observability" / "ports.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "class MetricsExporterPort" not in obs_ports:
+            errors.append("observability/ports.py must define MetricsExporterPort (ADR 0015)")
+        if "class MetricsSnapshot" not in obs_ports:
+            errors.append("observability/ports.py must define MetricsSnapshot (ADR 0015)")
+        metrics_py_adr15 = (ROOT / "observability" / "metrics.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "abs_tps" not in metrics_py_adr15:
+            errors.append("observability/metrics.py must export abs_tps (ADR 0015)")
+        if "abs_p2p_security_ok" not in metrics_py_adr15:
+            errors.append("observability/metrics.py must export abs_p2p_security_ok (ADR 0015)")
+        if not (ROOT / "secret_mgmt" / "ports.py").is_file():
+            errors.append("secret_mgmt/ports.py missing (ADR 0015 SecretManagerPort)")
+        sm_ports = (ROOT / "secret_mgmt" / "ports.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "class SecretManagerPort" not in sm_ports:
+            errors.append("secret_mgmt/ports.py must define SecretManagerPort (ADR 0015)")
+        if not (ROOT / "secret_mgmt" / "vault_adapter.py").is_file():
+            errors.append("secret_mgmt/vault_adapter.py missing (ADR 0015)")
+        vault_py = (ROOT / "secret_mgmt" / "vault_adapter.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "class VaultKvSecretAdapter" not in vault_py:
+            errors.append("VaultKvSecretAdapter missing (ADR 0015)")
+        if not (ROOT / "secret_mgmt" / "env_adapter.py").is_file():
+            errors.append("secret_mgmt/env_adapter.py missing (ADR 0015)")
+        factory_py = (ROOT / "secret_mgmt" / "factory.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "SECRET_BACKEND" not in factory_py and "secret_backend" not in factory_py:
+            errors.append("secret_mgmt factory must honor SECRET_BACKEND (ADR 0015)")
+        if not (ROOT / "tests" / "unit" / "test_prometheus_export_format.py").is_file():
+            errors.append("tests/unit/test_prometheus_export_format.py missing (ADR 0015)")
+        if not (ROOT / "tests" / "unit" / "test_secrets_isolation.py").is_file():
+            errors.append("tests/unit/test_secrets_isolation.py missing (ADR 0015)")
+        main_py_adr15 = (ROOT / "main.py").read_text(encoding="utf-8", errors="replace")
+        if "build_secret_manager" not in main_py_adr15:
+            errors.append("main.py must wire build_secret_manager (ADR 0015)")
+        http_py_adr15 = (ROOT / "api" / "http.py").read_text(encoding="utf-8", errors="replace")
+        if "metrics_exporter" not in http_py_adr15:
+            errors.append("api/http.py must wire metrics_exporter (ADR 0015)")
         if not (ROOT / "chaos" / "ports.py").is_file():
             errors.append("chaos/ports.py missing (ADR 0012)")
         if not (ROOT / "chaos" / "engine.py").is_file():
@@ -1120,14 +1169,23 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         ghost_py = (ROOT / "consensus" / "ghost.py").read_text(encoding="utf-8")
         if "ghost_select_head" not in ghost_py or "ghost_cumulative_weight" not in ghost_py:
             errors.append("ghost.py must route fork-choice to abs_native kernels")
-        if "blockchain_apply_simple_block" not in main_py2 and "blockchain_apply_simple_block" not in (
-            ROOT / "core" / "blockchain.py"
-        ).read_text(encoding="utf-8"):
-            errors.append("blockchain.py must wire blockchain_apply_simple_block")
         bc_py = (ROOT / "core" / "blockchain.py").read_text(encoding="utf-8")
-        if "_apply_simple_block_native" not in bc_py or "_replay_simple_range_native" not in bc_py:
+        state_svc_py = (ROOT / "core" / "components" / "state_service.py").read_text(
+            encoding="utf-8"
+        )
+        if "blockchain_apply_simple_block" not in main_py2 and (
+            "blockchain_apply_simple_block" not in bc_py
+            and "blockchain_apply_simple_block" not in state_svc_py
+        ):
+            errors.append("blockchain.py must wire blockchain_apply_simple_block")
+        if "_apply_simple_block_native" not in bc_py and "_apply_simple_block_native" not in state_svc_py:
             errors.append("blockchain must expose native simple apply/replay helpers")
-        if "blockchain_replay_simple_blocks" not in bc_py:
+        if "_replay_simple_range_native" not in bc_py and "_replay_simple_range_native" not in state_svc_py:
+            errors.append("blockchain must expose native simple apply/replay helpers")
+        if (
+            "blockchain_replay_simple_blocks" not in bc_py
+            and "blockchain_replay_simple_blocks" not in state_svc_py
+        ):
             errors.append("blockchain reorg must prefer blockchain_replay_simple_blocks")
         native_py = (ROOT / "crypto" / "native.py").read_text(encoding="utf-8")
         for sym in (
@@ -1210,16 +1268,28 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         if "def blockchain_apply_host_effects" not in native_py:
             errors.append("crypto/native.py must export blockchain_apply_host_effects (v1.3.44)")
         bc_py = (ROOT / "core" / "blockchain.py").read_text(encoding="utf-8")
-        if "blockchain_apply_host_effects" not in bc_py or "_apply_evm_host_block_native" not in bc_py:
+        state_svc_py = (ROOT / "core" / "components" / "state_service.py").read_text(
+            encoding="utf-8"
+        )
+        if (
+            ("blockchain_apply_host_effects" not in bc_py and "blockchain_apply_host_effects" not in state_svc_py)
+            or (
+                "_apply_evm_host_block_native" not in bc_py
+                and "_apply_evm_host_block_native" not in state_svc_py
+            )
+        ):
             errors.append("blockchain.py must wire blockchain_apply_host_effects")
         if "blockchain_apply_host_effects" not in (
             ROOT / "native" / "abs_native" / "src" / "amount.rs"
         ).read_text(encoding="utf-8"):
             errors.append("amount.rs must define blockchain_apply_host_effects")
         # v1.3.45 — native apply writeback / receipt honesty
-        if "never wipe EVM code/storage" not in bc_py:
+        if (
+            "never wipe EVM code/storage" not in bc_py
+            and "never wipe EVM code/storage" not in state_svc_py
+        ):
             errors.append("blockchain writeback must preserve EVM code/storage (v1.3.45)")
-        if "tx.status = 1" not in bc_py:
+        if "tx.status = 1" not in bc_py and "tx.status = 1" not in state_svc_py:
             errors.append("blockchain must set tx.status=1 on successful apply (v1.3.45)")
         if "0x0000000000000000000000000000000000000001" in (
             ROOT / "validators.manifest.example.json"
@@ -1524,7 +1594,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         if "bridge_require_l1_event=true" not in cfg_py and "BRIDGE_REQUIRE_L1_EVENT=true" not in cfg_py:
             errors.append("prod config must require bridge_require_l1_event (v1.3.68)")
         # v1.3.69 — block-scoped sat session
-        if "block-scoped sat session" not in bc_py:
+        if (
+            "block-scoped sat session" not in bc_py
+            and "block-scoped sat session" not in state_svc_py
+        ):
             errors.append("blockchain mixed apply must use block-scoped sat session (v1.3.69)")
         if not (ROOT / "scripts" / "verify_industrial_waves.py").is_file():
             errors.append("scripts/verify_industrial_waves.py missing (v1.3.69)")
@@ -1659,7 +1732,15 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("p2p_ingress must expose subnet/reserved Sybil defenses (v1.3.89)")
         if "p2p_max_peers_per_subnet" not in cfg_py or "p2p_eclipse_warn_ratio" not in cfg_py:
             errors.append("config must define Sybil/Eclipse knobs (v1.3.89)")
-        if "_maybe_eclipse_prune" not in p2p_py or "diversity_snapshot" not in p2p_py:
+        if "_maybe_eclipse_prune" not in p2p_py:
+            errors.append("p2p_node must wire eclipse prune + diversity (v1.3.89)")
+        peer_mgr_py = (ROOT / "network" / "peer_manager.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if (
+            "diversity_snapshot" not in p2p_py
+            and "diversity_snapshot" not in peer_mgr_py
+        ):
             errors.append("p2p_node must wire eclipse prune + diversity (v1.3.89)")
         metrics_sybil = (ROOT / "observability" / "metrics.py").read_text(encoding="utf-8")
         if "abs_p2p_subnet_rejects_total" not in metrics_sybil:
@@ -2389,9 +2470,15 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("p2p must expose native_mempool_cheap_refuse (v1.3.143)")
         if "MSG_NEW_TX," in p2p_py.split("RATE_LIMIT_EXEMPT_TYPES")[1].split("})")[0]:
             errors.append("RATE_LIMIT_EXEMPT_TYPES must not list MSG_NEW_TX (v1.3.143)")
-        if "nonce/balance DB lookups" not in (
-            ROOT / "core" / "blockchain.py"
-        ).read_text(encoding="utf-8"):
+        tx_pipe_py = (ROOT / "core" / "components" / "tx_pipeline.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if (
+            "nonce/balance DB lookups" not in (
+                ROOT / "core" / "blockchain.py"
+            ).read_text(encoding="utf-8")
+            and "nonce/balance DB lookups" not in tx_pipe_py
+        ):
             errors.append("validate_transaction must verify sig before DB (v1.3.143)")
         if "abs_p2p_native_mempool_cheap_refuse" not in (
             ROOT / "observability" / "metrics.py"

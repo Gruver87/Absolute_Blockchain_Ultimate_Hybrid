@@ -245,6 +245,7 @@ class Config:
     allow_insecure_public_bind: bool = False
     sqlite_synchronous: str = "NORMAL"      # prod: FULL
     metrics_enabled: bool = True
+    secret_backend: str = "env"  # ADR 0015: env|vault|file|null
     require_native_crypto: bool = False     # prod: require abs_native PyO3 kernels
     http_max_body_bytes: int = 1_048_576    # v1.3.65: REST/RPC body cap (1 MiB)
     jsonrpc_max_batch: int = 32             # v1.3.65: max JSON-RPC batch elements
@@ -757,6 +758,7 @@ class Config:
         self.monitor_port = env_int("MONITOR_PORT", self.monitor_port)
         self.rpc_proxy_port = env_int("RPC_PROXY_PORT", self.rpc_proxy_port)
         self.metrics_enabled = env_bool("METRICS_ENABLED", self.metrics_enabled)
+        self.secret_backend = env_str("SECRET_BACKEND", self.secret_backend or "env")
         self.require_native_crypto = env_bool(
             "ABS_REQUIRE_NATIVE_CRYPTO",
             self.require_native_crypto if not self.is_production else True,

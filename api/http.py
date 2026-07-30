@@ -710,9 +710,19 @@ _PUBLIC_API_ROUTES = [
 
 try:
     from observability.metrics import MetricsCollector
+    from observability.ports import (
+        MetricsSnapshot,
+        PrometheusMetricsExporter,
+        compute_tps_from_chain_metrics,
+        p2p_security_ok_from_status,
+    )
     _METRICS_AVAILABLE = True
 except ImportError:
     MetricsCollector = None
+    MetricsSnapshot = None  # type: ignore[misc, assignment]
+    PrometheusMetricsExporter = None  # type: ignore[misc, assignment]
+    compute_tps_from_chain_metrics = None  # type: ignore[misc, assignment]
+    p2p_security_ok_from_status = None  # type: ignore[misc, assignment]
     _METRICS_AVAILABLE = False
 
 
@@ -1281,6 +1291,7 @@ class RESTHandler(BaseHTTPRequestHandler):
     bus = None                       # kernel.event_bus.EventBus
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     metrics_collector = None
+    metrics_exporter = None  # ADR 0015 MetricsExporterPort
 
     def log_message(self, fmt, *args):
         logger.debug(fmt % args)
@@ -1562,7 +1573,8 @@ class RESTHandler(BaseHTTPRequestHandler):
                     self._error(404, "Metrics disabled")
                     return
                 mc = self.__class__.metrics_collector
-                if not mc:
+                exporter = self.__class__.metrics_exporter
+                if not mc and not exporter:
                     self._error(503, "Metrics collector unavailable")
                     return
                 validators = db.get_validators() if db else []
@@ -1572,9 +1584,15 @@ class RESTHandler(BaseHTTPRequestHandler):
                 )
                 bridge_health = _rust_bridge_health(cfg)
                 p2p_security = {}
+                p2p_security_ok = False
                 if p2p and hasattr(p2p, "get_p2p_security_status"):
                     try:
                         p2p_security = dict(p2p.get_p2p_security_status() or {})
+                        p2p_security_ok = (
+                            bool(p2p_security_ok_from_status(p2p_security))
+                            if p2p_security_ok_from_status
+                            else bool(p2p_security)
+                        )
                     except Exception as exc:
                         logger.warning("/metrics p2p security snapshot failed: %s", exc)
                 rocksdb_tuning = {}
@@ -1659,26 +1677,64 @@ class RESTHandler(BaseHTTPRequestHandler):
                             )
                         except Exception as exc:
                             logger.warning("/metrics sync status snapshot failed: %s", exc)
-                text = mc.render_prometheus(
-                    height=bc.get_height() if bc else 0,
-                    peers=p2p.peer_count() if p2p else 0,
-                    mempool=mp.get_size() if mp else 0,
-                    validators=len(validators),
-                    deployment_mode=getattr(cfg, "deployment_mode", "dev"),
-                    node_id=getattr(cfg, "node_id", "node-1"),
-                    native_crypto=native_crypto,
-                    bridge_health=bridge_health,
-                    p2p_security=p2p_security,
-                    rocksdb_tuning=rocksdb_tuning,
-                    sync_status=sync_status,
-                    core_engines={
-                        "state_engine": self.__class__.state_engine is not None,
-                        "finality_engine": self.__class__.finality_engine is not None,
-                        "immutable_state": self.__class__.immutable_state is not None,
-                    },
-                    ws_stats=ws_stats,
-                    apply_isolation=self._apply_isolation_metrics(p2p),
+                chain_metrics = {}
+                if db is not None and hasattr(db, "get_chain_metrics"):
+                    try:
+                        chain_metrics = dict(db.get_chain_metrics(window=32) or {})
+                    except Exception as exc:
+                        logger.warning("/metrics chain metrics snapshot failed: %s", exc)
+                tps = (
+                    float(compute_tps_from_chain_metrics(chain_metrics))
+                    if compute_tps_from_chain_metrics
+                    else 0.0
                 )
+                # ADR 0015: snapshot on HTTP worker thread → MetricsExporterPort.render
+                if exporter is not None and MetricsSnapshot is not None:
+                    snap = MetricsSnapshot(
+                        node_id=getattr(cfg, "node_id", "node-1"),
+                        height=bc.get_height() if bc else 0,
+                        peers=p2p.peer_count() if p2p else 0,
+                        mempool=mp.get_size() if mp else 0,
+                        validators=len(validators),
+                        deployment_mode=getattr(cfg, "deployment_mode", "dev"),
+                        tps=tps,
+                        p2p_security_ok=p2p_security_ok,
+                        native_crypto=native_crypto,
+                        bridge_health=bridge_health,
+                        p2p_security=p2p_security,
+                        rocksdb_tuning=rocksdb_tuning,
+                        sync_status=sync_status,
+                        core_engines={
+                            "state_engine": self.__class__.state_engine is not None,
+                            "finality_engine": self.__class__.finality_engine is not None,
+                            "immutable_state": self.__class__.immutable_state is not None,
+                        },
+                        ws_stats=ws_stats,
+                        apply_isolation=self._apply_isolation_metrics(p2p),
+                    )
+                    text = exporter.render(snap)
+                else:
+                    text = mc.render_prometheus(
+                        height=bc.get_height() if bc else 0,
+                        peers=p2p.peer_count() if p2p else 0,
+                        mempool=mp.get_size() if mp else 0,
+                        validators=len(validators),
+                        deployment_mode=getattr(cfg, "deployment_mode", "dev"),
+                        node_id=getattr(cfg, "node_id", "node-1"),
+                        native_crypto=native_crypto,
+                        bridge_health=bridge_health,
+                        p2p_security=p2p_security,
+                        rocksdb_tuning=rocksdb_tuning,
+                        sync_status=sync_status,
+                        core_engines={
+                            "state_engine": self.__class__.state_engine is not None,
+                            "finality_engine": self.__class__.finality_engine is not None,
+                            "immutable_state": self.__class__.immutable_state is not None,
+                        },
+                        ws_stats=ws_stats,
+                        apply_isolation=self._apply_isolation_metrics(p2p),
+                        tps=tps,
+                    )
                 body = text.encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
@@ -8617,6 +8673,10 @@ def create_http_server(blockchain, mempool, db, config,
     RESTHandler.project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if _METRICS_AVAILABLE and RESTHandler.metrics_collector is None:
         RESTHandler.metrics_collector = MetricsCollector()
+    if _METRICS_AVAILABLE and RESTHandler.metrics_exporter is None:
+        RESTHandler.metrics_exporter = PrometheusMetricsExporter(
+            RESTHandler.metrics_collector
+        )
     server = ThreadedHTTPServer((config.http_host, config.http_port), RESTHandler)
     return server
 

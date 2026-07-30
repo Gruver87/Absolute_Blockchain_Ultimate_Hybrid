@@ -2210,6 +2210,20 @@ class RocksChainStore:
                     intervals.append(dt)
             if intervals:
                 avg_block_time = sum(intervals) / len(intervals)
+        window_tx = sum(int(b.get("tx_count", 0) or 0) for b in blocks)
+        window_elapsed = 0.0
+        if len(blocks) >= 2:
+            ordered = sorted(
+                blocks, key=lambda b: int(b.get("height", b.get("number", 0)) or 0)
+            )
+            window_elapsed = float(
+                max(
+                    0,
+                    int(ordered[-1].get("timestamp", 0) or 0)
+                    - int(ordered[0].get("timestamp", 0) or 0),
+                )
+            )
+        tps = (window_tx / max(window_elapsed, 1.0)) if window_elapsed > 0 else 0.0
         return {
             "height": tip,
             "tx_count": len(tx_rows),
@@ -2221,6 +2235,9 @@ class RocksChainStore:
             "avg_block_time_sec": round(avg_block_time, 2),
             "target_block_time_sec": 15.0,
             "blocks_sampled": len(blocks),
+            "window_tx_count": int(window_tx),
+            "window_elapsed_sec": round(window_elapsed, 2),
+            "tps": round(tps, 6),
             "burn_last_window": round(
                 sum(float(b.get("total_burned", 0) or 0) for b in blocks), 6
             ),

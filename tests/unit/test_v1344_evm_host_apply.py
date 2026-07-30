@@ -59,9 +59,19 @@ def test_host_effects_fee_only_and_reward():
 
 def test_wiring():
     text = Path("core/blockchain.py").read_text(encoding="utf-8")
-    assert "blockchain_apply_host_effects" in text
-    assert "_apply_evm_host_block_native" in text
-    assert "_block_transactions_are_all_evm" in text
+    state = Path("core/components/state_service.py").read_text(encoding="utf-8")
+    assert (
+        "blockchain_apply_host_effects" in text
+        or "blockchain_apply_host_effects" in state
+    )
+    assert (
+        "_apply_evm_host_block_native" in text
+        or "_apply_evm_host_block_native" in state
+    )
+    assert (
+        "_block_transactions_are_all_evm" in text
+        or "_block_transactions_are_all_evm" in state
+    )
     assert "def blockchain_apply_host_effects" in Path("crypto/native.py").read_text(
         encoding="utf-8"
     )

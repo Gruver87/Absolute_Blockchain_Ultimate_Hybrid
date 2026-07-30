@@ -26,8 +26,18 @@ def test_needles_v13143():
     assert "native_mempool_new_tx_rate_primary" in p2p
     assert "native_tx_sig_before_state" in p2p
     chain = (ROOT / "core" / "blockchain.py").read_text(encoding="utf-8")
-    assert "nonce/balance DB lookups" in chain
-    assert "Cheap crypto refuse before state lookups" in chain
+    state = (ROOT / "core" / "components" / "state_service.py").read_text(encoding="utf-8")
+    tx_pipe = (ROOT / "core" / "components" / "tx_pipeline.py").read_text(encoding="utf-8")
+    assert (
+        "nonce/balance DB lookups" in chain
+        or "nonce/balance DB lookups" in tx_pipe
+    )
+    assert (
+        "Cheap crypto refuse before state lookups" in chain
+        or "Cheap crypto refuse before state lookups" in tx_pipe
+    )
+    assert "tx_pipeline" in chain or "TxPipeline" in chain
+    _ = state  # facade hosts apply kernels; pipeline owns validate order
     mem = (ROOT / "blockchain" / "mempool.py").read_text(encoding="utf-8")
     assert "chain_prevalidated" in mem
     rs = (ROOT / "native" / "abs_native" / "src" / "p2p_rate_limit.rs").read_text(
@@ -97,6 +107,7 @@ def test_dup_hash_refuses_before_validate():
 def test_sig_before_db_order():
     """Junk signature must fail before nonce/balance DB when require_signatures."""
     from core.blockchain import Blockchain, Transaction
+    from core.components import TxPipeline
 
     cfg = Config()
     cfg.require_signatures = True
@@ -108,9 +119,16 @@ def test_sig_before_db_order():
     bc = Blockchain.__new__(Blockchain)
     bc.config = cfg
     bc.db = db
+    bc.storage = db
     bc.pool_locks = None
     bc.evm = None
     bc.bus = None
+    bc.tx_pipeline = TxPipeline(
+        config=cfg,
+        storage=db,
+        get_pool_locks=lambda: None,
+        get_evm=lambda: None,
+    )
     tx = Transaction(
         from_addr="0x" + "11" * 20,
         to_addr="0x" + "22" * 20,
