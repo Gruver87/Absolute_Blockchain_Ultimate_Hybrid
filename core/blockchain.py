@@ -320,6 +320,11 @@ class Blockchain:
 
         self.bridge = NullBridgePort()
 
+        # ADR 0011 — query façade for API reads (DI only)
+        from api.ports import NullQueryFacade
+
+        self.query_facade = NullQueryFacade()
+
         self._ensure_genesis()
         h = self.get_height()
         cutoff = int(getattr(self.config, "state_root_legacy_cutoff_height", 0) or 0)
@@ -330,6 +335,12 @@ class Blockchain:
         from bridge.ports import NullBridgePort
 
         self.bridge = port if port is not None else NullBridgePort()
+
+    def attach_query_facade(self, port) -> None:
+        """Wire QueryFacadePort for RPC/REST reads (ADR 0011)."""
+        from api.ports import NullQueryFacade
+
+        self.query_facade = port if port is not None else NullQueryFacade()
 
     def attach_zk_system(self, system, *, enabled: bool = True) -> None:
         """Wire optional ZKProofSystem into the facade (called from NodeOrchestrator)."""

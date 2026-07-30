@@ -639,6 +639,8 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
     sync_engine = None
     rpc_auth = None
     eth_filters = None
+    rpc_port = None          # ADR 0011 RpcPort
+    query_facade = None      # ADR 0011 QueryFacadePort
 
     def log_message(self, fmt, *args):
         logger.debug(fmt % args)
@@ -731,10 +733,19 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             self._send_json(self._dispatch(req))
 
     def _dispatch(self, req: Dict) -> Dict:
-        rid = req.get("id")
-        method = req.get("method", "")
-        params = req.get("params", [])
+        rid = req.get("id") if isinstance(req, dict) else None
+        rpc = self.__class__.rpc_port
+        if rpc is not None:
+            from api.rpc_schema import decode_single_request
 
+            decoded = decode_single_request(req)
+            if hasattr(decoded, "ok") and getattr(decoded, "ok") is False and getattr(decoded, "error", None):
+                return decoded.as_jsonrpc()
+            resp = rpc.call(decoded)
+            return resp.as_jsonrpc()
+
+        method = req.get("method", "") if isinstance(req, dict) else ""
+        params = req.get("params", []) if isinstance(req, dict) else []
         try:
             result = self._call(method, params)
             return {"jsonrpc": "2.0", "id": rid, "result": result}
@@ -832,8 +843,12 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
 
         if method == "eth_getBlockByHash":
             block_hash = params[0] if params else ""
-            from storage.database import Database
-            blk = bc.db.get_block_by_hash(block_hash)
+            q = self.__class__.query_facade or getattr(bc, "query_facade", None)
+            if q is not None:
+                from api.ports import BlockQuery
+                blk = q.get_block(BlockQuery(block_hash=str(block_hash)))
+            else:
+                blk = None
             full_tx = params[1] if len(params) > 1 else False
             return _format_block(blk, full_tx)
 
@@ -846,12 +861,14 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
 
         if method == "eth_getTransactionCount":
             address = params[0] if params else ""
-            nonce = bc.db.get_nonce(address)
+            q = self.__class__.query_facade or getattr(bc, "query_facade", None)
+            nonce = q.get_nonce(address) if q is not None else 0
             return hex(nonce)
 
         if method == "eth_getCode":
             address = params[0] if params else ""
-            account = bc.db.get_account(address)
+            q = self.__class__.query_facade or getattr(bc, "query_facade", None)
+            account = q.get_account(address) if q is not None else None
             if account and account.get("code"):
                 return "0x" + account["code"].replace("0x", "")
             return "0x"
@@ -939,7 +956,8 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             address = params[0] if params else ""
             slot_raw = params[1] if len(params) > 1 else "0x0"
             slot = int(slot_raw, 16) if str(slot_raw).startswith("0x") else int(slot_raw)
-            account = bc.db.get_account(address) if bc else None
+            q = self.__class__.query_facade or getattr(bc, "query_facade", None)
+            account = q.get_account(address) if q is not None else None
             storage = {}
             if account and account.get("storage"):
                 raw = account["storage"]
@@ -948,25 +966,21 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
                 else:
                     text = raw if isinstance(raw, str) else str(raw)
                     if text.strip():
-                        db = getattr(bc, "db", None)
-                        if db is not None and hasattr(db, "_loads_json_or_none"):
-                            parsed = db._loads_json_or_none(text, context="account_storage")
-                            if parsed is None:
-                                raise ValueError("corrupt account storage")
-                            if not isinstance(parsed, dict):
-                                raise ValueError("corrupt account storage")
-                            storage = parsed
-                        else:
-                            try:
-                                storage = json.loads(text)
-                            except (TypeError, ValueError, json.JSONDecodeError) as exc:
-                                raise ValueError("corrupt account storage") from exc
+                        try:
+                            storage = json.loads(text)
+                        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                            raise ValueError("corrupt account storage") from exc
             val = storage.get(str(slot), storage.get(slot, 0))
             return hex(int(val or 0))
 
         if method == "eth_getBlockTransactionCountByHash":
             block_hash = params[0] if params else ""
-            blk = bc.db.get_block_by_hash(block_hash) if bc else None
+            q = self.__class__.query_facade or getattr(bc, "query_facade", None)
+            if q is not None:
+                from api.ports import BlockQuery
+                blk = q.get_block(BlockQuery(block_hash=str(block_hash)))
+            else:
+                blk = None
             if not blk:
                 return hex(0)
             txs = blk.get("transactions", [])
@@ -981,7 +995,12 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
         if method == "eth_getTransactionByBlockHashAndIndex":
             block_hash = params[0] if params else ""
             idx = int(params[1], 16) if len(params) > 1 and str(params[1]).startswith("0x") else int(params[1] if len(params) > 1 else 0)
-            blk = bc.db.get_block_by_hash(block_hash) if bc else None
+            q = self.__class__.query_facade or getattr(bc, "query_facade", None)
+            if q is not None:
+                from api.ports import BlockQuery
+                blk = q.get_block(BlockQuery(block_hash=str(block_hash)))
+            else:
+                blk = None
             return _format_tx(_tx_at_block_index(bc, blk, idx))
 
         if method == "eth_getUncleCountByBlockNumber":
@@ -1079,6 +1098,7 @@ class RESTHandler(BaseHTTPRequestHandler):
     config = None
     p2p = None
     db = None
+    query_facade = None  # ADR 0011
     evm = None
     nft = None                       # NFTMarketplace
     zk = None                        # ZKProofSystem
@@ -6976,197 +6996,36 @@ class RESTHandler(BaseHTTPRequestHandler):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  Вспомогательные форматтеры
+#  Вспомогательные форматтеры (ADR 0011 — api.eth_format; re-export for compat)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _format_block(blk: Optional[Dict], full_tx: bool = False) -> Optional[Dict]:
-    if not blk:
-        return None
-    state_root = blk.get("state_root", "") or ""
-    if state_root and not str(state_root).startswith("0x"):
-        state_root = "0x" + str(state_root)
-    txs = blk.get("transactions", [])
-    tx_hashes = [
-        tx.get("hash", "") if isinstance(tx, dict) else str(tx)
-        for tx in (txs if isinstance(txs, list) else [])
-    ]
-    return {
-        "number": hex(blk.get("height", 0)),
-        "hash": blk.get("hash", blk.get("block_hash", "")),
-        "parentHash": blk.get("parent_hash", ""),
-        "nonce": "0x0000000000000000",
-        "sha3Uncles": "0x" + "0" * 64,
-        "logsBloom": "0x" + "0" * 512,
-        "transactionsRoot": "0x" + "0" * 64,
-        "stateRoot": state_root or ("0x" + "0" * 64),
-        "receiptsRoot": "0x" + "0" * 64,
-        "miner": blk.get("miner", blk.get("proposer", "")),
-        "difficulty": "0x0",
-        "totalDifficulty": "0x0",
-        "extraData": "0x",
-        "size": hex(256 + len(tx_hashes) * 32),
-        "gasLimit": hex(30_000_000),
-        "gasUsed": hex(blk.get("gas_used", 0)),
-        "timestamp": hex(blk.get("timestamp", 0)),
-        "uncles": [],
-        "transactions": txs if full_tx else tx_hashes,
-        "totalBurned": blk.get("total_burned", 0.0),
-        "txCount": blk.get("tx_count", len(tx_hashes)),
-    }
-
-
-def _format_tx(tx: Optional[Dict]) -> Optional[Dict]:
-    if not tx:
-        return None
-    return {
-        "hash": tx.get("hash", tx.get("tx_hash", "")),
-        "blockNumber": hex(tx.get("block_height", 0)),
-        "from": tx.get("from_addr", tx.get("from", "")),
-        "to": tx.get("to_addr", tx.get("to", "")),
-        "value": hex(int(float(tx.get("value", tx.get("amount", 0))) * 10**18)),
-        "gas": hex(tx.get("gas", 21000)),
-        "gasUsed": hex(tx.get("gas_used", tx.get("gas", 21000))),
-        "nonce": hex(tx.get("nonce", 0)),
-        "input": tx.get("data", tx.get("tx_data", "0x")),
-        "burned": tx.get("burned", 0.0),
-    }
+from api.eth_format import (  # noqa: E402
+    format_block as _format_block,
+    format_tx as _format_tx,
+    format_eth_log as _format_eth_log,
+    handle_eth_get_logs as _eth_get_logs_impl,
+    resolve_block_by_tag as _resolve_block_by_tag,
+    resolve_block_tag_to_height as _resolve_block_tag_to_height,
+    normalize_log_data as _normalize_log_data,
+    tx_index_in_block as _tx_index_in_block,
+    tx_at_block_index as _tx_at_block_index_impl,
+    format_receipt as _format_receipt_impl,
+)
 
 
 def _format_receipt(tx: Optional[Dict], bc=None) -> Optional[Dict]:
-    if not tx:
-        return None
-    from storage.database import Database
-
-    tx_hash = tx.get("hash", tx.get("tx_hash", ""))
-    logs: List[Dict] = []
-    if bc and hasattr(bc, "db") and hasattr(bc.db, "get_evm_logs_by_tx"):
-        logs = [
-            _format_eth_log(row, bc)
-            for row in bc.db.get_evm_logs_by_tx(tx_hash)
-        ]
-    # Omitted/None/unknown status → fail-closed 0x0 (never default to success).
-    status_i = Database._normalize_tx_status(tx.get("status"))
-    return {
-        "transactionHash": tx_hash,
-        "blockNumber": hex(tx.get("block_height", 0)),
-        "from": tx.get("from_addr", tx.get("from", "")),
-        "to": tx.get("to_addr", tx.get("to", "")),
-        "status": hex(status_i),
-        "gasUsed": hex(tx.get("gas_used", tx.get("gas", 21000))),
-        "logs": logs,
-        "burned": tx.get("burned", 0.0),
-    }
-
-
-def _resolve_block_tag_to_height(bc, tag) -> int:
-    if tag in (None, "", "earliest"):
-        return 0
-    if tag in ("latest", "pending"):
-        return int(bc.get_height()) if bc else 0
-    try:
-        return int(tag, 16) if str(tag).startswith("0x") else int(tag)
-    except (TypeError, ValueError):
-        return 0
-
-
-def _normalize_log_data(data) -> str:
-    raw = str(data or "")
-    if not raw or raw == "0x":
-        return "0x"
-    return raw if raw.startswith("0x") else "0x" + raw
-
-
-def _tx_index_in_block(bc, block_height: int, tx_hash: str) -> int:
-    if not bc or not tx_hash:
-        return 0
-    blk = bc.get_block(int(block_height))
-    if not blk:
-        return 0
-    txs = blk.get("transactions", [])
-    if not isinstance(txs, list):
-        return 0
-    target = tx_hash.lower()
-    for idx, entry in enumerate(txs):
-        if isinstance(entry, dict):
-            h = str(entry.get("hash", entry.get("tx_hash", ""))).lower()
-        else:
-            h = str(entry).lower()
-        if h == target:
-            return idx
-    return 0
-
-
-def _format_eth_log(row: Dict, bc=None) -> Dict:
-    block_height = int(row.get("block_height", 0))
-    block_hash = ""
-    if bc:
-        blk = bc.get_block(block_height)
-        if blk:
-            block_hash = blk.get("hash", blk.get("block_hash", ""))
-    tx_hash = row.get("tx_hash", "")
-    topics = row.get("topics", [])
-    if not isinstance(topics, list):
-        topics = []
-    return {
-        "removed": False,
-        "logIndex": hex(int(row.get("log_index", 0))),
-        "transactionIndex": hex(_tx_index_in_block(bc, block_height, tx_hash)),
-        "transactionHash": tx_hash,
-        "blockHash": block_hash,
-        "blockNumber": hex(block_height),
-        "address": row.get("contract_address", ""),
-        "data": _normalize_log_data(row.get("data", "")),
-        "topics": topics,
-    }
+    q = getattr(bc, "query_facade", None) if bc is not None else None
+    return _format_receipt_impl(tx, bc, query=q)
 
 
 def _handle_eth_get_logs(filt: Dict, bc) -> List[Dict]:
-    if not bc or not hasattr(bc, "db") or not hasattr(bc.db, "query_evm_logs"):
-        return []
-    from_block = _resolve_block_tag_to_height(bc, filt.get("fromBlock", "0x0"))
-    to_block = _resolve_block_tag_to_height(bc, filt.get("toBlock", "latest"))
-    if to_block < from_block:
-        return []
-    address = filt.get("address")
-    addresses = None
-    if address:
-        addresses = address if isinstance(address, list) else [address]
-    topics = filt.get("topics")
-    rows = bc.db.query_evm_logs(
-        from_block=from_block,
-        to_block=to_block,
-        addresses=addresses,
-        topics=topics,
-    )
-    return [_format_eth_log(row, bc) for row in rows]
-
-
-def _resolve_block_by_tag(bc, tag: str) -> Optional[Dict]:
-    """Resolve eth block tag (latest/pending/hex/decimal) to block dict."""
-    if not bc:
-        return None
-    if tag in ("latest", "pending"):
-        return bc.get_last_block()
-    try:
-        height = int(tag, 16) if str(tag).startswith("0x") else int(tag)
-        return bc.get_block(height)
-    except (TypeError, ValueError):
-        return None
+    q = getattr(bc, "query_facade", None) if bc is not None else None
+    return _eth_get_logs_impl(filt, bc, query=q)
 
 
 def _tx_at_block_index(bc, blk: Optional[Dict], index: int) -> Optional[Dict]:
-    if not bc or not blk or index < 0:
-        return None
-    txs = blk.get("transactions", [])
-    if not isinstance(txs, list) or index >= len(txs):
-        return None
-    entry = txs[index]
-    if isinstance(entry, dict):
-        return entry
-    tx_hash = str(entry)
-    if hasattr(bc, "get_transaction"):
-        return bc.get_transaction(tx_hash)
-    return None
+    q = getattr(bc, "query_facade", None) if bc is not None else None
+    return _tx_at_block_index_impl(bc, blk, index, query=q)
 
 
 def _parse_tx_value(value_raw) -> float:
@@ -8461,6 +8320,32 @@ def create_rpc_server(blockchain, mempool, config, evm=None, p2p=None, wallet=No
         JSONRPCHandler.eth_filters = EthFilterStore()
     except ImportError:
         JSONRPCHandler.eth_filters = None
+
+    # ADR 0011 — QueryFacade + RpcPort DI
+    from api.query_facade import QueryFacade
+    from api.query_executor import QueryExecutor
+    from api.rpc_service import build_rpc_service
+
+    executor = QueryExecutor(
+        workers=int(getattr(config, "rpc_heavy_workers", 2) or 2),
+        default_timeout_ms=int(getattr(config, "rpc_heavy_query_timeout_ms", 5000) or 5000),
+    )
+    query = QueryFacade(blockchain, config, executor=executor)
+    if blockchain is not None and hasattr(blockchain, "attach_query_facade"):
+        blockchain.attach_query_facade(query)
+    JSONRPCHandler.query_facade = query
+    JSONRPCHandler.rpc_port = build_rpc_service(
+        blockchain,
+        mempool,
+        config,
+        query=query,
+        evm=evm,
+        p2p=p2p,
+        wallet=wallet,
+        sync_engine=sync_engine,
+        eth_filters=JSONRPCHandler.eth_filters,
+    )
+
     server = ThreadedHTTPServer((config.rpc_host, config.rpc_port), JSONRPCHandler)
     return server
 
@@ -8499,6 +8384,7 @@ def create_http_server(blockchain, mempool, db, config,
     RESTHandler.mempool = mempool
     RESTHandler.config = config
     RESTHandler.db = db
+    RESTHandler.query_facade = getattr(blockchain, "query_facade", None)
     RESTHandler.p2p = p2p
     RESTHandler.evm = evm
     RESTHandler.nft = nft

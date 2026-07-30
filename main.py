@@ -1447,12 +1447,12 @@ class NodeOrchestrator:
 
                 def _proxy_cors_origin(request_origin: str) -> str:
                     # Match REST CORS honesty: never echo first allowlist entry on miss.
-                    origin = (request_origin or "").strip()
-                    if "*" in _cors_origins:
-                        return "*"
-                    if origin and origin in _cors_origins:
-                        return origin
-                    return ""
+                    from api.http import _resolve_cors_allow_origin
+                    return _resolve_cors_allow_origin(self.config, request_origin)
+
+                _proxy_max_body = int(
+                    getattr(self.config, "http_max_body_bytes", 1_048_576) or 1_048_576
+                )
 
                 class _CORSProxy(_BH):
                     def do_OPTIONS(self):
@@ -1465,9 +1465,24 @@ class NodeOrchestrator:
                         self.end_headers()
                     def do_POST(self):
                         import requests as _req
-                        cl = int(self.headers.get("Content-Length", 0))
-                        body = self.rfile.read(cl)
+                        cl = int(self.headers.get("Content-Length", 0) or 0)
                         allow = _proxy_cors_origin(self.headers.get("Origin", ""))
+                        if cl < 0 or cl > _proxy_max_body:
+                            data = _json_mod.dumps(
+                                {"error": "request body too large"}
+                            ).encode()
+                            self.send_response(413)
+                            self.send_header("Content-Type", "application/json")
+                            if allow:
+                                self.send_header("Access-Control-Allow-Origin", allow)
+                            self.send_header("Content-Length", len(data))
+                            self.end_headers()
+                            try:
+                                self.wfile.write(data)
+                            except Exception:
+                                pass
+                            return
+                        body = self.rfile.read(cl)
                         status = 200
                         try:
                             resp = _req.post(

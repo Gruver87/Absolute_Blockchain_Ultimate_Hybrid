@@ -84,11 +84,11 @@ class WebSocketServer:
         self._schedule(msg)
         if self._eth_subs and self._loop and self._loop.is_running() and isinstance(block, dict):
             try:
-                from api.http import _format_block, _handle_eth_get_logs
+                from api.eth_format import format_block, handle_eth_get_logs
                 self._eth_subs.on_new_block(
                     block,
-                    _format_block,
-                    _handle_eth_get_logs,
+                    format_block,
+                    handle_eth_get_logs,
                     self.blockchain,
                     self._schedule_eth_notification,
                 )
@@ -189,13 +189,13 @@ class WebSocketServer:
             )
             return True
         try:
-            from api.http import _format_block, _handle_eth_get_logs
+            from api.eth_format import format_block, handle_eth_get_logs
             result = self._eth_subs.handle_rpc(
                 conn_id,
                 method,
                 data.get("params") or [],
-                _format_block,
-                _handle_eth_get_logs,
+                format_block,
+                handle_eth_get_logs,
                 self.blockchain,
             )
             await self._send_json(

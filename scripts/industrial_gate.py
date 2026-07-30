@@ -486,7 +486,11 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         if 'p2p_fallback' not in http_py or "SyncEngine missing" not in http_py:
             errors.append("p2p_fallback sync status must fail-closed when SyncEngine missing")
         if "Database._normalize_tx_status(tx.get(\"status\"))" not in http_py:
-            errors.append("receipt format must normalize omitted status fail-closed to 0")
+            eth_fmt_py = (ROOT / "api" / "eth_format.py").read_text(
+                encoding="utf-8", errors="replace"
+            )
+            if "Database._normalize_tx_status(tx.get(\"status\"))" not in eth_fmt_py:
+                errors.append("receipt format must normalize omitted status fail-closed to 0")
         if '"bridge_relayer_live": bool(cfg.bridge_enabled)' in http_py:
             errors.append("bridge_relayer_live must not equal bridge_enabled alone")
         if '"bridge_rust_binary_healthy"' not in http_py:
@@ -560,6 +564,30 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("docs/adr/0009-optional-native-fallback.md missing")
         if not (ROOT / "docs" / "adr" / "0010-evm-bridge-boundary.md").is_file():
             errors.append("docs/adr/0010-evm-bridge-boundary.md missing")
+        if not (ROOT / "docs" / "adr" / "0011-rpc-api-boundary.md").is_file():
+            errors.append("docs/adr/0011-rpc-api-boundary.md missing")
+        if not (ROOT / "api" / "ports.py").is_file():
+            errors.append("api/ports.py missing (ADR 0011 RpcPort)")
+        api_ports_py = (ROOT / "api" / "ports.py").read_text(encoding="utf-8", errors="replace")
+        if "class RpcPort" not in api_ports_py:
+            errors.append("api/ports.py must define RpcPort (ADR 0011)")
+        if "class QueryFacadePort" not in api_ports_py:
+            errors.append("api/ports.py must define QueryFacadePort (ADR 0011)")
+        if not (ROOT / "api" / "eth_format.py").is_file():
+            errors.append("api/eth_format.py missing (ADR 0011)")
+        if not (ROOT / "api" / "fake_rpc.py").is_file():
+            errors.append("api/fake_rpc.py missing (ADR 0011)")
+        bc_py = (ROOT / "core" / "blockchain.py").read_text(encoding="utf-8", errors="replace")
+        if "def attach_query_facade" not in bc_py:
+            errors.append("Blockchain must expose attach_query_facade (ADR 0011)")
+        http_py_adr = (ROOT / "api" / "http.py").read_text(encoding="utf-8", errors="replace")
+        if "bc.db.get_block_by_hash" in http_py_adr:
+            errors.append("api/http.py must not call bc.db.get_block_by_hash (ADR 0011)")
+        if "bc.db.query_evm_logs" in http_py_adr:
+            errors.append("api/http.py must not call bc.db.query_evm_logs (ADR 0011)")
+        ws_py = (ROOT / "network" / "websocket.py").read_text(encoding="utf-8", errors="replace")
+        if "from api.http import" in ws_py:
+            errors.append("network/websocket.py must not import from api.http (ADR 0011)")
         if not (ROOT / "bridge" / "ports.py").is_file():
             errors.append("bridge/ports.py missing (ADR 0010 BridgePort)")
         ports_py = (ROOT / "bridge" / "ports.py").read_text(encoding="utf-8", errors="replace")
@@ -574,7 +602,6 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         )
         if "class BridgeStorePort" not in storage_ports_py:
             errors.append("storage/ports.py must define BridgeStorePort (ADR 0010)")
-        bc_py = (ROOT / "core" / "blockchain.py").read_text(encoding="utf-8", errors="replace")
         if "def attach_bridge" not in bc_py:
             errors.append("Blockchain must expose attach_bridge (ADR 0010)")
         if "def claim_and_credit_bridge_event" in bc_py or "def lock_and_bridge" in bc_py:
