@@ -22,9 +22,15 @@ from storage.database import Database
 
 def test_wiring_mixed_helpers():
     text = Path("core/blockchain.py").read_text(encoding="utf-8")
-    assert "_block_transactions_are_mixed" in text
-    assert "_apply_mixed_block_native" in text
-    assert "native mixed apply fallback" in text
+    state = Path("core/components/state_service.py").read_text(encoding="utf-8")
+    assert (
+        "_block_transactions_are_mixed" in text
+        or "_block_transactions_are_mixed" in state
+    )
+    assert "_apply_mixed_block_native" in text or "_apply_mixed_block_native" in state
+    assert (
+        "native mixed apply fallback" in text or "native mixed apply fallback" in state
+    )
     assert hasattr(native, "blockchain_apply_host_effects")
 
 

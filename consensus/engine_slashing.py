@@ -36,20 +36,33 @@ class ConsensusEngineSlashing:
 
     def add_block(self, block: Dict):
         block_hash = block.get("hash") or block.get("block_hash")
-        parent_hash = block.get("parent_hash") or block.get("parent")
+        parent_hash = block.get("parent_hash") or block.get("parent") or None
+        if parent_hash == "":
+            parent_hash = None
+        number = int(block.get("number", block.get("height", 0)) or 0)
 
         self._blocks[block_hash] = block
 
-        if block_hash not in self._block_tree:
+        node = self._block_tree.get(block_hash)
+        if node is None:
             self._block_tree[block_hash] = {
                 "parent": parent_hash,
                 "children": [],
-                "number": block.get("number", 0)
+                "number": number,
             }
+        else:
+            # Upgrade parent-stub created when this hash was only referenced as a parent
+            if node.get("parent") is None and parent_hash:
+                node["parent"] = parent_hash
+            node["number"] = number
 
         if parent_hash:
             if parent_hash not in self._block_tree:
-                self._block_tree[parent_hash] = {"parent": None, "children": [], "number": 0}
+                self._block_tree[parent_hash] = {
+                    "parent": None,
+                    "children": [],
+                    "number": 0,
+                }
             if block_hash not in self._block_tree[parent_hash]["children"]:
                 self._block_tree[parent_hash]["children"].append(block_hash)
 

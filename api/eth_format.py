@@ -178,12 +178,18 @@ def format_receipt(tx: Optional[Dict], bc=None, query=None) -> Optional[Dict]:
 
 
 def handle_eth_get_logs(filt: Dict, bc=None, query=None) -> List[Dict]:
+    from api.ports import NullQueryFacade
+
     facade = query
     if facade is None and bc is not None:
         facade = getattr(bc, "query_facade", None)
+    # Unattached Blockchain defaults to NullQueryFacade — fall through to db.
+    if isinstance(facade, NullQueryFacade):
+        facade = None
 
-    from_block = resolve_block_tag_to_height(facade or bc, filt.get("fromBlock", "0x0"))
-    to_block = resolve_block_tag_to_height(facade or bc, filt.get("toBlock", "latest"))
+    height_src = facade or bc
+    from_block = resolve_block_tag_to_height(height_src, filt.get("fromBlock", "0x0"))
+    to_block = resolve_block_tag_to_height(height_src, filt.get("toBlock", "latest"))
     if to_block < from_block:
         return []
 

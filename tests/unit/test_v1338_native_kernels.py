@@ -126,10 +126,17 @@ def test_blockchain_replay_rejects_evm_calldata():
 
 def test_blockchain_wires_native_helpers():
     text = Path("core/blockchain.py").read_text(encoding="utf-8")
-    assert "_apply_simple_block_native" in text
-    assert "_replay_simple_range_native" in text
-    assert "blockchain_apply_simple_block" in text
-    assert "blockchain_replay_simple_blocks" in text
+    state = Path("core/components/state_service.py").read_text(encoding="utf-8")
+    assert "_apply_simple_block_native" in text or "_apply_simple_block_native" in state
+    assert "_replay_simple_range_native" in text or "_replay_simple_range_native" in state
+    assert (
+        "blockchain_apply_simple_block" in text
+        or "blockchain_apply_simple_block" in state
+    )
+    assert (
+        "blockchain_replay_simple_blocks" in text
+        or "blockchain_replay_simple_blocks" in state
+    )
     ghost = Path("consensus/ghost.py").read_text(encoding="utf-8")
     assert "ghost_select_head" in ghost
     assert "ghost_cumulative_weight" in ghost

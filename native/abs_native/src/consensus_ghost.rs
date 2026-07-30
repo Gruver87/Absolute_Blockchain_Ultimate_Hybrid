@@ -133,14 +133,26 @@ fn select_head_inner(
         return None;
     }
 
-    let mut genesis: Option<String> = None;
+    // Forest-aware genesis: among parent=None roots pick heaviest subtree
+    // (HashMap iteration order is non-deterministic — never take the first root).
+    let mut best_root: Option<String> = None;
+    let mut best_w: i64 = -1;
     for (hash, data) in tree {
         if data.parent.is_none() {
-            genesis = Some(hash.clone());
-            break;
+            let cum = cumulative_weight_inner(hash, tree, weights);
+            if cum > best_w
+                || (cum == best_w
+                    && best_root
+                        .as_ref()
+                        .map(|b| hash < b)
+                        .unwrap_or(true))
+            {
+                best_w = cum;
+                best_root = Some(hash.clone());
+            }
         }
     }
-    let mut current = genesis?;
+    let mut current = best_root?;
     let mut visited: HashSet<String> = HashSet::new();
 
     while !visited.contains(&current) {

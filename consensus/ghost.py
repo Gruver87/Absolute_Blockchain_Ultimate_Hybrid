@@ -31,19 +31,7 @@ def _weights_json(weights: Dict[str, int]) -> str:
     )
 
 
-def get_cumulative_weight(block_hash: str, tree: Dict, weights: Dict[str, int]) -> int:
-    """Cumulative weight of block and descendants (iterative — safe on long chains)."""
-    if native.native_available() and hasattr(native, "ghost_cumulative_weight"):
-        try:
-            return int(
-                native.ghost_cumulative_weight(
-                    str(block_hash), _tree_json(tree), _weights_json(weights)
-                )
-            )
-        except Exception:
-            if _native_required():
-                raise
-
+def _cumulative_weight_py(block_hash: str, tree: Dict, weights: Dict[str, int]) -> int:
     memo: Dict[str, int] = {}
     stack: List[tuple] = [(block_hash, False)]
 
@@ -63,28 +51,48 @@ def get_cumulative_weight(block_hash: str, tree: Dict, weights: Dict[str, int]) 
     return memo.get(block_hash, weights.get(block_hash, 0))
 
 
-def select_head(tree: Dict, weights: Dict[str, int]) -> Optional[str]:
-    """
-    Pure GHOST: start from genesis, always pick child with highest cumulative weight
-    """
-    if native.native_available() and hasattr(native, "ghost_select_head"):
+def get_cumulative_weight(block_hash: str, tree: Dict, weights: Dict[str, int]) -> int:
+    """Cumulative weight of block and descendants (iterative — safe on long chains)."""
+    if native.native_available() and hasattr(native, "ghost_cumulative_weight"):
         try:
-            head = native.ghost_select_head(_tree_json(tree), _weights_json(weights))
-            return str(head) if head else None
+            return int(
+                native.ghost_cumulative_weight(
+                    str(block_hash), _tree_json(tree), _weights_json(weights)
+                )
+            )
         except Exception:
             if _native_required():
                 raise
 
+    return _cumulative_weight_py(block_hash, tree, weights)
+
+
+def _forest_roots(tree: Dict) -> List[str]:
+    return [h for h, data in tree.items() if data.get("parent") is None]
+
+
+def _pick_genesis(tree: Dict, weights: Dict[str, int]) -> Optional[str]:
+    """Among parent=None roots, pick the heaviest subtree (stable forest GHOST)."""
+    roots = _forest_roots(tree)
+    if not roots:
+        return None
+    if len(roots) == 1:
+        return roots[0]
+    best: Optional[str] = None
+    best_w = -1
+    for root in roots:
+        cum = _cumulative_weight_py(root, tree, weights)
+        if cum > best_w or (cum == best_w and (best is None or root < best)):
+            best_w = cum
+            best = root
+    return best
+
+
+def _select_head_python(tree: Dict, weights: Dict[str, int]) -> Optional[str]:
     if not tree:
         return None
 
-    # Find genesis (block with no parent)
-    genesis = None
-    for block_hash, data in tree.items():
-        if data.get("parent") is None:
-            genesis = block_hash
-            break
-
+    genesis = _pick_genesis(tree, weights)
     if genesis is None:
         return None
 
@@ -98,7 +106,6 @@ def select_head(tree: Dict, weights: Dict[str, int]) -> Optional[str]:
         if not children:
             return current
 
-        # Find child with highest cumulative weight
         best_child = None
         best_weight = -1
 
@@ -121,6 +128,33 @@ def select_head(tree: Dict, weights: Dict[str, int]) -> Optional[str]:
         current = best_child
 
     return current
+
+
+def select_head(tree: Dict, weights: Dict[str, int]) -> Optional[str]:
+    """
+    Pure GHOST: start from genesis, always pick child with highest cumulative weight.
+
+    Multi-root forests (parent stubs) must not use native HashMap genesis pick —
+    iteration order is non-deterministic and can strand the head on an orphan root.
+    """
+    if not tree:
+        return None
+
+    roots = _forest_roots(tree)
+    use_native = (
+        len(roots) <= 1
+        and native.native_available()
+        and hasattr(native, "ghost_select_head")
+    )
+    if use_native:
+        try:
+            head = native.ghost_select_head(_tree_json(tree), _weights_json(weights))
+            return str(head) if head else None
+        except Exception:
+            if _native_required():
+                raise
+
+    return _select_head_python(tree, weights)
 
 
 def get_chain_from_head(tree: Dict, weights: Dict[str, int]) -> List[str]:

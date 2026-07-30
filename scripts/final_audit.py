@@ -30,6 +30,8 @@ main_src = read("main.py")
 http_src = read("api/http.py")
 html_src = read("web/explorer/index.html")
 bc_src   = read("core/blockchain.py")
+ss_src   = read("core/components/state_service.py")
+tp_src   = read("core/components/tx_pipeline.py")
 tok_src  = read("runtime/tokenomics.py")
 pl_src   = read("runtime/pool_locks.py")
 lc_src   = read("light/light_client.py")
@@ -50,8 +52,17 @@ wiring = [
     ("main.pool_locks", "self.pool_locks" in main_src),
     ("main.light_client", "self.light_client" in main_src),
     ("blockchain.pool_locks", "self.pool_locks" in bc_src),
-    ("pool_locks in validate_tx", "pool_locks.is_outgoing_allowed" in bc_src),
-    ("pool_locks in apply_tx", "pool_locks.record_outgoing" in bc_src),
+    # Facade extract: validate/apply live in StateService / TxPipeline, not fat blockchain.py
+    (
+        "pool_locks in validate_tx",
+        "pool_locks.is_outgoing_allowed" in bc_src
+        or "is_outgoing_allowed" in ss_src
+        or "is_outgoing_allowed" in tp_src,
+    ),
+    (
+        "pool_locks in apply_tx",
+        "pool_locks.record_outgoing" in bc_src or "record_outgoing" in ss_src,
+    ),
     ("http pool_locks attr", "pool_locks = None" in http_src),
     ("http light_client attr", "light_client = None" in http_src),
     ("http /pools/locks", '"/pools/locks"' in http_src),

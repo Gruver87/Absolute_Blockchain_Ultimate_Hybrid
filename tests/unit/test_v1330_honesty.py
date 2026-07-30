@@ -33,8 +33,9 @@ def test_bridge_proof_requires_eth_rpc():
 
 def test_eth_get_storage_corrupt_raises():
     http_py = Path("api/http.py").read_text(encoding="utf-8")
+    rpc_py = Path("api/rpc_service.py").read_text(encoding="utf-8")
     assert 'raise ValueError("corrupt account storage")' in http_py
-    assert 'context="account_storage"' in http_py
+    assert 'raise ValueError("corrupt account storage")' in rpc_py
 
 
 def test_feature_init_errors_tracked():
