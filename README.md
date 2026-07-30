@@ -56,7 +56,7 @@ storage/             StoragePort · RocksDB adapter · open_storage
 core/                Blockchain domain (self.storage)
 api/                 REST + JSON-RPC
 consensus/           LMD-GHOST + finality policy
-docs/adr/            boundaries 0001–0006
+docs/adr/            boundaries 0001–0010
 scripts/             gates · mesh · soak
 Makefile             make build | test-quick | test-gate | mesh-up
 ```
@@ -96,7 +96,7 @@ Makefile             make build | test-quick | test-gate | mesh-up
 | **TX / EVM on prod mesh** | Proven | Signed gossip + mempool deploy |
 | **Rust native** | Hybrid path | `ABS_REQUIRE_NATIVE_CRYPTO` in prod |
 | **Failover / soak** | **Proven** | 7h + **48h PASS** |
-| **Bridge** | Prep | OFF on prod mesh |
+| **Bridge** | Ports isolated (ADR 0010) | OFF on prod mesh until L1 cutover |
 | **Public mainnet** | **Not launched** | Audit + ops + L1 cutover remaining |
 
 **Quality gate:** CI · `make test-quick` / `check_all.ps1` · **1260+** tests collected
@@ -119,7 +119,7 @@ flowchart TB
   BC --> RUST["abs_native crypto + state_root"]
 ```
 
-Ports & honesty: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · ADRs **[0001–0006](docs/adr/)**
+Ports & honesty: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · ADRs **[0001–0010](docs/adr/)**
 
 ### Operator cheatsheet
 
@@ -200,6 +200,7 @@ Code: `runtime/tokenomics.py` · `GET /tokenomics` — **not** a listed token.
 | Jul 19–21 | **48h soak PASS** |
 | Jul 21–26 | Industrial **v1.3.65–v1.3.146** + professional repo surface (Dependabot/SBOM/SUPPORT) |
 | Jul 29 | **v1.3.206** Tip-safety (enforce) + P2P transport boundary + application dispatcher |
+| Jul 30 | **ADR 0010** L1 EVM bridge behind `BridgePort` (validate→claim/credit, FakeEvmBridge, 27 scenarios) |
 
 Ledger: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md)
 
@@ -220,4 +221,4 @@ MIT — [LICENSE](LICENSE)
 ---
 
 *Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87) · Default branch: `master`*  
-*Last update: 2026-07-29 — **v1.3.206** Tip-safety + P2P transport/dispatch boundaries. Not a launched public mainnet.*
+*Last update: 2026-07-30 — **ADR 0010** BridgePort isolation (+ prior **v1.3.206** tip-safety / P2P). Not a launched public mainnet.*
