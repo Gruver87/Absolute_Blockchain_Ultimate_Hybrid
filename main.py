@@ -62,7 +62,7 @@ from execution.evm_adapter import EVMAdapter
 from network.p2p_node import P2PNode
 from api.http import start_rpc_server_thread, start_http_server_thread, shutdown_http_server
 from network.websocket import WebSocketServer
-from bridge.abs_bridge import RustBridge
+from bridge.adapter import build_bridge_port
 from features.nft import NFTMarketplace
 from features.zk import ZKProofSystem
 
@@ -680,15 +680,7 @@ class NodeOrchestrator:
                 "(TIP_SAFETY_SHADOW=1 observe, TIP_SAFETY_ENFORCE=1 refuse)"
             )
 
-        # 8. Мост
-        self.bridge = RustBridge(config, self.db, self.bus) if config.bridge_enabled else None
-        if config.bridge_enabled and getattr(config, "bridge_mode", "rust") == "simulator":
-            print(
-                "[Node] WARN: bridge_mode=simulator is dev/test only - "
-                "set BRIDGE_MODE=rust for real L1 cross-chain path"
-            )
-
-        # 9. NFT маркетплейс (off by default in prod via feature_nft)
+        # 8. NFT маркетплейс (off by default in prod via feature_nft)
         if getattr(config, "feature_nft", True):
             self.nft = NFTMarketplace(db=self.db, bus=self.bus)
             stats = self.nft.get_stats()
@@ -701,13 +693,30 @@ class NodeOrchestrator:
             self.nft = None
             print("[Node] NFT Marketplace: disabled")
 
-        # 10. ZK Proof System (R&D; disabled by prod profile)
+        # 9. ZK Proof System (R&D; disabled by prod profile)
         self.zk = ZKProofSystem() if getattr(config, "feature_zk", True) else None
         print("[Node] ZK Proof System: ready" if self.zk else "[Node] ZK Proof System: disabled")
         if hasattr(self.blockchain, "attach_zk_system"):
             self.blockchain.attach_zk_system(
                 self.zk, enabled=bool(getattr(config, "feature_zk", True))
             )
+
+        # 10. Мост (ADR 0010 — BridgePort after ZK so inbound validator can use gateway)
+        self.bridge = build_bridge_port(
+            config,
+            self.db,
+            self.bus,
+            zk_gateway=getattr(self.blockchain, "zk_gateway", None),
+        )
+        if hasattr(self.blockchain, "attach_bridge"):
+            self.blockchain.attach_bridge(self.bridge)
+        if config.bridge_enabled and getattr(config, "bridge_mode", "rust") == "simulator":
+            print(
+                "[Node] WARN: bridge_mode=simulator is dev/test only - "
+                "set BRIDGE_MODE=rust for real L1 cross-chain path"
+            )
+        elif config.bridge_enabled and getattr(config, "bridge_mode", "rust") == "fake":
+            print("[Node] WARN: bridge_mode=fake is test-only FakeEvmBridge")
 
         # 11. Dynamic Sharding
         if _SHARDING_AVAILABLE and getattr(config, "feature_sharding", True):
@@ -1395,8 +1404,8 @@ class NodeOrchestrator:
         if self.config.mining_enabled:
             tasks.append(asyncio.create_task(self._mining_loop(), name="MiningLoop"))
 
-        # Мост (если включён)
-        if self.bridge:
+        # Мост (если включён) — NullBridgePort is truthy; gate on config
+        if getattr(self.config, "bridge_enabled", False) and self.bridge:
             tasks.append(asyncio.create_task(self.bridge.start(), name="BridgeLoop"))
 
         # WebSocket сервер (порт 8546)

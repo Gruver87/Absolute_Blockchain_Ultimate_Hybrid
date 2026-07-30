@@ -216,10 +216,12 @@ class Config:
 
     # ── Мост (Cross-chain bridge) ────────────────────────────────────────────
     bridge_enabled: bool = False        # OFF by default (mainnet-v1 decision until L1 contracts)
-    bridge_mode: str = "rust"           # "rust" | explicit dev/test-only "simulator"
+    bridge_mode: str = "rust"           # "rust" | "simulator" | test-only "fake"
     bridge_auto_confirm_sec: int = 0    # 0 = manual POST /bridge/confirm-lock only
     bridge_require_l1_proof: bool = False
     bridge_require_l1_event: bool = False  # require receipt log from lock contract (address-level)
+    bridge_min_confirmations: int = 0   # 0 = skip confirmation gate unless proof required
+    bridge_require_inbound_zk: bool = False  # fail-closed ZK when feature_zk + inbound
     bridge_dev_adapter_enabled: bool = False  # explicit dev/test CrossChainBridge adapter
     rust_bridge_path: str = "bridge/abs_bridge_bin"
     bridge_oracle_secret: str = ""      # HMAC secret for /bridge/oracle/* relayer
@@ -813,6 +815,12 @@ class Config:
         self.bridge_require_l1_event = env_bool(
             "BRIDGE_REQUIRE_L1_EVENT", self.bridge_require_l1_event
         )
+        self.bridge_min_confirmations = env_int(
+            "BRIDGE_MIN_CONFIRMATIONS", self.bridge_min_confirmations
+        )
+        self.bridge_require_inbound_zk = env_bool(
+            "BRIDGE_REQUIRE_INBOUND_ZK", self.bridge_require_inbound_zk
+        )
         self.bridge_dev_adapter_enabled = env_bool(
             "BRIDGE_DEV_ADAPTER_ENABLED", self.bridge_dev_adapter_enabled
         )
@@ -960,7 +968,7 @@ class Config:
                 weak_keys = [k for k in self.rpc_api_keys if weak_secret(str(k))]
                 if weak_keys:
                     errors.append("RPC_API_KEYS contains placeholder or weak key")
-        if self.bridge_mode not in ("simulator", "rust"):
+        if self.bridge_mode not in ("simulator", "rust", "fake"):
             errors.append(f"bridge_mode invalid: {self.bridge_mode}")
         if self.bridge_mode == "rust":
             resolved = self.resolve_rust_bridge_path()
@@ -970,6 +978,8 @@ class Config:
                     errors.append(msg)
         if self.is_production and self.bridge_mode == "simulator":
             errors.append("prod deployment should use bridge_mode=rust (or disable bridge)")
+        if self.is_production and self.bridge_mode == "fake":
+            errors.append("prod deployment forbids bridge_mode=fake")
         if self.is_production and self.bridge_dev_adapter_enabled:
             errors.append("prod deployment forbids BRIDGE_DEV_ADAPTER_ENABLED")
         if self.is_production:

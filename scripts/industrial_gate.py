@@ -558,6 +558,31 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("docs/adr/0007-consensus-boundary.md missing")
         if not (ROOT / "docs" / "adr" / "0009-optional-native-fallback.md").is_file():
             errors.append("docs/adr/0009-optional-native-fallback.md missing")
+        if not (ROOT / "docs" / "adr" / "0010-evm-bridge-boundary.md").is_file():
+            errors.append("docs/adr/0010-evm-bridge-boundary.md missing")
+        if not (ROOT / "bridge" / "ports.py").is_file():
+            errors.append("bridge/ports.py missing (ADR 0010 BridgePort)")
+        ports_py = (ROOT / "bridge" / "ports.py").read_text(encoding="utf-8", errors="replace")
+        if "class BridgePort" not in ports_py:
+            errors.append("bridge/ports.py must define BridgePort (ADR 0010)")
+        if "class InboundMessageValidatorPort" not in ports_py:
+            errors.append("bridge/ports.py must define InboundMessageValidatorPort")
+        if "class NullBridgePort" not in ports_py:
+            errors.append("bridge/ports.py must define NullBridgePort")
+        storage_ports_py = (ROOT / "storage" / "ports.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "class BridgeStorePort" not in storage_ports_py:
+            errors.append("storage/ports.py must define BridgeStorePort (ADR 0010)")
+        bc_py = (ROOT / "core" / "blockchain.py").read_text(encoding="utf-8", errors="replace")
+        if "def attach_bridge" not in bc_py:
+            errors.append("Blockchain must expose attach_bridge (ADR 0010)")
+        if "def claim_and_credit_bridge_event" in bc_py or "def lock_and_bridge" in bc_py:
+            errors.append(
+                "blockchain.py must not own claim_and_credit / lock_and_bridge bodies (ADR 0010)"
+            )
+        if not (ROOT / "bridge" / "fake_evm_bridge.py").is_file():
+            errors.append("bridge/fake_evm_bridge.py missing (ADR 0010)")
         if not (ROOT / "runtime" / "native_capabilities.py").is_file():
             errors.append("runtime/native_capabilities.py missing (ADR 0009)")
         if not (ROOT / "core" / "components" / "tx_pipeline.py").is_file():

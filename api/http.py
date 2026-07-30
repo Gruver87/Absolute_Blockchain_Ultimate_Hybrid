@@ -303,11 +303,91 @@ def _is_prod_blocked_path(path: str, cfg) -> bool:
 
 def _bridge_for_request(handler_cls, cfg):
     rust_bridge = getattr(handler_cls, "bridge", None)
+    if rust_bridge is not None:
+        stats = getattr(rust_bridge, "get_stats", None)
+        if callable(stats):
+            try:
+                if stats().get("enabled") is False:
+                    rust_bridge = None
+            except Exception:
+                pass
     if _is_production_cfg(cfg):
         if rust_bridge and getattr(rust_bridge, "_mode", "") == "rust":
             return rust_bridge
         return None
     return rust_bridge or getattr(handler_cls, "cross_bridge", None)
+
+
+def _bridge_http_result(result):
+    """Normalize BridgeOpResult / dict for JSON responses (ADR 0010)."""
+    try:
+        from bridge.adapter import normalize_bridge_http_result
+
+        return normalize_bridge_http_result(result)
+    except Exception:
+        if isinstance(result, dict):
+            return result
+        return {"success": bool(result)}
+
+
+def _inbound_envelope_from_body(body: dict):
+    from bridge.ports import InboundEnvelope
+
+    tx_id = body.get("tx_id", body.get("tx_hash", ""))
+    recipient = body.get("recipient", body.get("to_address", ""))
+    amount = float(body.get("amount", 0) or 0)
+    from_chain = body.get("from_chain", body.get("source_chain", "ethereum"))
+    l1_tx = (body.get("l1_tx_hash") or "").strip()
+    log_index = int(body.get("log_index", 0) or 0)
+    event_tx = l1_tx or tx_id
+    meta = {}
+    if l1_tx:
+        meta["l1_tx_hash"] = l1_tx
+    return InboundEnvelope(
+        from_chain=from_chain,
+        to_addr=recipient,
+        amount=amount,
+        event_tx_hash=event_tx,
+        log_index=log_index,
+        receipt=body.get("receipt"),
+        zk_proof=body.get("zk_proof"),
+        oracle_meta=meta,
+        abs_tx_hash=tx_id if l1_tx and l1_tx != tx_id else "",
+    )
+
+
+def _call_confirm_incoming(br, body: dict):
+    """Call BridgePort envelope API or legacy RustBridge positional signature."""
+    from bridge.ports import InboundEnvelope
+
+    envelope = (
+        body
+        if isinstance(body, InboundEnvelope)
+        else _inbound_envelope_from_body(body if isinstance(body, dict) else {})
+    )
+    try:
+        return br.confirm_incoming(envelope)
+    except TypeError:
+        # Legacy: confirm_incoming(tx_hash, recipient, amount, from_chain, ...)
+        payload = body if isinstance(body, dict) else {}
+        tx_id = payload.get("tx_id", payload.get("tx_hash", "")) or (
+            envelope.abs_tx_hash or envelope.event_tx_hash
+        )
+        recipient = payload.get("recipient", payload.get("to_address", "")) or envelope.to_addr
+        amount = float(payload.get("amount", envelope.amount) or 0)
+        from_chain = (
+            payload.get("from_chain", payload.get("source_chain", "")) or envelope.from_chain
+        )
+        l1_tx = (payload.get("l1_tx_hash") or envelope.oracle_meta.get("l1_tx_hash") or "").strip()
+        log_index = int(payload.get("log_index", envelope.log_index) or 0)
+        return br.confirm_incoming(
+            tx_id,
+            recipient,
+            amount,
+            from_chain,
+            l1_tx_hash=l1_tx,
+            log_index=log_index,
+        )
 
 
 def _rust_bridge_health(cfg) -> Dict:
@@ -5651,11 +5731,17 @@ class RESTHandler(BaseHTTPRequestHandler):
                                 f"{from_chain}:{from_addr}:{to_addr}:{amount}".encode()
                             )
                         )
-                        result = rust_br.confirm_incoming(
-                            tx_id, to_addr, amount, from_chain, l1_tx_hash=l1_tx
-                        )
+                        env_body = {
+                            **body,
+                            "tx_id": tx_id,
+                            "recipient": to_addr,
+                            "amount": amount,
+                            "from_chain": from_chain,
+                            "l1_tx_hash": l1_tx,
+                        }
+                        result = _call_confirm_incoming(rust_br, env_body)
                         self._json({
-                            **(result if isinstance(result, dict) else {"success": bool(result)}),
+                            **_bridge_http_result(result),
                             "bridge_path": "rust",
                             "direction": "incoming",
                         })
@@ -5664,7 +5750,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                             from_addr, to_chain, to_addr, amount, l1_tx_hash=l1_tx
                         )
                         self._json({
-                            **(result if isinstance(result, dict) else {"success": bool(result)}),
+                            **_bridge_http_result(result),
                             "bridge_path": "rust",
                             "direction": "outbound",
                             "hint": "Confirm via POST /bridge/confirm-lock or bridge relayer",
@@ -5855,8 +5941,9 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not br:
                     self._error(503, "Bridge not enabled"); return
                 tx_hash = body.get("tx_hash", body.get("tx_id", ""))
+                l1_tx = (body.get("l1_tx_hash") or "").strip()
                 if hasattr(br, "confirm_lock"):
-                    self._json(br.confirm_lock(tx_hash))
+                    self._json(_bridge_http_result(br.confirm_lock(tx_hash, l1_tx)))
                 else:
                     self._error(501, "confirm_lock not available")
 
@@ -5864,22 +5951,9 @@ class RESTHandler(BaseHTTPRequestHandler):
                 br = _bridge_for_request(self.__class__, cfg)
                 if not br:
                     self._error(503, "Bridge not enabled"); return
-                tx_id = body.get("tx_id", body.get("tx_hash", ""))
-                recipient = body.get("recipient", body.get("to_address", ""))
-                amount = float(body.get("amount", 0))
-                from_chain = body.get("from_chain", body.get("source_chain", "ethereum"))
                 if hasattr(br, "confirm_incoming"):
-                    l1_tx = body.get("l1_tx_hash", "").strip()
-                    log_index = int(body.get("log_index", 0) or 0)
-                    result = br.confirm_incoming(
-                        tx_id,
-                        recipient,
-                        amount,
-                        from_chain,
-                        l1_tx_hash=l1_tx,
-                        log_index=log_index,
-                    )
-                    self._json(result if isinstance(result, dict) else {"success": bool(result)})
+                    result = _call_confirm_incoming(br, body)
+                    self._json(_bridge_http_result(result))
                 else:
                     self._json({"success": False, "error": "confirm not available"})
 
@@ -5963,7 +6037,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     result = br.lock_and_bridge(
                         from_addr, target_chain, to_addr, amount, l1_tx_hash=l1_tx
                     )
-                    self._json(result if isinstance(result, dict) else {"success": bool(result)})
+                    self._json(_bridge_http_result(result))
                 elif hasattr(br, "transfer"):
                     result = br.transfer(from_addr, body.get("to_address",""), amount, target_chain)
                     self._json(result if isinstance(result, dict) else {"success": bool(result)})
@@ -5974,22 +6048,9 @@ class RESTHandler(BaseHTTPRequestHandler):
                 br = _bridge_for_request(self.__class__, cfg)
                 if not br:
                     self._error(503, "Bridge not enabled"); return
-                tx_id = body.get("tx_id", body.get("tx_hash", ""))
-                recipient = body.get("recipient", body.get("to_address", ""))
-                amount = float(body.get("amount", 0))
-                from_chain = body.get("from_chain", body.get("source_chain", "ethereum"))
                 if hasattr(br, "confirm_incoming"):
-                    l1_tx = body.get("l1_tx_hash", "").strip()
-                    log_index = int(body.get("log_index", 0) or 0)
-                    result = br.confirm_incoming(
-                        tx_id,
-                        recipient,
-                        amount,
-                        from_chain,
-                        l1_tx_hash=l1_tx,
-                        log_index=log_index,
-                    )
-                    self._json(result if isinstance(result, dict) else {"success": bool(result)})
+                    result = _call_confirm_incoming(br, body)
+                    self._json(_bridge_http_result(result))
                 else:
                     self._json({"success": False, "error": "confirm not available"})
 
@@ -5998,8 +6059,9 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not br:
                     self._error(503, "Bridge not enabled"); return
                 tx_hash = body.get("tx_hash", body.get("tx_id", ""))
+                l1_tx = (body.get("l1_tx_hash") or "").strip()
                 if hasattr(br, "confirm_lock"):
-                    self._json(br.confirm_lock(tx_hash))
+                    self._json(_bridge_http_result(br.confirm_lock(tx_hash, l1_tx)))
                 else:
                     self._error(501, "confirm_lock not available")
 
@@ -6019,9 +6081,13 @@ class RESTHandler(BaseHTTPRequestHandler):
                 if not br:
                     self._error(503, "Bridge not enabled"); return
                 tx_id = body.get("tx_id", "")
+                reason = body.get("reason", "")
                 if hasattr(br, "refund"):
-                    result = br.refund(tx_id)
-                    self._json(result if isinstance(result, dict) else {"success": bool(result)})
+                    try:
+                        result = br.refund(tx_id, reason)
+                    except TypeError:
+                        result = br.refund(tx_id)
+                    self._json(_bridge_http_result(result))
                 else:
                     self._json({"success": False, "error": "refund not available"})
 

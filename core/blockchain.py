@@ -315,10 +315,21 @@ class Blockchain:
         )
         self.state_service = StateService(self)
 
+        # ADR 0010 — L1 bridge port (DI only; no tip/UoW coupling)
+        from bridge.ports import NullBridgePort
+
+        self.bridge = NullBridgePort()
+
         self._ensure_genesis()
         h = self.get_height()
         cutoff = int(getattr(self.config, "state_root_legacy_cutoff_height", 0) or 0)
         self._state_root_baseline = max(cutoff, h)
+
+    def attach_bridge(self, port) -> None:
+        """Wire optional L1 BridgePort (NodeOrchestrator owns start/stop lifecycle)."""
+        from bridge.ports import NullBridgePort
+
+        self.bridge = port if port is not None else NullBridgePort()
 
     def attach_zk_system(self, system, *, enabled: bool = True) -> None:
         """Wire optional ZKProofSystem into the facade (called from NodeOrchestrator)."""

@@ -16,6 +16,7 @@ __all__ = [
     "BlockStorePort",
     "StateStorePort",
     "MetaStorePort",
+    "BridgeStorePort",
     "StorageUnitOfWorkPort",
     "StorageHealthPort",
     "StoragePort",
@@ -150,6 +151,49 @@ class MetaStorePort(Protocol):
         ...
 
     def get_chain_metrics(self, window: int = 0) -> Mapping[str, Any]:
+        ...
+
+
+@runtime_checkable
+class BridgeStorePort(Protocol):
+    """L1 bridge debit / credit / refund (ADR 0010) — outside tip UoW."""
+
+    def bridge_credit_key(
+        self, from_chain: str, event_tx_hash: str, log_index: int = 0
+    ) -> str:
+        ...
+
+    def has_bridge_credit(self, credit_key: str) -> bool:
+        ...
+
+    def debit_and_create_bridge_lock(
+        self,
+        from_addr: str,
+        amount: float,
+        burn_address: str,
+        burn_amount: float,
+        to_chain: str,
+        to_addr: str,
+        net_amount: float,
+        tx_hash: str,
+    ) -> Any:
+        ...
+
+    def claim_and_credit_bridge_event(
+        self,
+        from_chain: str,
+        event_tx_hash: str,
+        recipient: str,
+        amount: float,
+        log_index: int = 0,
+        abs_tx_hash: str = "",
+    ) -> Mapping[str, Any]:
+        ...
+
+    def refund_pending_bridge_lock(self, tx_hash: str) -> Mapping[str, Any]:
+        ...
+
+    def get_bridge_lock(self, lock_hash: str) -> Optional[Mapping[str, Any]]:
         ...
 
 
