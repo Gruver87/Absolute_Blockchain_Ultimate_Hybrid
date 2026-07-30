@@ -1898,15 +1898,27 @@ class P2PNode:
                 await self._server.serve_forever()
 
     async def _native_accept_loop(self) -> None:
-        """Accept loop for P2PNativeListener (v1.3.90)."""
+        """Accept loop for P2PNativeListener (v1.3.90).
+
+        ``accept`` runs in a worker thread (may block until listener close /
+        accept timeout). Always re-check ``_running`` so ``stop()`` can unwind
+        without waiting for a stuck gather forever.
+        """
         while self._running and self._native_listener is not None:
+            listener = self._native_listener
             try:
-                out = await asyncio.to_thread(self._native_listener.accept)
+                out = await asyncio.to_thread(listener.accept)
+            except asyncio.CancelledError:
+                raise
             except Exception as exc:
+                if not self._running or self._native_listener is None:
+                    break
                 self._native_accept_errors = int(self._native_accept_errors or 0) + 1
                 logger.warning("[P2P] native accept error: %s", exc)
                 await asyncio.sleep(0.2)
                 continue
+            if not self._running or self._native_listener is None:
+                break
             if not isinstance(out, dict) or not out.get("ok"):
                 self._native_accept_errors = int(self._native_accept_errors or 0) + 1
                 await asyncio.sleep(0.05)

@@ -401,7 +401,36 @@ class RocksChainStore:
                 self._batch_acc_dirty.clear()
 
     def close(self) -> None:
-        self._engine = None  # type: ignore[assignment]
+        """Graceful RocksDB close — wait out WriteBatch, drop native engine (WAL flush via Drop).
+
+        ADR 0014: never tear down while ``atomic()`` holds ``_write_lock``; incomplete
+        batches are discarded only after the lock is acquired (commit finished or aborted).
+        """
+        with self._write_lock:
+            if getattr(self, "_engine", None) is None:
+                return
+            if self._pending_batch is not None:
+                logger.warning(
+                    "[RocksDB] discarding incomplete WriteBatch on close path=%s",
+                    self.db_path,
+                )
+                self._pending_batch = None
+                self._batch_acc_dirty.clear()
+            eng = self._engine
+            self._engine = None  # type: ignore[assignment]
+            try:
+                flush = getattr(eng, "flush", None)
+                if callable(flush):
+                    flush()
+            except Exception as exc:
+                logger.warning("[RocksDB] flush on close failed: %s", exc)
+            try:
+                del eng
+            except Exception:
+                pass
+            msg = f"[RocksDB] clean close ({self.db_path})"
+            logger.info(msg)
+            print(msg)
 
     def backup_to(self, dest_path: str) -> bool:
         try:

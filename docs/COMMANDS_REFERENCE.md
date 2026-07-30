@@ -86,6 +86,23 @@ pytest tests/e2e/test_live_mesh_consensus.py -q -m live_mesh --tb=line
 
 Keep temp dirs on failure: `$env:LIVE_MESH_KEEP="1"`.
 
+### ADR 0014 — Graceful shutdown & deep `/health/ready`
+
+Unit DoD (offline):
+
+```powershell
+pytest tests/unit/test_health_ready_adr0014.py -q --tb=line
+```
+
+SIGTERM during mining → RocksDB clean close (live mesh gate):
+
+```powershell
+$env:LIVE_MESH_E2E="1"
+pytest tests/e2e/test_runtime_signals.py -q -m live_mesh --tb=line
+```
+
+K8s: readiness must use `/health/ready` (503 while draining or mesh not deep-ready); liveness stays `/health/live`.
+
 ---
 
 ## Порты (шпаргалка)

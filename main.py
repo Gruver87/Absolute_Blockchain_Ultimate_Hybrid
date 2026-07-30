@@ -60,7 +60,12 @@ from kernel.event_bus import EventBus
 from consensus.adapter import ConsensusAdapter
 from execution.evm_adapter import EVMAdapter
 from network.p2p_node import P2PNode
-from api.http import start_rpc_server_thread, start_http_server_thread, shutdown_http_server
+from api.http import (
+    start_rpc_server_thread,
+    start_http_server_thread,
+    shutdown_http_server,
+    set_accepting_requests,
+)
 from network.websocket import WebSocketServer
 from bridge.adapter import build_bridge_port
 from features.nft import NFTMarketplace
@@ -276,10 +281,24 @@ _ACTIVE_NODE: "NodeOrchestrator | None" = None
 
 
 def _handle_shutdown_signal(signum, frame):
+    """OS signal path — drain via NodeOrchestrator.stop then exit PID (ADR 0014).
+
+    After RocksDB clean close we must ``os._exit``: ``asyncio.gather`` can remain
+    stuck on native P2P ``asyncio.to_thread(accept)`` even though tasks were
+    cancelled and storage already closed (observed on Windows SIGBREAK).
+    """
     global _ACTIVE_NODE
-    if _ACTIVE_NODE:
-        _ACTIVE_NODE.stop()
-    sys.exit(0)
+    print(f"\n[Node] Signal {signum} received — graceful shutdown")
+    node = _ACTIVE_NODE
+    if node is None:
+        return
+    try:
+        # Inline drain is intentional: Windows signal handlers already reached
+        # clean close here; only the post-Goodbye PID hang needed fixing.
+        node.stop(force_process_exit=True)
+    except Exception as exc:
+        print(f"[Node] shutdown drain error: {exc}")
+        os._exit(1)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -308,6 +327,7 @@ class NodeOrchestrator:
         self.config = config
         self.feature_init_errors: dict = {}
         self._running = False
+        self._shutting_down = False
         self._mesh_forge_hold_height = 0
         self._tasks = []
         self._rpc_server = None
@@ -1547,6 +1567,17 @@ class NodeOrchestrator:
             await asyncio.gather(*tasks)
         except asyncio.CancelledError:
             pass
+        finally:
+            # If a signal already drained storage, do not leave gather orphans
+            # blocking interpreter shutdown (native accept to_thread).
+            pending = [t for t in tasks if not t.done()]
+            for t in pending:
+                t.cancel()
+            if pending:
+                try:
+                    await asyncio.wait(pending, timeout=2.0)
+                except Exception:
+                    pass
 
     async def _announce_validator_loop(self):
         """Gossip attestation validator to peers once P2P is up."""
@@ -1658,21 +1689,68 @@ class NodeOrchestrator:
         except Exception as _catch_err:
             print(f"[Node] Staking catch-up note: {_catch_err}")
 
-    # ── Остановка ────────────────────────────────────────────────────────────
+    # ── Остановка (ADR 0014 graceful shutdown) ───────────────────────────────
 
-    def stop(self):
-        if not self._running:
+    def stop(self, *, force_process_exit: bool = False):
+        """Ordered drain: refuse RPC → stop listeners → cancel workers → RocksDB clean close.
+
+        Safe to call from the event loop and ``finally``. Idempotent.
+
+        ``force_process_exit``: after clean close, ``os._exit(0)`` so a stuck
+        ``asyncio.to_thread`` native accept cannot keep the PID alive (K8s SIGTERM).
+        """
+        if getattr(self, "_shutting_down", False):
+            if force_process_exit:
+                os._exit(0)
             return
+        if not self._running and getattr(self, "_http_server", None) is None:
+            # Never started — nothing to drain.
+            if force_process_exit:
+                os._exit(0)
+            return
+        self._shutting_down = True
         self._running = False
-        print("\n[Node] Shutting down...")
+        print("\n[Node] Shutting down (graceful)...")
+
+        # 1) Stop accepting new RPC/REST (K8s readiness flips to 503).
+        try:
+            set_accepting_requests(False)
+        except Exception as exc:
+            _node_log.warning("set_accepting_requests failed: %s", exc)
+
+        # 2) Stop HTTP/RPC servers (no new sockets).
         shutdown_http_server(getattr(self, "_http_server", None), "HTTP")
         shutdown_http_server(getattr(self, "_rpc_server", None), "RPC")
-        # Отменяем asyncio-задачи
-        for task in self._tasks:
+        self._http_server = None
+        self._rpc_server = None
+
+        # 3) WebSocket + monitor (best-effort).
+        ws = getattr(self, "ws_server", None)
+        if ws is not None and hasattr(ws, "stop"):
+            try:
+                ws.stop()
+            except Exception as exc:
+                _node_log.warning("websocket stop failed: %s", exc)
+        mon = getattr(self, "monitor", None)
+        if mon is not None and hasattr(mon, "stop"):
+            try:
+                mon.stop()
+            except Exception as exc:
+                _node_log.warning("monitor stop failed: %s", exc)
+
+        # 4) Cancel asyncio tasks (mining / P2P loops / bridge).
+        for task in list(getattr(self, "_tasks", []) or []):
             if not task.done():
                 task.cancel()
-        # Останавливаем синхронные компоненты
-        self.p2p.stop()
+
+        # 5) Tear down P2P (close peers + listeners) before storage.
+        p2p = getattr(self, "p2p", None)
+        if p2p is not None and hasattr(p2p, "stop"):
+            try:
+                p2p.stop()
+            except Exception as exc:
+                _node_log.warning("p2p stop failed: %s", exc)
+
         aq = getattr(self, "apply_queue", None)
         if aq is not None:
             try:
@@ -1681,19 +1759,39 @@ class NodeOrchestrator:
                 _node_log.warning("apply_queue stop failed: %s", exc)
         se = getattr(self, "sync_executor", None)
         if se is not None:
+            # Don't block drain on a wedged sync worker — cancel and move on.
             try:
                 se.shutdown(wait=False, cancel_futures=True)
             except TypeError:
-                se.shutdown(wait=False)
+                try:
+                    se.shutdown(wait=False)
+                except Exception as exc:
+                    _node_log.warning("sync_executor shutdown failed: %s", exc)
             except Exception as exc:
                 _node_log.warning("sync_executor shutdown failed: %s", exc)
-        if self.bridge:
-            self.bridge.stop()
-        try:
-            self.db.close()
-        except Exception as exc:
-            _node_log.warning("database close failed: %s", exc)
+        if getattr(self, "bridge", None):
+            try:
+                self.bridge.stop()
+            except Exception as exc:
+                _node_log.warning("bridge stop failed: %s", exc)
+
+        # 6) Storage last — waits WriteBatch lock, then RocksDB clean close.
+        for label, obj in (
+            ("storage", getattr(self, "storage", None)),
+            ("database", getattr(self, "db", None)),
+        ):
+            if obj is None or not hasattr(obj, "close"):
+                continue
+            try:
+                obj.close()
+                print(f"[Node] {label} closed")
+            except Exception as exc:
+                _node_log.warning("%s close failed: %s", label, exc)
+
         print("[Node] Goodbye.")
+        if force_process_exit:
+            # Bypass stuck asyncio.to_thread(native accept) keeping the PID alive.
+            os._exit(0)
 
     # ── Цикл майнинга ────────────────────────────────────────────────────────
 
@@ -2354,24 +2452,37 @@ def build_config(args: argparse.Namespace) -> Config:
 
 async def _run_node(config: Config):
     """Корутина верхнего уровня: создаёт узел и запускает его."""
+    # Ensure fresh accept flag after prior test / reload.
+    try:
+        set_accepting_requests(True)
+    except Exception:
+        pass
     node = NodeOrchestrator(config)
 
-    # Graceful shutdown: Unix (asyncio) + Windows/Linux (signal)
+    # Graceful shutdown: Unix (asyncio) + Windows (signal) — ADR 0014
     loop = asyncio.get_running_loop()
+
+    def _signal_stop():
+        _handle_shutdown_signal(signal.SIGTERM, None)
+
     if sys.platform != "win32":
         for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, node.stop)
+            loop.add_signal_handler(sig, _signal_stop)
     else:
         signal.signal(signal.SIGINT, _handle_shutdown_signal)
         if hasattr(signal, "SIGTERM"):
             signal.signal(signal.SIGTERM, _handle_shutdown_signal)
+        # CREATE_NEW_PROCESS_GROUP children receive CTRL_BREAK → SIGBREAK.
+        if hasattr(signal, "SIGBREAK"):
+            signal.signal(signal.SIGBREAK, _handle_shutdown_signal)
 
     try:
         await node.start()
     except asyncio.CancelledError:
         pass
     finally:
-        node.stop()
+        # In-process / normal unwind — never os._exit from here.
+        node.stop(force_process_exit=False)
 
 
 def main():

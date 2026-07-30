@@ -568,6 +568,8 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("docs/adr/0011-rpc-api-boundary.md missing")
         if not (ROOT / "docs" / "adr" / "0012-chaos-injection.md").is_file():
             errors.append("docs/adr/0012-chaos-injection.md missing")
+        if not (ROOT / "docs" / "adr" / "0014-graceful-shutdown-deep-health.md").is_file():
+            errors.append("docs/adr/0014-graceful-shutdown-deep-health.md missing")
         if not (ROOT / "chaos" / "ports.py").is_file():
             errors.append("chaos/ports.py missing (ADR 0012)")
         if not (ROOT / "chaos" / "engine.py").is_file():
@@ -584,6 +586,24 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         main_py_chaos = (ROOT / "main.py").read_text(encoding="utf-8", errors="replace")
         if "TotalChaosEngine" in main_py_chaos or "from chaos" in main_py_chaos or "import chaos" in main_py_chaos:
             errors.append("main.py must not arm/import chaos (ADR 0012)")
+        if "set_accepting_requests" not in main_py_chaos:
+            errors.append("main.py must drain RPC via set_accepting_requests (ADR 0014)")
+        if "_shutting_down" not in main_py_chaos:
+            errors.append("NodeOrchestrator must track _shutting_down (ADR 0014)")
+        http_py_adr14 = (ROOT / "api" / "http.py").read_text(encoding="utf-8", errors="replace")
+        if "def set_accepting_requests" not in http_py_adr14:
+            errors.append("api/http.py must define set_accepting_requests (ADR 0014)")
+        if "_deep_ready_mesh_checks" not in http_py_adr14:
+            errors.append("api/http.py must define _deep_ready_mesh_checks (ADR 0014)")
+        if "peers_alive" not in http_py_adr14 or "sync_not_stalled" not in http_py_adr14:
+            errors.append("api/http.py /health/ready must expose deep mesh checks (ADR 0014)")
+        rocks_py = (ROOT / "storage" / "rocks_store.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "clean close" not in rocks_py:
+            errors.append("RocksChainStore.close must log clean close (ADR 0014)")
+        if not (ROOT / "tests" / "e2e" / "test_runtime_signals.py").is_file():
+            errors.append("tests/e2e/test_runtime_signals.py missing (ADR 0014)")
         if not (ROOT / "api" / "ports.py").is_file():
             errors.append("api/ports.py missing (ADR 0011 RpcPort)")
         api_ports_py = (ROOT / "api" / "ports.py").read_text(encoding="utf-8", errors="replace")

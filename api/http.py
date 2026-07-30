@@ -470,6 +470,123 @@ def _derive_p2p_sync_status(
     return "aligned"
 
 
+# ── ADR 0014 — request drain + deep readiness ────────────────────────────────
+
+_ACCEPTING_REQUESTS = True
+
+
+def set_accepting_requests(accepting: bool) -> None:
+    """Stop/start accepting new RPC/REST traffic during graceful shutdown."""
+    global _ACCEPTING_REQUESTS
+    _ACCEPTING_REQUESTS = bool(accepting)
+    try:
+        JSONRPCHandler.accepting_requests = _ACCEPTING_REQUESTS
+    except Exception:
+        pass
+    try:
+        RESTHandler.accepting_requests = _ACCEPTING_REQUESTS
+    except Exception:
+        pass
+
+
+def is_accepting_requests() -> bool:
+    return bool(_ACCEPTING_REQUESTS)
+
+
+def _sync_engine_is_stalled(sync_engine) -> bool:
+    """True when SyncEngine / catch-up FSM reports STALLED (not mere behind/catch-up)."""
+    if sync_engine is None:
+        return False
+    # Direct FSM attribute (CatchUpStatus.STALLED == "stalled") if exposed.
+    for attr in ("catchup_status", "last_catchup_status", "_last_catchup_status"):
+        raw = getattr(sync_engine, attr, None)
+        if raw is None:
+            continue
+        val = getattr(raw, "value", raw)
+        if str(val).strip().lower() in ("stalled", "stall"):
+            return True
+    if not hasattr(sync_engine, "get_status"):
+        return False
+    try:
+        st = sync_engine.get_status() or {}
+    except Exception:
+        return True
+    err = str(st.get("last_sync_error") or "").lower()
+    if "stall" in err or "fetch_stall" in err or "stalled" in err:
+        return True
+    for key in (
+        "catchup_status",
+        "sync_fsm_state",
+        "sync_consistency_state",
+    ):
+        state = str(st.get(key) or "").strip().lower()
+        if state in ("stalled", "stall", "lockdown"):
+            return True
+    reason = str(st.get("sync_consistency_reason") or "").lower()
+    if "stall" in reason:
+        return True
+    return False
+
+
+def _peer_heights_from_p2p(p2p) -> list[int]:
+    heights: list[int] = []
+    if p2p is None:
+        return heights
+    try:
+        if hasattr(p2p, "get_peers_info"):
+            for row in p2p.get_peers_info() or []:
+                if isinstance(row, dict):
+                    heights.append(int(row.get("height", 0) or 0))
+                else:
+                    heights.append(int(getattr(row, "height", 0) or 0))
+            return heights
+    except Exception:
+        pass
+    try:
+        peers = getattr(p2p, "peers", None) or {}
+        for peer in peers.values():
+            heights.append(int(getattr(peer, "height", 0) or 0))
+    except Exception:
+        pass
+    return heights
+
+
+def _quorum_height_aligned(local_height: int, peer_heights: list[int]) -> bool:
+    """Local tip matches peer quorum: majority of peers within gap ≤ 1 of local."""
+    if not peer_heights:
+        return False
+    local = int(local_height or 0)
+    agree = sum(1 for h in peer_heights if abs(int(h) - local) <= 1)
+    return agree * 2 > len(peer_heights)
+
+
+def _deep_ready_mesh_checks(
+    *,
+    p2p,
+    sync_engine,
+    local_height: int,
+) -> dict:
+    """ADR 0014 deep readiness: peers>0, sync not STALLED, quorum height."""
+    peer_count = 0
+    try:
+        if p2p is not None and hasattr(p2p, "peer_count"):
+            peer_count = int(p2p.peer_count() or 0)
+        elif p2p is not None:
+            peer_count = len(getattr(p2p, "peers", {}) or {})
+    except Exception:
+        peer_count = 0
+    peer_heights = _peer_heights_from_p2p(p2p)
+    stalled = _sync_engine_is_stalled(sync_engine)
+    return {
+        "peers_alive": peer_count > 0,
+        "sync_not_stalled": not stalled,
+        "quorum_height": _quorum_height_aligned(local_height, peer_heights),
+        "peer_count": peer_count,
+        "peer_heights": peer_heights,
+        "sync_stalled": stalled,
+    }
+
+
 def _bridge_disabled_reason(cfg) -> str:
     """Explain why bridge is off (dashboard / ops). Empty when bridge is enabled."""
     if getattr(cfg, "bridge_enabled", False):
@@ -641,6 +758,7 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
     eth_filters = None
     rpc_port = None          # ADR 0011 RpcPort
     query_facade = None      # ADR 0011 QueryFacadePort
+    accepting_requests = True  # ADR 0014 drain flag
 
     def log_message(self, fmt, *args):
         logger.debug(fmt % args)
@@ -674,6 +792,18 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
+        if not bool(getattr(self.__class__, "accepting_requests", True)):
+            self.send_response(503)
+            self.send_header("Content-Type", "application/json")
+            _send_acao_header(self, self._cors_origin(self.headers.get("Origin", "")))
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "jsonrpc": "2.0",
+                "error": {"code": -32000, "message": "node shutting down"},
+                "id": None,
+            }).encode())
+            return
+
         if not _check_rate_limit(self):
             return
 
@@ -1130,6 +1260,7 @@ class RESTHandler(BaseHTTPRequestHandler):
     feature_init_errors = None       # dict name -> error when feature flag on but init failed
     state_engine = None              # StateEngine
     slashing_engine = None           # SlashingEngine
+    accepting_requests = True        # ADR 0014 drain flag
     validator_registry = None        # ValidatorRegistry
     public_validator_set = None      # prod manifest snapshot (addresses only)
     validators_manifest_path = ""    # path to public validator manifest
@@ -1238,7 +1369,29 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "node_id": getattr(cfg, "node_id", "node-1"),
                     "deployment_mode": getattr(cfg, "deployment_mode", "dev"),
                     "uptime_seconds": round(mc.uptime_seconds(), 2) if mc else 0,
+                    "accepting_requests": bool(
+                        getattr(self.__class__, "accepting_requests", True)
+                    ),
                 })
+                return
+
+            # ADR 0014: refuse non-liveness traffic while draining.
+            if not bool(getattr(self.__class__, "accepting_requests", True)):
+                if path == "/health/ready":
+                    body = json.dumps({
+                        "status": "not_ready",
+                        "checks": {"accepting_requests": False, "shutting_down": True},
+                        "height": bc.get_height() if bc else 0,
+                    }, default=str).encode()
+                    origin = self._cors_origin(self.headers.get("Origin", ""))
+                    self.send_response(503)
+                    self.send_header("Content-Type", "application/json")
+                    _send_acao_header(self, origin)
+                    self.send_header("Content-Length", len(body))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                self._error(503, "node shutting down")
                 return
 
             if path == "/health/ready":
@@ -1266,6 +1419,7 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "blockchain": bc is not None,
                     "database": db_ok,
                     "mempool": mp is not None,
+                    "accepting_requests": True,
                     "native_crypto": (
                         native_crypto["available"] and native_crypto["self_test"]
                         if native_crypto["required"]
@@ -1351,14 +1505,42 @@ class RESTHandler(BaseHTTPRequestHandler):
                         else:
                             checks["wire_probe_probed"] = False
                             checks["wire_probe_ok"] = False
+
+                # ADR 0014 deep healthcheck — mesh readiness for K8s probes.
+                local_h = int(bc.get_height() if bc else 0)
+                se = getattr(self.__class__, "sync_engine", None)
+                if se is None and p2p is not None:
+                    se = getattr(p2p, "sync_engine", None)
+                deep = _deep_ready_mesh_checks(
+                    p2p=p2p, sync_engine=se, local_height=local_h
+                )
+                # Always fail-closed on explicit sync STALL.
+                checks["sync_not_stalled"] = bool(deep["sync_not_stalled"])
+                mesh_expected = (
+                    int(getattr(cfg, "mesh_min_peers_before_mine", 0) or 0) > 0
+                    or bool(getattr(cfg, "bootstrap_peers", None) or [])
+                )
+                if mesh_expected:
+                    checks["peers_alive"] = bool(deep["peers_alive"])
+                    checks["quorum_height"] = bool(deep["quorum_height"])
+
                 ready = all(checks.values())
+                deep_ok = bool(deep["sync_not_stalled"]) and (
+                    not mesh_expected
+                    or (bool(deep["peers_alive"]) and bool(deep["quorum_height"]))
+                )
                 payload = {
                     "status": "ready" if ready else "not_ready",
                     "checks": checks,
                     "native_crypto": native_crypto,
                     "rust_bridge": bridge_health,
                     "l1_rpc": bridge_health.get("l1_rpc"),
-                    "height": bc.get_height() if bc else 0,
+                    "height": local_h,
+                    "peer_count": deep.get("peer_count"),
+                    "peer_heights": deep.get("peer_heights"),
+                    "sync_stalled": deep.get("sync_stalled"),
+                    "mesh_expected": mesh_expected,
+                    "deep_ready": deep_ok,
                 }
                 if db_probe_error:
                     payload["db_probe_error"] = db_probe_error
@@ -4579,6 +4761,9 @@ class RESTHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
         cfg = self.__class__.config
+        if not bool(getattr(self.__class__, "accepting_requests", True)):
+            self._error(503, "node shutting down")
+            return
         if not _check_rate_limit(self, parsed.path):
             return
 
@@ -8522,13 +8707,25 @@ def start_http_server_thread(blockchain, mempool, db, config,
     return t, server
 
 
-def shutdown_http_server(server, name: str = "HTTP") -> None:
-    """Корректно останавливает ThreadedHTTPServer (безопасно с другого потока)."""
+def shutdown_http_server(
+    server, name: str = "HTTP", *, timeout: float = 15.0
+) -> None:
+    """Stop ThreadedHTTPServer accepting new connections; wait for serve_forever exit.
+
+    ADR 0014: drain kickoff is synchronous enough for container SIGTERM budgets.
+    """
     if not server:
         return
     try:
-        threading.Thread(target=server.shutdown, daemon=True, name=f"{name}Shutdown").start()
-        server.server_close()
-        print(f"[{name}] Server shutdown initiated")
+        t = threading.Thread(
+            target=server.shutdown, daemon=True, name=f"{name}Shutdown"
+        )
+        t.start()
+        t.join(timeout=max(1.0, float(timeout)))
+        try:
+            server.server_close()
+        except Exception:
+            pass
+        print(f"[{name}] Server shutdown complete")
     except Exception as e:
         print(f"[{name}] Shutdown warning: {e}")

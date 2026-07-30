@@ -581,18 +581,31 @@ class LocalMeshTopology:
         await self.reconnect_mesh([leader, *laggers, *alive_followers])
 
     async def stop_node(self, name: str, *, graceful_timeout: float = 20.0) -> None:
+        """Graceful stop: POSIX SIGTERM / Windows CTRL_BREAK (not TerminateProcess)."""
         handle = self.node(name)
         proc = handle.process
         if proc is None or proc.returncode is not None:
             handle.process = None
             self._close_stderr(handle)
             return
+        pid = proc.pid
         try:
-            proc.terminate()
+            if sys.platform == "win32" and pid is not None:
+                # Requires CREATE_NEW_PROCESS_GROUP at spawn (see start_node).
+                os.kill(pid, signal.CTRL_BREAK_EVENT)
+            else:
+                proc.terminate()
         except ProcessLookupError:
             handle.process = None
             self._close_stderr(handle)
             return
+        except OSError:
+            try:
+                proc.terminate()
+            except ProcessLookupError:
+                handle.process = None
+                self._close_stderr(handle)
+                return
         try:
             await asyncio.wait_for(proc.wait(), timeout=graceful_timeout)
         except asyncio.TimeoutError:

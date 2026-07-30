@@ -2836,7 +2836,13 @@ class Database:
 
     def close(self):
         with self.lock:
-            self.conn.close()
+            conn = getattr(self, "conn", None)
+            if conn is None:
+                return
+            try:
+                conn.close()
+            finally:
+                self.conn = None
 
 
 class BlockchainDB(Database):
