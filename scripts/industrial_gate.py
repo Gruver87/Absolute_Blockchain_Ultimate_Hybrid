@@ -108,6 +108,12 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
     ):
         if needle not in metrics_src:
             errors.append(f"metrics.py missing Prometheus series: {needle}")
+    p2p_mod = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8")
+    peer_mgr_mod = ""
+    peer_mgr_path = ROOT / "network" / "peer_manager.py"
+    if peer_mgr_path.is_file():
+        peer_mgr_mod = peer_mgr_path.read_text(encoding="utf-8")
+    p2p_surface = p2p_mod + "\n" + peer_mgr_mod
     for needle in (
         "maintenance_loop_fail",
         "catch_up_loop_fail",
@@ -118,7 +124,7 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
         "sync_fail",
         "discovery_loop_fail",
     ):
-        if needle not in p2p_mod:
+        if needle not in p2p_surface:
             errors.append(f"p2p_node.py missing industrial surface: {needle}")
     alerts_src = (ROOT / "deploy" / "prometheus" / "alerts.yml").read_text(encoding="utf-8")
     for needle in (
@@ -550,6 +556,19 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             )
         if not (ROOT / "docs" / "adr" / "0007-consensus-boundary.md").is_file():
             errors.append("docs/adr/0007-consensus-boundary.md missing")
+        if not (ROOT / "docs" / "adr" / "0009-optional-native-fallback.md").is_file():
+            errors.append("docs/adr/0009-optional-native-fallback.md missing")
+        if not (ROOT / "runtime" / "native_capabilities.py").is_file():
+            errors.append("runtime/native_capabilities.py missing (ADR 0009)")
+        if not (ROOT / "core" / "components" / "tx_pipeline.py").is_file():
+            errors.append("core/components/tx_pipeline.py missing (facade)")
+        if not (ROOT / "crypto" / "kernels" / "python" / "wire_borsh.py").is_file():
+            errors.append("crypto/kernels/python/wire_borsh.py missing (ADR 0009)")
+        if not (ROOT / "network" / "peer_manager.py").is_file():
+            errors.append("network/peer_manager.py missing (P2P PeerManager)")
+        p2p_py = (ROOT / "network" / "p2p_node.py").read_text(encoding="utf-8", errors="replace")
+        if "self.peer_manager = PeerManager" not in p2p_py:
+            errors.append("P2PNode must wire PeerManager (peer mesh decomposition)")
         if '"state_engine": self.__class__.state_engine is not None' not in http_py:
             errors.append("core_real must expose state_engine availability")
         if "finality_engine_missing" not in http_py:

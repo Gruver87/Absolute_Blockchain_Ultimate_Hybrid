@@ -182,8 +182,11 @@ def test_prepare_outbound_data_json_passthrough() -> None:
     env = OutboundEnvelope(peer_id="p1", msg_type="ping", payload={"ignored": True})
     captured = {}
 
-    def _fake_prepare(msg_type, data_json, peer_id, now, max_bytes, allowed_types, rl):
+    def _fake_prepare(
+        msg_type, data_json, peer_id, now, max_bytes, allowed_types, rl, codec=None
+    ):
         captured["data_json"] = data_json
+        captured["codec"] = codec
         return {"ok": True, "payload": b"x\n"}
 
     with patch("crypto.native.native_available", return_value=True), patch(

@@ -704,6 +704,10 @@ class NodeOrchestrator:
         # 10. ZK Proof System (R&D; disabled by prod profile)
         self.zk = ZKProofSystem() if getattr(config, "feature_zk", True) else None
         print("[Node] ZK Proof System: ready" if self.zk else "[Node] ZK Proof System: disabled")
+        if hasattr(self.blockchain, "attach_zk_system"):
+            self.blockchain.attach_zk_system(
+                self.zk, enabled=bool(getattr(config, "feature_zk", True))
+            )
 
         # 11. Dynamic Sharding
         if _SHARDING_AVAILABLE and getattr(config, "feature_sharding", True):

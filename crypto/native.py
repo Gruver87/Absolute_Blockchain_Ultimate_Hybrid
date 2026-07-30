@@ -14,35 +14,32 @@ import os
 from typing import Any, List, Optional
 
 
-_DISABLE_NATIVE = os.getenv("ABS_DISABLE_NATIVE_CRYPTO", "").lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
-_REQUIRE_NATIVE = os.getenv("ABS_REQUIRE_NATIVE_CRYPTO", "").lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
+from runtime.native_capabilities import (
+    NativeFamily,
+    bootstrap_native_capabilities,
+    get_registry,
+    resolve_native_mode,
+)
+
+_MODE = resolve_native_mode()
+_DISABLE_NATIVE = _MODE == "off"
+_REQUIRE_NATIVE = _MODE == "require"
 
 _native_error: Optional[BaseException] = None
 _native = None
 
-if not _DISABLE_NATIVE:
-    try:
-        import abs_native as _native  # type: ignore
-    except Exception as exc:  # pragma: no cover - depends on local wheel install
-        _native_error = exc
-
-if _REQUIRE_NATIVE and _native is None:
-    raise RuntimeError(
-        "ABS_REQUIRE_NATIVE_CRYPTO is enabled, but abs_native is not available"
-    ) from _native_error
+try:
+    _registry = bootstrap_native_capabilities()
+    _native = _registry.module()
+    if _native is None and _registry.status().get("import_error"):
+        _native_error = RuntimeError(str(_registry.status()["import_error"]))
+except Exception as exc:  # pragma: no cover - require mode / import
+    _native_error = exc
+    if _REQUIRE_NATIVE:
+        raise
 
 _NATIVE_REQUIRED_MSG = (
-    "ABS_REQUIRE_NATIVE_CRYPTO is enabled: abs_native kernel required "
+    "ABS_NATIVE_MODE=require (or ABS_REQUIRE_NATIVE_CRYPTO): abs_native kernel required "
     "(pip install -e native/abs_native)"
 )
 
@@ -52,20 +49,37 @@ def _require_native_kernel(kernel: str = "abs_native") -> None:
         raise RuntimeError(_NATIVE_REQUIRED_MSG)
 
 
+def _use_rust(family: NativeFamily) -> bool:
+    return get_registry().use_rust(family)
+
+
+def _demote(family: NativeFamily, reason: str) -> None:
+    get_registry().demote(family, reason)
+
+
 def native_available() -> bool:
-    return _native is not None
+    """True when abs_native module loaded (any family may still be demoted)."""
+    return get_registry().module() is not None
 
 
 def native_error() -> Optional[BaseException]:
     return _native_error
 
 
+def native_capabilities_status() -> dict:
+    """ADR 0009 per-family backend map for /health."""
+    return get_registry().status()
+
+
 def native_crypto_status(required: bool = False) -> dict:
+    caps = get_registry().status()
     status = {
         "available": native_available(),
         "required": bool(required or _REQUIRE_NATIVE),
+        "mode": caps.get("mode", resolve_native_mode()),
         "self_test": False,
         "error": str(_native_error) if _native_error else "",
+        "capabilities": caps.get("families", {}),
         "kernels": [
             "sha256",
             "sha256_batch",
@@ -3388,43 +3402,38 @@ def parse_p2p_wire_line(
     allowed_types: Optional[List[str]] = None,
 ) -> Optional[dict]:
     """Fail-closed P2P envelope parse: size + UTF-8 + JSON object with type."""
-    if _native is not None and hasattr(_native, "parse_p2p_wire_line"):
+    from crypto.kernels.python.wire_borsh import python_wire_parse
+
+    if _use_rust(NativeFamily.WIRE_CODEC) and hasattr(_native, "parse_p2p_wire_line"):
         try:
             result = _native.parse_p2p_wire_line(
                 bytes(line),
                 int(max_bytes),
                 list(allowed_types) if allowed_types is not None else None,
             )
+            return dict(result) if result is not None else None
         except ValueError:
             raise
-        except Exception:
-            return None
-        return dict(result) if result is not None else None
-    text = bytes(line).decode("utf-8", errors="strict").strip()
-    if not text:
-        return None
-    if len(line) > max(4096, min(int(max_bytes), 16 * 1024 * 1024)):
-        raise ValueError(f"p2p_line_too_large: {len(line)} > {max_bytes} bytes")
-    try:
-        payload = json.loads(text)
-    except (json.JSONDecodeError, UnicodeError, TypeError):
-        return None
-    if not isinstance(payload, dict):
-        return None
-    msg_type = payload.get("type")
-    if not isinstance(msg_type, str) or not msg_type or len(msg_type) > 64:
-        return None
-    if allowed_types is not None and allowed_types and msg_type not in allowed_types:
-        return None
-    return {"type": msg_type, "data": payload.get("data")}
+        except Exception as exc:
+            _demote(NativeFamily.WIRE_CODEC, f"parse_p2p_wire_line:{exc}")
+    return python_wire_parse(
+        bytes(line),
+        max_bytes=int(max_bytes),
+        allowed_types=list(allowed_types) if allowed_types is not None else None,
+    )
 
 
 def encode_p2p_wire_message(msg_type: str, data: Any = None) -> bytes:
     """Encode a newline-terminated P2P envelope (v1 NDJSON by default)."""
+    from crypto.kernels.python.wire_borsh import python_wire_encode
+
     data_json = "null" if data is None else json.dumps(data, separators=(",", ":"), ensure_ascii=False)
-    if _native is not None and hasattr(_native, "encode_p2p_wire_message"):
-        return bytes(_native.encode_p2p_wire_message(str(msg_type), data_json))
-    return (json.dumps({"type": str(msg_type), "data": data}, separators=(",", ":"), ensure_ascii=False) + "\n").encode()
+    if _use_rust(NativeFamily.WIRE_CODEC) and hasattr(_native, "encode_p2p_wire_message"):
+        try:
+            return bytes(_native.encode_p2p_wire_message(str(msg_type), data_json))
+        except Exception as exc:
+            _demote(NativeFamily.WIRE_CODEC, f"encode_p2p_wire_message:{exc}")
+    return python_wire_encode(str(msg_type), data, codec="v1")
 
 
 def p2p_wire_codec_mode(default: str = "auto") -> str:
@@ -3442,13 +3451,15 @@ def p2p_wire_codec_mode(default: str = "auto") -> str:
 
 def encode_p2p_wire_message_v2(msg_type: str, data: Any = None) -> bytes:
     """Encode Borsh dual-stack line: ``AB2:`` + hex(envelope) + ``\\n``."""
-    data_json = "null" if data is None else json.dumps(data, separators=(",", ":"), ensure_ascii=False)
-    if _native is not None and hasattr(_native, "encode_p2p_wire_message_v2"):
-        return bytes(_native.encode_p2p_wire_message_v2(str(msg_type), data_json))
-    from network.wire_codec import encode_wire_v2
+    from crypto.kernels.python.wire_borsh import python_wire_encode
 
-    body = encode_wire_v2(str(msg_type), data_json.encode("utf-8"))
-    return ("AB2:" + body.hex() + "\n").encode("ascii")
+    data_json = "null" if data is None else json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+    if _use_rust(NativeFamily.WIRE_CODEC) and hasattr(_native, "encode_p2p_wire_message_v2"):
+        try:
+            return bytes(_native.encode_p2p_wire_message_v2(str(msg_type), data_json))
+        except Exception as exc:
+            _demote(NativeFamily.WIRE_CODEC, f"encode_p2p_wire_message_v2:{exc}")
+    return python_wire_encode(str(msg_type), data, codec="v2")
 
 
 def encode_p2p_wire_message_codec(
@@ -3462,10 +3473,14 @@ def encode_p2p_wire_message_codec(
 
 
 def p2p_wire_detect_codec(line: bytes) -> str:
-    if _native is not None and hasattr(_native, "p2p_wire_detect_codec"):
-        return str(_native.p2p_wire_detect_codec(bytes(line)))
-    text = bytes(line).decode("utf-8", errors="ignore").strip()
-    return "v2" if text.startswith("AB2:") else "v1"
+    from crypto.kernels.python.wire_borsh import python_wire_detect
+
+    if _use_rust(NativeFamily.WIRE_CODEC) and hasattr(_native, "p2p_wire_detect_codec"):
+        try:
+            return str(_native.p2p_wire_detect_codec(bytes(line)))
+        except Exception as exc:
+            _demote(NativeFamily.WIRE_CODEC, f"p2p_wire_detect_codec:{exc}")
+    return python_wire_detect(bytes(line))
 
 
 def hash_sorted_json(obj_json: str) -> str:

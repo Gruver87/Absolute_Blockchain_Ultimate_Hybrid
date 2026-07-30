@@ -15,7 +15,11 @@ from network.p2p_node import ALLOWED_WIRE_TYPES, DEFAULT_MAX_P2P_LINE_BYTES
 def test_parse_p2p_wire_line_accepts_valid_envelope():
     line = b'{"type":"ping","data":null}\n'
     msg = native.parse_p2p_wire_line(line, DEFAULT_MAX_P2P_LINE_BYTES, list(ALLOWED_WIRE_TYPES))
-    assert msg == {"type": "ping", "data": None}
+    assert msg is not None
+    assert msg["type"] == "ping"
+    assert msg["data"] is None
+    # ADR 0009 dual-stack: python path may annotate codec; rust may omit.
+    assert msg.get("wire_codec", "v1") in ("v1", "v2")
 
 
 def test_parse_p2p_wire_line_rejects_unknown_type():

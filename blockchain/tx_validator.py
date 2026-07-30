@@ -1,5 +1,6 @@
 ﻿# blockchain/tx_validator.py
-# Полная валидация транзакций
+# Legacy validator — prefer core.components.TxPipeline (Blockchain facade).
+# Kept for older callers; new code should use Blockchain.validate_transaction.
 
 import time
 from typing import Dict, Tuple, Optional

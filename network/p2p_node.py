@@ -32,6 +32,11 @@ from network.p2p_tls import (
     validate_p2p_tls_config,
 )
 from crypto import native
+from network.peer_manager import (
+    PeerManager,
+    PeerManagerSettings,
+    peer_health_score as _peer_health_score,
+)
 
 logger = logging.getLogger("P2P")
 
@@ -199,28 +204,7 @@ def _clamp_native_timeout_ms(n: Any, default: int = 30000) -> int:
     return max(1000, min(600_000, raw if raw > 0 else default))
 
 
-def _peer_health_score(
-    *,
-    height_gap: int,
-    last_seen_age: float,
-    health_timeout: float,
-    strikes: int = 0,
-    import_fails: int = 0,
-) -> int:
-    """Soft peer quality score for eviction / eclipse prune (0..100).
-
-    v1.3.145: strikes + import_fails penalize score so prune prefers abusive peers,
-    not only height/liveness. Soft honesty only — not tip proof / hard isolation.
-    """
-    score = 100
-    score -= min(45, int(height_gap) * 15)
-    if last_seen_age >= health_timeout:
-        score -= 50
-    elif last_seen_age >= health_timeout / 2:
-        score -= 20
-    score -= min(48, max(0, int(strikes)) * 12)
-    score -= min(40, max(0, int(import_fails)) * 10)
-    return max(0, min(100, score))
+# Soft peer score lives in network.peer_manager (imported as _peer_health_score).
 
 
 class PeerConnection:
@@ -1166,10 +1150,8 @@ class P2PNode:
         self.mempool = mempool
         self.bus = bus
 
-        self.peers: Dict[str, PeerConnection] = {}  # peer_id → PeerConnection
-        self._known_addrs: List[str] = []            # host:port для переподключения
-        for peer_addr in getattr(config, "bootstrap_peers", []) or []:
-            self._remember_addr(peer_addr)
+        self.peer_manager: Optional[PeerManager] = None
+        # ``peers`` is a property → PeerManager.peers (set after PeerManager boots).
         self._server: Optional[asyncio.Server] = None
         self._running = False
         self._loop: Optional[asyncio.AbstractEventLoop] = None
@@ -1179,6 +1161,7 @@ class P2PNode:
         self._peer_msg_windows: Dict[str, tuple[int, float]] = {}
         self._peer_strikes: Dict[str, int] = {}
         self._peer_bans: Dict[str, float] = {}
+        self._known_addrs: List[str] = []
         self._rl_table = None
         self._conn_governor = None
         self._use_native_ingress = False
@@ -1229,6 +1212,16 @@ class P2PNode:
             except Exception as exc:
                 logger.warning("[P2P] native P2PConnectionGovernor unavailable: %s", exc)
                 self._conn_governor = None
+        # Point 3: isolated peer mesh policy (lists / score / strike / ban / slots).
+        self.peer_manager = PeerManager(
+            PeerManagerSettings.from_config(config),
+            rl_table=self._rl_table,
+            conn_governor=self._conn_governor,
+            native_helpers=native if native.native_available() else None,
+        )
+        self._known_addrs = self.peer_manager.known_addrs
+        self._peer_strikes = self.peer_manager.strikes
+        self._peer_bans = self.peer_manager.bans
         # v1.3.90/91: native TCP(+TLS) transport
         # v1.3.114: prod / require_native_crypto fail-closed (no silent asyncio fallback).
         want_native_tx = bool(getattr(config, "p2p_native_transport", False))
@@ -1453,7 +1446,7 @@ class P2PNode:
         self._discovery_loop_fail: int = 0
         self._bootstrap_loop_fail: int = 0
         self._last_tx_wire_reject: str = ""
-        self._shape_reject_counts: Dict[str, int] = {}
+        self._shape_reject_counts: Dict[str, int] = self.peer_manager.shape_reject_counts
         self._consensus = None
         # v1.3.66: coalesce duplicate sync/connect tasks
         self._sync_tasks: Dict[str, asyncio.Task] = {}
@@ -1603,6 +1596,19 @@ class P2PNode:
         return None
 
     # ── DispatchHost surface (Step D — structural Protocol for P2PDispatcher) ─
+
+    @property
+    def peers(self) -> Dict[str, PeerConnection]:
+        """Live mesh map — always the PeerManager registry (never a detached dict)."""
+        return self.peer_manager.peers
+
+    @peers.setter
+    def peers(self, value: Dict[str, PeerConnection]) -> None:
+        """Replace mesh contents in-place (tests may assign a new mapping)."""
+        live = self.peer_manager.peers
+        live.clear()
+        if value:
+            live.update(value)
 
     def strike_peer(self, peer: PeerConnection, reason: str) -> bool:
         """DispatchHost: strike peer; True if peer should be removed."""
@@ -1922,19 +1928,12 @@ class P2PNode:
         if self._is_addr_banned(peer.host, peer.port):
             peer.close()
             return
-        if self._conn_governor is not None:
-            deny = self._conn_governor.allow_inbound(len(self.peers), str(peer.host or ""))
-            if deny:
-                reason = str(deny)
-                self._handshake_rejects = int(self._handshake_rejects or 0) + 1
-                self._shape_reject_counts[reason] = int(
-                    self._shape_reject_counts.get(reason, 0) or 0
-                ) + 1
-                await peer.send(MSG_HANDSHAKE_ACK, {"accepted": False, "reason": reason})
-                peer.close()
-                return
-        elif len(self.peers) >= self.config.max_peers:
-            await peer.send(MSG_HANDSHAKE_ACK, {"accepted": False, "reason": "max_peers"})
+        admit = self.peer_manager.allow_inbound(str(peer.host or ""))
+        if not admit.allowed:
+            self._handshake_rejects = int(self._handshake_rejects or 0) + 1
+            await peer.send(
+                MSG_HANDSHAKE_ACK, {"accepted": False, "reason": admit.reason or "max_peers"}
+            )
             peer.close()
             return
         ok = await self._do_handshake(peer, initiator=False)
@@ -1944,17 +1943,10 @@ class P2PNode:
         if self._is_banned(self._peer_key(peer)):
             peer.close()
             return
-        old = self.peers.get(peer.peer_id)
-        if old and old is not peer:
-            stale_after = max(15.0, float(getattr(self.config, "peer_timeout", 30) or 30))
-            if time.time() - old.last_seen <= stale_after:
-                peer.close()
-                return
-            old.close()
-        self.peers[peer.peer_id] = peer
-        peer._inbound = True  # type: ignore[attr-defined]
-        if self._conn_governor is not None:
-            self._conn_governor.on_connected(str(peer.host or ""))
+        reg = self.peer_manager.register(peer, inbound=True)
+        if not reg.allowed:
+            peer.close()
+            return
         print(f"[P2P] Connected (native): {peer}")
         self._schedule_sync(peer)
         await self._message_loop(peer)
@@ -1969,9 +1961,7 @@ class P2PNode:
             except Exception:
                 pass
             self._native_listener = None
-        for peer in list(self.peers.values()):
-            peer.close()
-        self.peers.clear()
+        self.peer_manager.clear(close=True)
         print("[P2P] Stopped")
 
     def _attach_peer_hooks(self, peer: PeerConnection) -> None:
@@ -2063,20 +2053,12 @@ class P2PNode:
             return
         logger.debug(f"[P2P] Incoming from {peer_addr}")
 
-        # v1.3.77/89: native connection governor (max_peers + per-IP + public subnet + reserved)
-        if self._conn_governor is not None:
-            deny = self._conn_governor.allow_inbound(len(self.peers), str(peer.host or ""))
-            if deny:
-                reason = str(deny)
-                self._handshake_rejects = int(self._handshake_rejects or 0) + 1
-                self._shape_reject_counts[reason] = int(
-                    self._shape_reject_counts.get(reason, 0) or 0
-                ) + 1
-                await peer.send(MSG_HANDSHAKE_ACK, {"accepted": False, "reason": reason})
-                peer.close()
-                return
-        elif len(self.peers) >= self.config.max_peers:
-            await peer.send(MSG_HANDSHAKE_ACK, {"accepted": False, "reason": "max_peers"})
+        admit = self.peer_manager.allow_inbound(str(peer.host or ""))
+        if not admit.allowed:
+            self._handshake_rejects = int(self._handshake_rejects or 0) + 1
+            await peer.send(
+                MSG_HANDSHAKE_ACK, {"accepted": False, "reason": admit.reason or "max_peers"}
+            )
             peer.close()
             return
 
@@ -2089,17 +2071,10 @@ class P2PNode:
             peer.close()
             return
 
-        old = self.peers.get(peer.peer_id)
-        if old and old is not peer:
-            stale_after = max(15.0, float(getattr(self.config, "peer_timeout", 30) or 30))
-            if time.time() - old.last_seen <= stale_after:
-                peer.close()
-                return
-            old.close()
-        self.peers[peer.peer_id] = peer
-        peer._inbound = True  # type: ignore[attr-defined]
-        if self._conn_governor is not None:
-            self._conn_governor.on_connected(str(peer.host or ""))
+        reg = self.peer_manager.register(peer, inbound=True)
+        if not reg.allowed:
+            peer.close()
+            return
         print(f"[P2P] Connected: {peer}")
 
         self._schedule_sync(peer)
@@ -2117,19 +2092,12 @@ class P2PNode:
             return False
         self._prune_stale_peers()
         # v1.3.72/77: outbound max_peers (inbound already enforced at handshake)
-        if self._conn_governor is not None:
-            deny = self._conn_governor.allow_outbound(len(self.peers))
-            if deny:
-                logger.debug("[P2P] outbound connect skipped: %s", deny)
-                return False
-        elif len(self.peers) >= int(getattr(self.config, "max_peers", 50) or 50):
-            logger.debug("[P2P] outbound connect skipped: max_peers=%s", self.config.max_peers)
+        admit = self.peer_manager.allow_outbound()
+        if not admit.allowed:
+            logger.debug("[P2P] outbound connect skipped: %s", admit.reason)
             return False
         # Не дублировать соединения
-        if any(
-            p.host == host and (p.port == port or p.listen_port == port)
-            for p in self.peers.values()
-        ):
+        if self.peer_manager.has_active_endpoint(host, port):
             return False
 
         try:
@@ -2196,16 +2164,15 @@ class P2PNode:
                 return True
 
             # Re-check after handshake (race with inbound accepts).
-            if self._conn_governor is not None:
-                deny = self._conn_governor.allow_outbound(len(self.peers))
-                if deny:
-                    peer.close()
-                    return False
-            elif len(self.peers) >= int(getattr(self.config, "max_peers", 50) or 50):
+            admit = self.peer_manager.allow_outbound()
+            if not admit.allowed:
                 peer.close()
                 return False
 
-            self.peers[peer.peer_id] = peer
+            reg = self.peer_manager.register(peer, inbound=False)
+            if not reg.allowed:
+                peer.close()
+                return False
             self._remember_addr(addr)
 
             print(f"[P2P] Connected to {peer}")
@@ -2599,109 +2566,24 @@ class P2PNode:
             self._remove_peer(peer.peer_id, peer)
 
     def _peer_key(self, peer: PeerConnection) -> str:
-        if peer.peer_id:
-            return peer.peer_id
-        port = peer.listen_port or peer.port
-        return f"{peer.host}:{port}"
+        return self.peer_manager.peer_key(peer)
 
     def _is_banned(self, key: str) -> bool:
-        if not key:
-            return False
-        now = time.time()
-        if self._rl_table is not None:
-            banned = bool(self._rl_table.is_banned(str(key), float(now)))
-            if not banned:
-                self._peer_bans.pop(key, None)
-            return banned
-        until = self._peer_bans.get(key)
-        if until is None:
-            return False
-        if now >= until:
-            self._peer_bans.pop(key, None)
-            return False
-        return True
+        return self.peer_manager.is_banned(key)
 
     def _is_addr_banned(self, host: str, port: int) -> bool:
-        if self._rl_table is not None:
-            return bool(
-                self._rl_table.is_addr_banned(str(host), int(port), float(time.time()))
-            )
-        if self._is_banned(f"{host}:{port}"):
-            return True
-        return any(
-            self._is_banned(key)
-            for key in self._peer_bans
-            if key.startswith(f"{host}:")
-        )
+        return self.peer_manager.is_addr_banned(host, port)
 
     def _strike_peer_sync(self, peer: PeerConnection, reason: str) -> bool:
         """Record abuse strike; return True if peer should be disconnected (banned)."""
-        key = self._peer_key(peer)
-        if not key:
-            return False
-        reason_key = str(reason or "unknown")
-        self._shape_reject_counts[reason_key] = int(
-            self._shape_reject_counts.get(reason_key, 0) or 0
-        ) + 1
-        max_strikes = int(getattr(self.config, "p2p_rate_limit_strikes", 5) or 5)
-        ban_sec = int(getattr(self.config, "p2p_ban_seconds", 300) or 300)
-        now = time.time()
-        if self._rl_table is not None:
-            banned = bool(self._rl_table.strike(str(key), float(now)))
-            if not banned:
-                strikes = int(self._rl_table.strike_count(str(key)))
-                self._peer_strikes[key] = strikes
-                logger.warning(
-                    "[P2P] strike %s/%s for %s (%s)",
-                    strikes,
-                    max_strikes,
-                    key,
-                    reason_key,
-                )
-                return False
-            until = self._rl_table.ban_until(str(key))
-            if until is not None:
-                self._peer_bans[key] = float(until)
-            else:
-                self._peer_bans[key] = now + max(30, ban_sec)
-            self._peer_strikes.pop(key, None)
-            logger.warning("[P2P] banned %s for %ss (%s)", key, ban_sec, reason)
-            return True
-        strikes = int(self._peer_strikes.get(key, 0) or 0) + 1
-        self._peer_strikes[key] = strikes
-        if strikes < max_strikes:
-            logger.warning(
-                "[P2P] strike %s/%s for %s (%s)",
-                strikes,
-                max_strikes,
-                key,
-                reason_key,
-            )
-            return False
-        self._peer_bans[key] = now + max(30, ban_sec)
-        self._peer_strikes.pop(key, None)
-        logger.warning("[P2P] banned %s for %ss (%s)", key, ban_sec, reason)
-        return True
+        return self.peer_manager.strike(peer, reason)
 
     def _peer_strike_count(self, peer: PeerConnection) -> int:
-        key = self._peer_key(peer)
-        if not key:
-            return 0
-        strikes = int(self._peer_strikes.get(key, 0) or 0)
-        if self._rl_table is not None:
-            try:
-                strikes = max(strikes, int(self._rl_table.strike_count(str(key))))
-            except Exception:
-                pass
-        return strikes
+        return self.peer_manager.strike_count(peer)
 
     def _note_peer_import_fail(self, peer: Optional[PeerConnection]) -> None:
         """v1.3.145: attribute failed imports to the sourcing peer for score honesty."""
-        if peer is None:
-            return
-        peer.quality_import_fails = int(
-            getattr(peer, "quality_import_fails", 0) or 0
-        ) + 1
+        self.peer_manager.note_import_fail(peer)
 
     def _score_peer(
         self,
@@ -2712,15 +2594,11 @@ class P2PNode:
         now: Optional[float] = None,
     ) -> int:
         """Compose soft peer score including strike/import quality (v1.3.145)."""
-        ts = float(now if now is not None else time.time())
-        gap = abs(int(getattr(peer, "height", 0) or 0) - int(local_height or 0))
-        age = max(0.0, ts - float(getattr(peer, "last_seen", ts) or ts))
-        return _peer_health_score(
-            height_gap=gap,
-            last_seen_age=age,
+        return self.peer_manager.score(
+            peer,
+            local_height=local_height,
             health_timeout=health_timeout,
-            strikes=self._peer_strike_count(peer),
-            import_fails=int(getattr(peer, "quality_import_fails", 0) or 0),
+            now=now,
         )
 
     def _exempt_rate_ok(self, peer_id: str) -> bool:
@@ -5299,51 +5177,22 @@ class P2PNode:
 
     def _remember_addr(self, addr: str) -> None:
         """Remember a reconnect candidate as host:port."""
-        if not addr or ":" not in addr:
-            return
-        host, port_s = str(addr).rsplit(":", 1)
-        try:
-            port = int(port_s)
-        except Exception:
-            return
-        if not host or port <= 0:
-            return
-        norm = f"{host}:{port}"
-        if norm not in self._known_addrs:
-            self._known_addrs.append(norm)
+        self.peer_manager.remember_addr(addr)
 
     def _prune_stale_peers(self, max_age: Optional[float] = None) -> int:
         """Drop stale or critically unhealthy peer objects before reconnect/dedup."""
-        now = time.time()
-        if max_age is None:
-            max_age = max(30.0, float(getattr(self.config, "peer_timeout", 30) or 30) * 2)
-        removed = 0
         local_height = int(self.blockchain.get_height() or 0) if self.blockchain else 0
-        health_timeout = max(
-            30.0,
-            float(getattr(self.config, "peer_timeout", 30) or 30) * 2,
+        removed = self.peer_manager.prune_stale(
+            local_height=local_height,
+            max_age=max_age,
         )
-        evict_below = int(getattr(self.config, "p2p_evict_min_score", 0) or 0)
-        for pid, peer in list(self.peers.items()):
-            if now - peer.last_seen > max_age:
-                self._remove_peer(pid, peer)
-                removed += 1
-                continue
-            if evict_below > 0 and len(self.peers) > 1:
-                score = self._score_peer(
-                    peer,
-                    local_height=local_height,
-                    health_timeout=health_timeout,
-                    now=now,
-                )
-                if score < evict_below:
-                    self._remove_peer(pid, peer)
-                    removed += 1
-        # v1.3.89: eclipse prune — drop worst-score peer in densest public subnet
-        removed += self._maybe_eclipse_prune(local_height=local_height, health_timeout=health_timeout)
-        expired_bans = [k for k, until in self._peer_bans.items() if now >= until]
-        for key in expired_bans:
-            self._peer_bans.pop(key, None)
+        self._eclipse_prune_total = int(self.peer_manager.eclipse.prune_total or 0)
+        self._eclipse_at_risk = 1 if self.peer_manager.eclipse.at_risk else 0
+        self._eclipse_ratio = float(self.peer_manager.eclipse.eclipse_ratio or 0)
+        self._eclipse_unique_public_subnets = int(
+            self.peer_manager.eclipse.unique_public_subnets or 0
+        )
+        self._eclipse_public_peers = int(self.peer_manager.eclipse.public_peers or 0)
         return removed
 
     async def reconnect_known_peers(self) -> Dict:
@@ -6109,111 +5958,36 @@ class P2PNode:
 
     def _refresh_eclipse_snapshot(self) -> Dict:
         """Update eclipse telemetry from live peer IPs (v1.3.89)."""
-        warn = float(getattr(self.config, "p2p_eclipse_warn_ratio", 0) or 0)
-        empty = {
-            "public_peers": 0,
-            "unique_public_subnets": 0,
-            "eclipse_ratio": 0.0,
-            "at_risk": False,
-            "densest_subnet": "",
-        }
-        if self._conn_governor is None or not hasattr(self._conn_governor, "diversity_snapshot"):
-            self._eclipse_at_risk = 0
-            self._eclipse_ratio = 0.0
-            self._eclipse_unique_public_subnets = 0
-            self._eclipse_public_peers = 0
-            return empty
-        ips = [str(p.host or "") for p in self.peers.values()]
-        try:
-            snap = self._conn_governor.diversity_snapshot(ips, warn)
-        except Exception as exc:
-            logger.debug("[P2P] diversity_snapshot failed: %s", exc)
-            return empty
-        self._eclipse_public_peers = int(snap.get("public_peers", 0) or 0)
-        self._eclipse_unique_public_subnets = int(snap.get("unique_public_subnets", 0) or 0)
-        self._eclipse_ratio = float(snap.get("eclipse_ratio", 0) or 0)
-        self._eclipse_at_risk = 1 if snap.get("at_risk") else 0
+        snap = self.peer_manager.refresh_eclipse_snapshot()
+        self._eclipse_public_peers = int(self.peer_manager.eclipse.public_peers or 0)
+        self._eclipse_unique_public_subnets = int(
+            self.peer_manager.eclipse.unique_public_subnets or 0
+        )
+        self._eclipse_ratio = float(self.peer_manager.eclipse.eclipse_ratio or 0)
+        self._eclipse_at_risk = 1 if self.peer_manager.eclipse.at_risk else 0
         return snap
 
     def _maybe_eclipse_prune(self, *, local_height: int, health_timeout: float) -> int:
         """If public peers are eclipse-at-risk, drop lowest-score peer in densest subnet."""
-        warn = float(getattr(self.config, "p2p_eclipse_warn_ratio", 0) or 0)
-        if warn <= 0 or len(self.peers) <= 1 or self._conn_governor is None:
-            self._refresh_eclipse_snapshot()
-            return 0
-        snap = self._refresh_eclipse_snapshot()
-        if not snap.get("at_risk"):
-            return 0
-        densest = str(snap.get("densest_subnet") or "")
-        if not densest or not hasattr(native, "p2p_subnet_key"):
-            return 0
-        candidates = []
-        for pid, peer in self.peers.items():
-            host = str(peer.host or "")
-            try:
-                if not native.p2p_ip_is_public(host):
-                    continue
-                if native.p2p_subnet_key(host) != densest:
-                    continue
-            except Exception:
-                continue
-            gap = abs(int(peer.height or 0) - local_height)
-            age = max(0.0, time.time() - peer.last_seen)
-            score = self._score_peer(
-                peer,
-                local_height=local_height,
-                health_timeout=health_timeout,
-            )
-            candidates.append((score, pid, peer))
-        if len(candidates) < 2:
-            # Need concentration; if only one peer in densest, still may prune if >1 total public
-            if not candidates:
-                return 0
-        candidates.sort(key=lambda t: (t[0], t[1]))
-        score, pid, peer = candidates[0]
-        self._remove_peer(pid, peer)
-        self._eclipse_prune_total = int(self._eclipse_prune_total or 0) + 1
-        logger.warning(
-            "[P2P] eclipse prune peer=%s score=%s subnet=%s ratio=%.3f",
-            str(pid)[:12],
-            score,
-            densest,
-            float(snap.get("eclipse_ratio", 0) or 0),
+        n = self.peer_manager.maybe_eclipse_prune(
+            local_height=local_height,
+            health_timeout=health_timeout,
         )
-        return 1
+        self._eclipse_prune_total = int(self.peer_manager.eclipse.prune_total or 0)
+        return n
 
     def _remove_peer(self, peer_id: str, expected: Optional[PeerConnection] = None):
-        if expected is not None and self.peers.get(peer_id) is not expected:
-            return
-        peer = self.peers.pop(peer_id, None)
-        if peer:
-            if getattr(peer, "_inbound", False) and self._conn_governor is not None:
-                try:
-                    self._conn_governor.on_disconnected(str(peer.host or ""))
-                except Exception as exc:
-                    logger.debug("[P2P] conn governor disconnect failed: %s", exc)
-            peer.close()
+        peer = self.peer_manager.unregister(peer_id, expected, close=True)
+        if peer is not None:
             print(f"[P2P] Disconnected: {peer_id[:12]}")
 
     # ── Статистика ───────────────────────────────────────────────────────────
 
     def get_peers_info(self) -> List[Dict]:
-        return [
-            {
-                "id": p.peer_id,
-                "host": p.host,
-                "port": p.port,
-                "listen_port": p.listen_port,
-                "height": p.height,
-                "head": p.head or "",
-                "connected_for": int(time.time() - p.connected_at),
-                "last_seen_age": round(max(0.0, time.time() - p.last_seen), 3),
-            }
-            for p in self.peers.values()
-        ]
+        return self.peer_manager.peers_info()
 
     def peer_count(self) -> int:
-        return len(self.peers)
+        return self.peer_manager.peer_count()
 
     def get_stats(self) -> Dict:
         stats = {

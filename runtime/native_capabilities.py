@@ -1,0 +1,264 @@
+# runtime/native_capabilities.py — ADR 0009 optional Rust capability registry
+"""Per-family rust|python backend selection for abs_native kernels."""
+
+from __future__ import annotations
+
+import logging
+import os
+import threading
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Dict, List, Literal, Optional
+
+_logger = logging.getLogger(__name__)
+
+Backend = Literal["rust", "python"]
+
+
+class NativeFamily(str, Enum):
+    CRYPTO_HASH = "crypto_hash"
+    CRYPTO_SIG = "crypto_sig"
+    MERKLE = "merkle"
+    WIRE_CODEC = "wire_codec"
+    GHOST = "ghost"
+    EVM_KERNEL = "evm_kernel"
+    BLOCK_APPLY = "block_apply"
+    P2P_TRANSPORT = "p2p_transport"
+    P2P_INGRESS = "p2p_ingress"
+
+
+# Symbols that must exist on abs_native for a family to pass probe.
+_FAMILY_ATTRS: Dict[NativeFamily, List[str]] = {
+    NativeFamily.CRYPTO_HASH: ["sha256_hex", "hash_text"],
+    NativeFamily.CRYPTO_SIG: ["verify_secp256k1_sha256"],
+    NativeFamily.MERKLE: ["merkle_root"],
+    NativeFamily.WIRE_CODEC: ["encode_wire_v2", "decode_wire_v2"],
+    NativeFamily.GHOST: ["ghost_select_head"],
+    NativeFamily.EVM_KERNEL: ["evm_run_until_halt"],
+    NativeFamily.BLOCK_APPLY: ["blockchain_apply_simple_block"],
+    NativeFamily.P2P_TRANSPORT: ["P2PNativeConn"],
+    NativeFamily.P2P_INGRESS: ["p2p_ingress_admit"],
+}
+
+
+@dataclass(frozen=True)
+class FamilyStatus:
+    family: NativeFamily
+    backend: Backend
+    available: bool
+    error: str
+    self_test_ok: bool
+
+
+def _truthy(raw: str) -> bool:
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def resolve_native_mode(default: str = "auto") -> str:
+    """Return ``auto`` | ``off`` | ``require``.
+
+    Aliases: ``ABS_DISABLE_NATIVE_CRYPTO`` → off, ``ABS_REQUIRE_NATIVE_CRYPTO`` → require.
+    """
+    explicit = os.getenv("ABS_NATIVE_MODE", "").strip().lower()
+    if explicit in {"auto", "off", "require", "force_off", "disabled"}:
+        if explicit in {"force_off", "disabled"}:
+            return "off"
+        return explicit
+    if _truthy(os.getenv("ABS_DISABLE_NATIVE_CRYPTO", "")):
+        return "off"
+    if _truthy(os.getenv("ABS_REQUIRE_NATIVE_CRYPTO", "")):
+        return "require"
+    return (default or "auto").strip().lower() or "auto"
+
+
+def _forced_python_families() -> set:
+    raw = os.getenv("ABS_NATIVE_FAMILIES", "").strip()
+    if not raw:
+        return set()
+    out = set()
+    for part in raw.split(","):
+        key = part.strip().lower()
+        if not key:
+            continue
+        try:
+            out.add(NativeFamily(key))
+        except ValueError:
+            _logger.warning("[native] unknown ABS_NATIVE_FAMILIES entry: %s", key)
+    return out
+
+
+class NativeCapabilityRegistry:
+    """Process-wide capability map. Thread-safe after ``bootstrap()``."""
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._bootstrapped = False
+        self._mode = "auto"
+        self._module: Any = None
+        self._import_error: str = ""
+        self._backends: Dict[NativeFamily, Backend] = {
+            f: "python" for f in NativeFamily
+        }
+        self._errors: Dict[NativeFamily, str] = {}
+        self._self_test: Dict[NativeFamily, bool] = {f: False for f in NativeFamily}
+
+    def bootstrap(self) -> None:
+        with self._lock:
+            if self._bootstrapped:
+                return
+            self._mode = resolve_native_mode()
+            forced_py = _forced_python_families()
+
+            if self._mode == "off":
+                self._import_error = "ABS_NATIVE_MODE=off"
+                self._finalize_python_only("forced_off")
+                self._bootstrapped = True
+                return
+
+            try:
+                import abs_native as mod  # type: ignore
+                self._module = mod
+            except Exception as exc:
+                self._import_error = str(exc)
+                self._module = None
+                if self._mode == "require":
+                    raise RuntimeError(
+                        "ABS_NATIVE_MODE=require but abs_native is not available"
+                    ) from exc
+                _logger.warning(
+                    "[native] abs_native unavailable — Python backends (%s)",
+                    self._import_error,
+                )
+                self._finalize_python_only(self._import_error)
+                self._bootstrapped = True
+                return
+
+            for family in NativeFamily:
+                if family in forced_py:
+                    self._backends[family] = "python"
+                    self._errors[family] = "forced_by_ABS_NATIVE_FAMILIES"
+                    self._self_test[family] = False
+                    continue
+                ok, err = self._probe_family(family)
+                if ok:
+                    self._backends[family] = "rust"
+                    self._errors[family] = ""
+                    self._self_test[family] = True
+                else:
+                    self._backends[family] = "python"
+                    self._errors[family] = err
+                    self._self_test[family] = False
+                    if self._mode == "require":
+                        raise RuntimeError(
+                            f"ABS_NATIVE_MODE=require: family {family.value} failed: {err}"
+                        )
+                    _logger.warning(
+                        "[native] demote %s → python (%s)", family.value, err
+                    )
+
+            self._bootstrapped = True
+
+    def _finalize_python_only(self, reason: str) -> None:
+        for family in NativeFamily:
+            self._backends[family] = "python"
+            self._errors[family] = reason
+            self._self_test[family] = False
+
+    def _probe_family(self, family: NativeFamily) -> tuple[bool, str]:
+        mod = self._module
+        if mod is None:
+            return False, "no_module"
+        for attr in _FAMILY_ATTRS.get(family, []):
+            if not hasattr(mod, attr):
+                return False, f"missing_attr:{attr}"
+        try:
+            if family == NativeFamily.CRYPTO_HASH:
+                got = str(mod.sha256_hex(b"absolute"))
+                expect = (
+                    "747355bdc2a224032fd405b1b9e8985bfca47e45b34668f7d0a70ee4789bd855"
+                )
+                if got != expect:
+                    return False, "sha256_self_test_mismatch"
+            elif family == NativeFamily.WIRE_CODEC:
+                frame = bytes(mod.encode_wire_v2("ping", b"{}"))
+                decoded = mod.decode_wire_v2(frame)
+                if str(decoded.get("type") or decoded.get("msg_type") or "") != "ping":
+                    return False, "wire_roundtrip_failed"
+            elif family == NativeFamily.MERKLE:
+                # smoke: non-empty root
+                root = str(mod.merkle_root(["a", "b"]))
+                if not root or len(root) < 32:
+                    return False, "merkle_smoke_failed"
+        except Exception as exc:
+            return False, f"self_test:{exc}"
+        return True, ""
+
+    def ensure_bootstrapped(self) -> None:
+        if not self._bootstrapped:
+            self.bootstrap()
+
+    def module(self) -> Any:
+        self.ensure_bootstrapped()
+        return self._module
+
+    def backend(self, family: NativeFamily) -> Backend:
+        self.ensure_bootstrapped()
+        with self._lock:
+            return self._backends.get(family, "python")
+
+    def use_rust(self, family: NativeFamily) -> bool:
+        return self.backend(family) == "rust" and self._module is not None
+
+    def demote(self, family: NativeFamily, reason: str) -> None:
+        self.ensure_bootstrapped()
+        with self._lock:
+            prev = self._backends.get(family, "python")
+            self._backends[family] = "python"
+            self._errors[family] = str(reason or "demoted")
+            self._self_test[family] = False
+            if prev == "rust":
+                _logger.warning(
+                    "[native] runtime demote %s → python (%s)",
+                    family.value,
+                    reason,
+                )
+
+    def status(self) -> dict:
+        self.ensure_bootstrapped()
+        with self._lock:
+            families = {}
+            for family in NativeFamily:
+                families[family.value] = {
+                    "backend": self._backends[family],
+                    "available": self._backends[family] == "rust",
+                    "error": self._errors.get(family, ""),
+                    "self_test_ok": self._self_test.get(family, False),
+                }
+            return {
+                "mode": self._mode,
+                "module_loaded": self._module is not None,
+                "import_error": self._import_error,
+                "families": families,
+            }
+
+    def reset_for_tests(self) -> None:
+        """Test helper: clear bootstrap so env changes take effect."""
+        with self._lock:
+            self._bootstrapped = False
+            self._module = None
+            self._import_error = ""
+            self._backends = {f: "python" for f in NativeFamily}
+            self._errors = {}
+            self._self_test = {f: False for f in NativeFamily}
+
+
+_REGISTRY = NativeCapabilityRegistry()
+
+
+def get_registry() -> NativeCapabilityRegistry:
+    return _REGISTRY
+
+
+def bootstrap_native_capabilities() -> NativeCapabilityRegistry:
+    _REGISTRY.bootstrap()
+    return _REGISTRY
