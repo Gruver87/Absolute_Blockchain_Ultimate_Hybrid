@@ -47,19 +47,19 @@ use crate::p2p_frame::P2PLineFramer;
 use crate::p2p_wire::{
     clamp_max_bytes, encode_p2p_wire_by_codec, parse_p2p_wire_line_inner, resolve_outbound_codec,
     validate_attestation_shape_inner, validate_block_announce_inner, validate_blocks_batch_inner,
-    validate_cross_shard_ack_inner, validate_cross_shard_tx_inner, validate_get_block_by_hash_inner,
-    validate_get_block_inner, validate_get_blocks_inner, validate_handshake_inner,
-    validate_mempool_batch_inner, validate_peers_list_inner, validate_shard_migration_inner,
-    validate_state_root_request_inner, validate_state_root_response_inner, validate_status_inner,
-    validate_validator_register_inner, validate_wire_tx_inner, verify_attestation_semantics_inner,
+    validate_cross_shard_ack_inner, validate_cross_shard_tx_inner,
+    validate_get_block_by_hash_inner, validate_get_block_inner, validate_get_blocks_inner,
+    validate_handshake_inner, validate_mempool_batch_inner, validate_peers_list_inner,
+    validate_shard_migration_inner, validate_state_root_request_inner,
+    validate_state_root_response_inner, validate_status_inner, validate_validator_register_inner,
+    validate_wire_tx_inner, verify_attestation_semantics_inner,
     verify_block_announce_semantics_inner, verify_blocks_batch_semantics_inner,
-    verify_mempool_batch_signatures_inner, verify_state_root_response_semantics_inner,
-    verify_handshake_head_semantics_inner, verify_status_height_head_binding_inner,
+    verify_handshake_head_semantics_inner, verify_mempool_batch_signatures_inner,
+    verify_state_root_response_semantics_inner, verify_status_height_head_binding_inner,
     verify_wire_tx_signature_inner, DEFAULT_MAX_P2P_LINE_BYTES,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
-use std::collections::HashSet;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName, UnixTime};
 use rustls::server::WebPkiClientVerifier;
@@ -68,6 +68,7 @@ use rustls::{
     ServerConfig, ServerConnection, SignatureScheme, StreamOwned,
 };
 use sha2::{Digest, Sha256};
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufReader, Read, Write};
 use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
@@ -246,10 +247,7 @@ fn check_mempool_batch_semantics(
 }
 
 /// v1.3.120: new_block claimed hash vs canonical recompute.
-fn check_block_announce_semantics(
-    msg_type: &str,
-    data: &serde_json::Value,
-) -> Result<(), String> {
+fn check_block_announce_semantics(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
     if msg_type != "new_block" {
         return Ok(());
     }
@@ -257,10 +255,7 @@ fn check_block_announce_semantics(
 }
 
 /// v1.3.121: sync `blocks` array — each entry must pass canonical-hash semantic.
-fn check_blocks_batch_semantics(
-    msg_type: &str,
-    data: &serde_json::Value,
-) -> Result<(), String> {
+fn check_blocks_batch_semantics(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
     if msg_type != "blocks" {
         return Ok(());
     }
@@ -268,10 +263,7 @@ fn check_blocks_batch_semantics(
 }
 
 /// v1.3.122: singular `block` response — null OK; non-null must match canonical hash.
-fn check_block_payload_semantics(
-    msg_type: &str,
-    data: &serde_json::Value,
-) -> Result<(), String> {
+fn check_block_payload_semantics(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
     if msg_type != "block" {
         return Ok(());
     }
@@ -406,7 +398,10 @@ fn check_peers_list_payload(msg_type: &str, data: &serde_json::Value) -> Result<
 }
 
 /// v1.3.110: parity with Python `validator_register` gate (fail-closed).
-fn check_validator_register_payload(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+fn check_validator_register_payload(
+    msg_type: &str,
+    data: &serde_json::Value,
+) -> Result<(), String> {
     if msg_type != "validator_register" {
         return Ok(());
     }
@@ -417,7 +412,10 @@ fn check_validator_register_payload(msg_type: &str, data: &serde_json::Value) ->
 }
 
 /// v1.3.111: parity with Python `state_root_request` gate (fail-closed).
-fn check_state_root_request_payload(msg_type: &str, data: &serde_json::Value) -> Result<(), String> {
+fn check_state_root_request_payload(
+    msg_type: &str,
+    data: &serde_json::Value,
+) -> Result<(), String> {
     if msg_type != "state_root_request" {
         return Ok(());
     }
@@ -491,8 +489,7 @@ fn check_handshake_policy(
     conn_tls: bool,
     peer_identities: &[String],
 ) -> Result<(), String> {
-    let Some((chain_id, _height, _head, node_id, _port, accepted)) =
-        validate_handshake_inner(data)
+    let Some((chain_id, _height, _head, node_id, _port, accepted)) = validate_handshake_inner(data)
     else {
         return Err("bad_handshake_payload".to_string());
     };
@@ -763,7 +760,10 @@ fn load_private_key(path: &Path) -> Result<PrivateKeyDer<'static>, String> {
     if let Some(k) = keys.pop() {
         return Ok(PrivateKeyDer::Pkcs1(k));
     }
-    Err(format!("p2p_transport_tls:no_private_key:{}", path.display()))
+    Err(format!(
+        "p2p_transport_tls:no_private_key:{}",
+        path.display()
+    ))
 }
 
 fn load_root_store(ca_path: &Path) -> Result<RootCertStore, String> {
@@ -874,7 +874,9 @@ fn build_client_config(
     let verifier = Arc::new(CaOnlyServerVerifier {
         roots: roots.clone(),
     });
-    let builder = ClientConfig::builder().dangerous().with_custom_certificate_verifier(verifier);
+    let builder = ClientConfig::builder()
+        .dangerous()
+        .with_custom_certificate_verifier(verifier);
     let mut cfg = match (cert_path, key_path) {
         (Some(c), Some(k)) if c.exists() && k.exists() => {
             let certs = load_certs(c)?;
@@ -1226,7 +1228,8 @@ impl P2PNativeConn {
                 .or_else(|_| ServerName::try_from("localhost"))
                 .map_err(|e| format!("p2p_transport_tls:{e}"))?
                 .to_owned();
-            let conn = ClientConnection::new(cfg, server_name).map_err(|e| format!("p2p_transport_tls:{e}"))?;
+            let conn = ClientConnection::new(cfg, server_name)
+                .map_err(|e| format!("p2p_transport_tls:{e}"))?;
             let mut tls = StreamOwned::new(conn, tcp);
             // Complete handshake eagerly.
             while tls.conn.is_handshaking() {
@@ -1234,11 +1237,8 @@ impl P2PNativeConn {
                     .complete_io(&mut tls.sock)
                     .map_err(|e| format!("p2p_transport_tls:{e}"))?;
             }
-            let mut native = P2PNativeConn::from_stream(
-                ConnStream::TlsClient(tls),
-                max_bytes,
-                true,
-            );
+            let mut native =
+                P2PNativeConn::from_stream(ConnStream::TlsClient(tls), max_bytes, true);
             native.io_timeout_ms = timeout_ms.max(1);
             Ok(native)
         })
@@ -1364,27 +1364,29 @@ impl P2PNativeConn {
     ) -> PyResult<PyObject> {
         let allowed_set = allowed_types.map(|items| items.into_iter().collect::<HashSet<_>>());
         let keeps_before = self.auto_keeps;
-        let result = py.allow_threads(|| -> Result<Option<(String, serde_json::Value, usize, String)>, String> {
-            // Bound auto-keepalive skips so a ping/pong flood cannot spin forever.
-            for _ in 0..64 {
-                match self.read_one_decoded(chunk_sz, allowed_set.as_ref())? {
-                    None => return Ok(None),
-                    Some((msg_type, data, nbytes, wire_codec)) => {
-                        check_mid_session_handshake(self.session_established, &msg_type)?;
-                        check_ingress_shape_gates(&msg_type, &data)?;
-                        // Early reject get_* always; ping/pong gated inside auto_pong path.
-                        if msg_type == "get_mempool" || msg_type == "get_peers" {
-                            check_housekeeping(&msg_type, &data)?;
+        let result = py.allow_threads(
+            || -> Result<Option<(String, serde_json::Value, usize, String)>, String> {
+                // Bound auto-keepalive skips so a ping/pong flood cannot spin forever.
+                for _ in 0..64 {
+                    match self.read_one_decoded(chunk_sz, allowed_set.as_ref())? {
+                        None => return Ok(None),
+                        Some((msg_type, data, nbytes, wire_codec)) => {
+                            check_mid_session_handshake(self.session_established, &msg_type)?;
+                            check_ingress_shape_gates(&msg_type, &data)?;
+                            // Early reject get_* always; ping/pong gated inside auto_pong path.
+                            if msg_type == "get_mempool" || msg_type == "get_peers" {
+                                check_housekeeping(&msg_type, &data)?;
+                            }
+                            if self.maybe_auto_pong(&msg_type, &data, auto_pong)? {
+                                continue;
+                            }
+                            return Ok(Some((msg_type, data, nbytes, wire_codec)));
                         }
-                        if self.maybe_auto_pong(&msg_type, &data, auto_pong)? {
-                            continue;
-                        }
-                        return Ok(Some((msg_type, data, nbytes, wire_codec)));
                     }
                 }
-            }
-            Err("p2p_auto_pong_flood".to_string())
-        });
+                Err("p2p_auto_pong_flood".to_string())
+            },
+        );
         let keepalive_touches = self.auto_keeps.saturating_sub(keeps_before);
         match result {
             Ok(None) => {
@@ -1646,9 +1648,7 @@ impl P2PNativeConn {
                             break;
                         }
                         // v1.3.123: state_root_response digest semantic.
-                        if let Err(reason) =
-                            check_state_root_response_semantics(&msg_type, &data)
-                        {
+                        if let Err(reason) = check_state_root_response_semantics(&msg_type, &data) {
                             terminal_strike = Some(reason);
                             break;
                         }
@@ -1828,11 +1828,7 @@ impl P2PNativeConn {
             for (msg_type, data_json) in &items {
                 if let Some(ref allowed) = allowed_set {
                     if !allowed.is_empty() && !allowed.contains(msg_type) {
-                        return Err((
-                            format!("p2p_type_not_allowed:{msg_type}"),
-                            total,
-                            written,
-                        ));
+                        return Err((format!("p2p_type_not_allowed:{msg_type}"), total, written));
                     }
                 }
                 let payload = encode_p2p_wire_by_codec(msg_type, data_json, &codec)
@@ -1893,8 +1889,7 @@ impl P2PNativeConn {
             let mut total = 0usize;
             let mut written = 0usize;
             for payload in &payloads {
-                self.write_inner(payload)
-                    .map_err(|e| (e, total, written))?;
+                self.write_inner(payload).map_err(|e| (e, total, written))?;
                 total = total.saturating_add(payload.len());
                 written = written.saturating_add(1);
             }
@@ -1959,63 +1954,65 @@ impl P2PNativeConn {
         let allowed: HashSet<String> = ["handshake".into(), "handshake_ack".into()]
             .into_iter()
             .collect();
-        let result = py.allow_threads(|| -> Result<(String, serde_json::Value, usize, String), String> {
-            if initiator {
-                // Bootstrap handshake in v1; peer may answer v2 — we learn and stick.
-                let payload = encode_p2p_wire_by_codec("handshake", &our_data_json, "v1")?;
-                if payload.len() > max_bytes {
-                    return Err("p2p_line_too_large".to_string());
-                }
-                self.write_inner(&payload)?;
-                match self.read_one_decoded(chunk_sz, Some(&allowed))? {
-                    None => Err("p2p_handshake_eof".to_string()),
-                    Some((msg_type, data, nbytes, wire_codec)) => {
-                        if msg_type != "handshake_ack" {
-                            return Err(format!("p2p_handshake_unexpected:{msg_type}"));
+        let result = py.allow_threads(
+            || -> Result<(String, serde_json::Value, usize, String), String> {
+                if initiator {
+                    // Bootstrap handshake in v1; peer may answer v2 — we learn and stick.
+                    let payload = encode_p2p_wire_by_codec("handshake", &our_data_json, "v1")?;
+                    if payload.len() > max_bytes {
+                        return Err("p2p_line_too_large".to_string());
+                    }
+                    self.write_inner(&payload)?;
+                    match self.read_one_decoded(chunk_sz, Some(&allowed))? {
+                        None => Err("p2p_handshake_eof".to_string()),
+                        Some((msg_type, data, nbytes, wire_codec)) => {
+                            if msg_type != "handshake_ack" {
+                                return Err(format!("p2p_handshake_unexpected:{msg_type}"));
+                            }
+                            check_handshake_payload(&data)?;
+                            check_handshake_policy(
+                                &data,
+                                expected_chain_id,
+                                tls_required,
+                                bind_identity,
+                                conn_tls,
+                                &peer_identities,
+                            )?;
+                            Ok((msg_type, data, nbytes, wire_codec))
                         }
-                        check_handshake_payload(&data)?;
-                        check_handshake_policy(
-                            &data,
-                            expected_chain_id,
-                            tls_required,
-                            bind_identity,
-                            conn_tls,
-                            &peer_identities,
-                        )?;
-                        Ok((msg_type, data, nbytes, wire_codec))
+                    }
+                } else {
+                    match self.read_one_decoded(chunk_sz, Some(&allowed))? {
+                        None => Err("p2p_handshake_eof".to_string()),
+                        Some((msg_type, data, nbytes, wire_codec)) => {
+                            if msg_type != "handshake" {
+                                return Err(format!("p2p_handshake_unexpected:{msg_type}"));
+                            }
+                            check_handshake_payload(&data)?;
+                            check_handshake_policy(
+                                &data,
+                                expected_chain_id,
+                                tls_required,
+                                bind_identity,
+                                conn_tls,
+                                &peer_identities,
+                            )?;
+                            // Reply in the peer's native codec (learned from inbound handshake).
+                            let payload = encode_p2p_wire_by_codec(
+                                "handshake_ack",
+                                &our_data_json,
+                                &wire_codec,
+                            )?;
+                            if payload.len() > max_bytes {
+                                return Err("p2p_line_too_large".to_string());
+                            }
+                            self.write_inner(&payload)?;
+                            Ok((msg_type, data, nbytes, wire_codec))
+                        }
                     }
                 }
-            } else {
-                match self.read_one_decoded(chunk_sz, Some(&allowed))? {
-                    None => Err("p2p_handshake_eof".to_string()),
-                    Some((msg_type, data, nbytes, wire_codec)) => {
-                        if msg_type != "handshake" {
-                            return Err(format!("p2p_handshake_unexpected:{msg_type}"));
-                        }
-                        check_handshake_payload(&data)?;
-                        check_handshake_policy(
-                            &data,
-                            expected_chain_id,
-                            tls_required,
-                            bind_identity,
-                            conn_tls,
-                            &peer_identities,
-                        )?;
-                        // Reply in the peer's native codec (learned from inbound handshake).
-                        let payload = encode_p2p_wire_by_codec(
-                            "handshake_ack",
-                            &our_data_json,
-                            &wire_codec,
-                        )?;
-                        if payload.len() > max_bytes {
-                            return Err("p2p_line_too_large".to_string());
-                        }
-                        self.write_inner(&payload)?;
-                        Ok((msg_type, data, nbytes, wire_codec))
-                    }
-                }
-            }
-        });
+            },
+        );
         match result {
             Ok((msg_type, data, nbytes, wire_codec)) => {
                 decoded_ok_dict(py, &msg_type, &data, nbytes, &wire_codec)
@@ -2148,9 +2145,7 @@ impl P2PNativeListener {
         let listener: TcpListener = socket.into();
 
         let tls_config = match (cert_path, key_path, ca_path) {
-            (Some(c), Some(k), Some(ca))
-                if !c.is_empty() && !k.is_empty() && !ca.is_empty() =>
-            {
+            (Some(c), Some(k), Some(ca)) if !c.is_empty() && !k.is_empty() && !ca.is_empty() => {
                 Some(
                     build_server_config(
                         Path::new(&c),
@@ -2217,8 +2212,8 @@ impl P2PNativeListener {
                     let ms = NATIVE_IO_TIMEOUT_DEFAULT_MS;
                     set_timeouts(&tcp, ms)?;
                     if let Some(cfg) = &self.tls_config {
-                        let conn =
-                            ServerConnection::new(cfg.clone()).map_err(|e| format!("p2p_transport_tls:{e}"))?;
+                        let conn = ServerConnection::new(cfg.clone())
+                            .map_err(|e| format!("p2p_transport_tls:{e}"))?;
                         let mut tls = StreamOwned::new(conn, tcp);
                         while tls.conn.is_handshaking() {
                             tls.conn
@@ -2343,7 +2338,8 @@ mod tests {
         let mut conn = P2PNativeConn::from_plain(client, 1024 * 1024, 5_000).unwrap();
         let line = conn.read_line_inner(4096).unwrap().unwrap();
         assert!(line.starts_with(b"{\"type\":\"ping\""));
-        conn.write_inner(b"{\"type\":\"pong\",\"data\":null}\n").unwrap();
+        conn.write_inner(b"{\"type\":\"pong\",\"data\":null}\n")
+            .unwrap();
         handle.join().unwrap();
     }
 
@@ -2359,9 +2355,7 @@ mod tests {
         });
         let client = TcpStream::connect(addr).unwrap();
         let mut conn = P2PNativeConn::from_plain(client, 1024 * 1024, 5_000).unwrap();
-        let allowed = Some(
-            ["status".to_string()].into_iter().collect::<HashSet<_>>(),
-        );
+        let allowed = Some(["status".to_string()].into_iter().collect::<HashSet<_>>());
         let (msg_type, data, nbytes) = {
             let line = conn.read_line_inner(4096).unwrap().unwrap();
             let nbytes = line.len();
@@ -2382,7 +2376,10 @@ mod tests {
     fn housekeeping_payload_ok_parity() {
         assert!(housekeeping_payload_ok("ping", &serde_json::json!(null)));
         assert!(housekeeping_payload_ok("ping", &serde_json::json!({})));
-        assert!(housekeeping_payload_ok("ping", &serde_json::json!({"ts": 1.5})));
+        assert!(housekeeping_payload_ok(
+            "ping",
+            &serde_json::json!({"ts": 1.5})
+        ));
         assert!(!housekeeping_payload_ok(
             "ping",
             &serde_json::json!({"ts": "x"})
@@ -2506,7 +2503,8 @@ mod tests {
         .is_ok());
 
         assert_eq!(
-            check_get_block_by_hash_payload("get_block_by_hash", &serde_json::json!("")).unwrap_err(),
+            check_get_block_by_hash_payload("get_block_by_hash", &serde_json::json!(""))
+                .unwrap_err(),
             "bad_get_block_by_hash"
         );
         assert!(check_get_block_by_hash_payload(
@@ -2555,11 +2553,10 @@ mod tests {
                 .unwrap_err(),
             "bad_mempool_batch"
         );
-        assert!(check_mempool_batch_payload(
-            "mempool",
-            &serde_json::json!({"transactions": []})
-        )
-        .is_ok());
+        assert!(
+            check_mempool_batch_payload("mempool", &serde_json::json!({"transactions": []}))
+                .is_ok()
+        );
         assert!(check_mempool_batch_payload(
             "mempool",
             &serde_json::json!({"transactions": [{"from": "a", "to": "b"}]})
@@ -2578,11 +2575,9 @@ mod tests {
             check_block_payload("block", &serde_json::json!([1, 2])).unwrap_err(),
             "bad_block_payload"
         );
-        assert!(check_block_payload(
-            "block",
-            &serde_json::json!({"height": 1, "hash": "aa"})
-        )
-        .is_ok());
+        assert!(
+            check_block_payload("block", &serde_json::json!({"height": 1, "hash": "aa"})).is_ok()
+        );
         assert!(check_block_payload("new_block", &serde_json::json!({})).is_ok());
     }
 
@@ -2597,11 +2592,7 @@ mod tests {
             "bad_peers_list"
         );
         assert!(check_peers_list_payload("peers", &serde_json::json!([])).is_ok());
-        assert!(check_peers_list_payload(
-            "peers",
-            &serde_json::json!(["127.0.0.1:5000"])
-        )
-        .is_ok());
+        assert!(check_peers_list_payload("peers", &serde_json::json!(["127.0.0.1:5000"])).is_ok());
 
         assert_eq!(
             check_validator_register_payload("validator_register", &serde_json::json!({}))
@@ -2745,18 +2736,9 @@ mod tests {
             "node_id": "node-a",
             "p2p_port": 5000
         });
-        assert!(check_handshake_policy(
-            &good,
-            Some(778888),
-            false,
-            false,
-            false,
-            &[]
-        )
-        .is_ok());
+        assert!(check_handshake_policy(&good, Some(778888), false, false, false, &[]).is_ok());
         assert_eq!(
-            check_handshake_policy(&good, Some(1), false, false, false, &[])
-                .unwrap_err(),
+            check_handshake_policy(&good, Some(1), false, false, false, &[]).unwrap_err(),
             "chain_id_mismatch"
         );
         assert_eq!(
@@ -2772,30 +2754,17 @@ mod tests {
             "handshake_rejected"
         );
         assert_eq!(
-            check_handshake_policy(&good, Some(778888), true, false, false, &[])
-                .unwrap_err(),
+            check_handshake_policy(&good, Some(778888), true, false, false, &[]).unwrap_err(),
             "tls_missing"
         );
         assert_eq!(
-            check_handshake_policy(
-                &good,
-                Some(778888),
-                true,
-                true,
-                true,
-                &["other".into()]
-            )
-            .unwrap_err(),
+            check_handshake_policy(&good, Some(778888), true, true, true, &["other".into()])
+                .unwrap_err(),
             "tls_identity_mismatch"
         );
-        assert!(check_handshake_policy(
-            &good,
-            Some(778888),
-            true,
-            true,
-            true,
-            &["node-a".into()]
-        )
-        .is_ok());
+        assert!(
+            check_handshake_policy(&good, Some(778888), true, true, true, &["node-a".into()])
+                .is_ok()
+        );
     }
 }

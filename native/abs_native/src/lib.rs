@@ -1410,15 +1410,9 @@ fn evm_decode_nested_call_frame(
     out.insert("to_word".into(), Value::String(to_word.to_string()));
     out.insert("to_address".into(), Value::String(to_address));
     out.insert("value".into(), Value::String(value.to_string()));
-    out.insert(
-        "args_offset".into(),
-        Value::String(args_offset.to_string()),
-    );
+    out.insert("args_offset".into(), Value::String(args_offset.to_string()));
     out.insert("args_size".into(), Value::String(args_size.to_string()));
-    out.insert(
-        "ret_offset".into(),
-        Value::String(ret_offset.to_string()),
-    );
+    out.insert("ret_offset".into(), Value::String(ret_offset.to_string()));
     out.insert("ret_size".into(), Value::String(ret_size.to_string()));
     out.insert("delegate".into(), Value::Bool(kind == "delegatecall"));
     out.insert("static".into(), Value::Bool(kind == "staticcall"));

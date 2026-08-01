@@ -56,9 +56,7 @@ fn p2p_ingress_admit(
         };
 
     if let Some(ref table) = rl {
-        if let Some(reason) =
-            table.admit_rate_inner(peer_id, &msg_type, now, line.len() as u64)
-        {
+        if let Some(reason) = table.admit_rate_inner(peer_id, &msg_type, now, line.len() as u64) {
             return reject_dict(py, &reason);
         }
     }
@@ -92,10 +90,7 @@ pub fn p2p_subnet_key_inner(ip: &str) -> String {
         }
         Ok(IpAddr::V6(v6)) => {
             let seg = v6.segments();
-            format!(
-                "{:x}:{:x}:{:x}:{:x}::/64",
-                seg[0], seg[1], seg[2], seg[3]
-            )
+            format!("{:x}:{:x}:{:x}:{:x}::/64", seg[0], seg[1], seg[2], seg[3])
         }
         Err(_) => String::new(),
     }
@@ -521,8 +516,7 @@ fn p2p_egress_prepare(
         return reject_dict(py, "p2p_line_too_large");
     }
     if let Some(ref table) = rl {
-        if let Some(reason) =
-            table.admit_egress_inner(peer_id, msg_type, now, payload.len() as u64)
+        if let Some(reason) = table.admit_egress_inner(peer_id, msg_type, now, payload.len() as u64)
         {
             return reject_dict(py, &reason);
         }

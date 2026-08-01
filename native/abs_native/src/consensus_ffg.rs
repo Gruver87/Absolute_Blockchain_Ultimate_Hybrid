@@ -42,10 +42,14 @@ fn weight_of(v: &Value) -> i64 {
 #[pyo3(signature = (total_stake, threshold_numer=2, threshold_denom=3))]
 fn ffg_threshold(total_stake: i64, threshold_numer: i64, threshold_denom: i64) -> PyResult<i64> {
     if threshold_denom <= 0 {
-        return Err(pyo3::exceptions::PyValueError::new_err("threshold_denom must be > 0"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "threshold_denom must be > 0",
+        ));
     }
     if total_stake < 0 {
-        return Err(pyo3::exceptions::PyValueError::new_err("total_stake must be >= 0"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "total_stake must be >= 0",
+        ));
     }
     // Python default uses float 2/3 then int(); match that truncation.
     let ratio = (threshold_numer as f64) / (threshold_denom as f64);
@@ -63,11 +67,7 @@ fn ffg_best_checkpoint(votes_json: String) -> PyResult<Option<(String, i64)>> {
     for (hash, w) in &votes {
         let weight = weight_of(w);
         if weight > best_weight
-            || (weight == best_weight
-                && best_hash
-                    .as_ref()
-                    .map(|b| hash < b)
-                    .unwrap_or(true))
+            || (weight == best_weight && best_hash.as_ref().map(|b| hash < b).unwrap_or(true))
         {
             best_weight = weight;
             best_hash = Some(hash.clone());
@@ -80,10 +80,14 @@ fn ffg_best_checkpoint(votes_json: String) -> PyResult<Option<(String, i64)>> {
 fn ffg_accumulate_vote(votes_json: String, block_hash: String, weight: i64) -> PyResult<String> {
     let mut votes = parse_object(&votes_json, "votes_json")?;
     if block_hash.is_empty() {
-        return Err(pyo3::exceptions::PyValueError::new_err("block_hash required"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "block_hash required",
+        ));
     }
     if weight < 0 {
-        return Err(pyo3::exceptions::PyValueError::new_err("weight must be >= 0"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "weight must be >= 0",
+        ));
     }
     let cur = votes.get(&block_hash).map(weight_of).unwrap_or(0);
     votes.insert(block_hash, Value::Number((cur + weight).into()));
@@ -165,7 +169,9 @@ fn ffg_evaluate_epoch(
 #[pyo3(signature = (block_number, epoch_length=32))]
 fn fe_epoch(block_number: i64, epoch_length: i64) -> PyResult<i64> {
     if epoch_length <= 0 {
-        return Err(pyo3::exceptions::PyValueError::new_err("epoch_length must be > 0"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "epoch_length must be > 0",
+        ));
     }
     Ok(block_number.div_euclid(epoch_length))
 }
@@ -217,10 +223,7 @@ fn slash_check_double_proposal(already_proposed: bool) -> PyResult<String> {
     let mut out = Map::new();
     if already_proposed {
         out.insert("accept".to_string(), Value::Bool(false));
-        out.insert(
-            "slash".to_string(),
-            Value::String("double_proposal".into()),
-        );
+        out.insert("slash".to_string(), Value::String("double_proposal".into()));
     } else {
         out.insert("accept".to_string(), Value::Bool(true));
         out.insert("slash".to_string(), Value::Null);

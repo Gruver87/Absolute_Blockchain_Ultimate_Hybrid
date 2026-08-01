@@ -496,7 +496,9 @@ fn hook_contract_call<'py>(host_context: Option<&Bound<'py, PyDict>>) -> Option<
     }
 }
 
-fn hook_contract_create<'py>(host_context: Option<&Bound<'py, PyDict>>) -> Option<Bound<'py, PyAny>> {
+fn hook_contract_create<'py>(
+    host_context: Option<&Bound<'py, PyDict>>,
+) -> Option<Bound<'py, PyAny>> {
     let hooks = bridge_hooks_dict(host_context)?;
     match hooks.get_item("contract_create") {
         Ok(Some(value)) => Some(value),
@@ -663,7 +665,10 @@ fn merge_storage_dict(
 }
 
 fn addr_string_to_u256(addr: &str) -> U256 {
-    let raw = addr.trim().trim_start_matches("0x").trim_start_matches("0X");
+    let raw = addr
+        .trim()
+        .trim_start_matches("0x")
+        .trim_start_matches("0X");
     if raw.is_empty() {
         return U256::zero();
     }
@@ -904,10 +909,7 @@ fn try_inline_leaf_delegate_call(
         .get_item("stop_reason")?
         .map(|v| v.extract::<String>().unwrap_or_default())
         .unwrap_or_default();
-    if !matches!(
-        reason.as_str(),
-        "halt" | "return" | "revert" | "out_of_gas"
-    ) {
+    if !matches!(reason.as_str(), "halt" | "return" | "revert" | "out_of_gas") {
         restore_storage_dict(storage, &pre_snap)?;
         *arena = pre_snap;
         if let Some(ref snap) = balance_snap {
@@ -945,14 +947,7 @@ fn try_inline_leaf_delegate_call(
             restore_inline_balances(host_context, snap)?;
         }
     }
-    stack_push(
-        stack,
-        if success {
-            U256::one()
-        } else {
-            U256::zero()
-        },
-    );
+    stack_push(stack, if success { U256::one() } else { U256::zero() });
     // Mark for observability (tests assert via storage side-effects / hook counter).
     let _ = child_dict.set_item("native_inline_leaf_frame", true);
     if balance_snap.is_some() {
@@ -1314,10 +1309,7 @@ fn try_inline_leaf_value0_call(
         .get_item("stop_reason")?
         .map(|v| v.extract::<String>().unwrap_or_default())
         .unwrap_or_default();
-    if !matches!(
-        reason.as_str(),
-        "halt" | "return" | "revert" | "out_of_gas"
-    ) {
+    if !matches!(reason.as_str(), "halt" | "return" | "revert" | "out_of_gas") {
         if let Some(ref snap) = balance_snap {
             restore_inline_balances(host_context, snap)?;
         }
@@ -1362,14 +1354,7 @@ fn try_inline_leaf_value0_call(
         restore_inline_balances(host_context, snap)?;
     }
     write_return_to_memory(memory, frame.ret_offset, frame.ret_size, &rd);
-    stack_push(
-        stack,
-        if success {
-            U256::one()
-        } else {
-            U256::zero()
-        },
-    );
+    stack_push(stack, if success { U256::one() } else { U256::zero() });
     let _ = child_dict.set_item("native_inline_value0_call", true);
     if balance_snap.is_some() {
         let _ = child_dict.set_item("native_inline_value_call", true);
@@ -1505,9 +1490,7 @@ fn resolve_inline_create_address(
                 // Match Python: salt_text = str(int(salt))
                 let salt_text = salt_word.to_string();
                 Ok(Some(crate::evm_deploy_address_create2_legacy_inner(
-                    deployer,
-                    &salt_text,
-                    init_code,
+                    deployer, &salt_text, init_code,
                 )))
             }
         }
@@ -1564,10 +1547,7 @@ fn run_inline_create_init(
         .get_item("stop_reason")?
         .map(|v| v.extract::<String>().unwrap_or_default())
         .unwrap_or_default();
-    if !matches!(
-        reason.as_str(),
-        "halt" | "return" | "revert" | "out_of_gas"
-    ) {
+    if !matches!(reason.as_str(), "halt" | "return" | "revert" | "out_of_gas") {
         return Ok(None);
     }
     let sub_gas = child_dict
@@ -1710,7 +1690,7 @@ fn try_inline_simple_create(
     }
 
     let _ = balance_snap; // success keeps transfer
-    // v1.3.84: plan save_account then optional transfer_value (same order as evm_plan_create_writeback).
+                          // v1.3.84: plan save_account then optional transfer_value (same order as evm_plan_create_writeback).
     push_pending_writeback_save_account(host_context, addr.as_str(), &runtime)?;
     // v1.3.83: enqueue transfer_value for adapter satoshi journal.
     if !value.is_zero() {

@@ -84,18 +84,13 @@ impl P2PRateLimitState {
         if self.byte_limit == 0 || peer_id.is_empty() {
             return true;
         }
-        let (mut used, mut start) = self
-            .byte_windows
-            .get(peer_id)
-            .copied()
-            .unwrap_or((0, now));
+        let (mut used, mut start) = self.byte_windows.get(peer_id).copied().unwrap_or((0, now));
         if now - start >= 1.0 {
             used = 0;
             start = now;
         }
         used = used.saturating_add(cost);
-        self.byte_windows
-            .insert(peer_id.to_string(), (used, start));
+        self.byte_windows.insert(peer_id.to_string(), (used, start));
         used <= self.byte_limit
     }
 
@@ -166,7 +161,12 @@ impl P2PRateLimitState {
         if key.is_empty() {
             return false;
         }
-        let strikes = self.strikes.get(key).copied().unwrap_or(0).saturating_add(1);
+        let strikes = self
+            .strikes
+            .get(key)
+            .copied()
+            .unwrap_or(0)
+            .saturating_add(1);
         if strikes < self.max_strikes {
             self.strikes.insert(key.to_string(), strikes);
             return false;
@@ -328,25 +328,13 @@ impl P2PRateLimitTable {
 
     /// Outbound bandwidth-only tick (v1.3.85). None = allowed.
     #[pyo3(signature = (peer_id, nbytes, now, msg_type=""))]
-    fn admit_egress(
-        &self,
-        peer_id: &str,
-        nbytes: u64,
-        now: f64,
-        msg_type: &str,
-    ) -> Option<String> {
+    fn admit_egress(&self, peer_id: &str, nbytes: u64, now: f64, msg_type: &str) -> Option<String> {
         self.admit_egress_inner(peer_id, msg_type, now, nbytes)
     }
 
     /// Combined primary + exempt + bandwidth. Returns None when allowed.
     #[pyo3(signature = (peer_id, msg_type, now, nbytes=0))]
-    fn admit_rate(
-        &self,
-        peer_id: &str,
-        msg_type: &str,
-        now: f64,
-        nbytes: u64,
-    ) -> Option<String> {
+    fn admit_rate(&self, peer_id: &str, msg_type: &str, now: f64, nbytes: u64) -> Option<String> {
         self.admit_rate_inner(peer_id, msg_type, now, nbytes)
     }
 
@@ -356,11 +344,7 @@ impl P2PRateLimitTable {
     }
 
     fn strike_count(&self, key: &str) -> u64 {
-        self.lock_state()
-            .strikes
-            .get(key)
-            .copied()
-            .unwrap_or(0)
+        self.lock_state().strikes.get(key).copied().unwrap_or(0)
     }
 
     fn is_banned(&self, key: &str, now: f64) -> bool {
@@ -421,9 +405,7 @@ impl P2PRateLimitTable {
     /// Drop strike counters for peers that are no longer connected.
     fn retain_strike_keys(&self, active_keys: Vec<String>) {
         let active: HashSet<String> = active_keys.into_iter().collect();
-        self.lock_state()
-            .strikes
-            .retain(|k, _| active.contains(k));
+        self.lock_state().strikes.retain(|k, _| active.contains(k));
     }
 
     #[getter]

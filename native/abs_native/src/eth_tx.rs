@@ -4,12 +4,12 @@
 use pyo3::prelude::*;
 use serde_json::{Map, Number, Value};
 
+use crate::keccak256_digest_bytes;
 use crate::recover_eth_address_keccak_inner;
 use crate::rlp::{
     decode_at, decode_single_item, encode_item, int_to_rlp_bytes, item_to_bytes, item_to_u128,
     RlpItem,
 };
-use crate::keccak256_digest_bytes;
 
 fn json_u128(v: u128) -> Value {
     if v <= i64::MAX as u128 {
@@ -381,8 +381,12 @@ fn decode_eth_raw_tx(raw: Vec<u8>) -> PyResult<String> {
 
 #[pyfunction]
 fn decode_eth_raw_tx_hex(raw_hex: String) -> PyResult<String> {
-    let cleaned = raw_hex.trim().trim_start_matches("0x").trim_start_matches("0X");
-    let raw = hex::decode(cleaned).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+    let cleaned = raw_hex
+        .trim()
+        .trim_start_matches("0x")
+        .trim_start_matches("0X");
+    let raw =
+        hex::decode(cleaned).map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
     decode_eth_raw_tx(raw)
 }
 

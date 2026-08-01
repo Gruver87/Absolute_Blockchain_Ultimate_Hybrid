@@ -246,14 +246,8 @@ pub fn evm_plan_create_writeback_py(
 
     let mut out = Map::new();
     out.insert("deployer".into(), Value::String(deployer));
-    out.insert(
-        "address".into(),
-        Value::String(contract_address),
-    );
-    out.insert(
-        "value_wei".into(),
-        Value::Number(Number::from(value_wei)),
-    );
+    out.insert("address".into(), Value::String(contract_address));
+    out.insert("value_wei".into(), Value::Number(Number::from(value_wei)));
     out.insert("success".into(), Value::Bool(success));
     out.insert("reverted".into(), Value::Bool(!success));
     out.insert("ops".into(), Value::Array(ops));
@@ -287,12 +281,11 @@ fn account_satoshi(row: &Map<String, Value>) -> i64 {
     row.get("balance_satoshi")
         .and_then(|v| v.as_i64())
         .or_else(|| {
-            row.get("balance")
-                .and_then(|v| match v {
-                    Value::Number(n) => n.as_f64().map(|f| (f * 1_000_000.0) as i64),
-                    Value::String(s) => crate::amount::to_satoshi_inner(s).ok(),
-                    _ => None,
-                })
+            row.get("balance").and_then(|v| match v {
+                Value::Number(n) => n.as_f64().map(|f| (f * 1_000_000.0) as i64),
+                Value::String(s) => crate::amount::to_satoshi_inner(s).ok(),
+                _ => None,
+            })
         })
         .unwrap_or(0)
         .max(0)
@@ -305,10 +298,7 @@ fn wei_to_satoshi(value_wei: i64) -> i64 {
 
 fn set_balance_sat(row: &mut Map<String, Value>, sat: i64) {
     let sat = sat.max(0);
-    row.insert(
-        "balance_satoshi".into(),
-        Value::Number(Number::from(sat)),
-    );
+    row.insert("balance_satoshi".into(), Value::Number(Number::from(sat)));
     let bal = (sat as f64) / 1_000_000.0;
     row.insert("balance".into(), serde_json::json!(bal));
 }
@@ -369,9 +359,14 @@ pub fn evm_apply_writeback_ops_py(accounts_json: String, ops_json: String) -> Py
                 if addr.is_empty() {
                     continue;
                 }
-                let storage = op.get("storage").cloned().unwrap_or(Value::Object(Map::new()));
+                let storage = op
+                    .get("storage")
+                    .cloned()
+                    .unwrap_or(Value::Object(Map::new()));
                 let storage_str = match &storage {
-                    Value::Object(_) => serde_json::to_string(&storage).unwrap_or_else(|_| "{}".into()),
+                    Value::Object(_) => {
+                        serde_json::to_string(&storage).unwrap_or_else(|_| "{}".into())
+                    }
                     Value::String(s) => s.clone(),
                     _ => "{}".into(),
                 };
@@ -504,8 +499,14 @@ pub fn evm_apply_writeback_ops_py(accounts_json: String, ops_json: String) -> Py
     let mut out = Map::new();
     out.insert("accounts".into(), Value::Object(out_accounts));
     out.insert("log_batches".into(), Value::Array(log_batches));
-    out.insert("applied".into(), Value::Number(Number::from(applied as u64)));
-    out.insert("touched".into(), Value::Array(touched.into_iter().map(Value::String).collect()));
+    out.insert(
+        "applied".into(),
+        Value::Number(Number::from(applied as u64)),
+    );
+    out.insert(
+        "touched".into(),
+        Value::Array(touched.into_iter().map(Value::String).collect()),
+    );
     out.insert("native_apply".into(), Value::Bool(true));
     serde_json::to_string(&Value::Object(out))
         .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))

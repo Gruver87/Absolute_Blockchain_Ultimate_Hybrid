@@ -64,10 +64,7 @@ pub fn decode_wire_v2_inner(bytes: &[u8]) -> Result<WireEnvelopeV2, String> {
         return Err("wire_codec_empty".to_string());
     }
     if bytes.len() > MAX_PAYLOAD_BYTES + 128 {
-        return Err(format!(
-            "wire_codec_frame_too_large: {} bytes",
-            bytes.len()
-        ));
+        return Err(format!("wire_codec_frame_too_large: {} bytes", bytes.len()));
     }
     let env = WireEnvelopeV2::try_from_slice(bytes)
         .map_err(|e| format!("wire_codec_decode_failed: {e}"))?;
@@ -151,8 +148,7 @@ fn encode_wire_v2(msg_type: &str, payload: &[u8]) -> PyResult<Vec<u8>> {
 
 #[pyfunction]
 fn decode_wire_v2(py: Python<'_>, frame: &[u8]) -> PyResult<PyObject> {
-    let env =
-        decode_wire_v2_inner(frame).map_err(pyo3::exceptions::PyValueError::new_err)?;
+    let env = decode_wire_v2_inner(frame).map_err(pyo3::exceptions::PyValueError::new_err)?;
     let dict = PyDict::new_bound(py);
     dict.set_item("version", env.version)?;
     dict.set_item("type", env.msg_type)?;
@@ -441,9 +437,7 @@ impl GhostForest {
                 "too_many_ghost_nodes",
             ));
         }
-        let parent = parent_hash
-            .map(|s| s.to_string())
-            .filter(|s| !s.is_empty());
+        let parent = parent_hash.map(|s| s.to_string()).filter(|s| !s.is_empty());
         tree.entry(block_hash.to_string())
             .and_modify(|n| {
                 n.parent = parent.clone();

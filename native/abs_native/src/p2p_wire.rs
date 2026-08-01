@@ -39,8 +39,8 @@ pub(crate) fn encode_p2p_wire_message_v2_inner(
     let payload_bytes: Vec<u8> = if data_json.trim().is_empty() {
         b"null".to_vec()
     } else {
-        let _: Value = serde_json::from_str(data_json)
-            .map_err(|e| format!("p2p_data_json_invalid: {e}"))?;
+        let _: Value =
+            serde_json::from_str(data_json).map_err(|e| format!("p2p_data_json_invalid: {e}"))?;
         data_json.as_bytes().to_vec()
     };
     let body = encode_wire_v2_inner(msg_type, &payload_bytes)?;
@@ -167,7 +167,10 @@ pub(crate) fn resolve_outbound_codec(requested: &str, peer_codec: &str) -> &'sta
     }
 }
 
-pub(crate) fn encode_p2p_wire_message_inner(msg_type: &str, data_json: &str) -> Result<Vec<u8>, String> {
+pub(crate) fn encode_p2p_wire_message_inner(
+    msg_type: &str,
+    data_json: &str,
+) -> Result<Vec<u8>, String> {
     if msg_type.is_empty() || msg_type.len() > MAX_P2P_TYPE_LEN {
         return Err("p2p_type_invalid".to_string());
     }
@@ -417,22 +420,13 @@ pub(crate) fn verify_attestation_semantics_inner(data: &Value) -> Result<(), Str
     if claimed.is_empty() {
         return Err("bad_attestation_identity".to_string());
     }
-    let sig_hex = obj
-        .get("signature")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let pk_hex = obj
-        .get("public_key")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let sig_hex = obj.get("signature").and_then(|v| v.as_str()).unwrap_or("");
+    let pk_hex = obj.get("public_key").and_then(|v| v.as_str()).unwrap_or("");
     let signature = hex::decode(sig_hex).map_err(|_| "bad_attestation_sig".to_string())?;
     let public_key = hex::decode(pk_hex).map_err(|_| "bad_attestation_sig".to_string())?;
     // Parity with KeyGenerator.derive_address: "0x" + sha256_hex(pubkey)[-40:]
     let pk_digest = hex::encode(Sha256::digest(&public_key));
-    let derived = format!(
-        "0x{}",
-        &pk_digest[pk_digest.len().saturating_sub(40)..]
-    );
+    let derived = format!("0x{}", &pk_digest[pk_digest.len().saturating_sub(40)..]);
     if derived.to_ascii_lowercase() != claimed {
         return Err("bad_attestation_identity".to_string());
     }
@@ -531,8 +525,8 @@ pub(crate) fn verify_block_announce_semantics_inner(data: &Value) -> Result<(), 
     let Some((_, claimed)) = validate_block_announce_inner(data) else {
         return Err("bad_block_announce".to_string());
     };
-    let recomputed = crate::recomputed_canonical_block_hash(data)
-        .map_err(|_| "bad_block_hash".to_string())?;
+    let recomputed =
+        crate::recomputed_canonical_block_hash(data).map_err(|_| "bad_block_hash".to_string())?;
     if recomputed != claimed {
         return Err("bad_block_hash".to_string());
     }
@@ -729,7 +723,9 @@ const MAX_P2P_VERSION_LEN: usize = 64;
 const MAX_P2P_SYNC_SPAN: i64 = 10_000;
 const MAX_P2P_PORT: i64 = 65_535;
 
-pub(crate) fn validate_handshake_inner(data: &Value) -> Option<(i64, i64, String, String, i64, bool)> {
+pub(crate) fn validate_handshake_inner(
+    data: &Value,
+) -> Option<(i64, i64, String, String, i64, bool)> {
     let obj = data.as_object()?;
     // Explicit rejection ack (e.g. max_peers) — shape-ok but not a peer identity.
     if matches!(obj.get("accepted"), Some(Value::Bool(false))) {
@@ -882,9 +878,7 @@ pub(crate) fn verify_wire_tx_signature_inner(
     if !validate_wire_tx_inner(data) {
         return Err("bad_wire_tx".to_string());
     }
-    let obj = data
-        .as_object()
-        .ok_or_else(|| "bad_wire_tx".to_string())?;
+    let obj = data.as_object().ok_or_else(|| "bad_wire_tx".to_string())?;
     let sig_hex = obj
         .get("signature")
         .and_then(|v| v.as_str())
@@ -933,10 +927,7 @@ pub(crate) fn verify_wire_tx_signature_inner(
     payload.insert("to".into(), Value::String(to_addr.to_string()));
     payload.insert("value".into(), Value::Number(value.into()));
     payload.insert("nonce".into(), Value::Number(nonce.into()));
-    payload.insert(
-        "chain_id".into(),
-        Value::Number(expected_chain_id.into()),
-    );
+    payload.insert("chain_id".into(), Value::Number(expected_chain_id.into()));
     let data_s = obj
         .get("data")
         .or_else(|| obj.get("input"))
@@ -1681,7 +1672,10 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_p2p_blocks_batch, m)?)?;
     m.add_function(wrap_pyfunction!(verify_p2p_blocks_response_semantics, m)?)?;
     m.add_function(wrap_pyfunction!(verify_p2p_block_response_semantics, m)?)?;
-    m.add_function(wrap_pyfunction!(verify_p2p_state_root_response_request_semantics, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        verify_p2p_state_root_response_request_semantics,
+        m
+    )?)?;
     m.add_function(wrap_pyfunction!(verify_p2p_status_height_head_binding, m)?)?;
     m.add_function(wrap_pyfunction!(verify_p2p_handshake_head_semantics, m)?)?;
     m.add_function(wrap_pyfunction!(validate_p2p_cross_shard_tx, m)?)?;
@@ -1697,8 +1691,7 @@ mod tests {
     #[test]
     fn parses_valid_envelope() {
         let line = br#"{"type":"ping","data":null}"#;
-        let (msg_type, data, codec) =
-            parse_p2p_wire_line_inner(line, 1024 * 1024, None).unwrap();
+        let (msg_type, data, codec) = parse_p2p_wire_line_inner(line, 1024 * 1024, None).unwrap();
         assert_eq!(msg_type, "ping");
         assert!(data.is_null());
         assert_eq!(codec, "v1");
@@ -1715,8 +1708,7 @@ mod tests {
     fn encode_roundtrip_type() {
         let bytes = encode_p2p_wire_message_inner("status", r#"{"height":1}"#).unwrap();
         assert!(bytes.ends_with(b"\n"));
-        let (msg_type, data, codec) =
-            parse_p2p_wire_line_inner(&bytes, 1024 * 1024, None).unwrap();
+        let (msg_type, data, codec) = parse_p2p_wire_line_inner(&bytes, 1024 * 1024, None).unwrap();
         assert_eq!(msg_type, "status");
         assert_eq!(data["height"], 1);
         assert_eq!(codec, "v1");
@@ -1727,8 +1719,7 @@ mod tests {
         let bytes = encode_p2p_wire_message_v2_inner("new_tx", r#"{"hash":"abc"}"#).unwrap();
         assert!(bytes.starts_with(b"AB2:"));
         assert!(bytes.ends_with(b"\n"));
-        let (msg_type, data, codec) =
-            parse_p2p_wire_line_inner(&bytes, 1024 * 1024, None).unwrap();
+        let (msg_type, data, codec) = parse_p2p_wire_line_inner(&bytes, 1024 * 1024, None).unwrap();
         assert_eq!(msg_type, "new_tx");
         assert_eq!(data["hash"], "abc");
         assert_eq!(codec, "v2");

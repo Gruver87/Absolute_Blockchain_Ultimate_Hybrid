@@ -222,7 +222,8 @@ pub fn pack_tx_row_value(tx: &Value) -> Result<Vec<u8>, String> {
     let status = normalize_status(obj);
     let timestamp = json_u64(obj, &["timestamp"], 0);
 
-    let mut out = Vec::with_capacity(64 + hash.len() + from_addr.len() + to_addr.len() + tx_data.len());
+    let mut out =
+        Vec::with_capacity(64 + hash.len() + from_addr.len() + to_addr.len() + tx_data.len());
     out.extend_from_slice(TX_ROW_MAGIC);
     out.push(TX_ROW_VERSION);
     out.push(0); // flags reserved
@@ -348,18 +349,16 @@ fn pack_tx_row_py(tx_json: &str) -> PyResult<PyObject> {
 fn unpack_tx_row_py(py: Python<'_>, blob: &[u8]) -> PyResult<String> {
     let _ = py;
     let value = unpack_tx_row_bytes(blob).map_err(pyo3::exceptions::PyValueError::new_err)?;
-    serde_json::to_string(&value).map_err(|e| {
-        pyo3::exceptions::PyValueError::new_err(format!("tx_row encode failed: {e}"))
-    })
+    serde_json::to_string(&value)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("tx_row encode failed: {e}")))
 }
 
 #[pyfunction]
 #[pyo3(name = "tx_blob_to_json")]
 fn tx_blob_to_json_py(blob: &[u8]) -> PyResult<String> {
     let value = tx_blob_to_value(blob).map_err(pyo3::exceptions::PyValueError::new_err)?;
-    serde_json::to_string(&value).map_err(|e| {
-        pyo3::exceptions::PyValueError::new_err(format!("tx_blob encode failed: {e}"))
-    })
+    serde_json::to_string(&value)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("tx_blob encode failed: {e}")))
 }
 
 #[pyfunction]

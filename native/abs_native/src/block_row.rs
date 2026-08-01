@@ -193,7 +193,10 @@ fn transactions_json_bytes(obj: &Map<String, Value>) -> Result<Vec<u8>, String> 
     match obj.get("transactions") {
         None | Some(Value::Null) => Ok(b"[]".to_vec()),
         Some(Value::Array(_)) | Some(Value::Object(_)) | Some(Value::String(_)) => {
-            let v = obj.get("transactions").cloned().unwrap_or(Value::Array(vec![]));
+            let v = obj
+                .get("transactions")
+                .cloned()
+                .unwrap_or(Value::Array(vec![]));
             // Normalize stringified JSON arrays.
             let normalized = match v {
                 Value::String(s) => {
@@ -321,8 +324,8 @@ pub fn unpack_block_row_bytes(blob: &[u8]) -> Result<Value, String> {
         return Err("block_row_non_finite".to_string());
     }
 
-    let transactions: Value = serde_json::from_slice(tx_bytes)
-        .map_err(|e| format!("block_row_bad_transactions:{e}"))?;
+    let transactions: Value =
+        serde_json::from_slice(tx_bytes).map_err(|e| format!("block_row_bad_transactions:{e}"))?;
     let extras: Value = if extras_bytes.is_empty() {
         Value::Object(Map::new())
     } else {

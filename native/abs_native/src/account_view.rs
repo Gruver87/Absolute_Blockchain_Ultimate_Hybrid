@@ -58,7 +58,10 @@ fn storage_map_from_value(value: &Value) -> Option<Vec<(i128, i128)>> {
 }
 
 fn code_bytes_from_hex(code: &str) -> Vec<u8> {
-    let raw = code.trim().trim_start_matches("0x").trim_start_matches("0X");
+    let raw = code
+        .trim()
+        .trim_start_matches("0x")
+        .trim_start_matches("0X");
     if raw.is_empty() {
         return Vec::new();
     }
@@ -107,11 +110,7 @@ fn view_from_json_value(py: Python<'_>, value: &Value, fallback_addr: &str) -> P
         .unwrap_or(0)
         .max(0) as i64;
 
-    let nonce = obj
-        .get("nonce")
-        .and_then(json_int)
-        .unwrap_or(0)
-        .max(0) as u64;
+    let nonce = obj.get("nonce").and_then(json_int).unwrap_or(0).max(0) as u64;
 
     let code = obj
         .get("code")
@@ -240,10 +239,7 @@ pub fn account_storage_map_from_raw_py(
             Err(_) => return Ok(None),
         };
         // Prefer explicit storage field; ABAR unpack already puts storage string.
-        let storage_src = parsed
-            .get("storage")
-            .cloned()
-            .unwrap_or(parsed);
+        let storage_src = parsed.get("storage").cloned().unwrap_or(parsed);
         return match storage_map_from_value(&storage_src) {
             Some(entries) => {
                 let out = PyDict::new_bound(py);

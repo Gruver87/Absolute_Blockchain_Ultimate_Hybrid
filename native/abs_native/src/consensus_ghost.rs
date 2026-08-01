@@ -29,18 +29,16 @@ fn parse_tree(tree_json: &str) -> PyResult<HashMap<String, Node>> {
     }
     let mut tree = HashMap::with_capacity(obj.len());
     for (hash, data) in obj {
-        let row = data.as_object().ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err("tree node must be object")
-        })?;
-        let parent = row
-            .get("parent")
-            .and_then(|v| {
-                if v.is_null() {
-                    None
-                } else {
-                    v.as_str().map(|s| s.to_string())
-                }
-            });
+        let row = data
+            .as_object()
+            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("tree node must be object"))?;
+        let parent = row.get("parent").and_then(|v| {
+            if v.is_null() {
+                None
+            } else {
+                v.as_str().map(|s| s.to_string())
+            }
+        });
         let number = row
             .get("number")
             .and_then(|v| v.as_i64().or_else(|| v.as_u64().map(|u| u as i64)))
@@ -141,11 +139,7 @@ fn select_head_inner(
         if data.parent.is_none() {
             let cum = cumulative_weight_inner(hash, tree, weights);
             if cum > best_w
-                || (cum == best_w
-                    && best_root
-                        .as_ref()
-                        .map(|b| hash < b)
-                        .unwrap_or(true))
+                || (cum == best_w && best_root.as_ref().map(|b| hash < b).unwrap_or(true))
             {
                 best_w = cum;
                 best_root = Some(hash.clone());

@@ -153,11 +153,7 @@ impl P2PLineFramer {
 /// One-shot helper: feed chunk into a temporary framer (tests / scripting).
 #[pyfunction]
 #[pyo3(signature = (chunk, max_bytes=DEFAULT_MAX_P2P_LINE_BYTES))]
-fn p2p_frame_feed_once(
-    py: Python<'_>,
-    chunk: &[u8],
-    max_bytes: usize,
-) -> PyResult<PyObject> {
+fn p2p_frame_feed_once(py: Python<'_>, chunk: &[u8], max_bytes: usize) -> PyResult<PyObject> {
     let mut framer = P2PLineFramer::new(max_bytes);
     framer.feed(py, chunk)
 }

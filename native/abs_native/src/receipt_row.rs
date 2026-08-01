@@ -199,9 +199,8 @@ pub fn pack_receipt_row_value(receipt: &Value) -> Result<Vec<u8>, String> {
     let status = normalize_status(obj);
     let created_at = json_u64(obj, &["created_at", "timestamp"], 0);
 
-    let mut out = Vec::with_capacity(
-        64 + tx_hash.len() + block_hash.len() + from_addr.len() + to_addr.len(),
-    );
+    let mut out =
+        Vec::with_capacity(64 + tx_hash.len() + block_hash.len() + from_addr.len() + to_addr.len());
     out.extend_from_slice(RECEIPT_ROW_MAGIC);
     out.push(RECEIPT_ROW_VERSION);
     out.push(0); // flags reserved
@@ -285,10 +284,7 @@ pub fn unpack_receipt_row_bytes(blob: &[u8]) -> Result<Value, String> {
         "status".into(),
         Value::Number(Number::from(u64::from(status.min(1)))),
     );
-    map.insert(
-        "created_at".into(),
-        Value::Number(Number::from(created_at)),
-    );
+    map.insert("created_at".into(), Value::Number(Number::from(created_at)));
     Ok(Value::Object(map))
 }
 

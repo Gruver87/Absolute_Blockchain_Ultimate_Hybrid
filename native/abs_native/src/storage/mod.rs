@@ -56,9 +56,7 @@ impl RocksWriteBatch {
     }
 
     fn delete(&mut self, key: &[u8]) {
-        self.ops.push(BatchOp::Delete {
-            key: key.to_vec(),
-        });
+        self.ops.push(BatchOp::Delete { key: key.to_vec() });
     }
 
     fn clear(&mut self) {
@@ -139,8 +137,12 @@ impl RocksEngine {
         column_families: bool,
     ) -> PyResult<Self> {
         let mut opts = Options::default();
-        let block_cache =
-            apply_common_opts(&mut opts, create_if_missing, block_cache_mb, write_buffer_mb);
+        let block_cache = apply_common_opts(
+            &mut opts,
+            create_if_missing,
+            block_cache_mb,
+            write_buffer_mb,
+        );
 
         let db = if column_families {
             opts.create_missing_column_families(true);
@@ -278,9 +280,9 @@ impl RocksEngine {
         let logs_parsed: Value = serde_json::from_str(logs_json).map_err(|e| {
             pyo3::exceptions::PyValueError::new_err(format!("logs_json invalid: {e}"))
         })?;
-        let logs_arr = logs_parsed.as_array().ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err("logs_json must be an array")
-        })?;
+        let logs_arr = logs_parsed
+            .as_array()
+            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("logs_json must be an array"))?;
 
         let mut batch = RocksWriteBatch { ops: Vec::new() };
         let mut account_count = 0usize;
@@ -345,10 +347,7 @@ impl RocksEngine {
         let mut write_opts = WriteOptions::default();
         write_opts.set_sync(self.sync_writes);
         if !self.column_families {
-            return self
-                .db
-                .put_opt(key, value, &write_opts)
-                .map_err(map_db_err);
+            return self.db.put_opt(key, value, &write_opts).map_err(map_db_err);
         }
         let cf = self.cf_handle(cf_name_for_key(key))?;
         self.db
@@ -651,9 +650,8 @@ fn tx_hash_body_bytes(tx_hash: &str) -> PyResult<Vec<u8>> {
     while h.len() < 64 {
         h.insert(0, '0');
     }
-    hex::decode(&h).map_err(|e| {
-        pyo3::exceptions::PyValueError::new_err(format!("invalid tx hash hex: {e}"))
-    })
+    hex::decode(&h)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("invalid tx hash hex: {e}")))
 }
 
 fn key_evm_log_bytes(block_height: u64, tx_hash: &str, log_index: u64) -> PyResult<Vec<u8>> {

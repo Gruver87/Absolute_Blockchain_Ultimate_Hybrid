@@ -83,9 +83,8 @@ fn tx_hash_body_inner(tx_hash: &str) -> PyResult<Vec<u8>> {
     while h.len() < 64 {
         h.insert(0, '0');
     }
-    hex::decode(&h).map_err(|e| {
-        pyo3::exceptions::PyValueError::new_err(format!("invalid tx hash hex: {e}"))
-    })
+    hex::decode(&h)
+        .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("invalid tx hash hex: {e}")))
 }
 
 fn py_bytes(py: Python<'_>, data: &[u8]) -> PyObject {

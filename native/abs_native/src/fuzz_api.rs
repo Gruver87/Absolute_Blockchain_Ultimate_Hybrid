@@ -4,9 +4,7 @@
 //! Python objects — suitable for `cargo fuzz` (Linux CI) and Windows smoke.
 
 use crate::p2p_frame::P2PLineFramer;
-use crate::p2p_ingress::{
-    p2p_ip_is_public_inner, p2p_subnet_key_inner, P2PConnectionGovernor,
-};
+use crate::p2p_ingress::{p2p_ip_is_public_inner, p2p_subnet_key_inner, P2PConnectionGovernor};
 use crate::p2p_rate_limit::P2PRateLimitTable;
 use crate::p2p_wire::{
     encode_p2p_wire_message_inner, parse_p2p_wire_line_inner, DEFAULT_MAX_P2P_LINE_BYTES,
@@ -107,8 +105,8 @@ pub fn fuzz_p2p_governor_sequence(
 #[cfg(test)]
 mod smoke {
     use super::*;
-    use rand::{Rng, RngCore, SeedableRng};
     use rand::rngs::StdRng;
+    use rand::{Rng, RngCore, SeedableRng};
 
     #[test]
     fn fuzz_p2p_frame_smoke_10k() {
