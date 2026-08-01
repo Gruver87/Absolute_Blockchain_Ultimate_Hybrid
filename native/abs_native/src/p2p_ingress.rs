@@ -46,7 +46,7 @@ fn p2p_ingress_admit(
     now: f64,
     max_bytes: usize,
     allowed_types: Option<Vec<String>>,
-    mut rl: Option<PyRefMut<'_, P2PRateLimitTable>>,
+    rl: Option<PyRef<'_, P2PRateLimitTable>>,
 ) -> PyResult<PyObject> {
     let allowed_set = allowed_types.map(|items| items.into_iter().collect::<HashSet<_>>());
     let (msg_type, data, wire_codec) =
@@ -55,7 +55,7 @@ fn p2p_ingress_admit(
             Err(err) => return reject_dict(py, &wire_reject_reason(&err)),
         };
 
-    if let Some(ref mut table) = rl {
+    if let Some(ref table) = rl {
         if let Some(reason) =
             table.admit_rate_inner(peer_id, &msg_type, now, line.len() as u64)
         {
@@ -503,7 +503,7 @@ fn p2p_egress_prepare(
     now: f64,
     max_bytes: usize,
     allowed_types: Option<Vec<String>>,
-    mut rl: Option<PyRefMut<'_, P2PRateLimitTable>>,
+    rl: Option<PyRef<'_, P2PRateLimitTable>>,
     codec: &str,
 ) -> PyResult<PyObject> {
     let limit = clamp_max_bytes(max_bytes);
@@ -520,7 +520,7 @@ fn p2p_egress_prepare(
     if payload.len() > limit {
         return reject_dict(py, "p2p_line_too_large");
     }
-    if let Some(ref mut table) = rl {
+    if let Some(ref table) = rl {
         if let Some(reason) =
             table.admit_egress_inner(peer_id, msg_type, now, payload.len() as u64)
         {

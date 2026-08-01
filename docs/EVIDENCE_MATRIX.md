@@ -35,6 +35,7 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | Topic | Honest status |
 |-------|----------------|
 | Tip `state_root` | Still float `"b"` / `round(balance,12)` — **not** satoshi tip roots; dual-write satoshi is storage/read path only ([STORAGE_ROCKSDB](STORAGE_ROCKSDB.md)) |
+| Mesh `/health/ready` | **Partial** — chain sync + genesis artifact proven; TLS reconnect can drop sessions → `peers_alive=false` / probe FAIL |
 | External audit | **Not completed** — tracker rejects template notes; requires real evidence URL |
 | Public VPS / DNS | Not claimed |
 | Bridge L1 | **OFF by recorded decision** — see [Bridge OFF audit checklist](#bridge-off--pre-enable-audit-checklist) |
@@ -45,7 +46,7 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | Tip-safety domain (`consensus/tip_safety`) | **Unit-proven** (stage 1) — see [ADR 0001](adr/0001-tip-safety.md) |
 | Tip-safety shadow (`TIP_SAFETY_SHADOW`) | **Wired observe-only** (stage 2) — metrics `abs_tip_safety_shadow_*` |
 | Tip-safety enforce (`TIP_SAFETY_ENFORCE`) | **Wired on import path** (stage 3) — refuse on policy reject; **required in prod** via `prod_gate` / `Config.validate()`; lab-proven via unit tests, not yet 48h soak-as-enforce |
-| Tip proof / Long-Range / BFT quorum | **Not proven** — deep reorgs without ancestry store still rejected; not a consensus replacement |
+| Tip proof / Long-Range / BFT quorum | **Partial** — bounded `AncestryWindow` (stage-1.5, ADR 0016) allows rollback to recorded ancestors; **not** Long-Range / BFT quorum |
 | P2P transport boundary (`network/transport`, ADR 0002 A–C) | **Wired** on Python ingress admit + egress prepare (`NativeTransportAdapter`); metrics `abs_p2p_transport_*` |
 | P2P application dispatcher (`network/p2p_dispatch`, ADR 0002 D) | **Wired** — `HandlerRegistry` + `P2PDispatcher` routes application types; tip-evidence DI via `TipSafetyEvidenceBridge`; shape gates remain on node; **not** native shell ownership; not libp2p / tip proof |
 | Sync consistency (`sync/consistency`, ADR 0003 A–D) | **Wired** — fail-closed ConsistencyService + machine; incomplete-ahead is BehindOpen (not green); `SyncSolicitHub` + `SyncSolicitPort` own waiters (arm/fulfill/timeout/expire_stale); `_handle_message` only forwards; AbsoluteNode.import_block tip-safety-aware; **not** Long-Range / snap-sync / tip proof |

@@ -69,28 +69,32 @@ def tip_state_from_chain(blockchain: Any) -> TipState:
     if blockchain is None:
         raise TipValidationError("blockchain is required to sync tip state")
     try:
-        height = int(blockchain.get_height() or 0)
+        # Height 0 is a real genesis tip — do not coerce via ``or 0`` only.
+        raw_h = blockchain.get_height()
+        height = int(raw_h) if raw_h is not None else -1
     except Exception as exc:
         raise TipValidationError(f"get_height failed: {exc}") from exc
 
     genesis = str(getattr(blockchain, "GENESIS_HASH", _GENESIS_HASH) or _GENESIS_HASH)
-    if height <= 0:
-        return TipState(
-            head=BlockRef(height=0, block_hash=genesis, parent_hash=""),
-            finalized=None,
-        )
 
     block: Optional[Mapping[str, Any]] = None
     try:
         if hasattr(blockchain, "get_last_block"):
             block = blockchain.get_last_block()
-        if block is None and hasattr(blockchain, "get_block"):
+        if block is None and height >= 0 and hasattr(blockchain, "get_block"):
             block = blockchain.get_block(height)
     except Exception as exc:
         raise TipValidationError(f"tip block lookup failed: {exc}") from exc
 
+    # Empty chain: no last block — anchor at the pre-genesis sentinel hash.
     if not isinstance(block, Mapping):
-        raise TipValidationError(f"missing tip block at height {height}")
+        if height > 0:
+            raise TipValidationError(f"missing tip block at height {height}")
+        return TipState(
+            head=BlockRef(height=0, block_hash=genesis, parent_hash=""),
+            finalized=None,
+        )
+
     return TipState(head=block_ref_from_mapping(block), finalized=None)
 
 
@@ -185,8 +189,17 @@ class TipSafetyShadowObserver:
             return False
         try:
             state = tip_state_from_chain(blockchain)
+            max_blocks = 256
+            try:
+                import os
+
+                max_blocks = int(os.environ.get("TIP_ANCESTRY_WINDOW_MAX", "256") or 256)
+            except (TypeError, ValueError):
+                max_blocks = 256
             with self._lock:
-                self._service = TipSafetyService(state)
+                self._service = TipSafetyService(
+                    state, ancestry_max_blocks=max(1, max_blocks)
+                )
             return True
         except Exception as exc:
             with self._lock:

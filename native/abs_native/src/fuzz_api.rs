@@ -50,7 +50,7 @@ pub fn fuzz_p2p_rate_limit_sequence(
     egress_limit: u64,
     events: &[(String, String, f64, u64)],
 ) {
-    let mut table = P2PRateLimitTable::rust_new(
+    let table = P2PRateLimitTable::rust_new(
         seed_limit.max(1),
         5,
         300,

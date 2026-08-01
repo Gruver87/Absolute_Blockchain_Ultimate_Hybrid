@@ -1,0 +1,53 @@
+# ADR 0016 Profile E — shard lab (separate project / volumes / ports).
+# Never bootstrap to abs-prod-mesh3 or reuse 778888 Rocks volumes.
+#
+#   docker compose -p abs-shard-lab -f docker-compose.shard.lab.yml up -d --build
+#   docker compose -p abs-shard-lab -f docker-compose.shard.lab.yml down -v
+
+services:
+  shard0:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    hostname: abs-shard-0
+    command: ["python", "main.py", "--config", "node.shard0.json"]
+    ports:
+      - "28080:8080"
+      - "28545:8545"
+      - "25000:5000"
+    environment:
+      DEPLOYMENT_MODE: dev
+      FEATURE_SHARDING: "true"
+      BRIDGE_ENABLED: "false"
+      DATA_DIR: /app/data/shard0
+    volumes:
+      - abs-shard0-data:/app/data/shard0
+    mem_limit: 1024m
+    restart: unless-stopped
+
+  shard1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    hostname: abs-shard-1
+    command: ["python", "main.py", "--config", "node.shard1.json"]
+    ports:
+      - "28081:8080"
+      - "28546:8545"
+      - "25001:5000"
+    environment:
+      DEPLOYMENT_MODE: dev
+      FEATURE_SHARDING: "true"
+      BRIDGE_ENABLED: "false"
+      DATA_DIR: /app/data/shard1
+      BOOTSTRAP_PEERS: "shard0:5000"
+    volumes:
+      - abs-shard1-data:/app/data/shard1
+    depends_on:
+      - shard0
+    mem_limit: 1024m
+    restart: unless-stopped
+
+volumes:
+  abs-shard0-data:
+  abs-shard1-data:

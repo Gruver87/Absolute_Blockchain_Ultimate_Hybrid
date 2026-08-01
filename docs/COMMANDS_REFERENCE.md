@@ -151,6 +151,22 @@ python scripts/apply_local_secrets.py
 
 Открыть: http://localhost:8080
 
+### Автозапуск всего стека + окна Explorer
+
+```powershell
+# Prod 3-node mesh (:18180-:18182) + 3 вкладки браузера  [DEFAULT]
+.\scripts\start_all.ps1 -SkipBuild -KeepVolumes
+
+# Solo node в отдельном окне + Explorer :8080
+.\scripts\start_all.ps1 -Mode Solo
+
+# Только открыть уже работающие Explorer'ы
+.\scripts\start_all.ps1 -Mode OpenOnly
+
+# Mesh + 3 окна docker logs
+.\scripts\start_all.ps1 -SkipBuild -KeepVolumes -OpenLogs
+```
+
 ---
 
 ## Оглавление полного справочника (`ALL_COMMANDS.txt`)

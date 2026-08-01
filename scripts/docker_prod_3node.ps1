@@ -1,4 +1,4 @@
-# Three-node production mesh (ceremony manifest + per-validator wallets)
+﻿# Three-node production mesh (ceremony manifest + per-validator wallets)
 param(
     [string]$CeremonyDir = "data/ceremony_keys",
     [switch]$NoCloneDb,
@@ -44,7 +44,12 @@ if (Import-DotEnvFile $dotEnv) {
     Write-Host "Loaded $dotEnv" -ForegroundColor DarkGray
 }
 
-python scripts/deploy_ceremony_prod.py --ceremony-dir $CeremonyDir --mesh
+if ([string]::IsNullOrWhiteSpace($CeremonyDir)) {
+    $CeremonyDir = "data\ceremony_keys"
+}
+# Prefer backslash path + --flag=value so native python argv cannot eat the path.
+$CeremonyDirPath = ($CeremonyDir -replace "/", "\")
+python scripts/deploy_ceremony_prod.py --ceremony-dir=$CeremonyDirPath --mesh
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $metaPath = Join-Path (Get-Location) "data\ceremony_deploy.json"
@@ -110,7 +115,7 @@ if ($enableP2pTls) {
     $env:P2P_TLS_REQUIRE_CLIENT_CERT = "true"
     Write-Host "P2P wire TLS+mTLS enabled (overlay $composeTlsFile)" -ForegroundColor Cyan
 } else {
-    Write-Host "WARN: P2P TLS disabled (-NoP2pTls) — plaintext mesh for lab only" -ForegroundColor Yellow
+    Write-Host "WARN: P2P TLS disabled (-NoP2pTls) - plaintext mesh for lab only" -ForegroundColor Yellow
 }
 
 function Invoke-MeshCompose {
@@ -118,7 +123,23 @@ function Invoke-MeshCompose {
         [Parameter(ValueFromRemainingArguments = $true)]
         [string[]]$ComposeCommand
     )
-    & docker compose @composeArgs @ComposeCommand
+    # Docker writes progress to stderr. With $ErrorActionPreference=Stop (e.g. from
+    # start_all.ps1) PowerShell turns that into a terminating NativeCommandError.
+    $oldEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $oldNative = $null
+    if (Test-Path variable:PSNativeCommandUseErrorActionPreference) {
+        $oldNative = $PSNativeCommandUseErrorActionPreference
+        $PSNativeCommandUseErrorActionPreference = $false
+    }
+    try {
+        & docker compose @composeArgs @ComposeCommand
+    } finally {
+        $ErrorActionPreference = $oldEap
+        if ($null -ne $oldNative) {
+            $PSNativeCommandUseErrorActionPreference = $oldNative
+        }
+    }
 }
 $env:DOCKER_BUILDKIT = "1"
 $env:COMPOSE_DOCKER_CLI_BUILD = "1"
@@ -193,7 +214,7 @@ if ($NoCloneDb) {
         $preSeed = Invoke-RestMethod -Uri "http://127.0.0.1:18180/status" -TimeoutSec 5
         $preH = [int]($preSeed.height)
         if ($preH -gt 1) {
-            Write-Host "FAIL: node1 height=$preH before seed (expected <=1). Mining ran before mesh peers." -ForegroundColor Red
+            Write-Host "FAIL: node1 height=$preH before seed (expected at most 1). Mining ran before mesh peers." -ForegroundColor Red
             exit 1
         }
         Write-Host "OK: node1 height=$preH before seed" -ForegroundColor DarkGray

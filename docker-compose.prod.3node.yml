@@ -43,6 +43,7 @@ x-abs-prod-env: &abs-prod-env
   REDIS_RATE_LIMIT: ${REDIS_RATE_LIMIT:-true}
   GENESIS_CEREMONY_HASH: ${GENESIS_CEREMONY_HASH:-}
   GENESIS_STRICT_MAINNET: ${GENESIS_STRICT_MAINNET:-false}
+  GENESIS_ARTIFACT_PATH: ${GENESIS_ARTIFACT_PATH:-/app/data/shared/genesis_block.json}
   VALIDATORS_MANIFEST_PATH: data/validators.manifest.json
 
 x-prod-node-build: &prod-node-build
@@ -101,6 +102,7 @@ services:
       MESH_MIN_PEERS_BEFORE_MINE: "2"
     volumes:
       - abs-prod-mesh1-data:/app/data
+      - ./data/prod_mesh/shared:/app/data/shared
       - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro
       - ./data/prod_mesh/wallets/validator-1.wallet.json:/app/data/wallet.json:ro
     logging: *abs-logging
@@ -110,12 +112,14 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
+      # Bootstrap must use /health/live — the ready probe needs peers (ADR 0014 deep
+      # mesh), but node2/3 depend on node1 healthy → chicken-egg deadlock.
       test:
         [
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=5)",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live', timeout=5)",
         ]
       interval: 20s
       timeout: 8s
@@ -206,6 +210,7 @@ services:
       BOOTSTRAP_PEERS: node1:5000
     volumes:
       - abs-prod-mesh2-data:/app/data
+      - ./data/prod_mesh/shared:/app/data/shared
       - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro
       - ./data/prod_mesh/wallets/validator-2.wallet.json:/app/data/wallet.json:ro
     logging: *abs-logging
@@ -222,7 +227,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=5)",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live', timeout=5)",
         ]
       interval: 20s
       timeout: 8s
@@ -247,6 +252,7 @@ services:
       BOOTSTRAP_PEERS: node1:5000,node2:5000
     volumes:
       - abs-prod-mesh3-data:/app/data
+      - ./data/prod_mesh/shared:/app/data/shared
       - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro
       - ./data/prod_mesh/wallets/validator-3.wallet.json:/app/data/wallet.json:ro
     logging: *abs-logging
@@ -263,7 +269,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=5)",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live', timeout=5)",
         ]
       interval: 20s
       timeout: 8s

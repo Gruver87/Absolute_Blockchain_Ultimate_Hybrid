@@ -378,6 +378,13 @@ class Blockchain:
         """Инициализирует StateEngine из данных genesis или текущего состояния БД."""
         if not self.state_engine:
             return
+        # Followers must not mint a local alloc root — wait for leader genesis
+        # import so wire state_root matches the mesh tip.
+        if (
+            getattr(self.config, "follower_genesis_sync", False)
+            and self.storage.get_last_block() is None
+        ):
+            return
         founder = (
             getattr(self.config, "founder_address", "")
             or self.config.miner_address
@@ -394,6 +401,9 @@ class Blockchain:
 
     def _ensure_genesis(self):
         if getattr(self.config, "follower_genesis_sync", False) and self.storage.get_last_block() is None:
+            # Prefer shared ceremony artifact before waiting on unstable P2P wire.
+            if self.try_import_genesis_artifact():
+                return
             print("[Blockchain] follower_genesis_sync: waiting for leader genesis via P2P")
             return
         if self.storage.get_last_block() is None:
@@ -432,8 +442,84 @@ class Blockchain:
                 f"max_supply={MAX_SUPPLY_ABS:,}, founder={initials} "
                 f"{getattr(self.config, 'founder_percent', 17.4)}%)"
             )
+            self._export_genesis_artifact(genesis.to_dict())
         else:
             self._align_genesis_state_root_if_needed()
+            # Re-publish artifact for followers when shared file is missing/stale.
+            try:
+                last = self.storage.get_block(0) or self.storage.get_last_block()
+                if last and int(last.get("height", last.get("number", -1)) or -1) == 0:
+                    self._export_genesis_artifact(last)
+            except Exception:
+                pass
+
+    def _export_genesis_artifact(self, block_dict: Dict) -> None:
+        """Publish minted genesis #0 to shared ceremony artifact path (followers)."""
+        try:
+            from sync.genesis_artifact import export_genesis_block, resolve_artifact_path
+
+            path = resolve_artifact_path(self.config)
+            if not path:
+                return
+            ceremony_hash = ""
+            try:
+                import os
+
+                ceremony_hash = str(os.environ.get("GENESIS_CEREMONY_HASH", "") or "")
+            except Exception:
+                ceremony_hash = ""
+            founder = ""
+            try:
+                founder = str(self.storage.get_meta("genesis_founder") or "").strip()
+            except Exception:
+                founder = ""
+            if not founder:
+                founder = self._resolve_genesis_founder()
+            if export_genesis_block(
+                path,
+                block_dict,
+                ceremony_hash=ceremony_hash,
+                chain_id=int(getattr(self.config, "chain_id", 0) or 0),
+                founder_address=founder,
+            ):
+                print(f"[Blockchain] genesis artifact exported → {path}")
+        except Exception as exc:
+            print(f"[Blockchain] genesis artifact export skipped: {exc}")
+
+    def try_import_genesis_artifact(self) -> bool:
+        """Empty-tip follower: import genesis #0 from shared ceremony artifact."""
+        if self.storage.get_last_block() is not None:
+            return True
+        try:
+            from sync.genesis_artifact import load_genesis_artifact, resolve_artifact_path
+
+            path = resolve_artifact_path(self.config)
+            art = load_genesis_artifact(path) if path else None
+            if not art:
+                return False
+            founder = str(art.get("founder_address") or "").strip()
+            if not founder:
+                try:
+                    from runtime.validator_loader import manifest_founder_address
+
+                    manifest = getattr(self.config, "validators_manifest_path", "") or ""
+                    founder = manifest_founder_address(manifest)
+                except Exception:
+                    founder = ""
+            if founder:
+                try:
+                    self.config.founder_address = founder
+                except Exception:
+                    pass
+                try:
+                    self.storage.set_meta("genesis_founder", founder)
+                except Exception:
+                    pass
+            print(f"[Blockchain] importing genesis from artifact {path}")
+            return bool(self.import_block(art["block"]))
+        except Exception as exc:
+            print(f"[Blockchain] genesis artifact import failed: {exc}")
+            return False
 
     def _resolve_genesis_founder(self) -> str:
         """Same founder resolution as _ensure_genesis (replay must match mint)."""
@@ -688,12 +774,24 @@ class Blockchain:
 
             try:
                 with self.storage.atomic():
-                    applied = self.state_service.apply_block_mutations(
-                        block, preserve_peer_hash=preserve_peer_hash
+                    # Leader ``_ensure_genesis`` mints alloc balances and saves the
+                    # block without ``apply_block_mutations`` / block reward. Followers
+                    # seed the same alloc then must not credit miner="genesis".
+                    skip_mutations = (
+                        bool(preserve_peer_hash)
+                        and int(block.height) == 0
+                        and not list(block.transactions or [])
+                        and str(block.miner or "") == "genesis"
                     )
-                    if not applied.success:
-                        raise RuntimeError(applied.error or "state_apply_failed")
-                    block_burned = float(applied.burned)
+                    if skip_mutations:
+                        block_burned = 0.0
+                    else:
+                        applied = self.state_service.apply_block_mutations(
+                            block, preserve_peer_hash=preserve_peer_hash
+                        )
+                        if not applied.success:
+                            raise RuntimeError(applied.error or "state_apply_failed")
+                        block_burned = float(applied.burned)
 
                     block.total_burned = block_burned
                     # Always via facade method so monkeypatches (tests) apply.
@@ -704,7 +802,7 @@ class Blockchain:
                         )
                         peer_root = str(peer_state_root).strip()
                         if mode != "skip" and peer_root != computed_root:
-                            if mode == "strict":
+                            if mode == "strict" or skip_mutations:
                                 peer_root_for_audit = peer_root
                                 raise RuntimeError(
                                     f"state_root_mismatch expected={peer_root[:16]} "
@@ -714,7 +812,10 @@ class Blockchain:
                                 f"[Blockchain] WARN #{block.height} state_root drift "
                                 f"(peer={peer_root[:12]}… computed={computed_root[:12]}…) — legacy"
                             )
-                    block.state_root = computed_root
+                    if skip_mutations and peer_state_root:
+                        block.state_root = str(peer_state_root).strip()
+                    else:
+                        block.state_root = computed_root
                     canonical_hash = block._compute_hash()
                     if peer_hash:
                         if peer_hash != canonical_hash:
@@ -767,6 +868,51 @@ class Blockchain:
                 self.bus.emit("block.new", block.to_dict())
             return True
 
+    def _seed_follower_genesis_balances(self, peer_block: Dict) -> None:
+        """Seed empty-tip balances so imported genesis #0 replays to peer state_root/hash.
+
+        Leader mints balances in ``_ensure_genesis`` (not as txs). Followers must
+        apply the same alloc before ``add_block(..., preserve_peer_hash=True)``.
+        Never use the local validator wallet as founder — that diverges state_root.
+        """
+        if self.storage.get_last_block() is not None:
+            return
+        founder = ""
+        # Prefer founder embedded by leader export / pin / ceremony manifest.
+        try:
+            founder = str(self.storage.get_meta("genesis_founder") or "").strip()
+        except Exception:
+            founder = ""
+        if not founder:
+            try:
+                from runtime.validator_loader import manifest_founder_address
+
+                manifest = getattr(self.config, "validators_manifest_path", "") or ""
+                founder = manifest_founder_address(manifest)
+            except Exception:
+                founder = ""
+        if not founder and not getattr(self.config, "follower_genesis_sync", False):
+            founder = str(getattr(self.config, "founder_address", "") or "").strip()
+            if not founder:
+                founder = self._resolve_genesis_founder()
+        alloc = genesis_balances(founder or None)
+        for addr, amount in alloc.items():
+            self.storage.set_balance(addr, float(amount))
+        try:
+            self.storage.set_meta("genesis_founder", founder or "")
+            self.storage.set_meta("tokenomics", get_tokenomics_summary(founder or None))
+            self.storage.set_meta("genesis_alloc_applied", True)
+        except Exception as exc:
+            print(f"[Blockchain] genesis seed meta failed: {exc}")
+        peer_root = str(peer_block.get("state_root") or "").strip()
+        computed = self._compute_state_root_from_db()
+        if peer_root and computed != peer_root:
+            print(
+                f"[Blockchain] genesis seed state_root still mismatches "
+                f"(founder={(founder or '')[:12]}… peer={peer_root[:16]} "
+                f"local={computed[:16]})"
+            )
+
     def import_block(self, block_dict: Dict) -> bool:
         """Импортирует блок от P2P-пира с полным replay состояния."""
         normalized = self._normalize_block_dict(block_dict)
@@ -795,6 +941,9 @@ class Blockchain:
             ):
                 print("[Blockchain] import_block rejected: invalid peer hash/parent chain")
                 return False
+
+            if height == 0 and last is None:
+                self._seed_follower_genesis_balances(normalized)
 
             try:
                 return self.add_block(Block.from_dict(normalized), preserve_peer_hash=True)

@@ -28,6 +28,8 @@ class SyncEngine:
         self.peers = []
         self.is_syncing = False
         self.sync_progress = 0
+        self._solo_log_last_ts = 0.0
+        self._solo_log_interval_sec = 300.0  # intentional solo: avoid per-block spam
         self._last_wire_probe_ok = None
         self._sync_fail = 0
         self._last_sync_error = ""
@@ -138,8 +140,10 @@ class SyncEngine:
             if blk:
                 return blk
         p2p = getattr(self.node, "p2p", None)
+        if p2p is None and hasattr(self.node, "fetch_block_from_peers_sync"):
+            p2p = self.node
         if p2p and hasattr(p2p, "fetch_block_from_peers_sync"):
-            return p2p.fetch_block_from_peers_sync(block_hash)
+            return p2p.fetch_block_from_peers_sync(block_hash, timeout=45)
         return None
 
     def _local_height(self) -> int:
@@ -151,7 +155,17 @@ class SyncEngine:
 
     @staticmethod
     def _block_height(block: Dict) -> int:
-        return int(block.get("height", block.get("number", 0)) or 0)
+        if "height" in block and block.get("height") is not None:
+            try:
+                return int(block.get("height"))
+            except (TypeError, ValueError):
+                pass
+        if "number" in block and block.get("number") is not None:
+            try:
+                return int(block.get("number"))
+            except (TypeError, ValueError):
+                pass
+        return 0
 
     @staticmethod
     def _block_hash(block: Dict) -> str:
@@ -174,12 +188,31 @@ class SyncEngine:
             start_height=local_height,
         )
 
+    def _local_needs_genesis(self) -> bool:
+        """True when the local store has no block #0 (follower empty tip)."""
+        bc = getattr(self.node, "blockchain", None)
+        if bc is None:
+            return False
+        try:
+            if hasattr(bc, "get_last_block"):
+                return bc.get_last_block() is None
+        except Exception:
+            return False
+        return False
+
     def download_chain(self, head: str, stop_at_height: Optional[int] = None) -> List[Dict]:
-        """Walk parent chain from head; stop at a block we already have locally."""
+        """Walk parent chain from head; stop at a block we already have locally.
+
+        ``stop_at_height=-1`` includes genesis (height 0) — required when the
+        local DB is empty and followers must import the leader's block #0.
+        """
         chain = []
         current = head
         seen = set()
-        stop_h = self._local_height() if stop_at_height is None else int(stop_at_height)
+        if stop_at_height is None:
+            stop_h = -1 if self._local_needs_genesis() else self._local_height()
+        else:
+            stop_h = int(stop_at_height)
 
         while current and current not in seen:
             seen.add(current)
@@ -245,7 +278,10 @@ class SyncEngine:
             if target_block > 0:
                 best_peer_h = min(best_peer_h, int(target_block))
 
-            if best_peer_h <= local_h:
+            needs_genesis = self._local_needs_genesis()
+            # Empty follower tip reports height 0 — same as leader genesis height.
+            # Still must import block #0; do not treat 0<=0 as "already at head".
+            if best_peer_h <= local_h and not needs_genesis:
                 print(f"[Sync] Already at head (local={local_h}, peer={best_peer_h})")
                 ok = bool(self.sync_state())
                 if ok:
@@ -254,6 +290,11 @@ class SyncEngine:
                 else:
                     self._last_sync_error = "state_sync_failed"
                 return ok
+            if needs_genesis:
+                print(
+                    f"[Sync] Empty local chain: importing genesis from peer "
+                    f"(peer height {best_peer_h}, head={best_head[:8]}...)"
+                )
 
             print(f"[Sync] Selected head: {best_head[:8]}... (peer height {best_peer_h})")
 
@@ -449,14 +490,15 @@ class SyncEngine:
         consistent. Incomplete-ahead is BehindOpen → returns False
         (ADR 0003 fail-closed).
         """
-        print("[Sync] Checking state consistency...")
         if not hasattr(self.node, "blockchain"):
+            print("[Sync] Checking state consistency...")
             print("   No blockchain attached")
             self.consistency.request_lockdown("no_blockchain")
             return False
 
         bc = self.node.blockchain
         if not hasattr(bc, "get_state_root"):
+            print("[Sync] Checking state consistency...")
             print("   [Sync] blockchain missing get_state_root — fail-closed")
             self.consistency.request_lockdown("no_get_state_root")
             return False
@@ -466,7 +508,17 @@ class SyncEngine:
         peers = self._peer_views()
 
         if not peers:
-            print("   Solo / no peers — wire probe deferred (never-probed), fail-closed")
+            # Keep this exact line in-source (industrial_gate needle). Rate-limit prints
+            # so intentional solo mining does not flood the console every block.
+            now = time.time()
+            if (now - float(self._solo_log_last_ts or 0.0)) >= float(
+                self._solo_log_interval_sec or 300.0
+            ):
+                print("[Sync] Checking state consistency...")
+                print(
+                    "   Solo / no peers — wire probe deferred (never-probed), fail-closed"
+                )
+                self._solo_log_last_ts = now
             decision = self.consistency.apply_probe_evaluation(
                 peers=(),
                 local_height=local_height,
@@ -475,6 +527,7 @@ class SyncEngine:
             )
             return bool(decision.trusted)
 
+        print("[Sync] Checking state consistency...")
         if not hasattr(self.node, "request_peer_state_roots_sync"):
             print(
                 "   [Sync] request_peer_state_roots_sync missing with peers "

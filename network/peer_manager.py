@@ -94,8 +94,8 @@ class EclipseTelemetry:
 class PeerManager:
     """Mesh registry + strike/ban/score/admission policy.
 
-    Thread-safety: intended for the node's asyncio event loop (same as historic
-    ``P2PNode.peers`` mutation). Not a cross-thread lock manager.
+    Thread-safety: peer map is asyncio-loop oriented; native ``rl_table``
+    access is serialized via optional ``rl_lock`` (shared with egress prepare).
     """
 
     def __init__(
@@ -103,12 +103,14 @@ class PeerManager:
         settings: PeerManagerSettings,
         *,
         rl_table: Any = None,
+        rl_lock: Any = None,
         conn_governor: Any = None,
         native_helpers: SubnetHelpers = None,
         on_shape_reject: Optional[Callable[[str], None]] = None,
     ):
         self.settings = settings
         self._rl_table = rl_table
+        self._rl_lock = rl_lock
         self._conn_governor = conn_governor
         self._native = native_helpers
         self._on_shape_reject = on_shape_reject
@@ -183,12 +185,23 @@ class PeerManager:
             except Exception:
                 pass
 
+    def _rl_call(self, fn, *args, **kwargs):
+        """Serialize native rate-limit table access with egress prepare."""
+        lock = getattr(self, "_rl_lock", None)
+        if lock is None:
+            return fn(*args, **kwargs)
+        with lock:
+            return fn(*args, **kwargs)
+
     def is_banned(self, key: str, *, now: Optional[float] = None) -> bool:
         if not key:
             return False
         ts = float(now if now is not None else time.time())
         if self._rl_table is not None:
-            banned = bool(self._rl_table.is_banned(str(key), float(ts)))
+            def _check():
+                return bool(self._rl_table.is_banned(str(key), float(ts)))
+
+            banned = bool(self._rl_call(_check))
             if not banned:
                 self._bans.pop(key, None)
             return banned
@@ -203,7 +216,10 @@ class PeerManager:
     def is_addr_banned(self, host: str, port: int, *, now: Optional[float] = None) -> bool:
         ts = float(now if now is not None else time.time())
         if self._rl_table is not None:
-            return bool(self._rl_table.is_addr_banned(str(host), int(port), float(ts)))
+            def _check():
+                return bool(self._rl_table.is_addr_banned(str(host), int(port), float(ts)))
+
+            return bool(self._rl_call(_check))
         if self.is_banned(f"{host}:{port}", now=ts):
             return True
         return any(
@@ -224,9 +240,15 @@ class PeerManager:
         ts = float(now if now is not None else time.time())
 
         if self._rl_table is not None:
-            banned = bool(self._rl_table.strike(str(key), float(ts)))
+            def _strike():
+                banned = bool(self._rl_table.strike(str(key), float(ts)))
+                if not banned:
+                    return False, int(self._rl_table.strike_count(str(key))), None
+                until = self._rl_table.ban_until(str(key))
+                return True, 0, until
+
+            banned, strikes, until = self._rl_call(_strike)
             if not banned:
-                strikes = int(self._rl_table.strike_count(str(key)))
                 self._strikes[key] = strikes
                 _logger.warning(
                     "[PeerManager] strike %s/%s for %s (%s)",
@@ -236,7 +258,6 @@ class PeerManager:
                     reason_key,
                 )
                 return False
-            until = self._rl_table.ban_until(str(key))
             if until is not None:
                 self._bans[key] = float(until)
             else:
@@ -268,7 +289,10 @@ class PeerManager:
         strikes = int(self._strikes.get(key, 0) or 0)
         if self._rl_table is not None:
             try:
-                strikes = max(strikes, int(self._rl_table.strike_count(str(key))))
+                def _count():
+                    return int(self._rl_table.strike_count(str(key)))
+
+                strikes = max(strikes, int(self._rl_call(_count)))
             except Exception:
                 pass
         return strikes
@@ -577,17 +601,21 @@ class PeerManager:
     def active_bans_snapshot(self, *, now: Optional[float] = None) -> Dict[str, Any]:
         ts = float(now if now is not None else time.time())
         if self._rl_table is not None:
-            active_bans = []
-            for key in self._rl_table.ban_keys():
-                until = self._rl_table.ban_until(key)
-                if until is None or until <= ts:
-                    continue
-                if not self._rl_table.is_banned(key, float(ts)):
-                    continue
-                active_bans.append(
-                    {"key": key, "seconds_remaining": max(0, int(until - ts))}
-                )
-            tracked = int(self._rl_table.tracked_strikes())
+            def _snap():
+                active_bans = []
+                for key in self._rl_table.ban_keys():
+                    until = self._rl_table.ban_until(key)
+                    if until is None or until <= ts:
+                        continue
+                    if not self._rl_table.is_banned(key, float(ts)):
+                        continue
+                    active_bans.append(
+                        {"key": key, "seconds_remaining": max(0, int(until - ts))}
+                    )
+                tracked = int(self._rl_table.tracked_strikes())
+                return active_bans, tracked
+
+            active_bans, tracked = self._rl_call(_snap)
         else:
             active_bans = [
                 {"key": key, "seconds_remaining": max(0, int(until - ts))}

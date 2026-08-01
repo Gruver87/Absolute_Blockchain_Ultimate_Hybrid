@@ -8,9 +8,32 @@
 
 ## [Unreleased]
 
+### Mesh — genesis artifact + tip height-0 + P2P IO
+
+- Shared ceremony genesis JSON (`sync/genesis_artifact.py`, `GENESIS_ARTIFACT_PATH`) so followers import leader #0 + founder — no divergent local mint
+- TipSafety / STATUS / handshake treat height **0** as present; empty genesis import skips reward mutation
+- Native P2P short-poll reads (`set_read_timeout_only`) — avoid write-starve under long blocking reads
+- Soft-refuse `tip_duplicate` / transport EOF (no PeerManager ban on TLS close_notify churn)
+- Honesty: chain sync proven; `/health/ready` peers still **partial** under TLS reconnect
+
+### P2P — mesh soft-refuse (probe 503)
+
+- Stop `announce_validator` gossip in prod/staging (ceremony/manifest only)
+- Soft-refuse for `validator_register_disabled` and unsolicited solicit races
+- Probe FAIL path when peers=0 after bans → `peers_alive=false`
+
+### Architecture — ADR 0016 feature sprouts
+
+- ADR 0016: one industrial L1 tip; FEATURE_* via profiles (App / Bridge / L2 sandbox / Shard), never kitchen-sink on `778888`
+- Tip-safety stage-1.5: bounded `AncestryWindow` (not Long-Range)
+- `features/nft_ports.py`; NFT → `app-profile`; mesh JSON freeze `feature_*=false`
+- Prod compose healthcheck `/health/live` (not `/ready`) — avoid depends_on ↔ peer-quorum chicken-egg
+- Serialize `P2PRateLimitTable` + per-conn native IO locks
+- Docs: `docs/sprouts/*`; architecture mermaid + honest Proven table
+
 ### Docs / GitHub UX
 
-- First-screen refresh: ADR **0001–0015**, architecture mermaid, AT_A_GLANCE / REPO_PROFILE aligned to `v1.3.1338-deterministic-core`
+- First-screen honesty: chain sync **Proven**, `/health/ready` **Partial**; ADR **0001–0016**
 
 ## [1.3.1338-deterministic-core] — 2026-07-30
 

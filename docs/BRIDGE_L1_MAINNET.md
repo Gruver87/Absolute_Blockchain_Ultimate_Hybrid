@@ -6,6 +6,10 @@
 
 **Mainnet-v1 / pre-audit: bridge stays OFF.**
 
+Profile placement: **ADR 0016 Profile B** — see
+[docs/sprouts/BRIDGE_CUTOVER_PROFILE.md](sprouts/BRIDGE_CUTOVER_PROFILE.md).
+Do not combine bridge cutover with `FEATURE_SHARDING` in one release.
+
 | Field | Value |
 |-------|-------|
 | Decision | `bridge_enabled=false` on prod mesh and `node.prod.mainnet-v1.example.json` |

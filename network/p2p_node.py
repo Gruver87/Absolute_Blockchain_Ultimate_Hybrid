@@ -221,6 +221,8 @@ class PeerConnection:
         native_conn=None,
     ):
         self._native_conn = native_conn  # optional P2PNativeConn (v1.3.90)
+        self._message_loop_owns_writes = False
+        self._in_message_loop_task = False
         self.reader = reader
         self.writer = writer
         self.peer_id = peer_id
@@ -249,6 +251,10 @@ class PeerConnection:
         self._on_send_drop: Optional[Callable[[], None]] = None
         self._on_egress_reject: Optional[Callable[[], None]] = None
         self._rl_table = None  # optional native P2PRateLimitTable (egress v1.3.85)
+        # Shared across peers: serialize PyRefMut on the one RateLimitTable (thread pool).
+        self._rl_lock: Optional[threading.RLock] = None
+        # Per-connection: native P2PNativeConn is !Sync RefCell — no concurrent read/write.
+        self._native_io_lock = threading.RLock()
         self._line_framer = None  # optional native P2PLineFramer (v1.3.86)
         self._pending_lines: list = []
         self._pending_msgs: list = []  # v1.3.94 decoded batch from read_messages
@@ -258,6 +264,7 @@ class PeerConnection:
         self._native_write_batch: int = 8
         self._native_auto_pong: bool = True
         self._native_io_timeout_ms: int = 30000
+        self._native_poll_timeout_ms: int = 100
         self._use_egress_prepare = False  # v1.3.87 unified prepare
         self._transport_adapter = None  # set by P2PNode._attach_peer_hooks (Step C)
         self._wire_codec = None  # ADR 0008: learned peer codec (v1|v2); None → auto
@@ -275,19 +282,73 @@ class PeerConnection:
         ms = int(getattr(self, "_native_io_timeout_ms", 30000) or 30000)
         return max(2.0, (ms / 1000.0) + 1.0)
 
+    def _native_poll_wait_sec(self) -> float:
+        """Outer asyncio bound for a single non-blocking native poll."""
+        ms = int(getattr(self, "_native_poll_timeout_ms", 100) or 100)
+        return max(0.5, (ms / 1000.0) + 0.4)
+
+    def _native_io_call(self, method, *args, **kwargs):
+        """Run a native-conn method under the per-connection IO lock."""
+        lock = getattr(self, "_native_io_lock", None)
+        if lock is None:
+            return method(*args, **kwargs)
+        with lock:
+            return method(*args, **kwargs)
+
+    def _native_poll_read_call(self, method, *args, **kwargs):
+        """Native read under IO lock with a short SO_RCVTIMEO so writers are not starved.
+
+        Holding ``_native_io_lock`` across a 30s blocking read deadlocks solicit
+        responses (get_block / state_root) that need the same RefCell/conn.
+        """
+        lock = getattr(self, "_native_io_lock", None)
+        conn = getattr(self, "_native_conn", None)
+        poll_ms = max(1, int(getattr(self, "_native_poll_timeout_ms", 100) or 100))
+        full_ms = max(1, int(getattr(self, "_native_io_timeout_ms", 30000) or 30000))
+
+        def _run():
+            restored = False
+            if conn is not None:
+                if hasattr(conn, "set_read_timeout_ms"):
+                    try:
+                        conn.set_read_timeout_ms(poll_ms)
+                        restored = True
+                    except Exception:
+                        restored = False
+                elif hasattr(conn, "set_timeout_ms"):
+                    try:
+                        conn.set_timeout_ms(poll_ms)
+                        restored = True
+                    except Exception:
+                        restored = False
+            try:
+                return method(*args, **kwargs)
+            finally:
+                if restored and conn is not None:
+                    try:
+                        if hasattr(conn, "set_read_timeout_ms"):
+                            # Restore read side; write timeout left at full via set_timeout_ms.
+                            conn.set_timeout_ms(full_ms)
+                        elif hasattr(conn, "set_timeout_ms"):
+                            conn.set_timeout_ms(full_ms)
+                    except Exception:
+                        pass
+
+        if lock is None:
+            return _run()
+        with lock:
+            return _run()
+
     def _effective_wire_codec(self) -> str:
-        """Concrete outbound codec for this peer (auto → learned / v1 bootstrap)."""
+        """Concrete outbound codec for this peer (auto → learned / v1 bootstrap).
+
+        Never touch ``_native_conn`` here: prepare runs off the IO lock and would
+        race PyO3 borrows against ``read_messages`` / ``write`` (Already mutably
+        borrowed → mesh wire_probe FAIL).
+        """
         learned = getattr(self, "_wire_codec", None)
         if learned in ("v1", "v2"):
             return str(learned)
-        conn = getattr(self, "_native_conn", None)
-        if conn is not None and hasattr(conn, "peer_wire_codec"):
-            try:
-                native_codec = str(conn.peer_wire_codec or "").strip().lower()
-                if native_codec in ("v1", "v2"):
-                    return native_codec
-            except Exception:
-                pass
         mode = native.p2p_wire_codec_mode()
         if mode in ("v1", "v2"):
             return mode
@@ -302,25 +363,34 @@ class PeerConnection:
         conn = getattr(self, "_native_conn", None)
         if conn is not None and hasattr(conn, "set_peer_wire_codec"):
             try:
-                conn.set_peer_wire_codec(raw)
+                self._native_io_call(conn.set_peer_wire_codec, raw)
             except Exception:
                 pass
 
     def touch(self):
         self.last_seen = time.time()
 
+    def _rl_call(self, fn, *args, **kwargs):
+        """Run rate-limit / egress-prepare against the shared table under lock."""
+        lock = getattr(self, "_rl_lock", None)
+        if lock is None:
+            return fn(*args, **kwargs)
+        with lock:
+            return fn(*args, **kwargs)
+
     async def _write_payload(self, payload: bytes) -> None:
         """Write framed bytes via native TCP conn or asyncio writer."""
+        write_timeout = max(30.0, float(self._drain_timeout_sec or 5.0))
         if self._native_conn is not None:
             await asyncio.wait_for(
-                asyncio.to_thread(self._native_conn.write, payload),
-                timeout=self._drain_timeout_sec,
+                asyncio.to_thread(self._native_io_call, self._native_conn.write, payload),
+                timeout=write_timeout,
             )
             return
         if self.writer is None:
             raise OSError("p2p_no_writer")
         self.writer.write(payload)
-        await asyncio.wait_for(self.writer.drain(), timeout=self._drain_timeout_sec)
+        await asyncio.wait_for(self.writer.drain(), timeout=write_timeout)
 
     async def _write_message(self, msg_type: str, data: Any) -> bool:
         """v1.3.93: native encode+write pump, or prepare+write when egress on."""
@@ -351,6 +421,7 @@ class PeerConnection:
             )
             out = await asyncio.wait_for(
                 asyncio.to_thread(
+                    self._native_io_call,
                     self._native_conn.write_message,
                     str(msg_type or ""),
                     data_json,
@@ -411,10 +482,11 @@ class PeerConnection:
             if payloads:
                 out = await asyncio.wait_for(
                     asyncio.to_thread(
+                        self._native_io_call,
                         self._native_conn.write_payloads,
                         [p for _i, p in payloads],
                     ),
-                    timeout=self._drain_timeout_sec,
+                    timeout=max(30.0, float(self._drain_timeout_sec or 5.0)),
                 )
                 ok = isinstance(out, dict) and bool(out.get("ok"))
                 written = int(out.get("written") or out.get("count") or 0) if isinstance(out, dict) else 0
@@ -445,6 +517,7 @@ class PeerConnection:
                 items.append((str(msg_type or ""), data_json))
             out = await asyncio.wait_for(
                 asyncio.to_thread(
+                    self._native_io_call,
                     self._native_conn.write_messages,
                     items,
                     list(ALLOWED_WIRE_TYPES),
@@ -479,12 +552,16 @@ class PeerConnection:
         table = self._rl_table
         if table is None or not hasattr(table, "admit_egress"):
             return True
-        reason = table.admit_egress(
-            self._egress_peer_key(),
-            len(payload),
-            time.time(),
-            str(msg_type or ""),
-        )
+
+        def _admit():
+            return table.admit_egress(
+                self._egress_peer_key(),
+                len(payload),
+                time.time(),
+                str(msg_type or ""),
+            )
+
+        reason = self._rl_call(_admit)
         if reason:
             cb = self._on_egress_reject
             if cb is not None:
@@ -497,6 +574,10 @@ class PeerConnection:
 
     def _prepare_outbound(self, msg_type: str, data: Any) -> Optional[bytes]:
         """v1.3.87: encode + allowlist + size + egress admit (or legacy fallback)."""
+        return self._rl_call(self._prepare_outbound_unlocked, msg_type, data)
+
+    def _prepare_outbound_unlocked(self, msg_type: str, data: Any) -> Optional[bytes]:
+        """Inner prepare; caller must hold ``_rl_lock`` when shared table is used."""
         adapter = getattr(self, "_transport_adapter", None)
         if self._use_egress_prepare and (
             adapter is not None or hasattr(native, "p2p_egress_prepare")
@@ -624,8 +705,25 @@ class PeerConnection:
                 batch.append(nxt)
             try:
                 results = await self._write_messages_batch(batch)
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "[P2P] send timeout to %s (batch=%s)",
+                    self.peer_id or self.host,
+                    len(batch),
+                )
+                cb = self._on_send_fail
+                if cb is not None:
+                    try:
+                        cb()
+                    except Exception:
+                        pass
+                results = [False] * len(batch)
             except Exception as e:
-                logger.warning("[P2P] send error to %s: %s", self.peer_id or self.host, e)
+                logger.warning(
+                    "[P2P] send error to %s: %s",
+                    self.peer_id or self.host,
+                    e or type(e).__name__,
+                )
                 cb = self._on_send_fail
                 if cb is not None:
                     try:
@@ -640,23 +738,50 @@ class PeerConnection:
     async def send(self, msg_type: str, data: Any = None) -> bool:
         """Отправляет JSON-сообщение пиру. Returns False on write failure / queue full."""
         self._ensure_send_worker()
-        # High-priority control plane: status/ping/handshake bypass queue when possible.
+        # High-priority control plane + solicit requests: never drop under load
+        # (dropping get_block / state_root_request breaks follower genesis + wire probe).
         priority = str(msg_type or "") in {
             MSG_STATUS,
             MSG_PING,
             MSG_PONG,
             MSG_HANDSHAKE,
             MSG_HANDSHAKE_ACK,
+            MSG_GET_BLOCK,
+            MSG_GET_BLOCK_BY_HASH,
+            MSG_GET_BLOCKS,
+            MSG_STATE_ROOT_REQUEST,
+            MSG_STATE_ROOT_RESPONSE,
+            MSG_BLOCK,
+            MSG_BLOCKS,
         }
         fut: asyncio.Future = asyncio.get_running_loop().create_future()
+        # Solicit/sync writes may wait behind native IO lock; allow more than gossip drain.
+        send_wait = max(30.0, float(self._drain_timeout_sec or 5.0) + 1.0) if priority else (
+            float(self._drain_timeout_sec or 5.0) + 1.0
+        )
         try:
             if priority and self._send_q.empty():
                 # Fast path when idle
                 try:
                     return await self._write_message(msg_type, data)
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "[P2P] send timeout to %s type=%s",
+                        self.peer_id or self.host,
+                        msg_type,
+                    )
+                    cb = self._on_send_fail
+                    if cb is not None:
+                        try:
+                            cb()
+                        except Exception:
+                            pass
+                    return False
                 except Exception as e:
                     logger.warning(
-                        "[P2P] send error to %s: %s", self.peer_id or self.host, e
+                        "[P2P] send error to %s: %s",
+                        self.peer_id or self.host,
+                        e or type(e).__name__,
                     )
                     cb = self._on_send_fail
                     if cb is not None:
@@ -686,7 +811,14 @@ class PeerConnection:
             logger.warning("[P2P] send enqueue error to %s: %s", self.peer_id or self.host, e)
             return False
         try:
-            return bool(await asyncio.wait_for(fut, timeout=self._drain_timeout_sec + 1.0))
+            return bool(await asyncio.wait_for(fut, timeout=send_wait))
+        except asyncio.TimeoutError:
+            logger.warning(
+                "[P2P] send queue wait timeout to %s type=%s",
+                self.peer_id or self.host,
+                msg_type,
+            )
+            return False
         except Exception:
             return False
 
@@ -702,7 +834,11 @@ class PeerConnection:
 
         if self._native_conn is not None:
             out = await asyncio.wait_for(
-                asyncio.to_thread(self._native_conn.read_line, int(self._read_chunk or 65536)),
+                asyncio.to_thread(
+                    self._native_io_call,
+                    self._native_conn.read_line,
+                    int(self._read_chunk or 65536),
+                ),
                 timeout=30,
             )
             if not isinstance(out, dict) or not out.get("ok"):
@@ -765,12 +901,15 @@ class PeerConnection:
         nbytes = int(item.get("nbytes") or 0)
         self._note_peer_wire_codec(item.get("wire_codec"))
         if use_ingress and rl_table is not None and hasattr(rl_table, "admit_rate"):
-            reject = rl_table.admit_rate(
-                str(peer_key or self.peer_id or self.host or ""),
-                str(msg_type or ""),
-                float(time.time()),
-                int(nbytes),
-            )
+            def _admit():
+                return rl_table.admit_rate(
+                    str(peer_key or self.peer_id or self.host or ""),
+                    str(msg_type or ""),
+                    float(time.time()),
+                    int(nbytes),
+                )
+
+            reject = self._rl_call(_admit)
             if reject:
                 reason = str(reject)
                 logger.warning(
@@ -806,19 +945,51 @@ class PeerConnection:
             return []
         chain_id = int(getattr(config, "chain_id", 0) or 0) if config is not None else 0
         require_sigs = bool(getattr(config, "require_signatures", False)) if config is not None else False
-        out = await asyncio.wait_for(
-            asyncio.to_thread(
-                self._native_conn.read_message_loop_events,
-                int(self._native_read_batch or 8),
-                int(self._read_chunk or 65536),
-                list(ALLOWED_WIRE_TYPES),
-                bool(getattr(self, "_native_auto_pong", True)),
-                int(chain_id) if chain_id else None,
-                bool(require_sigs),
-                bool(mempool_solicit_armed),
-            ),
-            timeout=self._native_recv_wait_sec(),
-        )
+        poll_ms = max(1, int(getattr(self, "_native_poll_timeout_ms", 100) or 100))
+        supports_poll = getattr(self, "_native_loop_poll_arg", None)
+        if supports_poll is None:
+            supports_poll = False
+            try:
+                import inspect
+
+                supports_poll = (
+                    "poll_timeout_ms"
+                    in inspect.signature(self._native_conn.read_message_loop_events).parameters
+                )
+            except Exception:
+                supports_poll = False
+            self._native_loop_poll_arg = supports_poll
+        if supports_poll:
+            out = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self._native_io_call,
+                    self._native_conn.read_message_loop_events,
+                    int(self._native_read_batch or 8),
+                    int(self._read_chunk or 65536),
+                    list(ALLOWED_WIRE_TYPES),
+                    bool(getattr(self, "_native_auto_pong", True)),
+                    int(chain_id) if chain_id else None,
+                    bool(require_sigs),
+                    bool(mempool_solicit_armed),
+                    poll_ms,
+                ),
+                timeout=self._native_poll_wait_sec(),
+            )
+        else:
+            out = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self._native_poll_read_call,
+                    self._native_conn.read_message_loop_events,
+                    int(self._native_read_batch or 8),
+                    int(self._read_chunk or 65536),
+                    list(ALLOWED_WIRE_TYPES),
+                    bool(getattr(self, "_native_auto_pong", True)),
+                    int(chain_id) if chain_id else None,
+                    bool(require_sigs),
+                    bool(mempool_solicit_armed),
+                ),
+                timeout=self._native_poll_wait_sec(),
+            )
         if not isinstance(out, dict) or not out.get("ok"):
             reason = "p2p_loop_bad_result"
             if isinstance(out, dict):
@@ -893,13 +1064,14 @@ class PeerConnection:
                 elif hasattr(self._native_conn, "read_messages"):
                     out = await asyncio.wait_for(
                         asyncio.to_thread(
+                            self._native_poll_read_call,
                             self._native_conn.read_messages,
                             int(self._native_read_batch or 8),
                             int(self._read_chunk or 65536),
                             list(ALLOWED_WIRE_TYPES),
                             bool(getattr(self, "_native_auto_pong", True)),
                         ),
-                        timeout=self._native_recv_wait_sec(),
+                        timeout=self._native_poll_wait_sec(),
                     )
                     if not isinstance(out, dict) or not out.get("ok"):
                         reason = "bad_wire_line"
@@ -941,12 +1113,13 @@ class PeerConnection:
                 else:
                     out = await asyncio.wait_for(
                         asyncio.to_thread(
+                            self._native_poll_read_call,
                             self._native_conn.read_message,
                             int(self._read_chunk or 65536),
                             list(ALLOWED_WIRE_TYPES),
                             bool(getattr(self, "_native_auto_pong", True)),
                         ),
-                        timeout=self._native_recv_wait_sec(),
+                        timeout=self._native_poll_wait_sec(),
                     )
                     if not isinstance(out, dict) or not out.get("ok"):
                         reason = "bad_wire_line"
@@ -987,34 +1160,33 @@ class PeerConnection:
             ):
                 peer_id = str(peer_key or self.peer_id or self.host or "")
                 try:
-                    adapter = getattr(self, "_transport_adapter", None)
-                    if adapter is not None:
-                        decision = adapter.admit_inbound_line(
-                            line,
-                            peer_id=peer_id,
-                            now=float(time.time()),
-                            max_bytes=int(limit),
-                            allowed_types=list(ALLOWED_WIRE_TYPES),
-                            rate_table=rl_table,
-                        )
-                        if not decision.accepted:
-                            reason = (
-                                decision.reject.reason_code
-                                if decision.reject is not None
-                                else "bad_wire_line"
+                    def _do_admit():
+                        adapter = getattr(self, "_transport_adapter", None)
+                        if adapter is not None:
+                            decision = adapter.admit_inbound_line(
+                                line,
+                                peer_id=peer_id,
+                                now=float(time.time()),
+                                max_bytes=int(limit),
+                                allowed_types=list(ALLOWED_WIRE_TYPES),
+                                rate_table=rl_table,
                             )
-                            admitted = {"ok": False, "reason": reason}
-                        else:
+                            if not decision.accepted:
+                                reason = (
+                                    decision.reject.reason_code
+                                    if decision.reject is not None
+                                    else "bad_wire_line"
+                                )
+                                return {"ok": False, "reason": reason}
                             assert decision.frame is not None
                             self._note_peer_wire_codec(decision.frame.wire_codec)
-                            admitted = {
+                            return {
                                 "ok": True,
                                 "type": decision.frame.msg_type,
                                 "data": decision.frame.data,
                                 "wire_codec": decision.frame.wire_codec,
                             }
-                    else:
-                        admitted = native.p2p_ingress_admit(
+                        return native.p2p_ingress_admit(
                             line,
                             peer_id,
                             float(time.time()),
@@ -1022,6 +1194,8 @@ class PeerConnection:
                             list(ALLOWED_WIRE_TYPES),
                             rl_table,
                         )
+
+                    admitted = self._rl_call(_do_admit)
                 except Exception as exc:
                     logger.warning(
                         "[P2P] ingress admit error from %s: %s",
@@ -1121,7 +1295,7 @@ class PeerConnection:
     def close(self):
         if self._native_conn is not None:
             try:
-                self._native_conn.close()
+                self._native_io_call(self._native_conn.close)
             except Exception as exc:
                 logger.debug(
                     "[P2P] native peer close failed %s:%s: %s", self.host, self.port, exc
@@ -1163,6 +1337,7 @@ class P2PNode:
         self._peer_bans: Dict[str, float] = {}
         self._known_addrs: List[str] = []
         self._rl_table = None
+        self._rl_lock = threading.RLock()
         self._conn_governor = None
         self._use_native_ingress = False
         self._use_native_egress = False
@@ -1216,6 +1391,7 @@ class P2PNode:
         self.peer_manager = PeerManager(
             PeerManagerSettings.from_config(config),
             rl_table=self._rl_table,
+            rl_lock=self._rl_lock,
             conn_governor=self._conn_governor,
             native_helpers=native if native.native_available() else None,
         )
@@ -1279,6 +1455,10 @@ class P2PNode:
         )
         self._native_io_timeout_ms = _clamp_native_timeout_ms(
             getattr(config, "p2p_native_io_timeout_ms", 30000), 30000
+        )
+        self._native_poll_timeout_ms = max(
+            20,
+            min(2000, int(getattr(config, "p2p_native_poll_timeout_ms", 100) or 100)),
         )
         if self._use_native_transport:
             try:
@@ -1476,6 +1656,9 @@ class P2PNode:
         )
         # Back-compat read-only-ish alias (same mapping object as hub.waiters).
         self._sync_waiters = self.solicit_hub.waiters
+        # One solicit waiter slot per peer — serialize arm/wait to avoid
+        # get_block vs state_root races overwriting each other (empty genesis download).
+        self._solicit_peer_locks: Dict[str, asyncio.Lock] = {}
         # Catch-up pure policy + orchestrator gates (ADR 0003).
         from sync.catchup import CatchUpOrchestrator, CatchUpPolicy
 
@@ -1989,6 +2172,9 @@ class P2PNode:
         peer._native_io_timeout_ms = int(
             getattr(self, "_native_io_timeout_ms", 30000) or 30000
         )
+        peer._native_poll_timeout_ms = int(
+            getattr(self, "_native_poll_timeout_ms", 100) or 100
+        )
         peer._native_message_loop_shell = bool(
             getattr(self, "_native_message_loop_shell", False)
         )
@@ -1997,9 +2183,12 @@ class P2PNode:
         peer._wire_codec = None
         if self._use_native_egress:
             peer._rl_table = self._rl_table
+            peer._rl_lock = self._rl_lock
             peer._use_egress_prepare = hasattr(native, "p2p_egress_prepare") or (
                 peer._transport_adapter is not None
             )
+        else:
+            peer._rl_lock = self._rl_lock
 
     def _apply_native_io_timeout(self, native_conn) -> None:
         """v1.3.102: apply configured SO_RCV/SNDTIMEO on a native conn."""
@@ -2226,6 +2415,7 @@ class P2PNode:
             try:
                 out = await asyncio.wait_for(
                     asyncio.to_thread(
+                        peer._native_io_call,
                         peer._native_conn.handshake_roundtrip,
                         bool(initiator),
                         our_json,
@@ -2377,17 +2567,26 @@ class P2PNode:
         peer.peer_id = claimed_id
         peer.chain_id = hs.get("chain_id", 0)
         # v1.3.135: soft handshake height-ahead ownership (same window as status/new_block).
-        hs_h = int(hs.get("height", 0) or 0)
+        # Height 0 is valid genesis — never coerce via ``or 0`` after a missing check.
+        if isinstance(hs, dict) and "height" in hs and hs.get("height") is not None:
+            try:
+                hs_h = int(hs.get("height"))
+            except (TypeError, ValueError):
+                hs_h = -1
+        else:
+            hs_h = -1
         hs_head = str(hs.get("head_hash") or "").strip()
-        owned_h, capped = self._cap_claimed_peer_height(hs_h)
+        owned_h, capped = self._cap_claimed_peer_height(max(hs_h, 0) if hs_h >= 0 else 0)
+        if hs_h < 0:
+            owned_h = -1
         if capped:
             self._handshake_height_cap_total = int(
                 self._handshake_height_cap_total or 0
             ) + 1
             hs_head = ""  # do not install fantasy head with capped height
-        # v1.3.166: head-only handshake (height<=0) refused when local tip > 0.
+        # v1.3.166: head without height refused when local tip > 0.
         head_only_reason = self._handshake_head_without_height_refuse_reason(
-            hs_head, owned_h, int(our_height or 0)
+            hs_head, owned_h, int(our_height if our_height is not None else 0)
         )
         if head_only_reason:
             self._handshake_head_without_height_total = int(
@@ -2400,7 +2599,7 @@ class P2PNode:
             )
             return False
         # v1.3.155: known local head ⇒ claimed height must match (soft ownership).
-        if hs_head:
+        if hs_head and owned_h >= 0:
             bind_reason = self._status_head_height_refuse_reason(
                 hs_head, owned_h, reason="handshake_head_height_mismatch"
             )
@@ -2414,7 +2613,7 @@ class P2PNode:
                     f"[P2P] Rejected {peer.host}:{peer.port}: {bind_reason}"
                 )
                 return False
-        peer.height = owned_h
+        peer.height = max(0, int(owned_h)) if int(owned_h) >= 0 else 0
         # v1.3.159: capped height clears fantasy head (do not keep prior peer.head).
         if capped and bool(getattr(self.config, "p2p_height_cap_clear_head", True)):
             peer.head = ""
@@ -2432,7 +2631,7 @@ class P2PNode:
             peer._native_conn, "set_session_established"
         ):
             try:
-                peer._native_conn.set_session_established(True)
+                peer._native_io_call(peer._native_conn.set_session_established, True)
             except Exception as exc:
                 logger.debug("[P2P] set_session_established failed: %s", exc)
         return True
@@ -2587,7 +2786,38 @@ class P2PNode:
         return self.peer_manager.is_addr_banned(host, port)
 
     def _strike_peer_sync(self, peer: PeerConnection, reason: str) -> bool:
-        """Record abuse strike; return True if peer should be disconnected (banned)."""
+        """Record abuse strike; return True if peer should be disconnected (banned).
+
+        Soft-refuse reasons (solicit races / disabled gossip) increment metrics and
+        are logged, but must **not** ban mesh peers — otherwise prod mTLS nodes
+        mutually ban within seconds (validator_register + unsolicited_*).
+        """
+        why = str(reason or "")
+        # Soft refuse: keep fail-closed message drop (caller already refused) without ban.
+        soft = getattr(self, "_SOFT_REFUSE_STRIKE_REASONS", None)
+        if soft is None:
+            soft = frozenset(
+                {
+                    "validator_register_disabled",
+                    "unsolicited_mempool",
+                    "unsolicited_block",
+                    "unsolicited_blocks",
+                    "unsolicited_peers",
+                    "unsolicited_state_root_response",
+                    "unsolicited_state_root",
+                    "tip_duplicate",
+                }
+            )
+            self._SOFT_REFUSE_STRIKE_REASONS = soft
+        # Transient TLS/EOF tears on mesh reconnects must not escalate to bans.
+        if why in soft or why.startswith("p2p_transport_io:"):
+            self._soft_refuse_total = int(getattr(self, "_soft_refuse_total", 0) or 0) + 1
+            logger.info(
+                "[P2P] soft-refuse %s from %s (no ban; mesh-safe)",
+                why[:80],
+                (getattr(peer, "peer_id", None) or "?")[:16],
+            )
+            return False
         return self.peer_manager.strike(peer, reason)
 
     def _peer_strike_count(self, peer: PeerConnection) -> int:
@@ -2621,9 +2851,10 @@ class P2PNode:
         Prefer native table.exempt_rate_ok when available (v1.3.77).
         """
         if self._rl_table is not None and hasattr(self._rl_table, "exempt_rate_ok"):
-            ok = bool(
-                self._rl_table.exempt_rate_ok(str(peer_id or ""), float(time.time()))
-            )
+            with self._rl_lock:
+                ok = bool(
+                    self._rl_table.exempt_rate_ok(str(peer_id or ""), float(time.time()))
+                )
             if not ok:
                 logger.warning(
                     "[P2P] exempt-type rate exceeded for %s (%s/s)",
@@ -2656,13 +2887,14 @@ class P2PNode:
         if msg_type in RATE_LIMIT_EXEMPT_TYPES and not self._exempt_rate_ok(peer_id):
             return False
         if self._rl_table is not None:
-            ok = bool(
-                self._rl_table.rate_ok(
-                    str(peer_id or ""),
-                    str(msg_type or ""),
-                    float(time.time()),
+            with self._rl_lock:
+                ok = bool(
+                    self._rl_table.rate_ok(
+                        str(peer_id or ""),
+                        str(msg_type or ""),
+                        float(time.time()),
+                    )
                 )
-            )
             if not ok:
                 logger.warning(
                     "[P2P] rate limit exceeded for %s (%s/s)",
@@ -2855,7 +3087,16 @@ class P2PNode:
             self._record_broadcast_results(results, kind="validator_register")
 
     def announce_validator(self, address: str, stake: float) -> None:
-        """Gossip local validator registration to connected peers."""
+        """Gossip local validator registration to connected peers.
+
+        Prod/staging / require_native: no-op — stake identity is ceremony/manifest
+        only. Sending here caused receivers to strike ``validator_register_disabled``
+        and mutually ban the mesh.
+        """
+        mode = str(getattr(self.config, "deployment_mode", "dev") or "dev").lower()
+        require_native = bool(getattr(self.config, "require_native_crypto", False))
+        if mode in ("prod", "production", "staging") or require_native:
+            return
         payload = {"address": address, "stake": stake, "node_id": f"abs-{self.config.p2p_port}"}
         if self._loop and self._running:
             asyncio.run_coroutine_threadsafe(
@@ -4124,9 +4365,11 @@ class P2PNode:
     def _handshake_head_without_height_refuse_reason(
         self, hs_head: str, owned_h: int, local_h: int
     ) -> str:
-        """v1.3.166: head-only handshake refused when local tip > 0.
+        """v1.3.166: head without an explicit height refused when local tip > 0.
 
-        Soft ownership parity with STATUS v1.3.161 — not tip proof / Long-Range.
+        Height 0 is a valid genesis tip — followers may still be at #0 while the
+        leader has advanced. Only missing/negative height + head is refused.
+        Soft ownership parity with STATUS — not tip proof / Long-Range.
         """
         if not bool(
             getattr(self.config, "p2p_handshake_head_requires_height", True)
@@ -4140,7 +4383,8 @@ class P2PNode:
             tip = int(local_h)
         except (TypeError, ValueError):
             return ""
-        if height <= 0 and tip > 0:
+        # Negative sentinel = height omitted from handshake payload.
+        if height < 0 and tip > 0:
             return "handshake_head_without_height"
         return ""
 
@@ -4804,6 +5048,18 @@ class P2PNode:
             return False
         return bool(hub.mempool_solicit_armed(pid))
 
+    def _solicit_lock_for(self, peer_id: str) -> asyncio.Lock:
+        locks = getattr(self, "_solicit_peer_locks", None)
+        if locks is None:
+            self._solicit_peer_locks = {}
+            locks = self._solicit_peer_locks
+        pid = str(peer_id or "")
+        lock = locks.get(pid)
+        if lock is None:
+            lock = asyncio.Lock()
+            locks[pid] = lock
+        return lock
+
     async def _wait_peer_response(
         self,
         peer: PeerConnection,
@@ -4817,19 +5073,20 @@ class P2PNode:
             raise RuntimeError("solicit_hub required for peer response wait")
         loop = asyncio.get_running_loop()
         fut = loop.create_future()
-        hub.arm(peer.peer_id, expected_types, fut, request_ctx)
-        try:
-            if presend:
-                await presend()
-            # shield: transport timeout must not cancel the Future so the hub
-            # can fulfill it with None via timeout() (owned waiter semantics).
-            return await asyncio.wait_for(asyncio.shield(fut), timeout=timeout)
-        except asyncio.TimeoutError:
-            # Hub-side timeout: fulfill future (if still pending) + drop waiter.
-            hub.timeout(peer.peer_id, result=None)
-            return None
-        finally:
-            hub.clear(peer.peer_id)
+        async with self._solicit_lock_for(peer.peer_id):
+            hub.arm(peer.peer_id, expected_types, fut, request_ctx)
+            try:
+                if presend:
+                    await presend()
+                # shield: transport timeout must not cancel the Future so the hub
+                # can fulfill it with None via timeout() (owned waiter semantics).
+                return await asyncio.wait_for(asyncio.shield(fut), timeout=timeout)
+            except asyncio.TimeoutError:
+                # Hub-side timeout: fulfill future (if still pending) + drop waiter.
+                hub.timeout(peer.peer_id, result=None)
+                return None
+            finally:
+                hub.clear(peer.peer_id)
 
     def _expected_parent_for_height(self, height: int) -> str:
         """Parent digest expected for the first block at `height`."""
@@ -5331,6 +5588,14 @@ class P2PNode:
         height = tip if int(req_h) <= 0 else int(req_h)
         if height > tip:
             return None
+        # Empty follower tip (no block #0 yet): never advertise a synthetic root.
+        get_last = getattr(self.blockchain, "get_last_block", None)
+        if callable(get_last):
+            try:
+                if get_last() is None:
+                    return None
+            except Exception:
+                pass
         if height == tip:
             return {
                 "height": tip,
@@ -5910,7 +6175,8 @@ class P2PNode:
                     logger.info("[P2P] maintenance pruned %s peer(s)", removed)
                 active_keys = {self._peer_key(p) for p in self.peers.values()}
                 if self._rl_table is not None:
-                    self._rl_table.retain_strike_keys(list(active_keys))
+                    with self._rl_lock:
+                        self._rl_table.retain_strike_keys(list(active_keys))
                 for key in list(self._peer_strikes):
                     if key not in active_keys:
                         self._peer_strikes.pop(key, None)
@@ -6092,21 +6358,30 @@ class P2PNode:
     def get_p2p_security_status(self) -> Dict:
         self._refresh_eclipse_snapshot()
         now = time.time()
+        bw_rejects = 0
+        eg_rejects = int(self._egress_rejects or 0)
         if self._rl_table is not None:
-            active_bans = []
-            for key in self._rl_table.ban_keys():
-                until = self._rl_table.ban_until(key)
-                if until is None or until <= now:
-                    continue
-                if not self._rl_table.is_banned(key, float(now)):
-                    continue
-                active_bans.append(
-                    {
-                        "key": key,
-                        "seconds_remaining": max(0, int(until - now)),
-                    }
-                )
-            tracked = int(self._rl_table.tracked_strikes())
+            def _security_bans():
+                active_bans = []
+                for key in self._rl_table.ban_keys():
+                    until = self._rl_table.ban_until(key)
+                    if until is None or until <= now:
+                        continue
+                    if not self._rl_table.is_banned(key, float(now)):
+                        continue
+                    active_bans.append(
+                        {
+                            "key": key,
+                            "seconds_remaining": max(0, int(until - now)),
+                        }
+                    )
+                tracked = int(self._rl_table.tracked_strikes())
+                bw = int(getattr(self._rl_table, "bandwidth_rejects", 0) or 0)
+                eg = int(getattr(self._rl_table, "egress_rejects", 0) or 0)
+                return active_bans, tracked, bw, eg
+
+            with self._rl_lock:
+                active_bans, tracked, bw_rejects, eg_rejects = _security_bans()
         else:
             active_bans = [
                 {
@@ -6418,6 +6693,7 @@ class P2PNode:
             "unsolicited_mempool_rejects_total": int(
                 getattr(self, "_unsolicited_mempool_rejects_total", 0) or 0
             ),
+            "soft_refuse_total": int(getattr(self, "_soft_refuse_total", 0) or 0),
             "status_height_cap_total": int(
                 getattr(self, "_status_height_cap_total", 0) or 0
             ),
@@ -6683,16 +6959,8 @@ class P2PNode:
             "max_outbound_bytes_per_sec": int(
                 getattr(self.config, "p2p_max_outbound_bytes_per_sec", 0) or 0
             ),
-            "bandwidth_rejects": (
-                int(getattr(self._rl_table, "bandwidth_rejects", 0) or 0)
-                if self._rl_table is not None
-                else 0
-            ),
-            "egress_rejects": (
-                int(getattr(self._rl_table, "egress_rejects", 0) or 0)
-                if self._rl_table is not None
-                else int(self._egress_rejects or 0)
-            ),
+            "bandwidth_rejects": int(bw_rejects),
+            "egress_rejects": int(eg_rejects),
             "handshake_rejects": int(self._handshake_rejects),
             "attestation_local_fail": int(self._attestation_local_fail),
             "shape_rejects_total": int(sum(self._shape_reject_counts.values())),

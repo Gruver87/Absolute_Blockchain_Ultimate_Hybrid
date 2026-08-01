@@ -62,7 +62,7 @@ blockchain-development
 |-------|-------|
 | **Tag** | `v1.3.1338-deterministic-core` — satoshi state domain + forest-stable LMD-GHOST + QueryPort honesty |
 | **Prior** | `v1.3.206` — tip-safety + P2P transport/dispatch |
-| **ADR stack** | **0001–0015** (Bridge · Query · Chaos · Shutdown · Observability/Secrets) |
+| **ADR stack** | **0001–0016** (… Observability/Secrets · Feature sprouts/profiles) |
 | **Notes** | [CHANGELOG](../CHANGELOG.md) · [DISASTER_RECOVERY](../docs/DISASTER_RECOVERY.md) |
 | **Self-check** | `.\scripts\operator_verify.ps1 -SkipNativeBuild` · `.\scripts\check_all.ps1` |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` (displayed as **Security checks**) |

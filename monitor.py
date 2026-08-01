@@ -59,13 +59,16 @@ class BlockchainMonitor:
         elif self.metrics['peers_count'] == 0:
             bootstrap = os.getenv("BOOTSTRAP_PEERS", "").strip()
             mode = stats.get("deployment_mode", os.getenv("DEPLOYMENT_MODE", "dev"))
-            if bootstrap or mode not in ("dev", "development", ""):
+            # Intentional solo (no bootstrap peers): do not spam WARNING every cycle,
+            # even when DEPLOYMENT_MODE=prod (local prod-profile solo is valid).
+            if bootstrap:
                 self._peer_warn_count += 1
                 if self._peer_warn_count >= 2:
                     self._add_alert('WARNING', 'Нет подключённых пиров')
             elif self._peer_warn_count == 0:
                 self._peer_warn_count = 1
-                print("[Monitor] Solo node (0 peers) — OK for local dev")
+                label = "prod-profile" if mode in ("prod", "staging") else "local dev"
+                print(f"[Monitor] Solo node (0 peers) — OK for {label}; set BOOTSTRAP_PEERS to expect mesh")
     
     def _add_alert(self, level, message):
         alert = {'level': level, 'message': message, 'timestamp': int(time.time())}

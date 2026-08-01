@@ -19,6 +19,7 @@
 
 import asyncio
 import argparse
+import json
 import signal
 import sys
 import os
@@ -627,6 +628,7 @@ class NodeOrchestrator:
                 f"auto-generated miner address: {config.miner_address}"
             )
 
+        self._pin_chain_founder_address()
         self._apply_genesis_allocation()
 
         _val_idx = int(getattr(config, "testnet_validator_index", 0) or 0)
@@ -730,9 +732,12 @@ class NodeOrchestrator:
                 "(TIP_SAFETY_SHADOW=1 observe, TIP_SAFETY_ENFORCE=1 refuse)"
             )
 
-        # 8. NFT маркетплейс (off by default in prod via feature_nft)
+        # 8. NFT marketplace (app-profile sprout; off on prod mesh — ADR 0016)
+        from features.nft_ports import NftMarketplaceAdapter, NullNftMarketplacePort
+
         if getattr(config, "feature_nft", True):
             self.nft = NFTMarketplace(db=self.db, bus=self.bus)
+            self.nft_port = NftMarketplaceAdapter(self.nft)
             stats = self.nft.get_stats()
             print(
                 f"[Node] NFT Marketplace: {len(self.nft.tokens)} tokens "
@@ -741,6 +746,7 @@ class NodeOrchestrator:
             )
         else:
             self.nft = None
+            self.nft_port = NullNftMarketplacePort()
             print("[Node] NFT Marketplace: disabled")
 
         # 9. ZK Proof System (R&D; disabled by prod profile)
@@ -1610,7 +1616,13 @@ class NodeOrchestrator:
                     pass
 
     async def _announce_validator_loop(self):
-        """Gossip attestation validator to peers once P2P is up."""
+        """Gossip attestation validator to peers once P2P is up (dev only)."""
+        mode = str(getattr(self.config, "deployment_mode", "dev") or "dev").lower()
+        if mode in ("prod", "production", "staging") or bool(
+            getattr(self.config, "require_native_crypto", False)
+        ):
+            # Ceremony/manifest owns validator set — P2P register is fail-closed.
+            return
         await asyncio.sleep(8)
         while self._running:
             if self.p2p and self._attestation_validator:
@@ -1628,6 +1640,17 @@ class NodeOrchestrator:
                 get_tokenomics_summary,
                 resolve_founder_address,
             )
+            # Followers must not mint a local alloc before importing leader genesis —
+            # per-wallet founder credits diverge state_root/hash and break import.
+            if (
+                getattr(self.config, "follower_genesis_sync", False)
+                and self.blockchain.get_last_block() is None
+            ):
+                print(
+                    "[Node] follower_genesis_sync: defer genesis allocation "
+                    "until leader block #0 is imported"
+                )
+                return
             founder = resolve_founder_address(
                 getattr(self.config, "founder_address", ""),
                 self.config.miner_address,
@@ -1826,7 +1849,7 @@ class NodeOrchestrator:
     # ── Цикл майнинга ────────────────────────────────────────────────────────
 
     async def _follower_genesis_sync_loop(self):
-        """Prod followers: import block #0 from bootstrap peers before serving RPC."""
+        """Prod followers: import block #0 from artifact / bootstrap / P2P before RPC ready."""
         if not getattr(self.config, "follower_genesis_sync", False):
             return
         if self.blockchain.get_last_block() is not None:
@@ -1843,6 +1866,13 @@ class NodeOrchestrator:
             if self.blockchain.get_last_block() is not None:
                 print("[Node] follower genesis ready")
                 return
+            # Shared ceremony artifact (leader export / host bind) beats flaky P2P.
+            try:
+                if self.blockchain.try_import_genesis_artifact():
+                    print("[Node] follower genesis ready (ceremony artifact)")
+                    return
+            except Exception as exc:
+                print(f"[Node] follower genesis artifact: {exc}")
             if self.sync_engine and self.p2p:
                 try:
                     if len(getattr(self.p2p, "peers", {}) or {}) > 0:
@@ -2425,11 +2455,15 @@ def build_config(args: argparse.Namespace) -> Config:
         _node_log.debug(".env load skipped: %s", exc)
     config.apply_env()
 
-    # 2) JSON-файл узла (перекрывает .env — важно для node2 на других портах)
+    # 2) JSON-файл узла (перекрывает .env — важно для node2 на других портах).
+    # Only overlay keys present in the file — Config.from_json() fills missing
+    # fields with dataclass defaults (e.g. feature_minivm=True), which would
+    # undo prod fail-closed values from apply_env().
     if args.config and os.path.exists(args.config):
-        file_cfg = Config.from_json(args.config)
-        for key, value in file_cfg.__dict__.items():
-            if not key.startswith("_"):
+        with open(args.config, "r", encoding="utf-8") as f:
+            file_data = json.load(f)
+        for key, value in file_data.items():
+            if hasattr(config, key) and not str(key).startswith("_"):
                 setattr(config, key, value)
         print(f"[Config] Loaded from: {args.config}")
 

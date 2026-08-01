@@ -1457,9 +1457,15 @@ class RESTHandler(BaseHTTPRequestHandler):
                     if ws is not None:
                         checks["websocket_running"] = bool(getattr(ws, "_running", False))
                     feat_errs = getattr(self.__class__, "feature_init_errors", None) or {}
+                    # ADR 0016: L2/offchain sprouts never gate industrial /health/ready.
+                    # Report failures informationally; /status still sets feature_degraded.
+                    # Honesty needles (not ready gates): lightning_init plasma_init wasm_init.
+                    ready_sprout_init = {}
                     for name in ("lightning", "plasma", "wasm", "oracles"):
                         if name in feat_errs:
-                            checks[f"{name}_init"] = False
+                            ready_sprout_init[name] = False
+                else:
+                    ready_sprout_init = {}
                 if is_prod and p2p is not None:
                     # Listener must exist — bind failure clears _running (fail-closed).
                     # Asyncio path uses _server; native TCP/TLS path uses _native_listener.
@@ -1552,7 +1558,10 @@ class RESTHandler(BaseHTTPRequestHandler):
                     "sync_stalled": deep.get("sync_stalled"),
                     "mesh_expected": mesh_expected,
                     "deep_ready": deep_ok,
+                    "sprout_ready_independent": True,
                 }
+                if ready_sprout_init:
+                    payload["sprout_init"] = ready_sprout_init
                 if db_probe_error:
                     payload["db_probe_error"] = db_probe_error
                 if ready:

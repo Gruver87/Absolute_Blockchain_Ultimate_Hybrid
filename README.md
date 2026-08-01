@@ -33,8 +33,9 @@ Explorer: http://localhost:8080 · Mesh: `make mesh-up` or `.\scripts\docker_pro
 
 | | Status | Proof |
 |---|--------|-------|
-| Docker / local mesh | **Proven** | CI · `docker_prod_3node` |
-| 3-node prod-profile (`778888`) | **Proven** | `:18180–18182` |
+| Docker / local mesh bring-up | **Proven** | CI · `docker_prod_3node` |
+| 3-node prod-profile (`778888`) chain sync | **Proven** | shared genesis artifact · Path A catch-up |
+| Mesh `/health/ready` (stable peers) | **Partial** | TLS reconnect churn can leave `peer_count=0` |
 | Failover + signed tx + EVM on mesh | **Proven** | Jul 2026 suite |
 | **48h soak** | **PASS** | `logs/soak_report_48h.json` |
 | Public mainnet / listed ABS / external audit | **No** | [gaps](docs/MAINNET_GAP_ANALYSIS.md) |
@@ -58,7 +59,8 @@ api/                 REST + JSON-RPC · QueryFacade (ADR 0011)
 consensus/           LMD-GHOST (forest-deterministic) + finality
 secret_mgmt/         SecretManagerPort (ADR 0015)
 observability/       MetricsExporterPort · Prometheus (ADR 0015)
-docs/adr/            boundaries 0001–0015
+docs/adr/            boundaries 0001–0016
+docs/sprouts/        ADR 0016 profiles (App · Bridge · L2 · Shard · EVM)
 scripts/             gates · mesh · soak · DR
 Makefile             make build | test-quick | test-gate | mesh-up
 ```
@@ -94,7 +96,7 @@ Makefile             make build | test-quick | test-gate | mesh-up
 |------|-------|----------|
 | **L1 core** | Hardened R&D | Blocks, balances, burn, genesis, ECDSA, auto-mine |
 | **REST + Explorer** | Solid | OpenAPI, Wave 61, SPA |
-| **P2P** | Verified | 2/3/5-node Docker; state_root; rejoin; CI |
+| **P2P** | Verified / Partial ready | Docker sync + CI; TLS session churn open |
 | **TX / EVM on prod mesh** | Proven | Signed gossip + mempool deploy |
 | **Rust native** | Hybrid path | `ABS_REQUIRE_NATIVE_CRYPTO` in prod |
 | **Failover / soak** | **Proven** | 7h + **48h PASS** |
@@ -117,21 +119,24 @@ flowchart TB
   API --> MET["MetricsExporter · ADR 0015"]
   API --> ORCH["NodeOrchestrator"]
   ORCH --> SM["SecretManager · ADR 0015"]
-  ORCH --> P2P["P2P + dispatch"]
-  ORCH --> CONS["LMD-GHOST forest-stable · TipSafety"]
+  ORCH --> P2P["P2P + dispatch · soft-refuse mesh"]
+  ORCH --> CONS["LMD-GHOST · TipSafety + AncestryWindow"]
   ORCH --> BC["Blockchain facade"]
   ORCH --> BR["BridgePort · ADR 0010 · OFF on mesh"]
+  ORCH --> GEN["Genesis artifact · followers"]
   QF --> BC
   P2P --> SYNC["sync/ CatchUp · Fork · Solicit"]
+  GEN -.->|shared JSON #0| BC
   SYNC --> BC
   BC --> SS["StateService · TxPipeline"]
   SS --> SP["StoragePort"]
   SP --> ROCKS[("RocksDB prod")]
   SS --> RUST["abs_native · satoshi state_root"]
   CONS --> RUST
+  P2P --> RUST
 ```
 
-Ports & honesty: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · ADRs **[0001–0015](docs/adr/)** · DR **[DISASTER_RECOVERY](docs/DISASTER_RECOVERY.md)**
+Ports & honesty: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** · ADRs **[0001–0016](docs/adr/)** · sprouts **[docs/sprouts/](docs/sprouts/)** · DR **[DISASTER_RECOVERY](docs/DISASTER_RECOVERY.md)**
 
 ### Operator cheatsheet
 
@@ -171,7 +176,8 @@ Do **not** mix local `main.py` with Docker on the same host ports.
 |------------|--------|
 | Solo node + Explorer | Ready |
 | Docker 2/3/5-node lab | Ready |
-| Prod 3-node mesh | Ready |
+| Prod 3-node mesh bring-up | Ready (`778888`; bridge OFF) |
+| Prod mesh `/health/ready` green | Partial — TLS session stability open |
 | P2P / fork CI | Ready |
 | Unified self-check | Ready (`check_all` / `make`) |
 | Cross-chain bridge | Cutover-gated (OFF on 778888) |
@@ -213,6 +219,7 @@ Code: `runtime/tokenomics.py` · `GET /tokenomics` — **not** a listed token.
 | Jul 21–26 | Industrial **v1.3.65–v1.3.146** + professional repo surface (Dependabot/SBOM/SUPPORT) |
 | Jul 29 | **v1.3.206** Tip-safety (enforce) + P2P transport boundary + application dispatcher |
 | Jul 30 | **ADR 0010–0015** BridgePort · QueryFacade · Chaos · Graceful shutdown · Observability/SecretManager |
+| Aug 1 | **ADR 0016** Feature sprouts / profiles · tip AncestryWindow · NFT port · sandbox/shard labs |
 | Jul 30 | **v1.3.1338-deterministic-core** satoshi state domain + forest-stable LMD-GHOST + QueryPort honesty |
 
 Ledger: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md)
@@ -234,4 +241,4 @@ MIT — [LICENSE](LICENSE)
 ---
 
 *Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87) · Default branch: `master`*  
-*Last update: 2026-07-30 — **v1.3.1338-deterministic-core** + **ADR 0010–0015** (Bridge · Query · Chaos · Shutdown · Observability/Secrets). Not a launched public mainnet.*
+*Last update: 2026-08-01 — **ADR 0016** feature sprouts/profiles on industrial L1 core (ADR 0001–0015). Not a launched public mainnet.*

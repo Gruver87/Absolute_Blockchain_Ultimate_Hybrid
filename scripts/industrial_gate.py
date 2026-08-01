@@ -228,6 +228,36 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
                 errors.append(f"{rel}: redis_url must be non-empty for mesh/k8s")
         if "mesh" in Path(rel).name.lower():
             mesh_json_cfgs.append((rel, prod_cfg))
+            # ADR 0016: industrial mesh must keep FEATURE_* sprouts off.
+            _feature_keys = (
+                "feature_zk",
+                "feature_minivm",
+                "feature_sharding",
+                "feature_oracles",
+                "feature_wasm",
+                "feature_plasma",
+                "feature_lightning",
+                "feature_pq",
+                "feature_nft",
+                "feature_mev",
+                "feature_ai_agents",
+                "feature_ai_validator",
+                "feature_smart_accounts",
+                "feature_validator_selection",
+            )
+            for fk in _feature_keys:
+                if fk in prod_cfg and prod_cfg.get(fk) is not False:
+                    errors.append(
+                        f"{rel}: ADR 0016 requires {fk}=false on prod mesh "
+                        f"(got {prod_cfg.get(fk)!r})"
+                    )
+            if prod_cfg.get("allow_state_root_rewrite") is True:
+                errors.append(
+                    f"{rel}: allow_state_root_rewrite must be false on prod mesh"
+                )
+            if int(prod_cfg.get("chain_id", 0) or 0) == 778888:
+                if prod_cfg.get("feature_nft") is True:
+                    errors.append(f"{rel}: FEATURE_NFT forbidden on chain_id 778888")
     # Compose env freeze vs prod JSON (3-node mesh + single-node).
     import re
 
@@ -572,6 +602,67 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append("docs/adr/0014-graceful-shutdown-deep-health.md missing")
         if not (ROOT / "docs" / "adr" / "0015-observability-secret-management.md").is_file():
             errors.append("docs/adr/0015-observability-secret-management.md missing")
+        if not (ROOT / "docs" / "adr" / "0016-feature-sprouts-profiles.md").is_file():
+            errors.append("docs/adr/0016-feature-sprouts-profiles.md missing")
+        if not (ROOT / "consensus" / "tip_safety" / "ancestry_window.py").is_file():
+            errors.append("consensus/tip_safety/ancestry_window.py missing (ADR 0016 stage-1.5)")
+        anc_py = (ROOT / "consensus" / "tip_safety" / "ancestry_window.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "class AncestryWindow" not in anc_py:
+            errors.append("AncestryWindow missing (ADR 0016)")
+        if not (ROOT / "tests" / "unit" / "test_prod_mesh_feature_freeze.py").is_file():
+            errors.append("tests/unit/test_prod_mesh_feature_freeze.py missing (ADR 0016)")
+        if not (ROOT / "docs" / "sprouts" / "README.md").is_file():
+            errors.append("docs/sprouts/README.md missing (ADR 0016 profiles)")
+        for sprout_doc in (
+            "EVM_DEPTH.md",
+            "BRIDGE_CUTOVER_PROFILE.md",
+            "APP_STAGING_PROFILE.md",
+            "L2_SANDBOX_PROFILE.md",
+            "SHARD_LAB_PROFILE.md",
+            "CEREMONY_AND_SECRETS.md",
+        ):
+            if not (ROOT / "docs" / "sprouts" / sprout_doc).is_file():
+                errors.append(f"docs/sprouts/{sprout_doc} missing (ADR 0016)")
+        if not (ROOT / "docker" / "node.staging.app.json").is_file():
+            errors.append("docker/node.staging.app.json missing (ADR 0016 Profile C)")
+        if not (ROOT / "docker-compose.staging.app.yml").is_file():
+            errors.append("docker-compose.staging.app.yml missing (ADR 0016 Profile C)")
+        if not (ROOT / "docker" / "node.sandbox.l2.json").is_file():
+            errors.append("docker/node.sandbox.l2.json missing (ADR 0016 Profile D)")
+        if "sprout_ready_independent" not in (
+            ROOT / "api" / "http.py"
+        ).read_text(encoding="utf-8", errors="replace"):
+            errors.append("api/http.py must keep ready independent of L2 sprouts (ADR 0016)")
+        if "_uow" not in (ROOT / "features" / "nft.py").read_text(
+            encoding="utf-8", errors="replace"
+        ):
+            errors.append("features/nft.py must use atomic UoW helper _uow (ADR 0016)")
+        if not (ROOT / "tests" / "unit" / "test_nft_uow.py").is_file():
+            errors.append("tests/unit/test_nft_uow.py missing (ADR 0016)")
+        if not (ROOT / "scripts" / "prod_evm_smoke.py").is_file():
+            errors.append("scripts/prod_evm_smoke.py missing (EVM depth evidence)")
+        if not (ROOT / "docs" / "sprouts" / "EVM_DEPTH.md").is_file():
+            errors.append("docs/sprouts/EVM_DEPTH.md missing")
+        if not (ROOT / "docker-compose.sandbox.l2.yml").is_file():
+            errors.append("docker-compose.sandbox.l2.yml missing (ADR 0016 Profile D)")
+        if not (ROOT / "docker-compose.shard.lab.yml").is_file():
+            errors.append("docker-compose.shard.lab.yml missing (ADR 0016 Profile E)")
+        if not (ROOT / "features" / "nft_ports.py").is_file():
+            errors.append("features/nft_ports.py missing (ADR 0016 NftMarketplacePort)")
+        nft_ports_py = (ROOT / "features" / "nft_ports.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "class NftMarketplacePort" not in nft_ports_py:
+            errors.append("NftMarketplacePort missing (ADR 0016)")
+        if "class NullNftMarketplacePort" not in nft_ports_py:
+            errors.append("NullNftMarketplacePort missing (ADR 0016)")
+        feat_init = (ROOT / "features" / "__init__.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if '"nft": "app-profile"' not in feat_init and "'nft': 'app-profile'" not in feat_init:
+            errors.append("MODULE_TIERS nft must be app-profile (ADR 0016 honesty)")
         if not (ROOT / "observability" / "ports.py").is_file():
             errors.append("observability/ports.py missing (ADR 0015 MetricsExporterPort)")
         obs_ports = (ROOT / "observability" / "ports.py").read_text(

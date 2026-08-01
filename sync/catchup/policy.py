@@ -51,7 +51,10 @@ class CatchUpPolicy:
         if not isinstance(block_data, Mapping):
             return ""
         try:
-            got = int(block_data.get("height", block_data.get("number", -1)) or -1)
+            raw = block_data.get("height", block_data.get("number", None))
+            if raw is None:
+                return ""
+            got = int(raw)
             exp = int(expected_height)
         except (TypeError, ValueError):
             return "catch_up_height_continuity_mismatch"

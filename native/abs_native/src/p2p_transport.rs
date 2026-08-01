@@ -709,6 +709,15 @@ fn set_timeouts(stream: &TcpStream, timeout_ms: u64) -> Result<(), String> {
     Ok(())
 }
 
+fn set_read_timeout_only(stream: &TcpStream, timeout_ms: u64) -> Result<(), String> {
+    let dur = if timeout_ms == 0 {
+        None
+    } else {
+        Some(Duration::from_millis(timeout_ms))
+    };
+    stream.set_read_timeout(dur).map_err(io_err)
+}
+
 fn peer_addr_string(stream: &TcpStream) -> String {
     stream
         .peer_addr()
@@ -1547,7 +1556,8 @@ impl P2PNativeConn {
         auto_pong=false,
         expected_chain_id=None,
         require_tx_signatures=false,
-        mempool_solicit_armed=false
+        mempool_solicit_armed=false,
+        poll_timeout_ms=None
     ))]
     fn read_message_loop_events(
         &mut self,
@@ -1559,11 +1569,18 @@ impl P2PNativeConn {
         expected_chain_id: Option<i64>,
         require_tx_signatures: bool,
         mempool_solicit_armed: bool,
+        poll_timeout_ms: Option<u64>,
     ) -> PyResult<PyObject> {
         let max_n = max_n.clamp(NATIVE_BATCH_MIN, NATIVE_BATCH_MAX);
         let allowed_set = allowed_types.map(|items| items.into_iter().collect::<HashSet<_>>());
         let keeps_before = self.auto_keeps;
+        let restore_ms = self.io_timeout_ms.max(1);
         let result = py.allow_threads(|| {
+            // Short read timeout so Python can release the per-conn IO lock between
+            // polls — long SO_RCVTIMEO held across RefCell/`_native_io_lock` starves writes.
+            if let Some(poll_ms) = poll_timeout_ms {
+                let _ = set_read_timeout_only(self.stream.tcp_ref(), poll_ms.max(1));
+            }
             let mut events: Vec<LoopShellEvent> = Vec::new();
             let mut dispatch_n = 0usize;
             let mut eof = false;
@@ -1694,6 +1711,9 @@ impl P2PNativeConn {
                     reason: wire_fail_reason(&reason),
                 });
             }
+            if poll_timeout_ms.is_some() {
+                let _ = set_read_timeout_only(self.stream.tcp_ref(), restore_ms);
+            }
             (events, eof)
         });
         let (events, eof) = result;
@@ -1704,6 +1724,14 @@ impl P2PNativeConn {
         dict.set_item("keepalive_touches", keepalive_touches)?;
         dict.set_item("events", loop_events_to_list(py, &events)?)?;
         Ok(dict.into_any().unbind())
+    }
+
+    /// Read-side SO_RCVTIMEO only — leaves write timeout intact for concurrent senders.
+    fn set_read_timeout_ms(&mut self, timeout_ms: u64) -> PyResult<()> {
+        let ms = timeout_ms.max(1);
+        set_read_timeout_only(self.stream.tcp_ref(), ms)
+            .map_err(pyo3::exceptions::PyOSError::new_err)?;
+        Ok(())
     }
 
     fn write(&mut self, py: Python<'_>, data: &[u8]) -> PyResult<usize> {

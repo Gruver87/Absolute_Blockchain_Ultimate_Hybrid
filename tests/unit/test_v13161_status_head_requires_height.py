@@ -93,15 +93,46 @@ async def test_head_only_status_refused_when_local_tip(monkeypatch):
             return None
 
     monkeypatch.setattr("network.p2p_node.native", _Native)
+    monkeypatch.setattr("network.p2p_dispatch.handlers.native", _Native)
+    # Omit height entirely (true head-only); height=0 is valid genesis.
     await node._handle_message(
         peer,
-        {"type": MSG_STATUS, "data": {"height": 0, "head_hash": DIGEST}},
+        {"type": MSG_STATUS, "data": {"head_hash": DIGEST}},
     )
     assert peer.head == "ff" * 32  # not overwritten
     assert peer.height == 3
     assert node._status_head_without_height_total >= 1
     st = node.get_p2p_security_status()
     assert st.get("native_status_head_requires_height") is True
+
+
+@pytest.mark.asyncio
+async def test_genesis_height_status_allowed_when_local_ahead(monkeypatch):
+    node = _node(local_h=10)
+    peer = PeerConnection(_FakeReader(), _FakeWriter())
+    peer.peer_id = "st-behind"
+    peer.height = 0
+    peer.head = ""
+    node.peers[peer.peer_id] = peer
+
+    class _Native:
+        @staticmethod
+        def validate_p2p_status_payload(data):
+            return data
+
+        @staticmethod
+        def verify_p2p_status_height_head_binding(_data):
+            return None
+
+    monkeypatch.setattr("network.p2p_node.native", _Native)
+    monkeypatch.setattr("network.p2p_dispatch.handlers.native", _Native)
+    node.status_head_height_refuse_reason = MagicMock(return_value="")
+    await node._handle_message(
+        peer,
+        {"type": MSG_STATUS, "data": {"height": 0, "head_hash": DIGEST}},
+    )
+    assert peer.head == DIGEST
+    assert node._status_head_without_height_total == 0
 
 
 @pytest.mark.asyncio
@@ -123,6 +154,7 @@ async def test_head_only_allowed_at_genesis(monkeypatch):
             return None
 
     monkeypatch.setattr("network.p2p_node.native", _Native)
+    monkeypatch.setattr("network.p2p_dispatch.handlers.native", _Native)
     await node._handle_message(
         peer,
         {"type": MSG_STATUS, "data": {"height": 0, "head_hash": DIGEST}},

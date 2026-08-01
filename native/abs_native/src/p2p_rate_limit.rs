@@ -1,9 +1,13 @@
 //! Per-peer P2P rate-limit window + strike/ban table.
 //! Behaviour matches `network/p2p_node.py` `_rate_limit_ok` / `_strike_peer_sync` / `_is_banned`.
+//!
+//! Interior `Mutex` so concurrent Python threads (egress prepare + PeerManager
+//! strike/ban/status) never trip PyO3 `RefCell` "Already mutably borrowed".
 
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use std::collections::{HashMap, HashSet};
+use std::sync::Mutex;
 
 const DEFAULT_EXEMPT: &[&str] = &[
     "ping",
@@ -23,8 +27,7 @@ const DEFAULT_EXEMPT: &[&str] = &[
     "mempool",
 ];
 
-#[pyclass]
-pub struct P2PRateLimitTable {
+struct P2PRateLimitState {
     windows: HashMap<String, (u64, f64)>,
     exempt_windows: HashMap<String, (u64, f64)>,
     byte_windows: HashMap<String, (u64, f64)>,
@@ -42,6 +45,11 @@ pub struct P2PRateLimitTable {
     egress_rejects: u64,
 }
 
+#[pyclass]
+pub struct P2PRateLimitTable {
+    state: Mutex<P2PRateLimitState>,
+}
+
 /// Weighted ingress cost units (v1.3.78). Large sync payloads burn budget faster.
 pub(crate) fn ingress_cost_units(msg_type: &str, nbytes: u64) -> u64 {
     let weight: u64 = match msg_type {
@@ -52,40 +60,7 @@ pub(crate) fn ingress_cost_units(msg_type: &str, nbytes: u64) -> u64 {
     nbytes.saturating_mul(weight).max(1)
 }
 
-impl P2PRateLimitTable {
-    /// Pure-Rust constructor for fuzz / unit tests (default exempt set).
-    pub fn rust_new(
-        limit: u64,
-        max_strikes: u64,
-        ban_seconds: u64,
-        exempt_types: Option<Vec<String>>,
-        exempt_limit: u64,
-        byte_limit: u64,
-        egress_byte_limit: u64,
-    ) -> Self {
-        let exempt = match exempt_types {
-            Some(list) if !list.is_empty() => list.into_iter().collect(),
-            _ => DEFAULT_EXEMPT.iter().map(|s| (*s).to_string()).collect(),
-        };
-        Self {
-            windows: HashMap::new(),
-            exempt_windows: HashMap::new(),
-            byte_windows: HashMap::new(),
-            egress_byte_windows: HashMap::new(),
-            strikes: HashMap::new(),
-            bans: HashMap::new(),
-            limit,
-            exempt_limit,
-            byte_limit,
-            egress_byte_limit,
-            max_strikes: max_strikes.max(1),
-            ban_seconds: ban_seconds.max(30),
-            exempt,
-            bandwidth_rejects: 0,
-            egress_rejects: 0,
-        }
-    }
-
+impl P2PRateLimitState {
     fn tick_window(
         map: &mut HashMap<String, (u64, f64)>,
         peer_id: &str,
@@ -144,7 +119,7 @@ impl P2PRateLimitTable {
     }
 
     /// Primary + exempt + bandwidth. `None` = allowed, `Some(reason)` = reject.
-    pub(crate) fn admit_rate_inner(
+    fn admit_rate_inner(
         &mut self,
         peer_id: &str,
         msg_type: &str,
@@ -167,7 +142,7 @@ impl P2PRateLimitTable {
     }
 
     /// Outbound cost-weighted byte budget (v1.3.85). Separate from inbound windows.
-    pub(crate) fn admit_egress_inner(
+    fn admit_egress_inner(
         &mut self,
         peer_id: &str,
         msg_type: &str,
@@ -185,6 +160,102 @@ impl P2PRateLimitTable {
 
     fn is_exempt_inner(&self, msg_type: &str) -> bool {
         !msg_type.is_empty() && self.exempt.contains(msg_type)
+    }
+
+    fn strike_inner(&mut self, key: &str, now: f64) -> bool {
+        if key.is_empty() {
+            return false;
+        }
+        let strikes = self.strikes.get(key).copied().unwrap_or(0).saturating_add(1);
+        if strikes < self.max_strikes {
+            self.strikes.insert(key.to_string(), strikes);
+            return false;
+        }
+        self.bans
+            .insert(key.to_string(), now + self.ban_seconds as f64);
+        self.strikes.remove(key);
+        true
+    }
+
+    fn is_banned_inner(&mut self, key: &str, now: f64) -> bool {
+        if key.is_empty() {
+            return false;
+        }
+        let Some(until) = self.bans.get(key).copied() else {
+            return false;
+        };
+        if now >= until {
+            self.bans.remove(key);
+            return false;
+        }
+        true
+    }
+}
+
+impl P2PRateLimitTable {
+    fn lock_state(&self) -> std::sync::MutexGuard<'_, P2PRateLimitState> {
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// Pure-Rust constructor for fuzz / unit tests (default exempt set).
+    pub fn rust_new(
+        limit: u64,
+        max_strikes: u64,
+        ban_seconds: u64,
+        exempt_types: Option<Vec<String>>,
+        exempt_limit: u64,
+        byte_limit: u64,
+        egress_byte_limit: u64,
+    ) -> Self {
+        let exempt = match exempt_types {
+            Some(list) if !list.is_empty() => list.into_iter().collect(),
+            _ => DEFAULT_EXEMPT.iter().map(|s| (*s).to_string()).collect(),
+        };
+        Self {
+            state: Mutex::new(P2PRateLimitState {
+                windows: HashMap::new(),
+                exempt_windows: HashMap::new(),
+                byte_windows: HashMap::new(),
+                egress_byte_windows: HashMap::new(),
+                strikes: HashMap::new(),
+                bans: HashMap::new(),
+                limit,
+                exempt_limit,
+                byte_limit,
+                egress_byte_limit,
+                max_strikes: max_strikes.max(1),
+                ban_seconds: ban_seconds.max(30),
+                exempt,
+                bandwidth_rejects: 0,
+                egress_rejects: 0,
+            }),
+        }
+    }
+
+    /// Thread-safe admit for ingress free functions (`PyRef`, not `PyRefMut`).
+    pub(crate) fn admit_rate_inner(
+        &self,
+        peer_id: &str,
+        msg_type: &str,
+        now: f64,
+        nbytes: u64,
+    ) -> Option<String> {
+        self.lock_state()
+            .admit_rate_inner(peer_id, msg_type, now, nbytes)
+    }
+
+    /// Thread-safe egress admit for prepare free functions.
+    pub(crate) fn admit_egress_inner(
+        &self,
+        peer_id: &str,
+        msg_type: &str,
+        now: f64,
+        nbytes: u64,
+    ) -> Option<String> {
+        self.lock_state()
+            .admit_egress_inner(peer_id, msg_type, now, nbytes)
     }
 }
 
@@ -214,38 +285,43 @@ impl P2PRateLimitTable {
 
     /// True if message type is rate-limit exempt.
     fn is_exempt(&self, msg_type: &str) -> bool {
-        self.is_exempt_inner(msg_type)
+        self.lock_state().is_exempt_inner(msg_type)
     }
 
     /// Per-peer rate window tick. Returns True when the message is allowed.
     #[pyo3(signature = (peer_id, msg_type, now))]
-    fn rate_ok(&mut self, peer_id: &str, msg_type: &str, now: f64) -> bool {
-        if self.is_exempt_inner(msg_type) {
+    fn rate_ok(&self, peer_id: &str, msg_type: &str, now: f64) -> bool {
+        let mut g = self.lock_state();
+        if g.is_exempt_inner(msg_type) {
             return true;
         }
-        Self::tick_window(&mut self.windows, peer_id, now, self.limit)
+        let limit = g.limit;
+        P2PRateLimitState::tick_window(&mut g.windows, peer_id, now, limit)
     }
 
     /// Secondary budget for exempt types (v1.3.72 / v1.3.77). 0 = disabled.
     #[pyo3(signature = (peer_id, now))]
-    fn exempt_rate_ok(&mut self, peer_id: &str, now: f64) -> bool {
-        Self::tick_window(&mut self.exempt_windows, peer_id, now, self.exempt_limit)
+    fn exempt_rate_ok(&self, peer_id: &str, now: f64) -> bool {
+        let mut g = self.lock_state();
+        let limit = g.exempt_limit;
+        P2PRateLimitState::tick_window(&mut g.exempt_windows, peer_id, now, limit)
     }
 
     /// Bandwidth-only tick (cost-weighted bytes). None = allowed.
     #[pyo3(signature = (peer_id, nbytes, now, msg_type=""))]
     fn admit_bandwidth(
-        &mut self,
+        &self,
         peer_id: &str,
         nbytes: u64,
         now: f64,
         msg_type: &str,
     ) -> Option<String> {
+        let mut g = self.lock_state();
         let cost = ingress_cost_units(msg_type, nbytes);
-        if self.tick_byte_window(peer_id, now, cost) {
+        if g.tick_byte_window(peer_id, now, cost) {
             None
         } else {
-            self.bandwidth_rejects = self.bandwidth_rejects.saturating_add(1);
+            g.bandwidth_rejects = g.bandwidth_rejects.saturating_add(1);
             Some("bandwidth_exceeded".to_string())
         }
     }
@@ -253,7 +329,7 @@ impl P2PRateLimitTable {
     /// Outbound bandwidth-only tick (v1.3.85). None = allowed.
     #[pyo3(signature = (peer_id, nbytes, now, msg_type=""))]
     fn admit_egress(
-        &mut self,
+        &self,
         peer_id: &str,
         nbytes: u64,
         now: f64,
@@ -265,7 +341,7 @@ impl P2PRateLimitTable {
     /// Combined primary + exempt + bandwidth. Returns None when allowed.
     #[pyo3(signature = (peer_id, msg_type, now, nbytes=0))]
     fn admit_rate(
-        &mut self,
+        &self,
         peer_id: &str,
         msg_type: &str,
         now: f64,
@@ -275,53 +351,37 @@ impl P2PRateLimitTable {
     }
 
     /// Increment strike. Returns True when the peer must be banned/disconnected.
-    fn strike(&mut self, key: &str, now: f64) -> bool {
-        if key.is_empty() {
-            return false;
-        }
-        let strikes = self.strikes.get(key).copied().unwrap_or(0).saturating_add(1);
-        if strikes < self.max_strikes {
-            self.strikes.insert(key.to_string(), strikes);
-            return false;
-        }
-        self.bans
-            .insert(key.to_string(), now + self.ban_seconds as f64);
-        self.strikes.remove(key);
-        true
+    fn strike(&self, key: &str, now: f64) -> bool {
+        self.lock_state().strike_inner(key, now)
     }
 
     fn strike_count(&self, key: &str) -> u64 {
-        self.strikes.get(key).copied().unwrap_or(0)
+        self.lock_state()
+            .strikes
+            .get(key)
+            .copied()
+            .unwrap_or(0)
     }
 
-    fn is_banned(&mut self, key: &str, now: f64) -> bool {
-        if key.is_empty() {
-            return false;
-        }
-        let Some(until) = self.bans.get(key).copied() else {
-            return false;
-        };
-        if now >= until {
-            self.bans.remove(key);
-            return false;
-        }
-        true
+    fn is_banned(&self, key: &str, now: f64) -> bool {
+        self.lock_state().is_banned_inner(key, now)
     }
 
     fn ban_until(&self, key: &str) -> Option<f64> {
-        self.bans.get(key).copied()
+        self.lock_state().bans.get(key).copied()
     }
 
     /// True if host:port or any key with host: prefix is banned.
-    fn is_addr_banned(&mut self, host: &str, port: u16, now: f64) -> bool {
+    fn is_addr_banned(&self, host: &str, port: u16, now: f64) -> bool {
+        let mut g = self.lock_state();
         let exact = format!("{host}:{port}");
-        if self.is_banned(&exact, now) {
+        if g.is_banned_inner(&exact, now) {
             return true;
         }
         let prefix = format!("{host}:");
-        let keys: Vec<String> = self.bans.keys().cloned().collect();
+        let keys: Vec<String> = g.bans.keys().cloned().collect();
         for key in keys {
-            if key.starts_with(&prefix) && self.is_banned(&key, now) {
+            if key.starts_with(&prefix) && g.is_banned_inner(&key, now) {
                 return true;
             }
         }
@@ -329,14 +389,15 @@ impl P2PRateLimitTable {
     }
 
     fn tracked_strikes(&self) -> usize {
-        self.strikes.len()
+        self.lock_state().strikes.len()
     }
 
-    fn active_bans(&mut self, now: f64) -> usize {
-        let keys: Vec<String> = self.bans.keys().cloned().collect();
+    fn active_bans(&self, now: f64) -> usize {
+        let mut g = self.lock_state();
+        let keys: Vec<String> = g.bans.keys().cloned().collect();
         let mut n = 0usize;
         for key in keys {
-            if self.is_banned(&key, now) {
+            if g.is_banned_inner(&key, now) {
                 n += 1;
             }
         }
@@ -344,66 +405,69 @@ impl P2PRateLimitTable {
     }
 
     fn ban_keys(&self) -> Vec<String> {
-        self.bans.keys().cloned().collect()
+        self.lock_state().bans.keys().cloned().collect()
     }
 
-    fn clear_key(&mut self, key: &str) {
-        self.windows.remove(key);
-        self.exempt_windows.remove(key);
-        self.byte_windows.remove(key);
-        self.egress_byte_windows.remove(key);
-        self.strikes.remove(key);
-        self.bans.remove(key);
+    fn clear_key(&self, key: &str) {
+        let mut g = self.lock_state();
+        g.windows.remove(key);
+        g.exempt_windows.remove(key);
+        g.byte_windows.remove(key);
+        g.egress_byte_windows.remove(key);
+        g.strikes.remove(key);
+        g.bans.remove(key);
     }
 
     /// Drop strike counters for peers that are no longer connected.
-    fn retain_strike_keys(&mut self, active_keys: Vec<String>) {
+    fn retain_strike_keys(&self, active_keys: Vec<String>) {
         let active: HashSet<String> = active_keys.into_iter().collect();
-        self.strikes.retain(|k, _| active.contains(k));
+        self.lock_state()
+            .strikes
+            .retain(|k, _| active.contains(k));
     }
 
     #[getter]
     fn limit(&self) -> u64 {
-        self.limit
+        self.lock_state().limit
     }
 
     #[getter]
     fn exempt_limit(&self) -> u64 {
-        self.exempt_limit
+        self.lock_state().exempt_limit
     }
 
     #[getter]
     fn byte_limit(&self) -> u64 {
-        self.byte_limit
+        self.lock_state().byte_limit
     }
 
     #[getter]
     fn egress_byte_limit(&self) -> u64 {
-        self.egress_byte_limit
+        self.lock_state().egress_byte_limit
     }
 
     #[getter]
     fn bandwidth_rejects(&self) -> u64 {
-        self.bandwidth_rejects
+        self.lock_state().bandwidth_rejects
     }
 
     #[getter]
     fn egress_rejects(&self) -> u64 {
-        self.egress_rejects
+        self.lock_state().egress_rejects
     }
 
     #[getter]
     fn max_strikes(&self) -> u64 {
-        self.max_strikes
+        self.lock_state().max_strikes
     }
 
     #[getter]
     fn ban_seconds(&self) -> u64 {
-        self.ban_seconds
+        self.lock_state().ban_seconds
     }
 
     fn exempt_count(&self) -> usize {
-        self.exempt.len()
+        self.lock_state().exempt.len()
     }
 }
 
@@ -458,10 +522,10 @@ fn p2p_egress_admit(
     nbytes: u64,
     now: f64,
     msg_type: &str,
-    mut rl: Option<PyRefMut<'_, P2PRateLimitTable>>,
+    rl: Option<PyRef<'_, P2PRateLimitTable>>,
 ) -> PyResult<PyObject> {
     let dict = PyDict::new_bound(py);
-    if let Some(ref mut table) = rl {
+    if let Some(ref table) = rl {
         if let Some(reason) = table.admit_egress_inner(peer_id, msg_type, now, nbytes) {
             dict.set_item("ok", false)?;
             dict.set_item("reason", reason)?;

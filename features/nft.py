@@ -139,6 +139,18 @@ class NFTMarketplace:
             and hasattr(self.db, "update_balance")
         )
 
+    def _has_atomic_uow(self) -> bool:
+        """True when store exposes ``atomic()`` (ADR 0016 NFT UoW path)."""
+        return bool(self.db and callable(getattr(self.db, "atomic", None)))
+
+    def _uow(self):
+        """Storage unit-of-work for balance + NFT persist; null if unavailable."""
+        if self._has_atomic_uow():
+            return self.db.atomic()
+        from contextlib import nullcontext
+
+        return nullcontext()
+
     def _balance(self, addr: str) -> float:
         if not self._has_balance_backend():
             return 0.0
@@ -195,25 +207,37 @@ class NFTMarketplace:
 
     def mint(self, token_id: str, name: str, description: str,
              image_url: str, creator: str, price: float = 0.0) -> Dict:
-        """Создать новый NFT. Списывает MINT_FEE с создателя."""
+        """Создать новый NFT. Списывает MINT_FEE с создателя (atomic UoW when available)."""
         with self.lock:
             if token_id in self.tokens:
                 return {"success": False, "error": "token_id already exists"}
 
-            if not self._debit(creator, self.MINT_FEE):
-                return {"success": False, "error": f"Need {self.MINT_FEE} ABS to mint"}
+            try:
+                with self._uow():
+                    if not self._debit(creator, self.MINT_FEE):
+                        return {
+                            "success": False,
+                            "error": f"Need {self.MINT_FEE} ABS to mint",
+                        }
 
-            self.tokens[token_id] = NFTToken(
-                token_id=token_id, name=name, description=description,
-                image_url=image_url, owner=creator, creator=creator,
-                price=price, for_sale=(price > 0),
-            )
-            self._persist_token(token_id)
+                    self.tokens[token_id] = NFTToken(
+                        token_id=token_id, name=name, description=description,
+                        image_url=image_url, owner=creator, creator=creator,
+                        price=price, for_sale=(price > 0),
+                    )
+                    self._persist_token(token_id)
+            except Exception as exc:
+                self.tokens.pop(token_id, None)
+                return {"success": False, "error": f"nft_uow_failed: {exc}"}
 
             if self.bus:
                 self.bus.emit("nft.minted", {"token_id": token_id, "creator": creator})
 
-            return {"success": True, "token_id": token_id}
+            return {
+                "success": True,
+                "token_id": token_id,
+                "uow_atomic": self._has_atomic_uow(),
+            }
 
     # ── Торговля ─────────────────────────────────────────────────────────────
 
@@ -232,7 +256,7 @@ class NFTMarketplace:
             return {"success": True, "token_id": token_id, "price": price}
 
     def buy(self, token_id: str, buyer: str) -> Dict:
-        """Покупка NFT. ABS переводится продавцу и создателю (роялти)."""
+        """Покупка NFT. ABS переводится продавцу и создателю (роялти) в одном UoW."""
         with self.lock:
             if token_id not in self.tokens:
                 return {"success": False, "error": "not found"}
@@ -243,19 +267,29 @@ class NFTMarketplace:
                 return {"success": False, "error": "already owner"}
 
             price = t.price
-
-            if not self._settle_sale(buyer, t.owner, t.creator, price):
-                return {"success": False, "error": "insufficient balance or balance backend unavailable"}
-
             old_owner = t.owner
-            t.owner = buyer
-            t.for_sale = False
-            self._persist_token(token_id)
-            self._record_sale({
-                "token_id": token_id, "from": old_owner,
-                "to": buyer, "price": price,
-                "type": "buy", "timestamp": int(time.time()),
-            })
+            old_for_sale = t.for_sale
+
+            try:
+                with self._uow():
+                    if not self._settle_sale(buyer, t.owner, t.creator, price):
+                        return {
+                            "success": False,
+                            "error": "insufficient balance or balance backend unavailable",
+                        }
+
+                    t.owner = buyer
+                    t.for_sale = False
+                    self._persist_token(token_id)
+                    self._record_sale({
+                        "token_id": token_id, "from": old_owner,
+                        "to": buyer, "price": price,
+                        "type": "buy", "timestamp": int(time.time()),
+                    })
+            except Exception as exc:
+                t.owner = old_owner
+                t.for_sale = old_for_sale
+                return {"success": False, "error": f"nft_uow_failed: {exc}"}
 
             if self.bus:
                 self.bus.emit("nft.sold", {
@@ -263,8 +297,13 @@ class NFTMarketplace:
                     "seller": old_owner, "price": price,
                 })
 
-            return {"success": True, "token_id": token_id,
-                    "buyer": buyer, "price": price}
+            return {
+                "success": True,
+                "token_id": token_id,
+                "buyer": buyer,
+                "price": price,
+                "uow_atomic": self._has_atomic_uow(),
+            }
 
     def transfer(self, token_id: str, from_addr: str, to_addr: str) -> Dict:
         with self.lock:
@@ -315,10 +354,13 @@ class NFTMarketplace:
                 "active_auctions": sum(1 for a in self.auctions.values() if a.get("status") == "active"),
                 "persisted": persisted,
                 "balance_backend": balance_bound,
-                # Marketplace mutates DB balances when bound; not an on-chain NFT standard.
+                # Balance mutations + persist share db.atomic() when available (ADR 0016).
                 "execution_bound": balance_bound,
+                "uow_atomic": self._has_atomic_uow(),
                 "on_chain_standard": False,
                 "enabled": True,
+                "tier": "app-profile",
+                "adr": "0016",
             }
 
     # ── Offers ────────────────────────────────────────────────────────────────

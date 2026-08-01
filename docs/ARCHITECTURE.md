@@ -1,13 +1,15 @@
 # Architecture (honest overview)
 
-**Updated:** 2026-07-30  
-**Scope:** Absolute Blockchain Ultimate Hybrid — domain ports + adapters (ADR **0001–0015**). Devnet + mainnet-v1 **prep**, not a launched public mainnet.
+**Updated:** 2026-08-01  
+**Scope:** Absolute Blockchain Ultimate Hybrid — domain ports + adapters (ADR **0001–0016**). Devnet + mainnet-v1 **prep**, not a launched public mainnet.
 
 ---
 
 ## One-line summary
 
 **Python** owns orchestration (API, P2P TCP, consensus policy, secrets, metrics export). **Domain services** (`sync/`, `storage/`, `core/components/`) own catch-up, fork reconcile, state apply, and persistence behind ports. **Rust/PyO3** (`abs_native`) accelerates crypto, satoshi-integer state roots, RocksDB engine, and EVM kernels. **Prod** hot path = RocksDB; SQLite remains aux / dev.
+
+**Honesty (mesh):** shared genesis + Path A catch-up are proven on `778888`. Stable `/health/ready` (alive peers under TLS reconnect) is **partial** — soft-refuse stops bans; session churn can still leave `peer_count=0`.
 
 ---
 
@@ -33,16 +35,18 @@ flowchart TB
     CFG["runtime.Config"]
     SM["SecretManager · ADR 0015"]
     CONS["Consensus · LMD-GHOST forest-stable · Finality"]
-    TIP["TipSafety · ADR 0001"]
+    TIP["TipSafety + AncestryWindow · ADR 0001"]
+    GEN["Genesis artifact · followers"]
     BR["BridgePort · ADR 0010 · OFF on mesh"]
     STOP["Graceful shutdown · ADR 0014"]
   end
 
   subgraph net ["Network plane"]
-    P2P["P2PNode TCP ownership"]
+    P2P["P2PNode TCP · soft-refuse"]
     DISP["p2p_dispatch handlers"]
     CA["catchup_adapters"]
     FA["fork_adapters"]
+    NIO["abs_native P2P IO · short poll"]
   end
 
   subgraph domain ["Domain — ports, no sockets"]
@@ -58,6 +62,7 @@ flowchart TB
     AD["RocksDBStorageAdapter"]
     ROCKS[("RocksDB chainstore")]
     AUX[("SQLite aux.db")]
+    GJSON[("shared genesis JSON")]
   end
 
   subgraph rust ["abs_native — Rust"]
@@ -83,16 +88,20 @@ flowchart TB
   MAIN --> BC
   MAIN --> BR
   MAIN --> STOP
+  MAIN --> GEN
   CONS --> TIP
   CONS --> GHOST
   P2P --> DISP
   P2P --> CA
   P2P --> FA
+  P2P --> NIO
   CA --> CAP
   FA --> FORK
   P2P --> SOL
   CAP --> BC
   FORK --> BC
+  GEN -.->|import #0| BC
+  GEN -.-> GJSON
   BC --> SS
   SS --> SP
   SP --> AD
@@ -106,7 +115,7 @@ flowchart TB
 
 Solid = **prod-relevant hot path**. Dotted = **aux / cold / optional**.
 
-ADR index: [docs/adr/](adr/) (**0001–0015**). Disaster runbooks: [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md).
+ADR index: [docs/adr/](adr/) (**0001–0016**). Feature sprouts: [docs/sprouts/](sprouts/). Disaster runbooks: [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md).
 
 ---
 
@@ -168,6 +177,7 @@ sync/
   catchup/              Path A service + types
   fork/                 ForkReconcileService + policy
   solicit.py            SyncSolicitHub
+  genesis_artifact.py   shared ceremony #0 export/import
 core/blockchain.py      domain apply · StoragePort only
 storage/
   ports.py              StoragePort / UoW contracts
@@ -175,11 +185,13 @@ storage/
   factory.py            open_storage(db)
 consensus/
   adapter.py            façade (legacy API + RoundStateMachine)
+  tip_safety/           TipSafety + AncestryWindow
   ports.py              ConsensusPort / ValidatorRegistryPort
   bft/                  Round SM · quorum · Evidence (ADR 0007)
-native/abs_native/      Rust crypto · Rocks · EVM kernels
+native/abs_native/      Rust crypto · Rocks · P2P IO · EVM
 runtime/                Config · prod smoke profile
-docs/adr/               boundary decisions 0001–0007
+docs/adr/               boundary decisions 0001–0016
+docs/sprouts/           ADR 0016 feature profiles
 scripts/                industrial_gate · mesh · soak
 ```
 
@@ -210,13 +222,15 @@ sequenceDiagram
   participant Peer
   participant P2P as P2PNode
   participant PathA as CatchUpPathA
+  participant Tip as TipSafety
   participant BC as Blockchain
   participant Store as StoragePort
 
   Peer->>P2P: height ahead + head
   P2P->>PathA: run_ahead via to_thread
   PathA->>P2P: fetch blocks adapters
-  PathA->>BC: import_block tip-safety
+  PathA->>Tip: refuse before greenwash
+  Tip->>BC: import_block
   BC->>Store: UoW + CAS tip advance
   alt tip less than peer
     PathA-->>P2P: Sync incomplete
@@ -225,23 +239,53 @@ sequenceDiagram
   end
 ```
 
+### Follower boot (ceremony genesis)
+
+```mermaid
+sequenceDiagram
+  participant Leader as mesh-1 leader
+  participant Art as shared genesis JSON
+  participant F as follower mesh-2/3
+  participant P2P as P2PNode
+  participant PathA as CatchUpPathA
+
+  Leader->>Art: export #0 + founder_address
+  F->>Art: import artifact (prefer over local mint)
+  Note over F: tip_safety sees real genesis tip at h=0
+  F->>P2P: STATUS height 0 is present
+  P2P->>PathA: catch-up to leader tip
+  Note over P2P: soft-refuse tip_duplicate / TLS EOF — no PeerManager ban
+```
+
 ---
 
 ## Multi-node deployment
 
 ```mermaid
-flowchart LR
-  N1["node1 leader :18180"]
-  N2["node2 :18181"]
-  N3["node3 :18182"]
-  N1 <-- P2P --> N2
-  N2 <-- P2P --> N3
-  N1 <-- P2P --> N3
-  N1 -->|seed chainstore| N2
-  N1 -->|seed chainstore| N3
+flowchart TB
+  subgraph shared ["data/prod_mesh/shared"]
+    GA["GENESIS_ARTIFACT_PATH"]
+  end
+
+  N1["mesh-1 leader :18180"]
+  N2["mesh-2 :18181"]
+  N3["mesh-3 :18182"]
+
+  N1 -->|export #0| GA
+  GA -->|import #0| N2
+  GA -->|import #0| N3
+  N1 <-- P2P mTLS --> N2
+  N2 <-- P2P mTLS --> N3
+  N1 <-- P2P mTLS --> N3
 ```
 
-Prod mesh: `scripts/docker_prod_3node.ps1` · probe: `scripts/probe_mesh_nodes.ps1 -ProdMesh`
+| Claim | Status |
+|-------|--------|
+| Bring-up + shared genesis + chain heights | **Proven** |
+| `/health/ready` always green (peers_alive) | **Partial** — TLS session churn open |
+| Bridge on mesh | **OFF** |
+
+Prod mesh: `scripts/docker_prod_3node.ps1` · probe: `scripts/probe_prod_mesh.ps1`
 
 ---
 

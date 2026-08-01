@@ -23,6 +23,7 @@ class Config:
     node_id: str = "node-1"
     tip_safety_shadow: bool = False  # stage 2: observe tip policy without enforce
     tip_safety_enforce: bool = False  # stage 3: refuse import on tip-safety reject
+    tip_ancestry_window_max: int = 256  # ADR 0016 stage-1.5 bounded tip ancestry
 
     # ── Монета (токеномика D.U.P. / Uladzimir Dabranski) ───────────────────
     coin_symbol: str = "ABS"
@@ -82,6 +83,7 @@ class Config:
     # ── P2P ─────────────────────────────────────────────────────────────────
     bootstrap_peers: List[str] = field(default_factory=list)
     follower_genesis_sync: bool = False  # prod followers: import genesis from peers, no local mint
+    genesis_artifact_path: str = ""  # shared JSON with leader genesis #0 (ceremony mesh fallback)
     mesh_min_peers_before_mine: int = 0   # prod mesh hub: wait for N peers before forging
     chain_apply_queue_max: int = 64       # serial apply backlog (mine + P2P import)
     chain_apply_timeout_sec: float = 120.0
@@ -375,6 +377,12 @@ class Config:
         if self.tip_safety_enforce:
             # Enforce implies observation; keep metrics aligned with gate decisions.
             self.tip_safety_shadow = True
+        self.tip_ancestry_window_max = env_int(
+            "TIP_ANCESTRY_WINDOW_MAX",
+            self.tip_ancestry_window_max,
+        )
+        if int(self.tip_ancestry_window_max or 0) < 1:
+            self.tip_ancestry_window_max = 256
         self.chain_id = env_int("CHAIN_ID", self.chain_id)
         self.rpc_host = env_str("RPC_HOST", self.rpc_host)
         self.http_host = env_str("HTTP_HOST", self.http_host)
@@ -806,6 +814,9 @@ class Config:
         self.follower_genesis_sync = env_bool(
             "FOLLOWER_GENESIS_SYNC", self.follower_genesis_sync
         )
+        genesis_art = env_str("GENESIS_ARTIFACT_PATH", "")
+        if genesis_art:
+            self.genesis_artifact_path = genesis_art
 
         manifest_path = env_str("VALIDATORS_MANIFEST_PATH", "")
         if manifest_path:

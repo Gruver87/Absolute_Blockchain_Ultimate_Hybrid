@@ -150,9 +150,16 @@ async def handle_status(
         host.bump_counter("status_height_head_rejects_total")
         host.strike_peer(peer, str(bind_reason))
         return
-    incoming_h = int(status.get("height", 0) or 0)
+    incoming_h: int | None
+    if isinstance(status, dict) and "height" in status and status.get("height") is not None:
+        try:
+            incoming_h = int(status.get("height"))
+        except (TypeError, ValueError):
+            incoming_h = None
+    else:
+        incoming_h = None
     our_h = int(host.blockchain.get_height() or 0)
-    if incoming_h:
+    if incoming_h is not None:
         capped_h, was_capped = host.cap_claimed_peer_height(incoming_h)
         if was_capped:
             host.bump_counter("status_height_cap_total")
@@ -198,7 +205,7 @@ async def handle_status(
                 host.strike_peer(peer, bind_local)
                 return
             peer.head = str(incoming_head)
-    if incoming_h and incoming_h != our_h:
+    if incoming_h is not None and incoming_h != our_h:
         await peer.send(
             MSG_STATUS,
             {

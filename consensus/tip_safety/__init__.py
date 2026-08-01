@@ -19,6 +19,7 @@ Public API::
 
 from __future__ import annotations
 
+from consensus.tip_safety.ancestry_window import AncestryWindow
 from consensus.tip_safety.errors import (
     TipAncestryError,
     TipConflictError,
@@ -46,6 +47,7 @@ from consensus.tip_safety.types import (
 )
 
 __all__ = [
+    "AncestryWindow",
     "ApplyDecision",
     "ApplyOutcome",
     "BlockRef",

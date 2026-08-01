@@ -1,0 +1,34 @@
+# ADR 0016 Profile C — app staging (NFT on chain_id 778889, not 778888).
+#
+#   docker compose -p abs-staging-app -f docker-compose.staging.app.yml up -d --build
+#   docker compose -p abs-staging-app -f docker-compose.staging.app.yml down -v
+
+services:
+  staging-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    hostname: abs-staging-app
+    command: ["python", "main.py", "--config", "docker/node.staging.app.json"]
+    ports:
+      - "19080:8080"
+      - "19545:8545"
+      - "19000:5000"
+    environment:
+      DEPLOYMENT_MODE: staging
+      FEATURE_NFT: "true"
+      FEATURE_SHARDING: "false"
+      FEATURE_MINIVM: "false"
+      FEATURE_WASM: "false"
+      BRIDGE_ENABLED: "false"
+      DATA_DIR: /app/data/staging_app
+      TIP_SAFETY_ENFORCE: "true"
+      CHAIN_APPLY_QUEUE_MAX: "64"
+    volumes:
+      - abs-staging-app-data:/app/data/staging_app
+      - ./data/validators.manifest.json:/app/data/validators.manifest.json:ro
+    mem_limit: 1280m
+    restart: unless-stopped
+
+volumes:
+  abs-staging-app-data:

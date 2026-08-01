@@ -45,6 +45,10 @@ def test_prod_mesh_compose_has_three_nodes():
     assert "REDIS_RATE_LIMIT" in text
     assert "REDIS_URL" in text
     assert "abs-prod-mesh-redis" in text
+    # Compose bootstrap healthcheck must be /live (not /ready) — peer quorum
+    # chicken-egg with depends_on: node1 healthy before node2/3 start.
+    assert "health/live" in text
+    assert text.count("health/ready") == 0
 
 
 def test_k8s_includes_relayer_deployment():

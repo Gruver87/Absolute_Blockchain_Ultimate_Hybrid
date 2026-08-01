@@ -63,4 +63,6 @@ Stage 1 ships **domain + unit tests only**. No wiring into
 - `scripts/prod_gate.py` + `Config.validate()` require `tip_safety_enforce` in prod profiles
 - Prod JSON examples updated (`docker/node.prod*.json`, `node.prod*.json`, k8s)
 
-Honest limits remaining: no full DAG ancestry store; not BFT/Long-Range tip proof.
+Honest limits remaining: bounded tip ``AncestryWindow`` (stage-1.5 / ADR 0016)
+is not a full DAG store and not BFT/Long-Range tip proof; height gaps ahead of tip
+still require sync fill.

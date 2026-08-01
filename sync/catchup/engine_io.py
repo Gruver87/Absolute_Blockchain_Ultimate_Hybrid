@@ -17,7 +17,11 @@ logger = logging.getLogger("Sync.CatchUp.EngineIO")
 
 def _block_height(block: Mapping[str, Any], default: int = -1) -> int:
     try:
-        return int(block.get("height", block.get("number", default)) or default)
+        if "height" in block and block.get("height") is not None:
+            return int(block.get("height"))
+        if "number" in block and block.get("number") is not None:
+            return int(block.get("number"))
+        return int(default)
     except (TypeError, ValueError):
         return int(default)
 
@@ -82,6 +86,22 @@ class SyncEngineCatchUpIO:
 
     def height(self) -> int:
         return int(self._engine._local_height())
+
+    def needs_genesis(self) -> bool:
+        """True when local store has no last block (import genesis from peer)."""
+        checker = getattr(self._engine, "_local_needs_genesis", None)
+        if callable(checker):
+            try:
+                return bool(checker())
+            except Exception:
+                return False
+        bc = getattr(self._engine.node, "blockchain", None)
+        if bc is None or not hasattr(bc, "get_last_block"):
+            return False
+        try:
+            return bc.get_last_block() is None
+        except Exception:
+            return False
 
     def head(self) -> str:
         tip_h = self.height()
@@ -231,22 +251,17 @@ class SyncEngineCatchUpIO:
             self._chain_ok = False
             self._chain_error = "no_peer_head"
             return
+        needs_genesis = self.needs_genesis()
+        # Empty DB: stop_at=-1 so height-0 genesis is included (0 <= 0 would drop it).
+        stop_h = -1 if needs_genesis else local_h
         try:
-            chain = list(engine.download_chain(head, stop_at_height=local_h) or [])
+            chain = list(engine.download_chain(head, stop_at_height=stop_h) or [])
         except Exception as exc:
             self._chain_ok = False
             self._chain_error = f"download:{exc}"
             return
         # Genesis empty-DB floor: allow height 0 when local tip is empty.
-        needs_genesis = False
         bc = getattr(engine.node, "blockchain", None)
-        if bc is not None:
-            bc_db = getattr(bc, "db", None)
-            if bc_db is not None and hasattr(bc_db, "get_last_block"):
-                try:
-                    needs_genesis = bc_db.get_last_block() is None
-                except Exception:
-                    needs_genesis = False
         import_floor = -1 if needs_genesis else local_h
         target = int(self._target_height or 0)
         filtered: List[dict] = []
@@ -260,16 +275,23 @@ class SyncEngineCatchUpIO:
                 continue
             filtered.append(dict(block))
         filtered.sort(key=lambda b: _block_height(b, 0))
+        if needs_genesis and not filtered:
+            self._chain_ok = False
+            self._chain_error = "genesis_download_empty"
+            return
         if filtered:
-            prev_hash = ""
-            if local_h >= 0 and bc is not None and hasattr(bc, "get_block"):
+            # Contiguity gate: first block height must equal start_height+1.
+            # Empty tip → start_height=-1 so genesis (#0) validates.
+            start_height = -1 if needs_genesis else local_h
+            prev_hash = "0" * 64 if needs_genesis else ""
+            if not needs_genesis and local_h >= 0 and bc is not None and hasattr(bc, "get_block"):
                 local_tip = bc.get_block(local_h)
                 if isinstance(local_tip, Mapping):
                     prev_hash = _block_hash(local_tip)
             if not native.validate_imported_block_chain(
                 filtered,
                 expected_parent_hash=prev_hash,
-                start_height=local_h,
+                start_height=start_height,
             ):
                 self._chain_ok = False
                 self._chain_error = "non_contiguous_chain"

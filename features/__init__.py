@@ -1,8 +1,18 @@
-"""Feature availability flags for API gating and /features endpoint."""
+"""Feature availability flags for API gating and /features endpoint.
+
+Tier taxonomy (ADR 0016):
+  production   — industrial L1 core path (may still be OFF, e.g. bridge)
+  app-profile  — staging/app sprout; blocked on deployment_mode=prod mesh
+  routing      — logical shard layer; lab mesh only
+  offchain     — feeds / sidecars; not consensus drivers
+  analysis     — diagnostics; not forge
+  dev-test     — working R&D, not mainnet-tier
+  r-and-d      — educational / incomplete crypto or VMs
+"""
 from dataclasses import dataclass, asdict
 from typing import Dict, Any, Optional
 
-# production = affects L1 state; routing = logical layer on L1; dev-test/r-and-d = blocked in prod
+# production = L1 core surface; everything else is sprout / blocked in prod mode
 MODULE_TIERS: Dict[str, str] = {
     "evm": "production",
     "bridge": "production",
@@ -11,7 +21,7 @@ MODULE_TIERS: Dict[str, str] = {
     "consensus": "production",
     "sharding": "routing",
     "oracles": "offchain",
-    "nft": "production",
+    "nft": "app-profile",
     "wasm": "r-and-d",
     "plasma": "dev-test",
     "lightning": "dev-test",
@@ -19,9 +29,16 @@ MODULE_TIERS: Dict[str, str] = {
     "pq": "r-and-d",
     "mev": "analysis",
     "ai_agents": "dev-test",
-    "reorg_predictor": "production",
+    "ai_validator": "dev-test",
+    "minivm": "r-and-d",
+    "smart_accounts": "r-and-d",
+    "validator_selection": "analysis",
+    "reorg_predictor": "analysis",
     "cross_bridge": "dev-test",
 }
+
+# Tiers allowed to report as not prod-blocked (config may still disable them).
+_PROD_CORE_TIERS = frozenset({"production"})
 
 
 @dataclass
@@ -63,9 +80,7 @@ class FeatureFlags:
         for name, enabled in asdict(self).items():
             live = instances.get(name)
             tier = MODULE_TIERS.get(name, "dev-test")
-            blocked_in_prod = is_prod and tier in (
-                "dev-test", "r-and-d", "offchain", "routing", "analysis"
-            )
+            blocked_in_prod = is_prod and tier not in _PROD_CORE_TIERS
             out[name] = {
                 "enabled": bool(enabled and live is not None and not blocked_in_prod),
                 "configured": enabled,
@@ -73,8 +88,10 @@ class FeatureFlags:
                 "tier": tier,
                 "dev_only": tier in ("dev-test", "r-and-d", "offchain"),
                 "analysis": tier == "analysis",
+                "app_profile": tier == "app-profile",
                 "prod_blocked_reason": (
-                    f"{tier} feature is not production-grade"
+                    f"{tier} sprout is not enabled on industrial L1 prod "
+                    f"(ADR 0016); use a dedicated profile"
                     if blocked_in_prod
                     else ""
                 ),

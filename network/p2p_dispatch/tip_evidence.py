@@ -95,7 +95,11 @@ class TipSafetyEvidenceBridge:
             if svc is not None and getattr(svc, "state", None) is not None:
                 tip = svc.state
             candidate = block_ref_from_mapping(data)
-            service = TipSafetyService(state=tip, reorg_policy=self._reorg)
+            # Prefer live shadow service (keeps AncestryWindow warm — ADR 0016).
+            if svc is not None and hasattr(svc, "evaluate_candidate"):
+                service = svc
+            else:
+                service = TipSafetyService(state=tip, reorg_policy=self._reorg)
             decision = service.evaluate_candidate(candidate)
         except Exception as exc:
             if self.enforce:

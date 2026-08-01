@@ -2,14 +2,20 @@
 
 Stage-1 policy is deliberately strict: a candidate may become tip only if it
 extends the current head (parent match) or is an explicit same-height replace
-that still clears the finalized floor. Deep DAG reorgs require a full ancestry
-store and are rejected as unknown-parent until stage 2+ adapters provide them.
+that still clears the finalized floor.
+
+Stage-1.5 (ADR 0016): an optional ``AncestryWindow`` allows rollback to a
+**known ancestor** already recorded in the window (above the finalized floor).
+This is not a full DAG store and not Long-Range / BFT tip proof. Height gaps
+ahead of tip still require sync fill (unknown-parent).
 """
 
 from __future__ import annotations
 
 import logging
+from typing import Optional
 
+from consensus.tip_safety.ancestry_window import AncestryWindow
 from consensus.tip_safety.errors import (
     TipAncestryError,
     TipDuplicateError,
@@ -28,6 +34,13 @@ class ReorgPolicy:
 
     This policy does not perform I/O. Callers supply the live ``TipState``.
     """
+
+    def __init__(self, ancestry: Optional[AncestryWindow] = None) -> None:
+        self._ancestry = ancestry
+
+    @property
+    def ancestry(self) -> Optional[AncestryWindow]:
+        return self._ancestry
 
     def evaluate(self, state: TipState, candidate: BlockRef) -> ApplyDecision:
         """Evaluate ``candidate`` against ``state``.
@@ -136,7 +149,7 @@ class ReorgPolicy:
                 new_head=candidate,
             )
 
-        # Height gap or regress relative to tip without known ancestry store.
+        # Height gap ahead of tip: sync must fill; window cannot invent parents.
         if candidate.height > head.height + 1:
             _LOG.warning(
                 "reject unknown parent / height gap candidate=%s head=%s",
@@ -148,7 +161,25 @@ class ReorgPolicy:
                 f"{head.height}; ancestry store required"
             )
 
-        # candidate.height < head.height but >= finalized floor: needs ancestry.
+        # candidate.height < head.height but >= finalized floor.
+        # Stage-1.5: allow rollback only to a recorded ancestor in the window.
+        if self._ancestry is not None:
+            known = self._ancestry.get(candidate.block_hash)
+            if (
+                known is not None
+                and int(known.height) == int(candidate.height)
+                and self._ancestry.is_ancestor_of(head, candidate.block_hash)
+            ):
+                return ApplyDecision(
+                    outcome=ApplyOutcome.ACCEPT_REORG,
+                    reason_code="ok",
+                    detail=(
+                        f"window rollback to {candidate.short_hash()}"
+                        f"@{candidate.height}"
+                    ),
+                    new_head=candidate,
+                )
+
         _LOG.warning(
             "reject deep reorg without ancestry height=%s tip=%s",
             candidate.height,
@@ -156,5 +187,5 @@ class ReorgPolicy:
         )
         raise TipUnknownParentError(
             f"deep reorg to height {candidate.height} from tip {head.height} "
-            "requires ancestry verification (not available in stage-1 domain)"
+            "requires ancestry verification (block not in tip ancestry window)"
         )

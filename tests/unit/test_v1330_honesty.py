@@ -14,7 +14,10 @@ if str(ROOT) not in sys.path:
 def test_ready_checks_websocket_in_prod():
     http_py = Path("api/http.py").read_text(encoding="utf-8")
     assert 'checks["websocket_running"]' in http_py
+    # ADR 0016: L2 sprout init names exist as honesty needles, not ready gates.
     assert "lightning_init" in http_py or 'f"{name}_init"' in http_py
+    assert "sprout_ready_independent" in http_py
+    assert "sprout_init" in http_py
 
 
 def test_l2_unbound_error_keys():

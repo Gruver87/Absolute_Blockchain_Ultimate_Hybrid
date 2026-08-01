@@ -26,7 +26,11 @@ logger = logging.getLogger("Sync.CatchUp.PathA")
 
 def _block_height(block: Mapping[str, Any], default: int = -1) -> int:
     try:
-        return int(block.get("height", block.get("number", default)) or default)
+        if "height" in block and block.get("height") is not None:
+            return int(block.get("height"))
+        if "number" in block and block.get("number") is not None:
+            return int(block.get("number"))
+        return int(default)
     except (TypeError, ValueError):
         return int(default)
 
@@ -83,7 +87,20 @@ class CatchUpPathAService:
     ) -> CatchUpOutcome:
         local_h = int(self._chain.height() or 0)
         peer_h = int(peer.height or 0)
-        if peer_h <= local_h:
+        needs_genesis = False
+        ng = getattr(self._chain, "needs_genesis", None)
+        if callable(ng):
+            try:
+                needs_genesis = bool(ng())
+            except Exception:
+                needs_genesis = False
+        # Empty follower tip is height 0; leader genesis is also height 0.
+        # Still ahead of "no block" — do not skip as not_ahead.
+        if peer_h < local_h or (peer_h == local_h and not needs_genesis):
+            return CatchUpOutcome.skipped(
+                local_height=local_h, target_height=peer_h, reason_code="not_ahead"
+            )
+        if peer_h < 0:
             return CatchUpOutcome.skipped(
                 local_height=local_h, target_height=peer_h, reason_code="not_ahead"
             )
@@ -96,8 +113,12 @@ class CatchUpPathAService:
                 local_blk = self._chain.get_block(head)
             except Exception:
                 local_blk = None
+        # When importing genesis into an empty tip, peer_height may equal local
+        # reported height (0). Policy ahead_refuse treats equal heights as
+        # not-ahead — pass a synthetic behind height for the refuse check only.
+        refuse_local_h = -1 if needs_genesis and local_h == 0 else local_h
         ahead_refuse = self._orch.ahead_refuse_reason(
-            local_height=local_h,
+            local_height=refuse_local_h,
             peer_height=peer_h,
             peer_head=head,
             local_block_for_head=local_blk,
@@ -129,7 +150,14 @@ class CatchUpPathAService:
             f"Syncing from #{local_h} to #{peer_h} via {peer.peer_id[:8]}"
         )
 
-        current = 0 if local_h == 0 else local_h + 1
+        # Empty tip: start at genesis (#0). Non-empty tip at height 0 still
+        # has block #0 locally — then cursor advances to 1 when peer is ahead.
+        if needs_genesis:
+            current = 0
+        elif local_h == 0:
+            current = 0 if peer_h == 0 else 1
+        else:
+            current = local_h + 1
         imported = 0
         batch_size = max(1, int(cfg.batch_size or self._side.batch_size() or 32))
         target = peer_h

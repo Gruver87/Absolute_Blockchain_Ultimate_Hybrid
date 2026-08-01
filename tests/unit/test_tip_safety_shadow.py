@@ -31,7 +31,7 @@ def _h(n: int) -> str:
 
 def _block_dict(height: int, *, n: int | None = None) -> Dict[str, Any]:
     digest = _h(n if n is not None else height)
-    parent = "" if height == 0 else _h(height - 1)
+    parent = "0" * 64 if height == 0 else _h(height - 1)
     return {
         "height": height,
         "hash": digest,
@@ -45,11 +45,15 @@ class _FakeChain:
 
     def __init__(self, height: int = 0) -> None:
         self._height = height
+        # Genesis block hash must differ from the pre-genesis GENESIS_HASH sentinel.
         self._blocks: Dict[int, Dict[str, Any]] = {
-            0: _block_dict(0, n=0),
+            0: _block_dict(0, n=0xA1),
         }
         for i in range(1, height + 1):
-            self._blocks[i] = _block_dict(i)
+            prev = self._blocks[i - 1]["hash"]
+            blk = _block_dict(i, n=0xA1 + i)
+            blk["parent_hash"] = prev
+            self._blocks[i] = blk
 
     def get_height(self) -> int:
         return self._height
@@ -85,12 +89,36 @@ def test_block_ref_from_mapping_rejects_junk() -> None:
 def test_tip_state_from_chain_genesis() -> None:
     state = tip_state_from_chain(_FakeChain(0))
     assert state.head.height == 0
+    # Must use block #0 hash, not the pre-genesis GENESIS_HASH sentinel.
+    assert state.head.block_hash == _h(0xA1)
+    assert state.head.block_hash != _FakeChain.GENESIS_HASH
+
+
+def test_tip_state_from_chain_empty() -> None:
+    class _Empty:
+        GENESIS_HASH = "0" * 64
+
+        def get_height(self) -> int:
+            return 0
+
+        def get_last_block(self):
+            return None
+
+        def get_block(self, _h):
+            return None
+
+    state = tip_state_from_chain(_Empty())
+    assert state.head.block_hash == _Empty.GENESIS_HASH
 
 
 def test_disabled_observer_is_noop() -> None:
     obs = TipSafetyShadowObserver(enabled=False)
     chain = _FakeChain(1)
-    assert obs.observe_before_import(_block_dict(2), chain) is None
+    cand = dict(chain.get_block(1) or {})
+    cand["height"] = 2
+    cand["parent_hash"] = chain.get_block(1)["hash"]
+    cand["hash"] = _h(0xA3)
+    assert obs.observe_before_import(cand, chain) is None
     obs.note_import_result(True, chain)
     st = obs.status()
     assert st["tip_safety_shadow_enabled"] is False
@@ -101,7 +129,14 @@ def test_shadow_observe_accept_extend() -> None:
     obs = TipSafetyShadowObserver(enabled=True)
     chain = _FakeChain(1)
     assert obs.sync_from_chain(chain) is True
-    decision = obs.observe_before_import(_block_dict(2), chain)
+    tip = chain.get_last_block()
+    cand = {
+        "height": 2,
+        "hash": _h(0xA3),
+        "parent_hash": tip["hash"],
+        "transactions": [],
+    }
+    decision = obs.observe_before_import(cand, chain)
     assert decision is not None
     assert decision.outcome == ApplyOutcome.ACCEPT_EXTEND
     assert obs.accept_total == 1
@@ -124,7 +159,7 @@ def test_shadow_bad_hash_increments_observe_errors() -> None:
     chain = _FakeChain(0)
     obs.sync_from_chain(chain)
     decision = obs.observe_before_import(
-        {"height": 1, "hash": "not-hex", "parent_hash": _h(0)},
+        {"height": 1, "hash": "not-hex", "parent_hash": _h(0xA1)},
         chain,
     )
     assert decision is None
@@ -135,9 +170,7 @@ def test_diverge_policy_reject_import_ok() -> None:
     obs = TipSafetyShadowObserver(enabled=True)
     chain = _FakeChain(1)
     obs.sync_from_chain(chain)
-    # Gap: policy rejects
     obs.observe_before_import(_block_dict(50), chain)
-    # Legacy still "imports" (simulated)
     obs.note_import_result(True, chain)
     assert obs.diverge_policy_reject_import_ok == 1
 
@@ -146,7 +179,14 @@ def test_diverge_policy_accept_import_fail() -> None:
     obs = TipSafetyShadowObserver(enabled=True)
     chain = _FakeChain(1)
     obs.sync_from_chain(chain)
-    obs.observe_before_import(_block_dict(2), chain)
+    tip = chain.get_last_block()
+    cand = {
+        "height": 2,
+        "hash": _h(0xA3),
+        "parent_hash": tip["hash"],
+        "transactions": [],
+    }
+    obs.observe_before_import(cand, chain)
     obs.note_import_result(False, chain)
     assert obs.diverge_policy_accept_import_fail == 1
 
@@ -165,12 +205,18 @@ def test_p2p_import_block_shadow_does_not_change_result() -> None:
     node.tip_safety_shadow = TipSafetyShadowObserver(enabled=True, enforce=False)
     node.tip_safety_shadow.sync_from_chain(chain)
 
-    ok = node.import_block(_block_dict(2))
+    tip = chain.get_last_block()
+    cand = {
+        "height": 2,
+        "hash": _h(0xA3),
+        "parent_hash": tip["hash"],
+        "transactions": [],
+    }
+    ok = node.import_block(cand)
     assert ok is True
     assert node.tip_safety_shadow.observe_total == 1
     assert node.tip_safety_shadow.accept_total == 1
 
-    # Gap candidate: shadow rejects, import also fails — no enforce change
     ok2 = node.import_block(_block_dict(99))
     assert ok2 is False
     assert node.tip_safety_shadow.reject_total >= 1
@@ -217,7 +263,7 @@ def test_prod_validate_requires_tip_safety_enforce() -> None:
     cfg = Config()
     cfg.deployment_mode = "prod"
     cfg.require_native_crypto = True
-    cfg.p2p_native_transport = False  # will also error; we only assert tip message present
+    cfg.p2p_native_transport = False
     cfg.tip_safety_enforce = False
     errors = cfg.validate()
     assert any("tip_safety_enforce" in e for e in errors)

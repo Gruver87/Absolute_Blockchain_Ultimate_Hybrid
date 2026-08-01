@@ -49,8 +49,9 @@ def test_needles_v13166():
 
 def test_head_only_refused_when_local_tip():
     node = _node(local_h=10)
+    # Missing height sentinel (-1), not genesis height 0.
     assert (
-        node._handshake_head_without_height_refuse_reason(DIGEST, 0, 10)
+        node._handshake_head_without_height_refuse_reason(DIGEST, -1, 10)
         == "handshake_head_without_height"
     )
     st = node.get_p2p_security_status()
@@ -62,6 +63,12 @@ def test_head_only_allowed_at_genesis():
     assert node._handshake_head_without_height_refuse_reason(DIGEST, 0, 0) == ""
 
 
+def test_genesis_height_ok_when_leader_ahead():
+    """Followers still at #0 must handshake while the leader tip > 0."""
+    node = _node(local_h=10)
+    assert node._handshake_head_without_height_refuse_reason(DIGEST, 0, 10) == ""
+
+
 def test_positive_height_ok():
     node = _node(local_h=10)
     assert node._handshake_head_without_height_refuse_reason(DIGEST, 10, 10) == ""
@@ -70,4 +77,4 @@ def test_positive_height_ok():
 def test_disabled_skips():
     node = _node(local_h=10)
     node.config.p2p_handshake_head_requires_height = False
-    assert node._handshake_head_without_height_refuse_reason(DIGEST, 0, 10) == ""
+    assert node._handshake_head_without_height_refuse_reason(DIGEST, -1, 10) == ""

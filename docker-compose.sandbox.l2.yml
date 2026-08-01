@@ -1,0 +1,33 @@
+# ADR 0016 Profile D — L2 sandbox (Plasma / Lightning / WASM on aux path).
+# Do NOT point volumes at abs-prod-mesh* Rocks data.
+#
+#   docker compose -p abs-sandbox-l2 -f docker-compose.sandbox.l2.yml up -d --build
+#   docker compose -p abs-sandbox-l2 -f docker-compose.sandbox.l2.yml down -v
+
+services:
+  sandbox-l2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    hostname: abs-sandbox-l2
+    command: ["python", "main.py", "--config", "docker/node.sandbox.l2.json"]
+    ports:
+      - "18080:18080"
+      - "18545:18545"
+      - "15100:5100"
+    environment:
+      DEPLOYMENT_MODE: dev
+      DATA_DIR: /app/data/sandbox_l2
+      FEATURE_PLASMA: "true"
+      FEATURE_LIGHTNING: "true"
+      FEATURE_WASM: "true"
+      FEATURE_NFT: "false"
+      FEATURE_SHARDING: "false"
+      BRIDGE_ENABLED: "false"
+    volumes:
+      - abs-sandbox-l2-data:/app/data/sandbox_l2
+    mem_limit: 1024m
+    restart: unless-stopped
+
+volumes:
+  abs-sandbox-l2-data:

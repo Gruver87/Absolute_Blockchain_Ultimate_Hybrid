@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Optional, Sequence
 
+from consensus.tip_safety.ancestry_window import AncestryWindow
 from consensus.tip_safety.errors import TipSafetyError, TipValidationError
 from consensus.tip_safety.fork_choice import ForkChoice
 from consensus.tip_safety.reorg_policy import ReorgPolicy
@@ -25,6 +26,10 @@ class TipSafetyService:
         state: Mutable tip holder (thread-safe).
         reorg_policy: Policy used for single-candidate evaluation.
         fork_choice: Ranker for multi-candidate selection.
+        ancestry: Bounded tip ancestry window (stage-1.5). When omitted and
+            ``reorg_policy`` has no window, a default window is created and
+            shared with a new ``ReorgPolicy``.
+        ancestry_max_blocks: Capacity when constructing the default window.
     """
 
     def __init__(
@@ -32,23 +37,48 @@ class TipSafetyService:
         state: TipState,
         reorg_policy: Optional[ReorgPolicy] = None,
         fork_choice: Optional[ForkChoice] = None,
+        ancestry: Optional[AncestryWindow] = None,
+        ancestry_max_blocks: int = 256,
     ) -> None:
         if not isinstance(state, TipState):
             raise TipValidationError(
                 f"state must be TipState, got {type(state).__name__}"
             )
         self._state = state
-        self._reorg = reorg_policy if reorg_policy is not None else ReorgPolicy()
-        self._fork = fork_choice if fork_choice is not None else ForkChoice()
-        if not isinstance(self._reorg, ReorgPolicy):
+        if ancestry is not None and not isinstance(ancestry, AncestryWindow):
+            raise TipValidationError("ancestry must be AncestryWindow")
+        if reorg_policy is not None and not isinstance(reorg_policy, ReorgPolicy):
             raise TipValidationError("reorg_policy must be ReorgPolicy")
+        if ancestry is None and reorg_policy is not None:
+            ancestry = reorg_policy.ancestry
+        if ancestry is None:
+            ancestry = AncestryWindow(max_blocks=int(ancestry_max_blocks) or 256)
+        self._ancestry = ancestry
+        if reorg_policy is None:
+            self._reorg = ReorgPolicy(ancestry=self._ancestry)
+        elif reorg_policy.ancestry is None:
+            self._reorg = ReorgPolicy(ancestry=self._ancestry)
+        else:
+            self._reorg = reorg_policy
+            self._ancestry = reorg_policy.ancestry
+        self._fork = fork_choice if fork_choice is not None else ForkChoice()
         if not isinstance(self._fork, ForkChoice):
             raise TipValidationError("fork_choice must be ForkChoice")
+        # Seed window with current tip (and finalized if present).
+        snap = self._state.snapshot()
+        self._ancestry.record(snap.head)
+        if snap.finalized is not None:
+            self._ancestry.record(snap.finalized)
 
     @property
     def state(self) -> TipState:
         """Underlying tip state (same instance passed at construction)."""
         return self._state
+
+    @property
+    def ancestry(self) -> AncestryWindow:
+        """Bounded ancestry window shared with reorg policy."""
+        return self._ancestry
 
     def evaluate_candidate(self, candidate: BlockRef) -> ApplyDecision:
         """Evaluate a candidate without mutating state.
@@ -103,6 +133,7 @@ class TipSafetyService:
                 detail=exc.message,
                 new_head=None,
             )
+        self._ancestry.record(decision.new_head)
         _LOG.info(
             "tip applied outcome=%s height=%s hash=%s",
             decision.outcome.value,
@@ -144,6 +175,7 @@ class TipSafetyService:
             TipSafetyError: Validation or finality regress.
         """
         self._state = self._state.with_finalized(checkpoint)
+        self._ancestry.record(checkpoint)
         _LOG.info(
             "finalized advanced height=%s hash=%s",
             checkpoint.height,

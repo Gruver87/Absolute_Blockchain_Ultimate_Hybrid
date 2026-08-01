@@ -16,23 +16,24 @@ Public audited mainnet · listed ABS token · investment product · bridge ON on
 |---|---|
 | Tag | **[v1.3.1338-deterministic-core](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1338-deterministic-core)** |
 | Prior industrial | [v1.3.206](../RELEASE_NOTES_v1.3.206.md) tip-safety / P2P |
-| ADR stack | **0001–0015** ([docs/adr/](adr/)) |
+| ADR stack | **0001–0016** ([docs/adr/](adr/)) |
 | CI | Ubuntu `test.yml` + docker + security + fuzz |
 | 48h soak | **PASS** |
 | Self-check | `.\scripts\operator_verify.ps1 -SkipNativeBuild` · `make test-quick` |
 | Run | `python main.py` → `:8080` |
-| Prod mesh | `778888` profile → `:18180–18182` |
+| Prod mesh | `778888` bring-up + chain sync · `/health/ready` **partial** (TLS) |
 
 ## Proven vs not (honest)
 
 | Proven | Not claimed |
 |--------|-------------|
-| 3-node prod-profile mesh | Public mainnet |
-| 48h soak PASS | External L1 / contract audit |
+| 3-node prod-profile bring-up + chain sync | Public mainnet |
+| Shared ceremony genesis artifact → followers | Always-green `/health/ready` under TLS churn |
+| 48h soak PASS (historical evidence) | External L1 / contract audit |
 | Failover + signed tx + EVM on mesh | Tip proof / Long-Range / libp2p |
 | Forest-stable LMD-GHOST + satoshi state domain | Full Rust P2P transport claim |
 | Bridge **OFF** on live mesh | Listed ABS / investment product |
-| ADR 0010–0015 ports in-tree | Live mesh bridge cutover |
+| ADR 0010–0016 ports / sprouts in-tree | Live mesh bridge cutover / kitchen-sink FEATURE_* |
 
 ## Where code lives
 
@@ -46,6 +47,7 @@ Public audited mainnet · listed ABS token · investment product · bridge ON on
 | `api/` | REST/RPC · QueryFacade (ADR 0011) |
 | `secret_mgmt/` | SecretManagerPort (ADR 0015) |
 | `observability/` | MetricsExporterPort (ADR 0015) |
+| `docs/sprouts/` | ADR 0016 profiles (App / Sandbox / Shard / Bridge / EVM) |
 | `docs/ARCHITECTURE.md` | System map (mermaid) |
 | `docs/DISASTER_RECOVERY.md` | Operator DR runbooks |
 | `scripts/` | Ops gates |
