@@ -1,0 +1,23 @@
+{
+  "schema": "abs.mesh_evidence.v1",
+  "created_unix": 1785594527,
+  "commit": "5d5ba1d3994a429de788b5ae26da339b4b14f7ff",
+  "honesty": "Artifacts listed here are operator-supplied. Absence means the claim is not independently verifiable from this package.",
+  "claims": {
+    "chain_sync": "see probe / node heights",
+    "health_ready": "requires /health/ready PASS in probe_log",
+    "48h_soak": "requires soak_report with passed=true"
+  },
+  "files": {
+    "probe_log": {
+      "status": "present",
+      "path": "docs\\evidence\\runs\\wave-a-live\\ready_streak_pass.log",
+      "sha256": "2cff97e31319144f46ea5f22e84ceb8e5784adb0dbb3a41bc2ecb827563da01f",
+      "bytes": 2576
+    },
+    "soak_report": {
+      "status": "missing"
+    }
+  },
+  "manifest_sha256": "a9c9e1fc6333d1d34c60c20e9a0c4ae2b967fa63a4bb7b50ee4940921ed8f77e"
+}

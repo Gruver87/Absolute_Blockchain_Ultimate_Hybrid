@@ -38,7 +38,15 @@ class EnvK8sSecretAdapter:
     def _lookup(self, name: str) -> str:
         keys = _ENV_MAP.get(name)
         if keys is None:
-            # Allow raw env passthrough for unknown logical names (ops escape hatch).
+            # Prod fail-closed: unknown logical names must not raw-read env.
+            allow_raw = str(
+                self._env.get("ABS_SECRET_ALLOW_RAW", "") or ""
+            ).strip().lower() in ("1", "true", "yes", "on")
+            deployment = str(
+                self._env.get("DEPLOYMENT_MODE", "") or self._env.get("ABS_DEPLOYMENT_MODE", "") or ""
+            ).strip().lower()
+            if deployment in ("prod", "production", "mainnet") and not allow_raw:
+                raise SecretNotFoundError(name)
             raw = str(self._env.get(name, "") or "").strip()
             if raw:
                 return raw

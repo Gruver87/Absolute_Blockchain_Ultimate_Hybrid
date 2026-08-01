@@ -345,18 +345,45 @@ class ConsensusAdapter:
 
     def finality_status(self) -> FinalityView:
         view = self._round_state.finality_status()
-        # Honesty: never claim live mesh quorum in Waves A–C
+        allow_live = bool(getattr(self.config, "finality_quorum_live", False))
+        if hasattr(self._round_state, "arm_quorum_live"):
+            try:
+                self._round_state.arm_quorum_live(allow_live)
+                view = self._round_state.finality_status()
+            except Exception:
+                pass
+        # Honesty: never claim live mesh quorum unless config arms it AND QC reached.
+        live = bool(allow_live and getattr(view, "quorum_live", False))
+        detail = str(getattr(view, "detail", "") or "local_path_only")
+        if not allow_live:
+            detail = "local_path_only"
         return FinalityView(
             finalized_height=max(
                 int(view.finalized_height), int(self.get_finalized_floor_height())
             ),
             justified_height=int(view.justified_height),
-            quorum_live=False,
+            quorum_live=live,
             local_attestations_present=bool(
                 view.local_attestations_present or self.get_attestations()
             ),
-            detail="local_path_only",
+            detail=detail,
         )
+
+    def weak_subjectivity_status(self) -> Dict[str, Any]:
+        """Honesty surface: tip AncestryWindow ≠ Long-Range / weak-subjectivity."""
+        return {
+            "long_range_defense": False,
+            "weak_subjectivity_checkpoints": False,
+            "tip_ancestry_window": True,
+            "tip_ancestry_window_note": (
+                "Bounded ancestor rollback only (ADR 0001 stage-1.5); "
+                "not a weak-subjectivity checkpoint scheme."
+            ),
+            "finality_quorum_live": bool(
+                getattr(self.config, "finality_quorum_live", False)
+            ),
+            "detail": "honesty_only",
+        }
 
     def quorum_certificate(
         self, round_id: RoundId, vote_type: VoteType
@@ -701,7 +728,9 @@ class ConsensusAdapter:
             "bft_round_phase": self._round_state.round_phase(
                 self._round_state.current_round()
             ).value,
-            "finality_quorum_live": False,
+            "finality_quorum_live": bool(view.quorum_live),
+            "finality_detail": str(view.detail or ""),
+            "weak_subjectivity": self.weak_subjectivity_status(),
             "local_attestations_present": bool(view.local_attestations_present),
             "consensus_lockdown_reason": str(self._consensus_lockdown_reason or ""),
             "healthy": (

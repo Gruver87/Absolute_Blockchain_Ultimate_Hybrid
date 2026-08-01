@@ -96,6 +96,97 @@ def _probe_health(base_url: str, timeout: float = 2) -> bool:
         return False
 
 
+def _probe_ready(base_url: str, timeout: float = 5) -> tuple[bool, dict]:
+    """Deep readiness: peers_alive + consistency (not Docker /health/live)."""
+    try:
+        body = _api(f"{base_url.rstrip('/')}/health/ready", timeout=timeout)
+        if not isinstance(body, dict):
+            return False, {"error": "non_object"}
+        status = str(body.get("status") or "").strip().lower()
+        ok = bool(body.get("ready", body.get("ok", False))) or status in (
+            "ready",
+            "ok",
+            "pass",
+        ) or bool(body.get("deep_ready"))
+        checks = body.get("checks") if isinstance(body.get("checks"), dict) else {}
+        if "peers_alive" in checks:
+            body = {**body, "peers_alive": checks.get("peers_alive")}
+        if "peer_count" not in body and body.get("peer_count") is None:
+            # some nodes only expose peer_count at top-level already
+            pass
+        return ok, body
+    except urllib.error.HTTPError as exc:
+        detail: dict = {"http": int(exc.code)}
+        try:
+            raw = exc.read().decode("utf-8", errors="replace")
+            parsed = json.loads(raw) if raw else {}
+            if isinstance(parsed, dict):
+                detail.update(parsed)
+                checks = detail.get("checks") if isinstance(detail.get("checks"), dict) else {}
+                if "peers_alive" in checks:
+                    detail["peers_alive"] = checks.get("peers_alive")
+        except Exception:
+            pass
+        return False, detail
+    except Exception as exc:
+        return False, {"error": str(exc)}
+
+
+def verify_health_ready_mesh(
+    urls: list[str],
+    *,
+    cycles: int = 3,
+    settle_sec: float = 5.0,
+    require_peers: bool = True,
+) -> int:
+    """Assert /health/ready green across nodes for N cycles (Wave A gate)."""
+    clean = [u for u in urls if u]
+    if len(clean) < 2:
+        print("FAIL: health/ready mesh needs >=2 urls")
+        return 20
+    need = max(1, int(cycles))
+    green = 0
+    attempts = 0
+    max_attempts = max(need * 5, need + 2)
+    while green < need and attempts < max_attempts:
+        attempts += 1
+        if attempts > 1:
+            time.sleep(max(0.5, float(settle_sec)))
+        cycle_ok = True
+        for i, url in enumerate(clean, start=1):
+            ok, body = _probe_ready(url, timeout=8)
+            peers_alive = body.get("peers_alive")
+            peer_count = body.get("peer_count", body.get("peers"))
+            if require_peers and peers_alive is False:
+                print(
+                    f"FAIL: node{i} /health/ready peers_alive=false "
+                    f"peer_count={peer_count} attempt={attempts} body={body}"
+                )
+                return 21
+            if not ok:
+                print(
+                    f"WARN: node{i} /health/ready not ready "
+                    f"attempt={attempts} peers_alive={peers_alive} "
+                    f"peer_count={peer_count}"
+                )
+                cycle_ok = False
+                break
+            print(
+                f"OK: node{i} /health/ready attempt={attempts} "
+                f"peers_alive={peers_alive} peer_count={peer_count}"
+            )
+        if cycle_ok:
+            green += 1
+            print(f"OK: ready streak {green}/{need}")
+        else:
+            green = 0
+    if green >= need:
+        print(f"OK: /health/ready PASS x{need} across {len(clean)} nodes")
+        return 0
+    print(f"FAIL: /health/ready did not stay green for {need} cycles")
+    return 22
+
+
 def _wait_health(base_url: str, max_sec: int = 120) -> bool:
     for _ in range(max_sec // 3):
         if _probe_health(base_url, timeout=5):
@@ -2010,7 +2101,11 @@ def verify_n_nodes(urls: list[str], wait_sync_sec: int = 300) -> int:
         return sec_rc
     result = verify_state_consistency(urls, statuses[0])
     _restore_p2p_mesh(urls, expected_peers=max(1, len(urls) - 1))
-    return result
+    if result != 0:
+        return result
+    # Wave A: deep /health/ready must stay green (not only /health/live).
+    ready_rc = verify_health_ready_mesh(urls, cycles=3, settle_sec=3.0)
+    return ready_rc
 
 
 def verify_triple(url1: str, url2: str, url3: str, wait_sync_sec: int = 300) -> int:
@@ -3381,9 +3476,10 @@ def main() -> int:
             "prod-mesh3-live",
             "prod-mesh3-stabilize",
             "prod-mesh3-recovery",
+            "ready-check",
         ),
         default="auto",
-        help="auto; devnet/devnet3/devnet5; ci/ci3",
+        help="auto; devnet/devnet3/devnet5; ci/ci3; ready-check",
     )
     parser.add_argument("--url1", default=DEVNET_URL1, help="node1 REST base URL")
     parser.add_argument("--url2", default=DEVNET_URL2, help="node2 REST base URL")
@@ -3527,6 +3623,14 @@ def main() -> int:
         )
         return verify_prod_mesh3_recovery(
             args.url1, args.url2, args.url3, wait_sync_sec=args.wait
+        )
+
+    if mode == "ready-check":
+        print(f"Ready-check: {args.url1} {args.url2} {args.url3}")
+        return verify_health_ready_mesh(
+            [args.url1, args.url2, args.url3],
+            cycles=3,
+            settle_sec=5.0,
         )
 
     if mode == "ci-fork":

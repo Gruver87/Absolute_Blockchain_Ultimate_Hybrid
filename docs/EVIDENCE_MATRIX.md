@@ -35,7 +35,7 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | Topic | Honest status |
 |-------|----------------|
 | Tip `state_root` | Still float `"b"` / `round(balance,12)` — **not** satoshi tip roots; dual-write satoshi is storage/read path only ([STORAGE_ROCKSDB](STORAGE_ROCKSDB.md)) |
-| Mesh `/health/ready` | **Partial** — chain sync + genesis artifact proven; TLS reconnect can drop sessions → `peers_alive=false` / probe FAIL |
+| Mesh `/health/ready` | **Wave A validated locally** — dual-dial ownership + asymmetric-bootstrap accept; `verify_p2p_ci --mode ready-check` PASS ×3 (see `docs/evidence/runs/wave-a-live/`) |
 | External audit | **Not completed** — tracker rejects template notes; requires real evidence URL |
 | Public VPS / DNS | Not claimed |
 | Bridge L1 | **OFF by recorded decision** — see [Bridge OFF audit checklist](#bridge-off--pre-enable-audit-checklist) |

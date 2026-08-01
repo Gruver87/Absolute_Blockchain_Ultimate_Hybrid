@@ -79,6 +79,20 @@ class PeerManagerSettings:
 class AdmitDecision:
     allowed: bool
     reason: str = ""
+    replaced: bool = False
+
+
+def preferred_inbound_for(local_node_id: str, remote_node_id: str) -> Optional[bool]:
+    """Canonical dial ownership: lower id owns outbound, higher owns inbound.
+
+    Returns True if local should keep inbound, False if local should keep outbound,
+    or None when ids are missing/equal (no direction preference).
+    """
+    local = str(local_node_id or "").strip()
+    remote = str(remote_node_id or "").strip()
+    if not local or not remote or local == remote:
+        return None
+    return local > remote
 
 
 @dataclass
@@ -368,10 +382,13 @@ class PeerManager:
         inbound: bool = False,
         replace_stale: bool = True,
         stale_after: Optional[float] = None,
+        local_node_id: str = "",
     ) -> AdmitDecision:
         """Insert peer into the live map after handshake.
 
-        Returns ``allowed=False`` if duplicate fresh peer_id or missing peer_id.
+        Duplicate same ``peer_id`` uses lexicographic dial ownership when
+        ``local_node_id`` is set: keep the canonical direction so simultaneous
+        A↔B dials cannot tear down both live registrations.
         """
         peer_id = str(getattr(peer, "peer_id", "") or "")
         if not peer_id:
@@ -379,38 +396,59 @@ class PeerManager:
         if self.is_banned(peer_id) or self.is_banned(self.peer_key(peer)):
             return AdmitDecision(False, "banned")
 
+        replaced = False
         old = self._peers.get(peer_id)
         if old is not None and old is not peer:
-            age = max(
-                15.0,
-                float(
-                    stale_after
-                    if stale_after is not None
-                    else float(self.settings.peer_timeout)
-                ),
-            )
-            if time.time() - float(getattr(old, "last_seen", 0) or 0) <= age:
-                return AdmitDecision(False, "duplicate_peer")
-            if replace_stale:
-                try:
-                    old.close()
-                except Exception:
+            prefer_in = preferred_inbound_for(local_node_id, peer_id)
+            if prefer_in is not None:
+                cand_ok = bool(inbound) is bool(prefer_in)
+                old_ok = bool(getattr(old, "_inbound", False)) is bool(prefer_in)
+                if cand_ok and not old_ok:
+                    try:
+                        old.close()
+                    except Exception:
+                        pass
+                    replaced = True
+                elif old_ok and not cand_ok:
+                    return AdmitDecision(False, "duplicate_noncanonical")
+                elif cand_ok and old_ok:
+                    # Same canonical direction — keep the older live session.
+                    return AdmitDecision(False, "duplicate_peer")
+                else:
+                    # Neither matches (should be rare) — fall through to age policy.
                     pass
-            else:
-                return AdmitDecision(False, "duplicate_peer")
+            if not replaced:
+                age = max(
+                    15.0,
+                    float(
+                        stale_after
+                        if stale_after is not None
+                        else float(self.settings.peer_timeout)
+                    ),
+                )
+                if time.time() - float(getattr(old, "last_seen", 0) or 0) <= age:
+                    return AdmitDecision(False, "duplicate_peer")
+                if replace_stale:
+                    try:
+                        old.close()
+                    except Exception:
+                        pass
+                    replaced = True
+                else:
+                    return AdmitDecision(False, "duplicate_peer")
 
         self._peers[peer_id] = peer
+        try:
+            peer._inbound = bool(inbound)  # type: ignore[attr-defined]
+        except Exception:
+            pass
         if inbound:
-            try:
-                peer._inbound = True  # type: ignore[attr-defined]
-            except Exception:
-                pass
             if self._conn_governor is not None:
                 try:
                     self._conn_governor.on_connected(str(getattr(peer, "host", "") or ""))
                 except Exception as exc:
                     _logger.debug("[PeerManager] governor on_connected failed: %s", exc)
-        return AdmitDecision(True)
+        return AdmitDecision(True, replaced=replaced)
 
     def unregister(
         self,

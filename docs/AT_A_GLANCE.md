@@ -31,7 +31,7 @@ Public audited mainnet · listed ABS token · investment product · bridge ON on
 | Shared ceremony genesis artifact → followers | Always-green `/health/ready` under TLS churn |
 | 48h soak PASS (historical evidence) | External L1 / contract audit |
 | Failover + signed tx + EVM on mesh | Tip proof / Long-Range / libp2p |
-| Forest-stable LMD-GHOST + satoshi state domain | Full Rust P2P transport claim |
+| Forest-stable LMD-GHOST + satoshi **storage** domain (tip root still float v1) | Full Rust P2P transport claim |
 | Bridge **OFF** on live mesh | Listed ABS / investment product |
 | ADR 0010–0016 ports / sprouts in-tree | Live mesh bridge cutover / kitchen-sink FEATURE_* |
 

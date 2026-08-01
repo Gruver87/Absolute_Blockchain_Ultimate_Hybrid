@@ -8,13 +8,31 @@
 
 ## [Unreleased]
 
+### Wave A — TLS dual-dial ownership + ready gate
+
+- Canonical peer dial ownership (lexicographic node_id): keep one live registration under A↔B dual dial
+- Native TLS `close_notify` before TCP shutdown
+- Bootstrap/discovery dials coalesce via `_schedule_connect`
+- `verify_p2p_ci` asserts `/health/ready` PASS ×3; CI artifact `mesh-ready-gate`
+
+### Wave B — evidence + secrets/CI harden
+
+- `scripts/package_mesh_evidence.py` + `docs/evidence/`
+- Prod SecretManager refuses unknown raw-env names (escape via `ABS_SECRET_ALLOW_RAW`)
+- GitHub Actions SHA-pinned; SBOM expands to Cargo + container note
+
+### Wave C — satoshi tip path + finality honesty
+
+- Tip encoding v2 (`b_satoshi`) behind ceremony arming (`state_root_v2_ceremony_ok`)
+- Finality `quorum_live` only when config-armed **and** QC reached; weak-subjectivity honesty surface
+
 ### Mesh — genesis artifact + tip height-0 + P2P IO
 
 - Shared ceremony genesis JSON (`sync/genesis_artifact.py`, `GENESIS_ARTIFACT_PATH`) so followers import leader #0 + founder — no divergent local mint
 - TipSafety / STATUS / handshake treat height **0** as present; empty genesis import skips reward mutation
 - Native P2P short-poll reads (`set_read_timeout_only`) — avoid write-starve under long blocking reads
 - Soft-refuse `tip_duplicate` / transport EOF (no PeerManager ban on TLS close_notify churn)
-- Honesty: chain sync proven; `/health/ready` peers still **partial** under TLS reconnect
+- Honesty: chain sync proven; `/health/ready` peers still **partial** under TLS reconnect until Wave A validated on live mesh
 
 ### P2P — mesh soft-refuse (probe 503)
 

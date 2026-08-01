@@ -144,3 +144,25 @@ def test_build_secret_manager_vault():
     cfg = SimpleNamespace(secret_backend="vault", deployment_mode="prod")
     sm = build_secret_manager(cfg)
     assert isinstance(sm, VaultKvSecretAdapter)
+
+
+def test_prod_blocks_unknown_raw_env_passthrough():
+    sm = EnvK8sSecretAdapter(
+        environ={
+            "DEPLOYMENT_MODE": "prod",
+            "CUSTOM_UNKNOWN_SECRET": "leak-me",
+        }
+    )
+    with pytest.raises(SecretNotFoundError):
+        sm.get_secret("CUSTOM_UNKNOWN_SECRET")
+
+
+def test_prod_raw_passthrough_requires_explicit_flag():
+    sm = EnvK8sSecretAdapter(
+        environ={
+            "DEPLOYMENT_MODE": "prod",
+            "ABS_SECRET_ALLOW_RAW": "1",
+            "CUSTOM_UNKNOWN_SECRET": "ok-escape",
+        }
+    )
+    assert sm.get_secret("CUSTOM_UNKNOWN_SECRET") == "ok-escape"

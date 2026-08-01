@@ -65,6 +65,7 @@ class RoundStateMachine:
         self._blocks: Dict[str, BlockRef] = {}
         self._head: Optional[BlockRef] = None
         self._attest_by_block: Dict[str, List[Vote]] = {}
+        self._quorum_live_armed: bool = False
 
     # ── ConsensusPort surface ─────────────────────────────────────────────
 
@@ -86,13 +87,35 @@ class RoundStateMachine:
         return hh in self._finalized_hashes
 
     def finality_status(self) -> FinalityView:
+        """Honest finality view.
+
+        ``quorum_live`` stays False unless ``finality_quorum_live`` is armed on the
+        host config *and* at least one QuorumCertificate has ``reached=True``.
+        AncestryWindow / tip-safety is **not** Long-Range / weak-subjectivity proof.
+        """
+        votes_present = bool(self._votes)
+        qc_live = any(
+            bool(getattr(qc, "reached", False)) for qc in self._qc.values()
+        )
+        allow = bool(getattr(self, "_quorum_live_armed", False))
+        live = bool(allow and qc_live)
+        if live:
+            detail = "quorum_certificate_reached"
+        elif allow:
+            detail = "quorum_armed_waiting_certificate"
+        else:
+            detail = "local_path_only"
         return FinalityView(
             finalized_height=int(self._finalized_height),
             justified_height=int(self._finalized_height),
-            quorum_live=False,
-            local_attestations_present=bool(self._votes),
-            detail="local_path_only",
+            quorum_live=live,
+            local_attestations_present=votes_present,
+            detail=detail,
         )
+
+    def arm_quorum_live(self, armed: bool = True) -> None:
+        """Operator/ceremony arming for live quorum reporting (default off)."""
+        self._quorum_live_armed = bool(armed)
 
     def quorum_certificate(
         self, round_id: RoundId, vote_type: VoteType

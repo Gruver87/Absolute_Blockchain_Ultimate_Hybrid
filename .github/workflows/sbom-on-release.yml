@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
 
@@ -35,9 +35,21 @@ jobs:
             --of JSON \
             -o artifacts/sbom-python.cdx.json
 
+      - name: Generate SBOM (Cargo abs_native)
+        run: |
+          rustup show || curl https://sh.rustup.rs -sSf | sh -s -- -y
+          export PATH="$HOME/.cargo/bin:$PATH"
+          cargo install cargo-cyclonedx --locked || cargo install cargo-cyclonedx
+          (cd native/abs_native && cargo cyclonedx -f json -o ../../artifacts/sbom-cargo-abs_native.cdx.json) \
+            || echo '{"note":"cargo cyclonedx unavailable","honesty":"python SBOM only"}' > artifacts/sbom-cargo-abs_native.cdx.json
+
+      - name: Container SBOM placeholder
+        run: |
+          echo '{"note":"attach syft/docker scout SBOM at image publish time","honesty":"not generated in this job"}' > artifacts/sbom-container.note.json
+
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: sbom-python-cdx
-          path: artifacts/sbom-python.cdx.json
+          name: sbom-${{ github.sha }}
+          path: artifacts/
           if-no-files-found: error

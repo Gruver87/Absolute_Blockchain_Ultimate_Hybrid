@@ -12,16 +12,21 @@ Runtime snapshot: `GET /status` → `state_root_policy.encoding`, or `GET /chain
 
 ## Planned (v2) — `satoshi_b`
 
-- Tip commits use integer satoshi in field `"b_satoshi"`.
-- Requires **chain halt**, state export, ceremony rebuild, and coordinated node upgrade.
-- `state_root_encoding_version >= 2` in config is **blocked** until migration completes.
+- Tip commits use integer satoshi in field `"b_satoshi"` via
+  `runtime.state_root_encoding.account_tip_payload(..., version=2)`.
+- Activation requires **both**:
+  - `state_root_encoding_version=2` (or `ABS_STATE_ROOT_ENCODING_VERSION=2`)
+  - `state_root_v2_ceremony_ok=true` (or `ABS_STATE_ROOT_V2_CEREMONY_OK=1`)
+- Without ceremony arming, requests for v2 stay **blocked** and tip hashing remains v1.
+- Native tip hasher remains v1; ceremony-armed v2 uses the Python tip path until native parity lands.
+- Requires **chain halt**, state export, ceremony rebuild, and coordinated node upgrade for mesh cutover.
 
 ## Migration checklist (high level)
 
 1. **Freeze** mining and publish halt block height `H_halt`.
 2. **Export** canonical account set at `H_halt` (satoshi + nonce + code/storage hashes).
 3. **Ceremony** recompute genesis/tip roots under v2 encoding; publish manifest hash.
-4. **Deploy** nodes with `state_root_encoding_version=2` only after all validators sign manifest.
+4. **Deploy** nodes with `state_root_encoding_version=2` **and** `state_root_v2_ceremony_ok` only after all validators sign manifest.
 5. **Soak** 48h+ on staging mesh with v2 before any production cutover.
 6. **Rollback** plan: keep v1 snapshot + DB backup until v2 mesh proven.
 

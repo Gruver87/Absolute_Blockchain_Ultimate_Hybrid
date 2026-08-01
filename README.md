@@ -35,7 +35,7 @@ Explorer: http://localhost:8080 · Mesh: `make mesh-up` or `.\scripts\docker_pro
 |---|--------|-------|
 | Docker / local mesh bring-up | **Proven** | CI · `docker_prod_3node` |
 | 3-node prod-profile (`778888`) chain sync | **Proven** | shared genesis artifact · Path A catch-up |
-| Mesh `/health/ready` (stable peers) | **Partial** | TLS reconnect churn can leave `peer_count=0` |
+| Mesh `/health/ready` (stable peers) | **Wave A local PASS** | `ready-check` ×3 · dual-dial ownership |
 | Failover + signed tx + EVM on mesh | **Proven** | Jul 2026 suite |
 | **48h soak** | **PASS** | `logs/soak_report_48h.json` |
 | Public mainnet / listed ABS / external audit | **No** | [gaps](docs/MAINNET_GAP_ANALYSIS.md) |
@@ -177,7 +177,7 @@ Do **not** mix local `main.py` with Docker on the same host ports.
 | Solo node + Explorer | Ready |
 | Docker 2/3/5-node lab | Ready |
 | Prod 3-node mesh bring-up | Ready (`778888`; bridge OFF) |
-| Prod mesh `/health/ready` green | Partial — TLS session stability open |
+| Prod mesh `/health/ready` green | Wave A local PASS (`ready-check` ×3) |
 | P2P / fork CI | Ready |
 | Unified self-check | Ready (`check_all` / `make`) |
 | Cross-chain bridge | Cutover-gated (OFF on 778888) |

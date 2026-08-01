@@ -2138,8 +2138,30 @@ class P2PNode:
         if self._is_banned(self._peer_key(peer)):
             peer.close()
             return
-        reg = self.peer_manager.register(peer, inbound=True)
+
+        # Higher/lower node_id ownership: drop noncanonical inbound only when we
+        # already have this peer (asymmetric bootstrap: leader may have empty seeds).
+        prefer_in = None
+        try:
+            from network.peer_manager import preferred_inbound_for
+
+            prefer_in = preferred_inbound_for(self._local_node_id(), peer.peer_id)
+        except Exception:
+            prefer_in = None
+        if prefer_in is False and peer.peer_id in self.peers:
+            peer.close()
+            return
+
+        reg = self.peer_manager.register(
+            peer,
+            inbound=True,
+            local_node_id=self._local_node_id(),
+        )
         if not reg.allowed:
+            # Canonical outbound already live — keep mesh peer, drop this socket.
+            if reg.reason in ("duplicate_peer", "duplicate_noncanonical"):
+                peer.close()
+                return
             peer.close()
             return
         print(f"[P2P] Connected (native): {peer}")
@@ -2272,8 +2294,26 @@ class P2PNode:
             peer.close()
             return
 
-        reg = self.peer_manager.register(peer, inbound=True)
+        prefer_in = None
+        try:
+            from network.peer_manager import preferred_inbound_for
+
+            prefer_in = preferred_inbound_for(self._local_node_id(), peer.peer_id)
+        except Exception:
+            prefer_in = None
+        if prefer_in is False and peer.peer_id in self.peers:
+            peer.close()
+            return
+
+        reg = self.peer_manager.register(
+            peer,
+            inbound=True,
+            local_node_id=self._local_node_id(),
+        )
         if not reg.allowed:
+            if reg.reason in ("duplicate_peer", "duplicate_noncanonical"):
+                peer.close()
+                return
             peer.close()
             return
         print(f"[P2P] Connected: {peer}")
@@ -2359,7 +2399,15 @@ class P2PNode:
                 peer.close()
                 return False
 
-            if peer.peer_id in self.peers:
+            # Higher node_id prefers inbound; drop outbound only if peer already live.
+            prefer_in = None
+            try:
+                from network.peer_manager import preferred_inbound_for
+
+                prefer_in = preferred_inbound_for(self._local_node_id(), peer.peer_id)
+            except Exception:
+                prefer_in = None
+            if prefer_in is True and peer.peer_id in self.peers:
                 self._remember_addr(addr)
                 peer.close()
                 return True
@@ -2367,12 +2415,25 @@ class P2PNode:
             # Re-check after handshake (race with inbound accepts).
             admit = self.peer_manager.allow_outbound()
             if not admit.allowed:
+                # If the peer already registered via inbound, treat as success.
+                if peer.peer_id and peer.peer_id in self.peers:
+                    self._remember_addr(addr)
+                    peer.close()
+                    return True
                 peer.close()
                 return False
 
-            reg = self.peer_manager.register(peer, inbound=False)
+            reg = self.peer_manager.register(
+                peer,
+                inbound=False,
+                local_node_id=self._local_node_id(),
+            )
             if not reg.allowed:
+                self._remember_addr(addr)
                 peer.close()
+                # Mesh already has this peer_id (canonical inbound or race winner).
+                if reg.reason in ("duplicate_peer", "duplicate_noncanonical"):
+                    return peer.peer_id in self.peers
                 return False
             self._remember_addr(addr)
 
@@ -2386,6 +2447,11 @@ class P2PNode:
         except (asyncio.TimeoutError, ConnectionRefusedError, OSError) as e:
             logger.debug(f"[P2P] Cannot connect to {addr}: {e}")
             return False
+
+    def _local_node_id(self) -> str:
+        return str(
+            getattr(self.config, "node_id", None) or f"abs-{self.config.p2p_port}"
+        )
 
     # ── Handshake ────────────────────────────────────────────────────────────
 
@@ -6009,9 +6075,7 @@ class P2PNode:
                         parts = addr.rsplit(":", 1)
                         if len(parts) == 2:
                             try:
-                                asyncio.create_task(
-                                    self.connect_peer(parts[0], int(parts[1]))
-                                )
+                                self._schedule_connect(parts[0], int(parts[1]))
                             except Exception as exc:
                                 self._peer_connect_task_fail += 1
                                 logger.warning(
@@ -6043,9 +6107,7 @@ class P2PNode:
                             self._bootstrap_redial_total = int(
                                 self._bootstrap_redial_total or 0
                             ) + 1
-                            asyncio.create_task(
-                                self.connect_peer(parts[0], int(parts[1]))
-                            )
+                            self._schedule_connect(parts[0], int(parts[1]))
                         except Exception as exc:
                             self._peer_connect_task_fail += 1
                             logger.warning(

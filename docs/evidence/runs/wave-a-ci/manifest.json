@@ -1,0 +1,20 @@
+{
+  "schema": "abs.mesh_evidence.v1",
+  "created_unix": 1785592740,
+  "commit": "5d5ba1d3994a429de788b5ae26da339b4b14f7ff",
+  "honesty": "Artifacts listed here are operator-supplied. Absence means the claim is not independently verifiable from this package.",
+  "claims": {
+    "chain_sync": "see probe / node heights",
+    "health_ready": "requires /health/ready PASS in probe_log",
+    "48h_soak": "requires soak_report with passed=true"
+  },
+  "files": {
+    "probe_log": {
+      "status": "missing"
+    },
+    "soak_report": {
+      "status": "missing"
+    }
+  },
+  "manifest_sha256": "4eec5b4154b52383b9fdf87f13495133e50c716a5bb8644321fa33427e1baf71"
+}

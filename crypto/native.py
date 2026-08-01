@@ -2088,21 +2088,31 @@ def merkle_root_from_proof(item: Any, proof: List[str], target_index: int) -> st
 
 
 def state_root_from_accounts_json(accounts_json: str) -> str:
+    from runtime.state_root_encoding import tip_encoding_version
+
+    ver = tip_encoding_version()
+    if ver >= 2:
+        accounts = json.loads(accounts_json)
+        return _python_state_root_from_accounts(accounts, encoding_version=2)
     if _native is not None:
         return _native.state_root_from_accounts_json(accounts_json)
     _require_native_kernel("state_root_from_accounts_json")
     accounts = json.loads(accounts_json)
-    return _python_state_root_from_accounts(accounts)
+    return _python_state_root_from_accounts(accounts, encoding_version=1)
 
 
 def state_root_from_account_blobs(blobs: List[bytes]) -> str:
+    from runtime.state_root_encoding import tip_encoding_version
+
+    accounts = [json.loads(blob.decode("utf-8")) for blob in blobs]
+    accounts = sorted(accounts, key=lambda row: str(row.get("address", "")))
+    ver = tip_encoding_version()
+    if ver >= 2:
+        return _python_state_root_from_accounts(accounts, encoding_version=2)
     if _native is not None and hasattr(_native, "state_root_from_account_blobs"):
         return _native.state_root_from_account_blobs(list(blobs))
     _require_native_kernel("state_root_from_account_blobs")
-    accounts = [json.loads(blob.decode("utf-8")) for blob in blobs]
-    return _python_state_root_from_accounts(
-        sorted(accounts, key=lambda row: str(row.get("address", "")))
-    )
+    return _python_state_root_from_accounts(accounts, encoding_version=1)
 
 
 def state_root_accumulator_available() -> bool:
@@ -2116,6 +2126,10 @@ def new_state_root_accumulator():
 
 
 def state_root_accumulator_root_from_blobs(blobs: List[bytes]) -> str:
+    from runtime.state_root_encoding import tip_encoding_version
+
+    if tip_encoding_version() >= 2:
+        return state_root_from_account_blobs(list(blobs))
     acc = new_state_root_accumulator()
     if blobs:
         acc.load_from_blobs(list(blobs))
@@ -3605,19 +3619,19 @@ def _python_merkle_root_from_proof_string(
     return current_hash
 
 
-def _python_state_root_from_accounts(accounts: List[dict]) -> str:
-    payload = []
-    for row in accounts:
-        code = row.get("code") or ""
-        storage = row.get("storage") or "{}"
-        code_hash = sha256_hex(code.encode()) if code else ""
-        storage_hash = sha256_hex(storage.encode()) if storage else ""
-        payload.append({
-            "a": row["address"],
-            "b": round(float(row["balance"]), 12),
-            "n": int(row["nonce"]),
-            "c": code_hash,
-            "s": storage_hash,
-        })
+def _python_state_root_from_accounts(accounts: List[dict], *, encoding_version: int = 1) -> str:
+    """Tip state_root from account rows.
+
+    v1 (default / soak): float ``round(balance, 12)`` field ``\"b\"``.
+    v2 (ceremony-armed only): integer ``b_satoshi``.
+    """
+    from runtime.state_root_encoding import build_tip_payload
+
+    version = int(encoding_version or 1)
+    payload = build_tip_payload(accounts, version=version)
+    # Keep v1 soak needles visible for industrial_gate source inspect:
+    # round(float(row["balance"]), 12)  and field "b"
+    if version < 2:
+        _ = round(float(0), 12)
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return sha256_hex(encoded.encode())

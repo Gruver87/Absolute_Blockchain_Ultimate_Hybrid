@@ -162,6 +162,8 @@ python scripts/prod_gate.py
 
 The codebase is a **serious industrial devnet / private testnet** implementation with **rising live evidence** (prod mesh runs, harness, monitoring) — not merely documentation claims.
 
-**Public mainnet launch** still requires organizational gates (external audit, validator ops, genesis ceremony in production) plus **remaining operational proof**: completed **24–48h soak** and bridge cutover decision. Failover, signed-tx propagation, and cross-node EVM (mempool) are demonstrated on local prod mesh (Jul 2026).
+**48h soak** is **historically reported PASS** (Jul 19–21 2026) with local artifacts; those logs are **not versioned in-repo** — package via [docs/evidence/](evidence/README.md) before treating soak as independently auditable.
+
+**Public mainnet launch** still requires organizational gates (external audit, validator ops, genesis ceremony in production) plus **stable `/health/ready`** under TLS reconnect (Wave A), satoshi tip-root ceremony cutover, and live finality quorum evidence. Failover, signed-tx propagation, and cross-node EVM (mempool) are demonstrated on local prod mesh (Jul 2026).
 
 Full gap table: [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md).

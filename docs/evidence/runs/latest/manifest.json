@@ -1,0 +1,15 @@
+{
+  "schema": "abs.mesh_evidence.v1",
+  "created_unix": 0,
+  "commit": "placeholder",
+  "honesty": "Template only — replace via scripts/package_mesh_evidence.py after a real probe.",
+  "claims": {
+    "chain_sync": "unproven in this template",
+    "health_ready": "unproven in this template",
+    "48h_soak": "unproven in this template"
+  },
+  "files": {
+    "probe_log": {"status": "missing"},
+    "soak_report": {"status": "missing"}
+  }
+}

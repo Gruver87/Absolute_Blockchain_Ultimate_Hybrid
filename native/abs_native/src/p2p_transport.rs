@@ -938,10 +938,14 @@ impl ConnStream {
                 let _ = s.shutdown(Shutdown::Both);
             }
             ConnStream::TlsServer(s) => {
+                // Send TLS close_notify before TCP FIN so peers see clean EOF,
+                // not abrupt reset during dual-dial ownership close.
+                s.conn.send_close_notify();
                 let _ = s.flush();
                 let _ = s.get_ref().shutdown(Shutdown::Both);
             }
             ConnStream::TlsClient(s) => {
+                s.conn.send_close_notify();
                 let _ = s.flush();
                 let _ = s.get_ref().shutdown(Shutdown::Both);
             }
