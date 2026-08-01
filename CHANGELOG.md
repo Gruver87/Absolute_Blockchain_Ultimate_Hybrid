@@ -8,6 +8,19 @@
 
 ## [Unreleased]
 
+### Wave D — bake mesh harden + attestation/rate soft-refuse
+
+- Soft-refuse `attestation_local_height_mismatch`, ingress `rate_limit_*`, and `tip_unknown_parent` (not state_root response codes — those must still dispatch for wire probe)
+- Restore lexicographic dial ownership replace; skip remembering docker IP dial targets
+- Canonical bootstrap dials only (mesh-1→2/3, mesh-2→3, mesh-3 empty) to avoid inverted dual-dial
+- Bind bootstrap hostname→peer_id so inbound-IP peers cover seeds
+- `PeerConnection.close` cancels send worker (no asyncio “Task was destroyed” storm)
+- Longer state_root wire probe wait (15s); GET_PEERS on priority set
+- Consistency re-probe keeps last-known green while wire solicit runs (stops `/health/ready` flicker during multi-second probes)
+- Priority P2P sends (state_root / get_block / …) bypass the gossip send queue so attestations cannot starve wire probes
+- `health_watch` truncates its log at start (soak FAIL counts are session-scoped)
+- Image-baked ready×3 + probe on `abs-blockchain-prod:local`; short 2h soak evidence under commit SHA
+
 ### Wave A — TLS dual-dial ownership + ready gate
 
 - Canonical peer dial ownership (lexicographic node_id): keep one live registration under A↔B dual dial

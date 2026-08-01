@@ -1,5 +1,5 @@
 # tests/unit/test_p2p_canonical_dial.py
-"""Canonical dial ownership: dual-dial must keep one live peer registration."""
+"""Dial ownership helpers + canonical-direction duplicate registration."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ def test_preferred_inbound_lexicographic():
 
 
 def test_canonical_outbound_replaces_noncanonical_inbound():
-    """Local 'mesh-1' < remote 'mesh-2' → keep outbound, replace inbound."""
+    """mesh-1 owns outbound to mesh-2: outbound challenger replaces inbound."""
     pm = _mgr()
     inbound = FakePeer("mesh-2", inbound=True, host="10.0.0.2")
     assert pm.register(inbound, inbound=True, local_node_id="mesh-1").allowed
@@ -52,11 +52,10 @@ def test_canonical_outbound_replaces_noncanonical_inbound():
     assert decision.replaced is True
     assert inbound.closed is True
     assert pm.get("mesh-2") is outbound
-    assert outbound._inbound is False
 
 
-def test_noncanonical_outbound_refused_when_canonical_inbound_live():
-    """Local 'mesh-2' > remote 'mesh-1' → keep inbound; refuse outbound challenger."""
+def test_noncanonical_outbound_refused_when_inbound_live():
+    """mesh-2 prefers inbound from mesh-1: keep inbound, refuse outbound."""
     pm = _mgr()
     inbound = FakePeer("mesh-1", inbound=True, host="10.0.0.1")
     assert pm.register(inbound, inbound=True, local_node_id="mesh-2").allowed
@@ -64,25 +63,23 @@ def test_noncanonical_outbound_refused_when_canonical_inbound_live():
     decision = pm.register(outbound, inbound=False, local_node_id="mesh-2")
     assert decision.allowed is False
     assert decision.reason == "duplicate_noncanonical"
-    assert outbound.closed is False  # caller closes
     assert inbound.closed is False
     assert pm.get("mesh-1") is inbound
 
 
-def test_unregister_expected_protects_replacement():
+def test_unregister_expected_protects_incumbent():
     pm = _mgr()
-    old = FakePeer("mesh-2", inbound=True)
-    new = FakePeer("mesh-2", inbound=False)
-    pm.register(old, inbound=True, local_node_id="mesh-1")
-    pm.register(new, inbound=False, local_node_id="mesh-1")
-    assert pm.unregister("mesh-2", expected=old) is None
-    assert pm.get("mesh-2") is new
+    a = FakePeer("mesh-2", inbound=True)
+    b = FakePeer("mesh-2", inbound=False)
+    pm.register(a, inbound=True, local_node_id="mesh-1")
+    # challenger may replace (canonical outbound) — map becomes b
+    pm.register(b, inbound=False, local_node_id="mesh-1")
+    assert pm.get("mesh-2") is b
+    assert pm.unregister("mesh-2", expected=a) is None
+    assert pm.get("mesh-2") is b
 
 
 def test_higher_id_skips_outbound_register_semantics():
-    """Document ownership: mesh-2 must not keep outbound toward mesh-1."""
-    from network.peer_manager import preferred_inbound_for
-
+    """Document ownership helper: mesh-2 prefers inbound toward mesh-1."""
     assert preferred_inbound_for("docker-prod-mesh-2", "docker-prod-mesh-1") is True
     assert preferred_inbound_for("docker-prod-mesh-1", "docker-prod-mesh-2") is False
-

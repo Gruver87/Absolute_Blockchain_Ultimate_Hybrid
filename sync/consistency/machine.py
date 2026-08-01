@@ -207,10 +207,18 @@ class ConsistencyMachine:
         *,
         now: Optional[float] = None,
     ) -> ConsistencySnapshot:
+        """Mark in-flight probe without clearing a prior trusted green.
+
+        Wire state_root solicit can take tens of seconds. Clearing
+        ``consistent`` here made `/health/ready` flicker red for most of
+        every block interval even when the last probe matched. Keep
+        last-known ``consistent=True`` until ``evaluate_probe`` proves
+        otherwise (fail-closed on mismatch / empty / timeout).
+        """
         ts = float(now if now is not None else time.time())
         return ConsistencySnapshot(
             state=ConsistencyState.PROBING,
-            consistent=False,
+            consistent=bool(current.consistent),
             probe=current.probe,
             reason_code="probing",
             updated_at=ts,

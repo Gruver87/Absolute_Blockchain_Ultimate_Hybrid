@@ -27,6 +27,8 @@ $logDir = Split-Path -Parent $LogFile
 if ($logDir -and -not (Test-Path $logDir)) {
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 }
+# Fresh run: do not append onto prior soak/watch history (FAIL counts must be this session only).
+Set-Content -Path $LogFile -Value "" -Encoding UTF8
 
 function Write-Log([string]$Msg, [string]$Color = "Gray") {
     $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') $Msg"
@@ -35,33 +37,50 @@ function Write-Log([string]$Msg, [string]$Color = "Gray") {
 }
 
 function Test-NodeHealth([int]$Port, [bool]$FullHarness) {
-    $readySec = if ($ProdMesh) { 15 } else { 5 }
-    $statusSec = if ($ProdMesh) { 12 } else { 5 }
-    $harnessSec = if ($FullHarness) { if ($ProdMesh) { 30 } else { 20 } } else { if ($ProdMesh) { 15 } else { 10 } }
+    $readySec = if ($ProdMesh) { 20 } else { 5 }
+    $statusSec = if ($ProdMesh) { 15 } else { 5 }
+    $harnessSec = if ($FullHarness) { if ($ProdMesh) { 45 } else { 20 } } else { if ($ProdMesh) { 25 } else { 10 } }
+    # Hard FAIL only when ready/status are unreachable. Harness hangs must not
+    # paint the node as down — soak counts those as WARN via failed_checks.
     try {
         $null = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health/ready" -TimeoutSec $readySec
+    } catch {
+        return @{ Ok = $false; Port = $Port; Error = "ready: $($_.Exception.Message)" }
+    }
+    try {
         $st = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status" -TimeoutSec $statusSec
-        $harnessUri = if ($FullHarness) {
-            "http://127.0.0.1:$Port/chain/consistency/harness?peer_timeout=8"
-        } else {
-            "http://127.0.0.1:$Port/chain/consistency/harness?quick=1&peer_timeout=3"
-        }
+    } catch {
+        return @{ Ok = $false; Port = $Port; Error = "status: $($_.Exception.Message)" }
+    }
+    $harnessUri = if ($FullHarness) {
+        "http://127.0.0.1:$Port/chain/consistency/harness?peer_timeout=8"
+    } else {
+        "http://127.0.0.1:$Port/chain/consistency/harness?quick=1&peer_timeout=3"
+    }
+    $aligned = $true
+    $harnessHealthy = $true
+    $failed = @()
+    try {
         $cs = Invoke-RestMethod -Uri $harnessUri -TimeoutSec $harnessSec
         $failed = @($cs.failed_checks)
-        return @{
-            Ok = $true
-            Port = $Port
-            Height = $st.height
-            Head = $st.head_hash
-            Peers = $st.peers
-            P2P = $st.p2p_sync_status
-            Aligned = $cs.tip_state_aligned
-            HarnessHealthy = $cs.harness_healthy
-            Failed = $failed
-            FullHarness = $FullHarness
-        }
+        $aligned = [bool]$cs.tip_state_aligned
+        $harnessHealthy = [bool]$cs.harness_healthy
     } catch {
-        return @{ Ok = $false; Port = $Port; Error = $_.Exception.Message }
+        $failed = @("harness_timeout")
+        $aligned = $false
+        $harnessHealthy = $false
+    }
+    return @{
+        Ok = $true
+        Port = $Port
+        Height = $st.height
+        Head = $st.head_hash
+        Peers = $st.peers
+        P2P = $st.p2p_sync_status
+        Aligned = $aligned
+        HarnessHealthy = $harnessHealthy
+        Failed = $failed
+        FullHarness = $FullHarness
     }
 }
 

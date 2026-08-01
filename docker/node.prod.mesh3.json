@@ -25,10 +25,7 @@
     "p2p_tls_bind_identity": true,
     "redis_rate_limit_enabled": true,
     "redis_url": "redis://redis:6379/0",
-    "bootstrap_peers": [
-        "node1:5000",
-        "node2:5000"
-    ],
+    "bootstrap_peers": [],
     "follower_genesis_sync": true,
     "mining_enabled": false,
     "require_signatures": true,

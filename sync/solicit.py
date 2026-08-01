@@ -263,7 +263,13 @@ class SyncSolicitHub:
 
         expected_types, fut, request_ctx, _armed = _unpack_waiter(waiter)
 
-        if msg_type not in expected_types or fut.done():
+        if msg_type not in expected_types:
+            return SolicitResult(False, "waiter_mismatch")
+        if fut.done():
+            # Timed-out solicit: late state_root must not ban / soft-refuse-storm;
+            # consume so dispatcher does not treat it as unsolicited.
+            if msg_type == MSG_STATE_ROOT_RESPONSE:
+                return SolicitResult(True, "late_state_root")
             return SolicitResult(False, "waiter_mismatch")
 
         if (

@@ -40,10 +40,17 @@ def test_soft_refuse_does_not_ban():
         "unsolicited_block",
         "unsolicited_blocks",
         "unsolicited_peers",
+        "tip_duplicate",
+        "attestation_local_height_mismatch",
+        "rate_limit_exceeded",
+        "exempt_rate_exceeded",
+        "bandwidth_exceeded",
+        "rate_limited",
+        "tip_unknown_parent",
     ):
         assert node._strike_peer_sync(peer, reason) is False
     pm.strike.assert_not_called()
-    assert node._soft_refuse_total == 5
+    assert node._soft_refuse_total == 12
 
 
 def test_announce_validator_noop_in_prod():

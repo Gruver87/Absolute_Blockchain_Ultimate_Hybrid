@@ -35,7 +35,7 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | Topic | Honest status |
 |-------|----------------|
 | Tip `state_root` | Still float `"b"` / `round(balance,12)` — **not** satoshi tip roots; dual-write satoshi is storage/read path only ([STORAGE_ROCKSDB](STORAGE_ROCKSDB.md)) |
-| Mesh `/health/ready` | **Wave A validated locally** — dual-dial ownership + asymmetric-bootstrap accept; `verify_p2p_ci --mode ready-check` PASS ×3 (see `docs/evidence/runs/wave-a-live/`) |
+| Mesh `/health/ready` | **Wave D image-proven** — baked image with attestation/rate/`tip_unknown_parent` soft-refuse, canonical bootstrap, sticky consistency re-probe, priority send bypass; `verify_p2p_ci --mode ready-check` PASS ×3 on :18180–:18182; probe Quick PASS (see `docs/evidence/runs/<sha>/`). Short 2h soak archived there (height-aligned; soak `passed` may be false if ready 503s — not a 48h claim). |
 | External audit | **Not completed** — tracker rejects template notes; requires real evidence URL |
 | Public VPS / DNS | Not claimed |
 | Bridge L1 | **OFF by recorded decision** — see [Bridge OFF audit checklist](#bridge-off--pre-enable-audit-checklist) |
@@ -78,6 +78,8 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | **Signed tx propagation (prod)** | `prod_signed_tx_smoke.py` → n2/n3 see tx | `python scripts/prod_signed_tx_smoke.py` |
 | **7h industrial soak** | `soak_report.json` passed, 159 cycles, 0 fail | `.\scripts\soak_monitor.ps1 -ProdMesh -Hours 7` |
 | RocksDB DR path | DR rehearsal script + backup | `.\scripts\dr_restore_rehearsal.ps1 -DockerMesh1` |
+| **Wave D image bake + ready** | **PASS** 2026-08-01 — soft-refuse attestation/rate/`tip_unknown_parent`; sticky consistency during wire re-probe; priority send bypass; canonical bootstrap; `ready-check` ×3 + probe Quick on baked image | `docs/evidence/runs/<git-sha>/` |
+| **Wave D short soak (2h)** | 2026-08-01 — mesh height-aligned (`mesh_warn=0`); soak_report `passed` reflects ready hard-fails honestly (not 48h) | `docs/evidence/runs/<git-sha>/soak_report.json` |
 | Short health monitoring | `health_watch` 1–2 min cycles, harness quick/full | `.\scripts\health_watch.ps1 -ProdMesh -DurationMin 2` |
 | CI / static industrial gates | `industrial_gate.py`, prod_gate, pytest | GitHub Actions + local gate scripts |
 | Native crypto required in prod profile | `ABS_REQUIRE_NATIVE_CRYPTO`, prod_gate | prod mesh configs |

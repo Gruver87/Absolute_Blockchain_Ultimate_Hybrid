@@ -541,6 +541,8 @@ class SyncEngine:
             )
             return bool(decision.trusted)
 
+        # Re-probe without wiping last-known green: request_probing keeps
+        # consistent=True sticky while the wire solicit runs (see machine).
         self.consistency.request_probing()
         wire_roots: List[Any] = []
         try:

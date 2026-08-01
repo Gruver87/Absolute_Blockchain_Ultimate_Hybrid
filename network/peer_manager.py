@@ -399,11 +399,15 @@ class PeerManager:
         replaced = False
         old = self._peers.get(peer_id)
         if old is not None and old is not peer:
+            # Lexicographic dial ownership: keep the canonical direction so
+            # simultaneous A↔B dials cannot tear down both live registrations.
             prefer_in = preferred_inbound_for(local_node_id, peer_id)
             if prefer_in is not None:
                 cand_ok = bool(inbound) is bool(prefer_in)
                 old_ok = bool(getattr(old, "_inbound", False)) is bool(prefer_in)
                 if cand_ok and not old_ok:
+                    # Install challenger first so old message_loop unregister is a no-op.
+                    self._peers[peer_id] = peer
                     try:
                         old.close()
                     except Exception:
@@ -415,7 +419,7 @@ class PeerManager:
                     # Same canonical direction — keep the older live session.
                     return AdmitDecision(False, "duplicate_peer")
                 else:
-                    # Neither matches (should be rare) — fall through to age policy.
+                    # Neither matches (rare) — fall through to age policy.
                     pass
             if not replaced:
                 age = max(
@@ -429,6 +433,7 @@ class PeerManager:
                 if time.time() - float(getattr(old, "last_seen", 0) or 0) <= age:
                     return AdmitDecision(False, "duplicate_peer")
                 if replace_stale:
+                    self._peers[peer_id] = peer
                     try:
                         old.close()
                     except Exception:
@@ -437,7 +442,8 @@ class PeerManager:
                 else:
                     return AdmitDecision(False, "duplicate_peer")
 
-        self._peers[peer_id] = peer
+        if not replaced:
+            self._peers[peer_id] = peer
         try:
             peer._inbound = bool(inbound)  # type: ignore[attr-defined]
         except Exception:

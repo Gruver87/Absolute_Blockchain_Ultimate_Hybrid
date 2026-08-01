@@ -273,6 +273,9 @@ class PeerConnection:
         qmax = max(8, int(send_queue_max or 256))
         self._send_q: asyncio.Queue = asyncio.Queue(maxsize=qmax)
         self._send_worker: Optional[asyncio.Task] = None
+        # Serializes native/TCP writes: priority control-plane bypasses the gossip
+        # queue but must not interleave with the send worker mid-batch.
+        self._send_io_lock: Optional[asyncio.Lock] = None
         self._send_drops: int = 0
         self._drain_timeout_sec: float = max(0.5, float(drain_timeout_sec or 5.0))
         self._read_chunk: int = 65536
@@ -674,11 +677,13 @@ class PeerConnection:
         return payload
 
     def _ensure_send_worker(self) -> None:
-        if self._send_worker is not None and not self._send_worker.done():
-            return
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
+            return
+        if self._send_io_lock is None:
+            self._send_io_lock = asyncio.Lock()
+        if self._send_worker is not None and not self._send_worker.done():
             return
         self._send_worker = loop.create_task(self._send_loop())
 
@@ -703,8 +708,13 @@ class PeerConnection:
                     self._send_q.put_nowait(None)
                     break
                 batch.append(nxt)
+            lock = self._send_io_lock
             try:
-                results = await self._write_messages_batch(batch)
+                if lock is not None:
+                    async with lock:
+                        results = await self._write_messages_batch(batch)
+                else:
+                    results = await self._write_messages_batch(batch)
             except asyncio.TimeoutError:
                 logger.warning(
                     "[P2P] send timeout to %s (batch=%s)",
@@ -751,45 +761,50 @@ class PeerConnection:
             MSG_GET_BLOCKS,
             MSG_STATE_ROOT_REQUEST,
             MSG_STATE_ROOT_RESPONSE,
+            MSG_GET_PEERS,
+            MSG_PEERS,
             MSG_BLOCK,
             MSG_BLOCKS,
         }
-        fut: asyncio.Future = asyncio.get_running_loop().create_future()
-        # Solicit/sync writes may wait behind native IO lock; allow more than gossip drain.
-        send_wait = max(30.0, float(self._drain_timeout_sec or 5.0) + 1.0) if priority else (
-            float(self._drain_timeout_sec or 5.0) + 1.0
-        )
-        try:
-            if priority and self._send_q.empty():
-                # Fast path when idle
-                try:
+        # Control-plane / solicit: bypass gossip queue so attestations cannot
+        # starve state_root_request (was causing wire-probe timeout → ready red).
+        if priority:
+            try:
+                lock = self._send_io_lock
+                if lock is None:
                     return await self._write_message(msg_type, data)
-                except asyncio.TimeoutError:
-                    logger.warning(
-                        "[P2P] send timeout to %s type=%s",
-                        self.peer_id or self.host,
-                        msg_type,
-                    )
-                    cb = self._on_send_fail
-                    if cb is not None:
-                        try:
-                            cb()
-                        except Exception:
-                            pass
-                    return False
-                except Exception as e:
-                    logger.warning(
-                        "[P2P] send error to %s: %s",
-                        self.peer_id or self.host,
-                        e or type(e).__name__,
-                    )
-                    cb = self._on_send_fail
-                    if cb is not None:
-                        try:
-                            cb()
-                        except Exception:
-                            pass
-                    return False
+                async with lock:
+                    return await self._write_message(msg_type, data)
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "[P2P] send timeout to %s type=%s",
+                    self.peer_id or self.host,
+                    msg_type,
+                )
+                cb = self._on_send_fail
+                if cb is not None:
+                    try:
+                        cb()
+                    except Exception:
+                        pass
+                return False
+            except Exception as e:
+                logger.warning(
+                    "[P2P] send error to %s: %s",
+                    self.peer_id or self.host,
+                    e or type(e).__name__,
+                )
+                cb = self._on_send_fail
+                if cb is not None:
+                    try:
+                        cb()
+                    except Exception:
+                        pass
+                return False
+
+        fut: asyncio.Future = asyncio.get_running_loop().create_future()
+        send_wait = float(self._drain_timeout_sec or 5.0) + 1.0
+        try:
             self._send_q.put_nowait((msg_type, data, fut))
         except asyncio.QueueFull:
             self._send_drops += 1
@@ -800,13 +815,7 @@ class PeerConnection:
                 except Exception:
                     pass
             # Drop low-priority gossip under saturation
-            if not priority:
-                return False
-            try:
-                _ = self._send_q.get_nowait()
-                self._send_q.put_nowait((msg_type, data, fut))
-            except Exception:
-                return False
+            return False
         except Exception as e:
             logger.warning("[P2P] send enqueue error to %s: %s", self.peer_id or self.host, e)
             return False
@@ -1293,6 +1302,21 @@ class PeerConnection:
             return WireReject("recv_error")
 
     def close(self):
+        worker = getattr(self, "_send_worker", None)
+        if worker is not None and not worker.done():
+            try:
+                worker.cancel()
+            except Exception:
+                pass
+        try:
+            q = getattr(self, "_send_q", None)
+            if q is not None:
+                try:
+                    q.put_nowait(None)
+                except Exception:
+                    pass
+        except Exception:
+            pass
         if self._native_conn is not None:
             try:
                 self._native_io_call(self._native_conn.close)
@@ -1551,6 +1575,8 @@ class P2PNode:
         self._reconcile_tip_head_mismatch_total: int = 0
         self._bootstrap_redial_total: int = 0
         self._bootstrap_pin_rejects_total: int = 0
+        # boot_addr ("node2:5000") → peer_id once covered (outbound dial or inbound bind)
+        self._bootstrap_peer_ids: dict = {}
         self._handshake_rejects: int = 0
         self._eclipse_at_risk: int = 0
         self._eclipse_ratio: float = 0.0
@@ -2139,32 +2165,20 @@ class P2PNode:
             peer.close()
             return
 
-        # Higher/lower node_id ownership: drop noncanonical inbound only when we
-        # already have this peer (asymmetric bootstrap: leader may have empty seeds).
-        prefer_in = None
-        try:
-            from network.peer_manager import preferred_inbound_for
-
-            prefer_in = preferred_inbound_for(self._local_node_id(), peer.peer_id)
-        except Exception:
-            prefer_in = None
-        if prefer_in is False and peer.peer_id in self.peers:
-            peer.close()
-            return
-
         reg = self.peer_manager.register(
             peer,
             inbound=True,
             local_node_id=self._local_node_id(),
         )
         if not reg.allowed:
-            # Canonical outbound already live — keep mesh peer, drop this socket.
+            # Canonical direction already live — keep mesh peer, drop this socket.
             if reg.reason in ("duplicate_peer", "duplicate_noncanonical"):
                 peer.close()
                 return
             peer.close()
             return
         print(f"[P2P] Connected (native): {peer}")
+        self._bind_bootstraps_for_peer(peer)
         self._schedule_sync(peer)
         await self._message_loop(peer)
 
@@ -2294,30 +2308,20 @@ class P2PNode:
             peer.close()
             return
 
-        prefer_in = None
-        try:
-            from network.peer_manager import preferred_inbound_for
-
-            prefer_in = preferred_inbound_for(self._local_node_id(), peer.peer_id)
-        except Exception:
-            prefer_in = None
-        if prefer_in is False and peer.peer_id in self.peers:
-            peer.close()
-            return
-
         reg = self.peer_manager.register(
             peer,
             inbound=True,
             local_node_id=self._local_node_id(),
         )
         if not reg.allowed:
+            # Canonical direction already live — keep mesh peer, drop this socket.
             if reg.reason in ("duplicate_peer", "duplicate_noncanonical"):
                 peer.close()
                 return
             peer.close()
             return
         print(f"[P2P] Connected: {peer}")
-
+        self._bind_bootstraps_for_peer(peer)
         self._schedule_sync(peer)
         await self._message_loop(peer)
 
@@ -2339,6 +2343,8 @@ class P2PNode:
             return False
         # Не дублировать соединения
         if self.peer_manager.has_active_endpoint(host, port):
+            return False
+        if self._bootstrap_already_covered(host, port):
             return False
 
         try:
@@ -2399,25 +2405,14 @@ class P2PNode:
                 peer.close()
                 return False
 
-            # Higher node_id prefers inbound; drop outbound only if peer already live.
-            prefer_in = None
-            try:
-                from network.peer_manager import preferred_inbound_for
-
-                prefer_in = preferred_inbound_for(self._local_node_id(), peer.peer_id)
-            except Exception:
-                prefer_in = None
-            if prefer_in is True and peer.peer_id in self.peers:
-                self._remember_addr(addr)
-                peer.close()
-                return True
-
+            dial_addr = self._normalize_dial_addr(addr)
             # Re-check after handshake (race with inbound accepts).
             admit = self.peer_manager.allow_outbound()
             if not admit.allowed:
                 # If the peer already registered via inbound, treat as success.
                 if peer.peer_id and peer.peer_id in self.peers:
                     self._remember_addr(addr)
+                    self._bind_bootstrap_peer(dial_addr, peer.peer_id)
                     peer.close()
                     return True
                 peer.close()
@@ -2430,12 +2425,19 @@ class P2PNode:
             )
             if not reg.allowed:
                 self._remember_addr(addr)
-                peer.close()
                 # Mesh already has this peer_id (canonical inbound or race winner).
                 if reg.reason in ("duplicate_peer", "duplicate_noncanonical"):
-                    return peer.peer_id in self.peers
+                    if peer.peer_id in self.peers:
+                        self._bind_bootstrap_peer(dial_addr, peer.peer_id)
+                        peer.close()
+                        return True
+                    peer.close()
+                    return False
+                peer.close()
                 return False
             self._remember_addr(addr)
+            self._bind_bootstrap_peer(dial_addr, peer.peer_id)
+            self._bind_bootstraps_for_peer(peer)
 
             print(f"[P2P] Connected to {peer}")
 
@@ -2872,6 +2874,15 @@ class P2PNode:
                     "unsolicited_state_root_response",
                     "unsolicited_state_root",
                     "tip_duplicate",
+                    # Height/hash race under catch-up — drop attestation, do not ban mesh.
+                    "attestation_local_height_mismatch",
+                    # Sync/catch-up bursts trip the token bucket; drop msgs, do not ban mesh.
+                    "rate_limit_exceeded",
+                    "exempt_rate_exceeded",
+                    "bandwidth_exceeded",
+                    "rate_limited",
+                    # Catch-up / tip races under partial mesh — drop tip, do not ban.
+                    "tip_unknown_parent",
                 }
             )
             self._SOFT_REFUSE_STRIKE_REASONS = soft
@@ -5511,8 +5522,56 @@ class P2PNode:
         asyncio.run_coroutine_threadsafe(self.reconcile_peers(), self._loop)
 
     def _remember_addr(self, addr: str) -> None:
-        """Remember a reconnect candidate as host:port."""
-        self.peer_manager.remember_addr(addr)
+        """Remember a reconnect candidate as host:port.
+
+        Skip bare IP literals — docker bridge IPs cause dual-dial storms when the
+        same peer is already live via a hostname bootstrap seed.
+        """
+        want = self._normalize_dial_addr(addr)
+        if not want:
+            return
+        host, _, _port = want.partition(":")
+        if self._is_ip_literal(host):
+            return
+        self.peer_manager.remember_addr(want)
+
+    @staticmethod
+    def _is_ip_literal(host: str) -> bool:
+        h = str(host or "").strip().strip("[]")
+        if not h:
+            return False
+        parts = h.split(".")
+        if len(parts) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
+            return True
+        return ":" in h  # IPv6
+
+    def _bind_bootstraps_for_peer(self, peer: PeerConnection) -> None:
+        """Map configured bootstrap seeds to this peer_id when host/id align."""
+        pid = str(getattr(peer, "peer_id", "") or "").strip()
+        if not pid:
+            return
+        dial = self._normalize_dial_addr(str(getattr(peer, "dial_target", "") or ""))
+        if dial:
+            self._bind_bootstrap_peer(dial, pid)
+        for raw in list(getattr(self.config, "bootstrap_peers", []) or []):
+            want = self._normalize_dial_addr(str(raw).strip())
+            if not want:
+                continue
+            host, _, _p = want.partition(":")
+            if self._bootstrap_host_matches_peer_id(host, pid):
+                self._bind_bootstrap_peer(want, pid)
+
+    @staticmethod
+    def _bootstrap_host_matches_peer_id(host: str, peer_id: str) -> bool:
+        """Best-effort: node2 ↔ docker-prod-mesh-2 / *-2."""
+        h = str(host or "").strip().lower()
+        pid = str(peer_id or "").strip().lower()
+        if not h or not pid:
+            return False
+        if h.startswith("node") and h[4:].isdigit():
+            n = h[4:]
+            return pid.endswith(f"-{n}") or pid == f"node{n}"
+        return h == pid
 
     def _prune_stale_peers(self, max_age: Optional[float] = None) -> int:
         """Drop stale or critically unhealthy peer objects before reconnect/dedup."""
@@ -5687,10 +5746,19 @@ class P2PNode:
         msg = await self._wait_peer_response(
             peer,
             (MSG_STATE_ROOT_RESPONSE,),
-            timeout=4,
+            timeout=30,
             presend=lambda: peer.send(MSG_STATE_ROOT_REQUEST, {"height": h}),
             request_ctx=self._state_root_request_ctx(int(h)),
         )
+        if not msg or msg.get("type") != MSG_STATE_ROOT_RESPONSE:
+            # One retry — first attempt often races attestation/tip flood.
+            msg = await self._wait_peer_response(
+                peer,
+                (MSG_STATE_ROOT_RESPONSE,),
+                timeout=30,
+                presend=lambda: peer.send(MSG_STATE_ROOT_REQUEST, {"height": h}),
+                request_ctx=self._state_root_request_ctx(int(h)),
+            )
         if not msg or msg.get("type") != MSG_STATE_ROOT_RESPONSE:
             return None
         data = msg.get("data")
@@ -5724,7 +5792,8 @@ class P2PNode:
         if not self._loop or not self._running:
             return []
         peer_n = max(1, len(self.peers))
-        budget = max(float(timeout), 4.0 + 4.0 * peer_n)
+        # Per-peer solicit may retry once at ~30s; allow wall-clock headroom.
+        budget = max(float(timeout), 70.0 * peer_n)
         future = asyncio.run_coroutine_threadsafe(
             self.request_peer_state_roots(), self._loop
         )
@@ -6177,11 +6246,51 @@ class P2PNode:
             return "bootstrap_pin_missing_tls"
         return ""
 
+    def _bind_bootstrap_peer(self, addr: str, peer_id: str) -> None:
+        """Remember that boot_addr is satisfied by peer_id (stops IP≠hostname redials)."""
+        want = self._normalize_dial_addr(addr)
+        pid = str(peer_id or "").strip()
+        if not want or not pid:
+            return
+        ids = getattr(self, "_bootstrap_peer_ids", None)
+        if ids is None:
+            self._bootstrap_peer_ids = {}
+            ids = self._bootstrap_peer_ids
+        ids[want] = pid
+
+    def _bootstrap_already_covered(self, host: str, port: int) -> bool:
+        want = self._normalize_dial_addr(f"{host}:{int(port)}")
+        if not want:
+            return False
+        pid = str((getattr(self, "_bootstrap_peer_ids", {}) or {}).get(want) or "")
+        return bool(pid and pid in self.peers)
+
     def _peer_covers_bootstrap(self, peer: PeerConnection, boot_addr: str) -> bool:
         """True if this live peer satisfies a configured bootstrap target."""
         want = self._normalize_dial_addr(boot_addr)
         if not want:
             return False
+        pid = str(getattr(peer, "peer_id", "") or "").strip()
+        bound = str((getattr(self, "_bootstrap_peer_ids", {}) or {}).get(want) or "")
+        if bound and pid and bound == pid:
+            return True
+        # Pin node_id alone can cover when peer connected via docker bridge IP.
+        pin = self._bootstrap_pin_for_addr(want)
+        if pin:
+            want_id = str(pin.get("node_id") or "").strip()
+            if want_id and pid and want_id == pid:
+                want_fp = str(pin.get("fingerprint") or "").strip().lower()
+                got_fp = (
+                    str(getattr(peer, "tls_fingerprint", "") or "")
+                    .strip()
+                    .lower()
+                    .replace(":", "")
+                )
+                if want_fp and got_fp and got_fp != want_fp:
+                    return False
+                if want_fp and not got_fp:
+                    return False
+                return True
         dial = self._normalize_dial_addr(str(getattr(peer, "dial_target", "") or ""))
         addr_ok = bool(dial and dial == want)
         if not addr_ok:
@@ -6196,8 +6305,11 @@ class P2PNode:
         if not addr_ok:
             return False
         # v1.3.133: when a pin is configured, fingerprint[/node_id] must match.
-        pin = self._bootstrap_pin_for_addr(want)
         if not pin:
+            pin = self._bootstrap_pin_for_addr(want)
+        if not pin:
+            if pid:
+                self._bind_bootstrap_peer(want, pid)
             return True
         want_fp = str(pin.get("fingerprint") or "").strip().lower()
         got_fp = str(getattr(peer, "tls_fingerprint", "") or "").strip().lower().replace(
@@ -6206,8 +6318,10 @@ class P2PNode:
         if want_fp and got_fp != want_fp:
             return False
         want_id = str(pin.get("node_id") or "").strip()
-        if want_id and str(getattr(peer, "peer_id", "") or "").strip() != want_id:
+        if want_id and pid != want_id:
             return False
+        if pid:
+            self._bind_bootstrap_peer(want, pid)
         return True
 
     def _missing_bootstrap_addrs(self) -> list:

@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
 from sync.consistency import (
     ConsistencyMachine,
     ConsistencyService,
+    ConsistencySnapshot,
     ConsistencyState,
     InMemoryConsistencyStore,
     PeerSyncView,
@@ -108,6 +109,30 @@ def test_probe_fail_lockdown() -> None:
         now=2.0,
     )
     assert snap.state is ConsistencyState.LOCKED_DOWN
+
+
+def test_enter_probing_preserves_last_known_green() -> None:
+    """Re-probe must not wipe ready/mesh green for the duration of wire solicit."""
+    m = ConsistencyMachine()
+    green = ConsistencySnapshot(
+        state=ConsistencyState.CONSISTENT,
+        consistent=True,
+        probe=WireProbeResult.succeeded(wire_roots=()),
+        reason_code="ok",
+        updated_at=1.0,
+    )
+    probing = m.enter_probing(green, now=2.0)
+    assert probing.state is ConsistencyState.PROBING
+    assert probing.consistent is True
+    assert probing.reason_code == "probing"
+
+
+def test_enter_probing_stays_false_when_not_yet_green() -> None:
+    m = ConsistencyMachine()
+    cur = m.boot_snapshot(now=1.0)
+    probing = m.enter_probing(cur, now=2.0)
+    assert probing.state is ConsistencyState.PROBING
+    assert probing.consistent is False
 
 
 def test_service_apply_and_status() -> None:
