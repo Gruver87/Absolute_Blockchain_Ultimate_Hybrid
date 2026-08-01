@@ -1,0 +1,184 @@
+﻿
+2026-08-01 21:52:26 health_watch start ports=18180,18181,18182 interval=120s full_every=6 log=logs/soak_monitor_2h_wave_d.log
+2026-08-01 21:52:51 WARN OK port 18180 [quick] height=103 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 21:52:55 OK port 18181 [quick] height=103 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 21:52:55 OK port 18182 [quick] height=103 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 21:52:55 OK mesh aligned 18180:h103/p2 18181:h103/p2 18182:h103/p2
+2026-08-01 21:55:20 WARN OK port 18180 [quick] height=105 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 21:55:20 FAIL port 18181 ready: Удаленный сервер возвратил ошибку: (503) Сервер не доступен.
+2026-08-01 21:55:21 OK port 18182 [quick] height=105 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 21:55:21 OK mesh aligned 18180:h105/p2 18181:h105/p2 18182:h105/p2
+2026-08-01 21:57:46 WARN OK port 18180 [quick] height=106 peers=2 p2p=inconsistent aligned=False failed=harness_timeout
+2026-08-01 21:57:46 OK port 18181 [quick] height=106 peers=1 p2p=under_mesh aligned=True failed= (p2p not full mesh; chain OK)
+2026-08-01 21:58:11 WARN OK port 18182 [quick] height=106 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 21:58:12 OK mesh aligned 18180:h106/p1 18181:h106/p1 18182:h106/p2
+2026-08-01 22:00:37 WARN OK port 18180 [quick] height=106 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:00:37 OK port 18181 [quick] height=106 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:00:37 OK port 18182 [quick] height=106 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:00:37 OK mesh aligned 18180:h106/p2 18181:h106/p2 18182:h106/p2
+2026-08-01 22:03:02 WARN OK port 18180 [quick] height=108 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:03:27 WARN OK port 18181 [quick] height=108 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:03:28 OK port 18182 [quick] height=108 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:03:28 OK mesh aligned 18180:h108/p2 18181:h108/p2 18182:h108/p2
+2026-08-01 22:05:40 OK port 18180 [full] height=108 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:05:40 OK port 18181 [full] height=108 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:05:40 OK port 18182 [full] height=108 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:05:41 OK mesh aligned 18180:h109/p2 18181:h108/p2 18182:h108/p2
+2026-08-01 22:08:06 WARN OK port 18180 [quick] height=110 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:08:31 WARN OK port 18181 [quick] height=110 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:08:31 OK port 18182 [quick] height=110 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:08:31 OK mesh aligned 18180:h110/p2 18181:h110/p2 18182:h110/p2
+2026-08-01 22:10:56 WARN OK port 18180 [quick] height=112 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:11:21 WARN OK port 18181 [quick] height=112 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:11:25 OK port 18182 [quick] height=112 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:11:26 OK mesh aligned 18180:h112/p2 18181:h112/p2 18182:h112/p2
+2026-08-01 22:13:29 OK port 18180 [quick] height=114 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:13:29 OK port 18181 [quick] height=114 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:13:30 OK port 18182 [quick] height=114 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:13:30 OK mesh aligned 18180:h115/p2 18181:h114/p2 18182:h114/p2
+2026-08-01 22:15:33 OK port 18180 [quick] height=116 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:15:33 OK port 18181 [quick] height=116 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:15:58 WARN OK port 18182 [quick] height=117 peers=2 p2p=inconsistent aligned=False failed=harness_timeout
+2026-08-01 22:15:58 OK mesh aligned 18180:h117/p2 18181:h117/p2 18182:h117/p2
+2026-08-01 22:18:23 WARN OK port 18180 [quick] height=118 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:18:49 WARN OK port 18181 [quick] height=118 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:19:14 WARN OK port 18182 [quick] height=118 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:19:14 OK mesh aligned 18180:h118/p2 18181:h118/p2 18182:h118/p2
+2026-08-01 22:21:34 OK port 18180 [full] height=119 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:21:34 OK port 18181 [full] height=119 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:21:35 OK port 18182 [full] height=119 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:21:35 OK mesh aligned 18180:h120/p2 18181:h119/p2 18182:h119/p2
+2026-08-01 22:23:39 OK port 18180 [quick] height=121 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:23:40 OK port 18181 [quick] height=121 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:23:40 OK port 18182 [quick] height=121 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:23:40 OK mesh aligned 18180:h121/p2 18181:h121/p2 18182:h121/p2
+2026-08-01 22:25:55 OK port 18180 [quick] height=122 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:25:56 OK port 18181 [quick] height=122 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:25:56 OK port 18182 [quick] height=122 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:25:56 OK mesh aligned 18180:h122/p2 18181:h122/p2 18182:h122/p2
+2026-08-01 22:28:11 OK port 18180 [quick] height=123 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:28:11 OK port 18181 [quick] height=123 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:28:36 WARN OK port 18182 [quick] height=123 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:28:36 OK mesh aligned 18180:h124/p2 18181:h124/p2 18182:h124/p2
+2026-08-01 22:31:01 WARN OK port 18180 [quick] height=124 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:31:26 WARN OK port 18181 [quick] height=124 peers=2 p2p=inconsistent aligned=False failed=harness_timeout
+2026-08-01 22:31:51 WARN OK port 18182 [quick] height=124 peers=2 p2p=inconsistent aligned=False failed=harness_timeout
+2026-08-01 22:31:52 OK mesh aligned 18180:h125/p2 18181:h125/p2 18182:h125/p2
+2026-08-01 22:34:17 WARN OK port 18180 [quick] height=126 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:34:17 FAIL port 18181 ready: Удаленный сервер возвратил ошибку: (503) Сервер не доступен.
+2026-08-01 22:34:20 OK port 18182 [quick] height=126 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:34:20 OK mesh aligned 18180:h126/p2 18181:h126/p2 18182:h126/p2
+2026-08-01 22:36:36 OK port 18180 [full] height=126 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:37:21 WARN OK port 18181 [full] height=127 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:38:06 WARN OK port 18182 [full] height=127 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:38:06 OK mesh aligned 18180:h128/p2 18181:h128/p2 18182:h128/p2
+2026-08-01 22:40:11 OK port 18180 [quick] height=128 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:40:12 FAIL port 18181 ready: Удаленный сервер возвратил ошибку: (503) Сервер не доступен.
+2026-08-01 22:40:12 FAIL port 18182 ready: Удаленный сервер возвратил ошибку: (503) Сервер не доступен.
+2026-08-01 22:40:12 OK mesh aligned 18180:h128/p2 18181:h128/p2 18182:h128/p2
+2026-08-01 22:42:28 OK port 18180 [quick] height=129 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:42:28 OK port 18181 [quick] height=129 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:42:53 WARN OK port 18182 [quick] height=129 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:42:53 OK mesh aligned 18180:h130/p2 18181:h130/p2 18182:h130/p2
+2026-08-01 22:45:18 WARN OK port 18180 [quick] height=131 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:45:43 WARN OK port 18181 [quick] height=131 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:45:47 OK port 18182 [quick] height=131 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:45:47 OK mesh aligned 18180:h131/p2 18181:h131/p2 18182:h131/p2
+2026-08-01 22:48:03 OK port 18180 [quick] height=131 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:48:03 OK port 18181 [quick] height=131 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:48:28 WARN OK port 18182 [quick] height=131 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:48:28 OK mesh aligned 18180:h132/p2 18181:h132/p2 18182:h132/p2
+2026-08-01 22:50:53 WARN OK port 18180 [quick] height=133 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:51:18 WARN OK port 18181 [quick] height=133 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:51:43 WARN OK port 18182 [quick] height=133 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:51:43 OK mesh aligned 18180:h133/p2 18181:h133/p2 18182:h133/p2
+2026-08-01 22:54:28 WARN OK port 18180 [full] height=134 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:55:13 WARN OK port 18181 [full] height=134 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 22:55:42 OK port 18182 [full] height=135 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:55:42 OK mesh aligned 18180:h135/p2 18181:h135/p2 18182:h135/p2
+2026-08-01 22:57:42 FAIL port 18180 ready: Удаленный сервер возвратил ошибку: (503) Сервер не доступен.
+2026-08-01 22:57:43 OK port 18181 [quick] height=135 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:57:43 OK port 18182 [quick] height=135 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 22:57:43 OK mesh aligned 18180:h135/p2 18181:h135/p2 18182:h135/p2
+2026-08-01 23:00:04 OK port 18180 [quick] height=136 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:00:04 OK port 18181 [quick] height=136 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:00:29 WARN OK port 18182 [quick] height=136 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:00:29 OK mesh aligned 18180:h137/p2 18181:h137/p2 18182:h137/p2
+2026-08-01 23:02:54 WARN OK port 18180 [quick] height=138 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:03:19 WARN OK port 18181 [quick] height=138 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:03:19 FAIL port 18182 ready: Удаленный сервер возвратил ошибку: (503) Сервер не доступен.
+2026-08-01 23:03:19 OK mesh aligned 18180:h138/p2 18181:h138/p2 18182:h138/p2
+2026-08-01 23:05:19 FAIL port 18180 ready: Удаленный сервер возвратил ошибку: (503) Сервер не доступен.
+2026-08-01 23:05:20 OK port 18181 [quick] height=138 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:05:20 OK port 18182 [quick] height=138 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:05:20 OK mesh aligned 18180:h138/p2 18181:h138/p2 18182:h138/p2
+2026-08-01 23:07:45 WARN OK port 18180 [quick] height=139 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:08:10 WARN OK port 18181 [quick] height=139 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:08:11 OK port 18182 [quick] height=139 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:08:11 OK mesh aligned 18180:h139/p2 18181:h139/p2 18182:h139/p2
+2026-08-01 23:10:56 WARN OK port 18180 [full] height=140 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:10:56 OK port 18181 [full] height=140 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:10:56 OK port 18182 [full] height=140 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:10:56 OK mesh aligned 18180:h140/p2 18181:h140/p2 18182:h140/p2
+2026-08-01 23:13:22 WARN OK port 18180 [quick] height=141 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:13:47 WARN OK port 18181 [quick] height=141 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:13:56 OK port 18182 [quick] height=141 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:13:56 OK mesh aligned 18180:h141/p2 18181:h141/p2 18182:h141/p2
+2026-08-01 23:16:11 OK port 18180 [quick] height=141 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:16:11 OK port 18181 [quick] height=141 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:16:11 OK port 18182 [quick] height=141 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:16:11 OK mesh aligned 18180:h142/p2 18181:h141/p2 18182:h141/p2
+2026-08-01 23:18:26 OK port 18180 [quick] height=142 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:18:26 OK port 18181 [quick] height=142 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:18:51 WARN OK port 18182 [quick] height=143 peers=2 p2p=inconsistent aligned=False failed=harness_timeout
+2026-08-01 23:18:51 OK mesh aligned 18180:h143/p2 18181:h143/p2 18182:h143/p2
+2026-08-01 23:21:16 WARN OK port 18180 [quick] height=144 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:21:41 WARN OK port 18181 [quick] height=144 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:21:54 OK port 18182 [quick] height=144 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:21:54 OK mesh aligned 18180:h144/p2 18181:h144/p2 18182:h144/p2
+2026-08-01 23:24:19 WARN OK port 18180 [quick] height=145 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:24:19 OK port 18181 [quick] height=145 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:24:19 OK port 18182 [quick] height=145 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:24:19 OK mesh aligned 18180:h145/p2 18181:h145/p2 18182:h145/p2
+2026-08-01 23:27:05 WARN OK port 18180 [full] height=147 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:27:50 WARN OK port 18181 [full] height=147 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:27:50 OK port 18182 [full] height=147 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:27:50 OK mesh aligned 18180:h147/p2 18181:h147/p2 18182:h147/p2
+2026-08-01 23:30:15 WARN OK port 18180 [quick] height=148 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:30:15 OK port 18181 [quick] height=148 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:30:16 OK port 18182 [quick] height=148 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:30:16 OK mesh aligned 18180:h148/p2 18181:h148/p2 18182:h148/p2
+2026-08-01 23:32:41 WARN OK port 18180 [quick] height=149 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:33:06 WARN OK port 18181 [quick] height=149 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:33:31 WARN OK port 18182 [quick] height=149 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:33:31 OK mesh aligned 18180:h149/p2 18181:h149/p2 18182:h149/p2
+2026-08-01 23:35:56 WARN OK port 18180 [quick] height=150 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:36:21 WARN OK port 18181 [quick] height=150 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:36:28 OK port 18182 [quick] height=150 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:36:28 OK mesh aligned 18180:h150/p2 18181:h150/p2 18182:h150/p2
+2026-08-01 23:38:41 OK port 18180 [quick] height=150 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:38:42 OK port 18181 [quick] height=150 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:38:42 OK port 18182 [quick] height=150 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:38:42 OK mesh aligned 18180:h151/p2 18181:h150/p2 18182:h150/p2
+2026-08-01 23:40:56 OK port 18180 [quick] height=151 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:40:56 OK port 18181 [quick] height=151 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:41:21 WARN OK port 18182 [quick] height=151 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:41:21 OK mesh aligned 18180:h152/p2 18181:h152/p2 18182:h152/p2
+2026-08-01 23:44:06 WARN OK port 18180 [full] height=153 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:44:06 FAIL port 18181 ready: Удаленный сервер возвратил ошибку: (503) Сервер не доступен.
+2026-08-01 23:44:12 OK port 18182 [full] height=153 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:44:12 OK mesh aligned 18180:h153/p2 18181:h153/p2 18182:h153/p2
+2026-08-01 23:46:26 OK port 18180 [quick] height=153 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:46:26 OK port 18181 [quick] height=153 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:46:51 WARN OK port 18182 [quick] height=153 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:46:51 OK mesh aligned 18180:h154/p2 18181:h154/p2 18182:h154/p2
+2026-08-01 23:49:16 WARN OK port 18180 [quick] height=155 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:49:41 OK port 18181 [quick] height=155 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:50:06 WARN OK port 18182 [quick] height=155 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:50:06 OK mesh aligned 18180:h155/p2 18181:h155/p2 18182:h155/p2
+2026-08-01 23:52:31 WARN OK port 18180 [quick] height=156 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:52:56 OK port 18181 [quick] height=156 peers=2 p2p=aligned aligned=True failed=
+2026-08-01 23:53:21 WARN OK port 18182 [quick] height=156 peers=2 p2p=aligned aligned=False failed=harness_timeout
+2026-08-01 23:53:21 OK mesh aligned 18180:h157/p2 18181:h157/p2 18182:h157/p2
+2026-08-01 23:53:21 health_watch done (duration 120m cycles=45 hard_fails=8)
+2026-08-01 23:53:21 health_watch exit=1 hard_fails=8
