@@ -172,25 +172,6 @@ fn merkle_root_from_proof_string(item: &str, proof: &[String], target_index: usi
     current_hash
 }
 
-fn py_round_12(value: f64) -> f64 {
-    const SCALE: f64 = 1_000_000_000_000.0;
-    let scaled = value * SCALE;
-    let floor = scaled.floor();
-    let fraction = scaled - floor;
-
-    let rounded = if (fraction - 0.5).abs() < f64::EPSILON {
-        if (floor as i128) % 2 == 0 {
-            floor
-        } else {
-            floor + 1.0
-        }
-    } else {
-        scaled.round()
-    };
-
-    rounded / SCALE
-}
-
 pub(crate) fn value_to_string(value: Option<&Value>, default_value: &str) -> String {
     match value {
         Some(Value::String(s)) => s.clone(),

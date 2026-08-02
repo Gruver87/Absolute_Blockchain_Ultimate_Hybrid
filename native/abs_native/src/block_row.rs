@@ -218,7 +218,7 @@ fn transactions_json_bytes(obj: &Map<String, Value>) -> Result<Vec<u8>, String> 
 fn extras_json_bytes(obj: &Map<String, Value>) -> Result<Vec<u8>, String> {
     let mut extras = Map::new();
     for (k, v) in obj {
-        if TYPED_KEYS.iter().any(|t| *t == k.as_str()) {
+        if TYPED_KEYS.contains(&k.as_str()) {
             continue;
         }
         extras.insert(k.clone(), v.clone());

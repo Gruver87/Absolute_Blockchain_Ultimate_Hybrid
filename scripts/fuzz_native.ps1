@@ -21,7 +21,7 @@ Set-Location $Root
 
 if ($Mode -eq "smoke") {
     Write-Host "=== abs_native P2P fuzz smoke (cargo test) ===" -ForegroundColor Cyan
-    cargo test --manifest-path $Manifest fuzz_p2p_ -- --nocapture
+    cargo test --manifest-path $Manifest --no-default-features fuzz_p2p_ -- --nocapture
     if ($LASTEXITCODE -ne 0) {
         throw "fuzz smoke failed rc=$LASTEXITCODE"
     }

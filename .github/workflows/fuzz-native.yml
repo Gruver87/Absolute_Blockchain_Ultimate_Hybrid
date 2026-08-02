@@ -52,7 +52,8 @@ jobs:
 
       - name: Fuzz smoke (frame / wire / rate_limit)
         run: |
-          cargo test --manifest-path native/abs_native/Cargo.toml fuzz_p2p_ -- --nocapture
+          # extension-module (default) does not link libpython — tests need rlib without it
+          cargo test --manifest-path native/abs_native/Cargo.toml --no-default-features fuzz_p2p_ -- --nocapture
 
   fuzz:
     name: cargo-fuzz short run

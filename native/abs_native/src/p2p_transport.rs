@@ -1107,19 +1107,15 @@ impl P2PNativeConn {
                 }
                 Ok(n) => {
                     self.bytes_read = self.bytes_read.saturating_add(n as u64);
-                    match self.framer.rust_feed(&buf[..n]) {
-                        Ok(lines) => {
-                            if lines.is_empty() {
-                                continue;
-                            }
-                            let mut iter = lines.into_iter();
-                            let first = iter.next().unwrap();
-                            self.pending.extend(iter);
-                            self.lines_read = self.lines_read.saturating_add(1);
-                            return Ok(Some(first));
-                        }
-                        Err(reason) => return Err(reason),
+                    let lines = self.framer.rust_feed(&buf[..n])?;
+                    if lines.is_empty() {
+                        continue;
                     }
+                    let mut iter = lines.into_iter();
+                    let first = iter.next().unwrap();
+                    self.pending.extend(iter);
+                    self.lines_read = self.lines_read.saturating_add(1);
+                    return Ok(Some(first));
                 }
                 Err(e)
                     if e.kind() == std::io::ErrorKind::WouldBlock

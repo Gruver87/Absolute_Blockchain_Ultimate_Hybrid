@@ -456,6 +456,7 @@ fn is_hostname_label_ok(host: &str) -> bool {
 /// - Literal public IP: always OK
 /// - Literal private/loopback/link-local: OK only if `allow_private`
 /// - Non-IP hostname (docker DNS): OK (not an RFC1918 spray vector)
+///
 /// Does not prove peer honesty / anti-Sybil / DHT.
 pub fn p2p_peer_addr_is_dialable_inner(addr: &str, allow_private: bool) -> bool {
     let Some((host, _port)) = split_peer_host_port(addr) else {

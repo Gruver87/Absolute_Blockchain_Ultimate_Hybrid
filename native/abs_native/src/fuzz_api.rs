@@ -17,10 +17,8 @@ pub fn fuzz_p2p_frame_feed(max_bytes: usize, chunks: &[&[u8]]) -> Result<usize, 
     let mut framer = P2PLineFramer::rust_new(max_bytes);
     let mut total = 0usize;
     for chunk in chunks {
-        match framer.rust_feed(chunk) {
-            Ok(lines) => total = total.saturating_add(lines.len()),
-            Err(reason) => return Err(reason),
-        }
+        let lines = framer.rust_feed(chunk)?;
+        total = total.saturating_add(lines.len());
     }
     Ok(total)
 }
