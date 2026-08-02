@@ -1174,7 +1174,7 @@ def verify_prod_mesh3_stabilize(
         _restore_p2p_mesh(urls, expected_peers=2)
         for url in urls:
             try:
-                _post_json(url, "/p2p/reconnect", {"timeout": 20}, timeout=30)
+                _admin_token(url)
                 _post_json(url, "/sync/fast-sync", {"timeout": 45}, timeout=60)
                 _post_json(url, "/sync/reconcile", {"timeout": 45}, timeout=60)
             except Exception:
