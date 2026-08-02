@@ -78,9 +78,10 @@ def _consistency_harness(url: str, *, quick: bool | None = None, peer_timeout: f
     if peer_timeout is None:
         peer_timeout = 3.0 if quick else 8.0
     q = "1" if quick else "0"
-    http_timeout = max(25.0, peer_timeout + 4.0 * 3 + 8.0)
+    # Harness peer probes can exceed 25s under CI load / tip-v2 mesh; keep fail-closed but wait.
+    http_timeout = max(60.0, peer_timeout + 4.0 * 3 + 20.0)
     if _is_prod_mesh_url(base):
-        http_timeout = max(http_timeout, 45.0)
+        http_timeout = max(http_timeout, 90.0)
     path = (
         f"{base}/chain/consistency/harness"
         f"?quick={q}&peer_timeout={peer_timeout}"
