@@ -254,6 +254,15 @@ jobs:
     - name: Mainnet launch checklist (strict ceremony + keys)
       if: matrix.python-version == '3.12'
       run: |
+        set -euo pipefail
+        HASH="$(python scripts/genesis_ceremony.py \
+          --config node.prod.mainnet-v1.example.json \
+          --manifest data/ceremony_keys_ci/validators.manifest.json \
+          --json | python -c 'import sys, json; print(json.load(sys.stdin)["ceremony_hash"])')"
+        export GENESIS_CEREMONY_HASH="$HASH"
+        export VALIDATORS_MANIFEST_PATH=data/ceremony_keys_ci/validators.manifest.json
+        export CHAIN_ID=778888
+        echo "Pinned GENESIS_CEREMONY_HASH=${GENESIS_CEREMONY_HASH:0:16}…"
         python scripts/mainnet_launch_checklist.py \
           --strict-mainnet \
           --strict-keys \
