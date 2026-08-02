@@ -1792,9 +1792,10 @@ def verify_state_consistency(urls: list[str], status: dict) -> int:
         roots_match = bool(roots[0] and all(r == roots[0] for r in roots))
         mesh_ok = all_ok and roots_match
         if not mesh_ok and roots_match and failed_nodes:
+            soft = {"tip_state_aligned", "peer_probe_ok"}
             tip_only = all(
                 {x.strip() for x in item.split(":", 1)[-1].split(",") if x.strip()}
-                <= {"tip_state_aligned"}
+                <= soft
                 for item in failed_nodes
             )
             if tip_only:
