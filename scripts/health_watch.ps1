@@ -40,12 +40,22 @@ function Test-NodeHealth([int]$Port, [bool]$FullHarness) {
     $readySec = if ($ProdMesh) { 20 } else { 5 }
     $statusSec = if ($ProdMesh) { 15 } else { 5 }
     $harnessSec = if ($FullHarness) { if ($ProdMesh) { 45 } else { 20 } } else { if ($ProdMesh) { 25 } else { 10 } }
-    # Hard FAIL only when ready/status are unreachable. Harness hangs must not
-    # paint the node as down — soak counts those as WARN via failed_checks.
-    try {
-        $null = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health/ready" -TimeoutSec $readySec
-    } catch {
-        return @{ Ok = $false; Port = $Port; Error = "ready: $($_.Exception.Message)" }
+    # Hard FAIL only when ready/status stay unreachable after brief retries.
+    # Transient 503 (wire-probe flap) must not zero a 48h soak — retry like K8s probes.
+    $readyOk = $false
+    $readyErr = ""
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            $null = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health/ready" -TimeoutSec $readySec
+            $readyOk = $true
+            break
+        } catch {
+            $readyErr = "ready: $($_.Exception.Message)"
+            if ($attempt -lt 3) { Start-Sleep -Seconds 2 }
+        }
+    }
+    if (-not $readyOk) {
+        return @{ Ok = $false; Port = $Port; Error = $readyErr }
     }
     try {
         $st = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status" -TimeoutSec $statusSec
