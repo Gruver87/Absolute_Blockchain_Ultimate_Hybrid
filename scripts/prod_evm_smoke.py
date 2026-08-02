@@ -152,19 +152,40 @@ def _storage_ok(storage_hex: str) -> bool:
         return False
 
 
-def _wait_mesh_aligned(http_urls: list[str], timeout_sec: int = 90) -> None:
+def _wait_mesh_aligned(http_urls: list[str], timeout_sec: int = 180) -> None:
     deadline = time.time() + timeout_sec
     last: tuple[list[int], list[str]] = ([], [])
     while time.time() < deadline:
         heights: list[int] = []
         roots: list[str] = []
+        heads: list[str] = []
         for url in http_urls:
             status = _api(f"{url}/status")
             heights.append(int(status.get("height", 0) or 0))
-            roots.append(str(status.get("state_root") or ""))
+            roots.append(str(status.get("state_root") or "").lower())
+            heads.append(str(status.get("head_hash") or "").lower())
         last = (heights, roots)
-        if len(set(heights)) == 1 and len(set(roots)) == 1:
+        if (
+            heights
+            and max(heights) - min(heights) <= 1
+            and len(set(roots)) == 1
+            and (not any(heads) or len(set(heads)) == 1)
+        ):
             return
+        tip = max(heights) if heights else 0
+        for url, h in zip(http_urls, heights):
+            if tip - h <= 0:
+                continue
+            try:
+                _admin_token(url)
+                _post_json(
+                    url,
+                    "/sync/fast-sync",
+                    {"timeout": 60, "target_block": tip},
+                    timeout=90,
+                )
+            except Exception:
+                pass
         time.sleep(3)
     heights, roots = last
     raise RuntimeError(

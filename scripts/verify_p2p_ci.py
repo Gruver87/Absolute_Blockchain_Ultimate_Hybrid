@@ -3150,6 +3150,51 @@ def _run_prod_mesh3_evidence(ceremony_dir: str, urls: list[str], env: dict) -> i
         ),
     ]
     for label, cmd in steps:
+        # Evidence smokes require a single tip; mining can skew followers between steps.
+        aligned = False
+        for attempt in range(40):
+            try:
+                statuses = [_api(f"{u}/status") for u in urls]
+                heights = [int(s.get("height", 0) or 0) for s in statuses]
+                heads = [(s.get("head_hash") or "").lower() for s in statuses]
+                if (
+                    min(heights) >= 1
+                    and max(heights) - min(heights) <= 1
+                    and heads[0]
+                    and len(set(heads)) == 1
+                ):
+                    aligned = True
+                    break
+                tip_h = max(heights)
+                if attempt % 4 == 0:
+                    for url, h in zip(urls, heights):
+                        if tip_h - h <= 0:
+                            continue
+                        try:
+                            _admin_token(url)
+                            _post_json(
+                                url,
+                                "/sync/fast-sync",
+                                {"timeout": 90, "target_block": tip_h},
+                                timeout=120,
+                            )
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            time.sleep(3)
+        if not aligned:
+            print(f"FAIL: prod-mesh3 evidence {label} pre-check: mesh not aligned")
+            for i, url in enumerate(urls, start=1):
+                try:
+                    st = _api(f"{url}/status")
+                    print(
+                        f"  node{i} height={st.get('height')} "
+                        f"head={(st.get('head_hash') or '')[:16]}"
+                    )
+                except Exception as exc:
+                    print(f"  node{i} status error: {exc}")
+            return 1
         print(f"Prod-mesh3 evidence: {label} ...")
         proc = subprocess.run(cmd, cwd=ROOT, env=smoke_env)
         if proc.returncode != 0:
