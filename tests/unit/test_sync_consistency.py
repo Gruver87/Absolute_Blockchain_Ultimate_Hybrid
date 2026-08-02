@@ -174,7 +174,7 @@ def test_sync_engine_incomplete_ahead_returns_false() -> None:
         blockchain = _BC()
         peers = {"p1": _Peer()}
 
-        def request_peer_state_roots_sync(self):
+        def request_peer_state_roots_sync(self, timeout=15):
             return [{"peer_id": "p1", "height": 50, "state_root": "cc" * 32}]
 
     eng = SyncEngine(node=_Node())

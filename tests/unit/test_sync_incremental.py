@@ -38,7 +38,7 @@ class _P2P:
         self._state_consistent = False
         self._running = True
 
-    def request_peer_state_roots_sync(self):
+    def request_peer_state_roots_sync(self, timeout=15):
         return [
             {
                 "peer_id": peer_id,
@@ -67,8 +67,8 @@ class _Node:
             self.blockchain._height = h
         return True
 
-    def request_peer_state_roots_sync(self):
-        return self.p2p.request_peer_state_roots_sync()
+    def request_peer_state_roots_sync(self, timeout=15):
+        return self.p2p.request_peer_state_roots_sync(timeout=timeout)
 
     def get_height(self):
         return self.blockchain.get_height()
