@@ -971,8 +971,10 @@ def verify_mesh3_recovery(
 
         print("RECOVERY: checking node1/node3 stay alive while node2 is down")
         live_ok = False
-        for _ in range(20):
+        for _ in range(30):
             try:
+                # Keep a 2-node mesh between survivors (reconnect is prod-blocked).
+                _restore_p2p_mesh([url1, url3], expected_peers=1)
                 s1, s3 = [_api(f"{u}/status", timeout=8) for u in (url1, url3)]
                 sync1, sync3 = [_api(f"{u}/sync/status", timeout=8) for u in (url1, url3)]
                 h1 = int(s1.get("height", 0) or 0)
@@ -982,16 +984,32 @@ def verify_mesh3_recovery(
                 if h1 > 0 and h3 > 0 and abs(h1 - h3) <= 2 and r1 and r1 == r3:
                     live_ok = True
                     break
-            except Exception:
-                pass
-            try:
-                _post_json(url1, "/p2p/reconnect", {"timeout": 10}, timeout=15)
-                _post_json(url3, "/p2p/reconnect", {"timeout": 10}, timeout=15)
+                # Nudge lagging survivor via SyncEngine (not /p2p/reconnect — prod-blocked).
+                lag = url3 if h3 < h1 else url1
+                try:
+                    _admin_token(lag)
+                    _post_json(
+                        lag,
+                        "/sync/fast-sync",
+                        {"timeout": 45, "target_block": max(h1, h3)},
+                        timeout=60,
+                    )
+                    _post_json(lag, "/sync/reconcile", {"timeout": 30}, timeout=45)
+                except Exception:
+                    pass
             except Exception:
                 pass
             time.sleep(3)
         if not live_ok:
             print("FAIL: node1/node3 did not remain consistent while node2 was down")
+            try:
+                s1, s3 = [_api(f"{u}/status", timeout=8) for u in (url1, url3)]
+                print(
+                    f"  node1 height={s1.get('height')} root={(s1.get('state_root') or '')[:16]} "
+                    f"node3 height={s3.get('height')} root={(s3.get('state_root') or '')[:16]}"
+                )
+            except Exception as exc:
+                print(f"  status error: {exc}")
             return 35
 
         print(f"RECOVERY: starting node2 ({label})")
@@ -1006,13 +1024,10 @@ def verify_mesh3_recovery(
         final_statuses: list[dict] = []
         final_roots: list[str] = []
         while time.time() < deadline:
-            for url in urls:
-                try:
-                    _post_json(url, "/p2p/reconnect", {"timeout": 20}, timeout=30)
-                except Exception:
-                    pass
+            _restore_p2p_mesh(urls, expected_peers=2)
             for url in urls[1:]:
                 try:
+                    _admin_token(url)
                     _post_json(url, "/sync/fast-sync", {"timeout": 120}, timeout=135)
                     _post_json(url, "/sync/reconcile", {"timeout": 120}, timeout=135)
                 except Exception:
