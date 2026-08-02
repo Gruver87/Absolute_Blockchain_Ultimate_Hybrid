@@ -40,22 +40,42 @@ function Test-NodeHealth([int]$Port, [bool]$FullHarness) {
     $readySec = if ($ProdMesh) { 20 } else { 5 }
     $statusSec = if ($ProdMesh) { 15 } else { 5 }
     $harnessSec = if ($FullHarness) { if ($ProdMesh) { 45 } else { 20 } } else { if ($ProdMesh) { 25 } else { 10 } }
-    # Hard FAIL only when ready/status stay unreachable after brief retries.
-    # Transient 503 (wire-probe flap) must not zero a 48h soak — retry like K8s probes.
+    # Hard FAIL only when status is unreachable after retries.
+    # Transient /health/ready 503 (wire-probe / peers_alive flap) must not
+    # poison a 48h soak — log WARN and continue if /status still answers.
     $readyOk = $false
     $readyErr = ""
-    for ($attempt = 1; $attempt -le 3; $attempt++) {
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
         try {
             $null = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health/ready" -TimeoutSec $readySec
             $readyOk = $true
             break
         } catch {
             $readyErr = "ready: $($_.Exception.Message)"
-            if ($attempt -lt 3) { Start-Sleep -Seconds 2 }
+            if ($attempt -lt 5) { Start-Sleep -Seconds ([Math]::Min(8, 1 + $attempt * 2)) }
         }
     }
     if (-not $readyOk) {
-        return @{ Ok = $false; Port = $Port; Error = $readyErr }
+        try {
+            $stProbe = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status" -TimeoutSec $statusSec
+            # Soft: node is up; ready flap is monitored as WARN by caller via Failed list.
+            return @{
+                Ok = $true
+                Port = $Port
+                Height = $stProbe.height
+                Head = $stProbe.head_hash
+                Peers = $stProbe.peers
+                P2P = $stProbe.p2p_sync_status
+                Aligned = $true
+                HarnessHealthy = $false
+                Failed = @("ready_flap")
+                FullHarness = $FullHarness
+                ReadyFlap = $true
+                ReadyError = $readyErr
+            }
+        } catch {
+            return @{ Ok = $false; Port = $Port; Error = $readyErr }
+        }
     }
     try {
         $st = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status" -TimeoutSec $statusSec

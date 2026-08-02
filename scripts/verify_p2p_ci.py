@@ -269,6 +269,11 @@ def _post_json(base_url: str, path: str, body: dict | None = None, timeout: floa
     base = base_url.rstrip("/")
     headers = {"Content-Type": "application/json"}
     token = _ADMIN_TOKENS.get(base)
+    if not token:
+        try:
+            token = _admin_token(base, timeout=min(timeout, 10))
+        except Exception:
+            token = ""
     if token:
         headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(
@@ -282,8 +287,12 @@ def _post_json(base_url: str, path: str, body: dict | None = None, timeout: floa
             return json.loads(resp.read().decode())
     except urllib.error.HTTPError as exc:
         raw = exc.read().decode(errors="replace")
-        if exc.code != 401 or "JWT" not in raw:
+        # Mint/refresh on auth failures (401) and role/secret mismatch (403 JWT).
+        if exc.code not in (401, 403) or (
+            "JWT" not in raw and "jwt" not in raw.lower() and "Bearer" not in raw
+        ):
             raise
+        _ADMIN_TOKENS.pop(base, None)
         token = _admin_token(base, timeout=min(timeout, 10))
         req = urllib.request.Request(
             f"{base}{path}",
@@ -3041,7 +3050,7 @@ def run_prod_smoke_spawn() -> int:
                 )
                 print(f"prod-smoke fast-sync: {sync_resp}")
                 if not sync_resp.get("success"):
-                    _post_json(lag_url, "/p2p/reconnect", {"timeout": 30}, timeout=45)
+                    _post_json(lag_url, "/sync/reconcile", {"timeout": 30}, timeout=45)
                     time.sleep(3)
                     sync_resp = _post_json(
                         lag_url, "/sync/fast-sync", {"timeout": 120}, timeout=135
@@ -3302,19 +3311,36 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
                         if tip_h - h <= 1:
                             continue
                         try:
+                            _admin_token(url)
                             sync_resp = _post_json(
                                 url, "/sync/fast-sync", {"timeout": 90}, timeout=105
                             )
                             print(
                                 f"prod-mesh3 fast-sync {url}: "
-                                f"height={h}->{tip_h} ok={sync_resp.get('success')}"
+                                f"height={h}->{tip_h} ok={sync_resp.get('success')} "
+                                f"detail={sync_resp.get('detail') or sync_resp.get('message')}"
                             )
                             if not sync_resp.get("success"):
-                                _post_json(
-                                    url, "/p2p/reconnect", {"timeout": 30}, timeout=45
+                                # /p2p/reconnect is prod-blocked (403); use reconcile instead.
+                                recon = _post_json(
+                                    url,
+                                    "/sync/reconcile",
+                                    {"timeout": 60},
+                                    timeout=75,
+                                )
+                                print(
+                                    f"prod-mesh3 reconcile {url}: "
+                                    f"ok={recon.get('success')}"
+                                )
+                                sync_resp = _post_json(
+                                    url, "/sync/fast-sync", {"timeout": 90}, timeout=105
+                                )
+                                print(
+                                    f"prod-mesh3 fast-sync retry {url}: "
+                                    f"ok={sync_resp.get('success')}"
                                 )
                         except Exception as exc:
-                            print(f"WARN: prod-mesh3 fast-sync {url}: {exc}")
+                            print(f"WARN: prod-mesh3 catch-up {url}: {exc}")
             except Exception:
                 pass
             time.sleep(3)
