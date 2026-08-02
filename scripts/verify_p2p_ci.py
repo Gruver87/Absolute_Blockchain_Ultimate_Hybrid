@@ -3230,24 +3230,49 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
             engine = clone_chain_data(str(leader_dir), str(target_dir))
             print(f"  seeded {target_dir.name} from {leader_dir.name} ({engine})")
 
+    def _set_mining(cfg_path: str, enabled: bool) -> None:
+        with open(cfg_path, encoding="utf-8") as f:
+            cfg = json.load(f)
+        cfg["mining_enabled"] = bool(enabled)
+        with open(cfg_path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+
+    def _stop_all() -> None:
+        for proc in list(procs):
+            proc.terminate()
+        for proc in list(procs):
+            try:
+                proc.wait(timeout=15)
+            except Exception:
+                proc.kill()
+        procs.clear()
+        time.sleep(2)
+
+    def _start_node(cfg_path: str, log_path: str) -> None:
+        err = open(log_path, "w", encoding="utf-8")
+        procs.append(
+            subprocess.Popen(
+                [sys.executable, "main.py", "--config", cfg_path],
+                cwd=ROOT,
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=err,
+            )
+        )
+
     try:
         print(f"Prod-mesh3: spawning ceremony mesh on :15280-15282 (tmp={tmp})")
+        # Phase A: leader mines one tip, then we freeze mining until followers share that tip.
+        _set_mining(cfg1, True)
+        _set_mining(cfg2, False)
+        _set_mining(cfg3, False)
         log1 = logs[0]
-        with open(log1, "w", encoding="utf-8") as err1:
-            procs.append(
-                subprocess.Popen(
-                    [sys.executable, "main.py", "--config", cfg1],
-                    cwd=ROOT,
-                    env=env,
-                    stdout=subprocess.DEVNULL,
-                    stderr=err1,
-                )
-            )
+        _start_node(cfg1, log1)
         if not _wait_health(url1, max_sec=180):
             print(f"FAIL: prod-mesh3 health timeout on {url1}")
             print(f"  stderr: {log1}")
             return 1
-        for _ in range(30):
+        for _ in range(40):
             try:
                 if int(_api(f"{url1}/status").get("height", 0) or 0) >= 1:
                     break
@@ -3256,28 +3281,14 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
             time.sleep(2)
 
         # Quiesce leader before cloning RocksDB / SQLite chain files.
-        for proc in procs:
-            proc.terminate()
-        for proc in procs:
-            try:
-                proc.wait(timeout=15)
-            except Exception:
-                proc.kill()
-        procs.clear()
-        time.sleep(2)
-
+        _stop_all()
         _seed_follower_dbs(cfg1, [cfg2, cfg3])
+
+        # Phase B: boot all three with mining OFF so seed tip cannot race ahead.
+        for c in cfgs:
+            _set_mining(c, False)
         for cfg, log_path in zip(cfgs, logs):
-            err = open(log_path, "w", encoding="utf-8")
-            procs.append(
-                subprocess.Popen(
-                    [sys.executable, "main.py", "--config", cfg],
-                    cwd=ROOT,
-                    env=env,
-                    stdout=subprocess.DEVNULL,
-                    stderr=err,
-                )
-            )
+            _start_node(cfg, log_path)
             time.sleep(2)
 
         for url, log_path in zip(urls, logs):
@@ -3295,7 +3306,7 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
         _prod_mesh3_bootstrap_mesh(url1, url2, url3)
 
         stable = False
-        for attempt in range(50):
+        for attempt in range(40):
             try:
                 statuses = [_api(f"{u}/status") for u in urls]
                 heights = [int(s.get("height", 0) or 0) for s in statuses]
@@ -3304,8 +3315,7 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
                     if heads[0] and len(set(heads)) == 1:
                         stable = True
                         break
-                # Same catch-up nudge as prod-smoke: peers alone do not close mining gap.
-                if attempt in (0, 5, 15, 25, 35) and max(heights) - min(heights) > 1:
+                if attempt in (0, 5, 15, 25) and max(heights) - min(heights) > 1:
                     tip_h = max(heights)
                     for url, h in zip(urls, heights):
                         if tip_h - h <= 1:
@@ -3321,7 +3331,6 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
                                 f"detail={sync_resp.get('detail') or sync_resp.get('message')}"
                             )
                             if not sync_resp.get("success"):
-                                # /p2p/reconnect is prod-blocked (403); use reconcile instead.
                                 recon = _post_json(
                                     url,
                                     "/sync/reconcile",
@@ -3332,20 +3341,13 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
                                     f"prod-mesh3 reconcile {url}: "
                                     f"ok={recon.get('success')}"
                                 )
-                                sync_resp = _post_json(
-                                    url, "/sync/fast-sync", {"timeout": 90}, timeout=105
-                                )
-                                print(
-                                    f"prod-mesh3 fast-sync retry {url}: "
-                                    f"ok={sync_resp.get('success')}"
-                                )
                         except Exception as exc:
                             print(f"WARN: prod-mesh3 catch-up {url}: {exc}")
             except Exception:
                 pass
             time.sleep(3)
         if not stable:
-            print("FAIL: prod-mesh3 nodes did not reach common head after bootstrap")
+            print("FAIL: prod-mesh3 nodes did not reach common head after seed (mining frozen)")
             for i, url in enumerate(urls, start=1):
                 try:
                     st = _api(f"{url}/status")
@@ -3353,6 +3355,23 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
                 except Exception as exc:
                     print(f"  node{i} status error: {exc}")
             return 2
+
+        # Phase C: enable primary mining after tip alignment.
+        print("OK: prod-mesh3 seed tip aligned; enabling primary mining")
+        _stop_all()
+        _set_mining(cfg1, True)
+        _set_mining(cfg2, False)
+        _set_mining(cfg3, False)
+        for cfg, log_path in zip(cfgs, logs):
+            _start_node(cfg, log_path)
+            time.sleep(2)
+        for url, log_path in zip(urls, logs):
+            if not _wait_health(url, max_sec=180):
+                print(f"FAIL: prod-mesh3 health timeout after mining enable on {url}")
+                print(f"  stderr: {log_path}")
+                return 1
+        _prod_mesh3_bootstrap_mesh(url1, url2, url3)
+        time.sleep(5)
 
         rc = verify_prod_consensus_mesh3(url1, url2, url3)
         if rc != 0:
