@@ -5823,8 +5823,8 @@ class P2PNode:
         # Never inflate past the requested budget — that blocked HTTP handlers for
         # ~70s/peer and caused CI "harness: timed out" under a 60s urllib limit.
         budget = max(0.5, float(timeout))
-        peer_n = max(1, len(self.peers))
-        per_peer = min(30.0, max(0.4, (budget * 0.85) / peer_n))
+        # Solicits run in parallel — each peer may use nearly the full budget.
+        per_peer = min(30.0, max(0.4, budget * 0.85))
         retry = (2.0 * per_peer) <= budget
         future = asyncio.run_coroutine_threadsafe(
             self.request_peer_state_roots(per_peer_timeout=per_peer, retry=retry),
