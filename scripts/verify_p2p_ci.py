@@ -70,11 +70,28 @@ def _is_prod_mesh_url(url: str) -> bool:
     return any(p in u for p in (":18180", ":18181", ":18182"))
 
 
+def _is_ci_spawn_url(url: str) -> bool:
+    """Isolated CI smoke ports (verify_p2p_ci --mode ci / ci3)."""
+    u = (url or "").lower()
+    return any(
+        p in u
+        for p in (
+            ":15080",
+            ":15081",
+            ":15082",
+            ":15180",
+            ":15181",
+            ":15182",
+        )
+    )
+
+
 def _consistency_harness(url: str, *, quick: bool | None = None, peer_timeout: float | None = None) -> dict:
     """Fetch /chain/consistency/harness with prod-safe timeouts (avoid urllib 10s false FAIL)."""
     base = url.rstrip("/")
     if quick is None:
-        quick = _is_prod_mesh_url(base)
+        # Prod mesh + CI spawn: prefer quick harness. Full harness is soak/forensic.
+        quick = _is_prod_mesh_url(base) or _is_ci_spawn_url(base)
     if peer_timeout is None:
         peer_timeout = 3.0 if quick else 8.0
     q = "1" if quick else "0"
