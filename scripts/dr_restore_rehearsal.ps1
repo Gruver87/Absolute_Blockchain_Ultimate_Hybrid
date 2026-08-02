@@ -7,7 +7,8 @@ param(
     [string]$ComposeProject = "abs-prod-mesh3"
 )
 
-$ErrorActionPreference = "Stop"
+# Continue: docker compose progress on stderr must not abort rehearsal.
+$ErrorActionPreference = "Continue"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $Root
 

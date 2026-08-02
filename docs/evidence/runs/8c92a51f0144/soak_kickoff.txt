@@ -1,0 +1,8 @@
+﻿tip_v2_industrial_phase2
+started_unix=1785640485
+soak_log=logs/industrial_tipv2_soak_48h.log
+soak_hours=48
+status=RUNNING
+smokes=ready+probe+failover+signed_tx+evm PASS
+dr=PASS
+ceremony_pin=session PASS (see .env GENESIS_CEREMONY_HASH)

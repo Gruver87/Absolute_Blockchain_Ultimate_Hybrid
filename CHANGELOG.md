@@ -8,6 +8,13 @@
 
 ## [Unreleased]
 
+### Industrial harden (no new features)
+
+- Phase 1: rustfmt tip cutover sources; cargo-audit scoped pyo3 ignores + Dependabot triage doc
+- Gap analysis synced to Wave C tip-v2; threat model + audit scope letter; industrial runbook
+- DR backup scripts tolerate docker stderr (PowerShell Stop trap)
+- Tip-v2 re-smoke + 48h soak kickoff (see `docs/INDUSTRIAL_HARDEN_RUNBOOK.md`)
+
 ### Wave D — bake mesh harden + attestation/rate soft-refuse
 
 - Soft-refuse `attestation_local_height_mismatch`, ingress `rate_limit_*`, and `tip_unknown_parent` (not state_root response codes — those must still dispatch for wire probe)

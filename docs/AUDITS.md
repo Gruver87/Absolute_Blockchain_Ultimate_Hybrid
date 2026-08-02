@@ -10,11 +10,22 @@ marketing theater.
 |-------|--------|-------|
 | In-repo industrial gates (`industrial_gate`, `verify_industrial_waves`) | Active | Code/evidence checks — **not** an external audit |
 | Native fuzz (`fuzz-native.yml`) | Active | Coverage-guided / API fuzz — **not** formal verification |
-| Security workflow (`security-audit.yml`) | Active | Secret scan / dependency hygiene helpers |
-| Independent external audit report | **Pending** | Listed as org warning in `industrial_gate` |
+| Security workflow (`security-audit.yml`) | Active | pip-audit + cargo-audit (scoped pyo3 ignores until PR #7) |
+| Threat model + scope letter | Ready for engagement | [THREAT_MODEL.md](THREAT_MODEL.md) · [AUDIT_SCOPE.md](AUDIT_SCOPE.md) |
+| Independent external audit report | **Pending** | Firm TBD — PDF goes under `audits/<firm>/`; tracker must stay open until then |
 | Bug bounty (Immunefi / etc.) | **Not configured** | Disclose via [SECURITY.md](../SECURITY.md) |
+
+## Engagement targets (replace when contracted)
+
+| Field | Value |
+|-------|-------|
+| Firm | _TBD — do not fake_ |
+| Kickoff date | _TBD_ |
+| Report URL / path | `audits/<firm>/report.pdf` when received |
+| Tracker | `python scripts/external_audit_tracker.py --list` |
 
 When an external report exists, place PDFs under `audits/<firm>/` and link them
 from this table. Do **not** claim “audited” in README until that lands.
+Do **not** mark tracker items complete with template notes.
 
-Related: [SECURITY.md](../SECURITY.md) · [docs/MAINNET_GAP_ANALYSIS.md](MAINNET_GAP_ANALYSIS.md) · [docs/EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md)
+Related: [SECURITY.md](../SECURITY.md) · [MAINNET_GAP_ANALYSIS.md](MAINNET_GAP_ANALYSIS.md) · [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md) · [INDUSTRIAL_HARDEN_RUNBOOK.md](INDUSTRIAL_HARDEN_RUNBOOK.md) · [DEPENDABOT_TRIAGE.md](DEPENDABOT_TRIAGE.md)
