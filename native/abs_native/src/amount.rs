@@ -273,14 +273,16 @@ fn plan_transfer_fees_satoshi_inner(
     // gas_price may be fractional ABS (< 1 sat); compute fee via Decimal-scale string path.
     // Prefer: fee_sat = to_satoshi(gas * gas_price_abs) using full string multiply in Python;
     // here approximate with to_satoshi of (gas as string * price string) via f64 only for tiny prices.
-    let gp_f: f64 = gas_price_wei.parse().map_err(|_| {
-        pyo3::exceptions::PyValueError::new_err("invalid_gas_price")
-    })?;
-    let br_f: f64 = burn_rate.parse().map_err(|_| {
-        pyo3::exceptions::PyValueError::new_err("invalid_burn_rate")
-    })?;
+    let gp_f: f64 = gas_price_wei
+        .parse()
+        .map_err(|_| pyo3::exceptions::PyValueError::new_err("invalid_gas_price"))?;
+    let br_f: f64 = burn_rate
+        .parse()
+        .map_err(|_| pyo3::exceptions::PyValueError::new_err("invalid_burn_rate"))?;
     if !gp_f.is_finite() || !br_f.is_finite() || gp_f < 0.0 || br_f < 0.0 {
-        return Err(pyo3::exceptions::PyValueError::new_err("non_finite_fee_inputs"));
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "non_finite_fee_inputs",
+        ));
     }
     let mut fee_abs = (gas as f64) * gp_f;
     if let Some(used) = gas_used {

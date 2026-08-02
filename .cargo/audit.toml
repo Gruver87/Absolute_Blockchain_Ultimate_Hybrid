@@ -1,0 +1,12 @@
+# cargo-audit project config — industrial harden (2026-08-02)
+# Full pyo3 0.22 → 0.29 migration is tracked via Dependabot PR #7 (386+ API breaks).
+# These advisories do not apply to call sites we use (no PyString::from_object,
+# no PyCFunction::new_closure). Remove ignores when pyo3 >= 0.29 lands.
+
+[advisories]
+ignore = [
+    # Risk of buffer overflow in PyString::from_object — unused API; fix >=0.24.1
+    "RUSTSEC-2025-0020",
+    # Missing Sync on PyCFunction::new_closure — unused API; fix >=0.29.0
+    "RUSTSEC-2026-0177",
+]

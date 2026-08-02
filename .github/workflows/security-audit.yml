@@ -43,10 +43,11 @@ jobs:
         run: cargo install cargo-audit --locked
 
       - name: Audit native/abs_native
-        run: cargo audit --file native/abs_native/Cargo.lock
+        # Uses .cargo/audit.toml ignores for unused pyo3 APIs until PR #7 (0.29) merges.
+        run: cargo audit --file native/abs_native/Cargo.lock -c .cargo/audit.toml
 
       - name: Audit bridge/rust_bridge
-        run: cargo audit --file bridge/rust_bridge/Cargo.lock
+        run: cargo audit --file bridge/rust_bridge/Cargo.lock -c .cargo/audit.toml
 
   bridge-off-gate:
     name: Bridge OFF audit gate

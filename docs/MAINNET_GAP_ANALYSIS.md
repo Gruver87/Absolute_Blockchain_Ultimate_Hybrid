@@ -1,9 +1,11 @@
 # Mainnet Gap Analysis — Industrial Blockchain Readiness
 
 **Project:** Absolute Blockchain Ultimate Hybrid  
-**Updated:** 2026-07-21  
+**Updated:** 2026-08-02  
 **Positioning:** Production-hardened R&D stack → path to public mainnet  
 **Evidence ledger:** [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md) — separates CI/automation from live ops proof
+
+**Wave C tip+apply (2026-08-02):** ceremony-armed tip encoding v2 uses integer `b_satoshi` (`SATOSHI_MULTIPLIER=1e6`) on fresh prod mesh; StateService fees/gas/reward are satoshi-int. Float tip `"b"` remains legacy/offline only. See [STATE_ROOT_ENCODING_MIGRATION.md](STATE_ROOT_ENCODING_MIGRATION.md) + evidence `docs/evidence/runs/79472a111cd5/`. Not a 48h tip-v2 soak claim until Phase 2 industrial proof lands.
 
 This document is the honest engineering checklist after a full repository scan.  
 Automated gates (`mainnet_readiness`, `prod_gate`, `industrial_gate`, `post_soak_verify`) enforce code-level fail-closed rules; **they do not replace** external audit, validator operations, or legal review.
@@ -103,7 +105,7 @@ Operator sequence: [MAINNET_CUTOVER.md](MAINNET_CUTOVER.md).
 | Area | Action |
 |------|--------|
 | EVM | CREATE/CREATE2 deterministic addresses (v1.2.79); EOF roadmap later |
-| State | Dual-write + StateEngine + IMS reconcile (v1.2.83) + **fail-loud probes/meta** (v1.2.84); tip root still float `"b"`; float column retained |
+| State | Dual-write + StateEngine + IMS reconcile; **Wave C** tip v2 `b_satoshi` when ceremony-armed (fresh mesh); float column retained for display/legacy |
 | Consensus | Single canonical fork-choice in prod (adapter + node skip parallel engines, v1.2.79) |
 | Bridge | On-chain lock/mint contracts + monitored relayer (not proof-only) |
 | Storage | RocksDB prod + backup/restore; **reorg purges EVM/tx-prop indexes** (v1.2.43); aux.db scope documented |

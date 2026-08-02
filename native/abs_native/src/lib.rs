@@ -228,7 +228,10 @@ pub(crate) fn account_payload_row(account: &Value) -> PyResult<Value> {
 
     let address = value_to_string(obj.get("address"), "");
     let balance_satoshi = if obj.contains_key("balance_satoshi")
-        && !obj.get("balance_satoshi").map(|v| v.is_null()).unwrap_or(true)
+        && !obj
+            .get("balance_satoshi")
+            .map(|v| v.is_null())
+            .unwrap_or(true)
     {
         value_to_i64(obj.get("balance_satoshi")).max(0)
     } else {
