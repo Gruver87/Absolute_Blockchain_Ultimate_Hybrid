@@ -21,17 +21,18 @@ Public audited mainnet · listed ABS token · investment product · bridge ON on
 | 48h soak | **PASS** |
 | Self-check | `.\scripts\operator_verify.ps1 -SkipNativeBuild` · `make test-quick` |
 | Run | `python main.py` → `:8080` |
-| Prod mesh | `778888` bring-up + chain sync · `/health/ready` **partial** (TLS) |
+| Prod mesh | `778888` bring-up + chain sync · tip v2 `b_satoshi` (ceremony) · `/health/ready` local PASS |
 
 ## Proven vs not (honest)
 
 | Proven | Not claimed |
 |--------|-------------|
 | 3-node prod-profile bring-up + chain sync | Public mainnet |
-| Shared ceremony genesis artifact → followers | Always-green `/health/ready` under TLS churn |
+| Shared ceremony genesis artifact → followers | Always-green `/health/ready` under TLS churn forever |
 | 48h soak PASS (historical evidence) | External L1 / contract audit |
 | Failover + signed tx + EVM on mesh | Tip proof / Long-Range / libp2p |
-| Forest-stable LMD-GHOST + satoshi **storage** domain (tip root still float v1) | Full Rust P2P transport claim |
+| Forest-stable LMD-GHOST + satoshi storage | Full Rust P2P transport claim |
+| **Wave C** tip+apply: tip v2 `b_satoshi` + satoshi apply (fresh mesh) | 48h soak *of tip v2* / public mainnet cutover |
 | Bridge **OFF** on live mesh | Listed ABS / investment product |
 | ADR 0010–0016 ports / sprouts in-tree | Live mesh bridge cutover / kitchen-sink FEATURE_* |
 

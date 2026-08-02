@@ -35,7 +35,8 @@ Explorer: http://localhost:8080 · Mesh: `make mesh-up` or `.\scripts\docker_pro
 |---|--------|-------|
 | Docker / local mesh bring-up | **Proven** | CI · `docker_prod_3node` |
 | 3-node prod-profile (`778888`) chain sync | **Proven** | shared genesis artifact · Path A catch-up |
-| Mesh `/health/ready` (stable peers) | **Wave A local PASS** | `ready-check` ×3 · dual-dial ownership |
+| Mesh `/health/ready` (stable peers) | **Wave A/D local PASS** | `ready-check` ×3 · dual-dial · soft-refuse bake |
+| Tip `state_root` + apply (satoshi) | **Wave C local PASS** | tip v2 `b_satoshi` · fresh mesh evidence ([79472a111cd5](docs/evidence/runs/79472a111cd5/)) |
 | Failover + signed tx + EVM on mesh | **Proven** | Jul 2026 suite |
 | **48h soak** | **PASS** | `logs/soak_report_48h.json` |
 | Public mainnet / listed ABS / external audit | **No** | [gaps](docs/MAINNET_GAP_ANALYSIS.md) |
@@ -177,7 +178,8 @@ Do **not** mix local `main.py` with Docker on the same host ports.
 | Solo node + Explorer | Ready |
 | Docker 2/3/5-node lab | Ready |
 | Prod 3-node mesh bring-up | Ready (`778888`; bridge OFF) |
-| Prod mesh `/health/ready` green | Wave A local PASS (`ready-check` ×3) |
+| Prod mesh `/health/ready` green | Wave A/D local PASS (`ready-check` ×3) |
+| Tip encoding v2 + satoshi apply | Wave C local PASS (`b_satoshi`; fresh volumes) |
 | P2P / fork CI | Ready |
 | Unified self-check | Ready (`check_all` / `make`) |
 | Cross-chain bridge | Cutover-gated (OFF on 778888) |
@@ -221,6 +223,8 @@ Code: `runtime/tokenomics.py` · `GET /tokenomics` — **not** a listed token.
 | Jul 30 | **ADR 0010–0015** BridgePort · QueryFacade · Chaos · Graceful shutdown · Observability/SecretManager |
 | Aug 1 | **ADR 0016** Feature sprouts / profiles · tip AncestryWindow · NFT port · sandbox/shard labs |
 | Jul 30 | **v1.3.1338-deterministic-core** satoshi state domain + forest-stable LMD-GHOST + QueryPort honesty |
+| Aug 1–2 | **Wave A–D** dual-dial ready · evidence package · mesh soft-refuse bake |
+| Aug 2 | **Wave C tip+apply** integer `b_satoshi` tip + satoshi StateService apply (fresh mesh; not 48h/mainnet) |
 
 Ledger: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md)
 
@@ -241,4 +245,4 @@ MIT — [LICENSE](LICENSE)
 ---
 
 *Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87) · Default branch: `master`*  
-*Last update: 2026-08-01 — **ADR 0016** feature sprouts/profiles on industrial L1 core (ADR 0001–0015). Not a launched public mainnet.*
+*Last update: 2026-08-02 — **Wave C** tip+apply satoshi cutover on industrial L1 core (ADR 0001–0016). Not a launched public mainnet.*
