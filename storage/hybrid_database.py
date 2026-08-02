@@ -383,6 +383,14 @@ class HybridDatabase:
     def balance_delta(self, address: str, delta: float) -> None:
         self._core.balance_delta(address, delta)
 
+    def balance_delta_satoshi(self, address: str, delta_sat: int) -> None:
+        if hasattr(self._core, "balance_delta_satoshi"):
+            self._core.balance_delta_satoshi(address, int(delta_sat))
+            return
+        from runtime.amount import from_satoshi_float
+
+        self._core.balance_delta(address, float(from_satoshi_float(int(delta_sat))))
+
     def increment_nonce(self, address: str) -> int:
         return self._core.increment_nonce(address)
 

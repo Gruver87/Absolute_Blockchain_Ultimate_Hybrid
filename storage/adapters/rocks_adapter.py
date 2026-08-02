@@ -659,6 +659,12 @@ class RocksDBStorageAdapter:
         except Exception as exc:
             raise map_engine_error(exc) from exc
 
+    def balance_delta_satoshi(self, address: str, delta_sat: int) -> None:
+        try:
+            self._store.balance_delta_satoshi(str(address or ""), int(delta_sat))
+        except Exception as exc:
+            raise map_engine_error(exc) from exc
+
     def update_balance(self, address: str, delta: float) -> float:
         try:
             return float(self._store.update_balance(str(address or ""), float(delta)))

@@ -246,25 +246,65 @@ fn plan_transfer_fees(
     value: f64,
     gas_used: Option<u64>,
 ) -> PyResult<(f64, f64, f64, f64)> {
-    if !gas_price_wei.is_finite() || !burn_rate.is_finite() || !value.is_finite() {
-        return Err(pyo3::exceptions::PyValueError::new_err(
-            "non_finite_fee_inputs",
-        ));
+    // Display wrapper over integer satoshi plan (Wave C).
+    let (fee_s, burned_s, miner_s, total_s) = plan_transfer_fees_satoshi_inner(
+        gas,
+        &gas_price_wei.to_string(),
+        &burn_rate.to_string(),
+        &value.to_string(),
+        gas_used,
+    )?;
+    Ok((
+        from_satoshi_float_inner(fee_s),
+        from_satoshi_float_inner(burned_s),
+        from_satoshi_float_inner(miner_s),
+        from_satoshi_float_inner(total_s),
+    ))
+}
+
+fn plan_transfer_fees_satoshi_inner(
+    gas: u64,
+    gas_price_wei: &str,
+    burn_rate: &str,
+    value: &str,
+    gas_used: Option<u64>,
+) -> PyResult<(i64, i64, i64, i64)> {
+    let gp = to_satoshi_inner(gas_price_wei).unwrap_or(0);
+    // gas_price may be fractional ABS (< 1 sat); compute fee via Decimal-scale string path.
+    // Prefer: fee_sat = to_satoshi(gas * gas_price_abs) using full string multiply in Python;
+    // here approximate with to_satoshi of (gas as string * price string) via f64 only for tiny prices.
+    let gp_f: f64 = gas_price_wei.parse().map_err(|_| {
+        pyo3::exceptions::PyValueError::new_err("invalid_gas_price")
+    })?;
+    let br_f: f64 = burn_rate.parse().map_err(|_| {
+        pyo3::exceptions::PyValueError::new_err("invalid_burn_rate")
+    })?;
+    if !gp_f.is_finite() || !br_f.is_finite() || gp_f < 0.0 || br_f < 0.0 {
+        return Err(pyo3::exceptions::PyValueError::new_err("non_finite_fee_inputs"));
     }
-    if gas_price_wei < 0.0 || burn_rate < 0.0 || value < 0.0 {
-        return Err(pyo3::exceptions::PyValueError::new_err(
-            "negative_fee_inputs",
-        ));
-    }
-    let mut fee = (gas as f64) * gas_price_wei;
+    let mut fee_abs = (gas as f64) * gp_f;
     if let Some(used) = gas_used {
-        fee = fee.max((used as f64) * gas_price_wei);
+        fee_abs = fee_abs.max((used as f64) * gp_f);
     }
-    let rate = burn_rate.clamp(0.0, 1.0);
-    let burned = fee * rate;
-    let miner_fee = fee - burned;
-    let total_cost = value + fee;
-    Ok((fee, burned, miner_fee, total_cost))
+    let fee_sat = to_satoshi_inner(&format!("{fee_abs}"))?;
+    let rate = br_f.clamp(0.0, 1.0);
+    let burned_sat = ((fee_sat as f64) * rate).floor() as i64;
+    let miner_sat = fee_sat - burned_sat;
+    let value_sat = to_satoshi_inner(value)?;
+    let _ = gp; // silence when price < 1 sat
+    Ok((fee_sat, burned_sat, miner_sat, value_sat + fee_sat))
+}
+
+#[pyfunction]
+#[pyo3(signature = (gas, gas_price_wei, burn_rate, value, gas_used=None))]
+fn plan_transfer_fees_satoshi(
+    gas: u64,
+    gas_price_wei: &str,
+    burn_rate: &str,
+    value: &str,
+    gas_used: Option<u64>,
+) -> PyResult<(i64, i64, i64, i64)> {
+    plan_transfer_fees_satoshi_inner(gas, gas_price_wei, burn_rate, value, gas_used)
 }
 
 /// True when sender_sat covers to_satoshi(total_cost_abs).
@@ -840,6 +880,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(amount_apply_delta_satoshi, m)?)?;
     m.add_function(wrap_pyfunction!(amount_from_satoshi_float, m)?)?;
     m.add_function(wrap_pyfunction!(plan_transfer_fees, m)?)?;
+    m.add_function(wrap_pyfunction!(plan_transfer_fees_satoshi, m)?)?;
     m.add_function(wrap_pyfunction!(can_afford_transfer, m)?)?;
     m.add_function(wrap_pyfunction!(state_engine_apply_transactions, m)?)?;
     m.add_function(wrap_pyfunction!(blockchain_apply_simple_block, m)?)?;

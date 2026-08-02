@@ -67,17 +67,22 @@ class TxPipeline:
                 error=f"nonce_mismatch (got {tx.nonce}, expected {want_nonce})",
             )
 
-        from runtime.amount import can_afford_transfer, from_satoshi_float, plan_transfer_fees
+        from runtime.amount import (
+            can_afford_transfer_sat,
+            from_satoshi_float,
+            plan_transfer_fees_sat,
+        )
 
-        fee_plan = plan_transfer_fees(
+        fee_plan = plan_transfer_fees_sat(
             tx.gas,
             self.config.gas_price_wei,
             self.config.burn_rate,
             tx.value,
         )
         balance_sat = self.storage.get_balance_satoshi(tx.from_addr)
-        total_cost = fee_plan["total_cost"]
-        if not can_afford_transfer(balance_sat, total_cost):
+        total_cost_sat = fee_plan["total_cost_sat"]
+        total_cost = from_satoshi_float(total_cost_sat)
+        if not can_afford_transfer_sat(balance_sat, total_cost_sat):
             return TxValidationResult(valid=False, error="insufficient_funds")
         balance = from_satoshi_float(balance_sat)
 

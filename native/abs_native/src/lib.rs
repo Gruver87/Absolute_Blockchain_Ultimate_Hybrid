@@ -219,12 +219,26 @@ fn value_to_f64(value: Option<&Value>) -> f64 {
 }
 
 pub(crate) fn account_payload_row(account: &Value) -> PyResult<Value> {
+    // Wave C tip+apply: tip leaves commit integer satoshi (b_satoshi), never float "b".
+    // 1 ABS = 1_000_000 satoshi (matches runtime.amount.SATOSHI_MULTIPLIER).
+    const SATOSHI_MULTIPLIER: f64 = 1_000_000.0;
     let obj = account.as_object().ok_or_else(|| {
         pyo3::exceptions::PyValueError::new_err("account row must be a JSON object")
     })?;
 
     let address = value_to_string(obj.get("address"), "");
-    let balance = py_round_12(value_to_f64(obj.get("balance")));
+    let balance_satoshi = if obj.contains_key("balance_satoshi")
+        && !obj.get("balance_satoshi").map(|v| v.is_null()).unwrap_or(true)
+    {
+        value_to_i64(obj.get("balance_satoshi")).max(0)
+    } else {
+        let bal = value_to_f64(obj.get("balance"));
+        if !bal.is_finite() || bal < 0.0 {
+            0
+        } else {
+            (bal * SATOSHI_MULTIPLIER).floor() as i64
+        }
+    };
     let nonce = value_to_i64(obj.get("nonce"));
     let code = value_to_string(obj.get("code"), "");
     let storage = value_to_string(obj.get("storage"), "{}");
@@ -248,10 +262,8 @@ pub(crate) fn account_payload_row(account: &Value) -> PyResult<Value> {
     let mut row = Map::new();
     row.insert("a".to_string(), Value::String(address));
     row.insert(
-        "b".to_string(),
-        Value::Number(Number::from_f64(balance).ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err("account balance is not finite")
-        })?),
+        "b_satoshi".to_string(),
+        Value::Number(Number::from(balance_satoshi)),
     );
     row.insert("c".to_string(), Value::String(code_hash));
     row.insert("n".to_string(), Value::Number(Number::from(nonce)));

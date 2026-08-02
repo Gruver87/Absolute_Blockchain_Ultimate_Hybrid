@@ -87,7 +87,7 @@ class StateService:
         tests / adapters can monkeypatch ``bc._block_transactions_are_*`` and
         ``bc._compute_state_root_from_db``.
         """
-        block_burned = 0.0
+        block_burned_sat = 0
         native_applied = False
         host = self._host
         if (
@@ -96,7 +96,7 @@ class StateService:
             and host._block_transactions_are_simple(block.transactions)
         ):
             try:
-                block_burned = self._apply_simple_block_native(block)
+                block_burned_sat = self._apply_simple_block_native(block)
                 native_applied = True
             except Exception as native_exc:
                 if self._native_apply_fail_closed():
@@ -113,7 +113,7 @@ class StateService:
             and host._block_transactions_are_all_evm(block.transactions)
         ):
             try:
-                block_burned = self._apply_evm_host_block_native(block)
+                block_burned_sat = self._apply_evm_host_block_native(block)
                 native_applied = True
             except Exception as native_exc:
                 if self._native_apply_fail_closed():
@@ -130,7 +130,7 @@ class StateService:
             and host._block_transactions_are_mixed(block.transactions)
         ):
             try:
-                block_burned = self._apply_mixed_block_native(block)
+                block_burned_sat = self._apply_mixed_block_native(block)
                 native_applied = True
             except Exception as native_exc:
                 if self._native_apply_fail_closed():
@@ -147,12 +147,12 @@ class StateService:
                 )
                 if not result["success"]:
                     raise RuntimeError(result.get("error", "tx_failed"))
-                block_burned += float(getattr(tx, "burned", 0) or 0)
+                block_burned_sat += int(result.get("burned_sat", 0) or 0)
             self.apply_block_reward(block.miner, in_atomic=True)
         root = host._compute_state_root_from_db()
         return ApplyBlockResult(
             success=True,
-            burned=float(block_burned),
+            burned=int(block_burned_sat),
             state_root=root,
             native_applied=native_applied,
         )
@@ -252,9 +252,9 @@ class StateService:
                         self.storage.increment_nonce(addr)
 
 
-    def _apply_simple_block_native(self, block: "Block") -> float:
-        """Apply simple transfers via abs_native; returns burned ABS (float)."""
-        from runtime.amount import from_satoshi_float, to_satoshi
+    def _apply_simple_block_native(self, block: "Block") -> int:
+        """Apply simple transfers via abs_native; returns burned satoshi."""
+        from runtime.amount import from_satoshi_float, plan_transfer_fees_sat, to_satoshi
 
         addrs = self._collect_addrs_for_simple_block(block)
         snap = self._accounts_sat_snapshot(addrs)
@@ -291,23 +291,20 @@ class StateService:
         accounts = result.get("accounts") or {}
         self._writeback_accounts_sat(accounts)
         burned_sat = int(result.get("total_burned_sat", 0) or 0)
-        burned_abs = float(from_satoshi_float(burned_sat))
-        # Mirror fee/burn fields onto tx objects for persistence.
-        from runtime.amount import plan_transfer_fees
-
+        # Mirror fee/burn display fields onto tx objects for persistence/wire.
         for tx in block.transactions:
-            plan = plan_transfer_fees(
+            plan = plan_transfer_fees_sat(
                 tx.gas,
                 self.config.gas_price_wei,
                 self.config.burn_rate,
                 tx.value,
             )
-            tx.fee = plan["fee"]
-            tx.burned = plan["burned"]
+            tx.fee = from_satoshi_float(plan["fee_sat"])
+            tx.burned = from_satoshi_float(plan["burned_sat"])
             tx.gas_used = tx.gas
             tx.block_height = block.height
             tx.status = 1
-        return burned_abs
+        return burned_sat
 
 
     def _run_evm_host_only(self, tx: "Transaction", block_height: int) -> Dict:
@@ -352,9 +349,9 @@ class StateService:
         return {"success": False, "error": "evm_unsupported_tx"}
 
 
-    def _apply_evm_host_block_native(self, block: "Block") -> float:
-        """Run EVM host per tx, then native fee/nonce/reward apply. Returns burned ABS."""
-        from runtime.amount import from_satoshi_float, plan_transfer_fees, to_satoshi
+    def _apply_evm_host_block_native(self, block: "Block") -> int:
+        """Run EVM host per tx, then native fee/nonce/reward apply. Returns burned satoshi."""
+        from runtime.amount import from_satoshi_float, plan_transfer_fees_sat, to_satoshi
 
         effects = []
         addrs = self._collect_addrs_for_simple_block(block)
@@ -376,15 +373,15 @@ class StateService:
             )
             if host.get("contract_address"):
                 addrs.add(str(host["contract_address"]))
-            plan = plan_transfer_fees(
+            plan = plan_transfer_fees_sat(
                 tx.gas,
                 self.config.gas_price_wei,
                 self.config.burn_rate,
                 0.0,
                 gas_used=gas_used,
             )
-            tx.fee = plan["fee"]
-            tx.burned = plan["burned"]
+            tx.fee = from_satoshi_float(plan["fee_sat"])
+            tx.burned = from_satoshi_float(plan["burned_sat"])
             tx.gas_used = gas_used
             tx.block_height = block.height
             tx.status = 1
@@ -409,11 +406,10 @@ class StateService:
         )
         result = json.loads(raw)
         self._writeback_accounts_sat(result.get("accounts") or {})
-        burned_sat = int(result.get("total_burned_sat", 0) or 0)
-        return float(from_satoshi_float(burned_sat))
+        return int(result.get("total_burned_sat", 0) or 0)
 
 
-    def _apply_mixed_block_native(self, block: "Block") -> float:
+    def _apply_mixed_block_native(self, block: "Block") -> int:
         """Apply mixed simple+EVM block via host_effects with block-scoped sat session (v1.3.69).
 
         EVM calldata txs still run the Python host first (code/storage on DB).
@@ -421,7 +417,7 @@ class StateService:
         at the end (plus final reward). Avoids per-tx full-account DB rewrite and
         repeated get_total_supply scans.
         """
-        from runtime.amount import from_satoshi_float, plan_transfer_fees, to_satoshi
+        from runtime.amount import from_satoshi_float, plan_transfer_fees_sat, to_satoshi
 
         if not getattr(self, "evm", None):
             raise RuntimeError("evm_unavailable")
@@ -459,7 +455,7 @@ class StateService:
                     "gas_used": gas_used,
                     "nonce": int(tx.nonce),
                 }
-                plan = plan_transfer_fees(
+                plan = plan_transfer_fees_sat(
                     tx.gas,
                     self.config.gas_price_wei,
                     self.config.burn_rate,
@@ -486,7 +482,7 @@ class StateService:
                     "gas_used": gas_used,
                     "nonce": int(tx.nonce),
                 }
-                plan = plan_transfer_fees(
+                plan = plan_transfer_fees_sat(
                     tx.gas,
                     self.config.gas_price_wei,
                     self.config.burn_rate,
@@ -520,8 +516,8 @@ class StateService:
             burned = int(result.get("total_burned_sat", 0) or 0)
             total_burned_sat += burned
             supply_sat = max(0, supply_sat - burned)
-            tx.fee = plan["fee"]
-            tx.burned = plan["burned"]
+            tx.fee = from_satoshi_float(plan["fee_sat"])
+            tx.burned = from_satoshi_float(plan["burned_sat"])
             tx.gas_used = gas_used
             tx.block_height = block.height
             tx.status = 1
@@ -550,7 +546,7 @@ class StateService:
                 "nonce": int(row.get("nonce", 0) or 0),
             }
         self._writeback_accounts_sat(session)
-        return float(from_satoshi_float(total_burned_sat))
+        return int(total_burned_sat)
 
 
     def _blocks_range_are_simple(self, from_h: int, to_h: int) -> bool:
@@ -601,33 +597,65 @@ class StateService:
         return float(from_satoshi_float(int(result.get("total_burned_sat", 0) or 0)))
 
 
+    def _credit_sat(self, address: str, delta_sat: int, *, in_atomic: bool) -> None:
+        """Apply integer satoshi delta via storage (Wave C)."""
+        if not delta_sat:
+            return
+        if hasattr(self.storage, "balance_delta_satoshi"):
+            if in_atomic:
+                self.storage.balance_delta_satoshi(address, int(delta_sat))
+            else:
+                # Non-atomic path: satoshi delta then commit via update_balance(0) if needed.
+                self.storage.balance_delta_satoshi(address, int(delta_sat))
+                if hasattr(self.storage, "conn") and hasattr(self.storage, "lock"):
+                    with self.storage.lock:
+                        self.storage.conn.commit()
+            return
+        from runtime.amount import from_satoshi_float
+
+        abs_delta = from_satoshi_float(int(delta_sat))
+        if in_atomic:
+            self.storage.balance_delta(address, abs_delta)
+        else:
+            self.storage.update_balance(address, abs_delta)
+
     def apply_transaction(
         self, tx: Transaction, block_height: int, proposer: str = None, in_atomic: bool = False
     ) -> Dict:
         """
-        Применяет одну транзакцию к состоянию.
-        Реализует механизм сжигания: burn_rate% от комиссии уничтожается.
+        Apply one transaction using integer satoshi fee/value math (Wave C).
+        Display fields on tx (fee/burned) remain ABS floats for wire/UI only.
         """
         proposer = proposer or self.config.miner_address or "genesis"
-        from runtime.amount import can_afford_transfer, from_satoshi_float, plan_transfer_fees
+        from runtime.amount import (
+            can_afford_transfer_sat,
+            from_satoshi_float,
+            plan_transfer_fees_sat,
+            to_satoshi,
+        )
 
-        plan = plan_transfer_fees(
+        plan = plan_transfer_fees_sat(
             tx.gas,
             self.config.gas_price_wei,
             self.config.burn_rate,
             tx.value,
         )
-        fee = plan["fee"]
-        burn_amount = plan["burned"]
-        miner_fee = plan["miner_fee"]
-        total_cost = plan["total_cost"]
+        fee_sat = plan["fee_sat"]
+        burn_sat = plan["burned_sat"]
+        miner_fee_sat = plan["miner_fee_sat"]
+        value_sat = plan["value_sat"]
+        total_cost_sat = plan["total_cost_sat"]
+        fee = from_satoshi_float(fee_sat)
+        burn_amount = from_satoshi_float(burn_sat)
+        miner_fee = from_satoshi_float(miner_fee_sat)
+        total_cost = from_satoshi_float(total_cost_sat)
 
         expected_nonce = self.storage.get_nonce(tx.from_addr)
         if tx.nonce != expected_nonce:
             return {"success": False, "error": "nonce_mismatch"}
 
         sender_sat = self.storage.get_balance_satoshi(tx.from_addr)
-        if not can_afford_transfer(sender_sat, total_cost):
+        if not can_afford_transfer_sat(sender_sat, total_cost_sat):
             return {"success": False, "error": "insufficient_funds"}
         sender_balance = from_satoshi_float(sender_sat)
 
@@ -655,30 +683,29 @@ class StateService:
                 )
                 if not evm_res.success:
                     return {"success": False, "error": evm_res.error or "evm_call_failed"}
-                plan = plan_transfer_fees(
+                plan = plan_transfer_fees_sat(
                     tx.gas,
                     self.config.gas_price_wei,
                     self.config.burn_rate,
                     tx.value,
                     gas_used=evm_res.gas_used,
                 )
-                fee = plan["fee"]
-                burn_amount = plan["burned"]
-                miner_fee = plan["miner_fee"]
-                total_cost = plan["total_cost"]
-                if not can_afford_transfer(sender_sat, total_cost):
+                fee_sat = plan["fee_sat"]
+                burn_sat = plan["burned_sat"]
+                miner_fee_sat = plan["miner_fee_sat"]
+                total_cost_sat = plan["total_cost_sat"]
+                fee = from_satoshi_float(fee_sat)
+                burn_amount = from_satoshi_float(burn_sat)
+                miner_fee = from_satoshi_float(miner_fee_sat)
+                if not can_afford_transfer_sat(sender_sat, total_cost_sat):
                     return {"success": False, "error": "insufficient_funds"}
+                self._credit_sat(tx.from_addr, -fee_sat, in_atomic=in_atomic)
+                self._credit_sat(proposer, miner_fee_sat, in_atomic=in_atomic)
+                if burn_sat > 0 and self.config.burn_address:
+                    self._credit_sat(self.config.burn_address, burn_sat, in_atomic=in_atomic)
                 if in_atomic:
-                    self.storage.balance_delta(tx.from_addr, -fee)
-                    self.storage.balance_delta(proposer, miner_fee)
-                    if burn_amount > 0 and self.config.burn_address:
-                        self.storage.balance_delta(self.config.burn_address, burn_amount)
                     self.storage.nonce_increment(tx.from_addr)
                 else:
-                    self.storage.update_balance(tx.from_addr, -fee)
-                    self.storage.update_balance(proposer, miner_fee)
-                    if burn_amount > 0 and self.config.burn_address:
-                        self.storage.update_balance(self.config.burn_address, burn_amount)
                     self.storage.increment_nonce(tx.from_addr)
                 if self.pool_locks:
                     self.pool_locks.record_outgoing(tx.from_addr, fee + tx.value)
@@ -694,6 +721,8 @@ class StateService:
                     "fee": fee,
                     "burned": burn_amount,
                     "miner_fee": miner_fee,
+                    "fee_sat": fee_sat,
+                    "burned_sat": burn_sat,
                     "evm": True,
                 }
 
@@ -711,30 +740,30 @@ class StateService:
                 )
                 if not evm_res.success:
                     return {"success": False, "error": evm_res.error or "evm_deploy_failed"}
-                plan = plan_transfer_fees(
+                plan = plan_transfer_fees_sat(
                     tx.gas,
                     self.config.gas_price_wei,
                     self.config.burn_rate,
                     tx.value,
                     gas_used=evm_res.gas_used,
                 )
-                fee = plan["fee"]
-                burn_amount = plan["burned"]
-                miner_fee = plan["miner_fee"]
-                deploy_cost = plan["total_cost"]
-                if sender_balance < deploy_cost:
+                fee_sat = plan["fee_sat"]
+                burn_sat = plan["burned_sat"]
+                miner_fee_sat = plan["miner_fee_sat"]
+                deploy_cost_sat = plan["total_cost_sat"]
+                fee = from_satoshi_float(fee_sat)
+                burn_amount = from_satoshi_float(burn_sat)
+                miner_fee = from_satoshi_float(miner_fee_sat)
+                deploy_cost = from_satoshi_float(deploy_cost_sat)
+                if sender_sat < deploy_cost_sat:
                     return {"success": False, "error": "insufficient_funds_for_deploy"}
+                self._credit_sat(tx.from_addr, -fee_sat, in_atomic=in_atomic)
+                self._credit_sat(proposer, miner_fee_sat, in_atomic=in_atomic)
+                if burn_sat > 0 and self.config.burn_address:
+                    self._credit_sat(self.config.burn_address, burn_sat, in_atomic=in_atomic)
                 if in_atomic:
-                    self.storage.balance_delta(tx.from_addr, -fee)
-                    self.storage.balance_delta(proposer, miner_fee)
-                    if burn_amount > 0 and self.config.burn_address:
-                        self.storage.balance_delta(self.config.burn_address, burn_amount)
                     self.storage.nonce_increment(tx.from_addr)
                 else:
-                    self.storage.update_balance(tx.from_addr, -fee)
-                    self.storage.update_balance(proposer, miner_fee)
-                    if burn_amount > 0 and self.config.burn_address:
-                        self.storage.update_balance(self.config.burn_address, burn_amount)
                     self.storage.increment_nonce(tx.from_addr)
                 if self.pool_locks:
                     self.pool_locks.record_outgoing(tx.from_addr, deploy_cost)
@@ -750,23 +779,20 @@ class StateService:
                     "fee": fee,
                     "burned": burn_amount,
                     "miner_fee": miner_fee,
+                    "fee_sat": fee_sat,
+                    "burned_sat": burn_sat,
                     "evm": True,
                     "contract_address": evm_res.return_value,
                 }
 
+        self._credit_sat(tx.from_addr, -total_cost_sat, in_atomic=in_atomic)
+        self._credit_sat(tx.to_addr, value_sat, in_atomic=in_atomic)
+        self._credit_sat(proposer, miner_fee_sat, in_atomic=in_atomic)
+        if burn_sat > 0 and self.config.burn_address:
+            self._credit_sat(self.config.burn_address, burn_sat, in_atomic=in_atomic)
         if in_atomic:
-            self.storage.balance_delta(tx.from_addr, -total_cost)
-            self.storage.balance_delta(tx.to_addr, tx.value)
-            self.storage.balance_delta(proposer, miner_fee)
-            if burn_amount > 0 and self.config.burn_address:
-                self.storage.balance_delta(self.config.burn_address, burn_amount)
             self.storage.nonce_increment(tx.from_addr)
         else:
-            self.storage.update_balance(tx.from_addr, -total_cost)
-            self.storage.update_balance(tx.to_addr, tx.value)
-            self.storage.update_balance(proposer, miner_fee)
-            if burn_amount > 0 and self.config.burn_address:
-                self.storage.update_balance(self.config.burn_address, burn_amount)
             self.storage.increment_nonce(tx.from_addr)
 
         if self.pool_locks:
@@ -786,21 +812,27 @@ class StateService:
             "fee": fee,
             "burned": burn_amount,
             "miner_fee": miner_fee,
+            "fee_sat": fee_sat,
+            "burned_sat": burn_sat,
+            "value_sat": value_sat,
         }
 
 
     def apply_block_reward(self, proposer: str, in_atomic: bool = False) -> float:
-        current_supply = self.storage.get_total_supply()
-        max_supply = float(getattr(self.config, "max_supply", MAX_SUPPLY_ABS))
-        reward = self.config.block_reward
-        if current_supply + reward > max_supply:
-            reward = max(0.0, max_supply - current_supply)
-        if reward > 0:
-            if in_atomic:
-                self.storage.balance_delta(proposer, reward)
-            else:
-                self.storage.update_balance(proposer, reward)
-        return reward
+        from runtime.amount import from_satoshi_float, to_satoshi
+
+        current_supply_sat = 0
+        if hasattr(self.storage, "get_total_supply_satoshi"):
+            current_supply_sat = int(self.storage.get_total_supply_satoshi())
+        else:
+            current_supply_sat = to_satoshi(self.storage.get_total_supply())
+        max_supply_sat = to_satoshi(getattr(self.config, "max_supply", MAX_SUPPLY_ABS))
+        reward_sat = to_satoshi(self.config.block_reward)
+        if current_supply_sat + reward_sat > max_supply_sat:
+            reward_sat = max(0, max_supply_sat - current_supply_sat)
+        if reward_sat > 0:
+            self._credit_sat(proposer, reward_sat, in_atomic=in_atomic)
+        return from_satoshi_float(reward_sat)
 
 
     def compute_state_root(self) -> str:

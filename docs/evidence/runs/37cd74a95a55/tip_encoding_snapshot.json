@@ -1,0 +1,35 @@
+﻿{
+    "note":  "Wave C tip+apply fresh-mesh evidence. Tip v2 b_satoshi active; state_consistent=true; ready×3 + probe Quick PASS. Not a 48h/mainnet claim. Process-global tip bind + ABS_STATE_ROOT_* env fix wire-thread ContextVar drift.",
+    "tip_encoding":  [
+                         {
+                             "tip_version_live":  2,
+                             "encoding_name":  "satoshi_b",
+                             "port":  18180,
+                             "balance_field":  "b_satoshi",
+                             "height":  304,
+                             "encoding_active":  true,
+                             "state_root":  "332975a8d4d9497214c6213e64adc6d09f88ed9d5139b336a4c07d51e2cb31b3",
+                             "state_consistent":  true
+                         },
+                         {
+                             "tip_version_live":  2,
+                             "encoding_name":  "satoshi_b",
+                             "port":  18181,
+                             "balance_field":  "b_satoshi",
+                             "height":  304,
+                             "encoding_active":  true,
+                             "state_root":  "332975a8d4d9497214c6213e64adc6d09f88ed9d5139b336a4c07d51e2cb31b3",
+                             "state_consistent":  true
+                         },
+                         {
+                             "tip_version_live":  2,
+                             "encoding_name":  "satoshi_b",
+                             "port":  18182,
+                             "balance_field":  "b_satoshi",
+                             "height":  304,
+                             "encoding_active":  true,
+                             "state_root":  "332975a8d4d9497214c6213e64adc6d09f88ed9d5139b336a4c07d51e2cb31b3",
+                             "state_consistent":  true
+                         }
+                     ]
+}

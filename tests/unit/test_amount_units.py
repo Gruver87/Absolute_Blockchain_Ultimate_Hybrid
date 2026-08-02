@@ -32,3 +32,18 @@ def test_immutable_state_uses_shared_multiplier():
     from runtime.amount import SATOSHI_MULTIPLIER as amt_mult
 
     assert ims_mult == amt_mult
+
+
+def test_plan_transfer_fees_sat_is_integer_only():
+    from runtime.amount import can_afford_transfer_sat, plan_transfer_fees_sat
+
+    # 21000 * 1e-7 ABS = 0.0021 ABS = 2100 satoshi
+    plan = plan_transfer_fees_sat(21000, 0.0000001, 0.5, 1.0)
+    assert plan["fee_sat"] == 2100
+    assert plan["burned_sat"] == 1050
+    assert plan["miner_fee_sat"] == 1050
+    assert plan["value_sat"] == 1_000_000
+    assert plan["total_cost_sat"] == 1_002_100
+    assert all(isinstance(v, int) for v in plan.values())
+    assert can_afford_transfer_sat(1_002_100, plan["total_cost_sat"])
+    assert not can_afford_transfer_sat(1_002_099, plan["total_cost_sat"])

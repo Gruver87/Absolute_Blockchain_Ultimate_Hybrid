@@ -56,10 +56,13 @@ def test_installed_abs_native_state_root_matches_python_kernel_when_available():
     import abs_native
 
     accounts = sorted(_accounts(), key=lambda row: row["address"])
+    # Add balance_satoshi so tip leaves are integer (Wave C native tip path).
+    for row in accounts:
+        row["balance_satoshi"] = int(float(row["balance"]) * 1_000_000)
     encoded = json.dumps(accounts, sort_keys=True, separators=(",", ":"))
 
     assert abs_native.state_root_from_accounts_json(encoded) == native._python_state_root_from_accounts(
-        accounts
+        accounts, encoding_version=2
     )
 
 
@@ -80,21 +83,34 @@ def test_state_root_from_account_blobs_matches_canonical():
 
 
 def test_state_root_accumulator_matches_batch_scan():
+    from types import SimpleNamespace
+
     from crypto import native
     from execution.state_root import compute_db_state_root
+    from runtime.state_root_encoding import bind_tip_encoding_config, reset_tip_encoding_config
 
     accounts = _accounts()
+    for row in accounts:
+        row["balance_satoshi"] = int(float(row["balance"]) * 1_000_000)
     blobs = [
         json.dumps(row, sort_keys=True, separators=(",", ":")).encode("utf-8")
         for row in accounts
     ]
     if not native.state_root_accumulator_available():
         return
-    assert native.state_root_accumulator_root_from_blobs(blobs) == compute_db_state_root(accounts)
-    acc = native.new_state_root_accumulator()
-    for blob in blobs:
-        acc.upsert_account_blob(blob)
-    assert acc.root() == compute_db_state_root(accounts)
+    # Native accumulator emits b_satoshi; parity only under tip encoding v2.
+    token = bind_tip_encoding_config(
+        SimpleNamespace(state_root_encoding_version=2, state_root_v2_ceremony_ok=True)
+    )
+    try:
+        expected = compute_db_state_root(accounts)
+        assert native.state_root_accumulator_root_from_blobs(blobs) == expected
+        acc = native.new_state_root_accumulator()
+        for blob in blobs:
+            acc.upsert_account_blob(blob)
+        assert acc.root() == expected
+    finally:
+        reset_tip_encoding_config(token)
 
 
 def test_legacy_state_engine_root_keeps_32_char_contract():

@@ -450,12 +450,15 @@ class FakeStorage:
         return str(self._state_root or "")
 
     def balance_delta(self, address: str, delta: float) -> None:
-        from runtime.amount import from_satoshi_float, to_satoshi
+        from runtime.amount import to_satoshi
 
+        self.balance_delta_satoshi(address, int(to_satoshi(delta)))
+
+    def balance_delta_satoshi(self, address: str, delta_sat: int) -> None:
         key = str(address or "").strip().lower()
         cur = self._accounts.get(key)
         sat = int(cur.balance_satoshi) if cur else 0
-        sat = max(0, sat + int(to_satoshi(delta)))
+        sat = max(0, sat + int(delta_sat))
         nonce = int(cur.nonce) if cur else 0
         code = cur.code if cur else ""
         storage_json = cur.storage_json if cur else "{}"

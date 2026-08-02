@@ -34,8 +34,8 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 
 | Topic | Honest status |
 |-------|----------------|
-| Tip `state_root` | Still float `"b"` / `round(balance,12)` — **not** satoshi tip roots; dual-write satoshi is storage/read path only ([STORAGE_ROCKSDB](STORAGE_ROCKSDB.md)) |
-| Mesh `/health/ready` | **Wave D image-proven** — baked image with attestation/rate/`tip_unknown_parent` soft-refuse, canonical bootstrap, sticky consistency re-probe, priority send bypass; `verify_p2p_ci --mode ready-check` PASS ×3 on :18180–:18182; probe Quick PASS (see `docs/evidence/runs/3288700f4fc7/`). Short 2h soak archived there (height-aligned; soak `passed=false` due to intermittent ready 503s — not a 48h claim). |
+| Tip `state_root` | **Wave C tip+apply** — ceremony-armed v2 tip leaves use integer `b_satoshi` (`SATOSHI_MULTIPLIER=1e6`); apply/fees/gas/reward satoshi-int; float only at display/wire edges. Local prod mesh JSON + `ABS_STATE_ROOT_*` env armed for **fresh volumes**. Not a 48h/mainnet cutover claim. |
+| Mesh `/health/ready` | **Wave C + Wave D** — tip v2 mesh: `ready-check` PASS ×3 + probe Quick + `state_consistent=true` + matching tip roots (see latest `docs/evidence/runs/<sha>/`). Wave D soft-refuse/sticky/priority bake still applies (`3288700f4fc7`). Not a 48h claim. |
 | External audit | **Not completed** — tracker rejects template notes; requires real evidence URL |
 | Public VPS / DNS | Not claimed |
 | Bridge L1 | **OFF by recorded decision** — see [Bridge OFF audit checklist](#bridge-off--pre-enable-audit-checklist) |
@@ -80,6 +80,7 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | RocksDB DR path | DR rehearsal script + backup | `.\scripts\dr_restore_rehearsal.ps1 -DockerMesh1` |
 | **Wave D image bake + ready** | **PASS** 2026-08-01 — soft-refuse attestation/rate/`tip_unknown_parent`; sticky consistency during wire re-probe; priority send bypass; canonical bootstrap; `ready-check` ×3 + probe Quick on baked image | `docs/evidence/runs/3288700f4fc7/` |
 | **Wave D short soak (2h)** | 2026-08-01 — mesh height-aligned (`mesh_warn=0`); soak_report `passed=false` (8 ready hard-fails; not 48h) | `docs/evidence/runs/3288700f4fc7/soak_report.json` |
+| **Wave C tip+apply satoshi** | **PASS** 2026-08-02 — fresh mesh wipe then tip-v2 arm; `b_satoshi` active on :18180–:18182; matching tip roots; `state_consistent=true`; `ready-check` ×3 + probe Quick PASS; apply path unit-proven satoshi. Not 48h/mainnet. | `docs/evidence/runs/37cd74a95a55/` + `docs/STATE_ROOT_ENCODING_MIGRATION.md` |
 | Short health monitoring | `health_watch` 1–2 min cycles, harness quick/full | `.\scripts\health_watch.ps1 -ProdMesh -DurationMin 2` |
 | CI / static industrial gates | `industrial_gate.py`, prod_gate, pytest | GitHub Actions + local gate scripts |
 | Native crypto required in prod profile | `ABS_REQUIRE_NATIVE_CRYPTO`, prod_gate | prod mesh configs |

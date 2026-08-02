@@ -25,7 +25,7 @@ class TxValidationResult:
 @dataclass
 class ApplyBlockResult:
     success: bool
-    burned: float = 0.0
+    burned: int = 0  # satoshi (Wave C); display via from_satoshi_float at edges
     state_root: str = ""
     error: str = ""
     native_applied: bool = False

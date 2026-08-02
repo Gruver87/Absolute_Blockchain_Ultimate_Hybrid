@@ -21,10 +21,11 @@ def _canonical_accounts_json(accounts: List[Dict[str, Any]]) -> str:
 
 def compute_db_state_root(accounts: List[Dict[str, Any]]) -> str:
     """
-    Compute the current 64-char state root from SQLite account rows.
+    Compute the current 64-char state root from account rows.
 
-    This preserves the historical payload:
-    [{"a": address, "b": rounded_balance, "n": nonce, "c": code_hash, "s": storage_hash}]
+    Wave C tip+apply: when tip encoding v2 is ceremony-armed, leaves use
+    integer ``b_satoshi`` (see runtime.state_root_encoding). Legacy v1 uses
+    float ``\"b\"`` via the Python tip path only.
     """
     return native.state_root_from_accounts_json(_canonical_accounts_json(accounts))
 

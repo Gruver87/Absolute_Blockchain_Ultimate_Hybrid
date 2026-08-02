@@ -4057,13 +4057,20 @@ def _check_balance_precision() -> tuple[list[str], list[str]]:
             errors.append("reset_accounts_from_alloc missing balance_satoshi")
         if DatabaseStateAdapter(_d).get_balance_satoshi("gate") != 2_000_000:
             errors.append("DatabaseStateAdapter not using satoshi path")
-        # Tip state-root soak contract: float "b" must remain (do not silently switch to satoshi)
-        from crypto.native import _python_state_root_from_accounts
+        # Wave C tip soak: v2 satoshi tip leaf + ceremony gate must remain honest.
+        from runtime import state_root_encoding as sre
         import inspect
 
-        src = inspect.getsource(_python_state_root_from_accounts)
-        if '"b"' not in src or "round(float" not in src:
-            errors.append("tip state_root Python path no longer uses float round(balance,12) — soak contract broken")
+        enc_src = inspect.getsource(sre)
+        if "b_satoshi" not in enc_src or "satoshi_b" not in enc_src:
+            errors.append("tip encoding contract missing b_satoshi / satoshi_b (Wave C)")
+        if "state_root_v2_ceremony_ok" not in enc_src:
+            errors.append("tip encoding must gate v2 on state_root_v2_ceremony_ok")
+        from crypto.native import _python_state_root_from_accounts
+
+        tip_src = inspect.getsource(_python_state_root_from_accounts)
+        if "encoding_version" not in tip_src or "build_tip_payload" not in tip_src:
+            errors.append("tip state_root Python path must use versioned build_tip_payload")
         from blockchain.immutable_state import ImmutableStateManager
 
         if not hasattr(ImmutableStateManager, "reconcile_from_store"):

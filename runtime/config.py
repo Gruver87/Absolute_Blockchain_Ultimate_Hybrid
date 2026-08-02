@@ -76,6 +76,9 @@ class Config:
     state_root_strict_p2p: bool = True  # strict state_root on P2P import above baseline
     state_root_legacy_cutoff_height: int = 0  # blocks <= cutoff: warn on drift; above: strict
     allow_state_root_rewrite: bool = True  # rewrite tip header state_root/hash; prod forces False (genesis h=0 still allowed)
+    # Wave C tip encoding: v2 satoshi tip only when ceremony-armed (prod mesh JSON sets both).
+    state_root_encoding_version: int = 1
+    state_root_v2_ceremony_ok: bool = False
     monitor_port: int = 0               # 0 = http_port + 12 (8092 for :8080)
     rpc_proxy_port: int = 0             # 0 = http_port + 2 (8082 for :8080)
     monitor_enabled: bool = True
@@ -373,6 +376,14 @@ class Config:
         self.tip_safety_enforce = env_bool(
             "TIP_SAFETY_ENFORCE",
             self.tip_safety_enforce,
+        )
+        self.state_root_encoding_version = env_int(
+            "ABS_STATE_ROOT_ENCODING_VERSION",
+            self.state_root_encoding_version,
+        )
+        self.state_root_v2_ceremony_ok = env_bool(
+            "ABS_STATE_ROOT_V2_CEREMONY_OK",
+            self.state_root_v2_ceremony_ok,
         )
         if self.tip_safety_enforce:
             # Enforce implies observation; keep metrics aligned with gate decisions.

@@ -34,16 +34,29 @@ def store(tmp_path):
 
 
 def test_state_root_from_account_prefix_matches_db_kernel(store):
+    from types import SimpleNamespace
+
+    from runtime.state_root_encoding import bind_tip_encoding_config, reset_tip_encoding_config
+
     founder = "0x" + "f" * 40
     for addr, amount in genesis_balances(founder).items():
         store.set_balance(addr, float(amount))
     store.update_balance("0x" + "1" * 40, 3.5)
     store.update_balance("0x" + "2" * 40, 7.25)
 
-    via_prefix = store._engine.state_root_from_account_prefix(kc.prefix_accounts(), 100_000)
-    via_store = store.compute_state_root()
-    accounts = store.get_all_accounts()
-    via_kernel = compute_db_state_root(accounts)
+    # Native prefix scan is satoshi tip; parity requires tip encoding v2.
+    token = bind_tip_encoding_config(
+        SimpleNamespace(state_root_encoding_version=2, state_root_v2_ceremony_ok=True)
+    )
+    try:
+        via_prefix = store._engine.state_root_from_account_prefix(
+            kc.prefix_accounts(), 100_000
+        )
+        via_store = store.compute_state_root()
+        accounts = store.get_all_accounts()
+        via_kernel = compute_db_state_root(accounts)
 
-    assert via_prefix == via_kernel
-    assert via_store == via_kernel
+        assert via_prefix == via_kernel
+        assert via_store == via_kernel
+    finally:
+        reset_tip_encoding_config(token)

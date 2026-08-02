@@ -36,9 +36,18 @@ def test_get_address_activity_includes_satoshi():
 
 
 def test_tip_state_root_python_keeps_float_b_contract():
+    # Wave C: float "b" lives in account_tip_payload(v1); tip Python path is versioned.
+    from runtime.state_root_encoding import account_tip_payload
+
     src = inspect.getsource(_python_state_root_from_accounts)
-    assert '"b"' in src
-    assert "round(float" in src
+    assert "build_tip_payload" in src
+    assert "encoding_version" in src
+    tip = account_tip_payload(
+        {"address": "a", "balance": 1.5, "nonce": 0, "code": "", "storage": "{}"},
+        version=1,
+    )
+    assert tip["b"] == 1.5
+    assert "b_satoshi" not in tip
 
 
 def test_sqlite_total_supply_prefers_satoshi():

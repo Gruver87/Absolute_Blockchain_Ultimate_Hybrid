@@ -664,6 +664,17 @@ class RocksChainStore:
     def balance_delta(self, address: str, delta: float) -> None:
         self._apply_balance_delta(address, delta)
 
+    def balance_delta_satoshi(self, address: str, delta_sat: int) -> None:
+        """Integer satoshi balance change (Wave C apply path)."""
+        from runtime.amount import apply_satoshi_delta, from_satoshi_float
+
+        row = self._load_account(address)
+        cur_sat = int(row.get("balance_satoshi", 0) or 0)
+        new_sat = apply_satoshi_delta(cur_sat, int(delta_sat))
+        row["balance_satoshi"] = new_sat
+        row["balance"] = from_satoshi_float(new_sat)
+        self._save_account_row(row)
+
     def update_balance(self, address: str, delta: float) -> float:
         with self._write_lock:
             self._apply_balance_delta(address, delta)
@@ -891,8 +902,16 @@ class RocksChainStore:
         return root, height
 
     def compute_state_root(self) -> str:
-        """Canonical state root via native accumulator or account blob scan."""
+        """Canonical state root via native accumulator or account blob scan.
+
+        Wave C: native Rocks tip hasher emits integer ``b_satoshi`` only. Use it
+        when tip encoding v2 is ceremony-armed; otherwise decode blobs and hash
+        the legacy float ``\"b\"`` tip in Python.
+        """
         from execution.state_root import compute_state_root_from_blobs
+        from runtime.state_root_encoding import tip_encoding_version
+
+        tip_v2 = tip_encoding_version() >= 2
 
         if self._batch_acc_dirty or self._pending_batch is not None:
             by_addr: dict[str, bytes] = {}
@@ -905,14 +924,15 @@ class RocksChainStore:
                     by_addr[addr] = value
             return compute_state_root_from_blobs(list(by_addr.values()))
 
-        acc = self._ensure_root_acc()
-        if acc is not None:
-            return acc.root()
-        if hasattr(self._engine, "state_root_from_account_prefix"):
-            return self._engine.state_root_from_account_prefix(
-                kc.prefix_accounts(),
-                100_000,
-            )
+        if tip_v2:
+            acc = self._ensure_root_acc()
+            if acc is not None:
+                return acc.root()
+            if hasattr(self._engine, "state_root_from_account_prefix"):
+                return self._engine.state_root_from_account_prefix(
+                    kc.prefix_accounts(),
+                    100_000,
+                )
         blobs = [value for _key, value in self._scan_prefix(kc.prefix_accounts())]
         return compute_state_root_from_blobs(blobs)
 

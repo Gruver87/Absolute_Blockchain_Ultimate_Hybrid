@@ -206,6 +206,7 @@ def native_crypto_status(required: bool = False) -> dict:
             "amount_apply_delta_satoshi",
             "state_engine_apply_transactions",
             "plan_transfer_fees",
+            "plan_transfer_fees_satoshi",
             "can_afford_transfer",
             "merkle",
             "state_root",
@@ -2091,27 +2092,42 @@ def state_root_from_accounts_json(accounts_json: str) -> str:
     from runtime.state_root_encoding import tip_encoding_version
 
     ver = tip_encoding_version()
-    if ver >= 2:
-        accounts = json.loads(accounts_json)
-        return _python_state_root_from_accounts(accounts, encoding_version=2)
-    if _native is not None:
-        return _native.state_root_from_accounts_json(accounts_json)
-    _require_native_kernel("state_root_from_accounts_json")
     accounts = json.loads(accounts_json)
+    if ver >= 2:
+        # Wave C: native tip hasher emits integer b_satoshi leaves.
+        if _native is not None:
+            return _native.state_root_from_accounts_json(accounts_json)
+        return _python_state_root_from_accounts(accounts, encoding_version=2)
+    # Legacy v1 float tip — Python only (native tip path is satoshi-only).
     return _python_state_root_from_accounts(accounts, encoding_version=1)
+
+
+def _account_blob_to_row(blob: bytes) -> dict:
+    """Decode ABAR binary or legacy JSON account blob to a row dict."""
+    raw = bytes(blob or b"")
+    if _native is not None and hasattr(_native, "account_blob_to_json"):
+        try:
+            row = json.loads(_native.account_blob_to_json(raw))
+            if isinstance(row, dict):
+                return row
+        except Exception:
+            pass
+    return json.loads(raw.decode("utf-8"))
 
 
 def state_root_from_account_blobs(blobs: List[bytes]) -> str:
     from runtime.state_root_encoding import tip_encoding_version
 
-    accounts = [json.loads(blob.decode("utf-8")) for blob in blobs]
-    accounts = sorted(accounts, key=lambda row: str(row.get("address", "")))
     ver = tip_encoding_version()
     if ver >= 2:
+        if _native is not None and hasattr(_native, "state_root_from_account_blobs"):
+            return _native.state_root_from_account_blobs(list(blobs))
+        accounts = [_account_blob_to_row(blob) for blob in blobs]
+        accounts = sorted(accounts, key=lambda row: str(row.get("address", "")))
         return _python_state_root_from_accounts(accounts, encoding_version=2)
-    if _native is not None and hasattr(_native, "state_root_from_account_blobs"):
-        return _native.state_root_from_account_blobs(list(blobs))
-    _require_native_kernel("state_root_from_account_blobs")
+    # Legacy v1 float tip — decode ABAR via native, hash in Python.
+    accounts = [_account_blob_to_row(blob) for blob in blobs]
+    accounts = sorted(accounts, key=lambda row: str(row.get("address", "")))
     return _python_state_root_from_accounts(accounts, encoding_version=1)
 
 
@@ -2128,12 +2144,13 @@ def new_state_root_accumulator():
 def state_root_accumulator_root_from_blobs(blobs: List[bytes]) -> str:
     from runtime.state_root_encoding import tip_encoding_version
 
-    if tip_encoding_version() >= 2:
-        return state_root_from_account_blobs(list(blobs))
-    acc = new_state_root_accumulator()
-    if blobs:
-        acc.load_from_blobs(list(blobs))
-    return acc.root()
+    # Accumulator uses the same account_payload_row (satoshi tip after Wave C).
+    if tip_encoding_version() >= 2 and state_root_accumulator_available():
+        acc = new_state_root_accumulator()
+        if blobs:
+            acc.load_from_blobs(list(blobs))
+        return acc.root()
+    return state_root_from_account_blobs(list(blobs))
 
 
 def verify_secp256k1_sha256(
@@ -2851,12 +2868,43 @@ def plan_transfer_fees(
             float(value),
             int(gas_used) if gas_used is not None else None,
         )
-    fee = float(gas) * float(gas_price_wei)
-    if gas_used is not None:
-        fee = max(fee, float(gas_used) * float(gas_price_wei))
-    rate = max(0.0, min(1.0, float(burn_rate)))
-    burned = fee * rate
-    return fee, burned, fee - burned, float(value) + fee
+    fee_s, burned_s, miner_s, total_s = plan_transfer_fees_satoshi(
+        gas, str(gas_price_wei), str(burn_rate), str(value), gas_used
+    )
+    return (
+        amount_from_satoshi_float(fee_s),
+        amount_from_satoshi_float(burned_s),
+        amount_from_satoshi_float(miner_s),
+        amount_from_satoshi_float(total_s),
+    )
+
+
+def plan_transfer_fees_satoshi(
+    gas: int,
+    gas_price_wei: str,
+    burn_rate: str,
+    value: str = "0",
+    gas_used: Optional[int] = None,
+):
+    if _native is not None and hasattr(_native, "plan_transfer_fees_satoshi"):
+        return _native.plan_transfer_fees_satoshi(
+            int(gas),
+            str(gas_price_wei),
+            str(burn_rate),
+            str(value),
+            int(gas_used) if gas_used is not None else None,
+        )
+    from runtime.amount import plan_transfer_fees_sat
+
+    sat = plan_transfer_fees_sat(
+        int(gas), gas_price_wei, burn_rate, value, gas_used=gas_used
+    )
+    return (
+        sat["fee_sat"],
+        sat["burned_sat"],
+        sat["miner_fee_sat"],
+        sat["total_cost_sat"],
+    )
 
 
 def can_afford_transfer(sender_sat: int, total_cost_abs: float) -> bool:
@@ -3620,18 +3668,13 @@ def _python_merkle_root_from_proof_string(
 
 
 def _python_state_root_from_accounts(accounts: List[dict], *, encoding_version: int = 1) -> str:
-    """Tip state_root from account rows.
+    """Tip state_root from account rows via versioned ``build_tip_payload``.
 
-    v1 (default / soak): float ``round(balance, 12)`` field ``\"b\"``.
-    v2 (ceremony-armed only): integer ``b_satoshi``.
+    v1: legacy float ``\"b\"``. v2 (ceremony-armed): integer ``b_satoshi``.
     """
     from runtime.state_root_encoding import build_tip_payload
 
     version = int(encoding_version or 1)
     payload = build_tip_payload(accounts, version=version)
-    # Keep v1 soak needles visible for industrial_gate source inspect:
-    # round(float(row["balance"]), 12)  and field "b"
-    if version < 2:
-        _ = round(float(0), 12)
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return sha256_hex(encoded.encode())

@@ -1,45 +1,34 @@
 # State-root encoding migration (v1 → v2)
 
-**Status:** planning scaffold — **v2 is not active** on mainnet-v1 (`chain_id` 778888).
+**Status (Wave C tip+apply):** v2 satoshi tip is **ceremony-armed on local prod mesh** (`docker/node.prod.mesh*.json`) for **fresh volumes only**. Default Config remains v1 until operators arm ceremony.
 
-## Current (v1) — `float_b_round12`
+## Live tip encodings
 
-- Consensus tip `state_root` uses native encoding with float `round(balance, 12)` in field `"b"`.
-- Enforced by `industrial_gate` (soak contract).
-- Reads prefer `balance_satoshi` dual-write where available (`runtime/state_truth.py`).
+### v1 — `float_b_round12` (legacy)
 
-Runtime snapshot: `GET /status` → `state_root_policy.encoding`, or `GET /chain/state-root/encoding`.
+- Tip leaf field `"b"` = `round(balance, 12)`.
+- Used when `state_root_encoding_version < 2` or ceremony not armed.
+- Native tip hasher no longer emits float `"b"` (Wave C); v1 hashing is Python-only.
 
-## Planned (v2) — `satoshi_b`
+### v2 — `satoshi_b` (Wave C)
 
-- Tip commits use integer satoshi in field `"b_satoshi"` via
-  `runtime.state_root_encoding.account_tip_payload(..., version=2)`.
+- Tip leaf field `"b_satoshi"` = integer satoshi (`SATOSHI_MULTIPLIER = 1_000_000`).
 - Activation requires **both**:
   - `state_root_encoding_version=2` (or `ABS_STATE_ROOT_ENCODING_VERSION=2`)
   - `state_root_v2_ceremony_ok=true` (or `ABS_STATE_ROOT_V2_CEREMONY_OK=1`)
-- Without ceremony arming, requests for v2 stay **blocked** and tip hashing remains v1.
-- Native tip hasher remains v1; ceremony-armed v2 uses the Python tip path until native parity lands.
-- Requires **chain halt**, state export, ceremony rebuild, and coordinated node upgrade for mesh cutover.
+- Native `account_payload_row` / Rocks tip accumulator emit integer `b_satoshi`.
+- Apply path (StateService fees/gas/reward) uses integer satoshi; ABS float is display-only.
 
-## Migration checklist (high level)
+Runtime snapshot: `GET /status` → `state_root_policy.encoding`, or `GET /chain/state-root/encoding`.
 
-1. **Freeze** mining and publish halt block height `H_halt`.
-2. **Export** canonical account set at `H_halt` (satoshi + nonce + code/storage hashes).
-3. **Ceremony** recompute genesis/tip roots under v2 encoding; publish manifest hash.
-4. **Deploy** nodes with `state_root_encoding_version=2` **and** `state_root_v2_ceremony_ok` only after all validators sign manifest.
-5. **Soak** 48h+ on staging mesh with v2 before any production cutover.
-6. **Rollback** plan: keep v1 snapshot + DB backup until v2 mesh proven.
+## Local prod mesh cutover
 
-## Code references
-
-| Area | Path |
-|------|------|
-| Encoding contract | `runtime/state_root_encoding.py` |
-| Live tip root | `execution/state_root.py` → `compute_db_state_root` |
-| Policy API | `Blockchain.get_state_root_policy()` |
-| Auditor note | `docs/STORAGE_ROCKSDB.md` |
+1. Arm flags in mesh JSON (already set for staging mesh).
+2. **Wipe volumes** — `docker_prod_3node.ps1 -NoCloneDb` (do not KeepVolumes across encoding change).
+3. Prove ready×3 + probe + matching tip roots + encoding v2 active.
 
 ## Non-goals
 
-- Silent in-place switch from float tip to satoshi tip without ceremony.
-- Claiming “satoshi tip roots” while v1 encoding is active.
+- Changing multiplier to 1e8.
+- Silent in-place migration of historical float-tip DB without halt/export.
+- Claiming 48h public mainnet cutover in this wave.

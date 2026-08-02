@@ -275,6 +275,12 @@ class Blockchain:
         storage: Optional[StoragePort] = None,
     ):
         self.config = config
+        try:
+            from runtime.state_root_encoding import bind_tip_encoding_config
+
+            bind_tip_encoding_config(config)
+        except Exception:
+            pass
         self.bus = bus
         if storage is None:
             if db is None:
@@ -791,7 +797,10 @@ class Blockchain:
                         )
                         if not applied.success:
                             raise RuntimeError(applied.error or "state_apply_failed")
-                        block_burned = float(applied.burned)
+                        # ApplyBlockResult.burned is satoshi; block.total_burned stays ABS display.
+                        from runtime.amount import from_satoshi_float
+
+                        block_burned = float(from_satoshi_float(int(applied.burned or 0)))
 
                     block.total_burned = block_burned
                     # Always via facade method so monkeypatches (tests) apply.

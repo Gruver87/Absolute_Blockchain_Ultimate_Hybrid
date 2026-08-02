@@ -79,5 +79,7 @@
     "chain_apply_queue_max": 64,
     "tip_ancestry_window_max": 256,
     "tip_safety_enforce": true,
-    "tip_safety_shadow": true
+    "tip_safety_shadow": true,
+    "state_root_encoding_version": 2,
+    "state_root_v2_ceremony_ok": true
 }

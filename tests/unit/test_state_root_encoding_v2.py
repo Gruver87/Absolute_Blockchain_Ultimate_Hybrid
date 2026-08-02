@@ -58,3 +58,22 @@ def test_v2_active_with_ceremony_changes_root():
     r2 = _python_state_root_from_accounts(accounts, encoding_version=2)
     assert r1 != r2
     assert len(r2) == 64
+
+
+def test_bind_tip_encoding_visible_without_contextvar():
+    """P2P worker threads lack ContextVar; process-global must still arm v2."""
+    from runtime.state_root_encoding import (
+        bind_tip_encoding_config,
+        clear_tip_encoding_config,
+        reset_tip_encoding_config,
+        tip_encoding_version,
+    )
+
+    clear_tip_encoding_config()
+    cfg = SimpleNamespace(state_root_encoding_version=2, state_root_v2_ceremony_ok=True)
+    token = bind_tip_encoding_config(cfg)
+    try:
+        reset_tip_encoding_config(token)  # drop ContextVar only
+        assert tip_encoding_version() == 2
+    finally:
+        clear_tip_encoding_config()

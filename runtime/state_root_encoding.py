@@ -2,27 +2,27 @@
 """Versioned state-root encoding contract (tip vs storage truth)."""
 from __future__ import annotations
 
+import contextvars
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
-# v1 — live consensus tip (soak contract; industrial_gate enforces float "b" path).
+# v1 — legacy float tip (kept for offline/historical roots only).
 STATE_ROOT_ENCODING_V1: Dict[str, Any] = {
     "version": 1,
     "name": "float_b_round12",
-    "active": True,
+    "active": False,
     "payload_fields": ("a", "b", "n", "c", "s"),
     "balance_field": "b",
     "balance_unit": "abs_float_round12",
     "satoshi_tip_ready": False,
     "note": (
-        "Consensus tip uses native float round(balance,12) encoding. "
-        "balance_satoshi dual-write is storage/read truth only until a versioned migration. "
-        "See docs/STATE_ROOT_ENCODING_MIGRATION.md."
+        "Legacy tip used native float round(balance,12) field \"b\". "
+        "Wave C tip+apply cutover uses v2 satoshi when ceremony-armed."
     ),
 }
 
-# v2 — satoshi tip; activate only with ceremony flag (not silent switch on 778888).
+# v2 — integer satoshi tip (live when ceremony-armed).
 STATE_ROOT_ENCODING_V2: Dict[str, Any] = {
     "version": 2,
     "name": "satoshi_b",
@@ -32,14 +32,48 @@ STATE_ROOT_ENCODING_V2: Dict[str, Any] = {
     "balance_unit": "satoshi_int",
     "satoshi_tip_ready": True,
     "note": (
-        "Tip commits integer satoshi in b_satoshi. Requires ceremony rebuild + "
-        "state_root_v2_ceremony_ok before activation."
+        "Tip commits integer satoshi in b_satoshi (SATOSHI_MULTIPLIER=1e6). "
+        "Requires state_root_encoding_version>=2 and state_root_v2_ceremony_ok."
     ),
 }
 
+# Bound by AbsoluteNode / Blockchain so tip hashing sees node config (not only env).
+# ContextVar covers asyncio tasks; process-global covers P2P worker threads (Wave C).
+_tip_config_ctx: contextvars.ContextVar[Optional[Any]] = contextvars.ContextVar(
+    "abs_tip_encoding_config", default=None
+)
+_tip_config_global: Optional[Any] = None
+
+
+def bind_tip_encoding_config(config: Any) -> contextvars.Token:
+    """Bind config for tip_encoding_version() when callers omit config."""
+    global _tip_config_global
+    _tip_config_global = config
+    return _tip_config_ctx.set(config)
+
+
+def reset_tip_encoding_config(token: contextvars.Token) -> None:
+    _tip_config_ctx.reset(token)
+
+
+def clear_tip_encoding_config() -> None:
+    """Clear process-global tip config (tests)."""
+    global _tip_config_global
+    _tip_config_global = None
+
+
+def _resolve_config(config: Any = None) -> Any:
+    if config is not None:
+        return config
+    bound = _tip_config_ctx.get()
+    if bound is not None:
+        return bound
+    return _tip_config_global
+
 
 def _ceremony_ok(config: Any = None) -> bool:
-    if config is not None and bool(getattr(config, "state_root_v2_ceremony_ok", False)):
+    cfg = _resolve_config(config)
+    if cfg is not None and bool(getattr(cfg, "state_root_v2_ceremony_ok", False)):
         return True
     return str(os.environ.get("ABS_STATE_ROOT_V2_CEREMONY_OK", "") or "").strip().lower() in (
         "1",
@@ -50,8 +84,9 @@ def _ceremony_ok(config: Any = None) -> bool:
 
 
 def requested_encoding_version(config: Any = None) -> int:
-    if config is not None:
-        return int(getattr(config, "state_root_encoding_version", 1) or 1)
+    cfg = _resolve_config(config)
+    if cfg is not None:
+        return int(getattr(cfg, "state_root_encoding_version", 1) or 1)
     env = str(os.environ.get("ABS_STATE_ROOT_ENCODING_VERSION", "") or "").strip()
     if env.isdigit():
         return int(env)
@@ -73,7 +108,7 @@ def active_state_root_encoding(config: Any = None) -> Dict[str, Any]:
                 "(or ABS_STATE_ROOT_V2_CEREMONY_OK=1)"
             ),
         }
-    return dict(STATE_ROOT_ENCODING_V1)
+    return {**STATE_ROOT_ENCODING_V1, "active": True, "requested_version": requested}
 
 
 def tip_encoding_version(config: Any = None) -> int:
@@ -87,6 +122,7 @@ def tip_encoding_version(config: Any = None) -> int:
 def account_tip_payload(row: dict, *, version: int = 1) -> Dict[str, Any]:
     """Build one account leaf for tip state_root (v1 float or v2 satoshi)."""
     from crypto.native import sha256_hex  # local import avoids cycles at module load
+    from runtime.amount import SATOSHI_MULTIPLIER, account_satoshi
 
     code = row.get("code") or ""
     storage = row.get("storage") or "{}"
@@ -98,7 +134,7 @@ def account_tip_payload(row: dict, *, version: int = 1) -> Dict[str, Any]:
         if row.get("balance_satoshi") is not None:
             sat = max(0, int(row["balance_satoshi"]))
         else:
-            sat = max(0, int(round(float(row.get("balance") or 0) * 1_000_000)))
+            sat = max(0, account_satoshi(row))
         return {
             "a": addr,
             "b_satoshi": sat,
@@ -106,9 +142,11 @@ def account_tip_payload(row: dict, *, version: int = 1) -> Dict[str, Any]:
             "c": code_hash,
             "s": storage_hash,
         }
+    # Legacy v1 — display-scale float tip only (not used when ceremony-armed).
+    _ = SATOSHI_MULTIPLIER
     return {
         "a": addr,
-        "b": round(float(row["balance"]), 12),
+        "b": round(float(row.get("balance") or 0), 12),
         "n": nonce,
         "c": code_hash,
         "s": storage_hash,

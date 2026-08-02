@@ -142,6 +142,59 @@ def try_debit_satoshi(current_sat: int, debit_abs: NumberLike) -> int:
     return cur - debit
 
 
+def plan_transfer_fees_sat(
+    gas: int,
+    gas_price_wei: NumberLike,
+    burn_rate: NumberLike,
+    value: NumberLike = 0,
+    gas_used: Optional[int] = None,
+) -> Dict[str, int]:
+    """Split L1 transfer fee into satoshi ints (Wave C tip+apply hot path)."""
+    try:
+        from crypto import native
+
+        if native.native_available() and hasattr(native, "plan_transfer_fees_satoshi"):
+            fee_s, burned_s, miner_s, total_s = native.plan_transfer_fees_satoshi(
+                int(gas),
+                str(gas_price_wei),
+                str(burn_rate),
+                str(value),
+                int(gas_used) if gas_used is not None else None,
+            )
+            value_s = to_satoshi(value)
+            return {
+                "fee_sat": int(fee_s),
+                "burned_sat": int(burned_s),
+                "miner_fee_sat": int(miner_s),
+                "value_sat": value_s,
+                "total_cost_sat": int(total_s),
+            }
+    except Exception as exc:
+        _native_fallback("plan_transfer_fees_satoshi", exc)
+    gp = Decimal(str(gas_price_wei))
+    if gp < 0:
+        raise ValueError("negative gas_price_wei")
+    fee_abs = Decimal(int(gas)) * gp
+    if gas_used is not None:
+        fee_abs = max(fee_abs, Decimal(int(gas_used)) * gp)
+    fee_sat = to_satoshi(fee_abs)
+    rate = Decimal(str(burn_rate))
+    if rate < 0:
+        rate = Decimal("0")
+    if rate > 1:
+        rate = Decimal("1")
+    burned_sat = int((Decimal(fee_sat) * rate).to_integral_value(rounding=ROUND_DOWN))
+    miner_fee_sat = fee_sat - burned_sat
+    value_sat = to_satoshi(value)
+    return {
+        "fee_sat": fee_sat,
+        "burned_sat": burned_sat,
+        "miner_fee_sat": miner_fee_sat,
+        "value_sat": value_sat,
+        "total_cost_sat": value_sat + fee_sat,
+    }
+
+
 def plan_transfer_fees(
     gas: int,
     gas_price_wei: float,
@@ -149,42 +202,23 @@ def plan_transfer_fees(
     value: float = 0.0,
     gas_used: Optional[int] = None,
 ) -> Dict[str, float]:
-    """Split L1 transfer fee into fee/burned/miner_fee/total_cost (ABS floats)."""
-    try:
-        from crypto import native
-
-        if native.native_available() and hasattr(native, "plan_transfer_fees"):
-            fee, burned, miner_fee, total_cost = native.plan_transfer_fees(
-                int(gas),
-                float(gas_price_wei),
-                float(burn_rate),
-                float(value),
-                int(gas_used) if gas_used is not None else None,
-            )
-            return {
-                "fee": float(fee),
-                "burned": float(burned),
-                "miner_fee": float(miner_fee),
-                "total_cost": float(total_cost),
-            }
-    except Exception as exc:
-        _native_fallback("plan_transfer_fees", exc)
-    fee = float(gas) * float(gas_price_wei)
-    if gas_used is not None:
-        fee = max(fee, float(gas_used) * float(gas_price_wei))
-    rate = max(0.0, min(1.0, float(burn_rate)))
-    burned = fee * rate
-    miner_fee = fee - burned
+    """Display/legacy ABS floats — prefer plan_transfer_fees_sat for apply math."""
+    sat = plan_transfer_fees_sat(gas, gas_price_wei, burn_rate, value, gas_used=gas_used)
     return {
-        "fee": fee,
-        "burned": burned,
-        "miner_fee": miner_fee,
-        "total_cost": float(value) + fee,
+        "fee": from_satoshi_float(sat["fee_sat"]),
+        "burned": from_satoshi_float(sat["burned_sat"]),
+        "miner_fee": from_satoshi_float(sat["miner_fee_sat"]),
+        "total_cost": from_satoshi_float(sat["total_cost_sat"]),
     }
 
 
+def can_afford_transfer_sat(sender_sat: int, total_cost_sat: int) -> bool:
+    """True if sender satoshi covers integer total cost."""
+    return int(sender_sat) >= max(0, int(total_cost_sat))
+
+
 def can_afford_transfer(sender_sat: int, total_cost_abs: NumberLike) -> bool:
-    """True if sender satoshi balance covers ABS total cost."""
+    """True if sender satoshi balance covers ABS total cost (edge helper)."""
     try:
         from crypto import native
 
@@ -192,4 +226,9 @@ def can_afford_transfer(sender_sat: int, total_cost_abs: NumberLike) -> bool:
             return bool(native.can_afford_transfer(int(sender_sat), float(total_cost_abs)))
     except Exception as exc:
         _native_fallback("can_afford_transfer", exc)
-    return int(sender_sat) >= to_satoshi(total_cost_abs)
+    return can_afford_transfer_sat(int(sender_sat), to_satoshi(total_cost_abs))
+
+
+def apply_satoshi_delta(current_sat: int, delta_sat: int) -> int:
+    """Apply integer satoshi delta; never negative."""
+    return max(0, int(current_sat) + int(delta_sat))

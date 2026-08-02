@@ -737,8 +737,34 @@ class Database:
                 raise
 
     def balance_delta(self, address: str, delta: float) -> None:
-        """Balance change without commit (inside atomic())."""
+        """Balance change without commit (inside atomic()). ABS float edge → satoshi."""
         self._apply_balance_delta(address, delta)
+
+    def balance_delta_satoshi(self, address: str, delta_sat: int) -> None:
+        """Integer satoshi balance change without commit (Wave C apply path)."""
+        from runtime.amount import apply_satoshi_delta, from_satoshi_float
+
+        row = self.conn.execute(
+            "SELECT balance, balance_satoshi FROM accounts WHERE address=?",
+            (address,),
+        ).fetchone()
+        if row and row["balance_satoshi"] is not None:
+            cur_sat = int(row["balance_satoshi"])
+        elif row:
+            from runtime.amount import to_satoshi
+
+            cur_sat = to_satoshi(row["balance"] or 0)
+        else:
+            cur_sat = 0
+        new_sat = apply_satoshi_delta(cur_sat, int(delta_sat))
+        new_abs = from_satoshi_float(new_sat)
+        self.conn.execute(
+            """INSERT INTO accounts (address, balance, balance_satoshi, nonce)
+               VALUES (?, ?, ?, 0)
+               ON CONFLICT(address) DO UPDATE
+               SET balance=excluded.balance, balance_satoshi=excluded.balance_satoshi""",
+            (address, new_abs, new_sat),
+        )
 
     def nonce_increment(self, address: str) -> int:
         """Nonce bump without commit (inside atomic())."""
@@ -755,7 +781,8 @@ class Database:
     def get_all_accounts(self) -> List[Dict]:
         with self.lock:
             rows = self.conn.execute(
-                "SELECT address, balance, nonce, code, storage FROM accounts ORDER BY address"
+                "SELECT address, balance, balance_satoshi, nonce, code, storage "
+                "FROM accounts ORDER BY address"
             ).fetchall()
             return [dict(r) for r in rows]
 

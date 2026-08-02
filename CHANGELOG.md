@@ -34,10 +34,13 @@
 - Prod SecretManager refuses unknown raw-env names (escape via `ABS_SECRET_ALLOW_RAW`)
 - GitHub Actions SHA-pinned; SBOM expands to Cargo + container note
 
-### Wave C — satoshi tip path + finality honesty
+### Wave C — tip+apply satoshi integer cutover
 
-- Tip encoding v2 (`b_satoshi`) behind ceremony arming (`state_root_v2_ceremony_ok`)
-- Finality `quorum_live` only when config-armed **and** QC reached; weak-subjectivity honesty surface
+- Tip encoding v2 (`b_satoshi`, `SATOSHI_MULTIPLIER=1e6`) active when `state_root_encoding_version>=2` **and** `state_root_v2_ceremony_ok` (local prod mesh JSON armed; fresh volumes only)
+- Native Rocks tip hasher / `account_payload_row` emit integer `b_satoshi` only; v1 float `"b"` remains Python-only for legacy
+- StateService apply / fees / gas / reward use satoshi ints (`plan_transfer_fees_sat`, `ApplyBlockResult.burned` satoshi); ABS float at display/wire edges
+- SQLite tip path SELECTs `balance_satoshi`; industrial_gate soak needle requires v2/`b_satoshi` contract
+- Finality `quorum_live` only when config-armed **and** QC reached; weak-subjectivity honesty surface (prior Wave C honesty)
 
 ### Mesh — genesis artifact + tip height-0 + P2P IO
 
