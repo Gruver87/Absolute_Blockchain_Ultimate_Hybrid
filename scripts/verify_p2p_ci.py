@@ -2952,8 +2952,8 @@ def _prod_mesh3_bootstrap_mesh(url1: str, url2: str, url3: str) -> None:
     _restore_p2p_mesh(urls, expected_peers=2)
     time.sleep(2)
     _wait_peer_count(url1, 2, timeout=60)
-    _wait_peer_count(url2, 1, timeout=60)
-    _wait_peer_count(url3, 1, timeout=60)
+    _wait_peer_count(url2, 2, timeout=60)
+    _wait_peer_count(url3, 2, timeout=60)
     _wait_topology_healthy(url1, expected_peers=2, timeout=60)
 
 
