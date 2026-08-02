@@ -546,7 +546,8 @@ class SyncEngine:
         self.consistency.request_probing()
         wire_roots: List[Any] = []
         try:
-            raw = self.node.request_peer_state_roots_sync()
+            # Background tip trust can afford a longer solicit than HTTP quick harness.
+            raw = self.node.request_peer_state_roots_sync(timeout=70)
             if raw is None:
                 print("   [Sync] peer state_root wire probe failed: timeout/empty")
                 probe = WireProbeResult.failed("probe_timeout_empty")

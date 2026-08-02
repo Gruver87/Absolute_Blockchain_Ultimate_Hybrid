@@ -5750,22 +5750,30 @@ class P2PNode:
             "head_hash": head,
         }
 
-    async def request_peer_state_root(self, peer: PeerConnection, height: int = None) -> Optional[Dict]:
+    async def request_peer_state_root(
+        self,
+        peer: PeerConnection,
+        height: int = None,
+        *,
+        timeout: float = 30,
+        retry: bool = True,
+    ) -> Optional[Dict]:
         """Request state_root at height from a single peer."""
         h = height if height is not None else self.blockchain.get_height()
+        wait_s = max(0.4, float(timeout))
         msg = await self._wait_peer_response(
             peer,
             (MSG_STATE_ROOT_RESPONSE,),
-            timeout=30,
+            timeout=wait_s,
             presend=lambda: peer.send(MSG_STATE_ROOT_REQUEST, {"height": h}),
             request_ctx=self._state_root_request_ctx(int(h)),
         )
-        if not msg or msg.get("type") != MSG_STATE_ROOT_RESPONSE:
+        if (not msg or msg.get("type") != MSG_STATE_ROOT_RESPONSE) and retry:
             # One retry — first attempt often races attestation/tip flood.
             msg = await self._wait_peer_response(
                 peer,
                 (MSG_STATE_ROOT_RESPONSE,),
-                timeout=30,
+                timeout=wait_s,
                 presend=lambda: peer.send(MSG_STATE_ROOT_REQUEST, {"height": h}),
                 request_ctx=self._state_root_request_ctx(int(h)),
             )
@@ -5774,7 +5782,12 @@ class P2PNode:
         data = msg.get("data")
         return data if isinstance(data, dict) else None
 
-    async def request_peer_state_roots(self) -> List[Dict]:
+    async def request_peer_state_roots(
+        self,
+        *,
+        per_peer_timeout: float = 30,
+        retry: bool = True,
+    ) -> List[Dict]:
         """Collect state_root responses from all connected peers (parallel)."""
         height = self.blockchain.get_height()
         peers = list(self.peers.values())
@@ -5782,7 +5795,12 @@ class P2PNode:
             return []
 
         async def _one(peer: PeerConnection) -> Optional[Dict]:
-            resp = await self.request_peer_state_root(peer, height)
+            resp = await self.request_peer_state_root(
+                peer,
+                height,
+                timeout=per_peer_timeout,
+                retry=retry,
+            )
             if resp:
                 resp["peer_id"] = peer.peer_id
             return resp
@@ -5801,15 +5819,21 @@ class P2PNode:
     def request_peer_state_roots_sync(self, timeout: float = 15) -> Optional[List[Dict]]:
         if not self._loop or not self._running:
             return []
+        # Hard ceiling: callers (quick harness /health/ready) pass short timeouts.
+        # Never inflate past the requested budget — that blocked HTTP handlers for
+        # ~70s/peer and caused CI "harness: timed out" under a 60s urllib limit.
+        budget = max(0.5, float(timeout))
         peer_n = max(1, len(self.peers))
-        # Per-peer solicit may retry once at ~30s; allow wall-clock headroom.
-        budget = max(float(timeout), 70.0 * peer_n)
+        per_peer = min(30.0, max(0.4, (budget * 0.85) / peer_n))
+        retry = (2.0 * per_peer) <= budget
         future = asyncio.run_coroutine_threadsafe(
-            self.request_peer_state_roots(), self._loop
+            self.request_peer_state_roots(per_peer_timeout=per_peer, retry=retry),
+            self._loop,
         )
         try:
             return future.result(timeout=budget)
         except Exception as exc:
+            future.cancel()
             logger.warning("[P2P] state_root wire probe timeout/error: %s", exc)
             return None
 
