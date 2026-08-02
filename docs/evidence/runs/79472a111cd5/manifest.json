@@ -1,7 +1,7 @@
 {
   "schema": "abs.mesh_evidence.v1",
   "created_unix": 1785638180,
-  "commit": "37cd74a95a55e36ef6fbbcff2a6c787b20b40e2f",
+  "commit": "79472a111cd51a6e20bc6f3ce54fb2607d3dfd0a",
   "honesty": "Artifacts listed here are operator-supplied. Absence means the claim is not independently verifiable from this package.",
   "claims": {
     "chain_sync": "see probe / node heights",
@@ -11,7 +11,7 @@
   "files": {
     "probe_log": {
       "status": "present",
-      "path": "docs\\evidence\\runs\\37cd74a95a55\\probe_quick.log",
+      "path": "docs\\\\evidence\\\\runs\\\\79472a111cd5\\\\probe_quick.log",
       "sha256": "b8ec5215904024ce4eebdea15a7d39928b8dc53c1b3c8d4f3f7a48a51526b0ed",
       "bytes": 526
     },
@@ -19,5 +19,5 @@
       "status": "missing"
     }
   },
-  "manifest_sha256": "e84aa8d4c29301d97e911456e8dcc91891b6759382abaaf1123c5c6f06b11216"
+  "manifest_sha256": "21c24d35345beb2a0bd2a38b07dbe8c4c0deae84cbd774d033d8feac42eecbc4"
 }
