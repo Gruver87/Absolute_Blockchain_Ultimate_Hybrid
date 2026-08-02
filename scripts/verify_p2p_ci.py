@@ -3373,7 +3373,7 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
         _prod_mesh3_bootstrap_mesh(url1, url2, url3)
         # Give followers wall-clock to import newly mined blocks before consensus gate.
         post_mine_stable = False
-        for attempt in range(50):
+        for attempt in range(60):
             try:
                 statuses = [_api(f"{u}/status") for u in urls]
                 heights = [int(s.get("height", 0) or 0) for s in statuses]
@@ -3383,62 +3383,23 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
                         post_mine_stable = True
                         break
                 tip_h = max(heights)
-                seedish = [i for i, h in enumerate(heights) if tip_h - h > 2]
-                if attempt in (8, 18, 28) and seedish:
-                    # Hard recovery: freeze mining, re-clone tip from primary, realign.
-                    print(
-                        f"WARN: prod-mesh3 post-mine lag heights={heights}; "
-                        "re-seeding followers from primary"
-                    )
-                    _stop_all()
-                    for c in cfgs:
-                        _set_mining(c, False)
-                    _seed_follower_dbs(cfg1, [cfg2, cfg3])
-                    for cfg, log_path in zip(cfgs, logs):
-                        _start_node(cfg, log_path)
-                        time.sleep(2)
-                    for url, log_path in zip(urls, logs):
-                        if not _wait_health(url, max_sec=120):
-                            print(f"FAIL: prod-mesh3 health after re-seed on {url}")
-                            return 1
-                    _prod_mesh3_bootstrap_mesh(url1, url2, url3)
-                    time.sleep(3)
-                    statuses = [_api(f"{u}/status") for u in urls]
-                    heights = [int(s.get("height", 0) or 0) for s in statuses]
-                    heads = [(s.get("head_hash") or "").lower() for s in statuses]
-                    if (
-                        min(heights) >= 1
-                        and max(heights) - min(heights) <= 1
-                        and heads[0]
-                        and len(set(heads)) == 1
-                    ):
-                        print(f"OK: prod-mesh3 re-seed aligned heights={heights}")
-                        _stop_all()
-                        _set_mining(cfg1, True)
-                        _set_mining(cfg2, False)
-                        _set_mining(cfg3, False)
-                        for cfg, log_path in zip(cfgs, logs):
-                            _start_node(cfg, log_path)
-                            time.sleep(2)
-                        for url, log_path in zip(urls, logs):
-                            if not _wait_health(url, max_sec=120):
-                                print(f"FAIL: prod-mesh3 health after re-mine on {url}")
-                                return 1
-                        _prod_mesh3_bootstrap_mesh(url1, url2, url3)
-                        continue
-                if attempt in (0, 5, 15, 25, 35) and max(heights) - min(heights) > 1:
+                if attempt % 5 == 0 and max(heights) - min(heights) > 1:
                     for url, h in zip(urls, heights):
                         if tip_h - h <= 1:
                             continue
                         try:
                             _admin_token(url)
                             sync_resp = _post_json(
-                                url, "/sync/fast-sync", {"timeout": 120}, timeout=135
+                                url,
+                                "/sync/fast-sync",
+                                {"timeout": 120, "target_block": tip_h},
+                                timeout=150,
                             )
                             print(
                                 f"prod-mesh3 post-mine fast-sync {url}: "
                                 f"{h}->{tip_h} ok={sync_resp.get('success')} "
-                                f"detail={sync_resp.get('detail') or sync_resp.get('message')}"
+                                f"msg={sync_resp.get('message')} "
+                                f"detail={sync_resp.get('detail') or {}}"
                             )
                             if not sync_resp.get("success"):
                                 _post_json(
@@ -3459,7 +3420,7 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
                     print(f"  node{i} status error: {exc}")
             return 2
 
-        rc = verify_prod_consensus_mesh3(url1, url2, url3)
+        rc = verify_prod_consensus_mesh3(url1, url2, url3, wait_sec=300)
         if rc != 0:
             return rc
         rc = _run_prod_mesh3_evidence(ceremony_dir, urls, env)
