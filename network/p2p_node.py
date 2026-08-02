@@ -2889,6 +2889,16 @@ class P2PNode:
         # Transient TLS/EOF tears on mesh reconnects must not escalate to bans.
         if why in soft or why.startswith("p2p_transport_io:"):
             self._soft_refuse_total = int(getattr(self, "_soft_refuse_total", 0) or 0) + 1
+            # Keep security counters honest (rate_limit_drops / shape_rejects) without
+            # PeerManager strike escalation toward ban.
+            bump = getattr(self.peer_manager, "note_shape_reject", None)
+            if bump is None:
+                bump = getattr(self.peer_manager, "_bump_shape", None)
+            if bump is not None:
+                try:
+                    bump(why or "unknown")
+                except Exception:
+                    pass
             logger.info(
                 "[P2P] soft-refuse %s from %s (no ban; mesh-safe)",
                 why[:80],

@@ -101,10 +101,15 @@ async def test_solicited_peers_ingested():
     node.peers[peer.peer_id] = peer
     scheduled: list[tuple[str, int]] = []
     node._schedule_connect = lambda h, p: scheduled.append((h, p))  # type: ignore[method-assign]
-    n = node._ingest_discovered_peers(peer, ["127.0.0.1:5001"])
+    # Hostname seeds are remembered; bare IP dials may schedule but must not
+    # enter _known_addrs (Wave D — docker bridge IPs dual-dial storm).
+    n = node._ingest_discovered_peers(
+        peer, ["127.0.0.1:5001", "node2.local:5001"]
+    )
     assert n >= 1
-    assert "127.0.0.1:5001" in node._known_addrs
-    assert ("127.0.0.1", 5001) in scheduled
+    assert "127.0.0.1:5001" not in node._known_addrs
+    assert "node2.local:5001" in node._known_addrs
+    assert ("node2.local", 5001) in scheduled
 
 
 @pytest.mark.asyncio

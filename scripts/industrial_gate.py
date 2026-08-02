@@ -584,9 +584,16 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
             errors.append(
                 "ConsensusAdapter must init round state machine (ADR 0007)"
             )
-        if '"finality_quorum_live": False' not in adapter_py:
+        # ADR 0007 honesty: never invent live quorum from local attests alone.
+        # Wave C: True only when config `finality_quorum_live` is armed AND QC reached.
+        if "never claim live mesh quorum unless config arms it" not in adapter_py:
             errors.append(
-                "ConsensusAdapter get_stats must keep finality_quorum_live False (ADR 0007)"
+                "ConsensusAdapter must gate finality_quorum_live on config arm + QC "
+                "(ADR 0007 honesty)"
+            )
+        if "allow_live and getattr(view, \"quorum_live\"" not in adapter_py:
+            errors.append(
+                "ConsensusAdapter finality_status must AND config arm with view.quorum_live"
             )
         if not (ROOT / "docs" / "adr" / "0007-consensus-boundary.md").is_file():
             errors.append("docs/adr/0007-consensus-boundary.md missing")

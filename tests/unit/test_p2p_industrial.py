@@ -260,7 +260,10 @@ async def test_message_loop_strikes_on_rate_limit():
     sec = p2p.get_p2p_security_status()
     assert sec["rate_limit_drops"] >= 1
     assert sec["shape_rejects"].get("rate_limit_exceeded", 0) >= 1
-    assert p2p._is_banned(peer_id) is True
+    # Wave D: ingress rate_limit soft-refuses (drop + count) without PeerManager ban
+    # — ban storms tore down docker mesh under sync bursts.
+    assert p2p._is_banned(peer_id) is False
+    assert int(getattr(p2p, "_soft_refuse_total", 0) or 0) >= 1
 
 
 def test_p2p_rate_limit_drops_excess_messages():

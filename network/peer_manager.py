@@ -199,6 +199,10 @@ class PeerManager:
             except Exception:
                 pass
 
+    def note_shape_reject(self, reason: str) -> None:
+        """Count a shape/rate reject without strike/ban escalation (soft-refuse path)."""
+        self._bump_shape(reason)
+
     def _rl_call(self, fn, *args, **kwargs):
         """Serialize native rate-limit table access with egress prepare."""
         lock = getattr(self, "_rl_lock", None)
