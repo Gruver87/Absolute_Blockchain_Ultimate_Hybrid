@@ -3373,6 +3373,48 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
             )
         )
 
+    def _restart_primary(*, mining: bool, reason: str) -> int:
+        print(f"OK: restarting primary ({reason}, mining={mining})")
+        if procs:
+            procs[0].terminate()
+            try:
+                procs[0].wait(timeout=15)
+            except Exception:
+                procs[0].kill()
+                try:
+                    procs[0].wait(timeout=10)
+                except Exception:
+                    pass
+            procs.pop(0)
+            time.sleep(4)
+        primary_dir = _node_data_dir(cfg1)
+        for rel in ("chainstore/LOCK", "LOCK"):
+            lock = primary_dir / rel
+            if lock.is_file():
+                try:
+                    lock.unlink()
+                    print(f"WARN: removed stale RocksDB lock {lock}")
+                except Exception as exc:
+                    print(f"WARN: could not remove RocksDB lock {lock}: {exc}")
+        _set_mining(cfg1, mining)
+        for attempt in range(2):
+            _start_node(cfg1, logs[0])
+            primary = procs.pop()
+            procs.insert(0, primary)
+            if _wait_health(url1, max_sec=180):
+                _prod_mesh3_bootstrap_mesh(url1, url2, url3)
+                return 0
+            print(f"WARN: primary health timeout after {reason} (attempt {attempt + 1})")
+            procs[0].terminate()
+            try:
+                procs[0].wait(timeout=10)
+            except Exception:
+                procs[0].kill()
+            procs.pop(0)
+            time.sleep(3)
+        print(f"FAIL: prod-mesh3 health after {reason} on {url1}")
+        return 1
+
     try:
         print(f"Prod-mesh3: spawning ceremony mesh on :15280-15282 (tmp={tmp})")
         # Phase A: leader mines one tip, then we freeze mining until followers share that tip.
@@ -3545,23 +3587,9 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
         if rc != 0:
             return rc
         # Freeze mining for evidence so followers are not racing a moving tip.
-        print("OK: freezing primary mining for signed-tx + EVM evidence")
-        if procs:
-            procs[0].terminate()
-            try:
-                procs[0].wait(timeout=15)
-            except Exception:
-                procs[0].kill()
-            procs.pop(0)
-            time.sleep(2)
-        _set_mining(cfg1, False)
-        _start_node(cfg1, logs[0])
-        primary = procs.pop()
-        procs.insert(0, primary)
-        if not _wait_health(url1, max_sec=180):
-            print(f"FAIL: prod-mesh3 health after mining freeze on {url1}")
-            return 1
-        _prod_mesh3_bootstrap_mesh(url1, url2, url3)
+        rc = _restart_primary(mining=False, reason="mining freeze for evidence")
+        if rc != 0:
+            return rc
         evidence_aligned = False
         for attempt in range(40):
             try:
@@ -3600,23 +3628,9 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
         if rc != 0:
             return rc
         # Re-enable mining before recovery drill.
-        print("OK: re-enabling primary mining after evidence")
-        if procs:
-            procs[0].terminate()
-            try:
-                procs[0].wait(timeout=15)
-            except Exception:
-                procs[0].kill()
-            procs.pop(0)
-            time.sleep(2)
-        _set_mining(cfg1, True)
-        _start_node(cfg1, logs[0])
-        primary = procs.pop()
-        procs.insert(0, primary)
-        if not _wait_health(url1, max_sec=180):
-            print(f"FAIL: prod-mesh3 health after mining re-enable on {url1}")
-            return 1
-        _prod_mesh3_bootstrap_mesh(url1, url2, url3)
+        rc = _restart_primary(mining=True, reason="mining re-enable after evidence")
+        if rc != 0:
+            return rc
         if recovery_drill:
             print("RECOVERY: prod-mesh3 CI spawn failover drill (node2 SIGTERM/restart)")
             rc = verify_spawn_mesh3_recovery(
