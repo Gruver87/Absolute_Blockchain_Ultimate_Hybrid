@@ -1095,6 +1095,24 @@ def verify_spawn_mesh3_recovery(
 ) -> int:
     """Process-based node2 failover for isolated prod-mesh3 CI spawn."""
 
+    def _node2_data_dir() -> Path:
+        with open(node2_cfg, encoding="utf-8") as f:
+            cfg = json.load(f)
+        db_path = Path(cfg.get("db_path", "data/chain.db"))
+        if not db_path.is_absolute():
+            db_path = Path(node2_cfg).resolve().parent / db_path
+        return db_path.parent
+
+    def _clear_rocks_lock(data_dir: Path) -> None:
+        for rel in ("chainstore/LOCK", "LOCK"):
+            lock = data_dir / rel
+            if lock.is_file():
+                try:
+                    lock.unlink()
+                    print(f"WARN: removed stale RocksDB lock {lock}")
+                except Exception as exc:
+                    print(f"WARN: could not remove RocksDB lock {lock}: {exc}")
+
     def _stop_node2() -> bool:
         if len(procs) < 2 or procs[1] is None:
             return False
@@ -1110,17 +1128,21 @@ def verify_spawn_mesh3_recovery(
                 pass
         procs[1] = None
         time.sleep(4)  # let RocksDB release locks before restart
+        _clear_rocks_lock(_node2_data_dir())
         return True
 
     def _start_node2() -> bool:
+        data_dir = _node2_data_dir()
+        node_log = data_dir / "node.log"
         for attempt in range(2):
+            _clear_rocks_lock(data_dir)
             err = open(node2_log, "a", encoding="utf-8")
             proc = subprocess.Popen(
                 [sys.executable, "main.py", "--config", node2_cfg],
                 cwd=ROOT,
                 env=env,
-                stdout=subprocess.DEVNULL,
-                stderr=err,
+                stdout=err,
+                stderr=subprocess.STDOUT,
             )
             if len(procs) >= 2:
                 procs[1] = proc
@@ -1128,15 +1150,20 @@ def verify_spawn_mesh3_recovery(
                 procs.append(proc)
             if _wait_health(url2, max_sec=180):
                 return True
-            print(f"WARN: node2 health timeout after restart (attempt {attempt + 1})")
-            try:
-                if os.path.isfile(node2_log):
-                    tail = open(node2_log, encoding="utf-8", errors="replace").read()[-2000:]
-                    if tail.strip():
-                        print("--- node2 stderr tail ---")
-                        print(tail)
-            except Exception:
-                pass
+            print(
+                f"WARN: node2 health timeout after restart (attempt {attempt + 1}) "
+                f"poll={proc.poll()}"
+            )
+            for path in (node2_log, node_log):
+                try:
+                    if path.is_file():
+                        tail = path.read_text(encoding="utf-8", errors="replace")[-2500:]
+                        if tail.strip():
+                            print(f"--- {path.name} tail ---")
+                            print(tail)
+                            break
+                except Exception:
+                    pass
             proc.terminate()
             try:
                 proc.wait(timeout=10)
