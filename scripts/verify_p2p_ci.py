@@ -3356,20 +3356,28 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
                     print(f"  node{i} status error: {exc}")
             return 2
 
-        # Phase C: enable primary mining after tip alignment.
-        print("OK: prod-mesh3 seed tip aligned; enabling primary mining")
-        _stop_all()
+        # Phase C: enable primary mining without bouncing followers off the seed tip.
+        print("OK: prod-mesh3 seed tip aligned; enabling primary mining (followers stay up)")
+        if not procs:
+            print("FAIL: prod-mesh3 missing processes before mining enable")
+            return 1
+        primary_proc = procs[0]
+        primary_proc.terminate()
+        try:
+            primary_proc.wait(timeout=15)
+        except Exception:
+            primary_proc.kill()
+        procs.pop(0)
+        time.sleep(2)
         _set_mining(cfg1, True)
-        _set_mining(cfg2, False)
-        _set_mining(cfg3, False)
-        for cfg, log_path in zip(cfgs, logs):
-            _start_node(cfg, log_path)
-            time.sleep(2)
-        for url, log_path in zip(urls, logs):
-            if not _wait_health(url, max_sec=180):
-                print(f"FAIL: prod-mesh3 health timeout after mining enable on {url}")
-                print(f"  stderr: {log_path}")
-                return 1
+        _start_node(cfg1, logs[0])
+        # _start_node appends; move primary back to index 0 for recovery drill.
+        primary = procs.pop()
+        procs.insert(0, primary)
+        if not _wait_health(url1, max_sec=180):
+            print(f"FAIL: prod-mesh3 health timeout after mining enable on {url1}")
+            print(f"  stderr: {logs[0]}")
+            return 1
         _prod_mesh3_bootstrap_mesh(url1, url2, url3)
         # Give followers wall-clock to import newly mined blocks before consensus gate.
         post_mine_stable = False
