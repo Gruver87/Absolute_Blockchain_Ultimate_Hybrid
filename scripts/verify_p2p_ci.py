@@ -16,7 +16,6 @@ After start_two_nodes.ps1 use either:
 from __future__ import annotations
 
 import argparse
-from crypto import native
 import json
 import os
 import shutil
@@ -31,6 +30,7 @@ from pathlib import Path
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+from crypto import native
 from runtime.mainnet_constants import MAINNET_V1_CHAIN_ID
 
 

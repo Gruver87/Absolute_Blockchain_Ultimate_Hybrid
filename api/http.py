@@ -7576,15 +7576,25 @@ def _build_state_consistency_harness(
     policy = bc.get_state_root_policy() if bc and hasattr(bc, "get_state_root_policy") else {}
     encoding = (policy or {}).get("encoding") or {}
     active_enc = encoding.get("active") or {}
+    # Wave C: ceremony-armed tip v2 (b_satoshi) is the industrial tip; v1 float is legacy.
+    tip_v = int(active_enc.get("version") or 1)
+    tip_active = bool(active_enc.get("active"))
+    satoshi_ready = bool(active_enc.get("satoshi_tip_ready"))
     encoding_honest = (
-        active_enc.get("version") == 1
-        and active_enc.get("active") is True
-        and active_enc.get("satoshi_tip_ready") is False
+        tip_active
+        and (
+            (tip_v == 1 and not satoshi_ready)
+            or (tip_v >= 2 and satoshi_ready)
+        )
     )
     checks.append({
         "id": "state_root_encoding_honest",
         "ok": encoding_honest,
-        "detail": "consensus tip uses v1 float_b_round12 (satoshi tip not claimed)",
+        "detail": (
+            "consensus tip v2 b_satoshi (ceremony-armed)"
+            if tip_v >= 2 and tip_active and satoshi_ready
+            else "consensus tip v1 float_b_round12 (legacy / not ceremony-armed)"
+        ),
     })
     harness_healthy = all(c["ok"] for c in checks)
 
