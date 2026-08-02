@@ -1104,23 +1104,48 @@ def verify_spawn_mesh3_recovery(
             proc.wait(timeout=15)
         except Exception:
             proc.kill()
+            try:
+                proc.wait(timeout=10)
+            except Exception:
+                pass
         procs[1] = None
+        time.sleep(4)  # let RocksDB release locks before restart
         return True
 
     def _start_node2() -> bool:
-        err = open(node2_log, "a", encoding="utf-8")
-        proc = subprocess.Popen(
-            [sys.executable, "main.py", "--config", node2_cfg],
-            cwd=ROOT,
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=err,
-        )
-        if len(procs) >= 2:
-            procs[1] = proc
-        else:
-            procs.append(proc)
-        return _wait_health(url2, max_sec=180)
+        for attempt in range(2):
+            err = open(node2_log, "a", encoding="utf-8")
+            proc = subprocess.Popen(
+                [sys.executable, "main.py", "--config", node2_cfg],
+                cwd=ROOT,
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=err,
+            )
+            if len(procs) >= 2:
+                procs[1] = proc
+            else:
+                procs.append(proc)
+            if _wait_health(url2, max_sec=180):
+                return True
+            print(f"WARN: node2 health timeout after restart (attempt {attempt + 1})")
+            try:
+                if os.path.isfile(node2_log):
+                    tail = open(node2_log, encoding="utf-8", errors="replace").read()[-2000:]
+                    if tail.strip():
+                        print("--- node2 stderr tail ---")
+                        print(tail)
+            except Exception:
+                pass
+            proc.terminate()
+            try:
+                proc.wait(timeout=10)
+            except Exception:
+                proc.kill()
+            if len(procs) >= 2:
+                procs[1] = None
+            time.sleep(3)
+        return False
 
     return verify_mesh3_recovery(
         url1,
