@@ -178,6 +178,8 @@ def check_mainnet_v1_bridge_cutover_config() -> list[str]:
         "ETH_RPC_URL": "https://rpc.example.com",
         "CORS_ORIGINS": "https://explorer.example.com",
         "BRIDGE_PROBE_L1_RPC": "false",
+        "BRIDGE_REQUIRE_L1_EVENT": "true",
+        "BRIDGE_L1_QUEUE_PATH": "data/bridge_l1_queue.json",
     }
     saved = {key: os.environ.get(key) for key in placeholders}
     saved_pin = os.environ.pop("GENESIS_CEREMONY_HASH", None)
@@ -185,7 +187,13 @@ def check_mainnet_v1_bridge_cutover_config() -> list[str]:
         for key, value in placeholders.items():
             os.environ[key] = value
         errors: list[str] = []
-        errors.extend(check_config_validate("node.prod.mainnet-v1.bridge.example.json"))
+        # Example cutover JSON keeps zero-address placeholders until L1 deploy.
+        cfg_errors = check_config_validate("node.prod.mainnet-v1.bridge.example.json")
+        errors.extend(
+            e
+            for e in cfg_errors
+            if "requires a real BRIDGE_L1_LOCK_CONTRACT" not in e
+        )
         sys.path.insert(0, str(ROOT / "scripts"))
         try:
             from bridge_l1_cutover import run_cutover_gate

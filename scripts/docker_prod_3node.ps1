@@ -179,9 +179,10 @@ if ($KeepVolumes) {
 }
 
 if ($KeepVolumes) {
-    Invoke-MeshCompose down --remove-orphans 2>$null
+    Invoke-MeshCompose -- down --remove-orphans
 } else {
-    Invoke-MeshCompose down -v --remove-orphans 2>$null
+    # Use --volumes (not -v): PowerShell would steal -v as a function parameter.
+    Invoke-MeshCompose -- down --volumes --remove-orphans
 }
 if (-not $SkipBuild) {
     Invoke-MeshCompose build node1 node2 node3

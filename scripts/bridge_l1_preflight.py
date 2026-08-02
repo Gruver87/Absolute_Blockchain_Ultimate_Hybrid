@@ -97,7 +97,15 @@ def run_preflight(
             e for e in val_errors
             if "bridge" in e.lower() or "rpc" in e.lower() or "l1" in e.lower()
         ]
-        errors.extend(bridge_errors)
+        # Static cutover: placeholder lock/mint addresses are warnings (see below).
+        # Do not hard-fail Config.validate's "requires a real …LOCK_CONTRACT" until
+        # strict_contracts (live probe) — industrial v1 keeps bridge OFF on mesh.
+        _soft = "requires a real BRIDGE_L1_LOCK_CONTRACT"
+        for e in bridge_errors:
+            if (not strict_contracts) and _soft in e:
+                warnings.append(e)
+            else:
+                errors.append(e)
     finally:
         for key, old in saved.items():
             if old is None:

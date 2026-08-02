@@ -1,8 +1,12 @@
 ﻿tip_v2_industrial_phase2
-started_unix=1785640485
+started_unix=1785648451
+started_utc=2026-08-02T05:27:31.6990375Z
 soak_log=logs/industrial_tipv2_soak_48h.log
+report=logs/soak_report_tipv2_48h.json
 soak_hours=48
 status=RUNNING
-smokes=ready+probe+failover+signed_tx+evm PASS
+mesh=fresh_volumes_wiped tip_live=2 satoshi_b
+smokes=ready+probe+failover+signed_tx+evm PASS (post-wipe)
 dr=PASS
-ceremony_pin=session PASS (see .env GENESIS_CEREMONY_HASH)
+ceremony_pin=session PASS
+rotate_secrets=dry-run PASS (no -Force)
