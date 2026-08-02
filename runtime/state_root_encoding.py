@@ -57,9 +57,13 @@ def reset_tip_encoding_config(token: contextvars.Token) -> None:
 
 
 def clear_tip_encoding_config() -> None:
-    """Clear process-global tip config (tests)."""
+    """Clear process-global and current-context tip config (tests / shutdown)."""
     global _tip_config_global
     _tip_config_global = None
+    # Drop inherited ContextVar from prior Blockchain()/bind in this task.
+    # Without this, reset_tip_encoding_config(token) can restore a stale v1 cfg
+    # and hide the process-global bind used by P2P worker threads.
+    _tip_config_ctx.set(None)
 
 
 def _resolve_config(config: Any = None) -> Any:

@@ -36,7 +36,11 @@ def store(tmp_path):
 def test_state_root_from_account_prefix_matches_db_kernel(store):
     from types import SimpleNamespace
 
-    from runtime.state_root_encoding import bind_tip_encoding_config, reset_tip_encoding_config
+    from runtime.state_root_encoding import (
+        bind_tip_encoding_config,
+        clear_tip_encoding_config,
+        reset_tip_encoding_config,
+    )
 
     founder = "0x" + "f" * 40
     for addr, amount in genesis_balances(founder).items():
@@ -60,3 +64,4 @@ def test_state_root_from_account_prefix_matches_db_kernel(store):
         assert via_store == via_kernel
     finally:
         reset_tip_encoding_config(token)
+        clear_tip_encoding_config()

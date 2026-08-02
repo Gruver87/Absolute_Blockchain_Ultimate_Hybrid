@@ -1,8 +1,12 @@
 # Incident Response Runbook — Absolute Blockchain
 
-**Version:** 1.0  
-**Updated:** 2026-07-05  
+**Version:** 1.1  
+**Updated:** 2026-08-02  
 **Scope:** Absolute Blockchain Ultimate Hybrid (L1 node, P2P, bridge, prod profile)
+
+Industrial tip-v2 note: keep bridge OFF; do not flip `state_root_encoding_version` /
+ceremony arming across KeepVolumes — wipe mesh (`-NoCloneDb`) on encoding cutovers.
+See [INDUSTRIAL_HARDEN_RUNBOOK.md](INDUSTRIAL_HARDEN_RUNBOOK.md).
 
 This runbook is the operational playbook for production and staging incidents.  
 It complements automated gates (`prod_gate`, `mainnet_readiness`, `backup_db_drill`).

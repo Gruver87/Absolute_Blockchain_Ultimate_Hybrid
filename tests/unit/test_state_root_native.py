@@ -99,6 +99,8 @@ def test_state_root_accumulator_matches_batch_scan():
     if not native.state_root_accumulator_available():
         return
     # Native accumulator emits b_satoshi; parity only under tip encoding v2.
+    from runtime.state_root_encoding import clear_tip_encoding_config
+
     token = bind_tip_encoding_config(
         SimpleNamespace(state_root_encoding_version=2, state_root_v2_ceremony_ok=True)
     )
@@ -111,6 +113,7 @@ def test_state_root_accumulator_matches_batch_scan():
         assert acc.root() == expected
     finally:
         reset_tip_encoding_config(token)
+        clear_tip_encoding_config()
 
 
 def test_legacy_state_engine_root_keeps_32_char_contract():

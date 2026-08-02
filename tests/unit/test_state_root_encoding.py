@@ -45,11 +45,16 @@ def test_blockchain_policy_includes_encoding(tmp_path):
     cfg.db_path = path
     db = Database(path)
     db.initialize()
+    from runtime.state_root_encoding import clear_tip_encoding_config
+
     bc = Blockchain(cfg, db)
-    policy = bc.get_state_root_policy()
-    assert policy["encoding"]["active"]["version"] == 1
-    db.close()
-    os.remove(path)
+    try:
+        policy = bc.get_state_root_policy()
+        assert policy["encoding"]["active"]["version"] == 1
+    finally:
+        clear_tip_encoding_config()
+        db.close()
+        os.remove(path)
 
 
 def test_state_root_encoding_endpoint(tmp_path):
@@ -85,6 +90,8 @@ def test_state_root_encoding_endpoint(tmp_path):
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     time.sleep(0.2)
+    from runtime.state_root_encoding import clear_tip_encoding_config
+
     try:
         with urllib.request.urlopen(
             f"http://127.0.0.1:{cfg.http_port}/chain/state-root/encoding", timeout=5
@@ -95,5 +102,6 @@ def test_state_root_encoding_endpoint(tmp_path):
         assert body["planned"]["version"] == 2
     finally:
         server.shutdown()
+        clear_tip_encoding_config()
         db.close()
         os.remove(path)

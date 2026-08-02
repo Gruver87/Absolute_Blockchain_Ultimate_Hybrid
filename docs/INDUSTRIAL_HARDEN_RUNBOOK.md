@@ -27,11 +27,12 @@ Stop: soak `passed=true`, matching tip roots, encoding v2 active on all three no
 python scripts/bridge_off_audit_gate.py
 .\scripts\ceremony_evidence_suite.ps1   # if present; else genesis_ceremony_keygen dry docs
 # pin_ceremony_hash.ps1 — dry-run only until real keys
-# rotate_prod_secrets.ps1 — document; use -Force only on cutover host
+.\scripts\rotate_prod_secrets.ps1   # dry-run: prints plan, exits 0; use -Force only on cutover host
 .\scripts\dr_restore_rehearsal.ps1 -DockerMesh1
 ```
 
-Stop: bridge OFF gate PASS; DR rehearsal PASS; ceremony/secrets steps recorded (secrets gitignored).
+Stop: bridge OFF gate PASS; DR rehearsal PASS; ceremony/secrets steps recorded (secrets gitignored).  
+Session note: `rotate_prod_secrets.ps1` without `-Force` is the documented dry-run (no mutation).
 
 ## Phase 4 — Audit binder
 
