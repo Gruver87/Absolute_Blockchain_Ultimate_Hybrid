@@ -6565,30 +6565,42 @@ class RESTHandler(BaseHTTPRequestHandler):
             elif path == "/sync/fast-sync":
                 p2p = self.__class__.p2p
                 sync_timeout = max(30.0, min(600.0, float(body.get("timeout", 90) or 90)))
+                catch_up_detail = None
                 if p2p and hasattr(p2p, "catch_up_sync"):
-                    result = p2p.catch_up_sync(timeout=sync_timeout)
-                    self._json({
-                        "success": bool(result.get("ok")),
-                        "local_height": self.__class__.blockchain.get_height(),
-                        "message": "P2P catch-up finished",
-                        "detail": result,
-                    })
-                    return
+                    catch_up_detail = p2p.catch_up_sync(timeout=sync_timeout)
+                    if bool((catch_up_detail or {}).get("ok")):
+                        self._json({
+                            "success": True,
+                            "local_height": self.__class__.blockchain.get_height(),
+                            "message": "P2P catch-up finished",
+                            "detail": catch_up_detail,
+                        })
+                        return
+                    logger.warning(
+                        "/sync/fast-sync catch_up_sync incomplete: %s — trying SyncEngine",
+                        catch_up_detail,
+                    )
                 if p2p and hasattr(p2p, "trigger_catch_up"):
                     p2p.trigger_catch_up()
-                    self._json({
-                        "success": True,
-                        "local_height": self.__class__.blockchain.get_height(),
-                        "message": "P2P catch-up scheduled",
-                    })
-                    return
                 se = self.__class__.sync_engine
                 if not se:
-                    self._error(503, "SyncEngine not enabled"); return
+                    self._json({
+                        "success": False,
+                        "local_height": self.__class__.blockchain.get_height(),
+                        "message": "P2P catch-up incomplete; SyncEngine not enabled",
+                        "detail": catch_up_detail or {},
+                    })
+                    return
                 target_block = int(body.get("target_block", 0))
                 if hasattr(se, "fast_sync"):
-                    result = se.fast_sync(target_block)
-                    self._json({"success": bool(result), "target_block": target_block})
+                    ok = bool(se.fast_sync(target_block))
+                    self._json({
+                        "success": ok,
+                        "target_block": target_block,
+                        "local_height": self.__class__.blockchain.get_height(),
+                        "message": "SyncEngine.fast_sync finished",
+                        "detail": catch_up_detail or {},
+                    })
                 else:
                     self._json({"success": False, "error": "fast_sync not available"})
 

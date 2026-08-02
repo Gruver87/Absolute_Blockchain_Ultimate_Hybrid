@@ -56,9 +56,19 @@ function Test-NodeHealth([int]$Port, [bool]$FullHarness) {
         }
     }
     if (-not $readyOk) {
-        try {
-            $stProbe = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status" -TimeoutSec $statusSec
-            # Soft: node is up; ready flap is monitored as WARN by caller via Failed list.
+        $stProbe = $null
+        $statusErr = ""
+        for ($sAttempt = 1; $sAttempt -le 5; $sAttempt++) {
+            try {
+                $stProbe = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status" -TimeoutSec $statusSec
+                break
+            } catch {
+                $statusErr = $_.Exception.Message
+                if ($sAttempt -lt 5) { Start-Sleep -Seconds 2 }
+            }
+        }
+        if ($null -ne $stProbe) {
+            # Soft: node is up; ready flap is monitored as WARN via Failed=ready_flap.
             return @{
                 Ok = $true
                 Port = $Port
@@ -73,9 +83,8 @@ function Test-NodeHealth([int]$Port, [bool]$FullHarness) {
                 ReadyFlap = $true
                 ReadyError = $readyErr
             }
-        } catch {
-            return @{ Ok = $false; Port = $Port; Error = $readyErr }
         }
+        return @{ Ok = $false; Port = $Port; Error = "$readyErr; status: $statusErr" }
     }
     try {
         $st = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status" -TimeoutSec $statusSec
