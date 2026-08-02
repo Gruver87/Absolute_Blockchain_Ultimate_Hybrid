@@ -3286,7 +3286,7 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
         _prod_mesh3_bootstrap_mesh(url1, url2, url3)
 
         stable = False
-        for _ in range(40):
+        for attempt in range(50):
             try:
                 statuses = [_api(f"{u}/status") for u in urls]
                 heights = [int(s.get("height", 0) or 0) for s in statuses]
@@ -3295,6 +3295,26 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
                     if heads[0] and len(set(heads)) == 1:
                         stable = True
                         break
+                # Same catch-up nudge as prod-smoke: peers alone do not close mining gap.
+                if attempt in (0, 5, 15, 25, 35) and max(heights) - min(heights) > 1:
+                    tip_h = max(heights)
+                    for url, h in zip(urls, heights):
+                        if tip_h - h <= 1:
+                            continue
+                        try:
+                            sync_resp = _post_json(
+                                url, "/sync/fast-sync", {"timeout": 90}, timeout=105
+                            )
+                            print(
+                                f"prod-mesh3 fast-sync {url}: "
+                                f"height={h}->{tip_h} ok={sync_resp.get('success')}"
+                            )
+                            if not sync_resp.get("success"):
+                                _post_json(
+                                    url, "/p2p/reconnect", {"timeout": 30}, timeout=45
+                                )
+                        except Exception as exc:
+                            print(f"WARN: prod-mesh3 fast-sync {url}: {exc}")
             except Exception:
                 pass
             time.sleep(3)
