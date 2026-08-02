@@ -3544,9 +3544,79 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
         rc = verify_prod_consensus_mesh3(url1, url2, url3, wait_sec=300)
         if rc != 0:
             return rc
+        # Freeze mining for evidence so followers are not racing a moving tip.
+        print("OK: freezing primary mining for signed-tx + EVM evidence")
+        if procs:
+            procs[0].terminate()
+            try:
+                procs[0].wait(timeout=15)
+            except Exception:
+                procs[0].kill()
+            procs.pop(0)
+            time.sleep(2)
+        _set_mining(cfg1, False)
+        _start_node(cfg1, logs[0])
+        primary = procs.pop()
+        procs.insert(0, primary)
+        if not _wait_health(url1, max_sec=180):
+            print(f"FAIL: prod-mesh3 health after mining freeze on {url1}")
+            return 1
+        _prod_mesh3_bootstrap_mesh(url1, url2, url3)
+        evidence_aligned = False
+        for attempt in range(40):
+            try:
+                statuses = [_api(f"{u}/status") for u in urls]
+                heights = [int(s.get("height", 0) or 0) for s in statuses]
+                heads = [(s.get("head_hash") or "").lower() for s in statuses]
+                if (
+                    min(heights) >= 1
+                    and max(heights) - min(heights) <= 1
+                    and heads[0]
+                    and len(set(heads)) == 1
+                ):
+                    evidence_aligned = True
+                    break
+                tip_h = max(heights)
+                for url, h in zip(urls, heights):
+                    if tip_h - h <= 0:
+                        continue
+                    try:
+                        _admin_token(url)
+                        _post_json(
+                            url,
+                            "/sync/fast-sync",
+                            {"timeout": 90, "target_block": tip_h},
+                            timeout=120,
+                        )
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            time.sleep(3)
+        if not evidence_aligned:
+            print("FAIL: prod-mesh3 not aligned after mining freeze for evidence")
+            return 2
         rc = _run_prod_mesh3_evidence(ceremony_dir, urls, env)
         if rc != 0:
             return rc
+        # Re-enable mining before recovery drill.
+        print("OK: re-enabling primary mining after evidence")
+        if procs:
+            procs[0].terminate()
+            try:
+                procs[0].wait(timeout=15)
+            except Exception:
+                procs[0].kill()
+            procs.pop(0)
+            time.sleep(2)
+        _set_mining(cfg1, True)
+        _start_node(cfg1, logs[0])
+        primary = procs.pop()
+        procs.insert(0, primary)
+        if not _wait_health(url1, max_sec=180):
+            print(f"FAIL: prod-mesh3 health after mining re-enable on {url1}")
+            return 1
+        _prod_mesh3_bootstrap_mesh(url1, url2, url3)
         if recovery_drill:
             print("RECOVERY: prod-mesh3 CI spawn failover drill (node2 SIGTERM/restart)")
             rc = verify_spawn_mesh3_recovery(
