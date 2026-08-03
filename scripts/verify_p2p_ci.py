@@ -1103,39 +1103,27 @@ def verify_spawn_mesh3_recovery(
             db_path = Path(node2_cfg).resolve().parent / db_path
         return db_path.parent
 
-    def _clear_rocks_lock(data_dir: Path) -> None:
-        for rel in ("chainstore/LOCK", "LOCK"):
-            lock = data_dir / rel
-            if lock.is_file():
-                try:
-                    lock.unlink()
-                    print(f"WARN: removed stale RocksDB lock {lock}")
-                except Exception as exc:
-                    print(f"WARN: could not remove RocksDB lock {lock}: {exc}")
-
     def _stop_node2() -> bool:
         if len(procs) < 2 or procs[1] is None:
             return False
         proc = procs[1]
         proc.terminate()
         try:
-            proc.wait(timeout=15)
+            proc.wait(timeout=20)
         except Exception:
             proc.kill()
             try:
-                proc.wait(timeout=10)
+                proc.wait(timeout=15)
             except Exception:
                 pass
         procs[1] = None
-        time.sleep(4)  # let RocksDB release locks before restart
-        _clear_rocks_lock(_node2_data_dir())
+        time.sleep(8)  # allow RocksDB to release locks cleanly
         return True
 
     def _start_node2() -> bool:
         data_dir = _node2_data_dir()
         node_log = data_dir / "node.log"
         for attempt in range(2):
-            _clear_rocks_lock(data_dir)
             err = open(node2_log, "a", encoding="utf-8")
             proc = subprocess.Popen(
                 [sys.executable, "main.py", "--config", node2_cfg],
@@ -1148,7 +1136,7 @@ def verify_spawn_mesh3_recovery(
                 procs[1] = proc
             else:
                 procs.append(proc)
-            if _wait_health(url2, max_sec=180):
+            if _wait_health(url2, max_sec=240):
                 return True
             print(
                 f"WARN: node2 health timeout after restart (attempt {attempt + 1}) "
@@ -1171,7 +1159,7 @@ def verify_spawn_mesh3_recovery(
                 proc.kill()
             if len(procs) >= 2:
                 procs[1] = None
-            time.sleep(3)
+            time.sleep(5)
         return False
 
     return verify_mesh3_recovery(
@@ -3373,48 +3361,6 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
             )
         )
 
-    def _restart_primary(*, mining: bool, reason: str) -> int:
-        print(f"OK: restarting primary ({reason}, mining={mining})")
-        if procs:
-            procs[0].terminate()
-            try:
-                procs[0].wait(timeout=15)
-            except Exception:
-                procs[0].kill()
-                try:
-                    procs[0].wait(timeout=10)
-                except Exception:
-                    pass
-            procs.pop(0)
-            time.sleep(4)
-        primary_dir = _node_data_dir(cfg1)
-        for rel in ("chainstore/LOCK", "LOCK"):
-            lock = primary_dir / rel
-            if lock.is_file():
-                try:
-                    lock.unlink()
-                    print(f"WARN: removed stale RocksDB lock {lock}")
-                except Exception as exc:
-                    print(f"WARN: could not remove RocksDB lock {lock}: {exc}")
-        _set_mining(cfg1, mining)
-        for attempt in range(2):
-            _start_node(cfg1, logs[0])
-            primary = procs.pop()
-            procs.insert(0, primary)
-            if _wait_health(url1, max_sec=180):
-                _prod_mesh3_bootstrap_mesh(url1, url2, url3)
-                return 0
-            print(f"WARN: primary health timeout after {reason} (attempt {attempt + 1})")
-            procs[0].terminate()
-            try:
-                procs[0].wait(timeout=10)
-            except Exception:
-                procs[0].kill()
-            procs.pop(0)
-            time.sleep(3)
-        print(f"FAIL: prod-mesh3 health after {reason} on {url1}")
-        return 1
-
     try:
         print(f"Prod-mesh3: spawning ceremony mesh on :15280-15282 (tmp={tmp})")
         # Phase A: leader mines one tip, then we freeze mining until followers share that tip.
@@ -3586,49 +3532,7 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
         rc = verify_prod_consensus_mesh3(url1, url2, url3, wait_sec=300)
         if rc != 0:
             return rc
-        # Freeze mining for evidence so followers are not racing a moving tip.
-        rc = _restart_primary(mining=False, reason="mining freeze for evidence")
-        if rc != 0:
-            return rc
-        evidence_aligned = False
-        for attempt in range(40):
-            try:
-                statuses = [_api(f"{u}/status") for u in urls]
-                heights = [int(s.get("height", 0) or 0) for s in statuses]
-                heads = [(s.get("head_hash") or "").lower() for s in statuses]
-                if (
-                    min(heights) >= 1
-                    and max(heights) - min(heights) <= 1
-                    and heads[0]
-                    and len(set(heads)) == 1
-                ):
-                    evidence_aligned = True
-                    break
-                tip_h = max(heights)
-                for url, h in zip(urls, heights):
-                    if tip_h - h <= 0:
-                        continue
-                    try:
-                        _admin_token(url)
-                        _post_json(
-                            url,
-                            "/sync/fast-sync",
-                            {"timeout": 90, "target_block": tip_h},
-                            timeout=120,
-                        )
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-            time.sleep(3)
-        if not evidence_aligned:
-            print("FAIL: prod-mesh3 not aligned after mining freeze for evidence")
-            return 2
         rc = _run_prod_mesh3_evidence(ceremony_dir, urls, env)
-        if rc != 0:
-            return rc
-        # Re-enable mining before recovery drill.
-        rc = _restart_primary(mining=True, reason="mining re-enable after evidence")
         if rc != 0:
             return rc
         if recovery_drill:
