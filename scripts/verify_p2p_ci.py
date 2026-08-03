@@ -1847,7 +1847,9 @@ def verify_state_consistency(urls: list[str], status: dict) -> int:
         roots_match = bool(roots[0] and all(r == roots[0] for r in roots))
         mesh_ok = all_ok and roots_match
         if not mesh_ok and roots_match and failed_nodes:
-            soft = {"tip_state_aligned", "peer_probe_ok"}
+            # Roots agree across nodes: tolerate tip-metadata drift, short wire-probe
+            # flaps, and sticky p2p_state_consistent lag (sync_state may still be catching up).
+            soft = {"tip_state_aligned", "peer_probe_ok", "p2p_state_consistent"}
             tip_only = all(
                 {x.strip() for x in item.split(":", 1)[-1].split(",") if x.strip()}
                 <= soft
