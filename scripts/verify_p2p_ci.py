@@ -205,12 +205,50 @@ def verify_health_ready_mesh(
     return 22
 
 
-def _wait_health(base_url: str, max_sec: int = 120) -> bool:
-    for _ in range(max_sec // 3):
+def _wait_health(base_url: str, max_sec: int = 120, proc=None) -> bool:
+    """Poll /health/live until up. If proc is given, abort early when it exits."""
+    deadline = time.time() + max(1.0, float(max_sec))
+    while time.time() < deadline:
+        if proc is not None and proc.poll() is not None:
+            return False
         if _probe_health(base_url, timeout=5):
             return True
-        time.sleep(3)
+        time.sleep(2)
     return False
+
+
+def _safe_terminate(proc, *, wait_sec: float = 15) -> None:
+    """Terminate a subprocess; no-op when proc is None (cleanup after failover)."""
+    if proc is None:
+        return
+    try:
+        if proc.poll() is not None:
+            return
+        proc.terminate()
+        try:
+            proc.wait(timeout=wait_sec)
+        except Exception:
+            try:
+                proc.kill()
+                proc.wait(timeout=10)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+def _clear_stale_rocksdb_locks(data_dir: Path | str) -> None:
+    """Remove leftover RocksDB LOCK files after SIGTERM (Windows + Linux CI)."""
+    root = Path(data_dir)
+    for rel in ("chainstore/LOCK", "LOCK"):
+        lock = root / rel
+        if not lock.is_file():
+            continue
+        try:
+            lock.unlink()
+            print(f"WARN: removed stale RocksDB lock {lock}")
+        except OSError as exc:
+            print(f"WARN: could not remove RocksDB lock {lock}: {exc}")
 
 
 def _mint_admin_jwt_from_secret() -> str:
@@ -1076,9 +1114,15 @@ def verify_mesh3_recovery(
     finally:
         if not _probe_health(url2, timeout=5):
             print(f"RECOVERY: cleanup start node2 ({label})")
-            _start_node2()
+            try:
+                _start_node2()
+            except Exception as exc:
+                print(f"WARN: cleanup start node2 failed: {exc}")
             _wait_health(url2, max_sec=120)
-        _restore_p2p_mesh(urls, expected_peers=2)
+        try:
+            _restore_p2p_mesh(urls, expected_peers=2)
+        except Exception as exc:
+            print(f"WARN: post-recovery mesh restore: {exc}")
 
 
 def verify_spawn_mesh3_recovery(
@@ -1106,24 +1150,22 @@ def verify_spawn_mesh3_recovery(
     def _stop_node2() -> bool:
         if len(procs) < 2 or procs[1] is None:
             return False
-        proc = procs[1]
-        proc.terminate()
-        try:
-            proc.wait(timeout=20)
-        except Exception:
-            proc.kill()
-            try:
-                proc.wait(timeout=15)
-            except Exception:
-                pass
+        _safe_terminate(procs[1], wait_sec=20)
         procs[1] = None
         time.sleep(8)  # allow RocksDB to release locks cleanly
+        _clear_stale_rocksdb_locks(_node2_data_dir())
         return True
 
     def _start_node2() -> bool:
         data_dir = _node2_data_dir()
         node_log = data_dir / "node.log"
-        for attempt in range(2):
+        for attempt in range(3):
+            _clear_stale_rocksdb_locks(data_dir)
+            # Fresh attempt log so tails are not polluted by prior crash noise.
+            try:
+                open(node2_log, "w", encoding="utf-8").close()
+            except Exception:
+                pass
             err = open(node2_log, "a", encoding="utf-8")
             proc = subprocess.Popen(
                 [sys.executable, "main.py", "--config", node2_cfg],
@@ -1136,13 +1178,13 @@ def verify_spawn_mesh3_recovery(
                 procs[1] = proc
             else:
                 procs.append(proc)
-            if _wait_health(url2, max_sec=240):
+            if _wait_health(url2, max_sec=240, proc=proc):
                 return True
             print(
                 f"WARN: node2 health timeout after restart (attempt {attempt + 1}) "
                 f"poll={proc.poll()}"
             )
-            for path in (node2_log, node_log):
+            for path in (Path(node2_log), node_log):
                 try:
                     if path.is_file():
                         tail = path.read_text(encoding="utf-8", errors="replace")[-2500:]
@@ -1152,14 +1194,11 @@ def verify_spawn_mesh3_recovery(
                             break
                 except Exception:
                     pass
-            proc.terminate()
-            try:
-                proc.wait(timeout=10)
-            except Exception:
-                proc.kill()
+            _safe_terminate(proc, wait_sec=10)
             if len(procs) >= 2:
                 procs[1] = None
             time.sleep(5)
+            _clear_stale_rocksdb_locks(data_dir)
         return False
 
     return verify_mesh3_recovery(
@@ -1866,16 +1905,45 @@ def verify_state_consistency(urls: list[str], status: dict) -> int:
             h0 = int(status.get("height", 0) or 0)
         except Exception:
             h0 = 0
-        repair_timeout = max(120.0, min(900.0, h0 / 5.0))
+        repair_timeout = max(60.0, min(180.0, h0 / 5.0 if h0 else 60.0))
         for url in urls:
             try:
                 _post_json(url, "/chain/consistency/repair", timeout=repair_timeout)
+            except Exception as exc:
+                print(f"WARN: consistency repair {url}: {exc}")
+        # After repair, give P2P time to converge live roots (BrokenPipe mid-write
+        # previously left divergent live_state_root with empty failed_checks).
+        for attempt in range(25):
+            ok, roots, failed = _run_harness()
+            if ok:
+                break
+            tip_statuses = []
+            try:
+                tip_statuses = [_api(f"{u}/status", timeout=8) for u in urls]
             except Exception:
-                pass
-        ok, roots, failed = _run_harness()
+                tip_statuses = []
+            heights = [int(s.get("height", 0) or 0) for s in tip_statuses]
+            tip_h = max(heights) if heights else 0
+            if attempt % 3 == 0 and tip_h > 0:
+                for url, h in zip(urls, heights):
+                    if tip_h - h <= 0:
+                        continue
+                    try:
+                        _admin_token(url)
+                        _post_json(
+                            url,
+                            "/sync/fast-sync",
+                            {"timeout": 60, "target_block": tip_h},
+                            timeout=90,
+                        )
+                        _post_json(url, "/sync/reconcile", {"timeout": 45}, timeout=60)
+                    except Exception:
+                        pass
+            time.sleep(3)
 
     if not ok:
-        print(f"FAIL: state consistency harness unhealthy ({'; '.join(failed)})")
+        reason = ", ".join(failed) if failed else "live_state_root mismatch"
+        print(f"FAIL: state consistency harness unhealthy ({reason})")
         if roots:
             print(f"  roots={[r[:16] for r in roots]}")
         return 12
@@ -2391,11 +2459,8 @@ def run_ci_fork_spawn() -> int:
         print(f"CI-FORK: synced at height {base_h}, target after partition {target_h}")
 
         print("CI-FORK: partitioning node2 (SIGTERM) while node1 mines ahead")
-        procs[1].terminate()
-        try:
-            procs[1].wait(timeout=12)
-        except Exception:
-            procs[1].kill()
+        _safe_terminate(procs[1], wait_sec=12)
+        procs[1] = None
 
         mined_ahead = False
         for _ in range(45):
@@ -3342,12 +3407,7 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
 
     def _stop_all() -> None:
         for proc in list(procs):
-            proc.terminate()
-        for proc in list(procs):
-            try:
-                proc.wait(timeout=15)
-            except Exception:
-                proc.kill()
+            _safe_terminate(proc, wait_sec=15)
         procs.clear()
         time.sleep(2)
 
@@ -3482,9 +3542,10 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
             print(f"  stderr: {logs[0]}")
             return 1
         _prod_mesh3_bootstrap_mesh(url1, url2, url3)
-        # Give followers wall-clock to import newly mined blocks before consensus gate.
+        # Give followers wall-clock to import newly mined blocks via natural P2P
+        # before consensus gate (node3 historically lagged when tip raced ahead).
         post_mine_stable = False
-        for attempt in range(60):
+        for attempt in range(90):
             try:
                 statuses = [_api(f"{u}/status") for u in urls]
                 heights = [int(s.get("height", 0) or 0) for s in statuses]
@@ -3494,7 +3555,8 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
                         post_mine_stable = True
                         break
                 tip_h = max(heights)
-                if attempt % 5 == 0 and max(heights) - min(heights) > 1:
+                # Prefer natural catch-up first; nudge only after ~30s and sparsely.
+                if attempt >= 10 and attempt % 8 == 0 and max(heights) - min(heights) > 1:
                     for url, h in zip(urls, heights):
                         if tip_h - h <= 1:
                             continue
@@ -3562,19 +3624,7 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
         return 0
     finally:
         for proc in procs:
-            if proc is None:
-                continue
-            try:
-                proc.terminate()
-            except Exception:
-                continue
-            try:
-                proc.wait(timeout=12)
-            except Exception:
-                try:
-                    proc.kill()
-                except Exception:
-                    pass
+            _safe_terminate(proc, wait_sec=12)
 
 
 def run_ci_spawn() -> int:

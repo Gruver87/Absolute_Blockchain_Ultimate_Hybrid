@@ -7228,12 +7228,16 @@ class RESTHandler(BaseHTTPRequestHandler):
     def _json(self, data: Any):
         body = json.dumps(data, default=str).encode()
         origin = self._cors_origin(self.headers.get("Origin", ""))
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        _send_acao_header(self, origin)
-        self.send_header("Content-Length", len(body))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            _send_acao_header(self, origin)
+            self.send_header("Content-Length", len(body))
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            # Client timed out (e.g. harness repair) — do not crash the request thread.
+            return
 
     def _error(self, code: int, message: str):
         mc = self.__class__.metrics_collector
@@ -7241,12 +7245,15 @@ class RESTHandler(BaseHTTPRequestHandler):
             mc.inc_error()
         body = json.dumps({"error": message}).encode()
         origin = self._cors_origin(self.headers.get("Origin", ""))
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json")
-        _send_acao_header(self, origin)
-        self.send_header("Content-Length", len(body))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            _send_acao_header(self, origin)
+            self.send_header("Content-Length", len(body))
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            return
 
     def _cors(self):
         origin = self._cors_origin(self.headers.get("Origin", ""))
