@@ -9,6 +9,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -152,9 +153,13 @@ def _storage_ok(storage_hex: str) -> bool:
         return False
 
 
-def _wait_mesh_aligned(http_urls: list[str], timeout_sec: int = 180) -> None:
+def _wait_mesh_aligned(http_urls: list[str], timeout_sec: int = 300) -> None:
+    """Wait for equal tip. Prefer natural P2P; nudge lagging nodes with sync+reconcile."""
+    from verify_p2p_ci import _restore_p2p_mesh
+
     deadline = time.time() + timeout_sec
-    last: tuple[list[int], list[str]] = ([], [])
+    last: tuple[list[int], list[str], list[str]] = ([], [], [])
+    attempt = 0
     while time.time() < deadline:
         heights: list[int] = []
         roots: list[str] = []
@@ -164,7 +169,7 @@ def _wait_mesh_aligned(http_urls: list[str], timeout_sec: int = 180) -> None:
             heights.append(int(status.get("height", 0) or 0))
             roots.append(str(status.get("state_root") or "").lower())
             heads.append(str(status.get("head_hash") or "").lower())
-        last = (heights, roots)
+        last = (heights, roots, heads)
         if (
             heights
             and max(heights) - min(heights) <= 1
@@ -173,21 +178,34 @@ def _wait_mesh_aligned(http_urls: list[str], timeout_sec: int = 180) -> None:
         ):
             return
         tip = max(heights) if heights else 0
-        for url, h in zip(http_urls, heights):
-            if tip - h <= 0:
-                continue
+        # Give natural catch-up ~45s before aggressive nudges (CI tip can race).
+        if attempt >= 15 and attempt % 3 == 0:
             try:
-                _admin_token(url)
-                _post_json(
-                    url,
-                    "/sync/fast-sync",
-                    {"timeout": 60, "target_block": tip},
-                    timeout=90,
-                )
+                _restore_p2p_mesh(http_urls, expected_peers=max(1, len(http_urls) - 1))
             except Exception:
                 pass
+            for url, h in zip(http_urls, heights):
+                if tip - h <= 0:
+                    continue
+                try:
+                    _admin_token(url)
+                    _post_json(
+                        url,
+                        "/sync/fast-sync",
+                        {"timeout": 90, "target_block": tip},
+                        timeout=120,
+                    )
+                    _post_json(url, "/sync/reconcile", {"timeout": 45}, timeout=60)
+                except Exception:
+                    pass
+        if attempt % 10 == 0:
+            print(
+                f"  mesh align wait heights={heights} "
+                f"roots={[r[:12] for r in roots]} attempt={attempt}"
+            )
+        attempt += 1
         time.sleep(3)
-    heights, roots = last
+    heights, roots, _heads = last
     raise RuntimeError(
         "mesh not aligned (heights/roots); wait for P2P sync or rebuild prod mesh "
         f"(heights={heights} roots={[r[:16] for r in roots]})"
@@ -265,8 +283,9 @@ def main() -> int:
         print("FAIL: --leader-only uses direct /contract/deploy, blocked in production")
         return 1
 
+    align_timeout = int(os.environ.get("ABS_EVM_ALIGN_TIMEOUT_SEC", "300") or "300")
     try:
-        _wait_mesh_aligned(http_urls)
+        _wait_mesh_aligned(http_urls, timeout_sec=align_timeout)
     except RuntimeError as exc:
         print(f"FAIL: {exc}")
         return 1
@@ -285,8 +304,37 @@ def main() -> int:
         else:
             tx_hash, contract, block_height = _deploy_via_mempool(args.url1, wallet)
             print(f"  mempool deploy tx={tx_hash} block={block_height} contract={contract}")
-            _wait_mesh_aligned(http_urls, timeout_sec=120)
-            storage_by_node = _wait_storage_all(rpc_urls, contract, api_key)
+            # Parent CI may freeze primary mining via ABS_EVM_POST_DEPLOY_GATE file.
+            gate = (os.environ.get("ABS_EVM_POST_DEPLOY_GATE") or "").strip()
+            if gate:
+                marker = Path(gate)
+                marker.write_text(
+                    json.dumps(
+                        {
+                            "tx_hash": tx_hash,
+                            "contract": contract,
+                            "block_height": block_height,
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                resume = Path(str(marker) + ".resume")
+                print(f"  post-deploy gate armed: {marker} (waiting freeze/realign)")
+                deadline = time.time() + max(60, align_timeout)
+                while time.time() < deadline:
+                    if resume.is_file():
+                        break
+                    time.sleep(1)
+                else:
+                    raise RuntimeError(f"post-deploy gate timeout waiting {resume}")
+                try:
+                    resume.unlink()
+                except OSError:
+                    pass
+            _wait_mesh_aligned(http_urls, timeout_sec=align_timeout)
+            storage_by_node = _wait_storage_all(
+                rpc_urls, contract, api_key, timeout_sec=max(120, align_timeout // 2)
+            )
     except (urllib.error.URLError, RuntimeError, OSError) as exc:
         print(f"FAIL: deploy: {exc}")
         return 1

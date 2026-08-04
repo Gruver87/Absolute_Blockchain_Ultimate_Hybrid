@@ -3208,8 +3208,19 @@ def run_prod_smoke_spawn() -> int:
                 proc.kill()
 
 
-def _run_prod_mesh3_evidence(ceremony_dir: str, urls: list[str], env: dict) -> int:
-    """Signed tx + EVM mempool smoke on spawned prod-mesh3 (CI ports)."""
+def _run_prod_mesh3_evidence(
+    ceremony_dir: str,
+    urls: list[str],
+    env: dict,
+    *,
+    freeze_mining=None,
+    thaw_mining=None,
+) -> int:
+    """Signed tx + EVM mempool smoke on spawned prod-mesh3 (CI ports).
+
+    freeze_mining/thaw_mining (optional): pause primary forging so followers can
+    Path-A catch up without tip racing (orchestrator pause_mining_sync_resume).
+    """
     from runtime.prod_smoke_profile import PROD_MESH3_RPC_PORTS, resolve_ceremony_dir
     from runtime.validator_loader import manifest_entries
 
@@ -3234,62 +3245,32 @@ def _run_prod_mesh3_evidence(ceremony_dir: str, urls: list[str], env: dict) -> i
     rpc_urls = [f"http://127.0.0.1:{p}" for p in PROD_MESH3_RPC_PORTS]
     smoke_env = {**os.environ, **env}
 
-    steps = [
-        (
-            "signed-tx",
-            [
-                sys.executable,
-                "scripts/prod_signed_tx_smoke.py",
-                "--url1",
-                url1,
-                "--url2",
-                url2,
-                "--url3",
-                url3,
-                "--wallet",
-                wallet,
-            ],
-        ),
-        (
-            "evm",
-            [
-                sys.executable,
-                "scripts/prod_evm_smoke.py",
-                "--url1",
-                url1,
-                "--url2",
-                url2,
-                "--url3",
-                url3,
-                "--rpc1",
-                rpc_urls[0],
-                "--rpc2",
-                rpc_urls[1],
-                "--rpc3",
-                rpc_urls[2],
-                "--wallet",
-                wallet,
-            ],
-        ),
-    ]
-    for label, cmd in steps:
-        # Evidence smokes require a single tip; mining can skew followers between steps.
+    def _realign(label: str, attempts: int = 50) -> bool:
+        if freeze_mining is not None:
+            try:
+                freeze_mining()
+            except Exception as exc:
+                print(f"WARN: evidence freeze mining ({label}): {exc}")
         aligned = False
-        for attempt in range(40):
+        for attempt in range(attempts):
             try:
                 statuses = [_api(f"{u}/status") for u in urls]
                 heights = [int(s.get("height", 0) or 0) for s in statuses]
                 heads = [(s.get("head_hash") or "").lower() for s in statuses]
+                roots = [str(s.get("state_root") or "").lower() for s in statuses]
                 if (
                     min(heights) >= 1
                     and max(heights) - min(heights) <= 1
                     and heads[0]
                     and len(set(heads)) == 1
+                    and roots[0]
+                    and len(set(roots)) == 1
                 ):
                     aligned = True
                     break
                 tip_h = max(heights)
-                if attempt % 4 == 0:
+                if attempt % 3 == 0:
+                    _restore_p2p_mesh(urls, expected_peers=2)
                     for url, h in zip(urls, heights):
                         if tip_h - h <= 0:
                             continue
@@ -3301,11 +3282,22 @@ def _run_prod_mesh3_evidence(ceremony_dir: str, urls: list[str], env: dict) -> i
                                 {"timeout": 90, "target_block": tip_h},
                                 timeout=120,
                             )
+                            _post_json(
+                                url, "/sync/reconcile", {"timeout": 45}, timeout=60
+                            )
                         except Exception:
                             pass
             except Exception:
                 pass
             time.sleep(3)
+        if thaw_mining is not None:
+            try:
+                thaw_mining()
+            except Exception as exc:
+                print(f"WARN: evidence thaw mining ({label}): {exc}")
+            # Brief settle after primary restart with mining on.
+            time.sleep(5)
+            _restore_p2p_mesh(urls, expected_peers=2)
         if not aligned:
             print(f"FAIL: prod-mesh3 evidence {label} pre-check: mesh not aligned")
             for i, url in enumerate(urls, start=1):
@@ -3317,12 +3309,147 @@ def _run_prod_mesh3_evidence(ceremony_dir: str, urls: list[str], env: dict) -> i
                     )
                 except Exception as exc:
                     print(f"  node{i} status error: {exc}")
-            return 1
-        print(f"Prod-mesh3 evidence: {label} ...")
-        proc = subprocess.run(cmd, cwd=ROOT, env=smoke_env)
-        if proc.returncode != 0:
-            print(f"FAIL: prod-mesh3 evidence {label} exit={proc.returncode}")
-            return proc.returncode
+        return aligned
+
+    # --- signed-tx ---
+    if not _realign("signed-tx"):
+        return 1
+    print("Prod-mesh3 evidence: signed-tx ...")
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "scripts/prod_signed_tx_smoke.py",
+            "--url1",
+            url1,
+            "--url2",
+            url2,
+            "--url3",
+            url3,
+            "--wallet",
+            wallet,
+        ],
+        cwd=ROOT,
+        env=smoke_env,
+    )
+    if proc.returncode != 0:
+        print(f"FAIL: prod-mesh3 evidence signed-tx exit={proc.returncode}")
+        return proc.returncode
+
+    # Freeze tip race after signed-tx before EVM.
+    if not _realign("post-signed-tx"):
+        return 1
+
+    # --- EVM (post-deploy gate lets parent freeze mining mid-smoke) ---
+    gate_path = Path(tempfile.gettempdir()) / f"abs_evm_gate_{os.getpid()}.json"
+    resume_path = Path(str(gate_path) + ".resume")
+    for p in (gate_path, resume_path):
+        try:
+            p.unlink()
+        except OSError:
+            pass
+    evm_env = {
+        **smoke_env,
+        "ABS_EVM_ALIGN_TIMEOUT_SEC": "300",
+        "ABS_EVM_POST_DEPLOY_GATE": str(gate_path),
+    }
+    print("Prod-mesh3 evidence: evm ...")
+    evm_proc = subprocess.Popen(
+        [
+            sys.executable,
+            "scripts/prod_evm_smoke.py",
+            "--url1",
+            url1,
+            "--url2",
+            url2,
+            "--url3",
+            url3,
+            "--rpc1",
+            rpc_urls[0],
+            "--rpc2",
+            rpc_urls[1],
+            "--rpc3",
+            rpc_urls[2],
+            "--wallet",
+            wallet,
+        ],
+        cwd=ROOT,
+        env=evm_env,
+    )
+    gate_deadline = time.time() + 420
+    gated = False
+    while time.time() < gate_deadline:
+        if evm_proc.poll() is not None:
+            break
+        if gate_path.is_file() and not gated:
+            gated = True
+            print("EVIDENCE: EVM post-deploy gate — freeze mining + realign")
+            if freeze_mining is not None:
+                try:
+                    freeze_mining()
+                except Exception as exc:
+                    print(f"WARN: post-deploy freeze: {exc}")
+            # Catch-up while tip is frozen (no empty-block race).
+            for attempt in range(40):
+                try:
+                    statuses = [_api(f"{u}/status") for u in urls]
+                    heights = [int(s.get("height", 0) or 0) for s in statuses]
+                    heads = [(s.get("head_hash") or "").lower() for s in statuses]
+                    if (
+                        min(heights) >= 1
+                        and max(heights) - min(heights) <= 1
+                        and heads[0]
+                        and len(set(heads)) == 1
+                    ):
+                        break
+                    tip_h = max(heights)
+                    if attempt % 2 == 0:
+                        _restore_p2p_mesh(urls, expected_peers=2)
+                        for url, h in zip(urls, heights):
+                            if tip_h - h <= 0:
+                                continue
+                            try:
+                                _admin_token(url)
+                                _post_json(
+                                    url,
+                                    "/sync/fast-sync",
+                                    {"timeout": 90, "target_block": tip_h},
+                                    timeout=120,
+                                )
+                                _post_json(
+                                    url, "/sync/reconcile", {"timeout": 45}, timeout=60
+                                )
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+                time.sleep(3)
+            # Keep mining frozen through storage verify; resume after smoke exits.
+            resume_path.write_text("ok", encoding="utf-8")
+            print("EVIDENCE: post-deploy gate released (mining still frozen)")
+        time.sleep(1)
+    try:
+        if evm_proc.poll() is None:
+            evm_rc = evm_proc.wait(timeout=600)
+        else:
+            evm_rc = int(evm_proc.returncode or 1)
+    except subprocess.TimeoutExpired:
+        print("FAIL: prod-mesh3 evidence evm timed out")
+        _safe_terminate(evm_proc, wait_sec=15)
+        evm_rc = 1
+    if thaw_mining is not None:
+        try:
+            thaw_mining()
+        except Exception as exc:
+            print(f"WARN: post-evm thaw mining: {exc}")
+        _restore_p2p_mesh(urls, expected_peers=2)
+    for p in (gate_path, resume_path):
+        try:
+            p.unlink()
+        except OSError:
+            pass
+    if evm_rc != 0:
+        print(f"FAIL: prod-mesh3 evidence evm exit={evm_rc}")
+        return int(evm_rc or 1)
     print("OK: prod-mesh3 signed-tx + EVM evidence passed")
     return 0
 
@@ -3596,7 +3723,56 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
         rc = verify_prod_consensus_mesh3(url1, url2, url3, wait_sec=300)
         if rc != 0:
             return rc
-        rc = _run_prod_mesh3_evidence(ceremony_dir, urls, env)
+
+        def _restart_primary(*, mining: bool, label: str) -> None:
+            print(f"EVIDENCE: restart primary mining={mining} ({label})")
+            if not procs:
+                raise RuntimeError("no primary process")
+            primary = procs[0]
+            _safe_terminate(primary, wait_sec=20)
+            procs[0] = None
+            time.sleep(3)
+            try:
+                with open(cfg1, encoding="utf-8") as f:
+                    cfg = json.load(f)
+                db_path = Path(cfg.get("db_path", "data/chain.db"))
+                if not db_path.is_absolute():
+                    db_path = Path(cfg1).resolve().parent / db_path
+                _clear_stale_rocksdb_locks(db_path.parent)
+            except Exception:
+                pass
+            _set_mining(cfg1, mining)
+            err = open(logs[0], "a", encoding="utf-8")
+            proc = subprocess.Popen(
+                [sys.executable, "main.py", "--config", cfg1],
+                cwd=ROOT,
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=err,
+            )
+            procs[0] = proc
+            if not _wait_health(url1, max_sec=240, proc=proc):
+                raise RuntimeError(f"primary health timeout after {label}")
+            for u in urls:
+                try:
+                    _admin_token(u)
+                except Exception:
+                    pass
+            _prod_mesh3_bootstrap_mesh(url1, url2, url3)
+
+        def _freeze_mining() -> None:
+            _restart_primary(mining=False, label="freeze")
+
+        def _thaw_mining() -> None:
+            _restart_primary(mining=True, label="thaw")
+
+        rc = _run_prod_mesh3_evidence(
+            ceremony_dir,
+            urls,
+            env,
+            freeze_mining=_freeze_mining,
+            thaw_mining=_thaw_mining,
+        )
         if rc != 0:
             return rc
         if recovery_drill:
