@@ -3550,6 +3550,10 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
         with open(cfg_path, encoding="utf-8") as f:
             cfg = json.load(f)
         cfg["mining_enabled"] = bool(enabled)
+        # main.py treats mining_enabled=false + height>1 as follower and ignores
+        # private_key unless follower_genesis_sync allows watch-only boot. Without
+        # that flag, freeze-restart raises "requires wallet with private_key".
+        cfg["follower_genesis_sync"] = not bool(enabled)
         with open(cfg_path, "w", encoding="utf-8") as f:
             json.dump(cfg, f, indent=2)
 
