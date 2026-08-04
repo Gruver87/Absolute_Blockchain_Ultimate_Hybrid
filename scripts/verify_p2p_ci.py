@@ -3452,7 +3452,8 @@ def _run_prod_mesh3_evidence(
         if evm_proc.poll() is None:
             evm_rc = evm_proc.wait(timeout=600)
         else:
-            evm_rc = int(evm_proc.returncode or 1)
+            # returncode 0 must not become 1 via `or` — classic Python footgun.
+            evm_rc = 1 if evm_proc.returncode is None else int(evm_proc.returncode)
     except subprocess.TimeoutExpired:
         print("FAIL: prod-mesh3 evidence evm timed out")
         _safe_terminate(evm_proc, wait_sec=15)
@@ -3470,7 +3471,7 @@ def _run_prod_mesh3_evidence(
             pass
     if evm_rc != 0:
         print(f"FAIL: prod-mesh3 evidence evm exit={evm_rc}")
-        return int(evm_rc or 1)
+        return 1 if evm_rc is None else int(evm_rc)
     print("OK: prod-mesh3 signed-tx + EVM evidence passed")
     return 0
 
