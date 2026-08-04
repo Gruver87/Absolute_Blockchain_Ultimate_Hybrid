@@ -1,10 +1,12 @@
 ﻿tip_v2_industrial_phase2
 started_unix=1785648451
 started_utc=2026-08-02T05:27:31.6990375Z
+ended_utc=2026-08-04T17:18:44Z
 soak_log=logs/industrial_tipv2_soak_48h.log
 report=logs/soak_report_tipv2_48h.json
 soak_hours=48
-status=RUNNING
+status=FINISHED_FAIL
+pass_notes=ready_only_fail=206; mesh_warn=3 height_delta>1; hard_fail=0; hours_elapsed=48.01
 mesh=fresh_volumes_wiped tip_live=2 satoshi_b
 smokes=ready+probe+failover+signed_tx+evm PASS (post-wipe)
 dr=PASS

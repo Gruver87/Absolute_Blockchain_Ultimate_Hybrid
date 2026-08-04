@@ -38,7 +38,8 @@ Explorer: http://localhost:8080 · Mesh: `make mesh-up` or `.\scripts\docker_pro
 | Mesh `/health/ready` (stable peers) | **Wave A/D local PASS** | `ready-check` ×3 · dual-dial · soft-refuse bake |
 | Tip `state_root` + apply (satoshi) | **Wave C local PASS** | tip v2 `b_satoshi` · fresh mesh evidence ([79472a111cd5](docs/evidence/runs/79472a111cd5/)) |
 | Failover + signed tx + EVM on mesh | **Proven** | Jul 2026 suite |
-| **48h soak** | **PASS** | `logs/soak_report_48h.json` |
+| **48h soak (Jul float tip)** | **PASS** (operator-local) | `logs/soak_report_48h.json` — pre tip-v2 |
+| **48h soak (tip-v2 `b_satoshi`)** | **FAIL** (Aug 2026) | `logs/soak_report_tipv2_48h.json` — ready flaps; not industrial claim |
 | Public mainnet / listed ABS / external audit | **No** | [gaps](docs/MAINNET_GAP_ANALYSIS.md) |
 | Bridge on live mesh | **OFF** | by design until L1 cutover |
 
@@ -217,7 +218,8 @@ Code: `runtime/tokenomics.py` · `GET /tokenomics` — **not** a listed token.
 | When | What |
 |------|------|
 | Jul 12 | Failover, signed tx, EVM, **7h soak PASS** |
-| Jul 19–21 | **48h soak PASS** |
+| Jul 19–21 | **48h soak PASS** (float tip era; operator-local logs) |
+| Aug 2–4 | tip-v2 **48h soak FAIL** (ready flaps; `soak_report_tipv2_48h.json`) |
 | Jul 21–26 | Industrial **v1.3.65–v1.3.146** + professional repo surface (Dependabot/SBOM/SUPPORT) |
 | Jul 29 | **v1.3.206** Tip-safety (enforce) + P2P transport boundary + application dispatcher |
 | Jul 30 | **ADR 0010–0015** BridgePort · QueryFacade · Chaos · Graceful shutdown · Observability/SecretManager |

@@ -3245,12 +3245,26 @@ def _run_prod_mesh3_evidence(
     rpc_urls = [f"http://127.0.0.1:{p}" for p in PROD_MESH3_RPC_PORTS]
     smoke_env = {**os.environ, **env}
 
-    def _realign(label: str, attempts: int = 50) -> bool:
-        if freeze_mining is not None:
+    def _realign(
+        label: str,
+        *,
+        attempts: int = 50,
+        pause_mining: bool = False,
+        resume_mining: bool = True,
+    ) -> bool:
+        """Align mesh tips. Optionally pause primary forging (expensive restart)."""
+        if pause_mining and freeze_mining is not None:
             try:
                 freeze_mining()
             except Exception as exc:
                 print(f"WARN: evidence freeze mining ({label}): {exc}")
+                # Best-effort restore so later smokes still have a live primary.
+                if thaw_mining is not None:
+                    try:
+                        thaw_mining()
+                    except Exception as thaw_exc:
+                        print(f"WARN: evidence thaw after failed freeze ({label}): {thaw_exc}")
+                    resume_mining = False
         aligned = False
         for attempt in range(attempts):
             try:
@@ -3290,7 +3304,7 @@ def _run_prod_mesh3_evidence(
             except Exception:
                 pass
             time.sleep(3)
-        if thaw_mining is not None:
+        if resume_mining and thaw_mining is not None and pause_mining:
             try:
                 thaw_mining()
             except Exception as exc:
@@ -3311,8 +3325,8 @@ def _run_prod_mesh3_evidence(
                     print(f"  node{i} status error: {exc}")
         return aligned
 
-    # --- signed-tx ---
-    if not _realign("signed-tx"):
+    # --- signed-tx: no freeze restart (Rocks reopen is flaky on CI); tip still low ---
+    if not _realign("signed-tx", pause_mining=False):
         return 1
     print("Prod-mesh3 evidence: signed-tx ...")
     proc = subprocess.run(
@@ -3335,8 +3349,8 @@ def _run_prod_mesh3_evidence(
         print(f"FAIL: prod-mesh3 evidence signed-tx exit={proc.returncode}")
         return proc.returncode
 
-    # Freeze tip race after signed-tx before EVM.
-    if not _realign("post-signed-tx"):
+    # After signed-tx tip can race — freeze once, catch up, thaw for EVM deploy.
+    if not _realign("post-signed-tx", pause_mining=True, resume_mining=True):
         return 1
 
     # --- EVM (post-deploy gate lets parent freeze mining mid-smoke) ---
@@ -3383,11 +3397,13 @@ def _run_prod_mesh3_evidence(
         if gate_path.is_file() and not gated:
             gated = True
             print("EVIDENCE: EVM post-deploy gate — freeze mining + realign")
+            freeze_ok = True
             if freeze_mining is not None:
                 try:
                     freeze_mining()
                 except Exception as exc:
-                    print(f"WARN: post-deploy freeze: {exc}")
+                    freeze_ok = False
+                    print(f"WARN: post-deploy freeze: {exc} — align without freeze")
             # Catch-up while tip is frozen (no empty-block race).
             for attempt in range(40):
                 try:
@@ -3423,9 +3439,14 @@ def _run_prod_mesh3_evidence(
                 except Exception:
                     pass
                 time.sleep(3)
-            # Keep mining frozen through storage verify; resume after smoke exits.
-            resume_path.write_text("ok", encoding="utf-8")
-            print("EVIDENCE: post-deploy gate released (mining still frozen)")
+            # Keep mining frozen through storage verify when freeze succeeded.
+            resume_path.write_text(
+                "ok" if freeze_ok else "ok-nofreeze", encoding="utf-8"
+            )
+            print(
+                "EVIDENCE: post-deploy gate released "
+                f"(mining_frozen={freeze_ok})"
+            )
         time.sleep(1)
     try:
         if evm_proc.poll() is None:
@@ -3728,37 +3749,68 @@ def run_prod_mesh3_spawn(ceremony_dir: str = "", *, recovery_drill: bool = False
             print(f"EVIDENCE: restart primary mining={mining} ({label})")
             if not procs:
                 raise RuntimeError("no primary process")
-            primary = procs[0]
-            _safe_terminate(primary, wait_sec=20)
-            procs[0] = None
-            time.sleep(3)
-            try:
-                with open(cfg1, encoding="utf-8") as f:
-                    cfg = json.load(f)
-                db_path = Path(cfg.get("db_path", "data/chain.db"))
-                if not db_path.is_absolute():
-                    db_path = Path(cfg1).resolve().parent / db_path
-                _clear_stale_rocksdb_locks(db_path.parent)
-            except Exception:
-                pass
-            _set_mining(cfg1, mining)
-            err = open(logs[0], "a", encoding="utf-8")
-            proc = subprocess.Popen(
-                [sys.executable, "main.py", "--config", cfg1],
-                cwd=ROOT,
-                env=env,
-                stdout=subprocess.DEVNULL,
-                stderr=err,
-            )
-            procs[0] = proc
-            if not _wait_health(url1, max_sec=240, proc=proc):
-                raise RuntimeError(f"primary health timeout after {label}")
-            for u in urls:
+            last_err: Exception | None = None
+            for attempt in range(3):
+                primary = procs[0] if procs else None
+                _safe_terminate(primary, wait_sec=25)
+                if procs:
+                    procs[0] = None
+                # Windows/CI RocksDB: allow LOCK release before reopen.
+                time.sleep(8 + attempt * 4)
+                data_dir = None
                 try:
-                    _admin_token(u)
+                    with open(cfg1, encoding="utf-8") as f:
+                        cfg = json.load(f)
+                    db_path = Path(cfg.get("db_path", "data/chain.db"))
+                    if not db_path.is_absolute():
+                        db_path = Path(cfg1).resolve().parent / db_path
+                    data_dir = db_path.parent
+                    _clear_stale_rocksdb_locks(data_dir)
                 except Exception:
                     pass
-            _prod_mesh3_bootstrap_mesh(url1, url2, url3)
+                _set_mining(cfg1, mining)
+                # Truncate attempt log noise for tail debugging.
+                try:
+                    open(logs[0], "w", encoding="utf-8").close()
+                except Exception:
+                    pass
+                err = open(logs[0], "a", encoding="utf-8")
+                proc = subprocess.Popen(
+                    [sys.executable, "main.py", "--config", cfg1],
+                    cwd=ROOT,
+                    env=env,
+                    stdout=subprocess.DEVNULL,
+                    stderr=err,
+                )
+                procs[0] = proc
+                if _wait_health(url1, max_sec=300, proc=proc):
+                    for u in urls:
+                        try:
+                            _admin_token(u)
+                        except Exception:
+                            pass
+                    _prod_mesh3_bootstrap_mesh(url1, url2, url3)
+                    return
+                print(
+                    f"WARN: primary health timeout after {label} "
+                    f"(attempt {attempt + 1}/3) poll={proc.poll()}"
+                )
+                try:
+                    if Path(logs[0]).is_file():
+                        tail = Path(logs[0]).read_text(
+                            encoding="utf-8", errors="replace"
+                        )[-2000:]
+                        if tail.strip():
+                            print(f"--- primary log tail ({label}) ---")
+                            print(tail)
+                except Exception:
+                    pass
+                _safe_terminate(proc, wait_sec=15)
+                procs[0] = None
+                if data_dir is not None:
+                    _clear_stale_rocksdb_locks(data_dir)
+                last_err = RuntimeError(f"primary health timeout after {label}")
+            raise last_err or RuntimeError(f"primary health timeout after {label}")
 
         def _freeze_mining() -> None:
             _restart_primary(mining=False, label="freeze")

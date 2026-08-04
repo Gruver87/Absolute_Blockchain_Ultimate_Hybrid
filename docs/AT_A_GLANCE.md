@@ -18,7 +18,8 @@ Public audited mainnet · listed ABS token · investment product · bridge ON on
 | Prior industrial | [v1.3.206](../RELEASE_NOTES_v1.3.206.md) tip-safety / P2P |
 | ADR stack | **0001–0016** ([docs/adr/](adr/)) |
 | CI | Ubuntu `test.yml` + docker + security + fuzz |
-| 48h soak | **PASS** |
+| 48h soak (Jul float) | **PASS** (historical / operator-local) |
+| 48h soak (tip-v2) | **FAIL** Aug 2026 — ready flaps; not an industrial claim |
 | Self-check | `.\scripts\operator_verify.ps1 -SkipNativeBuild` · `make test-quick` |
 | Run | `python main.py` → `:8080` |
 | Prod mesh | `778888` bring-up + chain sync · tip v2 `b_satoshi` (ceremony) · `/health/ready` local PASS |
@@ -29,10 +30,10 @@ Public audited mainnet · listed ABS token · investment product · bridge ON on
 |--------|-------------|
 | 3-node prod-profile bring-up + chain sync | Public mainnet |
 | Shared ceremony genesis artifact → followers | Always-green `/health/ready` under TLS churn forever |
-| 48h soak PASS (historical evidence) | External L1 / contract audit |
+| 48h soak PASS (Jul float tip, historical) | External L1 / contract audit |
 | Failover + signed tx + EVM on mesh | Tip proof / Long-Range / libp2p |
 | Forest-stable LMD-GHOST + satoshi storage | Full Rust P2P transport claim |
-| **Wave C** tip+apply: tip v2 `b_satoshi` + satoshi apply (fresh mesh) | 48h soak *of tip v2* / public mainnet cutover |
+| **Wave C** tip+apply: tip v2 `b_satoshi` + satoshi apply (fresh mesh) | tip-v2 **48h soak PASS** / public mainnet cutover |
 | Bridge **OFF** on live mesh | Listed ABS / investment product |
 | ADR 0010–0016 ports / sprouts in-tree | Live mesh bridge cutover / kitchen-sink FEATURE_* |
 

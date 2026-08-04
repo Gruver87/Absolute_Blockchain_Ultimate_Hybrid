@@ -9,4 +9,9 @@ ignore = [
     "RUSTSEC-2025-0020",
     # Missing Sync on PyCFunction::new_closure — unused API; fix >=0.29.0
     "RUSTSEC-2026-0177",
+    # rkyv OOB via Rc/Arc archives — optional dep of rust_decimal; our crate uses
+    # rust_decimal with default-features=false + features=["std"] only (no rkyv
+    # feature). cargo-audit still scans the lock entry. Clear when rust_decimal
+    # drops unused optional lock edges or we migrate off decimal serialization paths.
+    "RUSTSEC-2026-0235",
 ]

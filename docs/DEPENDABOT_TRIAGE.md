@@ -1,13 +1,14 @@
 # Dependabot triage (industrial harden)
 
-**Updated:** 2026-08-02  
+**Updated:** 2026-08-04  
 **Rule:** no kitchen-sink merges — only bumps that keep CI green and reduce risk.
 
 ## Hold (do not merge until migration PR is green)
 
 | PR | Package | Why hold |
 |----|---------|----------|
-| [#7](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/pull/7) | pyo3 0.22→0.29 | Required for RUSTSEC clear; ~386 compile breaks (`new_bound` / `with_gil` API). Tracked; interim ignores in [`.cargo/audit.toml`](../.cargo/audit.toml) |
+| [#7](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/pull/7) | pyo3 0.22→0.29 | Required for pyo3 RUSTSEC clear; ~386 compile breaks (`new_bound` / `with_gil` API). Tracked; interim ignores in [`.cargo/audit.toml`](../.cargo/audit.toml) |
+| — | rkyv via rust_decimal | `RUSTSEC-2026-0235` ignored interim (optional feature unused; `default-features=false` + `std` only). Prefer dropping optional lock edges later rather than enabling `rkyv` feature. |
 | [#2](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/pull/2) | rand 0.8→0.10 | Dev-dep churn; wait for pyo3 wave |
 | [#10](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/pull/10) | socket2 0.5→0.6 | Native P2P surface; needs soak |
 | [#8](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/pull/8) | wasmtime major | R&D FEATURE only; prod OFF |
