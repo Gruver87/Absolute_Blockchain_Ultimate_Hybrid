@@ -17,7 +17,7 @@ Public audited mainnet · listed ABS token · investment product · bridge ON on
 | Tag | **[v1.3.1338-deterministic-core](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1338-deterministic-core)** |
 | Prior industrial | [v1.3.206](../RELEASE_NOTES_v1.3.206.md) tip-safety / P2P |
 | ADR stack | **0001–0016** ([docs/adr/](adr/)) |
-| CI | Ubuntu `test.yml` + docker + security + fuzz |
+| CI | Ubuntu `test.yml` + docker + security + fuzz (Blockchain mesh3 still hardening on `master`) |
 | 48h soak (Jul float) | **PASS** (historical / operator-local) |
 | 48h soak (tip-v2) | **FAIL** Aug 2026 — ready flaps; not an industrial claim |
 | Self-check | `.\scripts\operator_verify.ps1 -SkipNativeBuild` · `make test-quick` |

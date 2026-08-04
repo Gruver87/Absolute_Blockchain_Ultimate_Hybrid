@@ -101,14 +101,14 @@ Makefile             make build | test-quick | test-gate | mesh-up
 | **P2P** | Verified / Partial ready | Docker sync + CI; TLS session churn open |
 | **TX / EVM on prod mesh** | Proven | Signed gossip + mempool deploy |
 | **Rust native** | Hybrid path | `ABS_REQUIRE_NATIVE_CRYPTO` in prod |
-| **Failover / soak** | **Proven** | 7h + **48h PASS** |
+| **Failover / soak** | Partial | 7h + Jul **48h PASS** (float tip, operator-local); tip-v2 **48h FAIL** (Aug 2026) |
 | **Bridge** | Ports isolated (ADR 0010) | OFF on prod mesh until L1 cutover |
 | **RPC / Query** | Typed QueryFacade (ADR 0011) | DoS caps · no raw DB from handlers |
 | **Secrets / metrics** | SecretManager + exporter (ADR 0015) | Env/K8s/Vault · `/metrics` snapshot |
 | **Shutdown / ready** | Graceful stop (ADR 0014) | SIGTERM · deep `/health/ready` |
 | **Public mainnet** | **Not launched** | Audit + ops + L1 cutover remaining |
 
-**Quality gate:** CI · `make test-quick` / `check_all.ps1` · **2100+** tests collected
+**Quality gate:** CI · `make test-quick` / `check_all.ps1` · **2164+** pytest passed locally (2026-08-05)
 
 ---
 
@@ -227,6 +227,7 @@ Code: `runtime/tokenomics.py` · `GET /tokenomics` — **not** a listed token.
 | Jul 30 | **v1.3.1338-deterministic-core** satoshi state domain + forest-stable LMD-GHOST + QueryPort honesty |
 | Aug 1–2 | **Wave A–D** dual-dial ready · evidence package · mesh soft-refuse bake |
 | Aug 2 | **Wave C tip+apply** integer `b_satoshi` tip + satoshi StateService apply (fresh mesh; not 48h/mainnet) |
+| Aug 4–5 | CI harden: mesh3 evidence freeze/thaw + EVM exit-0 footgun; local pytest **2164 passed**; tip-v2 soak still FAIL (no industrial claim) |
 
 Ledger: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md)
 
@@ -247,4 +248,4 @@ MIT — [LICENSE](LICENSE)
 ---
 
 *Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87) · Default branch: `master`*  
-*Last update: 2026-08-02 — **Wave C** tip+apply satoshi cutover on industrial L1 core (ADR 0001–0016). Not a launched public mainnet.*
+*Last update: 2026-08-05 — honesty sync (Jul float 48h PASS ≠ tip-v2 48h FAIL) + CI evidence fixes on `master`. Not a launched public mainnet.*
