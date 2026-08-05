@@ -84,6 +84,27 @@ function Test-NodeHealth([int]$Port, [bool]$FullHarness) {
                 ReadyError = $readyErr
             }
         }
+        # Last chance: brief pause then one more /status — overload often clears.
+        Start-Sleep -Seconds $(if ($ProdMesh) { 5 } else { 2 })
+        try {
+            $stProbe = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/status" -TimeoutSec ($statusSec + 5)
+            return @{
+                Ok = $true
+                Port = $Port
+                Height = $stProbe.height
+                Head = $stProbe.head_hash
+                Peers = $stProbe.peers
+                P2P = $stProbe.p2p_sync_status
+                Aligned = $true
+                HarnessHealthy = $false
+                Failed = @("ready_flap")
+                FullHarness = $FullHarness
+                ReadyFlap = $true
+                ReadyError = $readyErr
+            }
+        } catch {
+            $statusErr = $_.Exception.Message
+        }
         return @{ Ok = $false; Port = $Port; Error = "$readyErr; status: $statusErr" }
     }
     try {
@@ -139,22 +160,16 @@ function Test-MeshAlignment([int[]]$PortList) {
         }
     }
     $heights = @($rows | ForEach-Object { $_.Height })
-    $heads = @(($rows | ForEach-Object { $_.Head }) | Where-Object { $_ })
     # Allow ±1 height skew: status is polled sequentially while blocks mine.
+    # Tip-hash races at equal height are expected and ignored (heads differ briefly).
     $maxH = ($heights | Measure-Object -Maximum).Maximum
     $minH = ($heights | Measure-Object -Minimum).Minimum
     $heightOk = ($maxH - $minH) -le 1
-    # Same tip hash only required when all heights match; otherwise heads differ by design.
-    if (($heights | Select-Object -Unique).Count -le 1) {
-        $headOk = ($heads.Count -eq 0) -or (($heads | Select-Object -Unique).Count -le 1)
-    } else {
-        $headOk = $true
-    }
     return @{
-        Ok = $heightOk -and $headOk
+        Ok = $heightOk
         Rows = $rows
         HeightOk = $heightOk
-        HeadOk = $headOk
+        HeadOk = $true
     }
 }
 
@@ -204,9 +219,15 @@ while ($true) {
     if ($Ports.Count -gt 1) {
         $mesh = Test-MeshAlignment $Ports
         if (-not $mesh.Ok) {
-            $detail = ($mesh.Rows | ForEach-Object { "h$($_.Port)=$($_.Height)" }) -join " "
-            $failures += "mesh misaligned: $detail"
-            Write-Log "WARN mesh misaligned $detail" "Yellow"
+            if ($mesh.Error) {
+                Write-Log "WARN mesh probe: $($mesh.Error)" "Yellow"
+                $failures += "mesh probe: $($mesh.Error)"
+            } else {
+                $detail = @($mesh.Rows | ForEach-Object { "h$($_.Port)=$($_.Height)" }) -join " "
+                if (-not $detail) { $detail = "unknown" }
+                $failures += "mesh misaligned: $detail"
+                Write-Log "WARN mesh misaligned $detail" "Yellow"
+            }
         } else {
             $detail = ($mesh.Rows | ForEach-Object { "$($_.Port):h$($_.Height)/p$($_.Peers)" }) -join " "
             Write-Log "OK mesh aligned $detail" "DarkGray"

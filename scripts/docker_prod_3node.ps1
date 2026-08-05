@@ -191,10 +191,11 @@ if (-not $SkipBuild) {
 
 if ($NoCloneDb) {
     Write-Host "Starting 3-node mesh (no DB seed)..." -ForegroundColor Gray
-    Invoke-MeshCompose up -d --force-recreate node1 node2 node3
+    # Use --detach (not -d): PowerShell steals -d from ValueFromRemainingArguments.
+    Invoke-MeshCompose up --detach --force-recreate node1 node2 node3
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 } else {
-    Invoke-MeshCompose up -d --force-recreate node1
+    Invoke-MeshCompose up --detach --force-recreate node1
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     Write-Host "Waiting for node1..." -ForegroundColor Gray
@@ -230,7 +231,7 @@ if ($NoCloneDb) {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     Write-Host "Starting 3-node mesh together (avoid solo mining before followers)..." -ForegroundColor Gray
-    Invoke-MeshCompose up -d --force-recreate node1 node2 node3
+    Invoke-MeshCompose up --detach --force-recreate node1 node2 node3
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 

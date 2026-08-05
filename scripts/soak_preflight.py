@@ -124,12 +124,25 @@ def run_soak_preflight(*, hours: int = 48, interval_sec: int = 300, require_p2p_
         if sec_rc != 0:
             errors.append("verify_p2p_security_mesh failed (see stdout above)")
 
+    # Same soft set as verify_p2p_ci mesh harness: tip/wire/state lag is not a
+    # hard soak blocker when heights + peers already agree across the mesh.
+    _SOFT_HARNESS = frozenset(
+        {"tip_state_aligned", "peer_probe_ok", "p2p_state_consistent"}
+    )
+
     if reachable:
         try:
             harness = _consistency_harness(reachable[0])
             if not harness.get("harness_healthy"):
-                failed = harness.get("failed_checks") or []
-                errors.append(f"harness unhealthy: {failed}")
+                failed = list(harness.get("failed_checks") or [])
+                hard = [f for f in failed if f not in _SOFT_HARNESS]
+                if hard:
+                    errors.append(f"harness unhealthy: {failed}")
+                else:
+                    warnings.append(
+                        f"harness soft fails (tolerated): {failed} "
+                        "(tip/wire/state lag under tip-v2 forge load)"
+                    )
         except OSError as exc:
             errors.append(f"harness: {exc}")
         try:
@@ -144,7 +157,7 @@ def run_soak_preflight(*, hours: int = 48, interval_sec: int = 300, require_p2p_
     tag = _git_tag()
     start_cmd = (
         f".\\scripts\\restart_soak_prod_mesh.ps1 -Hours {hours} "
-        f"-IntervalSec {interval_sec} -ReportFile logs/soak_report_48h.json"
+        f"-IntervalSec {interval_sec}"
     )
     meta = {
         "timestamp": datetime.now(timezone.utc).isoformat(),

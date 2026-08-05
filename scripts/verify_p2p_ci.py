@@ -2277,10 +2277,13 @@ def verify_adversarial(url1: str, status: dict) -> int:
     if wave < 53:
         return _verify_p2p_skip_or_fail(f"adversarial checks (api_wave={wave} < 53)")
     if str(status.get("deployment_mode", "")).lower() == "prod":
-        if _verify_p2p_skip_or_fail(
-            "adversarial checks (testnet/slashing drill endpoints blocked in prod)"
-        ) != 0:
-            return 1
+        # Prod intentionally blocks /testnet/* and live slashing drills.
+        # Soft-skip always (not VERIFY_P2P_ALLOW_SKIP): prod-smoke / mesh CI
+        # would otherwise false-fail a release gate on an expected block.
+        print(
+            "SKIP: adversarial checks "
+            "(testnet/slashing drill endpoints blocked in prod)"
+        )
         return 0
 
     try:

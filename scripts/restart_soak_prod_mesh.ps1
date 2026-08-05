@@ -1,9 +1,9 @@
-# Restart 48h prod mesh soak with v1.2.31+ health_watch timeouts (background).
+# Restart 48h prod mesh soak with tip-v2 industrial evidence paths (background).
 param(
     [int]$Hours = 48,
     [int]$IntervalSec = 300,
-    [string]$LogFile = "logs/soak_48h_v1.2.77.log",
-    [string]$ReportFile = "logs/soak_report_48h.json",
+    [string]$LogFile = "logs/industrial_tipv2_soak_48h_rerun.log",
+    [string]$ReportFile = "logs/soak_report_tipv2_48h_rerun.json",
     [switch]$Foreground,
     [switch]$NoStopExisting
 )

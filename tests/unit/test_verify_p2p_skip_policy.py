@@ -35,11 +35,15 @@ def test_adversarial_wave_skip_fail_closed(monkeypatch):
     assert mod.verify_adversarial("http://127.0.0.1:8080", {"api_wave": 40, "deployment_mode": "dev"}) == 1
 
 
-def test_adversarial_prod_skip_fail_closed(monkeypatch):
+def test_adversarial_prod_skip_always(monkeypatch, capsys):
+    """Prod blocks testnet/slashing drills — soft-skip without ALLOW_SKIP."""
     mod = _load_verify()
     monkeypatch.delenv("VERIFY_P2P_ALLOW_SKIP", raising=False)
     rc = mod.verify_adversarial(
         "http://127.0.0.1:8080",
         {"api_wave": 61, "deployment_mode": "prod"},
     )
-    assert rc == 1
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "SKIP: adversarial checks" in out
+    assert "blocked in prod" in out

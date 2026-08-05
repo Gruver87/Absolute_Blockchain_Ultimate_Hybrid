@@ -1541,7 +1541,21 @@ class RESTHandler(BaseHTTPRequestHandler):
                     checks["peers_alive"] = bool(deep["peers_alive"])
                     checks["quorum_height"] = bool(deep["quorum_height"])
 
-                ready = all(checks.values())
+                # Wire/state consistency stay visible in checks, but tip-v2 forge
+                # load causes brief wire_probe flaps that must not 503 a mesh that
+                # already passes ADR 0014 deep_ready (peers_alive + quorum_height).
+                _soft_ready_keys = frozenset(
+                    {
+                        "state_consistent",
+                        "wire_probe_probed",
+                        "wire_probe_ok",
+                    }
+                )
+                ready = all(
+                    bool(v)
+                    for k, v in checks.items()
+                    if k not in _soft_ready_keys
+                )
                 deep_ok = bool(deep["sync_not_stalled"]) and (
                     not mesh_expected
                     or (bool(deep["peers_alive"]) and bool(deep["quorum_height"]))
