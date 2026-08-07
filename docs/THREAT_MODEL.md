@@ -3,7 +3,7 @@
 **Audience:** external auditors / operators  
 **Scope:** single-tip prod-profile chain `778888` (Profile A)  
 **Out of scope:** shard lab, L2 sandbox, ZK/PQ, bridge ON  
-**Updated:** 2026-08-02
+**Updated:** 2026-08-07
 
 ## Assets
 

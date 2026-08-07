@@ -1,0 +1,13 @@
+﻿phase3_ops_cutover_dry_run
+commit=da25c34
+date_utc=2026-08-07T20:32:01Z
+bridge_off_audit_gate=PASS
+ceremony_evidence_suite=PASS
+ceremony_hash=e7d0c1ed5aee5d73d5706d965f5c3b1de188a927a1f14d06cb265671b45bccd7
+pin_status=MATCH (.env already pinned; pin_ceremony_hash.ps1 write skipped)
+rotate_prod_secrets=DRY_RUN_PASS (no -Force; secrets not mutated)
+dr_restore_rehearsal=PASS DockerMesh1 tip=4643 backup=backups/dr-rehearsal-20260807-223136
+mesh_after_dr=recovered aligned h=4644 peers=2/2/2 (~60s post node1 restart)
+external_audit=6/8 (2 firm-owned pending)
+status=PHASE3_PASS
+next=Phase 4 audit binder

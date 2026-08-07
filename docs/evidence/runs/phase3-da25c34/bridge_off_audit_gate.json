@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "errors": [],
+  "warnings": [],
+  "passed_controls": 10,
+  "passed": [
+    "[1] docker/node.prod.json",
+    "[1] docker/node.prod.mesh1.json",
+    "[1] docker/node.prod.mesh2.json",
+    "[1] docker/node.prod.mesh3.json",
+    "[1] node.prod.mainnet-v1.example.json",
+    "[1] deploy/k8s/node.prod.k8s.json",
+    "[2] docker-compose.prod.3node.yml",
+    "[2] docker-compose.prod.yml",
+    "[3] k8s configmap",
+    "[4] API honesty",
+    "[5] L1 RPC via secrets only",
+    "[6] rust bridge idle path",
+    "[7] oracle secret optional while bridge off",
+    "[8] queue path configured",
+    "[9] CI bridge isolation",
+    "[10] bridge_decision_off evidence PASS",
+    "[10] decision record automation"
+  ]
+}

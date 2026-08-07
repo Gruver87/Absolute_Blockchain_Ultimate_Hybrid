@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "errors": [],
+  "warnings": [],
+  "ceremony_dir": "C:\\Users\\vovun\\Desktop\\Absolute_Blockchain_Ultimate_Hybrid\\data\\ceremony_keys",
+  "ceremony_hash": "e7d0c1ed5aee5d73d5706d965f5c3b1de188a927a1f14d06cb265671b45bccd7",
+  "ready": true,
+  "env_pinned_hash": "e7d0c1ed5aee5d73d5706d965f5c3b1de188a927a1f14d06cb265671b45bccd7",
+  "deploy_meta_hash": "e7d0c1ed5aee5d73d5706d965f5c3b1de188a927a1f14d06cb265671b45bccd7",
+  "deploy_meta_same_ceremony": true
+}

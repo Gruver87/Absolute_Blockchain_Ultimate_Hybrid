@@ -36,6 +36,13 @@ python scripts/bridge_off_audit_gate.py
 Stop: bridge OFF gate PASS; DR rehearsal PASS; ceremony/secrets steps recorded (secrets gitignored).  
 Session note: `rotate_prod_secrets.ps1` without `-Force` is the documented dry-run (no mutation).
 
+**Status (2026-08-07):** Phase 3 **PASS** (dry-run) — evidence `docs/evidence/runs/phase3-da25c34/`:
+- bridge_off_audit_gate PASS  
+- ceremony_evidence_suite PASS (hash `e7d0c1ed…` matches `.env` pin)  
+- `rotate_prod_secrets.ps1` dry-run PASS (**no** `-Force`)  
+- `dr_restore_rehearsal.ps1 -DockerMesh1` PASS (tip=4643)  
+- external audit tracker 6/8 (2 firm-owned remaining)
+
 ## Phase 4 — Audit binder
 
 - [THREAT_MODEL.md](THREAT_MODEL.md)  

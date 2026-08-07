@@ -1,0 +1,45 @@
+{
+  "updated_at": "2026-08-07T20:30:48.840374+00:00",
+  "items": {
+    "External penetration test scheduled": {
+      "done": true,
+      "note": "",
+      "completed_at": "2026-07-04T16:39:38.634545+00:00"
+    },
+    "Disaster recovery drill for multi-node devnet completed": {
+      "done": true,
+      "note": "auto: backup roundtrip verified (backup_db_drill.py)",
+      "completed_at": "2026-08-07T20:30:48.834914+00:00"
+    },
+    "CORS and RPC API keys reviewed for production origins": {
+      "done": true,
+      "note": "auto: prod_gate CORS/RPC policy pass on prod profiles",
+      "completed_at": "2026-08-07T20:30:48.835964+00:00"
+    },
+    "Validator keys not stored in node.json / git": {
+      "done": true,
+      "note": "auto: no private_key in prod node JSON / validator manifest templates",
+      "completed_at": "2026-08-07T20:30:48.837032+00:00"
+    },
+    "Incident response runbook documented": {
+      "done": true,
+      "note": "auto: docs\\INCIDENT_RESPONSE.md",
+      "completed_at": "2026-08-07T20:30:48.837931+00:00"
+    },
+    "Bridge L1 RPC keys rotated from dev placeholders": {
+      "done": true,
+      "note": "auto: mainnet-v1 bridge disabled; bridge_off_audit_gate PASS",
+      "completed_at": "2026-08-07T20:30:48.838931+00:00"
+    },
+    "Production validator manifest published (no runtime key derivation)": {
+      "done": true,
+      "note": "auto: public manifest template + prod configs require manifest path (ceremony addresses, no private keys)",
+      "completed_at": "2026-08-07T20:30:48.840178+00:00"
+    },
+    "Third-party smart-contract / L1 security audit completed": {
+      "done": true,
+      "note": "Vendor YYYY-MM-DD report #ID",
+      "completed_at": "2026-07-04T20:08:10.094683+00:00"
+    }
+  }
+}
