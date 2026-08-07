@@ -87,7 +87,7 @@ Makefile             make build | test-quick | test-gate | mesh-up
 | System design | [ARCHITECTURE](docs/ARCHITECTURE.md) |
 | Operator commands | [COMMANDS_REFERENCE](docs/COMMANDS_REFERENCE.md) · [ALL_COMMANDS](docs/ALL_COMMANDS.txt) |
 | Security / contribute | [SECURITY](SECURITY.md) · [CONTRIBUTING](CONTRIBUTING.md) · [SUPPORT](SUPPORT.md) |
-| Audits / releasing | [AUDITS](docs/AUDITS.md) · [RELEASING](docs/RELEASING.md) · [REPO_PROFESSIONAL](docs/REPO_PROFESSIONAL.md) |
+| Audits / releasing | [AUDITS](docs/AUDITS.md) · [AUDIT_ENGAGEMENT_BRIEF](docs/AUDIT_ENGAGEMENT_BRIEF.md) · [RELEASING](docs/RELEASING.md) · [REPO_PROFESSIONAL](docs/REPO_PROFESSIONAL.md) |
 | GitHub About paste | [REPO_PROFILE](.github/REPO_PROFILE.md) |
 
 ---

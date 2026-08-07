@@ -14,7 +14,7 @@ Public audited mainnet · listed ABS token · investment product · bridge ON on
 
 | | |
 |---|---|
-| Tag | **[v1.3.1338-deterministic-core](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1338-deterministic-core)** |
+| Tag | **[v1.3.1339-tip-v2-industrial](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial)** (audit pin) · prior [v1.3.1338](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1338-deterministic-core) |
 | Prior industrial | [v1.3.206](../RELEASE_NOTES_v1.3.206.md) tip-safety / P2P |
 | ADR stack | **0001–0016** ([docs/adr/](adr/)) |
 | CI | Ubuntu `test.yml` + docker + security + fuzz (tip-v2 soak gates on `master`) |

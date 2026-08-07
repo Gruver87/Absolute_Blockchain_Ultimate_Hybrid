@@ -10,6 +10,7 @@
 
 ### Industrial harden (no new features)
 
+- **Audit pin tag `v1.3.1339-tip-v2-industrial`** + [AUDIT_ENGAGEMENT_BRIEF.md](docs/AUDIT_ENGAGEMENT_BRIEF.md) for firm engagement
 - **Phase 2 tip-v2 48h soak PASS** (2026-08-05→07): `logs/soak_report_tipv2_48h_rerun.json` (`passed=true`, fail=0, mesh_warn=0); evidence `docs/evidence/runs/375d14f/`
 - **Phase 3 ops cutover dry-run PASS** (2026-08-07): bridge OFF + ceremony + secrets dry-run + DR DockerMesh1; evidence `docs/evidence/runs/phase3-da25c34/`
 - **Phase 4 audit binder READY** (2026-08-07): industrial_gate `--min-soak-hours 48` + `export_audit_pack`; tracker 6/8 firm-owned open; evidence `docs/evidence/runs/phase4-691329c/`
@@ -18,7 +19,8 @@
 - Gap analysis synced to Wave C tip-v2; threat model + audit scope letter; industrial runbook
 - DR backup scripts tolerate docker stderr (PowerShell Stop trap)
 - Tip-v2 re-smoke + prior Aug 2–4 48h FAIL (historical only; superseded by Aug 5–7 PASS)
-- `export_audit_pack` / `industrial_gate` recognize tip-v2 `soak_report_tipv2_48h_rerun.json`
+- `export_audit_pack` / `industrial_gate` recognize tip-v2 evidence under `docs/evidence/runs/`
+- Gates load `.env` for ceremony pin; skimmer honesty (AT_A_GLANCE Phase 3–4)
 
 ### Wave D — bake mesh harden + attestation/rate soft-refuse
 

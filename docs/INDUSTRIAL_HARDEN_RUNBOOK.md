@@ -56,6 +56,7 @@ Session note: `rotate_prod_secrets.ps1` without `-Force` is the documented dry-r
 - `export_audit_pack` → `logs/audit_pack_20260807.zip`  
 - tracker **6/8** (2 firm-owned: pen-test + L1/SC audit)  
 - **Not** “audited” until PDF under `audits/<firm>/`  
+- Engagement brief: [AUDIT_ENGAGEMENT_BRIEF.md](AUDIT_ENGAGEMENT_BRIEF.md) · pin tag `v1.3.1339-tip-v2-industrial`  
 
 ## Phase 5 — Public surface (after 1–4)
 
