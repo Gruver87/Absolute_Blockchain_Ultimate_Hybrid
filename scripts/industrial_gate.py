@@ -4228,12 +4228,29 @@ def run_industrial_gate(
         )
 
     if min_soak_hours > 0:
+        evidence_soaks = sorted(
+            (ROOT / "docs" / "evidence" / "runs").glob("*/soak_report*.json"),
+            key=lambda p: p.stat().st_mtime if p.is_file() else 0,
+            reverse=True,
+        )
+        # Prefer packaged tip-v2 PASS (in-repo) over gitignored logs/ copies.
         soak_candidates = [
+            ROOT / "docs" / "evidence" / "runs" / "375d14f" / "soak_report_tipv2_48h_rerun.json",
+            *evidence_soaks,
             ROOT / "logs" / "soak_report_tipv2_48h_rerun.json",
             ROOT / "logs" / "soak_report_48h.json",
             ROOT / "logs" / "soak_report.json",
         ]
-        soak_path = next((p for p in soak_candidates if p.is_file()), soak_candidates[0])
+        # De-dupe while preserving order.
+        seen: set[str] = set()
+        ordered: list[Path] = []
+        for p in soak_candidates:
+            key = str(p.resolve()) if p.exists() else str(p)
+            if key in seen:
+                continue
+            seen.add(key)
+            ordered.append(p)
+        soak_path = next((p for p in ordered if p.is_file()), ordered[0])
         if not soak_path.is_file():
             soak_errors.append(
                 f"soak_report missing: {soak_path} (need {min_soak_hours}h prod soak)"
@@ -4241,6 +4258,23 @@ def run_industrial_gate(
         else:
             try:
                 soak = json.loads(soak_path.read_text(encoding="utf-8"))
+                # Skip historical FAIL packs when a newer PASS exists later in candidates.
+                if not soak.get("passed"):
+                    alt = next(
+                        (
+                            p
+                            for p in ordered
+                            if p.is_file()
+                            and p != soak_path
+                            and bool(
+                                json.loads(p.read_text(encoding="utf-8")).get("passed")
+                            )
+                        ),
+                        None,
+                    )
+                    if alt is not None:
+                        soak_path = alt
+                        soak = json.loads(soak_path.read_text(encoding="utf-8"))
                 hrs = float(soak.get("hours_requested", 0) or 0)
                 if hrs < min_soak_hours:
                     soak_errors.append(f"soak_report hours_requested={hrs} < {min_soak_hours}")

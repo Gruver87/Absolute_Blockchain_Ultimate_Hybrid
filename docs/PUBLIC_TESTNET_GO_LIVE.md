@@ -1,7 +1,7 @@
 # Public testnet go-live gate (Phase 5)
 
-**Status:** blocked until industrial Phases 1–4 complete.  
-**Do not** publish DNS/TLS until every checkbox below is true.
+**Status:** industrial Phases 1–4 binder complete on `master`; **blocked** on org items below (external audit, deploy-host pin/secrets, VPS).  
+**Do not** publish DNS/TLS until every remaining checkbox is true.
 
 ## Hard prerequisites
 

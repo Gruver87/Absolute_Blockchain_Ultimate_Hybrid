@@ -73,6 +73,7 @@ blockchain-development
 - Prod mesh probe / failover / signed tx / EVM mempool smoke
 - **7h soak PASS** + **48h soak PASS** float tip (2026-07-19→21)
 - **tip-v2 (`b_satoshi`) 48h soak PASS** (2026-08-05→07) — `docs/evidence/runs/375d14f/`
+- **Phase 3 ops dry-run PASS** + **Phase 4 audit binder READY** (2026-08-07)
 - `industrial_gate --min-soak-hours 48` OK
 - Isolated P2P CI (`verify_p2p_ci --mode ci`) OK after signer + mesh_min fix
 - Audit pack exporter: `.\scripts\export_audit_pack.ps1`

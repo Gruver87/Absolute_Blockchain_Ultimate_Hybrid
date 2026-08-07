@@ -17,9 +17,11 @@ Public audited mainnet · listed ABS token · investment product · bridge ON on
 | Tag | **[v1.3.1338-deterministic-core](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1338-deterministic-core)** |
 | Prior industrial | [v1.3.206](../RELEASE_NOTES_v1.3.206.md) tip-safety / P2P |
 | ADR stack | **0001–0016** ([docs/adr/](adr/)) |
-| CI | Ubuntu `test.yml` + docker + security + fuzz (Blockchain mesh3 still hardening on `master`) |
+| CI | Ubuntu `test.yml` + docker + security + fuzz (tip-v2 soak gates on `master`) |
 | 48h soak (Jul float) | **PASS** (historical / operator-local) |
 | 48h soak (tip-v2) | **PASS** Aug 5–7 2026 — `soak_report_tipv2_48h_rerun.json` (fail=0, mesh_warn=0) |
+| Phase 3 ops dry-run | **PASS** Aug 7 — [phase3-da25c34](evidence/runs/phase3-da25c34/) |
+| Phase 4 audit binder | **READY** Aug 7 — firm engagement pending ([phase4-691329c](evidence/runs/phase4-691329c/)) |
 | Self-check | `.\scripts\operator_verify.ps1 -SkipNativeBuild` · `make test-quick` |
 | Run | `python main.py` → `:8080` |
 | Prod mesh | `778888` bring-up + chain sync · tip v2 `b_satoshi` (ceremony) · `/health/ready` local PASS |
@@ -35,6 +37,7 @@ Public audited mainnet · listed ABS token · investment product · bridge ON on
 | Forest-stable LMD-GHOST + satoshi storage | Full Rust P2P transport claim |
 | **Wave C** tip+apply: tip v2 `b_satoshi` + satoshi apply (fresh mesh) | Public mainnet cutover |
 | **tip-v2 48h soak PASS** (Aug 5–7, operator-local) | Listed ABS / investment product |
+| **Phase 3–4** ops dry-run PASS + audit binder READY | External firm audit report |
 | Bridge **OFF** on live mesh | Live mesh bridge cutover / kitchen-sink FEATURE_* |
 | ADR 0010–0016 ports / sprouts in-tree | Kitchen-sink FEATURE_* on `778888` |
 

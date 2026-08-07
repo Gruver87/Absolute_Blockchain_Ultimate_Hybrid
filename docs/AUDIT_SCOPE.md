@@ -4,7 +4,7 @@
 **Chain under review:** prod-profile `778888` (Docker 3-node mesh / future mainnet-v1)  
 **Date:** 2026-08-07  
 **Release pin:** tip-v2 industrial evidence on `master` (`375d14f` gates + `628cc9a`/`da25c34` docs); tag when auditor contracted (`v1.3.1339-tip-v2-industrial` or later)  
-**Phase status:** Phase 2 tip-v2 48h PASS · Phase 3 ops dry-run PASS (`docs/evidence/runs/phase3-da25c34/`)
+**Phase status:** Phase 2 tip-v2 48h PASS · Phase 3 ops dry-run PASS · Phase 4 audit binder READY (`docs/evidence/runs/phase4-691329c/`) — external firm engagement still TBD
 
 ## In scope
 

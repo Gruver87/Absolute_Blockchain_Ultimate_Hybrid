@@ -70,6 +70,14 @@ tree.txt
 audit_export.txt
 data/mega_audit_report.json
 
+# Local agent / mesh dump junk (never commit)
+.wave_c_*.txt
+.cursor_mesh_verify*.txt
+scripts/_emergency_*.ps1
+scripts/_mesh_verify*.ps1
+scripts/_rl_stress.py
+.cursor/
+
 # Rust bridge build artifacts
 bridge/abs_bridge_bin
 bridge/abs_bridge_bin.exe

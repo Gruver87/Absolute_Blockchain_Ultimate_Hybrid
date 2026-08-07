@@ -15,6 +15,25 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
+def _load_dotenv(path: Path | None = None) -> None:
+    """Load KEY=VALUE from .env into os.environ without overriding existing keys."""
+    env_path = path or (ROOT / ".env")
+    if not env_path.is_file():
+        return
+    try:
+        for raw in env_path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, val = line.split("=", 1)
+            key = key.strip()
+            val = val.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = val
+    except OSError:
+        return
+
+
 def _resolve_ceremony_dir(explicit: str = "") -> tuple[str, str]:
     """Return (ceremony_dir, source_note). Auto-detect when pin is present."""
     if explicit and str(explicit).strip():
@@ -72,6 +91,7 @@ def run_gate(
     warnings: List[str] = []
     sections: dict = {}
 
+    _load_dotenv()
     ceremony_dir, ceremony_dir_source = _resolve_ceremony_dir(ceremony_dir)
     if ceremony_dir and ceremony_dir_source and ceremony_dir_source != "explicit":
         sections["ceremony_dir_auto"] = {
