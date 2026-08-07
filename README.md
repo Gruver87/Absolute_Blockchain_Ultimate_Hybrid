@@ -26,7 +26,7 @@ pip install -r requirements.txt && cp .env.example .env
 | OS | Build native | Self-check | Run solo |
 |----|--------------|------------|----------|
 | **Linux / macOS** | `make build` | `make test-quick` | `python main.py` |
-| **Windows** | `.\scripts\build_native.ps1` | `.\scripts\operator_verify.ps1 -SkipNativeBuild` | `python main.py` |
+| **Windows** | `.\scripts\build_native.ps1` | `.\scripts\verify_project.ps1` | `python main.py` |
 
 Explorer: http://localhost:8080 · Prod mesh (chain ID **778888**): `make mesh-up` or `.\scripts\docker_prod_3node.ps1`
 
@@ -119,7 +119,7 @@ docs/adr/            boundaries 0001–0016 (0013 unused)
 docs/sprouts/        ADR 0016 profiles (App · Bridge · L2 · Shard · EVM)
 docs/evidence/       packaged soak / phase runs
 scripts/             gates · mesh · soak · DR
-Makefile             make build | test-quick | test-gate | mesh-up
+Makefile             make build | verify | verify-industrial | mesh-up
 ```
 
 ---
@@ -128,11 +128,13 @@ Makefile             make build | test-quick | test-gate | mesh-up
 
 | Action | Windows | Linux / macOS |
 |--------|---------|---------------|
-| Self-check | `.\scripts\check_all.ps1` | `make test-quick` |
+| **Verify whole project** | `.\scripts\verify_project.ps1` | `make verify` |
+| Industrial (tip-v2 48h evidence) | `.\scripts\verify_project.ps1 -Mode Industrial` | `make verify-industrial` |
+| Legacy self-check | `.\scripts\check_all.ps1` | `make test-quick` |
 | Start mesh | `.\scripts\docker_prod_3node.ps1 -SkipBuild -KeepVolumes` | `make mesh-up` |
 | Probe | `.\scripts\probe_prod_mesh.ps1` | same via `pwsh` |
 | Soak 48h | `.\scripts\soak_monitor.ps1 -ProdMesh -Hours 48` | same |
-| Industrial gate | `python scripts/industrial_gate.py --min-soak-hours 48` | same |
+| Industrial gate only | `python scripts/industrial_gate.py --min-soak-hours 48` | same |
 | Audit zip | `.\scripts\export_audit_pack.ps1` | same |
 
 | Mode | Chain ID | Notes |

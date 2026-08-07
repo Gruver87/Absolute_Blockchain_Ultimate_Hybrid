@@ -23,7 +23,7 @@ Public audited mainnet · listed ABS token · investment product · bridge ON on
 | 48h soak (tip-v2) | **PASS** Aug 5–7 2026 — `soak_report_tipv2_48h_rerun.json` (fail=0, mesh_warn=0) |
 | Phase 3 ops dry-run | **PASS** Aug 7 — [phase3-da25c34](evidence/runs/phase3-da25c34/) |
 | Phase 4 audit binder | **READY** Aug 7 — firm engagement pending ([phase4-691329c](evidence/runs/phase4-691329c/)) |
-| Self-check | `.\scripts\operator_verify.ps1 -SkipNativeBuild` · `make test-quick` |
+| Self-check | `.\scripts\verify_project.ps1` · `.\scripts\verify_project.ps1 -Mode Industrial` · `make verify` |
 | Run | `python main.py` → `:8080` |
 | Prod mesh | `778888` bring-up + chain sync · tip v2 `b_satoshi` (ceremony) · `/health/ready` local PASS |
 

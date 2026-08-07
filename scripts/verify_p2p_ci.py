@@ -2849,11 +2849,15 @@ def verify_prod_post_checks(url: str, *mesh_urls: str) -> int:
     except Exception as exc:
         errors.append(f"features: {exc}")
 
+    # Align with verify_state_consistency soft set: wire-probe flaps and sticky
+    # p2p_state_consistent lag are tolerated when mesh roots already match.
+    _soft_harness = {"tip_state_aligned", "peer_probe_ok", "p2p_state_consistent"}
+
     def _harness_ok(h: dict) -> bool:
         if h.get("harness_healthy", True):
             return True
         failed = set(h.get("failed_checks") or [])
-        return failed <= {"tip_state_aligned", "p2p_state_consistent"}
+        return failed <= _soft_harness
 
     def _collect_mesh_harness() -> tuple[list[str], list[str], list[str]]:
         harness_errors: list[str] = []

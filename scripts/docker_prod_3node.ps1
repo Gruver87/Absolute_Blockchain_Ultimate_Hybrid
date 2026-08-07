@@ -198,16 +198,19 @@ if ($NoCloneDb) {
     Invoke-MeshCompose up --detach --force-recreate node1
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-    Write-Host "Waiting for node1..." -ForegroundColor Gray
+    # Solo node1 cannot pass /health/ready (peers_alive / quorum_height need the mesh).
+    # Wait for /health/live before RocksDB seed, then bring peers up together.
+    Write-Host "Waiting for node1 /health/live (solo pre-seed)..." -ForegroundColor Gray
     $deadline = (Get-Date).AddMinutes(3)
     $ready1 = $false
     while ((Get-Date) -lt $deadline) {
         try {
-            $resp = Invoke-WebRequest -Uri "http://127.0.0.1:18180/health/ready" -UseBasicParsing -TimeoutSec 5
+            $resp = Invoke-WebRequest -Uri "http://127.0.0.1:18180/health/live" -UseBasicParsing -TimeoutSec 5
             if ($resp.StatusCode -eq 200) { $ready1 = $true; break }
         } catch { Start-Sleep -Seconds 5 }
     }
     if (-not $ready1) {
+        Write-Host "FAIL: node1 /health/live not ready for seed" -ForegroundColor Red
         Invoke-MeshCompose logs node1 --tail 40
         exit 1
     }
