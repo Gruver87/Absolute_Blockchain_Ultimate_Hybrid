@@ -21,7 +21,7 @@ Target (example): `https://testnet.absolute-chain.org` → explorer + RPC behind
 ### Stability
 
 - [x] Prod mesh soak **48h+ completed** (`logs/soak_report_48h.json` passed) — see [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md); **PASS** 2026-07-19→21 (v1.2.84)
-- [ ] Tip-v2 (`b_satoshi`) **48h soak** `passed=true` — industrial Phase 2 ([PUBLIC_TESTNET_GO_LIVE.md](PUBLIC_TESTNET_GO_LIVE.md); kickoff `logs/industrial_tipv2_soak_48h.log`)
+- [x] Tip-v2 (`b_satoshi`) **48h soak** `passed=true` — industrial Phase 2 ([PUBLIC_TESTNET_GO_LIVE.md](PUBLIC_TESTNET_GO_LIVE.md); `logs/soak_report_tipv2_48h_rerun.json` + `docs/evidence/runs/375d14f/`)
 - [x] Automated local gate: `.\scripts\testnet_readiness.ps1 -ProdMesh`
 - [x] Soak restart tooling ready: `.\scripts\restart_soak_prod_mesh.ps1 -Hours 48` (script exists; soak completion is separate)
 - [x] Failover drill on prod mesh (`prod_mesh_failover.ps1`) — `prod_mesh_resilience_suite.ps1`

@@ -21,6 +21,8 @@ python scripts/package_mesh_evidence.py --out docs/evidence/runs/<sha> `
 
 Stop: soak `passed=true`, matching tip roots, encoding v2 active on all three nodes.
 
+**Status (2026-08-07):** Phase 2 tip-v2 **48h PASS** — `logs/soak_report_tipv2_48h_rerun.json` + evidence `docs/evidence/runs/375d14f/` (`passed=true`, fail=0, mesh_warn=0, 48.00h). Prior Aug 2–4 FAIL remains historical only.
+
 ## Phase 3 — Ops cutover dry-run
 
 ```powershell

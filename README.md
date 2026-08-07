@@ -39,7 +39,7 @@ Explorer: http://localhost:8080 · Mesh: `make mesh-up` or `.\scripts\docker_pro
 | Tip `state_root` + apply (satoshi) | **Wave C local PASS** | tip v2 `b_satoshi` · fresh mesh evidence ([79472a111cd5](docs/evidence/runs/79472a111cd5/)) |
 | Failover + signed tx + EVM on mesh | **Proven** | Jul 2026 suite |
 | **48h soak (Jul float tip)** | **PASS** (operator-local) | `logs/soak_report_48h.json` — pre tip-v2 |
-| **48h soak (tip-v2 `b_satoshi`)** | **FAIL** (Aug 2026) | `logs/soak_report_tipv2_48h.json` — ready flaps; not industrial claim |
+| **48h soak (tip-v2 `b_satoshi`)** | **PASS** (Aug 5–7 2026) | `logs/soak_report_tipv2_48h_rerun.json` + [375d14f](docs/evidence/runs/375d14f/) — fail=0 mesh_warn=0 |
 | Public mainnet / listed ABS / external audit | **No** | [gaps](docs/MAINNET_GAP_ANALYSIS.md) |
 | Bridge on live mesh | **OFF** | by design until L1 cutover |
 
@@ -101,7 +101,7 @@ Makefile             make build | test-quick | test-gate | mesh-up
 | **P2P** | Verified / Partial ready | Docker sync + CI; TLS session churn open |
 | **TX / EVM on prod mesh** | Proven | Signed gossip + mempool deploy |
 | **Rust native** | Hybrid path | `ABS_REQUIRE_NATIVE_CRYPTO` in prod |
-| **Failover / soak** | Partial | 7h + Jul **48h PASS** (float tip, operator-local); tip-v2 **48h FAIL** (Aug 2026) |
+| **Failover / soak** | Proven (operator-local) | 7h + Jul float **48h PASS**; tip-v2 **48h PASS** Aug 5–7 (`soak_report_tipv2_48h_rerun.json`) |
 | **Bridge** | Ports isolated (ADR 0010) | OFF on prod mesh until L1 cutover |
 | **RPC / Query** | Typed QueryFacade (ADR 0011) | DoS caps · no raw DB from handlers |
 | **Secrets / metrics** | SecretManager + exporter (ADR 0015) | Env/K8s/Vault · `/metrics` snapshot |
@@ -219,7 +219,8 @@ Code: `runtime/tokenomics.py` · `GET /tokenomics` — **not** a listed token.
 |------|------|
 | Jul 12 | Failover, signed tx, EVM, **7h soak PASS** |
 | Jul 19–21 | **48h soak PASS** (float tip era; operator-local logs) |
-| Aug 2–4 | tip-v2 **48h soak FAIL** (ready flaps; `soak_report_tipv2_48h.json`) |
+| Aug 2–4 | tip-v2 **48h soak FAIL** (ready flaps; historical `soak_report_tipv2_48h.json`) |
+| Aug 5–7 | tip-v2 **48h soak PASS** — `soak_report_tipv2_48h_rerun.json` (`passed=true`, fail=0, mesh_warn=0); evidence [375d14f](docs/evidence/runs/375d14f/) |
 | Jul 21–26 | Industrial **v1.3.65–v1.3.146** + professional repo surface (Dependabot/SBOM/SUPPORT) |
 | Jul 29 | **v1.3.206** Tip-safety (enforce) + P2P transport boundary + application dispatcher |
 | Jul 30 | **ADR 0010–0015** BridgePort · QueryFacade · Chaos · Graceful shutdown · Observability/SecretManager |
@@ -227,7 +228,8 @@ Code: `runtime/tokenomics.py` · `GET /tokenomics` — **not** a listed token.
 | Jul 30 | **v1.3.1338-deterministic-core** satoshi state domain + forest-stable LMD-GHOST + QueryPort honesty |
 | Aug 1–2 | **Wave A–D** dual-dial ready · evidence package · mesh soft-refuse bake |
 | Aug 2 | **Wave C tip+apply** integer `b_satoshi` tip + satoshi StateService apply (fresh mesh; not 48h/mainnet) |
-| Aug 4–5 | CI harden: mesh3 evidence freeze/thaw + EVM exit-0 footgun; local pytest **2164 passed**; tip-v2 soak still FAIL (no industrial claim) |
+| Aug 4–5 | CI harden: mesh3 evidence freeze/thaw + EVM exit-0 footgun; local pytest **2164 passed** |
+| Aug 5 | tip-v2 soak harden merged (`375d14f`): prod adversarial soft-skip + ready/wire soft gates; mesh rebuild KeepVolumes |
 
 Ledger: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md)
 
@@ -248,4 +250,4 @@ MIT — [LICENSE](LICENSE)
 ---
 
 *Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87) · Default branch: `master`*  
-*Last update: 2026-08-05 — honesty sync (Jul float 48h PASS ≠ tip-v2 48h FAIL) + CI evidence fixes on `master`. Not a launched public mainnet.*
+*Last update: 2026-08-07 — tip-v2 48h soak PASS (`soak_report_tipv2_48h_rerun.json`, evidence `375d14f`). Not a launched public mainnet.*

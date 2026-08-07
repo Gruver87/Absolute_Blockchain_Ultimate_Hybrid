@@ -1,11 +1,11 @@
 # Mainnet Gap Analysis — Industrial Blockchain Readiness
 
 **Project:** Absolute Blockchain Ultimate Hybrid  
-**Updated:** 2026-08-02  
+**Updated:** 2026-08-07  
 **Positioning:** Production-hardened R&D stack → path to public mainnet  
 **Evidence ledger:** [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md) — separates CI/automation from live ops proof
 
-**Wave C tip+apply (2026-08-02):** ceremony-armed tip encoding v2 uses integer `b_satoshi` (`SATOSHI_MULTIPLIER=1e6`) on fresh prod mesh; StateService fees/gas/reward are satoshi-int. Float tip `"b"` remains legacy/offline only. See [STATE_ROOT_ENCODING_MIGRATION.md](STATE_ROOT_ENCODING_MIGRATION.md) + evidence `docs/evidence/runs/79472a111cd5/`. Not a 48h tip-v2 soak claim until Phase 2 industrial proof lands.
+**Wave C tip+apply (2026-08-02):** ceremony-armed tip encoding v2 uses integer `b_satoshi` (`SATOSHI_MULTIPLIER=1e6`) on fresh prod mesh; StateService fees/gas/reward are satoshi-int. Float tip `"b"` remains legacy/offline only. See [STATE_ROOT_ENCODING_MIGRATION.md](STATE_ROOT_ENCODING_MIGRATION.md) + evidence `docs/evidence/runs/79472a111cd5/`. **Phase 2 tip-v2 48h soak PASS** 2026-08-05→07 — `docs/evidence/runs/375d14f/` + `logs/soak_report_tipv2_48h_rerun.json`.
 
 This document is the honest engineering checklist after a full repository scan.  
 Automated gates (`mainnet_readiness`, `prod_gate`, `industrial_gate`, `post_soak_verify`) enforce code-level fail-closed rules; **they do not replace** external audit, validator operations, or legal review.
@@ -164,8 +164,8 @@ python scripts/prod_gate.py
 
 The codebase is a **serious industrial devnet / private testnet** implementation with **rising live evidence** (prod mesh runs, harness, monitoring) — not merely documentation claims.
 
-**48h soak** is **historically reported PASS** (Jul 19–21 2026) with local artifacts; those logs are **not versioned in-repo** — package via [docs/evidence/](evidence/README.md) before treating soak as independently auditable.
+**48h soak** is **PASS** for Jul float tip (2026-07-19→21) and **tip-v2 `b_satoshi`** (2026-08-05→07) — tip-v2 packaged in-repo at [docs/evidence/runs/375d14f/](evidence/runs/375d14f/). Float-era logs remain operator-local unless separately packaged.
 
-**Public mainnet launch** still requires organizational gates (external audit, validator ops, genesis ceremony in production) plus **stable `/health/ready`** under TLS reconnect (Wave A), satoshi tip-root ceremony cutover, and live finality quorum evidence. Failover, signed-tx propagation, and cross-node EVM (mempool) are demonstrated on local prod mesh (Jul 2026).
+**Public mainnet launch** still requires organizational gates (external audit, validator ops, genesis ceremony in production) plus live finality quorum evidence. Failover, signed-tx propagation, and cross-node EVM (mempool) are demonstrated on local prod mesh (Jul 2026).
 
 Full gap table: [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md).

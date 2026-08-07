@@ -1,0 +1,13 @@
+tip_v2_industrial_phase2_rerun
+commit=375d14fb457c670da2356dff71bac788e9d9eec1
+started_utc=2026-08-05T19:55:55Z
+ended_utc=2026-08-07T19:56:06Z
+soak_log=logs/industrial_tipv2_soak_48h_rerun.log
+report=logs/soak_report_tipv2_48h_rerun.json
+soak_hours=48
+hours_elapsed=48.0032
+status=FINISHED_PASS
+pass_notes=strict mesh_warn=0; fail=0; hard_fail=0; ready_only_fail=0; cycles=555
+height_range=~2633→~4622
+mesh=KeepVolumes rebuild with soft /health/ready + soak scoring harden (375d14f)
+prior_fail=logs/soak_report_tipv2_48h.json (Aug 2–4 ready flaps; not this claim)

@@ -9,7 +9,7 @@ This doc reflects honest status after local prod mesh runs and monitoring — no
 
 **Absolute Blockchain Ultimate Hybrid** is a working R&D L1 / devnet stack with a functioning **3-node production-profile mesh** (chain `778888`), state synchronization, RocksDB hybrid persistence, Rust crypto on the hot path, automated CI/gates, and baseline ops tooling (health watch, DR rehearsal scripts, restart recovery).
 
-**Public mainnet-ready readiness is not proven.** Missing confirmed evidence for independent external security audit. **48h prod mesh soak is now PASS** (Jul 19–21 2026). **Cross-node EVM (mempool path) is proven** on local prod mesh (Jul 12 evening).
+**Public mainnet-ready readiness is not proven.** Missing confirmed evidence for independent external security audit. **48h prod mesh soak PASS** (Jul float tip 19–21 2026; **tip-v2 `b_satoshi` Aug 5–7 2026**). **Cross-node EVM (mempool path) is proven** on local prod mesh (Jul 12 evening).
 
 Compared to documentation-only claims, **evidence level increased** in Jul 2026: real prod mesh bring-up logs, harness alignment, **7h soak passed**, **failover drill**, **signed tx propagation**, and **cross-node EVM (mempool deploy + 3 RPC storage)**.
 
@@ -34,8 +34,8 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 
 | Topic | Honest status |
 |-------|----------------|
-| Tip `state_root` | **Wave C tip+apply** — ceremony-armed v2 tip leaves use integer `b_satoshi` (`SATOSHI_MULTIPLIER=1e6`); apply/fees/gas/reward satoshi-int; float only at display/wire edges. Local prod mesh JSON + `ABS_STATE_ROOT_*` env armed for **fresh volumes**. Not a 48h/mainnet cutover claim. |
-| Mesh `/health/ready` | **Wave C + Wave D** — tip v2 mesh: `ready-check` PASS ×3 + probe Quick + `state_consistent=true` + matching tip roots (see latest `docs/evidence/runs/<sha>/`). Wave D soft-refuse/sticky/priority bake still applies (`3288700f4fc7`). Not a 48h claim. |
+| Tip `state_root` | **Wave C tip+apply** — ceremony-armed v2 tip leaves use integer `b_satoshi` (`SATOSHI_MULTIPLIER=1e6`); apply/fees/gas/reward satoshi-int; float only at display/wire edges. Local prod mesh JSON + `ABS_STATE_ROOT_*` env armed. **tip-v2 48h soak PASS** Aug 5–7 (`docs/evidence/runs/375d14f/`). Not a public mainnet cutover claim. |
+| Mesh `/health/ready` | **Wave C/D + tip-v2 soak** — soft wire_probe flaps no longer 503 when deep_ready holds (`375d14f`); tip-v2 48h soak ready_only_fail=0. Soft-refuse bake still applies (`3288700f4fc7`). |
 | External audit | **Not completed** — tracker rejects template notes; requires real evidence URL |
 | Public VPS / DNS | Not claimed |
 | Bridge L1 | **OFF by recorded decision** — see [Bridge OFF audit checklist](#bridge-off--pre-enable-audit-checklist) |
@@ -81,7 +81,7 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 | **Wave D image bake + ready** | **PASS** 2026-08-01 — soft-refuse attestation/rate/`tip_unknown_parent`; sticky consistency during wire re-probe; priority send bypass; canonical bootstrap; `ready-check` ×3 + probe Quick on baked image | `docs/evidence/runs/3288700f4fc7/` |
 | **Wave D short soak (2h)** | 2026-08-01 — mesh height-aligned (`mesh_warn=0`); soak_report `passed=false` (8 ready hard-fails; not 48h) | `docs/evidence/runs/3288700f4fc7/soak_report.json` |
 | **Wave C tip+apply satoshi** | **PASS** 2026-08-02 — fresh mesh wipe then tip-v2 arm; `b_satoshi` active on :18180–:18182; matching tip roots; `state_consistent=true`; `ready-check` ×3 + probe Quick PASS; apply path unit-proven satoshi. Not 48h/mainnet. | `docs/evidence/runs/79472a111cd5/` + `docs/STATE_ROOT_ENCODING_MIGRATION.md` |
-| **Industrial tip-v2 re-smoke** | **PASS** short proofs 2026-08-02; **48h soak FAIL** 2026-08-02→04 (`passed=false`, ready_only_fail=206, hard_fail=0) — not an industrial tip-v2 durability claim until re-soak `passed=true` | `docs/evidence/runs/8c92a51f0144/` + `logs/soak_report_tipv2_48h.json` + [INDUSTRIAL_HARDEN_RUNBOOK.md](INDUSTRIAL_HARDEN_RUNBOOK.md) |
+| **Industrial tip-v2 re-smoke** | **PASS** short proofs 2026-08-02; prior **48h FAIL** Aug 2–4 (ready flaps); **48h PASS** Aug 5–7 (`passed=true`, fail=0, mesh_warn=0, hard_fail=0) | `docs/evidence/runs/8c92a51f0144/` (kickoff) + `docs/evidence/runs/375d14f/` + `logs/soak_report_tipv2_48h_rerun.json` + [INDUSTRIAL_HARDEN_RUNBOOK.md](INDUSTRIAL_HARDEN_RUNBOOK.md) |
 | Short health monitoring | `health_watch` 1–2 min cycles, harness quick/full | `.\scripts\health_watch.ps1 -ProdMesh -DurationMin 2` |
 | CI / static industrial gates | `industrial_gate.py`, prod_gate, pytest | GitHub Actions + local gate scripts |
 | Native crypto required in prod profile | `ABS_REQUIRE_NATIVE_CRYPTO`, prod_gate | prod mesh configs |
@@ -93,7 +93,8 @@ Full JSON template: [docs/evidence_run.example.json](evidence_run.example.json) 
 
 | Item | Evidence |
 |------|----------|
-| **48h soak** | **PASS** 2026-07-19→21 — `logs/soak_48h_v1.2.84_rerun3.log`, `soak_report_48h.json` |
+| **48h soak (float tip)** | **PASS** 2026-07-19→21 — `logs/soak_48h_v1.2.84_rerun3.log`, `soak_report_48h.json` |
+| **48h soak (tip-v2)** | **PASS** 2026-08-05→07 — `logs/industrial_tipv2_soak_48h_rerun.log`, `soak_report_tipv2_48h_rerun.json` (`passed=true`, 0 FAIL, 0 mesh_warn); package `docs/evidence/runs/375d14f/` |
 | **Public testnet seed (local Docker)** | **PASS** Jul 12 — chain 77777 on :19080, `public_testnet_gate --live` |
 | Failover / signed tx / EVM mempool | Jul 12 evidence logs (see table above) |
 
