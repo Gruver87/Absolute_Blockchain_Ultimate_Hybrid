@@ -230,6 +230,7 @@ Code: `runtime/tokenomics.py` · `GET /tokenomics` — **not** a listed token.
 | Aug 2 | **Wave C tip+apply** integer `b_satoshi` tip + satoshi StateService apply (fresh mesh; durability later via Aug 5–7 48h) |
 | Aug 4–5 | CI harden: mesh3 evidence freeze/thaw + EVM exit-0 footgun; local pytest **2164 passed** |
 | Aug 5 | tip-v2 soak harden merged (`375d14f`): prod adversarial soft-skip + ready/wire soft gates; mesh rebuild KeepVolumes |
+| Aug 7 | **Phase 3** ops cutover dry-run **PASS** — [phase3-da25c34](docs/evidence/runs/phase3-da25c34/); **Phase 4** audit binder **READY** — [phase4-691329c](docs/evidence/runs/phase4-691329c/) + `logs/audit_pack_20260807.zip` (external firm still TBD) |
 
 Ledger: [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md)
 
@@ -250,4 +251,4 @@ MIT — [LICENSE](LICENSE)
 ---
 
 *Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87) · Default branch: `master`*  
-*Last update: 2026-08-07 — tip-v2 48h soak PASS (`soak_report_tipv2_48h_rerun.json`, evidence `375d14f`). Not a launched public mainnet.*
+*Last update: 2026-08-07 — tip-v2 48h PASS + Phase 3 ops dry-run PASS + Phase 4 audit binder READY (`593395f`). External firm audit still pending. Not a launched public mainnet.*
