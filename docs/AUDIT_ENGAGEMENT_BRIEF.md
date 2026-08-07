@@ -4,7 +4,7 @@
 **Product:** Absolute Blockchain Ultimate Hybrid (Python + Rust L1)  
 **Repo:** https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid  
 **Pin tag:** `v1.3.1339-tip-v2-industrial`  
-**Pin commit:** see `git rev-list -n 1 v1.3.1339-tip-v2-industrial`  
+**Pin commit:** `7489fc13ff31254b5c7073954931941746772a9a` (`git rev-list -n 1 v1.3.1339-tip-v2-industrial`)  
 **Date:** 2026-08-07  
 **Owner:** Gruver87 (Uladzimir Dabranski)
 
