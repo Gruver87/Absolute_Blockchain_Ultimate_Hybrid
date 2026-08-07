@@ -138,6 +138,8 @@ def export_audit_pack(
     for name in (
         "soak_report.json",
         "soak_report_48h.json",
+        "soak_report_tipv2_48h_rerun.json",
+        "soak_report_tipv2_48h.json",
         "soak_active.json",
         "soak_preflight.json",
         "prod_mesh_probe.json",
@@ -161,6 +163,32 @@ def export_audit_pack(
         gates_dir / "external_audit_status.json",
     )
 
+    tipv2 = ROOT / "logs" / "soak_report_tipv2_48h_rerun.json"
+    float48 = ROOT / "logs" / "soak_report_48h.json"
+    soak_pass = False
+    soak_note = "48h soak not claimed PASS until a soak_report*.json has passed=true"
+    for candidate in (tipv2, float48):
+        if not candidate.is_file():
+            continue
+        try:
+            body = json.loads(candidate.read_text(encoding="utf-8"))
+            if bool(body.get("passed")) and float(body.get("hours_requested", 0) or 0) >= 48:
+                soak_pass = True
+                soak_note = (
+                    f"48h soak PASS referenced: {candidate.name} "
+                    f"(hours_elapsed={body.get('hours_elapsed')})"
+                )
+                break
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            continue
+
+    honest_gaps = [
+        soak_note if not soak_pass else None,
+        "External pen-test and third-party L1 audit remain human organizational items",
+        "Public mainnet not launched",
+    ]
+    honest_gaps = [g for g in honest_gaps if g]
+
     manifest = {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "pack_dir": str(pack_dir),
@@ -172,11 +200,9 @@ def export_audit_pack(
         "constraint": "soak-safe: no docker mesh restart; static gates only",
         "gates": gate_results,
         "state_root_encoding": encoding,
-        "honest_gaps": [
-            "48h soak not claimed PASS until soak_report_48h.json passed=true",
-            "External pen-test and third-party L1 audit remain human organizational items",
-            "Public mainnet not launched",
-        ],
+        "honest_gaps": honest_gaps,
+        "soak_pass": soak_pass,
+        "soak_note": soak_note,
     }
     (pack_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",

@@ -1,0 +1,127 @@
+{
+  "ok": true,
+  "timestamp": "2026-08-07T20:35:36.377172+00:00",
+  "errors": [],
+  "warnings": [
+    "genesis_ceremony: set GENESIS_CEREMONY_HASH after keygen (scripts/pin_ceremony_hash.ps1)",
+    "external_audit_pending:External penetration test scheduled",
+    "external_audit_pending:Third-party smart-contract / L1 security audit completed",
+    "node.prod.mainnet-v1.bridge.example.json: bridge_enabled=true (cutover example only; keep OFF on live mesh)"
+  ],
+  "sections": {
+    "external_checklist": [
+      "External penetration test scheduled",
+      "Third-party smart-contract / L1 security audit completed",
+      "Bridge L1 RPC keys rotated from dev placeholders",
+      "Validator keys not stored in node.json / git",
+      "Production validator manifest published (no runtime key derivation)",
+      "CORS and RPC API keys reviewed for production origins",
+      "Incident response runbook documented",
+      "Disaster recovery drill for multi-node devnet completed"
+    ],
+    "sections": {
+      "ceremony_dir_auto": {
+        "path": "C:\\Users\\vovun\\Desktop\\Absolute_Blockchain_Ultimate_Hybrid\\data\\ceremony_keys",
+        "source": "ceremony_deploy.json"
+      },
+      "pre_mainnet": {
+        "errors": [],
+        "warnings": []
+      },
+      "prod_stack": {
+        "errors": [],
+        "live": false,
+        "live_prod_mesh": false,
+        "prod_smoke_spawn": false,
+        "prod_mesh3_spawn": false
+      },
+      "genesis_ceremony": {
+        "ready": true,
+        "mainnet_addresses_ready": true,
+        "ceremony_hash": "e7d0c1ed5aee5d73d5706d965f5c3b1de188a927a1f14d06cb265671b45bccd7",
+        "errors": []
+      },
+      "external_audit": {
+        "status_path": "C:\\Users\\vovun\\Desktop\\Absolute_Blockchain_Ultimate_Hybrid\\data\\external_audit_status.json",
+        "total": 8,
+        "completed": 6,
+        "pending": 2,
+        "all_complete": false,
+        "items": [
+          {
+            "label": "External penetration test scheduled",
+            "done": false,
+            "note": "",
+            "evidence_url": "",
+            "evidence_note": "",
+            "completed_at": "2026-07-04T16:39:38.634545+00:00"
+          },
+          {
+            "label": "Third-party smart-contract / L1 security audit completed",
+            "done": false,
+            "note": "Vendor YYYY-MM-DD report #ID",
+            "evidence_url": "",
+            "evidence_note": "",
+            "completed_at": "2026-07-04T20:08:10.094683+00:00"
+          },
+          {
+            "label": "Bridge L1 RPC keys rotated from dev placeholders",
+            "done": true,
+            "note": "auto: mainnet-v1 bridge disabled; bridge_off_audit_gate PASS",
+            "evidence_url": "",
+            "evidence_note": "",
+            "completed_at": "2026-08-07T20:35:35.261017+00:00"
+          },
+          {
+            "label": "Validator keys not stored in node.json / git",
+            "done": true,
+            "note": "auto: no private_key in prod node JSON / validator manifest templates",
+            "evidence_url": "",
+            "evidence_note": "",
+            "completed_at": "2026-08-07T20:35:35.258362+00:00"
+          },
+          {
+            "label": "Production validator manifest published (no runtime key derivation)",
+            "done": true,
+            "note": "auto: public manifest template + prod configs require manifest path (ceremony addresses, no private keys)",
+            "evidence_url": "",
+            "evidence_note": "",
+            "completed_at": "2026-08-07T20:35:35.262162+00:00"
+          },
+          {
+            "label": "CORS and RPC API keys reviewed for production origins",
+            "done": true,
+            "note": "auto: prod_gate CORS/RPC policy pass on prod profiles",
+            "evidence_url": "",
+            "evidence_note": "",
+            "completed_at": "2026-08-07T20:35:35.257423+00:00"
+          },
+          {
+            "label": "Incident response runbook documented",
+            "done": true,
+            "note": "auto: docs\\INCIDENT_RESPONSE.md",
+            "evidence_url": "",
+            "evidence_note": "",
+            "completed_at": "2026-08-07T20:35:35.259210+00:00"
+          },
+          {
+            "label": "Disaster recovery drill for multi-node devnet completed",
+            "done": true,
+            "note": "auto: backup roundtrip verified (backup_db_drill.py)",
+            "evidence_url": "",
+            "evidence_note": "",
+            "completed_at": "2026-08-07T20:35:35.253623+00:00"
+          }
+        ]
+      }
+    }
+  },
+  "native_wheel": true,
+  "p2p_hardening": true,
+  "balance_precision": true,
+  "fail_loud_surfaces": true,
+  "runbook_rc": 0,
+  "evm_opcode_parity_rc": 0,
+  "prod_gate_rc": 0,
+  "bridge_off_audit_rc": 0
+}

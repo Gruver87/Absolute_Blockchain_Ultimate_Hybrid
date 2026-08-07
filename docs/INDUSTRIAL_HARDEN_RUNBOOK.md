@@ -50,6 +50,13 @@ Session note: `rotate_prod_secrets.ps1` without `-Force` is the documented dry-r
 - [AUDITS.md](AUDITS.md) + PDF under `audits/<firm>/` when available  
 - [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md) tip-v2 soak row  
 
+**Status (2026-08-07):** Phase 4 binder **READY for firm engagement** — evidence `docs/evidence/runs/phase4-691329c/`:
+- threat model + audit scope refreshed  
+- `industrial_gate.py --min-soak-hours 48` PASS (tip-v2 report)  
+- `export_audit_pack` → `logs/audit_pack_20260807.zip`  
+- tracker **6/8** (2 firm-owned: pen-test + L1/SC audit)  
+- **Not** “audited” until PDF under `audits/<firm>/`  
+
 ## Phase 5 — Public surface (after 1–4)
 
 See [PUBLIC_TESTNET.md](PUBLIC_TESTNET.md) + [MAINNET_CUTOVER.md](MAINNET_CUTOVER.md).  

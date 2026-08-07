@@ -1,0 +1,14 @@
+﻿phase4_audit_binder
+commit=691329c
+date_utc=2026-08-07T20:35:43.5582981Z
+threat_model=docs/THREAT_MODEL.md (updated 2026-08-07)
+audit_scope=docs/AUDIT_SCOPE.md (Phase 2-3 status)
+audits=docs/AUDITS.md (6/8 tracker; 2 firm-owned open)
+evidence_tipv2=docs/evidence/runs/375d14f/
+evidence_phase3=docs/evidence/runs/phase3-da25c34/
+industrial_gate_min_soak_48=PASS (prefers soak_report_tipv2_48h_rerun.json)
+export_audit_pack=PASS logs/audit_pack_20260807.zip
+external_audit=6/8 pending firm pen-test + L1/SC audit
+status=PHASE4_BINDER_READY
+blocked_on=external firm engagement (organizational)
+next=Phase 5 only after firm contract OR continue ops without public claim

@@ -1,0 +1,72 @@
+{
+  "created_at": "2026-08-07T20:35:43.396096+00:00",
+  "pack_dir": "C:\\Users\\vovun\\Desktop\\Absolute_Blockchain_Ultimate_Hybrid\\logs\\audit_pack_20260807",
+  "git": {
+    "describe": "v1.3.1338-deterministic-core-54-g691329c",
+    "head": "691329c546e522381aef89fc8fe3797b355edda7",
+    "branch": "master"
+  },
+  "constraint": "soak-safe: no docker mesh restart; static gates only",
+  "gates": {
+    "external_audit_sync": {
+      "exit_code": 0
+    },
+    "external_audit_list": {
+      "exit_code": 0
+    },
+    "industrial_gate": {
+      "exit_code": 0,
+      "tail": "ain_Ultimate_Hybrid\\data\\industrial_gate.json)\n  warn: genesis_ceremony: set GENESIS_CEREMONY_HASH after keygen (scripts/pin_ceremony_hash.ps1)\n  warn: external_audit_pending:External penetration test scheduled\n  warn: external_audit_pending:Third-party smart-contract / L1 security audit completed\n  warn: node.prod.mainnet-v1.bridge.example.json: bridge_enabled=true (cutover example only; keep OFF on live mesh)\nC:\\Users\\vovun\\Desktop\\Absolute_Blockchain_Ultimate_Hybrid\\data\\industrial_gate.json\n"
+    },
+    "prod_gate": {
+      "exit_code": 0
+    },
+    "bridge_off_audit_gate": {
+      "exit_code": 0
+    }
+  },
+  "state_root_encoding": {
+    "active": {
+      "version": 1,
+      "name": "float_b_round12",
+      "active": true,
+      "payload_fields": [
+        "a",
+        "b",
+        "n",
+        "c",
+        "s"
+      ],
+      "balance_field": "b",
+      "balance_unit": "abs_float_round12",
+      "satoshi_tip_ready": false,
+      "note": "Legacy tip used native float round(balance,12) field \"b\". Wave C tip+apply cutover uses v2 satoshi when ceremony-armed.",
+      "requested_version": 1
+    },
+    "planned": {
+      "version": 2,
+      "name": "satoshi_b",
+      "active": false,
+      "payload_fields": [
+        "a",
+        "b_satoshi",
+        "n",
+        "c",
+        "s"
+      ],
+      "balance_field": "b_satoshi",
+      "balance_unit": "satoshi_int",
+      "satoshi_tip_ready": true,
+      "note": "Tip commits integer satoshi in b_satoshi (SATOSHI_MULTIPLIER=1e6). Requires state_root_encoding_version>=2 and state_root_v2_ceremony_ok."
+    },
+    "storage_truth": "balance_satoshi_dual_write",
+    "tip_version_live": 1
+  },
+  "honest_gaps": [
+    "External pen-test and third-party L1 audit remain human organizational items",
+    "Public mainnet not launched"
+  ],
+  "soak_pass": true,
+  "soak_note": "48h soak PASS referenced: soak_report_tipv2_48h_rerun.json (hours_elapsed=48.0032)",
+  "zip_path": "C:\\Users\\vovun\\Desktop\\Absolute_Blockchain_Ultimate_Hybrid\\logs\\audit_pack_20260807.zip"
+}

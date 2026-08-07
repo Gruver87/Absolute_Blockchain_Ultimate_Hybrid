@@ -4229,6 +4229,7 @@ def run_industrial_gate(
 
     if min_soak_hours > 0:
         soak_candidates = [
+            ROOT / "logs" / "soak_report_tipv2_48h_rerun.json",
             ROOT / "logs" / "soak_report_48h.json",
             ROOT / "logs" / "soak_report.json",
         ]
