@@ -77,7 +77,7 @@ Automated gates (`mainnet_readiness`, `prod_gate`, `industrial_gate`, `post_soak
 - [x] **Failover under load** — `prod_mesh_failover.ps1` PASS (`logs/evidence_failover.log`; see [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md))
 - [x] **Signed tx on prod mesh** — `prod_signed_tx_smoke.py` PASS (n2/n3 propagation; `logs/evidence_signed_tx.log`)
 - [x] **EVM deploy/call on prod RPC ports** — `prod_evm_smoke.py` mempool path PASS (Jul 12 evening; storage on all 3 RPC)
-- [x] **Soak 24–48h+** completed with `soak_report_48h.json` passed (**PASS** 2026-07-19→21, `logs/soak_48h_v1.2.84_rerun3.log`)
+- [x] **Soak 24–48h+** completed — Jul float tip **PASS** (`soak_report_48h.json`, 2026-07-19→21); tip-v2 **PASS** (`soak_report_tipv2_48h_rerun.json`, 2026-08-05→07, `docs/evidence/runs/375d14f/`)
 - [ ] **External security audit** — third-party firm; auto-checkmarks no longer satisfy strict gate (v1.2.43)
 
 **API hardening (v1.2.28):** direct `POST /contract/deploy` without `via_mempool` is rejected in production — mempool signed deploy only.
