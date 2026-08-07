@@ -6,10 +6,10 @@
 ## Hard prerequisites
 
 - [ ] `master` CI green (Tests + Security + Docker) on tagged industrial release  
-- [ ] Tip-v2 **48h soak** `passed=true` ([INDUSTRIAL_HARDEN_RUNBOOK.md](INDUSTRIAL_HARDEN_RUNBOOK.md) Phase 2)  
-- [ ] Failover + signed tx + EVM re-smoke on tip-v2 (session logs under `logs/industrial_*`)  
+- [x] Tip-v2 **48h soak** `passed=true` ([INDUSTRIAL_HARDEN_RUNBOOK.md](INDUSTRIAL_HARDEN_RUNBOOK.md) Phase 2) — Aug 5–7 2026; `docs/evidence/runs/375d14f/`  
+- [x] Failover + signed tx + EVM re-smoke on tip-v2 — Aug 2 session (`docs/evidence/runs/8c92a51f0144/`)  
 - [ ] Ceremony hash pinned + secrets rotation runbook executed on deploy host  
-- [ ] Bridge OFF gate PASS; no `bridge_enabled=true` on live public compose  
+- [x] Bridge OFF gate PASS; no `bridge_enabled=true` on live public compose  
 - [ ] External audit tracker: only remaining org items are firm-owned (or report landed)  
 - [ ] [PUBLIC_TESTNET.md](PUBLIC_TESTNET.md) Go-live section + `vps_testnet_bootstrap*.sh` dry-run on target VPS  
 

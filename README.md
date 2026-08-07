@@ -227,7 +227,7 @@ Code: `runtime/tokenomics.py` · `GET /tokenomics` — **not** a listed token.
 | Aug 1 | **ADR 0016** Feature sprouts / profiles · tip AncestryWindow · NFT port · sandbox/shard labs |
 | Jul 30 | **v1.3.1338-deterministic-core** satoshi state domain + forest-stable LMD-GHOST + QueryPort honesty |
 | Aug 1–2 | **Wave A–D** dual-dial ready · evidence package · mesh soft-refuse bake |
-| Aug 2 | **Wave C tip+apply** integer `b_satoshi` tip + satoshi StateService apply (fresh mesh; not 48h/mainnet) |
+| Aug 2 | **Wave C tip+apply** integer `b_satoshi` tip + satoshi StateService apply (fresh mesh; durability later via Aug 5–7 48h) |
 | Aug 4–5 | CI harden: mesh3 evidence freeze/thaw + EVM exit-0 footgun; local pytest **2164 passed** |
 | Aug 5 | tip-v2 soak harden merged (`375d14f`): prod adversarial soft-skip + ready/wire soft gates; mesh rebuild KeepVolumes |
 

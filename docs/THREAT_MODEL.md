@@ -49,7 +49,7 @@
 - `finality_quorum_live` remains false until real QC mesh proof.  
 - EVM is a **subset**, not a full Ethereum client.  
 - pyo3 0.22 held with scoped RUSTSEC ignores until 0.29 migration (PR #7).  
-- Historical 48h soak pre-dates tip-v2; tip-v2 soak is industrial Phase 2.
+- Historical Jul float 48h soak pre-dates tip-v2; **tip-v2 48h soak PASS** Aug 5–7 2026 (`docs/evidence/runs/375d14f/`).
 
 ## References
 

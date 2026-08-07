@@ -10,10 +10,12 @@
 
 ### Industrial harden (no new features)
 
+- **Phase 2 tip-v2 48h soak PASS** (2026-08-05→07): `logs/soak_report_tipv2_48h_rerun.json` (`passed=true`, fail=0, mesh_warn=0); evidence `docs/evidence/runs/375d14f/`
+- Soft-skip prod adversarial drills in CI; `/health/ready` soft wire_probe; soak scoring + `docker_prod_3node` `--detach` fix (`375d14f`)
 - Phase 1: rustfmt tip cutover sources; cargo-audit scoped pyo3 ignores + Dependabot triage doc
 - Gap analysis synced to Wave C tip-v2; threat model + audit scope letter; industrial runbook
 - DR backup scripts tolerate docker stderr (PowerShell Stop trap)
-- Tip-v2 re-smoke + 48h soak kickoff (see `docs/INDUSTRIAL_HARDEN_RUNBOOK.md`)
+- Tip-v2 re-smoke + prior Aug 2–4 48h FAIL (historical only; superseded by Aug 5–7 PASS)
 
 ### Wave D — bake mesh harden + attestation/rate soft-refuse
 
