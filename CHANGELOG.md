@@ -10,6 +10,7 @@
 
 ### Industrial harden (no new features)
 
+- **Public surface polish** — tighter README (evidence-first hero), ADR index, architecture ADR table 0008–0016, banner refresh; pin docs to `v1.3.1339-tip-v2-industrial`
 - **Audit pin tag `v1.3.1339-tip-v2-industrial`** + [AUDIT_ENGAGEMENT_BRIEF.md](docs/AUDIT_ENGAGEMENT_BRIEF.md) for firm engagement
 - **Phase 2 tip-v2 48h soak PASS** (2026-08-05→07): `logs/soak_report_tipv2_48h_rerun.json` (`passed=true`, fail=0, mesh_warn=0); evidence `docs/evidence/runs/375d14f/`
 - **Phase 3 ops cutover dry-run PASS** (2026-08-07): bridge OFF + ceremony + secrets dry-run + DR DockerMesh1; evidence `docs/evidence/runs/phase3-da25c34/`

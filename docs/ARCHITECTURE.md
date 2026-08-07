@@ -1,7 +1,8 @@
 # Architecture (honest overview)
 
-**Updated:** 2026-08-01  
-**Scope:** Absolute Blockchain Ultimate Hybrid — domain ports + adapters (ADR **0001–0016**). Devnet + mainnet-v1 **prep**, not a launched public mainnet.
+**Updated:** 2026-08-08  
+**Scope:** Absolute Blockchain Ultimate Hybrid — domain ports + adapters (ADR **0001–0016**; **0013 unused**). Devnet + mainnet-v1 **prep**, not a launched public mainnet.  
+**Industrial pin:** tag [`v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial) (tip-v2 `b_satoshi` 48h soak PASS + Phase 3–4 binder READY).
 
 ---
 
@@ -9,7 +10,7 @@
 
 **Python** owns orchestration (API, P2P TCP, consensus policy, secrets, metrics export). **Domain services** (`sync/`, `storage/`, `core/components/`) own catch-up, fork reconcile, state apply, and persistence behind ports. **Rust/PyO3** (`abs_native`) accelerates crypto, satoshi-integer state roots, RocksDB engine, and EVM kernels. **Prod** hot path = RocksDB; SQLite remains aux / dev.
 
-**Honesty (mesh):** shared genesis + Path A catch-up are proven on `778888`. Stable `/health/ready` (alive peers under TLS reconnect) is **partial** — soft-refuse stops bans; session churn can still leave `peer_count=0`.
+**Honesty (mesh):** shared genesis + Path A catch-up are proven on chain ID **778888**. Tip encoding v2 + satoshi apply is Wave C proven (fresh mesh + tip-v2 48h soak PASS Aug 5–7). Stable `/health/ready` (alive peers under TLS reconnect) is **partial** — soft-refuse stops bans; session churn can still leave `peer_count=0`.
 
 ---
 
@@ -115,7 +116,7 @@ flowchart TB
 
 Solid = **prod-relevant hot path**. Dotted = **aux / cold / optional**.
 
-ADR index: [docs/adr/](adr/) (**0001–0016**). Feature sprouts: [docs/sprouts/](sprouts/). Disaster runbooks: [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md).
+ADR index: [docs/adr/](adr/) (**0001–0016**; [README](adr/README.md)). Feature sprouts: [docs/sprouts/](sprouts/). Disaster runbooks: [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md).
 
 ---
 
@@ -160,6 +161,15 @@ flowchart LR
 | [0005](adr/0005-fork-reconcile.md) | Fork / GHOST | Same-height reorg + fail-closed Evidence |
 | [0006](adr/0006-storage-boundary.md) | StoragePort | Canonical UoW; `Blockchain` on `self.storage` |
 | [0007](adr/0007-consensus-boundary.md) | ConsensusPort | Round SM + Evidence/lockdown; adapter façade |
+| [0008](adr/0008-hotpath-wire-codec.md) | Wire codec | Hot-path encode/decode boundary |
+| [0009](adr/0009-optional-native-fallback.md) | Native fallback | Optional Py path when native absent (prod forbids) |
+| [0010](adr/0010-evm-bridge-boundary.md) | BridgePort | L1 lock-mint isolated; **OFF** on mesh |
+| [0011](adr/0011-rpc-api-boundary.md) | QueryFacade | Typed reads; DoS caps; no raw DB |
+| [0012](adr/0012-chaos-injection.md) | Chaos | Runtime fault injection (lab) |
+| *0013* | — | **Intentionally unused** |
+| [0014](adr/0014-graceful-shutdown-deep-health.md) | Shutdown / ready | SIGTERM · deep `/health/ready` |
+| [0015](adr/0015-observability-secret-management.md) | Metrics / secrets | Exporter + SecretManager ports |
+| [0016](adr/0016-feature-sprouts-profiles.md) | Sprouts | Profiles instead of kitchen-sink FEATURE_* |
 
 ---
 
@@ -322,8 +332,10 @@ Backup: `scripts/backup_chainstore.ps1 -DockerMesh1` · DR: `scripts/dr_restore_
 ## Related docs
 
 - [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md)
+- [AUDIT_ENGAGEMENT_BRIEF.md](AUDIT_ENGAGEMENT_BRIEF.md)
 - [PORTING_ROADMAP.md](PORTING_ROADMAP.md)
 - [MAINNET_GAP_ANALYSIS.md](MAINNET_GAP_ANALYSIS.md)
 - [STORAGE_ROCKSDB.md](STORAGE_ROCKSDB.md)
 - [PUBLIC_TESTNET.md](PUBLIC_TESTNET.md)
 - [DOCKER_IMAGES.md](DOCKER_IMAGES.md)
+- [INDUSTRIAL_HARDEN_RUNBOOK.md](INDUSTRIAL_HARDEN_RUNBOOK.md)
