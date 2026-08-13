@@ -171,10 +171,7 @@ def _check_rate_limit(handler, path: Optional[str] = None) -> bool:
     cfg = getattr(handler.__class__, "config", None)
     if not _RATE_LIMIT_AVAILABLE or not _rate_limiter:
         if _is_production_cfg(cfg):
-            handler.send_response(503)
-            handler.send_header("Content-Type", "application/json")
-            handler.end_headers()
-            handler.wfile.write(json.dumps({"error": "rate_limiter_unavailable"}).encode())
+            _send_json_status(handler, 503, {"error": "rate_limiter_unavailable"})
             return False
         return True
     if path is None:
@@ -185,11 +182,12 @@ def _check_rate_limit(handler, path: Optional[str] = None) -> bool:
     allowed, _remaining = _rate_limiter.allow_request(client_ip)
     if allowed:
         return True
-    handler.send_response(429)
-    handler.send_header("Content-Type", "application/json")
-    handler.send_header("Retry-After", "60")
-    handler.end_headers()
-    handler.wfile.write(json.dumps({"error": "rate_limit_exceeded"}).encode())
+    _send_json_status(
+        handler,
+        429,
+        {"error": "rate_limit_exceeded"},
+        extra_headers={"Retry-After": "60"},
+    )
     return False
 
 # --- Input validators (middleware/validators.py) ---
@@ -750,6 +748,40 @@ def _send_acao_header(handler, origin: str) -> None:
         handler.send_header("Access-Control-Allow-Origin", origin)
 
 
+def _send_json_status(
+    handler,
+    status: int,
+    payload: dict,
+    extra_headers: Optional[Dict[str, str]] = None,
+) -> None:
+    """Complete JSON HTTP response: Content-Length + Connection: close.
+
+    Windows aborts urllib with WinError 10053 (WSAECONNABORTED) when the
+    handler returns without draining the POST body or without Content-Length,
+    because the socket is RST instead of a graceful FIN.
+    """
+    body = json.dumps(payload).encode()
+    origin = ""
+    cors = getattr(handler, "_cors_origin", None)
+    if callable(cors):
+        origin = cors(handler.headers.get("Origin", ""))
+    handler.send_response(status)
+    handler.send_header("Content-Type", "application/json")
+    _send_acao_header(handler, origin)
+    if extra_headers:
+        for key, value in extra_headers.items():
+            handler.send_header(key, value)
+    handler.send_header("Content-Length", str(len(body)))
+    handler.send_header("Connection", "close")
+    handler.end_headers()
+    handler.wfile.write(body)
+    try:
+        handler.wfile.flush()
+    except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+        pass
+    handler.close_connection = True
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  JSON-RPC 2.0  (порт 8545, Ethereum-совместимый)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -793,7 +825,10 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
             self.send_response(405)
             self.send_header("Allow", "POST, OPTIONS")
             _send_acao_header(self, self._cors_origin(self.headers.get("Origin", "")))
+            self.send_header("Content-Length", "0")
+            self.send_header("Connection", "close")
             self.end_headers()
+            self.close_connection = True
             return
         http_port = self.__class__.config.http_port if self.__class__.config else 8080
         self.send_response(302)
@@ -802,16 +837,17 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
+        cfg = self.__class__.config
+        # Drain the POST body before 401/429/503. On Windows, closing a socket
+        # with unread request bytes sends RST (WinError 10053) instead of HTTP.
+        raw_bytes, body_err = _read_limited_body(self, _http_max_body_bytes(cfg))
+
         if not bool(getattr(self.__class__, "accepting_requests", True)):
-            self.send_response(503)
-            self.send_header("Content-Type", "application/json")
-            _send_acao_header(self, self._cors_origin(self.headers.get("Origin", "")))
-            self.end_headers()
-            self.wfile.write(json.dumps({
+            _send_json_status(self, 503, {
                 "jsonrpc": "2.0",
                 "error": {"code": -32000, "message": "node shutting down"},
                 "id": None,
-            }).encode())
+            })
             return
 
         if not _check_rate_limit(self):
@@ -821,30 +857,20 @@ class JSONRPCHandler(BaseHTTPRequestHandler):
         if rpc_auth:
             ok, err = rpc_auth.verify(self.headers)
             if not ok:
-                self.send_response(401)
-                self.send_header("Content-Type", "application/json")
-                _send_acao_header(self, self._cors_origin(self.headers.get("Origin", "")))
-                self.end_headers()
-                self.wfile.write(json.dumps({
+                _send_json_status(self, 401, {
                     "jsonrpc": "2.0",
                     "error": {"code": -32001, "message": err},
                     "id": None,
-                }).encode())
+                })
                 return
 
-        cfg = self.__class__.config
-        raw_bytes, body_err = _read_limited_body(self, _http_max_body_bytes(cfg))
         if body_err:
             code = 413 if "too large" in body_err else 400
-            self.send_response(code)
-            self.send_header("Content-Type", "application/json")
-            _send_acao_header(self, self._cors_origin(self.headers.get("Origin", "")))
-            self.end_headers()
-            self.wfile.write(json.dumps({
+            _send_json_status(self, code, {
                 "jsonrpc": "2.0",
                 "error": {"code": -32600, "message": body_err},
                 "id": None,
-            }).encode())
+            })
             return
         try:
             req = json.loads(raw_bytes or b"")
@@ -4840,6 +4866,7 @@ class RESTHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
         cfg = self.__class__.config
+        raw_bytes, body_err = _read_limited_body(self, _http_max_body_bytes(cfg))
         if not bool(getattr(self.__class__, "accepting_requests", True)):
             self._error(503, "node shutting down")
             return
@@ -4847,7 +4874,6 @@ class RESTHandler(BaseHTTPRequestHandler):
             return
 
         self._track_request()
-        raw_bytes, body_err = _read_limited_body(self, _http_max_body_bytes(cfg))
         if body_err:
             code = 413 if "too large" in body_err else 400
             self._error(code, body_err)

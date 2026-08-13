@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import ssl
 import time
 import urllib.error
 import urllib.request
@@ -48,11 +49,11 @@ _VAULT_FIELD_MAP: Mapping[str, tuple[str, ...]] = {
 
 
 class VaultKvSecretAdapter:
-    """SECRET_BACKEND=vault — HashiCorp Vault KV v2 over HTTP.
+    """SECRET_BACKEND=vault — HashiCorp Vault KV v2 over TLS-verified HTTPS.
 
     Config (env):
-      VAULT_ADDR, VAULT_TOKEN, VAULT_KV_PATH (e.g. secret/data/abs/node),
-      VAULT_CACHE_TTL_SEC (default 60).
+      VAULT_ADDR (prod: https:// only), VAULT_TOKEN, VAULT_KV_PATH
+      (e.g. secret/data/abs/node), VAULT_CACHE_TTL_SEC (default 60).
     """
 
     def __init__(
@@ -92,7 +93,10 @@ class VaultKvSecretAdapter:
                 method="GET",
             )
             try:
-                with urllib.request.urlopen(req, timeout=self._timeout) as resp:
+                ctx = ssl.create_default_context()
+                with urllib.request.urlopen(
+                    req, timeout=self._timeout, context=ctx
+                ) as resp:
                     payload = json.loads(resp.read().decode("utf-8"))
             except urllib.error.HTTPError as exc:
                 logger.warning("vault_kv_http_error status=%s", exc.code)

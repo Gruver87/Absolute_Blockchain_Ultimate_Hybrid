@@ -55,6 +55,45 @@ def main() -> int:
             errors.append("node.prod.k8s.json: bridge_enabled must be false until L1 audit")
         if cfg.get("tip_safety_enforce") is not True:
             errors.append("node.prod.k8s.json: tip_safety_enforce must be true")
+        backend = str(cfg.get("secret_backend") or "env").strip().lower()
+        if backend in ("file", "null", "none", "off"):
+            errors.append(
+                "node.prod.k8s.json: secret_backend=file|null forbidden (ADR 0015)"
+            )
+        elif backend not in ("env", "vault"):
+            errors.append(
+                f"node.prod.k8s.json: secret_backend must be env or vault (got {backend!r})"
+            )
+        for key in (
+            "feature_zk",
+            "feature_minivm",
+            "feature_sharding",
+            "feature_oracles",
+            "feature_wasm",
+            "feature_plasma",
+            "feature_lightning",
+            "feature_pq",
+            "feature_nft",
+            "feature_mev",
+            "feature_ai_agents",
+            "feature_ai_validator",
+            "feature_smart_accounts",
+            "feature_validator_selection",
+            "feature_libp2p",
+            "feature_long_range",
+        ):
+            # Missing key = off. True is refuse. Do not treat None as a freeze break.
+            if cfg.get(key) is True:
+                errors.append(
+                    f"node.prod.k8s.json: ADR 0016 forbids {key}=true "
+                    f"(got {cfg.get(key)!r})"
+                )
+        for key in ("feature_libp2p", "feature_long_range"):
+            if cfg.get(key) is not False:
+                errors.append(
+                    f"node.prod.k8s.json: {key} must be explicit false "
+                    f"(Hybrid freeze; R&D is Gruver87/experimental)"
+                )
         for key in ("p2p_tls_cert_path", "p2p_tls_key_path", "p2p_tls_ca_path"):
             if not str(cfg.get(key) or "").strip():
                 errors.append(f"node.prod.k8s.json: {key} required when P2P TLS enabled")

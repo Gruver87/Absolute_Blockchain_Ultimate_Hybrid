@@ -218,6 +218,10 @@ class Config:
     feature_ai_validator: bool = True
     feature_smart_accounts: bool = True
     feature_validator_selection: bool = True
+    # Not implemented here. validate() refuses True in every mode.
+    # R&D: Gruver87/experimental. Default transport remains TCP+TLS.
+    feature_libp2p: bool = False
+    feature_long_range: bool = False
 
     # ── Мост (Cross-chain bridge) ────────────────────────────────────────────
     bridge_enabled: bool = False        # OFF by default (mainnet-v1 decision until L1 contracts)
@@ -250,7 +254,7 @@ class Config:
     allow_insecure_public_bind: bool = False
     sqlite_synchronous: str = "NORMAL"      # prod: FULL
     metrics_enabled: bool = True
-    secret_backend: str = "env"  # ADR 0015: env|vault|file|null
+    secret_backend: str = "env"  # ADR 0015: env|vault; file/null refused in prod
     require_native_crypto: bool = False     # prod: require abs_native PyO3 kernels
     http_max_body_bytes: int = 1_048_576    # v1.3.65: REST/RPC body cap (1 MiB)
     jsonrpc_max_batch: int = 32             # v1.3.65: max JSON-RPC batch elements
@@ -818,6 +822,10 @@ class Config:
         self.feature_validator_selection = env_bool(
             "FEATURE_VALIDATOR_SELECTION", self.feature_validator_selection
         )
+        self.feature_libp2p = env_bool("FEATURE_LIBP2P", self.feature_libp2p)
+        self.feature_long_range = env_bool(
+            "FEATURE_LONG_RANGE", self.feature_long_range
+        )
 
         peers = env_list("BOOTSTRAP_PEERS")
         if peers:
@@ -1011,7 +1019,34 @@ class Config:
             errors.append("prod deployment forbids bridge_mode=fake")
         if self.is_production and self.bridge_dev_adapter_enabled:
             errors.append("prod deployment forbids BRIDGE_DEV_ADAPTER_ENABLED")
+        # Hybrid freeze does not implement these kernels (Experimental only).
+        if self.feature_libp2p:
+            errors.append(
+                "FEATURE_LIBP2P is not implemented in this audit-freeze repo "
+                "(use Gruver87/experimental; default transport remains TCP+TLS)"
+            )
+        if self.feature_long_range:
+            errors.append(
+                "FEATURE_LONG_RANGE is not implemented in this audit-freeze repo "
+                "(use Gruver87/experimental)"
+            )
         if self.is_production:
+            backend = str(self.secret_backend or "env").strip().lower()
+            if backend in ("file", "null", "none", "off"):
+                errors.append(
+                    "prod forbids SECRET_BACKEND=file|null "
+                    "(ADR 0015 FileSecretAdapter / NullSecretManager)"
+                )
+            elif backend not in ("env", "vault"):
+                errors.append(
+                    f"prod secret_backend must be env or vault (got {backend!r})"
+                )
+            elif backend == "vault":
+                vault_addr = str(os.environ.get("VAULT_ADDR", "") or "").strip()
+                if vault_addr and not vault_addr.lower().startswith("https://"):
+                    errors.append(
+                        "prod VAULT_ADDR must be https:// (no TLS bypass)"
+                    )
             if not self.cors_origins:
                 errors.append("prod mode requires CORS_ORIGINS")
             if "*" in self.cors_origins:
@@ -1033,6 +1068,8 @@ class Config:
                 "FEATURE_AI_VALIDATOR": self.feature_ai_validator,
                 "FEATURE_SMART_ACCOUNTS": self.feature_smart_accounts,
                 "FEATURE_VALIDATOR_SELECTION": self.feature_validator_selection,
+                "FEATURE_LIBP2P": self.feature_libp2p,
+                "FEATURE_LONG_RANGE": self.feature_long_range,
             }
             enabled_blocked = [name for name, enabled in blocked.items() if enabled]
             if enabled_blocked:

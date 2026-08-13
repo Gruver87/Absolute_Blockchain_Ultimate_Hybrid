@@ -222,6 +222,11 @@ def test_rpc_wallet_compat_methods(rpc_env):
 
 
 def test_prod_rpc_requires_key_and_restricts_cors(tmp_path):
+    """Prod RPC: 401 without key, CORS allowlist, 405 on GET.
+
+    Server must drain POST bytes before 401. Otherwise Windows urllib
+    sees WinError 10053 (RST) instead of HTTP 401.
+    """
     cfg = Config()
     cfg.deployment_mode = "prod"
     cfg.db_path = str(tmp_path / "rpc-prod.db")
@@ -230,6 +235,7 @@ def test_prod_rpc_requires_key_and_restricts_cors(tmp_path):
     cfg.rpc_api_key_required = True
     cfg.rpc_api_keys = ["rpc-prod-key"]
     cfg.cors_origins = ["https://explorer.example.com"]
+    cfg.rate_limit_rpm = 10_000
 
     db = Database(cfg.db_path, synchronous="NORMAL")
     db.initialize()
@@ -250,6 +256,7 @@ def test_prod_rpc_requires_key_and_restricts_cors(tmp_path):
             data=data,
             headers={
                 "Content-Type": "application/json",
+                "Connection": "close",
                 "Origin": "https://explorer.example.com",
             },
             method="POST",
@@ -264,6 +271,7 @@ def test_prod_rpc_requires_key_and_restricts_cors(tmp_path):
             data=data,
             headers={
                 "Content-Type": "application/json",
+                "Connection": "close",
                 "Origin": "https://explorer.example.com",
                 "X-API-Key": "rpc-prod-key",
             },
@@ -276,7 +284,10 @@ def test_prod_rpc_requires_key_and_restricts_cors(tmp_path):
 
         get_req = urllib.request.Request(
             url,
-            headers={"Origin": "https://explorer.example.com"},
+            headers={
+                "Origin": "https://explorer.example.com",
+                "Connection": "close",
+            },
             method="GET",
         )
         with pytest.raises(urllib.error.HTTPError) as exc_info:

@@ -13,6 +13,8 @@
 > **Industrial pin:** [`v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial) · tip-v2 48h soak **PASS** · Phase 3–4 ops/audit binder **READY** · external firm audit **still pending**  
 > Auditor one-pager → [AUDIT_ENGAGEMENT_BRIEF](docs/AUDIT_ENGAGEMENT_BRIEF.md) · one-screen card → [AT_A_GLANCE](docs/AT_A_GLANCE.md)
 
+**Sibling R&D (not this freeze):** [`Gruver87/experimental`](https://github.com/Gruver87/experimental) — rust-libp2p / Long-Range / EVM-depth labs. Default industrial transport here remains **TCP+TLS**. Do not port Experimental kernels onto this pin.
+
 ---
 
 ## Start in 60 seconds
@@ -59,6 +61,7 @@ Not an investment product. **ABS** = in-repo tokenomics model (221M) — **not**
 | Phase 4 audit binder | **READY** | [phase4-691329c](docs/evidence/runs/phase4-691329c/) |
 | Public mainnet / listed ABS / firm audit PDF | **No** | [MAINNET_GAP_ANALYSIS](docs/MAINNET_GAP_ANALYSIS.md) |
 | Bridge on live mesh | **OFF** | by design until L1 cutover |
+| rust-libp2p / Long-Range on this pin | **No** | R&D in [experimental](https://github.com/Gruver87/experimental) |
 
 **Jump:** [Architecture](#architecture) · [Layout](#repo-layout) · [Ops](#operator-cheatsheet) · [Docs](#docs-map) · [Contribute](CONTRIBUTING.md)
 
@@ -226,4 +229,4 @@ MIT — [LICENSE](LICENSE)
 ---
 
 *Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87) · Default branch: `master`*  
-*Last update: 2026-08-08 — industrial pin `v1.3.1339-tip-v2-industrial` (`0531995`). External firm audit still pending. Not a launched public mainnet.*
+*Last update: 2026-08-13 — freeze hygiene: `feature_libp2p` / `feature_long_range` hard-off on prod. Audit pin tag `v1.3.1339-tip-v2-industrial` unchanged. External firm audit still pending. Not a launched public mainnet.*

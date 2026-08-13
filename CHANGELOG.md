@@ -10,6 +10,8 @@
 
 ### Industrial harden (no new features)
 
+- **Freeze hygiene (2026-08-13)** — `feature_libp2p` / `feature_long_range` are **not implemented** in this repo. `Config.validate()` refuses them in **every** mode (no silent coerce). Prod JSON pins them `false`; `prod_gate` / `industrial_gate` / `k8s_prod_gate` refuse `true`. R&D remains [`Gruver87/experimental`](https://github.com/Gruver87/experimental). No consensus-hash change. Not public mainnet.
+- **ADR 0015 prod secrets** — `SECRET_BACKEND=file|null` refused by `Config.validate`, `prod_gate`, factory, and FileSecretAdapter (no `allow_prod` break-glass). Prod boot no longer swallows SecretManager init failure. Vault in prod requires `https://` `VAULT_ADDR` + default SSL context. Not public mainnet.
 - **Public surface polish** — tighter README (evidence-first hero), ADR index, architecture ADR table 0008–0016, banner refresh; pin docs to `v1.3.1339-tip-v2-industrial`
 - **Audit pin tag `v1.3.1339-tip-v2-industrial`** + [AUDIT_ENGAGEMENT_BRIEF.md](docs/AUDIT_ENGAGEMENT_BRIEF.md) for firm engagement
 - **Phase 2 tip-v2 48h soak PASS** (2026-08-05→07): `logs/soak_report_tipv2_48h_rerun.json` (`passed=true`, fail=0, mesh_warn=0); evidence `docs/evidence/runs/375d14f/`

@@ -61,6 +61,7 @@ is additive without kitchen-sink on prod Rocks volumes.
 - This ADR does **not** claim public mainnet or that NFT/L2/shards are ready.
 - Bridge OFF remains a valid production posture (ADR 0010).
 - Bounded tip ancestry (stage-1.5 window) ≠ Long-Range / BFT quorum proof.
+- rust-libp2p / Long-Range R&D is **not** this freeze — see [`Gruver87/experimental`](https://github.com/Gruver87/experimental). Prod mesh keeps `feature_libp2p=false` and `feature_long_range=false`.
 
 ## Definition of Done
 

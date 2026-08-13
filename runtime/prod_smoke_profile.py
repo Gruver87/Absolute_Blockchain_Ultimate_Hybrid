@@ -107,6 +107,8 @@ def apply_prod_smoke_env(base: Dict[str, str] | None = None) -> Dict[str, str]:
         "FEATURE_AI_VALIDATOR",
         "FEATURE_SMART_ACCOUNTS",
         "FEATURE_VALIDATOR_SELECTION",
+        "FEATURE_LIBP2P",
+        "FEATURE_LONG_RANGE",
     ):
         env[key] = "false"
     return env
@@ -276,6 +278,8 @@ def prod_node_config(
         "feature_nft": False,
         "feature_smart_accounts": False,
         "feature_validator_selection": False,
+        "feature_libp2p": False,
+        "feature_long_range": False,
         "allow_state_root_rewrite": False,
         "rate_limit_rpm": 120,
         "log_json": False,

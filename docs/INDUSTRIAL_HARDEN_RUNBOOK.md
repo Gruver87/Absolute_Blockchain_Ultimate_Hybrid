@@ -66,3 +66,4 @@ Do not claim mainnet-ready until external tracker complete + public TLS evidence
 ## Non-goals
 
 Sharding on prod tip · `finality_quorum_live` marketing · bridge enablement · new FEATURE_*  
+libp2p / Long-Range on this freeze (R&D: [Gruver87/experimental](https://github.com/Gruver87/experimental); `feature_libp2p` / `feature_long_range` hard-off on `778888`)  

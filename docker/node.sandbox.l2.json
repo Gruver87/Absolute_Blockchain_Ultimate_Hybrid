@@ -33,6 +33,8 @@
     "feature_ai_validator": false,
     "feature_smart_accounts": false,
     "feature_validator_selection": false,
+    "feature_libp2p": false,
+    "feature_long_range": false,
     "db_engine": "sqlite",
     "sqlite_synchronous": "FULL",
     "db_path": "data/sandbox_l2/blockchain.db",

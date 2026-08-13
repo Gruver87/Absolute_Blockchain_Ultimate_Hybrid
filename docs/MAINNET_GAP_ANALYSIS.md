@@ -111,6 +111,7 @@ Operator sequence: [MAINNET_CUTOVER.md](MAINNET_CUTOVER.md).
 | Storage | RocksDB prod + backup/restore; **reorg purges EVM/tx-prop indexes** (v1.2.43); aux.db scope documented |
 | State root | Prod refuse tip header rewrite (`allow_state_root_rewrite=false`, v1.2.79) |
 | Tests | ✅ CI: `industrial_gate.py`, prod boot E2E, `verify_p2p_ci --mode prod-smoke` |
+| libp2p / Long-Range | **Not this repo** — R&D in [Gruver87/experimental](https://github.com/Gruver87/experimental); Hybrid prod JSON keeps `feature_libp2p=false` / `feature_long_range=false` |
 
 ---
 

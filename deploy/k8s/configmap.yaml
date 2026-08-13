@@ -54,7 +54,7 @@ metadata:
   namespace: absolute-chain
 data:
   node.prod.k8s.json: |
-    {
+        {
       "node_id": "k8s-abs-node",
       "network_name": "Absolute Mainnet",
       "chain_id": 778888,
@@ -88,9 +88,6 @@ data:
       "mining_enabled": false,
       "require_signatures": true,
       "require_native_crypto": true,
-      "tip_safety_enforce": true,
-      "tip_safety_shadow": true,
-      "p2p_native_transport": true,
       "enforce_proposer": true,
       "verify_peer_state_root": true,
       "state_root_strict_p2p": true,
@@ -105,15 +102,21 @@ data:
       "require_wallet_file": true,
       "consensus_mode": "unified",
       "feature_zk": false,
+      "feature_minivm": false,
       "feature_sharding": false,
       "feature_oracles": false,
       "feature_wasm": false,
       "feature_plasma": false,
       "feature_lightning": false,
       "feature_pq": false,
+      "feature_nft": false,
       "feature_mev": false,
       "feature_ai_agents": false,
       "feature_ai_validator": false,
+      "feature_smart_accounts": false,
+      "feature_validator_selection": false,
+      "feature_libp2p": false,
+      "feature_long_range": false,
       "sqlite_synchronous": "FULL",
       "db_engine": "rocksdb",
       "rocksdb_sync": "FULL",
@@ -130,5 +133,8 @@ data:
       "validators_manifest_path": "data/validators.manifest.json",
       "rust_bridge_path": "bridge/abs_bridge_bin",
       "bridge_auto_confirm_sec": 0,
-      "state_root_legacy_cutoff_height": 0
+      "state_root_legacy_cutoff_height": 0,
+      "p2p_native_transport": true,
+      "tip_safety_enforce": true,
+      "tip_safety_shadow": true
     }

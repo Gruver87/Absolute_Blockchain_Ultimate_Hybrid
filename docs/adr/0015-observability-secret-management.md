@@ -30,6 +30,9 @@ Opaque Secret → env examples only.
    `ValidatorKeys`; existing KMS / external `ValidatorKeyProvider` unchanged
    (sign-only).
 5. **Fail-closed** — secret values never in logs, metrics labels, or DB meta.
+   Prod refuses `SECRET_BACKEND=file|null`; FileSecretAdapter has no prod
+   break-glass; boot does not swallow SecretManager init failure in prod.
+   Vault in prod requires `https://` `VAULT_ADDR` (default SSL context).
 
 ## Honesty
 

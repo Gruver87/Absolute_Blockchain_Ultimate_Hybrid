@@ -146,6 +146,28 @@ def test_build_secret_manager_vault():
     assert isinstance(sm, VaultKvSecretAdapter)
 
 
+def test_factory_prod_refuses_file_and_null_backends(tmp_path):
+    wallet = tmp_path / "wallet.json"
+    wallet.write_text("{}", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="file refused in production"):
+        build_secret_manager(
+            SimpleNamespace(secret_backend="file", deployment_mode="prod"),
+            wallet_path=str(wallet),
+        )
+    with pytest.raises(RuntimeError, match="null/off refused in production"):
+        build_secret_manager(
+            SimpleNamespace(secret_backend="null", deployment_mode="prod")
+        )
+
+
+def test_factory_prod_vault_refuses_http_addr(monkeypatch):
+    monkeypatch.setenv("VAULT_ADDR", "http://vault.internal:8200")
+    with pytest.raises(RuntimeError, match="https://"):
+        build_secret_manager(
+            SimpleNamespace(secret_backend="vault", deployment_mode="prod")
+        )
+
+
 def test_prod_blocks_unknown_raw_env_passthrough():
     sm = EnvK8sSecretAdapter(
         environ={

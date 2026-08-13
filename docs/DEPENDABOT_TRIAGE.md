@@ -1,7 +1,9 @@
 # Dependabot triage (industrial harden)
 
-**Updated:** 2026-08-04  
+**Updated:** 2026-08-13  
 **Rule:** no kitchen-sink merges — only bumps that keep CI green and reduce risk.
+
+Open Dependabot PRs are still the Aug 2026 hold set (none merged). Actions-only PRs #1/#3–#6 remain **safe when CI is green** — not merged here (freeze; no push this wave). Python/Cargo majors stay held (pyo3 #7 is the migration key).
 
 ## Hold (do not merge until migration PR is green)
 

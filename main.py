@@ -434,6 +434,14 @@ class NodeOrchestrator:
                 config, wallet_path=_wallet_path
             )
         except Exception as _sm_err:
+            _prod = str(getattr(config, "deployment_mode", "") or "").strip().lower() in (
+                "prod",
+                "production",
+            )
+            if _prod:
+                raise RuntimeError(
+                    f"prod SecretManager init failed (fail-closed ADR 0015): {_sm_err}"
+                ) from _sm_err
             self.secret_manager = None
             print(f"[Node] SecretManager unavailable ({_sm_err})")
 

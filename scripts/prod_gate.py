@@ -25,17 +25,26 @@ BRIDGE_PROD_FILES = [
     "node.prod.mainnet-v1.bridge.example.json",
 ]
 
+# Align with Config.validate() prod blocks + ADR 0016 kitchen-sink freeze.
+# feature_libp2p / feature_long_range are unimplemented on this freeze;
+# R&D lives in Gruver87/experimental. Prod JSON must not copy true.
 BLOCKED_FEATURES = [
     "feature_zk",
+    "feature_minivm",
     "feature_sharding",
     "feature_oracles",
     "feature_wasm",
     "feature_plasma",
     "feature_lightning",
     "feature_pq",
+    "feature_nft",
     "feature_mev",
     "feature_ai_agents",
     "feature_ai_validator",
+    "feature_smart_accounts",
+    "feature_validator_selection",
+    "feature_libp2p",
+    "feature_long_range",
 ]
 
 REQUIRED_TRUE = [
@@ -143,6 +152,16 @@ def check_file(path: str) -> list[str]:
         errors.append(f"{path}: p2p_tls_fail_closed must not be false in prod")
     if cfg.get("p2p_tls_bind_identity") is False:
         errors.append(f"{path}: p2p_tls_bind_identity must not be false in prod")
+
+    backend = str(cfg.get("secret_backend") or "env").strip().lower()
+    if backend in ("file", "null", "none", "off"):
+        errors.append(
+            f"{path}: secret_backend={backend} forbidden in prod (ADR 0015)"
+        )
+    elif backend not in ("env", "vault"):
+        errors.append(
+            f"{path}: secret_backend must be env or vault (got {backend!r})"
+        )
 
     if "mesh1" in path.replace("\\", "/"):
         if int(cfg.get("mesh_min_peers_before_mine", 0) or 0) < 1:

@@ -34,16 +34,33 @@ def build_secret_manager(
         or os.environ.get("DEPLOYMENT_MODE", "dev")
         or "dev"
     ).strip().lower()
+    prod = deployment in ("prod", "production")
 
     if mode in ("null", "none", "off"):
+        if prod:
+            raise RuntimeError(
+                "SECRET_BACKEND=null/off refused in production (ADR 0015)"
+            )
         return NullSecretManager()
 
     if mode == "vault":
+        addr = (
+            os.environ.get("VAULT_ADDR", "")
+            or str(getattr(config, "vault_addr", "") or "")
+        ).strip()
+        if prod and addr and not addr.lower().startswith("https://"):
+            raise RuntimeError(
+                "prod SECRET_BACKEND=vault requires VAULT_ADDR https://"
+            )
         from secret_mgmt.vault_adapter import VaultKvSecretAdapter
 
         return VaultKvSecretAdapter()
 
     if mode == "file":
+        if prod:
+            raise RuntimeError(
+                "SECRET_BACKEND=file refused in production (ADR 0015)"
+            )
         from secret_mgmt.file_adapter import FileSecretAdapter
 
         path = (

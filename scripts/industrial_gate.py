@@ -226,38 +226,53 @@ def _check_p2p_hardening() -> tuple[list[str], list[str]]:
                 errors.append(f"{rel}: redis_rate_limit_enabled must be true for mesh/k8s")
             elif not str(prod_cfg.get("redis_url") or "").strip():
                 errors.append(f"{rel}: redis_url must be non-empty for mesh/k8s")
+        # ADR 0016: explicit true is refuse. Missing sprout key is overlay-off
+        # (prod apply_env still fail-closes). Mesh JSON pins the sprout set.
+        # libp2p / long_range must be explicit false (unimplemented on Hybrid).
+        _feature_keys = (
+            "feature_zk",
+            "feature_minivm",
+            "feature_sharding",
+            "feature_oracles",
+            "feature_wasm",
+            "feature_plasma",
+            "feature_lightning",
+            "feature_pq",
+            "feature_nft",
+            "feature_mev",
+            "feature_ai_agents",
+            "feature_ai_validator",
+            "feature_smart_accounts",
+            "feature_validator_selection",
+            "feature_libp2p",
+            "feature_long_range",
+        )
+        for fk in _feature_keys:
+            if prod_cfg.get(fk) is True:
+                errors.append(f"{rel}: ADR 0016 forbids {fk}=true on prod JSON")
+        for fk in ("feature_libp2p", "feature_long_range"):
+            if prod_cfg.get(fk) is not False:
+                errors.append(
+                    f"{rel}: {fk} must be explicit false "
+                    "(Hybrid freeze; R&D is Gruver87/experimental)"
+                )
+        if prod_cfg.get("allow_state_root_rewrite") is True:
+            errors.append(
+                f"{rel}: allow_state_root_rewrite must be false on prod JSON"
+            )
+        if int(prod_cfg.get("chain_id", 0) or 0) == 778888:
+            if prod_cfg.get("feature_nft") is True:
+                errors.append(f"{rel}: FEATURE_NFT forbidden on chain_id 778888")
         if "mesh" in Path(rel).name.lower():
             mesh_json_cfgs.append((rel, prod_cfg))
-            # ADR 0016: industrial mesh must keep FEATURE_* sprouts off.
-            _feature_keys = (
-                "feature_zk",
-                "feature_minivm",
-                "feature_sharding",
-                "feature_oracles",
-                "feature_wasm",
-                "feature_plasma",
-                "feature_lightning",
-                "feature_pq",
-                "feature_nft",
-                "feature_mev",
-                "feature_ai_agents",
-                "feature_ai_validator",
-                "feature_smart_accounts",
-                "feature_validator_selection",
-            )
             for fk in _feature_keys:
+                if fk in ("feature_libp2p", "feature_long_range"):
+                    continue
                 if fk in prod_cfg and prod_cfg.get(fk) is not False:
                     errors.append(
                         f"{rel}: ADR 0016 requires {fk}=false on prod mesh "
                         f"(got {prod_cfg.get(fk)!r})"
                     )
-            if prod_cfg.get("allow_state_root_rewrite") is True:
-                errors.append(
-                    f"{rel}: allow_state_root_rewrite must be false on prod mesh"
-                )
-            if int(prod_cfg.get("chain_id", 0) or 0) == 778888:
-                if prod_cfg.get("feature_nft") is True:
-                    errors.append(f"{rel}: FEATURE_NFT forbidden on chain_id 778888")
     # Compose env freeze vs prod JSON (3-node mesh + single-node).
     import re
 
@@ -707,6 +722,17 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         )
         if "SECRET_BACKEND" not in factory_py and "secret_backend" not in factory_py:
             errors.append("secret_mgmt factory must honor SECRET_BACKEND (ADR 0015)")
+        if "SECRET_BACKEND=file refused in production" not in factory_py:
+            errors.append("factory must refuse SECRET_BACKEND=file in prod (ADR 0015)")
+        if "SECRET_BACKEND=null/off refused in production" not in factory_py:
+            errors.append("factory must refuse SECRET_BACKEND=null in prod (ADR 0015)")
+        file_adapter_py = (ROOT / "secret_mgmt" / "file_adapter.py").read_text(
+            encoding="utf-8", errors="replace"
+        )
+        if "allow_prod" in file_adapter_py:
+            errors.append("FileSecretAdapter must not expose allow_prod break-glass")
+        if "refused in production" not in file_adapter_py:
+            errors.append("FileSecretAdapter must refuse production (ADR 0015)")
         if not (ROOT / "tests" / "unit" / "test_prometheus_export_format.py").is_file():
             errors.append("tests/unit/test_prometheus_export_format.py missing (ADR 0015)")
         if not (ROOT / "tests" / "unit" / "test_secrets_isolation.py").is_file():
@@ -714,6 +740,10 @@ def _check_fail_loud_surfaces() -> tuple[list[str], list[str]]:
         main_py_adr15 = (ROOT / "main.py").read_text(encoding="utf-8", errors="replace")
         if "build_secret_manager" not in main_py_adr15:
             errors.append("main.py must wire build_secret_manager (ADR 0015)")
+        if "prod SecretManager init failed" not in main_py_adr15:
+            errors.append(
+                "main.py must fail-closed if SecretManager init fails in prod (ADR 0015)"
+            )
         http_py_adr15 = (ROOT / "api" / "http.py").read_text(encoding="utf-8", errors="replace")
         if "metrics_exporter" not in http_py_adr15:
             errors.append("api/http.py must wire metrics_exporter (ADR 0015)")

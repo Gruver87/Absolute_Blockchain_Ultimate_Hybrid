@@ -56,6 +56,216 @@ def test_prod_requires_deploy_salt_flag():
     assert any("evm_require_deploy_salt" in e for e in errs)
 
 
+def test_prod_validate_blocks_libp2p_and_long_range():
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.require_wallet_file = False
+    cfg.rpc_api_key_required = False
+    cfg.feature_libp2p = True
+    errs = cfg.validate()
+    assert any("FEATURE_LIBP2P" in e for e in errs)
+
+    cfg.feature_libp2p = False
+    cfg.feature_long_range = True
+    errs = cfg.validate()
+    assert any("FEATURE_LONG_RANGE" in e for e in errs)
+
+
+def test_dev_validate_refuses_unimplemented_libp2p_and_long_range():
+    cfg = Config()
+    assert cfg.deployment_mode != "prod"
+    cfg.feature_libp2p = True
+    errs = cfg.validate()
+    assert any("FEATURE_LIBP2P" in e and "not implemented" in e for e in errs)
+
+    cfg.feature_libp2p = False
+    cfg.feature_long_range = True
+    errs = cfg.validate()
+    assert any("FEATURE_LONG_RANGE" in e and "not implemented" in e for e in errs)
+
+
+def test_env_libp2p_true_fails_validate_not_silent_coerce(monkeypatch):
+    monkeypatch.setenv("FEATURE_LIBP2P", "true")
+    monkeypatch.setenv("FEATURE_LONG_RANGE", "true")
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.apply_env()
+    assert cfg.feature_libp2p is True
+    assert cfg.feature_long_range is True
+    errs = cfg.validate()
+    assert any("FEATURE_LIBP2P" in e for e in errs)
+    assert any("FEATURE_LONG_RANGE" in e for e in errs)
+
+
+def test_prod_validate_refuses_file_and_null_secret_backend():
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.require_wallet_file = False
+    cfg.rpc_api_key_required = False
+    cfg.secret_backend = "file"
+    errs = cfg.validate()
+    assert any("SECRET_BACKEND=file" in e or "file|null" in e for e in errs)
+
+    cfg.secret_backend = "null"
+    errs = cfg.validate()
+    assert any("file|null" in e for e in errs)
+
+    cfg.secret_backend = "env"
+    errs = cfg.validate()
+    assert not any("secret_backend" in e.lower() or "SECRET_BACKEND" in e for e in errs)
+
+
+def test_prod_validate_vault_http_addr_refused(monkeypatch):
+    monkeypatch.setenv("VAULT_ADDR", "http://127.0.0.1:8200")
+    cfg = Config()
+    cfg.deployment_mode = "prod"
+    cfg.require_wallet_file = False
+    cfg.rpc_api_key_required = False
+    cfg.secret_backend = "vault"
+    errs = cfg.validate()
+    assert any("https://" in e for e in errs)
+
+
+def test_static_prod_gate_rejects_libp2p_true(tmp_path, monkeypatch):
+    root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    script_path = os.path.join(root, "scripts", "prod_gate.py")
+    spec = importlib.util.spec_from_file_location("prod_gate_libp2p", script_path)
+    prod_gate = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(prod_gate)
+
+    prod_dir = tmp_path / "docker"
+    prod_dir.mkdir()
+    config = {
+        "deployment_mode": "prod",
+        "bridge_enabled": False,
+        "chain_id": 778888,
+        "require_signatures": True,
+        "enforce_proposer": True,
+        "verify_peer_state_root": True,
+        "state_root_strict_p2p": True,
+        "rpc_api_key_required": True,
+        "jwt_enforce_admin": True,
+        "require_wallet_file": True,
+        "bridge_require_l1_proof": True,
+        "require_native_crypto": True,
+        "p2p_native_transport": True,
+        "evm_create2_eip1014": True,
+        "evm_require_deploy_salt": True,
+        "tip_safety_enforce": True,
+        "db_engine": "rocksdb",
+        "p2p_tls_enabled": True,
+        "p2p_tls_require_client_cert": True,
+        "p2p_tls_cert_path": "certs/node.pem",
+        "p2p_tls_key_path": "certs/node.key",
+        "p2p_tls_ca_path": "certs/ca.pem",
+        "validators_manifest_path": "validators.manifest.example.json",
+        "cors_origins": ["https://explorer.example.com"],
+        "rate_limit_rpm": 120,
+        "feature_libp2p": True,
+    }
+    for feature in prod_gate.BLOCKED_FEATURES:
+        if feature != "feature_libp2p":
+            config[feature] = False
+    (prod_dir / "node.prod.json").write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(prod_gate, "ROOT", Path(tmp_path))
+    errors = prod_gate.check_file("docker/node.prod.json")
+    assert any("feature_libp2p" in err for err in errors)
+
+
+def test_static_prod_gate_rejects_nft_true(tmp_path, monkeypatch):
+    root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    script_path = os.path.join(root, "scripts", "prod_gate.py")
+    spec = importlib.util.spec_from_file_location("prod_gate_nft", script_path)
+    prod_gate = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(prod_gate)
+
+    prod_dir = tmp_path / "docker"
+    prod_dir.mkdir()
+    config = {
+        "deployment_mode": "prod",
+        "bridge_enabled": False,
+        "chain_id": 778888,
+        "require_signatures": True,
+        "enforce_proposer": True,
+        "verify_peer_state_root": True,
+        "state_root_strict_p2p": True,
+        "rpc_api_key_required": True,
+        "jwt_enforce_admin": True,
+        "require_wallet_file": True,
+        "bridge_require_l1_proof": True,
+        "require_native_crypto": True,
+        "p2p_native_transport": True,
+        "evm_create2_eip1014": True,
+        "evm_require_deploy_salt": True,
+        "tip_safety_enforce": True,
+        "db_engine": "rocksdb",
+        "p2p_tls_enabled": True,
+        "p2p_tls_require_client_cert": True,
+        "p2p_tls_cert_path": "certs/node.pem",
+        "p2p_tls_key_path": "certs/node.key",
+        "p2p_tls_ca_path": "certs/ca.pem",
+        "validators_manifest_path": "validators.manifest.example.json",
+        "cors_origins": ["https://explorer.example.com"],
+        "rate_limit_rpm": 120,
+        "feature_nft": True,
+    }
+    for feature in prod_gate.BLOCKED_FEATURES:
+        if feature != "feature_nft":
+            config[feature] = False
+    (prod_dir / "node.prod.json").write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(prod_gate, "ROOT", Path(tmp_path))
+    errors = prod_gate.check_file("docker/node.prod.json")
+    assert any("feature_nft" in err for err in errors)
+
+
+def test_static_prod_gate_rejects_file_secret_backend(tmp_path, monkeypatch):
+    root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    script_path = os.path.join(root, "scripts", "prod_gate.py")
+    spec = importlib.util.spec_from_file_location("prod_gate_file_secret", script_path)
+    prod_gate = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(prod_gate)
+
+    prod_dir = tmp_path / "docker"
+    prod_dir.mkdir()
+    config = {
+        "deployment_mode": "prod",
+        "bridge_enabled": False,
+        "chain_id": 778888,
+        "require_signatures": True,
+        "enforce_proposer": True,
+        "verify_peer_state_root": True,
+        "state_root_strict_p2p": True,
+        "rpc_api_key_required": True,
+        "jwt_enforce_admin": True,
+        "require_wallet_file": True,
+        "bridge_require_l1_proof": True,
+        "require_native_crypto": True,
+        "p2p_native_transport": True,
+        "evm_create2_eip1014": True,
+        "evm_require_deploy_salt": True,
+        "tip_safety_enforce": True,
+        "db_engine": "rocksdb",
+        "p2p_tls_enabled": True,
+        "p2p_tls_require_client_cert": True,
+        "p2p_tls_cert_path": "certs/node.pem",
+        "p2p_tls_key_path": "certs/node.key",
+        "p2p_tls_ca_path": "certs/ca.pem",
+        "validators_manifest_path": "validators.manifest.example.json",
+        "cors_origins": ["https://explorer.example.com"],
+        "rate_limit_rpm": 120,
+        "secret_backend": "file",
+    }
+    for feature in prod_gate.BLOCKED_FEATURES:
+        config[feature] = False
+    (prod_dir / "node.prod.json").write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(prod_gate, "ROOT", Path(tmp_path))
+    errors = prod_gate.check_file("docker/node.prod.json")
+    assert any("secret_backend=file" in err for err in errors)
+
+
 def test_static_prod_gate_requires_native_crypto(tmp_path, monkeypatch):
     root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     script_path = os.path.join(root, "scripts", "prod_gate.py")

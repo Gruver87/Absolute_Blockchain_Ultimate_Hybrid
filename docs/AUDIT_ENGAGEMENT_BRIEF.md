@@ -33,9 +33,10 @@ Full scope letter: [AUDIT_SCOPE.md](AUDIT_SCOPE.md) · threat model: [THREAT_MOD
 | Bridge ON / L1 lock-mint | Disabled until separate cutover |
 | Sharding / L2 / ZK / PQ / Lightning / Plasma / WASM | R&D; FEATURE_* off on prod |
 | Full Ethereum client compatibility | EVM subset only |
-| Tip proof / Long-Range / libp2p rewrite | Not claimed |
+| Tip proof / Long-Range / libp2p rewrite | Not claimed — R&D in [Gruver87/experimental](https://github.com/Gruver87/experimental) |
 | Public mainnet ops / listing / legal | Organizational |
 | `finality_quorum_live=true` marketing | Quorum not live-proven |
+| Experimental R&D fork | Separate repo; **not** this audit pin |
 
 ---
 

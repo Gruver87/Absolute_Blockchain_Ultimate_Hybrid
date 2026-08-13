@@ -27,6 +27,8 @@ _FEATURE_KEYS = (
     "feature_ai_validator",
     "feature_smart_accounts",
     "feature_validator_selection",
+    "feature_libp2p",
+    "feature_long_range",
 )
 
 
@@ -64,3 +66,26 @@ def test_prod_mesh_json_feature_freeze() -> None:
             assert data.get(key) is False, f"{name}.{key} must be false"
         if "mesh" in name:
             assert int(data.get("chain_id", 0)) == 778888
+
+
+def test_prod_example_and_k8s_json_feature_freeze() -> None:
+    files = (
+        ROOT / "node.prod.example.json",
+        ROOT / "node.prod.mainnet-v1.example.json",
+        ROOT / "node.prod.mainnet-v1.bridge.example.json",
+        ROOT / "deploy" / "k8s" / "node.prod.k8s.json",
+    )
+    for path in files:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert data.get("deployment_mode") == "prod"
+        for key in _FEATURE_KEYS:
+            assert data.get(key) is False, f"{path.name}.{key} must be false"
+        assert int(data.get("chain_id", 0)) == 778888
+
+
+def test_prod_config_defaults_libp2p_long_range_off() -> None:
+    from runtime.config import Config
+
+    cfg = Config()
+    assert cfg.feature_libp2p is False
+    assert cfg.feature_long_range is False

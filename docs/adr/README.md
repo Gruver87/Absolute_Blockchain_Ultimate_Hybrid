@@ -23,3 +23,5 @@ Boundary ADRs for Absolute Blockchain Ultimate Hybrid.
 | [0016](0016-feature-sprouts-profiles.md) | Feature sprouts / profiles | Accepted |
 
 System map: [ARCHITECTURE.md](../ARCHITECTURE.md) · sprouts: [sprouts/](../sprouts/)
+
+**R&D ADRs not in this freeze:** [0017–0019](https://github.com/Gruver87/experimental/tree/main/docs/adr) live in [`Gruver87/experimental`](https://github.com/Gruver87/experimental) (Long-Range / rust-libp2p). Hybrid default transport remains TCP+TLS (ADR 0002). `feature_libp2p` / `feature_long_range` stay **false** on prod mesh JSON.
