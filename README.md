@@ -76,7 +76,7 @@ flowchart TB
   API --> MET["MetricsExporter · ADR 0015"]
   API --> ORCH["NodeOrchestrator"]
   ORCH --> SM["SecretManager · ADR 0015"]
-  ORCH --> P2P["P2P + dispatch · soft-refuse"]
+  ORCH --> P2P["P2P TCP+TLS · soft-refuse"]
   ORCH --> CONS["LMD-GHOST · TipSafety"]
   ORCH --> BC["Blockchain facade"]
   ORCH --> BR["BridgePort · ADR 0010 · OFF on mesh"]
@@ -97,7 +97,7 @@ flowchart TB
 |-------|------|-------|
 | **Edge** | REST · JSON-RPC · Explorer | QueryFacade caps; no raw DB from handlers |
 | **Orchestration** | `main.py` · consensus policy · secrets · shutdown | TipSafety enforce on prod |
-| **Network** | TCP P2P · dispatch · catch-up/fork adapters | Soft-refuse; TLS churn can still leave `peer_count=0` |
+| **Network** | TCP+TLS P2P · dispatch · catch-up/fork adapters | Soft-refuse; TLS churn can still leave `peer_count=0`. rust-libp2p **refused** on this pin |
 | **Domain** | CatchUp · Fork · StateService · StoragePort | No sockets inside services |
 | **Native** | `native/abs_native/` (PyO3) | Crypto · satoshi roots · Rocks · EVM kernels |
 | **Sprouts** | ADR 0016 profiles | Bridge / L2 / shard **off** industrial mesh |
