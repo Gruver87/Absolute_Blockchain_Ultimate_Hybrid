@@ -1,8 +1,10 @@
 # Changelog
 
-Все значимые изменения документируются здесь. Формат основан на [Keep a Changelog](https://keepachangelog.com/).
+All notable changes are documented here. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
-**Текущая волна API:** `api_wave = 61` (проверка: `GET /status`)
+**Current API wave:** `api_wave = 61` (check: `GET /status`)
+
+Canonical language for this repository is **English**. Older entries below may still mix Russian from earlier waves.
 
 ---
 

@@ -1,12 +1,14 @@
-﻿# Contributing — Absolute Blockchain Ultimate
+﻿# Contributing — Absolute Blockchain Ultimate Hybrid
 
-Спасибо за интерес! Это **production-hardened R&D / devnet** проект (локальный prod-mesh evidence, **не** launched public mainnet) — вклад в код, тесты и честную документацию приветствуется.
+Thank you. This is a **production-hardened R&D / devnet** stack (local prod-mesh evidence). It is **not** a launched public mainnet.
 
-## Перед началом
+R&D for rust-libp2p / Long-Range / EVM depth lives in [`Gruver87/experimental`](https://github.com/Gruver87/experimental). Do **not** port those kernels onto this audit pin.
 
-1. **30 секунд:** [docs/AT_A_GLANCE.md](docs/AT_A_GLANCE.md) — что proven / что нет.
-2. [DISCLAIMER.md](DISCLAIMER.md) — это **не** launched public audited mainnet.
-3. Запуск: `python main.py` (не `_archive/`).
+## Before you start
+
+1. **30 seconds:** [docs/AT_A_GLANCE.md](docs/AT_A_GLANCE.md) — what is proven vs not.
+2. [DISCLAIMER.md](DISCLAIMER.md) — this is **not** a launched public audited mainnet.
+3. Run: `python main.py` (not `_archive/`).
 
 ## 60-second setup
 
@@ -20,43 +22,43 @@ pip install -r requirements.txt && cp .env.example .env
 
 http://localhost:8080
 
-## Как помочь
+## How to help
 
-| Действие | Зачем |
-|----------|-------|
-| Star / Watch Releases | Видимость репо |
-| Issues + evidence | Баги с `data/check_all.json` / soak |
-| Docs / PR | Фиксы, тесты — в **`master`** |
+| Action | Why |
+|--------|-----|
+| Star / Watch Releases | Repo visibility |
+| Issues + evidence | Bugs with `data/check_all.json` / soak artifacts |
+| Docs / PR | Fixes and tests → **`master`** |
 
-## Ветки
+## Branches
 
-| Ветка | Назначение |
-|-------|------------|
+| Branch | Role |
+|--------|------|
 | **`master`** | Default development |
 | **`main`** | Mirror of `master` (CI sync) |
 
-PR → **`master`**. Мы **не** ведём фейковую историю «командных» PR ради hiring optics.
+PR → **`master`**. We do not invent a fake “team PR” history for hiring optics.
 
-## Разработка
+## Development
 
 ```bash
 git checkout -b feature/my-change
-# ... правки ...
+# ... edits ...
 pytest tests/ -q
 python tests/smoke/merkle_light.py
 python scripts/final_audit.py
-git commit -m "feat: описание"
+git commit -m "feat: description"
 git push origin feature/my-change
 ```
 
-Создайте Pull Request на GitHub.
+Open a Pull Request on GitHub against **`master`**.
 
 ## Code style
 
-- Минимальный diff — не рефакторить несвязанный код
-- Следовать стилю соседних файлов
-- Комментарии только для неочевидной логики
-- Не коммитить: `.env`, `data/`, ключи, `__pycache__`
+- Minimal diff — do not refactor unrelated code
+- Match neighboring files
+- Comments only for non-obvious logic
+- Do not commit: `.env`, `data/`, keys, `__pycache__`
 
 ## Commit messages
 
@@ -67,17 +69,17 @@ docs: update README tokenomics section
 test: merkle light client cases
 ```
 
-## Идеи для контрибьюторов
+## Ideas for contributors
 
-- Улучшение P2P и синхронизации между узлами
-- Больше pytest-тестов вместо script-style tests
-- Усиление production-hardening и security gates
-- Перевод документации
-- CI (GitHub Actions): `pytest tests/`, `tests/smoke/merkle_light.py`, `scripts/final_audit.py`
+- P2P and sync between nodes
+- More pytest coverage instead of script-style tests
+- Production-hardening and security gates
+- Documentation (English)
+- CI: `pytest tests/`, `tests/smoke/merkle_light.py`, `scripts/final_audit.py`
 
-## Вопросы
+## Questions
 
 - Issues: https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/issues
-- Автор: [@Gruver87](https://github.com/Gruver87)
+- Author: [@Gruver87](https://github.com/Gruver87)
 
-**Спасибо за развитие Absolute Blockchain Ultimate вместе с сообществом!**
+Thank you for keeping Absolute Blockchain Ultimate honest — green gates are not public mainnet.
