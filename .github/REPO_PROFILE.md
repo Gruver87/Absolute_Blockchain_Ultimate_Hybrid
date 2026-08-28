@@ -18,9 +18,10 @@ Or paste into **Settings → General → About**.
 | Field | Value |
 |-------|-------|
 | **Description** | Absolute Blockchain Ultimate Hybrid — Python+Rust L1, tip-v2 soak PASS, evidence-first industrial pin. External audit pending. Not a public mainnet. |
-| **Website** | https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/AUDIT_ENGAGEMENT_BRIEF.md |
+| **Website** | https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/VISION.md |
 | **Social preview** | Upload evergreen `docs/assets/repo-social-preview.png` in **Settings → General · Social preview** |
 | **Skimmer card** | [docs/AT_A_GLANCE.md](../docs/AT_A_GLANCE.md) |
+| **Vision** | [docs/VISION.md](../docs/VISION.md) |
 | **Auditor entry** | [docs/AUDIT_ENGAGEMENT_BRIEF.md](../docs/AUDIT_ENGAGEMENT_BRIEF.md) |
 | **Cite** | [CITATION.cff](../CITATION.cff) |
 | **Issue chooser** | Bug · Feature · Ops/verify · private vulnerability report · Evidence / SECURITY |

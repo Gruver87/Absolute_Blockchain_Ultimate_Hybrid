@@ -1,6 +1,6 @@
 # At a glance
 
-One-screen card for people who do not read long READMEs. Full detail: [README](../README.md) · proof ledger: [EVIDENCE_MATRIX](EVIDENCE_MATRIX.md).
+One-screen card for people who do not read long READMEs. Scope narrative: [VISION](VISION.md) · full detail: [README](../README.md) · proof ledger: [EVIDENCE_MATRIX](EVIDENCE_MATRIX.md).
 
 ## What this is
 
