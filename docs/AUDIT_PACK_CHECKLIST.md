@@ -61,6 +61,23 @@ JSON-only dry run:
 
 ---
 
+## Troubleshooting
+
+### `genesis_ceremony_hash_mismatch:env_vs_manifest`
+
+`industrial_gate` / audit pack export may exit **1** when `GENESIS_CEREMONY_HASH` env does not match the manifest under `--ceremony-dir`.
+
+**Fix (operator machine):**
+
+1. Confirm manifest path: `VALIDATORS_MANIFEST_PATH` or prod JSON overlay.
+2. Recompute pin: `.\scripts\pin_ceremony_hash.ps1` (or set env from committed ceremony artifact).
+3. Re-run with explicit dir: `python scripts/industrial_gate.py --ceremony-dir <path>`.
+4. Do **not** disable the check or commit local ceremony secrets.
+
+If no ceremony dir on this machine, expect a **warning** (not necessarily FAIL) when `GENESIS_CEREMONY_HASH` is unset — see [GENESIS_CEREMONY.md](GENESIS_CEREMONY.md).
+
+---
+
 ## What to send the auditor
 
 | Item | Location |
