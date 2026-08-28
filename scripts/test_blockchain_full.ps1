@@ -316,20 +316,34 @@ if ($ProdMesh) {
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
     Run-Step "Prod mesh P2P verify (prod-mesh3-live)" {
+        # Prod forbids /tx/send auto_sign — signed wallet required for tx propagation.
+        $wallet = Join-Path $ProjectRoot "data\prod_mesh\wallets\validator-1.wallet.json"
+        if (-not (Test-Path $wallet)) {
+            throw "Missing $wallet (run .\scripts\docker_prod_3node.ps1 first)"
+        }
+        $env:PROD_SMOKE_WALLET_PATH = $wallet
         python scripts/verify_p2p_ci.py --mode prod-mesh3-live `
             --url1 http://127.0.0.1:18180 `
             --url2 http://127.0.0.1:18181 `
             --url3 http://127.0.0.1:18182 `
             --wait $ProdMeshWait
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
     Run-Step "Mainnet readiness (live prod mesh)" {
         python scripts/mainnet_readiness.py --no-strict-audit --live-prod-mesh --json
     }
     if ($ProdMeshFull) {
         Run-Step "Prod mesh FULL evidence (failover + signed tx + EVM)" {
-            $evidenceArgs = @("-FailoverWaitSec", "$ProdMeshFailoverWait", "-GitTag", $EvidenceGitTag)
-            if ($RecordEvidence) { $evidenceArgs += "-RecordEvidence" }
-            & (Join-Path $ProjectRoot "scripts\prod_evidence_suite.ps1") @evidenceArgs
+            # Hashtable splat only — array splat binds POSITIONALLY and maps
+            # "-FailoverWaitSec" onto [int]$FailoverWaitSec (PowerShell parse error).
+            $evidenceParams = @{
+                FailoverWaitSec = [int]$ProdMeshFailoverWait
+                GitTag          = [string]$EvidenceGitTag
+            }
+            if ($RecordEvidence) {
+                $evidenceParams["RecordEvidence"] = $true
+            }
+            & (Join-Path $ProjectRoot "scripts\prod_evidence_suite.ps1") @evidenceParams
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         }
     }

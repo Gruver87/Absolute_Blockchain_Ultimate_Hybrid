@@ -252,6 +252,7 @@ try {
                 }
             }
             $report.steps += "prod_smoke"
+            Write-Host "NOTE: solo :8080 soft-passes p2p_state_consistent (no peers). Real mesh: step 6 docker_prod_3node." -ForegroundColor DarkGray
         }
         else {
             Write-Host ("NOTE: deployment_mode={0} - skipping prod_smoke (needs prod profile)" -f $stMode) -ForegroundColor DarkYellow

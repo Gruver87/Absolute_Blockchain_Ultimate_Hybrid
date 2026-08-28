@@ -290,9 +290,22 @@ if ($enableP2pTls) {
         try {
             $sec = Invoke-RestMethod -Uri "http://127.0.0.1:$port/p2p/security" -TimeoutSec 12
             $tls = $sec.tls
+            $st = $null
+            try {
+                $st = Invoke-RestMethod -Uri "http://127.0.0.1:$port/status" -TimeoutSec 8
+            } catch {}
+            $libp2pActive = $false
+            if ($st -and $st.libp2p) {
+                $libp2pActive = [bool]$st.libp2p.active
+            }
             if (-not $tls.enabled -or -not $tls.ready) {
                 Write-Host "FAIL: P2P TLS not ready on :$port (enabled=$($tls.enabled) ready=$($tls.ready))" -ForegroundColor Red
                 if ($tls.errors) { Write-Host "  errors: $($tls.errors -join '; ')" -ForegroundColor Red }
+                if ($libp2pActive) {
+                    Write-Host "  HINT: node reports libp2p active (ADR0020). Hybrid audit-pin needs TCP+TLS image." -ForegroundColor Yellow
+                    Write-Host "  Rebuild from Hybrid (no SkipBuild): .\scripts\docker_prod_3node.ps1 -KeepVolumes" -ForegroundColor Yellow
+                    Write-Host "  Wrong image often comes from Experimental build tagged abs-blockchain-prod:local." -ForegroundColor Yellow
+                }
                 exit 1
             }
             Write-Host "  OK :$port P2P TLS ready" -ForegroundColor DarkGray

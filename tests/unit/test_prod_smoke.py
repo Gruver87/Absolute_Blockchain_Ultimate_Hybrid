@@ -47,6 +47,39 @@ def _fake_fetch_factory(handlers):
     return fake_fetch
 
 
+def test_harness_smoke_ok_solo_p2p_na():
+    """Solo node: empty peers + only p2p_state_consistent fail is soft-PASS (not mesh)."""
+    assert prod_smoke._harness_smoke_ok(
+        {
+            "harness_healthy": False,
+            "failed_checks": ["p2p_state_consistent"],
+            "peers": [],
+            "live_state_root": "abc",
+        }
+    )
+    assert not prod_smoke._harness_smoke_ok(
+        {
+            "harness_healthy": False,
+            "failed_checks": ["p2p_state_consistent", "supply_within_cap"],
+            "peers": [],
+            "live_state_root": "abc",
+        }
+    )
+
+
+def test_harness_smoke_ok_peer_probe_timeout_tip_aligned():
+    assert prod_smoke._harness_smoke_ok(
+        {
+            "harness_healthy": False,
+            "failed_checks": ["peer_probe_ok"],
+            "tip_state_aligned": True,
+            "peer_probe_error": "timeout",
+            "peers": [],
+            "live_state_root": "abc",
+        }
+    )
+
+
 def test_prod_smoke_ok(monkeypatch):
     monkeypatch.delenv("GENESIS_CEREMONY_HASH", raising=False)
     handlers = [
