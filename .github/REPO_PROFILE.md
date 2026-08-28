@@ -3,24 +3,26 @@
 Apply with:
 
 ```powershell
-gh repo edit --description "Hybrid Python/Rust L1 node for local mesh and evidence-first R&D — not a public mainnet."
-gh repo edit --homepage "https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid#start-in-60-seconds"
+gh repo edit Gruver87/Absolute_Blockchain_Ultimate_Hybrid --description "Absolute Blockchain Ultimate Hybrid — Python+Rust L1, tip-v2 soak PASS, evidence-first industrial pin. External audit pending. Not a public mainnet."
+gh repo edit Gruver87/Absolute_Blockchain_Ultimate_Hybrid --homepage "https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/AUDIT_ENGAGEMENT_BRIEF.md"
 # topics (idempotent add):
 @(
   "absolute-blockchain","blockchain","blockchain-node","layer1","python","rust","pyo3",
   "p2p","evm","rocksdb","docker","kubernetes","json-rpc","rest-api","devnet",
   "soak-test","cryptography","web3","hybrid-blockchain","blockchain-development"
-) | ForEach-Object { gh repo edit --add-topic $_ }
+) | ForEach-Object { gh repo edit Gruver87/Absolute_Blockchain_Ultimate_Hybrid --add-topic $_ }
 ```
 
 Or paste into **Settings → General → About**.
 
 | Field | Value |
 |-------|-------|
-| **Description** | Hybrid Python/Rust L1 node for local mesh and evidence-first R&D — not a public mainnet. |
-| **Website** | https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid#start-in-60-seconds |
-| **Social preview** | Upload evergreen `docs/assets/repo-social-preview.png` in **Settings → General → Social preview** |
+| **Description** | Absolute Blockchain Ultimate Hybrid — Python+Rust L1, tip-v2 soak PASS, evidence-first industrial pin. External audit pending. Not a public mainnet. |
+| **Website** | https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/blob/master/docs/AUDIT_ENGAGEMENT_BRIEF.md |
+| **Social preview** | Upload evergreen `docs/assets/repo-social-preview.png` in **Settings → General · Social preview** |
 | **Skimmer card** | [docs/AT_A_GLANCE.md](../docs/AT_A_GLANCE.md) |
+| **Auditor entry** | [docs/AUDIT_ENGAGEMENT_BRIEF.md](../docs/AUDIT_ENGAGEMENT_BRIEF.md) |
+| **Cite** | [CITATION.cff](../CITATION.cff) |
 | **Issue chooser** | Bug · Feature · Ops/verify · private vulnerability report · Evidence / SECURITY |
 
 ## Topics
@@ -49,6 +51,7 @@ blockchain-development
 ```
 
 > Cap = 20 topics. Prefer searchable stack terms over maturity labels like `industrial`.
+
 ## Branches
 
 | Branch | Role |
@@ -69,9 +72,10 @@ blockchain-development
 | **R&D sibling** | [`Gruver87/experimental`](https://github.com/Gruver87/experimental) — not the audit pin |
 | **Self-check** | `.\scripts\operator_verify.ps1 -SkipNativeBuild` · `.\scripts\check_all.ps1` |
 | **CI** | `test.yml`, `docker-prod-image.yml`, `security-audit.yml` (displayed as **Security checks**) |
+| **Community health** | **100%** (GitHub community profile) |
 | **API wave** | 61 |
 
-### Verified locally (Jul 2026)
+### Verified locally (Jul–Aug 2026)
 
 - Prod mesh probe / failover / signed tx / EVM mempool smoke
 - **7h soak PASS** + **48h soak PASS** float tip (2026-07-19→21)
@@ -93,7 +97,7 @@ blockchain-development
 
 ## Honest positioning (release / About)
 
-- **Is:** working hybrid L1 R&D stack; local prod-profile 3-node evidence; CI gates; soak-proven ops
+- **Is:** working hybrid L1 R&D stack; local prod-profile 3-node evidence; CI gates; soak-proven ops; audit binder ready
 - **Is not:** live public mainnet; audited DeFi; investment product
 - **Evidence ledger:** `docs/EVIDENCE_MATRIX.md`
 - **Banner:** evergreen `docs/assets/repo-banner.svg` (no version chip)

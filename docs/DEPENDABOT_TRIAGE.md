@@ -1,7 +1,9 @@
 # Dependabot triage (industrial harden)
 
-**Updated:** 2026-08-13  
+**Updated:** 2026-08-28  
 **Rule:** no kitchen-sink merges — only bumps that keep CI green and reduce risk.
+
+**While Experimental libp2p 48h (B1) is open:** prefer **not** merging Hybrid native/P2P majors (`socket2`, pyo3, websockets). Actions-only bumps remain OK when CI green. Do not port Experimental libp2p/Long-Range into this pin.
 
 Open Dependabot PRs are still the Aug 2026 hold set (none merged). Actions-only PRs #1/#3–#6 remain **safe when CI is green** — not merged here (freeze; no push this wave). Python/Cargo majors stay held (pyo3 #7 is the migration key).
 

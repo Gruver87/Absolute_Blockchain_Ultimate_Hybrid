@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+title: "Absolute Blockchain Ultimate Hybrid"
+message: "If you use this software in research, audit engagement, or diligence, please cite it using these metadata."
+type: software
+authors:
+  - family-names: Dabranski
+    given-names: Uladzimir
+    alias: Gruver87
+repository-code: "https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid"
+url: "https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid"
+abstract: >-
+  Hybrid Python + Rust L1 node with prod-profile Docker mesh, tip-v2 satoshi soak evidence,
+  fail-closed industrial gates, and an audit engagement binder. External firm audit pending.
+  Not a launched public mainnet; ABS is an in-repo tokenomics model, not a listed asset.
+keywords:
+  - blockchain
+  - layer1
+  - python
+  - rust
+  - rocksdb
+  - evm
+  - p2p
+  - soak-test
+license: MIT
+version: "1.3.1339"
+date-released: "2026-08-07"

@@ -11,11 +11,23 @@ Canonical docs language is **English**. If GitHub shows a translation, open **Vi
 [![Tests CI](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/test.yml)
 [![Docker CI](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/docker-prod-image.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/docker-prod-image.yml)
 [![Security checks](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml/badge.svg?branch=master)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/actions/workflows/security-audit.yml)
+[![Community health](https://img.shields.io/badge/community%20health-100%25-brightgreen)](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid#docs-map)
 
 > **Industrial pin:** [`v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial) · tip-v2 48h soak **PASS** · Phase 3–4 ops/audit binder **READY** · external firm audit **still pending**  
-> Auditor one-pager → [AUDIT_ENGAGEMENT_BRIEF](docs/AUDIT_ENGAGEMENT_BRIEF.md) · one-screen card → [AT_A_GLANCE](docs/AT_A_GLANCE.md)
+> Auditor one-pager → [AUDIT_ENGAGEMENT_BRIEF](docs/AUDIT_ENGAGEMENT_BRIEF.md) · one-screen card → [AT_A_GLANCE](docs/AT_A_GLANCE.md) · proof ledger → [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md)
 
 **Sibling R&D (not this freeze):** [`Gruver87/experimental`](https://github.com/Gruver87/experimental) — rust-libp2p / Long-Range / EVM-depth labs. Default industrial transport here remains **TCP+TLS**. Do not port Experimental kernels onto this pin.
+
+---
+
+## Who this is for
+
+| Audience | Start here |
+|----------|------------|
+| **External auditors / firms** | [AUDIT_ENGAGEMENT_BRIEF](docs/AUDIT_ENGAGEMENT_BRIEF.md) → [AUDIT_SCOPE](docs/AUDIT_SCOPE.md) → [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md) → `.\scripts\export_audit_pack.ps1` |
+| **Architects / principals** | [AT_A_GLANCE](docs/AT_A_GLANCE.md) → mermaid below → [docs/adr/](docs/adr/) (0001–0016) |
+| **Grant officers / diligence** | Proven-vs-not table · tip-v2 soak [375d14f](docs/evidence/runs/375d14f/) · Phase 4 binder [phase4-691329c](docs/evidence/runs/phase4-691329c/) · [MAINNET_GAP_ANALYSIS](docs/MAINNET_GAP_ANALYSIS.md) (honest gaps) |
+| **Operators** | [Start in 60 seconds](#start-in-60-seconds) · `.\scripts\verify_project.ps1` · prod mesh `.\scripts\docker_prod_3node.ps1` |
 
 ---
 
@@ -187,6 +199,7 @@ Quality gate: CI · `make test-quick` / `check_all.ps1` · **2164+** pytest pass
 | Operator commands | [COMMANDS_REFERENCE](docs/COMMANDS_REFERENCE.md) · [ALL_COMMANDS](docs/ALL_COMMANDS.txt) |
 | DR / industrial | [DISASTER_RECOVERY](docs/DISASTER_RECOVERY.md) · [INDUSTRIAL_HARDEN_RUNBOOK](docs/INDUSTRIAL_HARDEN_RUNBOOK.md) |
 | Security / contribute | [SECURITY](SECURITY.md) · [CONTRIBUTING](CONTRIBUTING.md) · [SUPPORT](SUPPORT.md) |
+| Cite this software | [CITATION.cff](CITATION.cff) |
 | Releasing / hygiene | [RELEASING](docs/RELEASING.md) · [REPO_PROFESSIONAL](docs/REPO_PROFESSIONAL.md) |
 | GitHub About paste | [REPO_PROFILE](.github/REPO_PROFILE.md) |
 
