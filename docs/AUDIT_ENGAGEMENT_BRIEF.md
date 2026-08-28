@@ -44,7 +44,7 @@ Full scope letter: [AUDIT_SCOPE.md](AUDIT_SCOPE.md) · threat model: [THREAT_MOD
 
 | Artifact | Path |
 |----------|------|
-| Static audit zip | `logs/audit_pack_20260807.zip` (operator-local; regenerate: `.\scripts\export_audit_pack.ps1`) |
+| Static audit zip | `logs/audit_pack_20260807.zip` (operator-local; regenerate: [AUDIT_PACK_CHECKLIST.md](AUDIT_PACK_CHECKLIST.md) → `.\scripts\export_audit_pack.ps1`) |
 | Tip-v2 **48h soak PASS** | `docs/evidence/runs/375d14f/` (`passed=true`, fail=0, mesh_warn=0, Aug 5–7 2026) |
 | Phase 3 ops dry-run PASS | `docs/evidence/runs/phase3-da25c34/` |
 | Phase 4 binder READY | `docs/evidence/runs/phase4-691329c/` |

@@ -11,7 +11,7 @@ marketing theater.
 | In-repo industrial gates (`industrial_gate`, `verify_industrial_waves`) | Active | Code/evidence checks — **not** an external audit |
 | Native fuzz (`fuzz-native.yml`) | Active | Coverage-guided / API fuzz — **not** formal verification |
 | Security workflow (`security-audit.yml`) | Active | pip-audit + cargo-audit (scoped pyo3 ignores until PR #7) |
-| Threat model + scope letter | Ready for engagement | [THREAT_MODEL.md](THREAT_MODEL.md) · [AUDIT_SCOPE.md](AUDIT_SCOPE.md) · [AUDIT_ENGAGEMENT_BRIEF.md](AUDIT_ENGAGEMENT_BRIEF.md) · tag `v1.3.1339-tip-v2-industrial` |
+| Threat model + scope letter | Ready for engagement | [THREAT_MODEL.md](THREAT_MODEL.md) · [AUDIT_SCOPE.md](AUDIT_SCOPE.md) · [AUDIT_ENGAGEMENT_BRIEF.md](AUDIT_ENGAGEMENT_BRIEF.md) · [AUDIT_PACK_CHECKLIST.md](AUDIT_PACK_CHECKLIST.md) · tag `v1.3.1339-tip-v2-industrial` |
 | Independent external audit report | **Pending** | Firm TBD — PDF goes under `audits/<firm>/`; tracker must stay open until then (6/8 automated; 2 firm-owned open) |
 | Bug bounty (Immunefi / etc.) | **Not configured** | Disclose via [SECURITY.md](../SECURITY.md) |
 
@@ -34,7 +34,7 @@ Related: [SECURITY.md](../SECURITY.md) · [MAINNET_GAP_ANALYSIS.md](MAINNET_GAP_
 
 Experimental owns libp2p soak (B1). On **this** pin, prefer:
 
-1. External audit engagement prep (`AUDIT_ENGAGEMENT_BRIEF.md`, regenerate audit pack)
+1. External audit engagement prep ([AUDIT_ENGAGEMENT_BRIEF.md](AUDIT_ENGAGEMENT_BRIEF.md), [AUDIT_PACK_CHECKLIST.md](AUDIT_PACK_CHECKLIST.md), regenerate audit pack)
 2. Ops dry-runs (DR / ceremony / bridge-OFF) — no prod secret `-Force` unless cutover day
 3. Actions-only Dependabot when CI green (see table above) — **hold** pyo3 / socket2 majors
 4. Sprout profiles **off** `778888` (staging / L2 / shard lab compose)
