@@ -16,7 +16,7 @@ Canonical docs language is **English**. If GitHub shows a translation, open **Vi
 > **Industrial pin:** [`v1.3.1339-tip-v2-industrial`](https://github.com/Gruver87/Absolute_Blockchain_Ultimate_Hybrid/releases/tag/v1.3.1339-tip-v2-industrial) · tip-v2 48h soak **PASS** · Phase 3–4 ops/audit binder **READY** · external firm audit **still pending**  
 > **Vision (honest scope):** [VISION](docs/VISION.md) · Auditor one-pager → [AUDIT_ENGAGEMENT_BRIEF](docs/AUDIT_ENGAGEMENT_BRIEF.md) · one-screen card → [AT_A_GLANCE](docs/AT_A_GLANCE.md) · proof ledger → [EVIDENCE_MATRIX](docs/EVIDENCE_MATRIX.md)
 
-**Sibling R&D (not this freeze):** [`Gruver87/experimental`](https://github.com/Gruver87/experimental) — rust-libp2p / Long-Range / EVM-depth labs. Default industrial transport here remains **TCP+TLS**. Do not port Experimental kernels onto this pin.
+**Sibling R&D (not this freeze):** [`Gruver87/experimental`](https://github.com/Gruver87/experimental) — libp2p 48h **PASS** (`3c801b87`), Long-Range lab mesh 2h PASS (`lr2hmesh`), B2 lab 48h open. Default industrial transport **here** remains **TCP+TLS**. Do not port Experimental kernels onto this pin.
 
 ---
 
@@ -245,4 +245,4 @@ MIT — [LICENSE](LICENSE)
 ---
 
 *Author: ULADZIMIR DABRANSKI (D.U.P.) · Owner: [Gruver87](https://github.com/Gruver87) · Default branch: `master`*  
-*Last update: 2026-08-13 — freeze hygiene: `feature_libp2p` / `feature_long_range` hard-off on prod. Audit pin tag `v1.3.1339-tip-v2-industrial` unchanged. External firm audit still pending. Not a launched public mainnet.*
+*Last update: 2026-09-04 — sibling honesty: Experimental libp2p 48h PASS (`3c801b87`); Hybrid pin stays TCP+TLS / `feature_*` off. Audit pin `v1.3.1339-tip-v2-industrial` unchanged. External firm audit still pending. Not a launched public mainnet.*

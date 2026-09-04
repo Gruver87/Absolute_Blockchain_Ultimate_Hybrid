@@ -53,8 +53,9 @@ Gaps stay listed: [MAINNET_GAP_ANALYSIS](MAINNET_GAP_ANALYSIS.md)
 ## Experimental (sibling) in one paragraph
 
 [`experimental`](https://github.com/Gruver87/experimental) is the R&D sandbox: rust-libp2p (ADR 0019/0020), Long-Range WS labs (ADR 0017), EVM depth / RPC honesty.  
-**Blocker B1:** libp2p 48h soak is **not PASS** (prior FAIL runs; 2h smoke PASS). Sequence: [EXECUTION_ORDER](https://github.com/Gruver87/experimental/blob/main/docs/EXECUTION_ORDER.md).  
-Lab PASS ≠ Hybrid cutover ≠ public mainnet.
+**B1 closed:** Experimental libp2p 48h soak **PASS** [`3c801b87`](https://github.com/Gruver87/experimental/tree/main/docs/evidence/runs/3c801b87) (2026-09-01→03).  
+**B2 open:** Long-Range lab 48h (mesh 2h PASS [`lr2hmesh`](https://github.com/Gruver87/experimental/tree/main/docs/evidence/runs/lr2hmesh)). Sequence: [EXECUTION_ORDER](https://github.com/Gruver87/experimental/blob/main/docs/EXECUTION_ORDER.md).  
+Lab/Experimental PASS ≠ Hybrid cutover ≠ public mainnet. This pin stays **TCP+TLS**; `feature_libp2p` / `feature_long_range` remain **false**.
 
 ---
 
@@ -63,7 +64,7 @@ Lab PASS ≠ Hybrid cutover ≠ public mainnet.
 1. Read this page + [AT_A_GLANCE](AT_A_GLANCE.md).
 2. Open [AUDIT_ENGAGEMENT_BRIEF](AUDIT_ENGAGEMENT_BRIEF.md) (auditor path) or [EVIDENCE_MATRIX](EVIDENCE_MATRIX.md) (proof path).
 3. Skim [MAINNET_GAP_ANALYSIS](MAINNET_GAP_ANALYSIS.md) — what we refuse to pretend is done.
-4. If reviewing transport / Long-Range: Experimental [EXECUTION_ORDER](https://github.com/Gruver87/experimental/blob/main/docs/EXECUTION_ORDER.md) and blockers.
+4. If reviewing transport / Long-Range: Experimental [EXECUTION_ORDER](https://github.com/Gruver87/experimental/blob/main/docs/EXECUTION_ORDER.md) (B1 closed; B2 open).
 
 ---
 
@@ -75,4 +76,4 @@ Lab PASS ≠ Hybrid cutover ≠ public mainnet.
 
 Author: **Uladzimir Dabranski (D.U.P.)** · GitHub: [Gruver87](https://github.com/Gruver87)
 
-*Last updated: 2026-08-28*
+*Last updated: 2026-09-04*

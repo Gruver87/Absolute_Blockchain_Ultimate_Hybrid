@@ -30,13 +30,13 @@ Do **not** mark tracker items complete with template notes.
 
 Related: [SECURITY.md](../SECURITY.md) · [MAINNET_GAP_ANALYSIS.md](MAINNET_GAP_ANALYSIS.md) · [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md) · [INDUSTRIAL_HARDEN_RUNBOOK.md](INDUSTRIAL_HARDEN_RUNBOOK.md) · [DEPENDABOT_TRIAGE.md](DEPENDABOT_TRIAGE.md)
 
-## Safe Hybrid work while Experimental waits on libp2p 48h
+## Safe Hybrid work (Experimental B1 closed; B2 LR lab 48h open)
 
-Experimental owns libp2p soak (B1). On **this** pin, prefer:
+Experimental owns libp2p / Long-Range R&D. **B1** (libp2p 48h) is **PASS** on Experimental — that is **not** a Hybrid transport cutover. On **this** pin, prefer:
 
 1. External audit engagement prep ([AUDIT_ENGAGEMENT_BRIEF.md](AUDIT_ENGAGEMENT_BRIEF.md), [AUDIT_PACK_CHECKLIST.md](AUDIT_PACK_CHECKLIST.md), regenerate audit pack)
 2. Ops dry-runs (DR / ceremony / bridge-OFF) — no prod secret `-Force` unless cutover day
-3. Actions-only Dependabot when CI green (see table above) — **hold** pyo3 / socket2 majors
+3. Actions-only Dependabot when CI green (see [DEPENDABOT_TRIAGE](DEPENDABOT_TRIAGE.md)) — **hold** pyo3 / socket2 majors
 4. Sprout profiles **off** `778888` (staging / L2 / shard lab compose)
 
 **Operator commands (local, no Experimental port):**
@@ -48,4 +48,4 @@ python scripts/external_audit_tracker.py --list
 python scripts/industrial_gate.py
 ```
 
-**Do not:** port libp2p/Long-Range from Experimental · flip refused `feature_*` · claim Experimental TCP+TLS soak `0a7932c4` as Hybrid tip-v2 evidence · start Experimental libp2p 48h from this tree.
+**Do not:** port libp2p/Long-Range from Experimental · flip refused `feature_*` · claim Experimental soaks (`3c801b87`, `0a7932c4`, `lr2hmesh`) as Hybrid tip-v2 evidence · run Experimental soaks from this tree.
