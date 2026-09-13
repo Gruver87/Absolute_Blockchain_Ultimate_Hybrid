@@ -54,7 +54,7 @@ Gaps stay listed: [MAINNET_GAP_ANALYSIS](MAINNET_GAP_ANALYSIS.md)
 
 [`experimental`](https://github.com/Gruver87/experimental) is the R&D sandbox: rust-libp2p (ADR 0019/0020), Long-Range WS labs (ADR 0017), EVM depth / RPC honesty.  
 **B1 closed:** Experimental libp2p 48h soak **PASS** [`3c801b87`](https://github.com/Gruver87/experimental/tree/main/docs/evidence/runs/3c801b87) (2026-09-01→03).  
-**B2 open:** Long-Range lab 48h (mesh 2h PASS [`lr2hmesh`](https://github.com/Gruver87/experimental/tree/main/docs/evidence/runs/lr2hmesh)). Sequence: [EXECUTION_ORDER](https://github.com/Gruver87/experimental/blob/main/docs/EXECUTION_ORDER.md).  
+**B1/B2/Phase3 closed (Experimental, lab/mesh):** libp2p [`3c801b87`](https://github.com/Gruver87/experimental/tree/main/docs/evidence/runs/3c801b87) · LR lab [`lr48pass1`](https://github.com/Gruver87/experimental/tree/main/docs/evidence/runs/lr48pass1) · post-EVM mesh [`evm48pass1`](https://github.com/Gruver87/experimental/tree/main/docs/evidence/runs/evm48pass1). **Not** Hybrid evidence. **Not** BLS / prod Long-Range / EVM-only / mainnet. Sequence: [EXECUTION_ORDER](https://github.com/Gruver87/experimental/blob/main/docs/EXECUTION_ORDER.md).  
 Lab/Experimental PASS ≠ Hybrid cutover ≠ public mainnet. This pin stays **TCP+TLS**; `feature_libp2p` / `feature_long_range` remain **false**.
 
 ---
@@ -64,7 +64,7 @@ Lab/Experimental PASS ≠ Hybrid cutover ≠ public mainnet. This pin stays **TC
 1. Read this page + [AT_A_GLANCE](AT_A_GLANCE.md).
 2. Open [AUDIT_ENGAGEMENT_BRIEF](AUDIT_ENGAGEMENT_BRIEF.md) (auditor path) or [EVIDENCE_MATRIX](EVIDENCE_MATRIX.md) (proof path).
 3. Skim [MAINNET_GAP_ANALYSIS](MAINNET_GAP_ANALYSIS.md) — what we refuse to pretend is done.
-4. If reviewing transport / Long-Range: Experimental [EXECUTION_ORDER](https://github.com/Gruver87/experimental/blob/main/docs/EXECUTION_ORDER.md) (B1 closed; B2 open).
+4. If reviewing transport / Long-Range / EVM depth: Experimental [EXECUTION_ORDER](https://github.com/Gruver87/experimental/blob/main/docs/EXECUTION_ORDER.md) (B1/B2/Phase3 closed; B3 ADR 0021 next).
 
 ---
 

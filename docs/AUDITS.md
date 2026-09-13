@@ -30,7 +30,7 @@ Do **not** mark tracker items complete with template notes.
 
 Related: [SECURITY.md](../SECURITY.md) · [MAINNET_GAP_ANALYSIS.md](MAINNET_GAP_ANALYSIS.md) · [EVIDENCE_MATRIX.md](EVIDENCE_MATRIX.md) · [INDUSTRIAL_HARDEN_RUNBOOK.md](INDUSTRIAL_HARDEN_RUNBOOK.md) · [DEPENDABOT_TRIAGE.md](DEPENDABOT_TRIAGE.md)
 
-## Safe Hybrid work (Experimental B1 closed; B2 LR lab 48h open)
+## Safe Hybrid work (Experimental B1/B2/Phase3 closed; B3 ADR 0021 next on sibling)
 
 Experimental owns libp2p / Long-Range R&D. **B1** (libp2p 48h) is **PASS** on Experimental — that is **not** a Hybrid transport cutover. On **this** pin, prefer:
 
@@ -48,4 +48,4 @@ python scripts/external_audit_tracker.py --list
 python scripts/industrial_gate.py
 ```
 
-**Do not:** port libp2p/Long-Range from Experimental · flip refused `feature_*` · claim Experimental soaks (`3c801b87`, `0a7932c4`, `lr2hmesh`) as Hybrid tip-v2 evidence · run Experimental soaks from this tree.
+**Do not:** port libp2p/Long-Range from Experimental · flip refused `feature_*` · claim Experimental soaks (`3c801b87`, `0a7932c4`, `lr2hmesh`, `lr48pass1`, `evm48pass1`) as Hybrid tip-v2 evidence · run Experimental soaks from this tree.

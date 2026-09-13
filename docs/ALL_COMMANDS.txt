@@ -586,7 +586,8 @@ python scripts/industrial_gate.py
 # Параллельный batch (labs + unit subset + gate):
 python scripts/verify_parallel_rd_batch.py
 
-# Long-Range preflight (2h/48h NOT started без команды):
+# Long-Range (Experimental only): lab 48h PASS lr48pass1 on sibling; prod feature_long_range=false.
+# Start new LR soaks only with explicit operator command on Experimental:
 python scripts/long_range_lab_2h_harness.py
 python -m pytest tests/unit -k long_range -q
 
@@ -598,7 +599,7 @@ python scripts/package_libp2p_evidence.py
 
 # Execution order / blockers:
 #   docs/EXECUTION_ORDER.md
-#   B1 libp2p 48h · B2 LR soak · B3 mempool Rust phases
+#   B1/B2/Phase3 CLOSED on Experimental (3c801b87, lr48pass1, evm48pass1) · B3 ADR 0021 NEXT · Hybrid pin unrelated
 
 
 # =============================================================================
